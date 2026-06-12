@@ -14,7 +14,7 @@ pyarrow>=14.0.0
 # Upstox adapter
 protobuf>=5.0.0
 grpcio-tools>=1.60.0
-aiohttp>=3.9.0
+aiohttp>=3.14.1
 pyjwt>=2.8.0
 websockets>=12.0
 
