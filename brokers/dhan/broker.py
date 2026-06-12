@@ -504,15 +504,8 @@ class DhanBroker(BrokerConnection, Broker):
         underlying (e.g. NIFTY lives on IDX_I, not NSE_FNO).
         Falls back to the seed table if the catalog has not been loaded yet.
         """
-        try:
-            defn = self.instrument_service.resolve_underlying(underlying, exchange_segment)
-            security_id = defn.security_id
-            seg = defn.exchange_segment
-        except (ValueError, AttributeError):
-            exchange = InstrumentRegistry.canonical_exchange(exchange_segment)
-            security_id = self.instrument_service.resolve_security_id(underlying, exchange)
-            seg = exchange_segment
-        return self.options.get_expiries(security_id, seg)
+        exchange = InstrumentRegistry.canonical_exchange(exchange_segment)
+        return self.options.get_expiries_for_symbol(underlying, exchange)
 
     def get_option_chain_rest(
         self,
@@ -525,15 +518,8 @@ class DhanBroker(BrokerConnection, Broker):
         Resolves the securityId from the catalog before calling the
         options adapter.
         """
-        try:
-            defn = self.instrument_service.resolve_underlying(underlying, exchange_segment)
-            security_id = defn.security_id
-            seg = defn.exchange_segment
-        except (ValueError, AttributeError):
-            exchange = InstrumentRegistry.canonical_exchange(exchange_segment)
-            security_id = self.instrument_service.resolve_security_id(underlying, exchange)
-            seg = exchange_segment
-        return self.options.get_option_chain(security_id, seg, expiry)
+        exchange = InstrumentRegistry.canonical_exchange(exchange_segment)
+        return self.options.get_option_chain_for_symbol(underlying, exchange, expiry)
 
     # ── REST margin surface ──────────────────────────────────────────
 
@@ -945,10 +931,7 @@ class DhanBroker(BrokerConnection, Broker):
 
         # New standard signature
         exchange = str(exchange_or_segment).upper()
-        segment = self.instrument_service.resolve_exchange_segment(exchange)
-        security_id = self.instrument_service.resolve_security_id(symbol_or_sec_id, exchange)
-
-        quote = self.market_data.get_quote(security_id, segment, "quote")
+        quote = self.market_data.get_quote_for_symbol(symbol_or_sec_id, exchange, "quote")
         records = [
             {
                 "symbol": symbol_or_sec_id,
@@ -1009,71 +992,14 @@ class DhanBroker(BrokerConnection, Broker):
                 interval=interval,
             )
 
-        # New standard signature
+        # New standard signature — resolution lives in the market adapter.
         exchange = str(exchange_or_segment).upper()
-        # M3: resolve via the canonical InstrumentService.  This is the
-        # single source of truth for security_id (replaces the legacy
-        # ``self.instrument_resolver.resolve_security_id`` call).  In
-        # strict mode (default) an unknown symbol raises
-        # :class:`InstrumentNotFoundError`; in lenient mode the input
-        # symbol is passed through unchanged.
-        security_id = self.instrument_service.resolve_security_id(symbol_or_sec_id, exchange)
-
-        # M4 (F13): derive the ``instrument`` payload field from the
-        # resolved definition's actual instrument type, *not* a silent
-        # default.  Pre-fix this block had ``except Exception: pass``
-        # which meant a NIFTY index request went to Dhan as
-        # ``instrument=EQUITY`` when the catalog was empty — the
-        # upstream 4xx left operators staring at a 4xx with no clue.
-        result = self.instrument_service.resolve_symbol(symbol_or_sec_id, exchange)
-        defn = result.definition
-        if defn is None:
-            # Could be ambiguous (NSE vs BSE for RELIANCE) — re-anchor
-            # the lookup by SID + segment, which is unambiguous.
-            defn = self.instrument_service.get_definition(
-                security_id,
-                result.candidates[0].exchange_segment
-                if result.candidates
-                else self.instrument_service.resolve_exchange_segment(exchange),
-            )
-        if defn is None:
-            raise InstrumentNotFoundError(
-                symbol_or_sec_id,
-                exchange,
-                candidates=result.candidates,
-                reason=(
-                    "Cannot derive instrument type for historical request: "
-                    "no canonical definition found"
-                ),
-            )
-        if defn.is_index:
-            instrument_param = "INDEX"
-        elif defn.is_future:
-            instrument_param = "FUTURES"
-        elif defn.is_option:
-            instrument_param = "OPTIONS"
-        elif defn.is_commodity:
-            instrument_param = "COMMODITY"
-        elif defn.is_currency:
-            instrument_param = "CURRENCY"
-        else:
-            instrument_param = "EQUITY"
-        segment = defn.exchange_segment
-
-        tf = timeframe_or_interval.lower()
-        if tf in ("1d", "d", "daily"):
-            interval = None
-        else:
-            numeric_part = "".join(filter(str.isdigit, tf))
-            interval = numeric_part if numeric_part else "1"
-
-        candles = self.market_data.get_historical_intraday(
-            security_id,
-            segment,
+        candles = self.market_data.get_historical_intraday_for_symbol(
+            symbol_or_sec_id,
+            exchange,
             from_date,
             to_date,
-            interval=interval,
-            instrument=instrument_param,
+            timeframe=timeframe_or_interval,
         )
 
         records = []
@@ -1139,12 +1065,10 @@ class DhanBroker(BrokerConnection, Broker):
                 expiry,
             )
 
-        # New standard signature
+        # New standard signature — underlying routing lives in options adapter.
         underlying = underlying_or_segment
         exchange = str(exchange_or_underlying).upper()
-        segment = self.instrument_service.resolve_exchange_segment(exchange)
-        security_id = self.instrument_service.resolve_security_id(underlying, exchange)
-        contracts = self.options.get_option_chain(security_id, segment, expiry)
+        contracts = self.options.get_option_chain_for_symbol(underlying, exchange, expiry)
 
         records = []
         for c in contracts:
@@ -1229,9 +1153,7 @@ class DhanBroker(BrokerConnection, Broker):
         symbol: str,
         exchange: str,
     ) -> pd.DataFrame:
-        segment = self.instrument_service.resolve_exchange_segment(exchange)
-        security_id = self.instrument_service.resolve_security_id(symbol, exchange)
-        depth = self.market_data.get_depth(security_id, segment)
+        depth = self.market_data.get_depth_for_symbol(symbol, exchange)
         record = {
             "symbol": symbol,
             "timestamp": depth.timestamp or datetime.now(),

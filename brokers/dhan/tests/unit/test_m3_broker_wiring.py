@@ -85,6 +85,8 @@ class TestBrokerInstrumentServiceWiring:
         assert broker.order_command._instrument_service is broker.instrument_service
         assert broker.order_validator._instrument_service is broker.instrument_service
         assert broker.futures._instrument_service is broker.instrument_service
+        assert broker.market_data._instrument_service is broker.instrument_service
+        assert broker.options._instrument_service is broker.instrument_service
 
     def test_broker_inherits_strict_resolution_setting(self, tmp_path: Path) -> None:
         """When no service is passed, the broker must use the settings.strict flag."""

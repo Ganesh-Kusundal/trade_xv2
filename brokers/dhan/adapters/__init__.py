@@ -151,10 +151,11 @@ class DhanAdapterFactory:
         market_data = DhanMarketDataProvider(
             market_data_client,
             options_client,
+            self._instrument_service,
             order_stream_provider=order_stream,
         )
         portfolio = DhanPortfolioProvider(portfolio_client)
-        options = DhanOptionsAdapter(options_client)
+        options = DhanOptionsAdapter(options_client, self._instrument_service)
         margin = DhanMarginProvider(margin_client)
         market_status = DhanMarketStatusProvider()
 

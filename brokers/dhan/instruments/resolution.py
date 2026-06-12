@@ -17,3 +17,19 @@ class ResolvedInstrument:
     exchange_segment: ExchangeSegment
     wire_segment: str
     canonical_exchange: str
+
+    @property
+    def dhan_historical_instrument(self) -> str:
+        """Dhan REST ``instrument`` payload value for historical endpoints."""
+        defn = self.definition
+        if defn.is_index:
+            return "INDEX"
+        if defn.is_future:
+            return "FUTURES"
+        if defn.is_option:
+            return "OPTIONS"
+        if defn.is_commodity:
+            return "COMMODITY"
+        if defn.is_currency:
+            return "CURRENCY"
+        return "EQUITY"

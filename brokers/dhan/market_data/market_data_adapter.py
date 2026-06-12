@@ -13,6 +13,8 @@ from brokers.common.core.models import (
     OptionContract,
     Quote,
 )
+from brokers.dhan.instrument_service import InstrumentService
+from brokers.dhan.instruments.mixin import DhanInstrumentMixin
 from brokers.dhan.market_data.depth.provider import DhanMarketDepthProvider
 from brokers.dhan.market_data.market_data import DhanMarketDataClient
 from brokers.dhan.market_data.options import DhanOptionsClient
@@ -30,18 +32,20 @@ class OrderStreamNotConfigured(RuntimeError):
     """
 
 
-class DhanMarketDataProvider(MarketDataProvider):
+class DhanMarketDataProvider(MarketDataProvider, DhanInstrumentMixin):
     """Trade_J-style market data adapter over Dhan REST clients."""
 
     def __init__(
         self,
         market_data_client: DhanMarketDataClient,
         options_client: DhanOptionsClient,
+        instrument_service: InstrumentService,
         depth_provider: DhanMarketDepthProvider | None = None,
         order_stream_provider: DhanOrderStreamProvider | None = None,
     ) -> None:
         self._market_data_client = market_data_client
         self._options_client = options_client
+        self._instrument_service = instrument_service
         self._depth_provider = depth_provider
         # F14 (M4): the order stream provider is now a required-to-wire
         # constructor argument.  Previously the adapter reached for
@@ -72,6 +76,15 @@ class DhanMarketDataProvider(MarketDataProvider):
         mode: str = "quote",
     ) -> Quote:
         return self._market_data_client.get_quote(security_id, exchange_segment, mode)
+
+    def get_quote_for_symbol(
+        self,
+        symbol: str,
+        exchange: str,
+        mode: str = "quote",
+    ) -> Quote:
+        resolved = self._resolve_market(symbol, exchange)
+        return self.get_quote(resolved.security_id, resolved.exchange_segment, mode)
 
     def get_historical_daily(
         self,
@@ -107,6 +120,33 @@ class DhanMarketDataProvider(MarketDataProvider):
             instrument=instrument,
         )
 
+    def get_historical_intraday_for_symbol(
+        self,
+        symbol: str,
+        exchange: str,
+        from_date: date,
+        to_date: date,
+        *,
+        interval: str | None = None,
+        timeframe: str = "1d",
+    ) -> list[HistoricalCandle]:
+        resolved = self._resolve_market(symbol, exchange)
+        if interval is None:
+            tf = timeframe.lower()
+            if tf in ("1d", "d", "daily"):
+                interval = None
+            else:
+                numeric_part = "".join(filter(str.isdigit, tf))
+                interval = numeric_part if numeric_part else "1"
+        return self.get_historical_intraday(
+            resolved.security_id,
+            resolved.exchange_segment,
+            from_date,
+            to_date,
+            interval=interval,
+            instrument=resolved.dhan_historical_instrument,
+        )
+
     def get_option_chain(
         self,
         underlying: str,
@@ -127,6 +167,10 @@ class DhanMarketDataProvider(MarketDataProvider):
         if self._depth_provider:
             return self._depth_provider.get_depth(security_id, exchange_segment)
         return self._market_data_client.get_depth(security_id, exchange_segment)
+
+    def get_depth_for_symbol(self, symbol: str, exchange: str) -> MarketDepth:
+        resolved = self._resolve_market(symbol, exchange)
+        return self.get_depth(resolved.security_id, resolved.exchange_segment)
 
     def get_option_expiries(
         self,

@@ -32,6 +32,7 @@ def _build_provider(order_stream_provider=None) -> DhanMarketDataProvider:
     return DhanMarketDataProvider(
         market_data_client=MagicMock(),
         options_client=MagicMock(),
+        instrument_service=MagicMock(),
         order_stream_provider=order_stream_provider,
     )
 

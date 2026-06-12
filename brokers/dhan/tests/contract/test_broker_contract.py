@@ -59,6 +59,11 @@ class TestDhanBrokerContract(BrokerContractSuite):
         monkeypatch.setattr(
             broker.market_data, "get_historical_intraday", lambda *args, **kwargs: mock_candles
         )
+        monkeypatch.setattr(
+            broker.market_data,
+            "get_historical_intraday_for_symbol",
+            lambda *args, **kwargs: mock_candles,
+        )
 
         # 3. Mock get_quote
         from brokers.common.core.models import Quote
@@ -72,6 +77,9 @@ class TestDhanBrokerContract(BrokerContractSuite):
             ask=Decimal("2501"),
         )
         monkeypatch.setattr(broker.market_data, "get_quote", lambda *args, **kwargs: mock_quote)
+        monkeypatch.setattr(
+            broker.market_data, "get_quote_for_symbol", lambda *args, **kwargs: mock_quote
+        )
 
         # 4. Mock get_option_chain
         from brokers.common.core.models import OptionContract
@@ -91,6 +99,11 @@ class TestDhanBrokerContract(BrokerContractSuite):
         monkeypatch.setattr(
             broker.options, "get_option_chain", lambda *args, **kwargs: mock_contracts
         )
+        monkeypatch.setattr(
+            broker.options,
+            "get_option_chain_for_symbol",
+            lambda *args, **kwargs: mock_contracts,
+        )
 
         # 5. Mock get_depth
         from brokers.common.core.models import MarketDepth, MarketDepthLevel
@@ -101,6 +114,9 @@ class TestDhanBrokerContract(BrokerContractSuite):
             asks=[MarketDepthLevel(price=Decimal("2501"), quantity=100)],
         )
         monkeypatch.setattr(broker.market_data, "get_depth", lambda *args, **kwargs: mock_depth)
+        monkeypatch.setattr(
+            broker.market_data, "get_depth_for_symbol", lambda *args, **kwargs: mock_depth
+        )
 
         # 6. Mock place_order
         from brokers.common.core.models import OrderResponse
