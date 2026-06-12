@@ -1,7 +1,7 @@
 # TradeXV2 — Python Trading Framework
 
-[![CI](https://github.com/YOUR_ORG/Trade_XV2/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_ORG/Trade_XV2/actions/workflows/ci.yml)
-[![Coverage](https://codecov.io/gh/YOUR_ORG/Trade_XV2/branch/main/graph/badge.svg)](https://codecov.io/gh/YOUR_ORG/Trade_XV2)
+[![CI](https://github.com/Ganesh-Kusundal/trade_xv2/actions/workflows/ci.yml/badge.svg)](https://github.com/Ganesh-Kusundal/trade_xv2/actions/workflows/ci.yml)
+[![Coverage](https://codecov.io/gh/Ganesh-Kusundal/trade_xv2/branch/main/graph/badge.svg)](https://codecov.io/gh/Ganesh-Kusundal/trade_xv2)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 
@@ -318,6 +318,5 @@ pytest tests/performance
 Standalone diagnostics:
 
 ```bash
-python check_dhan.py            # Dhan connectivity walk-through
 python scripts/debug/broker_load_check.py
 ```
