@@ -1,0 +1,140 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tradexv2"
+version = "0.1.0"
+description = "Python-based, broker-agnostic algorithmic trading framework for Indian exchanges"
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.31",
+    "pandas>=2.0",
+    "pydantic>=2.5",
+    "rich>=13.0",
+    "textual>=0.40",
+    "python-dotenv>=1.0",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=4.1",
+    "ruff>=0.1",
+    "mypy>=1.7",
+    "pre-commit>=3.5",
+    "bandit>=1.7",
+    "pip-audit>=2.6",
+]
+
+[project.entry-points."tradex.brokers"]
+# Phase 2 will populate these; leave empty for Phase 0
+# dhan = "brokers.dhan:DhanBroker"
+# upstox = "brokers.upstox:UpstoxBroker"
+# paper = "brokers.paper:PaperBroker"
+
+[tool.setuptools.packages.find]
+include = ["brokers*", "cli*", "oms*", "event_bus*", "portfolio*", "risk*", "strategy*", "backtesting*", "replay*"]
+
+# ─── pytest ────────────────────────────────────────────────
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests", "brokers"]
+markers = [
+    "unit: module-owned unit tests",
+    "contract: broker/module contract tests",
+    "dhan: DhanHQ integration tests",
+    "integration: tests that call external broker APIs",
+    "sandbox: sandbox tests that may place and cancel orders",
+    "live_readonly: live tests that must only read from real endpoints",
+    "performance: latency and throughput benchmarks",
+    "upstox: Upstox-specific unit tests",
+    "upstox_integration: Upstox integration tests (gated by UPSTOX_INTEGRATION=1)",
+    "upstox_sandbox: sandbox tests that may place and cancel orders",
+    "upstox_live_readonly: live tests that must only read from real endpoints",
+    "upstox_sdk_compat: SDK compatibility tests",
+    "stress: long-running concurrency stress tests",
+]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-ra --strict-markers --tb=short"
+
+# ─── coverage ─────────────────────────────────────────────
+[tool.coverage.run]
+source = ["brokers"]
+omit = [
+    "*/tests/*",
+    "*/__init__.py",
+    "*/tests/run.py",
+]
+
+[tool.coverage.report]
+fail_under = 60
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "\\.\\.\\.",
+]
+show_missing = true
+
+# ─── mypy ─────────────────────────────────────────────────
+[tool.mypy]
+python_version = "3.10"
+strict = false
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_return_any = true
+ignore_missing_imports = true
+exclude = [
+    "tests/",
+    "scripts/",
+    "build/",
+    "dist/",
+]
+
+[[tool.mypy.overrides]]
+module = ["dhanhq.*"]
+ignore_missing_imports = true
+
+# ─── ruff ─────────────────────────────────────────────────
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = [".cache", "runtime", "build", "dist"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+    "G",   # flake8-logging-format
+    "N",   # pep8-naming
+    "RUF", # ruff-specific
+    "S",   # flake8-bandit (security)
+    "C4",  # flake8-comprehensions
+    "SIM", # flake8-simplify
+]
+ignore = [
+    "E501",  # line-too-long (handled by formatter)
+    "B008",  # function-call-in-default-argument (common in FastAPI/Django)
+    "S101",  # assert (we use asserts in tests)
+    "S104",  # hardcoded-bind-all-interfaces (we control the env)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S", "B011"]
+"scripts/**/*.py" = ["S", "E", "F"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"

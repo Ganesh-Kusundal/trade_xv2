@@ -1,0 +1,36 @@
+# Environment files
+.env
+.env.local
+.env.*
+!.env.example
+
+# Dhan secret files
+config/dhan-pin.txt
+config/dhan-totp-secret.txt
+
+# Runtime/token state
+runtime/
+runtime-dev/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Phase 0 additions
+.cache/
+.runtime/
+.env.local
+.env.local.sandbox
+.env.local.live_readonly
+.coverage.*
+.mypy_cache/
+.ruff_cache/
+.DS_Store
+*.egg-info/
+build/
+dist/

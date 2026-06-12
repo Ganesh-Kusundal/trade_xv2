@@ -1,0 +1,602 @@
+"""Upstox <-> Trade_XV2 domain mapper.
+
+Mirrors Trade_J ``UpstoxDomainMapper``: maps between Upstox REST payloads and
+the common ``OrderRequest``/``Order``/``Quote``/``Position``/etc. Pydantic
+models, normalises status strings, and converts wire product / validity /
+order-type enums to the canonical Trade_XV2 enums.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime
+from decimal import Decimal
+from typing import Any
+
+from brokers.common.core.enums import (
+    ExchangeSegment,
+    InstrumentType,
+    OrderStatus,
+    OrderType,
+    ProductType,
+    TransactionType,
+    Validity,
+)
+from brokers.common.core.models import (
+    FundLimits,
+    HistoricalCandle,
+    Holding,
+    MarketDepth,
+    OptionContract,
+    Order,
+    OrderRequest,
+    OrderResponse,
+    Position,
+    Quote,
+    Trade,
+)
+
+from .price_parser import UpstoxPriceParser
+
+_PRODUCT_TO_WIRE = {
+    ProductType.INTRADAY: "I",
+    ProductType.CNC: "D",
+    ProductType.MARGIN: "M",
+    ProductType.MTF: "MTF",
+}
+_WIRE_TO_PRODUCT = {v: k for k, v in _PRODUCT_TO_WIRE.items() if v not in ("D",)}
+
+_VALIDITY_TO_WIRE = {
+    Validity.DAY: "DAY",
+    Validity.IOC: "IOC",
+}
+_WIRE_TO_VALIDITY = {v: k for k, v in _VALIDITY_TO_WIRE.items()}
+
+_ORDER_TYPE_TO_WIRE = {
+    OrderType.MARKET: "MARKET",
+    OrderType.LIMIT: "LIMIT",
+    OrderType.STOP_LOSS: "SL",
+    OrderType.STOP_LOSS_MARKET: "SL-M",
+}
+_WIRE_TO_ORDER_TYPE = {v: k for k, v in _ORDER_TYPE_TO_WIRE.items()}
+
+_TXN_TO_WIRE = {
+    TransactionType.BUY: "BUY",
+    TransactionType.SELL: "SELL",
+}
+_WIRE_TO_TXN = {v: k for k, v in _TXN_TO_WIRE.items()}
+
+_STATUS_NORMALISATION = {
+    "put order req received": OrderStatus.PENDING,
+    "open pending": OrderStatus.PENDING,
+    "open": OrderStatus.OPEN,
+    "open order": OrderStatus.OPEN,
+    "trigger pending": OrderStatus.TRIGGER_PENDING,
+    "trigger order": OrderStatus.TRIGGER_PENDING,
+    "complete": OrderStatus.EXECUTED,
+    "filled": OrderStatus.EXECUTED,
+    "executed": OrderStatus.EXECUTED,
+    "partially filled": OrderStatus.PARTIALLY_EXECUTED,
+    "partially executed": OrderStatus.PARTIALLY_EXECUTED,
+    "cancelled": OrderStatus.CANCELLED,
+    "cancel pending": OrderStatus.CANCELLED,
+    "rejected": OrderStatus.REJECTED,
+    "rejected by broker": OrderStatus.REJECTED,
+    "rejected by exchange": OrderStatus.REJECTED,
+    "modified": OrderStatus.OPEN,
+    "modified pending": OrderStatus.OPEN,
+    "after market order req received": OrderStatus.PENDING,
+    "amo": OrderStatus.PENDING,
+    "expired": OrderStatus.CANCELLED,
+    "margin traded": OrderStatus.PARTIALLY_EXECUTED,
+}
+
+
+def _wire_status_to_order_status(raw: str) -> OrderStatus:
+    if not raw:
+        return OrderStatus.PENDING
+    key = raw.strip().lower()
+    return _STATUS_NORMALISATION.get(key, OrderStatus.PENDING)
+
+
+def _str_or_none(value: Any) -> str | None:
+    if value is None:
+        return None
+    s = str(value)
+    return s if s else None
+
+
+def _to_decimal(value: Any, default: Decimal = Decimal("0")) -> Decimal:
+    if value is None or value == "":
+        return default
+    try:
+        return Decimal(str(value))
+    except Exception:
+        return default
+
+
+def _to_int(value: Any, default: int = 0) -> int:
+    if value is None or value == "":
+        return default
+    try:
+        return int(value)
+    except Exception:
+        return default
+
+
+def _parse_iso(value: Any) -> datetime | None:
+    if not value:
+        return None
+    if isinstance(value, int | float):
+        try:
+            return datetime.fromtimestamp(float(value))
+        except (ValueError, OSError):
+            return None
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    return None
+
+
+class UpstoxDomainMapper:
+    """Static, side-effect-free converters between Upstox wire payloads and
+    Trade_XV2 Pydantic models.
+    """
+
+    @staticmethod
+    def normalize_status(raw_status: str) -> OrderStatus:
+        return _wire_status_to_order_status(raw_status)
+
+    @staticmethod
+    def product_to_wire(product: ProductType) -> str:
+        return _PRODUCT_TO_WIRE.get(product, "I")
+
+    @staticmethod
+    def product_from_wire(raw: str) -> ProductType:
+        raw = (raw or "").upper()
+        if raw in ("D", "DELIVERY"):
+            return ProductType.CNC
+        if raw in ("I", "INTRADAY", "MIS"):
+            return ProductType.INTRADAY
+        if raw in ("M", "MARGIN"):
+            return ProductType.MARGIN
+        if raw in ("MTF",):
+            return ProductType.MTF
+        return ProductType.INTRADAY
+
+    @staticmethod
+    def validity_to_wire(validity: Validity) -> str:
+        return _VALIDITY_TO_WIRE.get(validity, "DAY")
+
+    @staticmethod
+    def validity_from_wire(raw: str) -> Validity:
+        raw = (raw or "").upper()
+        return _WIRE_TO_VALIDITY.get(raw, Validity.DAY)
+
+    @staticmethod
+    def order_type_to_wire(order_type: OrderType) -> str:
+        return _ORDER_TYPE_TO_WIRE.get(order_type, "MARKET")
+
+    @staticmethod
+    def order_type_from_wire(raw: str) -> OrderType:
+        raw = (raw or "").upper()
+        if raw in ("MARKET", "MKT"):
+            return OrderType.MARKET
+        if raw in ("LIMIT", "LMT"):
+            return OrderType.LIMIT
+        if raw in ("SL", "STOP_LOSS", "STOPLOSS"):
+            return OrderType.STOP_LOSS
+        if raw in ("SL-M", "SLM", "STOP_LOSS_MARKET", "STOPLOSS_MARKET"):
+            return OrderType.STOP_LOSS_MARKET
+        return OrderType.MARKET
+
+    @staticmethod
+    def txn_to_wire(txn: TransactionType) -> str:
+        return _TXN_TO_WIRE.get(txn, "BUY")
+
+    @staticmethod
+    def txn_from_wire(raw: str) -> TransactionType:
+        raw = (raw or "").upper()
+        return _WIRE_TO_TXN.get(raw, TransactionType.BUY)
+
+    @staticmethod
+    def segment_from_wire(segment: str) -> ExchangeSegment:
+        from ..instruments.segment_mapper import UpstoxSegmentMapper
+
+        return UpstoxSegmentMapper.to_safe(segment)
+
+    @staticmethod
+    def segment_to_wire(segment: ExchangeSegment) -> str:
+        from ..instruments.segment_mapper import UpstoxSegmentMapper
+
+        return UpstoxSegmentMapper.to_wire(segment)
+
+    @staticmethod
+    def instrument_type_from_wire(raw: str) -> InstrumentType:
+        raw = (raw or "").upper()
+        if raw in ("EQ", "EQUITY", "STOCK"):
+            return InstrumentType.EQUITY
+        if raw in ("FUT", "FUTURE", "FUTURES"):
+            return InstrumentType.FUTURES
+        if raw in ("OPT", "OPTION", "OPTIONS"):
+            return InstrumentType.OPTIONS
+        if raw in ("IDX", "INDEX"):
+            return InstrumentType.INDEX
+        if raw in ("COM", "COMMODITY"):
+            return InstrumentType.COMMODITY
+        if raw in ("CUR", "CURRENCY"):
+            return InstrumentType.CURRENCY
+        return InstrumentType.EQUITY
+
+    @staticmethod
+    def to_place_payload(
+        request: OrderRequest,
+        instrument_key: str,
+        *,
+        algo_name: str | None = None,
+        market_protection: int | None = None,
+        slice_orders: bool = False,
+    ) -> dict[str, Any]:
+        is_market = request.order_type == OrderType.MARKET
+        price_value = (
+            0 if is_market else (float(request.price) if request.price and request.price > 0 else 0)
+        )
+        payload: dict[str, Any] = {
+            "quantity": request.quantity,
+            "product": UpstoxDomainMapper.product_to_wire(request.product_type),
+            "validity": UpstoxDomainMapper.validity_to_wire(request.validity),
+            "price": price_value,
+            "instrument_token": instrument_key,
+            "order_type": UpstoxDomainMapper.order_type_to_wire(request.order_type),
+            "transaction_type": UpstoxDomainMapper.txn_to_wire(request.transaction_type),
+            "disclosed_quantity": int(getattr(request, "disclosed_quantity", 0) or 0),
+            "trigger_price": float(request.trigger_price) if request.trigger_price else 0,
+            "is_amo": bool(getattr(request, "is_amo", False)),
+        }
+        tag = request.correlation_id or request.tag
+        if tag:
+            payload["tag"] = str(tag)[:40]
+        if getattr(request, "slice", False) or slice_orders:
+            payload["slice"] = True
+        mp = market_protection
+        if mp is None:
+            mp = getattr(request, "market_protection", -1)
+        payload["market_protection"] = int(mp) if mp is not None else -1
+        if algo_name:
+            payload.setdefault("algo_name", algo_name)
+        return payload
+
+    @staticmethod
+    def to_modify_payload(
+        order_id: str,
+        instrument_key: str,
+        *,
+        quantity: int | None = None,
+        price: Decimal | None = None,
+        trigger_price: Decimal | None = None,
+        order_type: OrderType | None = None,
+        validity: Validity | None = None,
+        market_protection: int | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "order_id": order_id,
+            "instrument_token": instrument_key,
+        }
+        if quantity is not None:
+            payload["quantity"] = int(quantity)
+        if price is not None:
+            payload["price"] = float(price)
+        if trigger_price is not None:
+            payload["trigger_price"] = float(trigger_price)
+        if order_type is not None:
+            payload["order_type"] = UpstoxDomainMapper.order_type_to_wire(order_type)
+        if validity is not None:
+            payload["validity"] = UpstoxDomainMapper.validity_to_wire(validity)
+        if market_protection is not None:
+            payload["market_protection"] = int(market_protection)
+        return payload
+
+    @staticmethod
+    def to_order_response(payload: Any) -> OrderResponse:
+        if not isinstance(payload, dict):
+            return OrderResponse.create_failure("Order failed: unexpected response")
+        errors = payload.get("errors")
+        if errors:
+            first = errors[0] if isinstance(errors, list) and errors else {}
+            if isinstance(first, dict):
+                message = first.get("message") or first.get("error") or str(first)
+            else:
+                message = str(first)
+            return OrderResponse.create_failure(message)
+        data = payload.get("data")
+        if isinstance(data, dict):
+            order_id = str(data.get("order_id") or payload.get("order_id") or "")
+        else:
+            order_id = str(payload.get("order_id") or "")
+        if not order_id:
+            remarks = payload.get("remarks") or payload.get("message") or "Order failed"
+            return OrderResponse.create_failure(remarks)
+        return OrderResponse.create_success(order_id, str(data) if data is not None else "")
+
+    @staticmethod
+    def to_quote(payload: Any) -> Quote:
+        if not isinstance(payload, dict):
+            return Quote()
+        data = payload.get("data") if "data" in payload else payload
+        if not isinstance(data, dict):
+            data = {}
+        ohlc = data.get("ohlc") or {}
+        depth = data.get("depth") or {}
+        bid = depth.get("buy") if isinstance(depth, dict) else None
+        ask = depth.get("sell") if isinstance(depth, dict) else None
+        return Quote(
+            symbol=str(data.get("symbol") or data.get("trading_symbol") or ""),
+            exchange=str(data.get("exchange") or ""),
+            exchange_segment=UpstoxDomainMapper.segment_from_wire(
+                str(data.get("exchange_segment") or data.get("segment") or "NSE_EQ")
+            ),
+            last_price=UpstoxPriceParser.parse(data.get("last_price") or data.get("ltp") or 0),
+            open=UpstoxPriceParser.parse(ohlc.get("open") or 0),
+            high=UpstoxPriceParser.parse(ohlc.get("high") or 0),
+            low=UpstoxPriceParser.parse(ohlc.get("low") or 0),
+            close=UpstoxPriceParser.parse(ohlc.get("close") or 0),
+            volume=_to_int(data.get("volume")),
+            bid=UpstoxPriceParser.parse(bid[0].get("price"))
+            if isinstance(bid, list) and bid
+            else None,
+            ask=UpstoxPriceParser.parse(ask[0].get("price"))
+            if isinstance(ask, list) and ask
+            else None,
+            bid_quantity=_to_int(bid[0].get("quantity")) if isinstance(bid, list) and bid else None,
+            ask_quantity=_to_int(ask[0].get("quantity")) if isinstance(ask, list) and ask else None,
+            change=UpstoxPriceParser.parse(data.get("change") or 0),
+            change_percent=UpstoxPriceParser.parse(data.get("change_percent") or 0),
+            timestamp=_parse_iso(data.get("timestamp") or data.get("last_trade_time")),
+        )
+
+    @staticmethod
+    def to_position(payload: Any) -> Position:
+        if not isinstance(payload, dict):
+            return Position()
+        return Position(
+            symbol=str(payload.get("trading_symbol") or payload.get("symbol") or ""),
+            exchange=str(payload.get("exchange") or ""),
+            exchange_segment=UpstoxDomainMapper.segment_from_wire(
+                str(payload.get("exchange_segment") or "NSE_EQ")
+            ),
+            quantity=_to_int(payload.get("net_quantity") or payload.get("quantity")),
+            buy_quantity=_to_int(payload.get("buy_quantity")),
+            sell_quantity=_to_int(payload.get("sell_quantity")),
+            buy_average_price=UpstoxPriceParser.parse(payload.get("buy_average_price") or 0),
+            sell_average_price=UpstoxPriceParser.parse(payload.get("sell_average_price") or 0),
+            net_quantity=_to_int(payload.get("net_quantity")),
+            net_value=UpstoxPriceParser.parse(payload.get("net_value") or 0),
+            unrealized_pnl=UpstoxPriceParser.parse(payload.get("unrealised") or 0),
+            realized_pnl=UpstoxPriceParser.parse(payload.get("realised") or 0),
+            product_type=UpstoxDomainMapper.product_from_wire(str(payload.get("product") or "I")),
+            instrument_type=UpstoxDomainMapper.instrument_type_from_wire(
+                str(payload.get("instrument_type") or "")
+            ),
+            last_price=UpstoxPriceParser.parse(payload.get("last_price") or 0),
+            m2m_pnl=UpstoxPriceParser.parse(payload.get("m2m") or 0),
+        )
+
+    @staticmethod
+    def to_holding(payload: Any) -> Holding:
+        if not isinstance(payload, dict):
+            return Holding()
+        return Holding(
+            symbol=str(payload.get("trading_symbol") or payload.get("symbol") or ""),
+            exchange=str(payload.get("exchange") or ""),
+            exchange_segment=UpstoxDomainMapper.segment_from_wire(
+                str(payload.get("exchange_segment") or "NSE_EQ")
+            ),
+            quantity=_to_int(payload.get("quantity")),
+            available_quantity=_to_int(payload.get("quantity")),
+            cost_price=UpstoxPriceParser.parse(payload.get("average_price") or 0),
+            last_price=UpstoxPriceParser.parse(payload.get("last_price") or 0),
+            pnl_value=UpstoxPriceParser.parse(payload.get("pnl") or 0),
+            instrument_type=UpstoxDomainMapper.instrument_type_from_wire(
+                str(payload.get("instrument_type") or "")
+            ),
+        )
+
+    @staticmethod
+    def to_trade(payload: Any) -> Trade:
+        if not isinstance(payload, dict):
+            return Trade()
+        return Trade(
+            trade_id=str(payload.get("trade_id") or ""),
+            order_id=str(payload.get("order_id") or ""),
+            exchange_order_id=_str_or_none(payload.get("exchange_order_id")),
+            symbol=str(payload.get("trading_symbol") or payload.get("symbol") or ""),
+            exchange=str(payload.get("exchange") or ""),
+            exchange_segment=UpstoxDomainMapper.segment_from_wire(
+                str(payload.get("exchange_segment") or "NSE_EQ")
+            ),
+            transaction_type=UpstoxDomainMapper.txn_from_wire(
+                str(payload.get("transaction_type") or "BUY")
+            ),
+            quantity=_to_int(payload.get("quantity") or payload.get("traded_quantity")),
+            price=UpstoxPriceParser.parse(
+                payload.get("price") or payload.get("average_price") or 0
+            ),
+            trade_value=UpstoxPriceParser.parse(
+                (payload.get("price") or 0) * (payload.get("quantity") or 0)
+            ),
+            trade_timestamp=_parse_iso(payload.get("trade_time") or payload.get("timestamp")),
+            product_type=UpstoxDomainMapper.product_from_wire(str(payload.get("product") or "I")),
+        )
+
+    @staticmethod
+    def to_fund_limits(payload: Any) -> FundLimits:
+        if not isinstance(payload, dict):
+            return FundLimits()
+        data = payload.get("data") if "data" in payload else payload
+        if not isinstance(data, dict):
+            return FundLimits()
+        equity = data.get("equity") or {}
+        data.get("commodity") or {}
+        return FundLimits(
+            available_balance=UpstoxPriceParser.parse(
+                equity.get("available_margin") or data.get("available_margin") or 0
+            ),
+            used_margin=UpstoxPriceParser.parse(
+                equity.get("used_margin") or data.get("used_margin") or 0
+            ),
+            total_margin=UpstoxPriceParser.parse(
+                equity.get("net_margin") or data.get("net_margin") or 0
+            ),
+            collateral=UpstoxPriceParser.parse(equity.get("collateral") or 0),
+            m2m_realized=UpstoxPriceParser.parse(data.get("m2m_realised") or 0),
+            m2m_unrealized=UpstoxPriceParser.parse(data.get("m2m_unrealised") or 0),
+        )
+
+    @staticmethod
+    def to_option_contract(payload: Any) -> OptionContract:
+        if not isinstance(payload, dict):
+            return OptionContract()
+        return OptionContract(
+            symbol=str(payload.get("trading_symbol") or payload.get("symbol") or ""),
+            strike=UpstoxPriceParser.parse(payload.get("strike_price") or 0),
+            expiry=str(payload.get("expiry") or ""),
+            instrument_type=UpstoxDomainMapper.instrument_type_from_wire(
+                str(payload.get("instrument_type") or "")
+            ),
+            exchange=str(payload.get("exchange") or "NFO"),
+            exchange_segment=UpstoxDomainMapper.segment_from_wire(
+                str(payload.get("exchange_segment") or "NSE_FO")
+            ),
+            lot_size=_to_int(payload.get("lot_size")),
+            ce_ltp=UpstoxPriceParser.parse(
+                payload.get("call_options", {}).get("market_data", {}).get("ltp") or 0
+            )
+            if isinstance(payload.get("call_options"), dict)
+            else None,
+            pe_ltp=UpstoxPriceParser.parse(
+                payload.get("put_options", {}).get("market_data", {}).get("ltp") or 0
+            )
+            if isinstance(payload.get("put_options"), dict)
+            else None,
+        )
+
+    @staticmethod
+    def to_historical_candle(payload: Any) -> HistoricalCandle:
+        if not isinstance(payload, dict):
+            return HistoricalCandle()
+        return HistoricalCandle(
+            timestamp=_parse_iso(payload.get("timestamp") or payload.get("time")) or datetime.now(),
+            open=UpstoxPriceParser.parse(payload.get("open") or 0),
+            high=UpstoxPriceParser.parse(payload.get("high") or 0),
+            low=UpstoxPriceParser.parse(payload.get("low") or 0),
+            close=UpstoxPriceParser.parse(payload.get("close") or 0),
+            volume=_to_int(payload.get("volume")),
+        )
+
+    @staticmethod
+    def to_historical_candles(payload: Any) -> list[HistoricalCandle]:
+        candles: list[HistoricalCandle] = []
+        if not isinstance(payload, dict):
+            return candles
+        data = payload.get("data") or payload
+        if isinstance(data, dict):
+            rows = data.get("candles") or data.get("data") or []
+        else:
+            rows = data or payload.get("candles") or []
+        if not isinstance(rows, list):
+            return candles
+        for row in rows:
+            if isinstance(row, list) and len(row) >= 5:
+                candles.append(
+                    HistoricalCandle(
+                        timestamp=_parse_iso(row[0]) or datetime.now(),
+                        open=UpstoxPriceParser.parse(row[1]),
+                        high=UpstoxPriceParser.parse(row[2]),
+                        low=UpstoxPriceParser.parse(row[3]),
+                        close=UpstoxPriceParser.parse(row[4]),
+                        volume=_to_int(row[5]) if len(row) > 5 else 0,
+                    )
+                )
+            elif isinstance(row, dict):
+                candles.append(UpstoxDomainMapper.to_historical_candle(row))
+        return candles
+
+    @staticmethod
+    def to_market_depth(payload: Any) -> MarketDepth:
+        if not isinstance(payload, dict):
+            return MarketDepth()
+        data = payload.get("data") if "data" in payload else payload
+        if not isinstance(data, dict):
+            return MarketDepth()
+        depth = data.get("depth") or {}
+        bids = depth.get("buy") or []
+        asks = depth.get("sell") or []
+        from brokers.common.core.models import MarketDepthLevel
+
+        def _to_levels(rows):
+            out = []
+            for row in rows or []:
+                if not isinstance(row, dict):
+                    continue
+                out.append(
+                    MarketDepthLevel(
+                        price=UpstoxPriceParser.parse(row.get("price") or 0),
+                        quantity=_to_int(row.get("quantity")),
+                        orders=_to_int(row.get("orders")),
+                    )
+                )
+            return out
+
+        return MarketDepth(
+            symbol=str(data.get("symbol") or data.get("trading_symbol") or ""),
+            exchange=str(data.get("exchange") or ""),
+            exchange_segment=UpstoxDomainMapper.segment_from_wire(
+                str(data.get("exchange_segment") or "NSE_EQ")
+            ),
+            bids=_to_levels(bids),
+            asks=_to_levels(asks),
+            timestamp=_parse_iso(data.get("timestamp")),
+        )
+
+    @staticmethod
+    def to_order(payload: Any) -> Order:
+        if not isinstance(payload, dict):
+            return Order()
+        return Order(
+            order_id=str(payload.get("order_id") or ""),
+            correlation_id=_str_or_none(payload.get("tag")),
+            symbol=str(payload.get("trading_symbol") or payload.get("symbol") or ""),
+            exchange=str(payload.get("exchange") or ""),
+            exchange_segment=UpstoxDomainMapper.segment_from_wire(
+                str(payload.get("exchange_segment") or "NSE_EQ")
+            ),
+            transaction_type=UpstoxDomainMapper.txn_from_wire(
+                str(payload.get("transaction_type") or "BUY")
+            ),
+            quantity=_to_int(payload.get("quantity")),
+            price=UpstoxPriceParser.parse(payload.get("price") or 0),
+            trigger_price=UpstoxPriceParser.parse(payload.get("trigger_price") or 0)
+            if payload.get("trigger_price")
+            else None,
+            order_type=UpstoxDomainMapper.order_type_from_wire(
+                str(payload.get("order_type") or "MARKET")
+            ),
+            product_type=UpstoxDomainMapper.product_from_wire(str(payload.get("product") or "I")),
+            validity=UpstoxDomainMapper.validity_from_wire(str(payload.get("validity") or "DAY")),
+            status=UpstoxDomainMapper.normalize_status(str(payload.get("status") or "")),
+            filled_quantity=_to_int(payload.get("filled_quantity")),
+            remaining_quantity=_to_int(payload.get("remaining_quantity")),
+            average_price=UpstoxPriceParser.parse(payload.get("average_price") or 0),
+            order_timestamp=_parse_iso(payload.get("order_timestamp")),
+            exchange_order_id=_str_or_none(payload.get("exchange_order_id")),
+            reject_reason=_str_or_none(
+                payload.get("status_message") or payload.get("rejection_reason")
+            ),
+            total_value=UpstoxPriceParser.parse(
+                (payload.get("price") or 0) * (payload.get("quantity") or 0)
+            ),
+            instrument_type=UpstoxDomainMapper.instrument_type_from_wire(
+                str(payload.get("instrument_type") or "")
+            ),
+        )

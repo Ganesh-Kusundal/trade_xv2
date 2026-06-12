@@ -1,0 +1,20 @@
+"""Upstox news adapter — implements ``NewsProvider`` port."""
+
+from __future__ import annotations
+
+from typing import Any
+
+from brokers.common.api.ports import NewsProvider
+from brokers.upstox.news.client import UpstoxNewsClient
+
+
+class UpstoxNewsAdapter(NewsProvider):
+    def __init__(self, client: UpstoxNewsClient) -> None:
+        self._client = client
+
+    def get_news(self, **filters: Any) -> list[Any]:
+        return self._client.get_news(
+            symbol=filters.get("symbol"),
+            from_date=filters.get("from_date"),
+            to_date=filters.get("to_date"),
+        )
