@@ -1,20 +1,11 @@
-"""Canonical DataFrame schemas for all broker adapters.
+"""DEPRECATED: This module is no longer used. Kept for backward compatibility only.
 
-Every broker adapter MUST return DataFrames conforming to these schemas.
-No broker-specific field names (security_id, instrument_token, etc.)
-may appear outside the adapter boundary.
+Canonical DataFrame schemas have been superseded by domain dataclasses in
+brokers.common.core.domain. No module in the codebase imports this file.
 
-Usage::
-
-    from brokers.common.core.schemas import (
-        HistoricalSchema, QuoteSchema, OptionChainSchema,
-        MarketDepthSchema,
-        build_historical_df, build_quote_df,
-    )
-
-    # Validation
-    HistoricalSchema.validate(df)   # raises if schema violated
-    QuoteSchema.validate(df)
+The Broker ABC has been replaced by broker-specific gateway classes:
+- Dhan: brokers.dhan.gateway.BrokerGateway
+- Paper: brokers.paper.PaperGateway
 """
 
 from __future__ import annotations

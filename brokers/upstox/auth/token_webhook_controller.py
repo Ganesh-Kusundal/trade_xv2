@@ -30,7 +30,7 @@ class WebhookResult:
     reason: str = ""
 
     @classmethod
-    def applied(cls, expires_at_ms: int) -> WebhookResult:
+    def accepted(cls, expires_at_ms: int) -> WebhookResult:
         return cls(applied=True, expires_at_ms=expires_at_ms, reason="")
 
     @classmethod
@@ -81,5 +81,5 @@ class UpstoxTokenWebhookController:
                 self._source_label,
                 expires_at_ms,
             )
-            return WebhookResult.applied(expires_at_ms)
+            return WebhookResult.accepted(expires_at_ms)
         return WebhookResult.rejected("incoming token not fresher than current state")

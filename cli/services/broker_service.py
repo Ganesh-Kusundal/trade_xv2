@@ -1,113 +1,107 @@
-"""Broker service layer for diagnostics and operation terminal."""
+"""Broker service layer — bridges CLI/TUI to the new BrokerGateway architecture."""
 
 from __future__ import annotations
 
-import contextlib
+import logging
 import random
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
+from threading import RLock
 
-from pandas import DataFrame
-
-from brokers.common.core.broker import Broker
 from brokers.common.core.domain import (
-    FundLimits,
+    Balance,
+    DepthLevel,
     Holding,
+    MarketDepth,
     Order,
-    OrderResponse,
     OrderStatus,
     OrderType,
     Position,
     ProductType,
-    Side,
+    Quote,
+    Side as OrderSide,
     Trade,
-    Validity,
 )
-from brokers.common.core.schemas import (
-    build_historical_df,
-    build_market_depth_df,
-    build_option_chain_df,
-    build_quote_df,
-)
-from brokers.dhan import DhanBroker
-from brokers.dhan.mapper.instruments import DhanInstrumentResolver
+from brokers.common.gateway import MarketDataGateway
+from brokers.common.oms.context import TradingContext
+from brokers.common.oms.factory import create_trading_context
+from brokers.dhan import BrokerFactory
+from brokers.paper import PaperGateway
+from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
+
+_ENV_PATH = Path(__file__).resolve().parent.parent.parent / ".env.local"
 
 
-class MockBroker(Broker):
-    """Mock broker adapter returning realistic simulated data for TUI/CLI testing."""
+def _load_broker_env() -> None:
+    """Ensure .env.local credentials are loaded into the environment."""
+    if _ENV_PATH.exists() and _ENV_PATH.stat().st_size > 0:
+        load_dotenv(_ENV_PATH, override=True)
 
-    def __init__(self, name: str, broker_id: str):
+
+# ---------------------------------------------------------------------------
+# Mock broker — lightweight fallback when .env.local is absent
+# ---------------------------------------------------------------------------
+
+class MockBroker:
+    """In-memory broker returning realistic simulated data for CLI/TUI testing.
+
+    Mirrors the ``BrokerGateway`` public interface so consumers can treat both
+    interchangeably.
+    """
+
+    def __init__(self, name: str = "dhan", client_id: str = "MOCK0001"):
         self._name = name
-        self._broker_id = broker_id
-        self._connected = False
-        self.instrument_resolver = DhanInstrumentResolver()
+        self._client_id = client_id
+        self._connected = True  # mock is always "live"
+        self._lock = RLock()
+        self._order_seq = 100
+        self._trade_seq = 200
 
-        # Internal state to track simulated orders and trades placed during CLI session
+        now = datetime.now(timezone.utc)
+
         self._orders: list[Order] = [
             Order(
-                order_id=f"{self.name.upper()}-ORD-101",
+                order_id=f"{name.upper()}-ORD-101",
                 symbol="RELIANCE",
                 exchange="NSE",
-                side=Side.BUY,
+                side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=10,
                 filled_quantity=10,
                 price=Decimal("2550.00"),
                 status=OrderStatus.FILLED,
-                timestamp=datetime.now(timezone.utc) - timedelta(hours=2),
                 product_type=ProductType.INTRADAY,
                 avg_price=Decimal("2550.00"),
+                timestamp=now - timedelta(hours=2),
             ),
             Order(
-                order_id=f"{self.name.upper()}-ORD-102",
+                order_id=f"{name.upper()}-ORD-102",
                 symbol="SBIN",
                 exchange="NSE",
-                side=Side.BUY,
+                side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=50,
                 filled_quantity=0,
                 price=Decimal("590.00"),
                 status=OrderStatus.OPEN,
-                timestamp=datetime.now(timezone.utc) - timedelta(minutes=15),
                 product_type=ProductType.INTRADAY,
-            ),
-            Order(
-                order_id=f"{self.name.upper()}-ORD-103",
-                symbol="NIFTY26JUN25000CE",
-                exchange="NFO",
-                side=Side.SELL,
-                order_type=OrderType.MARKET,
-                quantity=75,
-                filled_quantity=75,
-                price=Decimal("120.00"),
-                status=OrderStatus.FILLED,
-                timestamp=datetime.now(timezone.utc) - timedelta(minutes=5),
-                product_type=ProductType.INTRADAY,
-                avg_price=Decimal("122.50"),
+                timestamp=now - timedelta(minutes=15),
             ),
         ]
 
         self._trades: list[Trade] = [
             Trade(
-                trade_id=f"{self.name.upper()}-TRD-201",
-                order_id=f"{self.name.upper()}-ORD-101",
+                trade_id=f"{name.upper()}-TRD-201",
+                order_id=f"{name.upper()}-ORD-101",
                 symbol="RELIANCE",
                 exchange="NSE",
-                side=Side.BUY,
+                side=OrderSide.BUY,
                 quantity=10,
                 price=Decimal("2550.00"),
-                timestamp=datetime.now(timezone.utc) - timedelta(hours=2),
-            ),
-            Trade(
-                trade_id=f"{self.name.upper()}-TRD-203",
-                order_id=f"{self.name.upper()}-ORD-103",
-                symbol="NIFTY26JUN25000CE",
-                exchange="NFO",
-                side=Side.SELL,
-                quantity=75,
-                price=Decimal("122.50"),
-                timestamp=datetime.now(timezone.utc) - timedelta(minutes=5),
+                timestamp=now - timedelta(hours=2),
             ),
         ]
 
@@ -118,17 +112,9 @@ class MockBroker(Broker):
                 quantity=10,
                 avg_price=Decimal("2550.00"),
                 ltp=Decimal("2565.50"),
-                realized_pnl=Decimal("0.00"),
                 unrealized_pnl=Decimal("155.00"),
-            ),
-            Position(
-                symbol="NIFTY26JUN25000CE",
-                exchange="NFO",
-                quantity=-75,
-                avg_price=Decimal("122.50"),
-                ltp=Decimal("118.00"),
                 realized_pnl=Decimal("0.00"),
-                unrealized_pnl=Decimal("337.50"),
+                product_type=ProductType.INTRADAY,
             ),
         ]
 
@@ -153,320 +139,312 @@ class MockBroker(Broker):
             ),
         ]
 
-        self._funds = FundLimits(
+        self._balance = Balance(
             available_balance=Decimal("452300.50"),
-            used_margin=Decimal("47700.00"),
-            total_margin=Decimal("500000.00"),
+            sod_limit=Decimal("500000.00"),
+            collateral_amount=Decimal("0.00"),
+            utilized_amount=Decimal("47700.00"),
+            withdrawable_balance=Decimal("452300.50"),
         )
+
+    # -- identity -----------------------------------------------------------
 
     @property
     def name(self) -> str:
         return self._name
 
     @property
-    def broker_id(self) -> str:
-        return self._broker_id
+    def client_id(self) -> str:
+        return self._client_id
 
-    def connect(self) -> bool:
-        self._connected = True
-        return True
+    # -- lifecycle ----------------------------------------------------------
 
-    def disconnect(self) -> bool:
+    def load_instruments(self, **_kw) -> None:
+        pass  # nothing to load for mock
+
+    def close(self) -> None:
         self._connected = False
-        return True
 
-    def is_connected(self) -> bool:
-        return self._connected
+    # -- market data shortcuts ----------------------------------------------
 
-    def get_historical_data(
-        self,
-        symbol: str,
-        exchange: str,
-        from_date: date,
-        to_date: date,
-        timeframe: str = "1d",
-    ) -> DataFrame:
-        # Generate random OHLCV candles
-        candles = []
-        curr = from_date
-        price = 2500.0 if "NIFTY" not in symbol else 25000.0
-        while curr <= to_date:
-            dt = datetime(curr.year, curr.month, curr.day, 9, 15, tzinfo=timezone.utc)
-            chg = random.uniform(-0.02, 0.02)
-            o = price
-            c = price * (1 + chg)
-            h = max(o, c) * (1 + random.uniform(0.001, 0.01))
-            l = min(o, c) * (1 - random.uniform(0.001, 0.01))
-            vol = random.randint(10000, 500000)
-            oi = random.randint(0, 100000)
-            candles.append(
-                {
-                    "timestamp": dt,
-                    "open": o,
-                    "high": h,
-                    "low": l,
-                    "close": c,
-                    "volume": vol,
-                    "oi": oi,
-                }
-            )
-            price = c
-            curr += timedelta(days=1)
-        return build_historical_df(candles, symbol, exchange, timeframe)
+    def get_ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:
+        base = {"RELIANCE": Decimal("2565.50"), "SBIN": Decimal("590.00")}
+        return base.get(symbol, Decimal("25010.00"))
 
-    def get_quote(self, symbol: str, exchange: str) -> DataFrame:
-        base_price = 2565.50 if symbol == "RELIANCE" else (590.00 if symbol == "SBIN" else 25010.00)
-        ltp = base_price * (1 + random.uniform(-0.002, 0.002))
-        bid = ltp - random.uniform(0.1, 0.5)
-        ask = ltp + random.uniform(0.1, 0.5)
-        vol = random.randint(50000, 2000000)
-        oi = random.randint(10000, 5000000)
-        return build_quote_df(symbol, exchange, ltp, bid, ask, vol, oi)
+    def get_quote(self, symbol: str, exchange: str = "NSE") -> Quote:
+        ltp = self.get_ltp(symbol, exchange)
+        return Quote(
+            symbol=symbol,
+            ltp=ltp,
+            open=ltp * Decimal("0.998"),
+            high=ltp * Decimal("1.005"),
+            low=ltp * Decimal("0.995"),
+            close=ltp * Decimal("0.999"),
+            volume=random.randint(50_000, 2_000_000),
+            change=Decimal("0"),
+        )
 
-    def get_option_chain(
-        self,
-        underlying: str,
-        exchange: str,
-        expiry: str,
-    ) -> DataFrame:
-        spot = 25000.0 if "NIFTY" in underlying else 2500.0
-        strike_diff = 100.0 if spot > 10000.0 else 20.0
-        strikes = [int(spot - spot % strike_diff + (i * strike_diff)) for i in range(-5, 6)]
+    def get_depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
+        ltp = self.get_ltp(symbol, exchange)
+        bids = [
+            DepthLevel(price=ltp - Decimal(str(i)), quantity=random.randint(75, 1500))
+            for i in range(1, 6)
+        ]
+        asks = [
+            DepthLevel(price=ltp + Decimal(str(i)), quantity=random.randint(75, 1500))
+            for i in range(1, 6)
+        ]
+        return MarketDepth(bids=bids, asks=asks)
 
-        rows = []
-        for strike in strikes:
-            # Call option
-            c_dist = spot - strike
-            c_ltp = max(c_dist, 5.0) + random.uniform(1, 10)
-            rows.append(
-                {
-                    "underlying": underlying,
-                    "expiry": expiry,
-                    "strike": float(strike),
-                    "option_type": "CE",
-                    "ltp": c_ltp,
-                    "bid": c_ltp - 0.5,
-                    "ask": c_ltp + 0.5,
-                    "volume": random.randint(100, 5000),
-                    "oi": random.randint(1000, 50000),
-                    "iv": 15.4 + random.uniform(-1, 1),
-                    "delta": 0.5 + (c_dist / spot) * 5,
-                    "gamma": 0.002,
-                    "theta": -5.4,
-                    "vega": 10.2,
-                    "rho": 0.01,
-                    "timestamp": datetime.now(timezone.utc),
-                }
-            )
-
-            # Put option
-            p_dist = strike - spot
-            p_ltp = max(p_dist, 5.0) + random.uniform(1, 10)
-            rows.append(
-                {
-                    "underlying": underlying,
-                    "expiry": expiry,
-                    "strike": float(strike),
-                    "option_type": "PE",
-                    "ltp": p_ltp,
-                    "bid": p_ltp - 0.5,
-                    "ask": p_ltp + 0.5,
-                    "volume": random.randint(100, 5000),
-                    "oi": random.randint(1000, 50000),
-                    "iv": 16.2 + random.uniform(-1, 1),
-                    "delta": -0.5 + (p_dist / spot) * 5,
-                    "gamma": 0.002,
-                    "theta": -5.1,
-                    "vega": 9.8,
-                    "rho": -0.01,
-                    "timestamp": datetime.now(timezone.utc),
-                }
-            )
-
-        return build_option_chain_df(rows)
-
-    def get_market_depth(self, symbol: str, exchange: str) -> DataFrame:
-        base_price = 2500.0 if "NIFTY" not in symbol else 25000.0
-        bids = []
-        asks = []
-        b_price = base_price - 0.10
-        a_price = base_price + 0.10
-        for _ in range(20):
-            bids.append({"price": b_price, "quantity": random.randint(75, 1500)})
-            asks.append({"price": a_price, "quantity": random.randint(75, 1500)})
-            b_price -= random.choice([0.05, 0.10, 0.15])
-            a_price += random.choice([0.05, 0.10, 0.15])
-        return build_market_depth_df(symbol, bids, asks)
+    # -- order shortcuts ----------------------------------------------------
 
     def place_order(
         self,
         symbol: str,
-        exchange: str,
-        side: Side,
-        quantity: int,
+        exchange: str = "NSE",
+        side: str | OrderSide = "BUY",
+        quantity: int = 1,
         price: Decimal = Decimal("0"),
-        order_type: str = "MARKET",
-        product_type: str = "INTRADAY",
+        order_type: str | OrderType = "MARKET",
+        product_type: str | ProductType = "INTRADAY",
         validity: str = "DAY",
         trigger_price: Decimal = Decimal("0"),
         correlation_id: str | None = None,
-    ) -> OrderResponse:
-        order_id = f"{self.name.upper()}-ORD-{random.randint(10000, 99999)}"
-        new_order = Order(
-            order_id=order_id,
-            symbol=symbol,
-            exchange=exchange,
-            side=side,
-            order_type=OrderType(order_type),
-            quantity=quantity,
-            filled_quantity=quantity if order_type == "MARKET" else 0,
-            price=price,
-            trigger_price=trigger_price,
-            status=OrderStatus.FILLED if order_type == "MARKET" else OrderStatus.OPEN,
-            timestamp=datetime.now(timezone.utc),
-            product_type=ProductType(product_type),
-            validity=Validity(validity),
-            avg_price=price if order_type != "MARKET" else (price or Decimal("1250.00")),
-            correlation_id=correlation_id,
-        )
-        self._orders.append(new_order)
+    ) -> Order:
+        if isinstance(side, str):
+            side = OrderSide(side)
+        if isinstance(order_type, str):
+            order_type = OrderType(order_type)
 
-        if order_type == "MARKET":
-            new_trade = Trade(
-                trade_id=f"{self.name.upper()}-TRD-{random.randint(10000, 99999)}",
+        is_market = order_type == OrderType.MARKET
+        fill_price = price or Decimal("1250.00")
+
+        with self._lock:
+            self._order_seq += 1
+            order_id = f"{self._name.upper()}-ORD-{self._order_seq:05d}"
+
+            order = Order(
                 order_id=order_id,
                 symbol=symbol,
                 exchange=exchange,
                 side=side,
+                order_type=order_type,
                 quantity=quantity,
-                price=new_order.avg_price,
+                filled_quantity=quantity if is_market else 0,
+                price=price,
+                status=OrderStatus.FILLED if is_market else OrderStatus.OPEN,
+                product_type=ProductType.INTRADAY,
+                avg_price=fill_price,
                 timestamp=datetime.now(timezone.utc),
             )
-            self._trades.append(new_trade)
+            self._orders.append(order)
 
-            # Update positions dynamically
-            found = False
-            for pos in self._positions:
-                if pos.symbol == symbol:
-                    found = True
-                    q_delta = quantity if side == Side.BUY else -quantity
-                    pos.quantity += q_delta
-                    break
-            if not found:
-                self._positions.append(
-                    Position(
+            if is_market:
+                self._trade_seq += 1
+                self._trades.append(
+                    Trade(
+                        trade_id=f"{self._name.upper()}-TRD-{self._trade_seq:05d}",
+                        order_id=order_id,
                         symbol=symbol,
                         exchange=exchange,
-                        quantity=quantity if side == Side.BUY else -quantity,
-                        avg_price=new_order.avg_price,
-                        ltp=new_order.avg_price,
+                        side=side,
+                        quantity=quantity,
+                        price=fill_price,
+                        trade_value=fill_price * quantity,
                     )
                 )
+                self._positions = self._update_position(
+                    symbol, exchange, side, quantity, fill_price
+                )
+            return order
 
-        return OrderResponse.ok(order_id, "Order placed successfully")
-
-    def get_order(self, order_id: str) -> Order | None:
-        for order in self._orders:
-            if order.order_id == order_id:
-                return order
-        return None
-
-    def get_orders(self) -> list[Order]:
-        return list(self._orders)
+    def _update_position(
+        self, symbol: str, exchange: str, side: OrderSide, quantity: int, price: Decimal
+    ) -> list[Position]:
+        delta = quantity if side == OrderSide.BUY else -quantity
+        for i, pos in enumerate(self._positions):
+            if pos.symbol == symbol and pos.exchange == exchange:
+                new_pos = pos.with_fill(delta, price)
+                new_positions = list(self._positions)
+                new_positions[i] = new_pos
+                return new_positions
+        # New position
+        new_pos = Position(
+            symbol=symbol,
+            exchange=exchange,
+            quantity=delta,
+            avg_price=price,
+            ltp=price,
+            product_type=ProductType.INTRADAY,
+        )
+        return self._positions + [new_pos]
 
     def cancel_order(self, order_id: str) -> bool:
-        for order in self._orders:
-            if order.order_id == order_id:
-                if order.status in (OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED):
-                    order.status = OrderStatus.CANCELLED
+        with self._lock:
+            for i, order in enumerate(self._orders):
+                if order.order_id == order_id and order.status in (
+                    OrderStatus.OPEN,
+                    OrderStatus.PARTIALLY_FILLED,
+                ):
+                    self._orders[i] = order.with_status(OrderStatus.CANCELLED)
                     return True
-        return False
+            return False
+
+    def get_orderbook(self) -> list[Order]:
+        with self._lock:
+            return list(self._orders)
+
+    def get_trade_book(self) -> list[Trade]:
+        with self._lock:
+            return list(self._trades)
+
+    # -- portfolio shortcuts ------------------------------------------------
 
     def get_positions(self) -> list[Position]:
-        # Live recalculation of PnL for mocks
-        for pos in self._positions:
-            pos.ltp = pos.avg_price * Decimal(str(random.uniform(0.99, 1.01)))
-            pos.unrealized_pnl = pos.pnl
-        return list(self._positions)
+        with self._lock:
+            return list(self._positions)
 
     def get_holdings(self) -> list[Holding]:
-        for hld in self._holdings:
-            hld.ltp = hld.avg_price * Decimal(str(random.uniform(0.99, 1.01)))
-            hld.pnl = Decimal(str(hld.quantity)) * (hld.ltp - hld.avg_price)
-        return list(self._holdings)
+        with self._lock:
+            return list(self._holdings)
 
-    def get_fund_limits(self) -> FundLimits:
-        return self._funds
+    def get_balance(self) -> Balance:
+        with self._lock:
+            return self._balance
 
-    def get_trades(self) -> list[Trade]:
-        return list(self._trades)
+    @property
+    def portfolio(self) -> _MockPortfolio:
+        """Expose a ``portfolio`` sub-object mirroring ``BrokerGateway.portfolio``."""
+        return _MockPortfolio(self)
 
+
+class _MockPortfolio:
+    """Thin adapter that delegates to ``MockBroker`` for portfolio data.
+
+    Matches the interface expected by ``cli.commands.portfolio``
+    (``gw.portfolio.get_holdings()``, ``gw.portfolio.get_positions()``).
+    """
+
+    def __init__(self, broker: MockBroker) -> None:
+        self._broker = broker
+
+    def get_holdings(self) -> list[Holding]:
+        return self._broker.get_holdings()
+
+    def get_positions(self) -> list[Position]:
+        return self._broker.get_positions()
+
+    def get_balance(self) -> Balance:
+        return self._broker.get_balance()
+
+
+def _order_to_dict(o: Order) -> dict:
+    """Helper to rebuild a frozen Order with overrides."""
+    return {
+        "order_id": o.order_id,
+        "symbol": o.symbol,
+        "exchange": o.exchange,
+        "side": o.side,
+        "order_type": o.order_type,
+        "quantity": o.quantity,
+        "filled_quantity": o.filled_quantity,
+        "price": o.price,
+        "trigger_price": o.trigger_price,
+        "status": o.status,
+        "product_type": o.product_type,
+        "validity": o.validity,
+        "avg_price": o.avg_price,
+        "correlation_id": o.correlation_id,
+        "reject_reason": o.reject_reason,
+        "timestamp": o.timestamp,
+    }
+
+
+# ---------------------------------------------------------------------------
+# BrokerService
+# ---------------------------------------------------------------------------
 
 class BrokerService:
-    """Manager resolving real and mock brokers."""
+    """Resolves and manages the active broker (live Dhan gateway or mock)."""
 
-    def __init__(self):
-        self._brokers: dict[str, Broker] = {}
-        self._active_name = "dhan"
+    def __init__(self) -> None:
+        self._gateway: MarketDataGateway | None = None
+        self._paper: PaperGateway | None = None
+        self._mock: MockBroker | None = None
+        self._active_name: str = "dhan"
         self._dhan_load_error: str | None = None
+        self._initialized = False
+        self._trading_context: TradingContext | None = None
 
-        # Load Dhan broker if .env.local exists
-        dhan_loaded = False
-        env_path = Path(".env.local")
-        if env_path.exists():
+    def _ensure_initialized(self) -> None:
+        if self._initialized:
+            return
+        self._initialized = True
+        _load_broker_env()
+        if _ENV_PATH.exists():
             try:
-                # Instantiate DhanBroker
-                broker = DhanBroker.from_env(env_path=env_path)
-                # Load the instrument catalog so symbol resolution works.
-                # Use the same cache dir as the CLI instruments command
-                # (runtime-dev/instruments).  Falls back to the broker's own
-                # cache dir (.cache/dhan/instruments/) if the primary is empty.
-                self._load_instrument_catalog(broker)
-                self._brokers["dhan"] = broker
-                dhan_loaded = True
+                self._gateway = BrokerFactory.create(
+                    env_path=_ENV_PATH,
+                    load_instruments=True,
+                )
+                self._create_trading_context()
+                logger.info("Dhan BrokerGateway created successfully")
             except Exception as exc:
                 self._dhan_load_error = str(exc)
+                logger.warning("Failed to create Dhan gateway: %s", exc)
 
-        if not dhan_loaded:
-            self._brokers["dhan"] = MockBroker("dhan", "1106251237")
+        if self._gateway is None:
+            self._mock = MockBroker("dhan", "MOCK0001")
 
-        # Register other mock brokers
-        self._brokers["zerodha"] = MockBroker("zerodha", "ZR1234")
-        self._brokers["upstox"] = MockBroker("upstox", "UP9876")
+    def _create_trading_context(self) -> None:
+        """Create a TradingContext with reconciliation for the active gateway."""
+        reconciliation_service = None
 
-    @staticmethod
-    def _load_instrument_catalog(broker: DhanBroker) -> None:
-        """Load the Dhan instrument catalog into the broker's InstrumentService.
+        if self._gateway is not None:
+            # Extract broker-specific reconciliation service from the gateway
+            conn = getattr(self._gateway, "_conn", None)
+            if conn is not None:
+                # Dhan gateway — build reconciliation from connection adapters
+                try:
+                    from brokers.dhan.reconciliation import DhanReconciliationService
+                    reconciliation_service = DhanReconciliationService(
+                        orders=conn.orders,
+                        portfolio=conn.portfolio,
+                        oms=getattr(conn, "_order_manager", None),
+                    )
+                except Exception as exc:
+                    logger.debug("Dhan reconciliation service unavailable: %s", exc)
+            else:
+                broker = getattr(self._gateway, "_broker", None)
+                if broker is not None and hasattr(broker, "reconciliation_service"):
+                    # Upstox gateway — use pre-built reconciliation service
+                    reconciliation_service = broker.reconciliation_service
 
-        Resolution order:
-        1. Today's snapshot in ``runtime-dev/instruments/`` (the canonical
-           CLI location, populated by ``tradex instruments refresh``).
-        2. The broker's own ``refresh_instrument_snapshot()`` which looks in
-           ``.cache/dhan/instruments/`` and downloads from Dhan if absent.
-
-        Errors are suppressed so broker initialisation always succeeds.
-        """
-        from datetime import date as _date
-
-        cli_cache_dir = Path("runtime-dev/instruments")
-        today_snapshot = cli_cache_dir / f"api-scrip-master-{_date.today()}.csv"
-        try:
-            if today_snapshot.exists() and today_snapshot.stat().st_size > 0:
-                broker.load_instrument_catalog(today_snapshot)
-                return
-        except Exception:
-            pass
-        # Fallback: let the service download/use its own cache
-        with contextlib.suppress(Exception):
-            broker.refresh_instrument_snapshot(force=False)
-
-    @property
-    def brokers(self) -> dict[str, Broker]:
-        return self._brokers
+        self._trading_context = create_trading_context(
+            reconciliation_service=reconciliation_service,
+            reconciliation_interval_seconds=300.0,
+        )
 
     @property
-    def active_broker(self) -> Broker:
-        return self._brokers[self._active_name]
+    def trading_context(self) -> TradingContext | None:
+        """Return the shared TradingContext (may be *None* before init)."""
+        self._ensure_initialized()
+        return self._trading_context
+
+    # -- properties ---------------------------------------------------------
+
+    @property
+    def active_broker(self) -> MarketDataGateway | PaperGateway | MockBroker:
+        """Return the active broker: live Dhan, paper, or mock."""
+        self._ensure_initialized()
+        if self._active_name == "paper" and self._paper is not None:
+            return self._paper
+        if self._gateway is not None:
+            return self._gateway
+        if self._paper is not None:
+            return self._paper
+        assert self._mock is not None
+        return self._mock
 
     @property
     def active_broker_name(self) -> str:
@@ -474,27 +452,55 @@ class BrokerService:
 
     @property
     def is_live_dhan_active(self) -> bool:
-        return isinstance(self._brokers.get("dhan"), DhanBroker)
+        """``True`` when a real ``BrokerGateway`` is connected (not mock)."""
+        self._ensure_initialized()
+        return self._gateway is not None
 
     @property
     def dhan_load_error(self) -> str | None:
         return self._dhan_load_error
 
+    # -- broker management --------------------------------------------------
+
     def set_active_broker(self, name: str) -> None:
+        self._ensure_initialized()
         name_lower = name.lower()
-        if name_lower not in self._brokers:
-            raise ValueError(f"Broker '{name}' is not registered.")
+        if name_lower == "paper":
+            if self._paper is None:
+                self._paper = PaperGateway()
+            self._active_name = "paper"
+        elif name_lower == "dhan":
+            if self._gateway is None:
+                raise ValueError("Dhan broker not available. Check .env.local credentials.")
+            self._active_name = "dhan"
+        else:
+            raise ValueError(f"Broker '{name}' is not registered. Use 'dhan' or 'paper'.")
         self._active_name = name_lower
 
+    def use_paper(self) -> None:
+        """Switch to paper trading mode."""
+        self.set_active_broker("paper")
+
     def get_broker_statuses(self) -> list[dict[str, str]]:
+        self._ensure_initialized()
         statuses = []
-        for name, b in self._brokers.items():
-            if isinstance(b, DhanBroker):
-                # Real Dhan Broker connection check
-                connected = b.is_connected()
-                status = "Connected" if connected else "Disconnected"
-            else:
-                connected = b.is_connected()
-                status = "Connected" if connected else "Disabled"
-            statuses.append({"broker": name.capitalize(), "status": status})
+        if self._gateway is not None:
+            statuses.append({"broker": "Dhan", "status": "Connected"})
+        else:
+            statuses.append({"broker": "Dhan", "status": "Unavailable"})
+        statuses.append({"broker": "Paper", "status": "Available"})
         return statuses
+
+    def close(self) -> None:
+        """Clean up the live gateway connection and stop reconciliation."""
+        if self._trading_context is not None:
+            try:
+                self._trading_context.stop_reconciliation()
+            except Exception:
+                pass
+            self._trading_context = None
+        if self._gateway is not None:
+            try:
+                self._gateway.close()
+            except Exception:
+                pass

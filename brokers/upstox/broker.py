@@ -11,6 +11,8 @@ import logging
 from typing import Any
 
 from brokers.common.core.connection import BrokerConnection, Capability, ConnectionStatus
+from brokers.common.event_bus import EventBus
+from brokers.common.oms.risk_manager import RiskManager
 from brokers.common.services.historical_data import HistoricalDataService
 from brokers.upstox.auth.config import UpstoxConnectionSettings
 from brokers.upstox.auth.context import UpstoxAdapterContext
@@ -69,6 +71,10 @@ class UpstoxBroker(BrokerConnection):
         *,
         token_manager: UpstoxTokenManager | None = None,
         oms: Any = None,
+        event_bus: EventBus | None = None,
+        risk_manager: RiskManager | None = None,
+        backfill_callback: Any | None = None,
+        reconciliation_service: Any | None = None,
     ) -> None:
         if settings is None:
             settings = UpstoxConnectionSettings(client_id="placeholder")
@@ -81,6 +87,10 @@ class UpstoxBroker(BrokerConnection):
             token_manager=self._token_manager,
         )
         self._oms = oms
+        self._event_bus = event_bus
+        self._risk_manager = risk_manager
+        self._backfill_callback = backfill_callback
+        self._reconciliation_service = reconciliation_service
 
         self.instrument_resolver = UpstoxInstrumentResolver()
         self.instrument_loader = UpstoxInstrumentLoader()
@@ -96,7 +106,7 @@ class UpstoxBroker(BrokerConnection):
             self.context.http_client, self.context.url_resolver
         )
         self.historical_v3 = UpstoxHistoricalV3Client(
-            self.context.http_client, self.context.url_resolver
+            self.context.http_client
         )
         self.options_client = UpstoxOptionsClient(
             self.context.http_client, self.context.url_resolver
@@ -156,6 +166,8 @@ class UpstoxBroker(BrokerConnection):
             use_v3=True,
             algo_name=settings.algo_name or None,
             market_protection_default=settings.market_protection_default,
+            event_bus=self._event_bus,
+            risk_manager=self._risk_manager,
         )
         self.order_query = UpstoxOrderQueryAdapter(self.order_client, self.instrument_resolver)
         self.gtt = UpstoxGttAdapter(self.gtt_client)
@@ -181,6 +193,8 @@ class UpstoxBroker(BrokerConnection):
                 interval_seconds=settings.ws_reconnect_interval_s,
                 max_retries=settings.ws_reconnect_max_retries,
             ),
+            event_bus=self._event_bus,
+            backfill_callback=self._backfill_callback,
         )
 
         # Shared historical data service
@@ -190,9 +204,12 @@ class UpstoxBroker(BrokerConnection):
         )
 
         # Reconciliation
-        self.reconciliation_service = UpstoxReconciliationService(
-            self.order_client, self.portfolio_client, oms=self._oms, auto_repair=False
-        )
+        if reconciliation_service is not None:
+            self.reconciliation_service = reconciliation_service
+        else:
+            self.reconciliation_service = UpstoxReconciliationService(
+                self.order_client, self.portfolio_client, oms=self._oms, auto_repair=False
+            )
 
         self._register_all_capabilities()
 

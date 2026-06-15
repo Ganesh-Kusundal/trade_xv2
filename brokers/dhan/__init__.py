@@ -1,125 +1,56 @@
-"""DhanHQ broker adapter package.
+"""DhanHQ broker adapter package — clean architecture.
 
-Mirrors Trade_J's ``broker/dhan`` layout:
+Canonical domain types (Order, Position, Holding, Trade, Side, OrderStatus,
+OrderType, ProductType, Validity, FundLimits) are no longer re-exported here.
+Import them from ``brokers.common.core.domain`` instead::
 
-- ``broker``        — ``DhanBroker`` facade (Trade_J DhanBrokerConnection)
-- ``auth``          — ``DhanAuthClient``, ``DhanTokenManager``, ``read_secret_file``
-- ``config``        — ``DhanConnectionSettings``, ``DhanSettingsLoader``
-- ``context``       — ``DhanAdapterContext`` (settings container)
-- ``client``        — ``DhanClientHolder`` (token rotation callbacks)
-- ``http``          — ``DhanAuthenticatedHttpClient``
-- ``urls``          — ``DhanApiUrlResolver``
-- ``instruments``   — ``DhanInstrumentDefinition``, ``DhanInstrumentResolver``
-- ``orders``        — ``DhanRestOrderClient``
-- ``market_data``   — ``DhanMarketDataClient``
-- ``portfolio``     — ``DhanPortfolioClient``
-- ``options``       — ``DhanOptionsClient``
-- ``margin``        — ``DhanMarginClient``
-- ``validator``     — ``DhanOrderValidator``, ``OrderPreview``
-- ``exceptions``    — ``DhanApiError``
+    from brokers.common.core.domain import Order, Side, OrderStatus
+    from brokers.dhan import Exchange, Instrument, BrokerGateway
 """
 
-from __future__ import annotations
-
-# Facade
-# Auth (moved from broker/dhan_auth.py)
-from brokers.dhan.auth.auth import (
-    DhanAuthClient,
-    DhanAuthRejected,
-    DhanHttpError,
-    DhanTokenInfo,
-    DhanTokenManager,
-    DhanTokenState,
-    read_secret_file,
+# ── Dhan-specific domain types ──────────────────────────────────────────────
+from brokers.dhan.domain import (
+    Balance,
+    DepthLevel,
+    Exchange,
+    Instrument,
+    InstrumentType,
+    MarketDepth,
+    OptionType,
+    Quote,
 )
-
-# Config (moved from broker/dhan_config.py)
-from brokers.dhan.auth.config import DhanConnectionSettings, DhanSettingsLoader
-from brokers.dhan.auth.context import DhanAdapterContext
-from brokers.dhan.auth.http import DhanAuthenticatedHttpClient
-from brokers.dhan.auth.urls import DhanApiUrlResolver
-from brokers.dhan.broker import DhanBroker
-from brokers.dhan.instrument_service import InstrumentService
-from brokers.dhan.instruments import DhanInstrumentMixin, ResolvedInstrument
-
-# New split modules
-from brokers.dhan.client import DhanClientHolder, TokenRotationListener
-from brokers.dhan.exceptions import DhanApiError
-from brokers.dhan.mapper.instruments import (
-    DhanInstrumentDefinition,
-    DhanInstrumentResolver,
+# ── Exceptions ──────────────────────────────────────────────────────────────
+from brokers.dhan.exceptions import (
+    AuthenticationError,
+    ConfigurationError,
+    DhanError,
+    InstrumentNotFoundError,
+    MarketDataError,
+    OrderError,
+    RateLimitError,
 )
-from brokers.dhan.market_data.margin import DhanMarginClient
-from brokers.dhan.market_data.margin_adapter import DhanMarginProvider
-from brokers.dhan.market_data.market_data import DhanMarketDataClient
-from brokers.dhan.market_data.market_data_adapter import DhanMarketDataProvider
-from brokers.dhan.market_data.market_status_adapter import DhanMarketStatusProvider
-from brokers.dhan.market_data.options import DhanOptionsClient
-from brokers.dhan.market_data.options_adapter import DhanOptionsAdapter
-from brokers.dhan.market_data.portfolio import DhanPortfolioClient
-from brokers.dhan.market_data.portfolio_adapter import DhanPortfolioProvider
-from brokers.dhan.market_data.provider import DhanBrokerProvider
-from brokers.dhan.orders.conditional_alert_adapter import DhanConditionalAlertProvider
-from brokers.dhan.orders.cover_order_adapter import DhanCoverOrderAdapter
-from brokers.dhan.orders.futures_adapter import DhanFuturesAdapter
-from brokers.dhan.orders.order_command_adapter import DhanOrderCommandAdapter
-from brokers.dhan.orders.order_query_adapter import DhanOrderQueryAdapter
-from brokers.dhan.orders.orders import DhanRestOrderClient
-from brokers.dhan.orders.session_risk_adapter import DhanSessionRiskProvider
-from brokers.dhan.orders.special_orders_adapter import (
-    DhanBracketOrderAdapter,
-    DhanGttOrderAdapter,
-    DhanSliceOrderAdapter,
-)
-from brokers.dhan.orders.validator import DhanOrderValidator, OrderPreview
-from brokers.dhan.websocket.order_stream_adapter import DhanOrderStreamProvider
+# ── Infrastructure ──────────────────────────────────────────────────────────
+from brokers.dhan.resolver import SymbolResolver
+from brokers.dhan.loader import InstrumentLoader
+from brokers.dhan.http_client import DhanHttpClient
+from brokers.dhan.connection import DhanConnection
+from brokers.dhan.gateway import BrokerGateway
+from brokers.dhan.factory import BrokerFactory
+from brokers.dhan.websocket import DhanMarketFeed, DhanOrderStream, PollingMarketFeed
+from brokers.dhan.reconciliation import DhanReconciliationService, ReconciliationReport
 
 __all__ = [
-    # Split package modules
-    "DhanAdapterContext",
-    "DhanApiError",
-    "DhanApiUrlResolver",
-    "DhanAuthClient",
-    "DhanAuthRejected",
-    "DhanAuthenticatedHttpClient",
-    # Adapter layer
-    "DhanBracketOrderAdapter",
-    # Facade / auth / config (flat-module compat surface)
-    "DhanBroker",
-    "DhanBrokerProvider",
-    "DhanClientHolder",
-    "DhanConditionalAlertProvider",
-    "DhanConnectionSettings",
-    "DhanCoverOrderAdapter",
-    "DhanFuturesAdapter",
-    "DhanGttOrderAdapter",
-    "DhanHttpError",
-    "DhanInstrumentDefinition",
-    "DhanInstrumentMixin",
-    "DhanInstrumentResolver",
-    "InstrumentService",
-    "ResolvedInstrument",
-    "DhanMarginClient",
-    "DhanMarginProvider",
-    "DhanMarketDataClient",
-    "DhanMarketDataProvider",
-    "DhanMarketStatusProvider",
-    "DhanOptionsAdapter",
-    "DhanOptionsClient",
-    "DhanOrderCommandAdapter",
-    "DhanOrderQueryAdapter",
-    "DhanOrderStreamProvider",
-    "DhanOrderValidator",
-    "DhanPortfolioClient",
-    "DhanPortfolioProvider",
-    "DhanRestOrderClient",
-    "DhanSessionRiskProvider",
-    "DhanSettingsLoader",
-    "DhanSliceOrderAdapter",
-    "DhanTokenInfo",
-    "DhanTokenManager",
-    "DhanTokenState",
-    "OrderPreview",
-    "TokenRotationListener",
-    "read_secret_file",
+    # Domain — Dhan-specific types
+    "Balance", "DepthLevel", "Exchange", "Instrument", "InstrumentType",
+    "MarketDepth", "OptionType", "Quote",
+    # Exceptions
+    "AuthenticationError", "ConfigurationError", "DhanError", "InstrumentNotFoundError",
+    "MarketDataError", "OrderError", "RateLimitError",
+    # Infrastructure
+    "SymbolResolver", "InstrumentLoader", "DhanHttpClient",
+    "DhanConnection", "BrokerGateway", "BrokerFactory",
+    # WebSocket
+    "DhanMarketFeed", "DhanOrderStream", "PollingMarketFeed",
+    # Reconciliation
+    "DhanReconciliationService", "ReconciliationReport",
 ]

@@ -1,0 +1,72 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Bloomberg-ish dark surfaces */
+    --bbg:    8 10 14;        /* page bg */
+    --bbg-1:  13 16 22;       /* panel */
+    --bbg-2:  18 22 30;       /* elevated */
+    --bbg-3:  25 31 42;       /* hover */
+    --bline:  34 42 56;       /* border */
+    --bline-2:48 58 76;       /* strong border */
+    --bfg:    222 226 235;    /* text */
+    --bfg-m:  156 165 188;    /* muted text */
+    --bfg-d:  102 115 140;    /* dim text */
+    /* Accents */
+    --bamb:   255 168 38;     /* Bloomberg amber */
+    --bcy:    34 211 238;     /* cyan */
+    --bmg:    217 70 239;     /* magenta */
+    /* Trade */
+    --bull:   34 197 94;
+    --bear:   239 68 68;
+  }
+
+  * { box-sizing: border-box; border-color: rgb(var(--bline)); }
+  html, body, #root { height: 100%; margin: 0; padding: 0; }
+  body {
+    font-feature-settings: 'cv02','cv03','cv04','cv11','tnum';
+    -webkit-font-smoothing: antialiased;
+    background: rgb(var(--bbg));
+    color: rgb(var(--bfg));
+  }
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-track { background: rgb(var(--bbg)); }
+  ::-webkit-scrollbar-thumb { background: rgb(var(--bline-2)); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgb(var(--bbg-3)); }
+  ::selection { background: rgb(var(--bamb) / 0.4); }
+  .num { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum'; }
+}
+
+@layer components {
+  .b-panel {
+    @apply bg-bbg1 border border-bline shadow-panel;
+  }
+  .b-btn {
+    @apply inline-flex items-center justify-center gap-1.5 px-2.5 h-6 text-2xs font-medium
+           bg-bbg2 border border-bline text-bfgm rounded-sm
+           hover:bg-bbg3 hover:text-bfg hover:border-bline2
+           active:translate-y-px transition-colors select-none;
+  }
+  .b-btn-primary {
+    @apply bg-bamb/20 border-bamb/50 text-bamb hover:bg-bamb/30 hover:border-bamb;
+  }
+  .b-input {
+    @apply w-full h-7 px-2 text-sm bg-bbg0 border border-bline rounded-sm
+           text-bfg placeholder:text-bfgd
+           focus:outline-none focus:border-bcy/60 focus:ring-1 focus:ring-bcy/30;
+  }
+  .b-tab {
+    @apply px-2.5 h-6 inline-flex items-center text-2xs font-medium
+           text-bfgm hover:text-bfg hover:bg-bbg2 border-b border-transparent
+           transition-colors;
+  }
+  .b-tab-active {
+    @apply text-bfg border-b-bamb bg-bbg2;
+  }
+  .b-kbd {
+    @apply inline-flex items-center justify-center min-w-[16px] h-4 px-1
+           text-[9px] font-mono bg-bbg3 border border-bline2 rounded-sm text-bfgm;
+  }
+}

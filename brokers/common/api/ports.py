@@ -218,52 +218,6 @@ class MarginProvider(ABC):
         ...
 
 
-class InstrumentResolver(ABC):
-    """Instrument catalog lookup and validation."""
-
-    @abstractmethod
-    def is_loaded(self) -> bool:
-        """``True`` if an instrument catalog has been loaded."""
-        ...
-
-    @abstractmethod
-    def register(self, definition: InstrumentDefinition) -> None:
-        """Register a single instrument definition."""
-        ...
-
-    @abstractmethod
-    def load_catalog(self, path: Path) -> None:
-        """Parse a CSV master file and register all rows."""
-        ...
-
-    @abstractmethod
-    def load_catalog_definitions(self, path: Path) -> list[InstrumentDefinition]:
-        """Parse CSV and return a list of definitions without registering."""
-        ...
-
-    @abstractmethod
-    def lookup(
-        self,
-        *,
-        security_id: str | None = None,
-        symbol: str | None = None,
-        exchange_segment: Any | None = None,
-    ) -> InstrumentDefinition | None:
-        """Look up an instrument definition; return ``None`` if not found."""
-        ...
-
-    @abstractmethod
-    def require(
-        self,
-        *,
-        security_id: str | None = None,
-        symbol: str | None = None,
-        exchange_segment: Any | None = None,
-    ) -> InstrumentDefinition:
-        """Look up and raise ``ValueError`` if not found."""
-        ...
-
-
 class FuturesProvider(ABC):
     """Futures instrument capability."""
 
@@ -387,15 +341,6 @@ class SliceOrderCommand(ABC):
         ...
 
 
-class SessionRiskProvider(ABC):
-    """Session-level risk and exposure checks."""
-
-    @abstractmethod
-    def enable_pnl_exit(self, policy: PnlExitPolicy) -> PnlExitResult:
-        """Enable PnL-exit automation for the session."""
-        ...
-
-
 class ConditionalAlertProvider(ABC):
     """Conditional alert capability."""
 
@@ -435,38 +380,6 @@ class NewsProvider(ABC):
     @abstractmethod
     def get_news(self, **filters: Any) -> list[Any]:
         """Return news items matching optional filters."""
-        ...
-
-
-class MarketDataListener(ABC):
-    """Callback interface for market-data events."""
-
-    @abstractmethod
-    def on_quote(self, quote: Quote) -> None:
-        """Handle a quote tick."""
-        ...
-
-    @abstractmethod
-    def on_depth(self, depth: MarketDepth) -> None:
-        """Handle market-depth update."""
-        ...
-
-
-class OrderUpdateListener(ABC):
-    """Callback interface for order-update events."""
-
-    @abstractmethod
-    def on_order_update(self, update: Order) -> None:
-        """Handle an order update."""
-        ...
-
-
-class OrderBookSnapshotProvider(ABC):
-    """Market-depth/order-book snapshot provider."""
-
-    @abstractmethod
-    def get_depth(self, security_id: str, exchange_segment: Any) -> MarketDepth:
-        """Return order-book depth for an instrument."""
         ...
 
 
@@ -546,13 +459,4 @@ class StaticIPPort(ABC):
     @abstractmethod
     def set_static_ip(self, primary: str, secondary: str | None = None) -> dict[str, str]:
         """Register a new primary (and optional secondary) static IP."""
-        ...
-
-
-class ReconciliationPort(ABC):
-    """OMS reconciliation against broker state."""
-
-    @abstractmethod
-    def reconcile(self, on_drift: Any | None = None) -> dict[str, Any]:
-        """Compare local OMS state to broker state and return a drift report."""
         ...

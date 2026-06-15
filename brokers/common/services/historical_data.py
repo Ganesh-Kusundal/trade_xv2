@@ -16,6 +16,8 @@ from pathlib import Path
 from typing import Any, Protocol
 from zoneinfo import ZoneInfo
 
+from datalake.io import atomic_parquet_write
+
 logger = logging.getLogger(__name__)
 
 IST = ZoneInfo("Asia/Kolkata")
@@ -196,7 +198,8 @@ class HistoricalDataService:
 
     def cache_to_parquet(self, candles: list[Any], path: Path) -> None:
         try:
-            import pandas as pd  # type: ignore
+            import pandas as pd
+            import pyarrow as pa
 
             if not candles:
                 return
@@ -214,14 +217,14 @@ class HistoricalDataService:
                     }
                 )
             df = pd.DataFrame(rows)
-            path.parent.mkdir(parents=True, exist_ok=True)
-            df.to_parquet(path)
+            table = pa.Table.from_pandas(df, preserve_index=False)
+            atomic_parquet_write(path, table, compression="snappy")
         except Exception as exc:
             logger.warning("cache_to_parquet failed: %s", exc)
 
     def load_from_parquet(self, path: Path) -> list[Any]:
         try:
-            import pandas as pd  # type: ignore
+            import pandas as pd
 
             from brokers.common.core.models import HistoricalCandle
 

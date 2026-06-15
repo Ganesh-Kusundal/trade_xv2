@@ -6,12 +6,34 @@ injection. Stateless w.r.t. the algo name — supplied per call.
 
 from __future__ import annotations
 
+import time
+import threading
 from collections.abc import Callable
 from typing import Any
 
 import requests
 
 from .exceptions import UpstoxApiError, UpstoxAuthError
+
+
+class UpstoxRateLimiter:
+    """Simple token bucket rate limiter for Upstox API."""
+
+    def __init__(self, rate_per_second: float = 10.0):
+        self._rate = rate_per_second
+        self._min_interval = 1.0 / rate_per_second
+        self._last_request_time: dict[str, float] = {}
+        self._lock = threading.Lock()
+
+    def acquire(self, endpoint: str = "default") -> None:
+        """Wait until a request can be made."""
+        with self._lock:
+            now = time.time()
+            last = self._last_request_time.get(endpoint, 0.0)
+            elapsed = now - last
+            if elapsed < self._min_interval:
+                time.sleep(self._min_interval - elapsed)
+            self._last_request_time[endpoint] = time.time()
 
 
 class UpstoxHttpClient:
@@ -24,10 +46,12 @@ class UpstoxHttpClient:
         *,
         timeout_seconds: int = 15,
         session: requests.Session | None = None,
+        rate_limiter: UpstoxRateLimiter | None = None,
     ) -> None:
         self._token_provider = token_provider
         self._settings = settings
         self._timeout_seconds = timeout_seconds
+        self._rate_limiter = rate_limiter or UpstoxRateLimiter(rate_per_second=10.0)
         if session is not None:
             self._session = session
         else:
@@ -106,6 +130,16 @@ class UpstoxHttpClient:
         params: dict[str, Any] | None = None,
         algo_name: str | None = None,
     ) -> dict[str, Any]:
+        # Rate limit by endpoint category
+        if "/market-quote" in url or "/market/" in url:
+            self._rate_limiter.acquire("market_data")
+        elif "/order" in url:
+            self._rate_limiter.acquire("order")
+        elif "/portfolio" in url or "/user/" in url:
+            self._rate_limiter.acquire("portfolio")
+        else:
+            self._rate_limiter.acquire("default")
+
         resp = self._session.request(
             method=method,
             url=url,

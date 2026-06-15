@@ -7,15 +7,19 @@ from decimal import Decimal
 from rich.console import Console
 from rich.table import Table
 
+from brokers.common.core.domain import Position
 from cli.services.broker_service import BrokerService
 
 
 def show_holdings(broker_service: BrokerService, console: Console) -> None:
     """Print the holdings table."""
-    broker = broker_service.active_broker
+    gw = broker_service.active_broker
     try:
-        holdings = broker.get_holdings()
-        table = Table(title=f"{broker.name.capitalize()} Demat Holdings", header_style="bold green")
+        holdings = gw.portfolio.get_holdings()
+        table = Table(
+            title=f"{broker_service.active_broker_name.capitalize()} Demat Holdings",
+            header_style="bold green",
+        )
         table.add_column("Symbol", style="bold white")
         table.add_column("Qty", justify="right")
         table.add_column("Avg Price", justify="right")
@@ -46,15 +50,15 @@ def show_holdings(broker_service: BrokerService, console: Console) -> None:
 
 def show_positions(broker_service: BrokerService, console: Console) -> None:
     """Print positions categorized by side and product."""
-    broker = broker_service.active_broker
+    gw = broker_service.active_broker
     try:
-        positions = broker.get_positions()
+        positions = gw.portfolio.get_positions()
 
         # Categorize
         long_pos = [p for p in positions if p.quantity > 0]
         short_pos = [p for p in positions if p.quantity < 0]
-        day_pos = [p for p in positions if p.product_type == "INTRADAY"]
-        overnight_pos = [p for p in positions if p.product_type in ("CNC", "MARGIN", "MTF")]
+        day_pos = [p for p in positions if p.product_type.value == "INTRADAY"]
+        overnight_pos = [p for p in positions if p.product_type.value in ("CNC", "MARGIN", "MTF")]
 
         def render_position_table(title: str, pos_list: list[Position], style: str) -> None:
             table = Table(title=title, header_style=f"bold {style}")
@@ -86,7 +90,9 @@ def show_positions(broker_service: BrokerService, console: Console) -> None:
             console.print(table)
             console.print()
 
-        console.print(f"Positions Overview for [bold yellow]{broker.name.upper()}[/bold yellow]:")
+        console.print(
+            f"Positions Overview for [bold yellow]{broker_service.active_broker_name.upper()}[/bold yellow]:"
+        )
         console.print()
 
         render_position_table("Long Positions", long_pos, "green")

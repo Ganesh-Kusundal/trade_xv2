@@ -1,7 +1,8 @@
-"""BrokerConnection — abstract capability-based broker connection.
+"""DEPRECATED: BrokerConnection + Capability enum. Kept for Upstox backward compatibility only.
 
-Inspired by Trade_J's IBrokerConnection with capability discovery pattern.
-Implementations register providers for specific capabilities via a map.
+New broker adapters should use broker-specific gateway patterns:
+- Dhan: brokers.dhan.gateway.BrokerGateway + brokers.dhan.connection.DhanConnection
+- Paper: brokers.paper.PaperGateway
 """
 
 from __future__ import annotations

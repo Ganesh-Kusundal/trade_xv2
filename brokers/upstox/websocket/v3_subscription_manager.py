@@ -11,6 +11,7 @@ Mirrors Trade_J ``UpstoxV3SubscriptionLimits``:
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 
 
@@ -42,6 +43,7 @@ class UpstoxV3SubscriptionManager:
 
     def __init__(self, limits: UpstoxV3SubscriptionLimits | None = None) -> None:
         self._limits = limits or UpstoxV3SubscriptionLimits()
+        self._lock = threading.RLock()
         self._by_mode: dict[str, set[str]] = {m: set() for m in self.MODES}
         self._by_key: dict[str, str] = {}
 
@@ -49,43 +51,57 @@ class UpstoxV3SubscriptionManager:
         return self._limits.max_connections
 
     def total_subscriptions(self) -> int:
-        return sum(len(s) for s in self._by_mode.values())
+        with self._lock:
+            return sum(len(s) for s in self._by_mode.values())
 
     def active_categories(self) -> list[str]:
-        return [m for m in self.MODES if self._by_mode[m]]
+        with self._lock:
+            return [m for m in self.MODES if self._by_mode[m]]
 
     def ltpc_count(self) -> int:
-        return len(self._by_mode["ltpc"])
+        with self._lock:
+            return len(self._by_mode["ltpc"])
 
     def greeks_count(self) -> int:
-        return len(self._by_mode["option_greeks"])
+        with self._lock:
+            return len(self._by_mode["option_greeks"])
 
     def full_count(self) -> int:
-        return len(self._by_mode["full"])
+        with self._lock:
+            return len(self._by_mode["full"])
 
     def d30_count(self) -> int:
-        return len(self._by_mode["full_d30"])
+        with self._lock:
+            return len(self._by_mode["full_d30"])
 
     def mode_for(self, instrument_key: str) -> str:
-        return self._by_key.get(instrument_key, "")
+        with self._lock:
+            return self._by_key.get(instrument_key, "")
+
+    def keys_for_mode(self, mode: str) -> list[str]:
+        mode = self._normalise_mode(mode)
+        with self._lock:
+            return list(self._by_mode.get(mode, set()))
 
     def subscribe(self, instrument_keys: list[str], mode: str) -> None:
         mode = self._normalise_mode(mode)
-        for key in instrument_keys:
-            existing = self._by_key.get(key)
-            if existing == mode:
-                continue
-            if existing is not None:
-                self._by_mode[existing].discard(key)
-            self._by_mode[mode].add(key)
-            self._by_key[key] = mode
-        self._enforce(mode)
+        with self._lock:
+            for key in instrument_keys:
+                existing = self._by_key.get(key)
+                if existing == mode:
+                    continue
+                if existing is not None:
+                    self._by_mode[existing].discard(key)
+                self._by_mode[mode].add(key)
+                self._by_key[key] = mode
+            self._enforce(mode)
 
     def unsubscribe(self, instrument_keys: list[str]) -> None:
-        for key in instrument_keys:
-            mode = self._by_key.pop(key, None)
-            if mode is not None:
-                self._by_mode[mode].discard(key)
+        with self._lock:
+            for key in instrument_keys:
+                mode = self._by_key.pop(key, None)
+                if mode is not None:
+                    self._by_mode[mode].discard(key)
 
     def change_mode(self, instrument_keys: list[str], mode: str) -> None:
         self.subscribe(instrument_keys, mode)

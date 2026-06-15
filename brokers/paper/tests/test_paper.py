@@ -1,122 +1,221 @@
-"""Tests for PaperBroker and BrokerFacade."""
+"""Tests for PaperGateway and MockBroker."""
 
-from datetime import date
 from decimal import Decimal
-from unittest.mock import MagicMock
 
-from brokers.common.core.connection import BrokerConnection, ConnectionStatus
-from brokers.common.core.domain import FundLimits, OrderResponse, OrderStatus, Side
-from brokers.common.core.facade import BrokerFacade
-from brokers.paper import PaperBroker
+from brokers.common.core.domain import (
+    Balance,
+    MarketDepth,
+    Order,
+    OrderResponse,
+    OrderStatus,
+    Quote,
+    Side,
+    Trade,
+)
+from brokers.paper import MockBroker, PaperGateway
 
 
-class TestPaperBroker:
+# ---------------------------------------------------------------------------
+# PaperGateway tests
+# ---------------------------------------------------------------------------
+
+class TestPaperGateway:
+
+    def test_quote_returns_dict(self):
+        gw = PaperGateway()
+        q = gw.quote("RELIANCE", "NSE")
+        assert isinstance(q, dict)
+        assert q["symbol"] == "RELIANCE"
+        assert q["ltp"] > 0
+
+    def test_ltp(self):
+        gw = PaperGateway()
+        ltp_val = gw.ltp("INFY", "NSE")
+        assert isinstance(ltp_val, Decimal)
+        assert ltp_val > 0
+
+    def test_depth(self):
+        gw = PaperGateway()
+        d = gw.depth("RELIANCE", "NSE")
+        assert isinstance(d, dict)
+        assert len(d["bids"]) == 5
+        assert len(d["asks"]) == 5
+        assert d["bids"][0]["quantity"] > 0
+
+    def test_place_order_returns_order_response(self):
+        gw = PaperGateway()
+        o = gw.place_order("RELIANCE", "NSE", "BUY", 10)
+        assert isinstance(o, OrderResponse)
+        assert o.success is True
+        assert o.order_id.startswith("PPR-")
+        assert o.status == OrderStatus.FILLED
+
+    def test_place_order_with_side_enum(self):
+        gw = PaperGateway()
+        o = gw.place_order("RELIANCE", "NSE", Side.BUY, 5)
+        assert o.success is True
+        assert o.order_id.startswith("PPR-")
+
+    def test_place_order_with_limit_price(self):
+        gw = PaperGateway()
+        o = gw.place_order(
+            "RELIANCE", "NSE", "BUY", 10,
+            price=Decimal("2500"), order_type="LIMIT",
+        )
+        assert o.success is True
+        assert o.order_id.startswith("PPR-")
+
+    def test_cancel_filled_order_returns_false(self):
+        gw = PaperGateway()
+        o = gw.place_order("RELIANCE", "NSE", "BUY", 10)
+        # Filled orders cannot be cancelled
+        assert gw.cancel_order(o.order_id) is False
+
+    def test_get_orderbook(self):
+        gw = PaperGateway()
+        gw.place_order("RELIANCE", "NSE", "BUY", 10)
+        gw.place_order("SBIN", "NSE", "SELL", 5)
+        book = gw.get_orderbook()
+        assert len(book) == 2
+
+    def test_get_trade_book(self):
+        gw = PaperGateway()
+        gw.place_order("RELIANCE", "NSE", "BUY", 10)
+        trades = gw.get_trade_book()
+        assert len(trades) == 1
+        assert trades[0].symbol == "RELIANCE"
+        assert isinstance(trades[0], Trade)
+
+    def test_positions_update_on_fill(self):
+        gw = PaperGateway()
+        gw.place_order("RELIANCE", "NSE", "BUY", 10, price=Decimal("2500"), order_type="LIMIT")
+        positions = gw.positions()
+        assert len(positions) == 1
+        assert positions[0].symbol == "RELIANCE"
+        assert positions[0].quantity == 10
+
+    def test_position_close_realizes_pnl(self):
+        gw = PaperGateway()
+        gw.place_order("RELIANCE", "NSE", "BUY", 10, price=Decimal("2500"), order_type="LIMIT")
+        gw.place_order("RELIANCE", "NSE", "SELL", 10, price=Decimal("2550"), order_type="LIMIT")
+        pos = gw.positions()[0]
+        assert pos.quantity == 0
+        assert pos.realized_pnl == Decimal("500")  # (2550 - 2500) * 10
+
+    def test_holdings_empty(self):
+        gw = PaperGateway()
+        assert gw.holdings() == []
+
+    def test_funds_default_capital(self):
+        gw = PaperGateway()
+        b = gw.funds()
+        assert isinstance(b, Balance)
+        assert b.total_margin == Decimal("1000000")
+        assert b.available_balance == Decimal("1000000")
+
+    def test_funds_custom_capital(self):
+        gw = PaperGateway(initial_capital=Decimal("500000"))
+        b = gw.funds()
+        assert b.total_margin == Decimal("500000")
+
+    def test_funds_decreases_with_positions(self):
+        gw = PaperGateway()
+        gw.place_order("RELIANCE", "NSE", "BUY", 10, price=Decimal("100"), order_type="LIMIT")
+        b = gw.funds()
+        assert b.available_balance < Decimal("1000000")
+        assert b.used_margin == Decimal("1000")  # 10 * 100
+
+    def test_adapter_properties(self):
+        gw = PaperGateway()
+        assert gw.market_data is not None
+        assert gw.orders is not None
+        assert gw.portfolio is not None
+
+    def test_close_is_noop(self):
+        gw = PaperGateway()
+        gw.close()  # should not raise
+
+
+# ---------------------------------------------------------------------------
+# MockBroker (legacy wrapper) tests
+# ---------------------------------------------------------------------------
+
+class TestMockBroker:
+
     def test_connect_disconnect(self):
-        broker = PaperBroker()
+        broker = MockBroker()
         assert broker.connect() is True
         assert broker.is_connected() is True
         assert broker.disconnect() is True
         assert broker.is_connected() is False
 
     def test_name_and_id(self):
-        broker = PaperBroker(name="test_paper")
+        broker = MockBroker(name="test_paper")
         assert broker.name == "test_paper"
         assert broker.broker_id.startswith("paper-")
 
-    def test_place_order_instant_fill(self):
-        broker = PaperBroker()
-        broker.connect()
-        resp = broker.place_order("RELIANCE", "NSE", Side.BUY, 10, Decimal("2500"))
-        assert isinstance(resp, OrderResponse)
-        assert resp.success is True
-        assert resp.order_id.startswith("PPR-")
+    def test_gateway_property(self):
+        broker = MockBroker()
+        assert isinstance(broker.gateway, PaperGateway)
 
-    def test_get_order_after_placement(self):
-        broker = PaperBroker()
+    def test_place_order_delegates(self):
+        broker = MockBroker()
         broker.connect()
-        resp = broker.place_order("RELIANCE", "NSE", Side.BUY, 10, Decimal("2500"))
-        order = broker.get_order(resp.order_id)
-        assert order is not None
-        assert order.symbol == "RELIANCE"
-        assert order.quantity == 10
-        assert order.status == OrderStatus.FILLED
+        o = broker.place_order("RELIANCE", "NSE", "BUY", 10, price=Decimal("2500"))
+        assert isinstance(o, OrderResponse)
+        assert o.order_id.startswith("PPR-")
+        assert o.status == OrderStatus.FILLED
 
-    def test_get_orders(self):
-        broker = PaperBroker()
+    def test_get_positions(self):
+        broker = MockBroker()
         broker.connect()
-        broker.place_order("RELIANCE", "NSE", Side.BUY, 10, Decimal("2500"))
-        broker.place_order("SBIN", "NSE", Side.SELL, 5, Decimal("600"))
-        assert len(broker.get_orders()) == 2
-
-    def test_positions_update_on_fill(self):
-        broker = PaperBroker()
-        broker.connect()
-        broker.place_order("RELIANCE", "NSE", Side.BUY, 10, Decimal("2500"))
+        broker.place_order("RELIANCE", "NSE", "BUY", 10, price=Decimal("2500"))
         positions = broker.get_positions()
         assert len(positions) == 1
         assert positions[0].symbol == "RELIANCE"
-        assert positions[0].quantity == 10
 
-    def test_position_close_realizes_pnl(self):
-        broker = PaperBroker()
+    def test_get_balance(self):
+        broker = MockBroker(initial_capital=Decimal("1000000"))
         broker.connect()
-        broker.place_order("RELIANCE", "NSE", Side.BUY, 10, Decimal("2500"))
-        broker.place_order("RELIANCE", "NSE", Side.SELL, 10, Decimal("2550"))
-        pos = broker.get_positions()[0]
-        assert pos.quantity == 0
-        assert pos.realized_pnl == Decimal("500")
+        b = broker.get_balance()
+        assert isinstance(b, Balance)
+        assert b.total_margin == Decimal("1000000")
 
-    def test_fund_limits(self):
-        broker = PaperBroker(initial_capital=Decimal("1000000"))
-        broker.connect()
-        funds = broker.get_fund_limits()
-        assert isinstance(funds, FundLimits)
-        assert funds.total_margin == Decimal("1000000")
-        assert funds.available_balance >= Decimal("0")
+    def test_get_quote(self):
+        broker = MockBroker()
+        q = broker.get_quote("RELIANCE", "NSE")
+        assert isinstance(q, dict)
+        assert q["ltp"] > 0
 
-    def test_get_trades(self):
-        broker = PaperBroker()
-        broker.connect()
-        broker.place_order("RELIANCE", "NSE", Side.BUY, 10, Decimal("2500"))
-        trades = broker.get_trades()
-        assert len(trades) == 1
-        assert trades[0].symbol == "RELIANCE"
+    def test_trading_context_populates_oms(self):
+        from brokers.common.oms.context import TradingContext
+        ctx = TradingContext()
+        broker = MockBroker(trading_context=ctx)
+        broker.place_order("RELIANCE", "NSE", "BUY", 10, price=Decimal("2500"))
+        orders = ctx.order_manager.get_orders()
+        positions = ctx.position_manager.get_positions()
+        assert len(orders) == 1
+        assert len(positions) == 1
+        assert orders[0].symbol == "RELIANCE"
+        assert positions[0].symbol == "RELIANCE"
 
-    def test_get_quote_returns_dataframe(self):
-        broker = PaperBroker()
-        df = broker.get_quote("RELIANCE", "NSE")
-        assert "ltp" in df.columns
-        assert len(df) == 1
+    def test_paper_gateway_shares_context(self):
+        from brokers.common.oms.context import TradingContext
+        ctx = TradingContext()
+        gw = PaperGateway(trading_context=ctx)
+        gw.place_order("RELIANCE", "NSE", "BUY", 5)
+        assert len(ctx.order_manager.get_orders()) == 1
 
-    def test_get_historical_data(self):
-        broker = PaperBroker()
-        df = broker.get_historical_data("RELIANCE", "NSE", date(2026, 1, 1), date(2026, 1, 10))
-        assert "close" in df.columns
-        assert len(df) == 10
-
-    def test_cancel_open_order(self):
-        broker = PaperBroker()
-        broker.connect()
-        # PaperBroker fills instantly, so cancel returns False for filled orders
-        resp = broker.place_order("RELIANCE", "NSE", Side.BUY, 10, Decimal("2500"))
-        assert broker.cancel_order(resp.order_id) is False
-
-
-class TestBrokerFacade:
-    def test_facade_delegates_identity(self):
-        mock_conn = MagicMock(spec=BrokerConnection)
-        mock_conn.name = "test"
-        mock_conn.broker_id = "T1"
-        mock_conn.status = ConnectionStatus.CONNECTED
-        facade = BrokerFacade(mock_conn)
-        assert facade.name == "test"
-        assert facade.broker_id == "T1"
-        assert facade.is_connected() is True
-
-    def test_facade_connect_disconnect(self):
-        mock_conn = MagicMock(spec=BrokerConnection)
-        mock_conn.connect.return_value = True
-        mock_conn.disconnect.return_value = True
-        facade = BrokerFacade(mock_conn)
-        assert facade.connect() is True
-        assert facade.disconnect() is True
+    def test_paper_gateway_risk_gate_rejects_excessive_order(self):
+        from decimal import Decimal
+        from brokers.common.oms.context import TradingContext
+        from brokers.common.oms.risk_manager import RiskConfig
+        ctx = TradingContext(
+            risk_config=RiskConfig(max_position_pct=Decimal("1")),
+            capital_fn=lambda: Decimal("100000"),
+        )
+        gw = PaperGateway(trading_context=ctx)
+        resp = gw.place_order("RELIANCE", "NSE", "BUY", 1000, price=Decimal("100"), order_type="LIMIT")
+        assert resp.status == OrderStatus.REJECTED
+        assert len(ctx.order_manager.get_orders()) == 1
+        assert ctx.order_manager.get_orders()[0].status == OrderStatus.REJECTED

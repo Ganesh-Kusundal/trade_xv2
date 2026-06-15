@@ -3,20 +3,62 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import Optional
 
-from brokers.common.core.domain import Order, OrderResponse, OrderStatus, Side, Trade
-from cli.services.broker_service import BrokerService
+from brokers.common.core.domain import Order, OrderStatus, Side, Trade
+from brokers.common.gateway import MarketDataGateway
+from brokers.common.oms.context import TradingContext
 
 
 class OmsService:
-    """Interfaces with active broker order book and monitors OMS flows."""
+    """Interfaces with broker gateway order book and monitors OMS flows.
 
-    def __init__(self, broker_service: BrokerService):
-        self._broker_service = broker_service
+    When a ``TradingContext`` is supplied, the service reads from and writes to
+    the central ``OrderManager``. Otherwise it falls back to the gateway's
+    order book for backward compatibility.
+    """
+
+    def __init__(
+        self,
+        gateway: Optional[MarketDataGateway] = None,
+        trading_context: TradingContext | None = None,
+    ) -> None:
+        self._gw = gateway
+        self._ctx = trading_context
+
+    @property
+    def gateway(self) -> Optional[MarketDataGateway]:
+        return self._gw
+
+    @property
+    def trading_context(self) -> Optional[TradingContext]:
+        return self._ctx
+
+    def _orders(self) -> list[Order]:
+        if self._ctx is not None:
+            return self._ctx.order_manager.get_orders()
+        gw = self._gw
+        if gw is None:
+            return []
+        return gw.get_orderbook()
+
+    def _trades(self) -> list[Trade]:
+        gw = self._gw
+        if gw is None:
+            return []
+        return gw.get_trade_book()
+
+    def _ensure_gateway(self) -> MarketDataGateway:
+        gw = self._gw
+        if gw is None:
+            if self._ctx is not None:
+                raise RuntimeError("TradingContext does not expose a gateway.")
+            raise RuntimeError("No broker gateway available. Configure .env.local with valid credentials.")
+        return gw
 
     def get_order_stats(self) -> dict[str, int]:
         """Collect order counts by status."""
-        orders = self._broker_service.active_broker.get_orders()
+        orders = self._orders()
         stats = {
             "pending": 0,
             "open": 0,
@@ -40,7 +82,7 @@ class OmsService:
 
     def get_orders(self, status_filter: str | None = None) -> list[Order]:
         """Fetch orders with optional status filter."""
-        orders = self._broker_service.active_broker.get_orders()
+        orders = self._orders()
         if not status_filter:
             return orders
 
@@ -49,23 +91,26 @@ class OmsService:
             return [
                 o for o in orders if o.status in (OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED)
             ]
+        if filt == "FILLED":
+            return [o for o in orders if o.status == OrderStatus.FILLED]
         return [o for o in orders if o.status.value == filt]
 
     def get_trades(self) -> list[Trade]:
         """Fetch trades for the day."""
-        return self._broker_service.active_broker.get_trades()
+        return self._trades()
 
     def place_order(
         self,
         symbol: str,
-        exchange: str,
-        side: Side,
-        quantity: int,
-        price: Decimal = Decimal("0"),
+        exchange: str = "NSE",
+        side: str | Side = "BUY",
+        quantity: int = 0,
+        price: Optional[Decimal] = None,
         order_type: str = "MARKET",
-    ) -> OrderResponse:
-        """Place order via active broker."""
-        return self._broker_service.active_broker.place_order(
+    ) -> Order:
+        """Place order via broker gateway or OMS."""
+        gw = self._ensure_gateway()
+        return gw.place_order(
             symbol=symbol,
             exchange=exchange,
             side=side,
@@ -76,4 +121,8 @@ class OmsService:
 
     def cancel_order(self, order_id: str) -> bool:
         """Cancel an open order."""
-        return self._broker_service.active_broker.cancel_order(order_id)
+        if self._ctx is not None:
+            result = self._ctx.order_manager.cancel_order(order_id)
+            return result.success
+        gw = self._ensure_gateway()
+        return gw.cancel_order(order_id)

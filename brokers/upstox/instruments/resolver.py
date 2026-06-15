@@ -38,11 +38,12 @@ class UpstoxInstrumentResolver:
         with self._lock:
             if definition.instrument_key:
                 self._by_key[definition.instrument_key] = definition
-            if definition.symbol and definition.exchange_segment:
-                key = (definition.symbol.upper(), definition.exchange_segment.upper())
+            sym = definition.symbol or definition.trading_symbol
+            if sym and definition.exchange_segment:
+                key = (sym.upper(), definition.exchange_segment.upper())
                 self._by_symbol_segment[key] = definition
-                if definition.symbol:
-                    self._by_symbol_index[definition.symbol.upper()].append(definition)
+                if sym:
+                    self._by_symbol_index[sym.upper()].append(definition)
             self._loaded = True
 
     def register_many(self, definitions: Iterable[UpstoxInstrumentDefinition]) -> None:

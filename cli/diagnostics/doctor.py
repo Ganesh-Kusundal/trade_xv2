@@ -1,26 +1,19 @@
-"""Diagnostics runner for doctor check commands."""
+"""Diagnostics runner for doctor check commands — broker-agnostic version."""
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+from typing import Optional
 
-from brokers.dhan.auth.auth import DhanAuthRejected
-from cli.services.broker_service import BrokerService, MockBroker
-
-
-def _format_auth_error(exc: Exception) -> str:
-    if isinstance(exc, DhanAuthRejected) and exc.rate_limited:
-        return (
-            f"Dhan TOTP mint is rate-limited (once every 2 minutes). {exc}"
-        )
-    return str(exc)
+from brokers.common.gateway import MarketDataGateway
+from cli.services.broker_service import BrokerService
 
 
 class DoctorDiagnostics:
-    """Runs connectivity, authentication, and API sanity checks on the broker."""
+    """Runs connectivity, authentication, and API sanity checks on any broker."""
 
-    def __init__(self, broker_service: BrokerService):
+    def __init__(self, broker_service: BrokerService, gateway: Optional[MarketDataGateway] = None):
         self._broker_service = broker_service
+        self._gw = gateway
 
     def run_all_checks(self) -> list[tuple[str, str, str]]:
         """Run all diagnostics checks.
@@ -30,160 +23,165 @@ class DoctorDiagnostics:
             Status can be: "PASS", "FAIL", "WARNING"
         """
         checks = []
-        broker = self._broker_service.active_broker
 
-        if isinstance(broker, MockBroker):
-            detail = "Mock broker active — configure .env.local with valid Dhan credentials."
-            if self._broker_service.dhan_load_error:
-                detail += f" Load error: {self._broker_service.dhan_load_error}"
+        if self._gw is None:
+            detail = "No broker gateway available — configure broker credentials."
             checks.append(("Broker Backend", "FAIL", detail))
             return checks
 
+        gw = self._gw
+
         # 1. Authentication Check
         try:
-            connected = broker.is_connected()
-            if not connected:
-                connected = broker.connect()
-
-            if connected:
-                try:
-                    from brokers.dhan.auth.auth import DhanAuthClient
-                    token = broker._access_token()
-                    info = DhanAuthClient().fetch_profile(token)
-                    if info.valid:
-                        checks.append((
-                            "Authentication Check",
-                            "PASS",
-                            f"Connected as client ID {broker.broker_id}. Token is valid.",
-                        ))
-                    else:
-                        checks.append((
-                            "Authentication Check",
-                            "FAIL",
-                            "Broker connection succeeded but authentication token is marked invalid.",
-                        ))
-                except Exception as e:
-                    checks.append((
-                        "Authentication Check",
-                        "FAIL",
-                        f"Profile validation failed: {_format_auth_error(e)}",
-                    ))
+            balance = gw.funds()
+            if isinstance(balance, dict):
+                available = balance.get("available_balance", balance.get("available_margin", 0))
             else:
-                checks.append((
-                    "Authentication Check",
-                    "FAIL",
-                    "Failed to establish connection to the broker API.",
-                ))
+                available = getattr(balance, "available_balance", getattr(balance, "available_margin", 0))
+            checks.append((
+                "Authentication Check",
+                "PASS",
+                f"Connected and authenticated. Available balance: {float(available):,.2f}",
+            ))
+        except NotImplementedError:
+            checks.append((
+                "Authentication Check",
+                "WARNING",
+                "Funds check not implemented for this broker",
+            ))
         except Exception as e:
             checks.append((
                 "Authentication Check",
                 "FAIL",
-                f"Authentication check raised exception: {_format_auth_error(e)}",
+                f"Authentication check failed: {type(e).__name__}: {e}",
             ))
 
         # 2. Quote Check
         try:
             symbol = "RELIANCE"
-            exchange = "NSE"
-            quote_df = broker.get_quote(symbol, exchange)
-            if quote_df is not None and not quote_df.empty:
-                ltp = quote_df["ltp"].iloc[0]
-                checks.append((
-                    "Quote Check",
-                    "PASS",
-                    f"Retrieved live quote for {symbol}: LTP={ltp:.2f}",
-                ))
+            quote = gw.quote(symbol)
+            if quote and isinstance(quote, dict):
+                ltp = quote.get("ltp", 0)
+                if ltp and float(ltp) > 0:
+                    checks.append((
+                        "Quote Check",
+                        "PASS",
+                        f"Retrieved live quote for {symbol}: LTP={float(ltp):.2f}",
+                    ))
+                else:
+                    checks.append((
+                        "Quote Check",
+                        "FAIL",
+                        f"Quote endpoint returned no data for symbol {symbol}",
+                    ))
             else:
                 checks.append((
                     "Quote Check",
                     "FAIL",
-                    f"Quote endpoint returned empty DataFrame for symbol {symbol}",
+                    f"Quote endpoint returned invalid data for {symbol}",
                 ))
+        except NotImplementedError:
+            checks.append((
+                "Quote Check",
+                "WARNING",
+                "Quote check not implemented for this broker",
+            ))
         except Exception as e:
             checks.append((
                 "Quote Check",
                 "FAIL",
-                f"Quote API verification failed: {_format_auth_error(e)}",
+                f"Quote API verification failed: {type(e).__name__}: {e}",
             ))
 
         # 3. Historical Data Check
         try:
             symbol = "RELIANCE"
-            exchange = "NSE"
-            to_date = date.today()
-            from_date = to_date - timedelta(days=5)
-            hist_df = broker.get_historical_data(
-                symbol, exchange, from_date, to_date, timeframe="1d"
-            )
-            if hist_df is not None and not hist_df.empty:
+            df = gw.history(symbol, timeframe="1D", lookback_days=7)
+            if df is not None and not df.empty:
+                rows = len(df)
+                latest = df["timestamp"].max() if "timestamp" in df.columns else "N/A"
                 checks.append((
                     "Historical Data Check",
                     "PASS",
-                    f"Fetched {len(hist_df)} historical candles successfully. Schema matches perfectly.",
+                    f"Retrieved {rows} candles for {symbol}, latest: {latest}",
                 ))
             else:
                 checks.append((
                     "Historical Data Check",
                     "FAIL",
-                    "Historical data endpoint returned empty DataFrame.",
+                    f"No historical data returned for {symbol}",
                 ))
+        except NotImplementedError:
+            checks.append((
+                "Historical Data Check",
+                "WARNING",
+                "Historical data check not implemented for this broker",
+            ))
         except Exception as e:
             checks.append((
                 "Historical Data Check",
                 "FAIL",
-                f"Historical data verification failed: {_format_auth_error(e)}",
+                f"Historical data check failed: {type(e).__name__}: {e}",
             ))
 
-        # 4. Websocket Check
+        # 4. Capabilities Check
         try:
-            if hasattr(broker, "order_stream") and broker.order_stream:
+            caps = gw.capabilities()
+            supported_tfs = getattr(caps, "supported_timeframes", ())
+            checks.append((
+                "Capabilities Check",
+                "PASS",
+                f"Supported timeframes: {', '.join(supported_tfs) if supported_tfs else 'N/A'}",
+            ))
+        except Exception as e:
+            checks.append((
+                "Capabilities Check",
+                "FAIL",
+                f"Capabilities check failed: {type(e).__name__}: {e}",
+            ))
+
+        # 5. Instrument Search Check
+        try:
+            results = gw.search("RELIANCE")
+            if results and len(results) > 0:
                 checks.append((
-                    "Websocket Check",
+                    "Instrument Search Check",
                     "PASS",
-                    "Order stream adapter is configured.",
+                    f"Found {len(results)} instruments for RELIANCE",
                 ))
             else:
                 checks.append((
-                    "Websocket Check",
+                    "Instrument Search Check",
                     "WARNING",
-                    "Order stream adapter not found.",
+                    "No instruments found for RELIANCE",
                 ))
+        except NotImplementedError:
+            checks.append((
+                "Instrument Search Check",
+                "WARNING",
+                "Instrument search not implemented for this broker",
+            ))
         except Exception as e:
             checks.append((
-                "Websocket Check",
+                "Instrument Search Check",
                 "FAIL",
-                f"Websocket diagnostics failed: {e}",
+                f"Instrument search failed: {type(e).__name__}: {e}",
             ))
 
-        # 5. Order API Check (REST path — same auth as quotes)
+        # 6. Describe Check
         try:
-            orders = broker.order_query.get_order_list()
+            desc = gw.describe()
+            broker_name = desc.get("broker", desc.get("name", "Unknown"))
             checks.append((
-                "Order API Check",
+                "Broker Identity Check",
                 "PASS",
-                f"Retrieved {len(orders)} orders for today. Endpoints are active and readable.",
+                f"Broker: {broker_name}",
             ))
         except Exception as e:
             checks.append((
-                "Order API Check",
+                "Broker Identity Check",
                 "FAIL",
-                f"Order API retrieval failed: {_format_auth_error(e)}",
-            ))
-
-        # 6. Position Sync Check
-        try:
-            positions = broker.get_positions()
-            holdings = broker.get_holdings()
-            checks.append((
-                "Position Sync Check",
-                "PASS",
-                f"Positions synced ({len(positions)} open). Holdings synced ({len(holdings)} assets).",
-            ))
-        except Exception as e:
-            checks.append((
-                "Position Sync Check",
-                "FAIL",
-                f"Portfolio sync check failed: {_format_auth_error(e)}",
+                f"Describe failed: {type(e).__name__}: {e}",
             ))
 
         return checks

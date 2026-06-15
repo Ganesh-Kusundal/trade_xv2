@@ -1,0 +1,230 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Surfaces */
+    --bg-0: 8 11 19;            /* deepest bg */
+    --bg-1: 12 16 26;           /* panel */
+    --bg-2: 17 22 35;           /* elevated */
+    --bg-3: 22 28 44;           /* hover */
+    --bg-4: 28 35 54;           /* selected */
+    --bg-5: 35 43 66;           /* border emphasis */
+    --bg: 12 16 26;
+
+    /* Lines */
+    --line: 33 41 62;
+    --line-subtle: 24 31 48;
+    --line-strong: 51 62 92;
+
+    /* Foreground */
+    --fg: 218 224 240;
+    --fg-muted: 154 165 188;
+    --fg-dim: 102 115 140;
+    --fg-inverse: 8 11 19;
+
+    /* Brand - electric blue */
+    --brand: 59 130 246;
+    --brand-50: 238 244 255;
+    --brand-100: 199 222 255;
+    --brand-500: 59 130 246;
+    --brand-600: 37 99 235;
+    --brand-700: 29 78 216;
+
+    /* Semantic */
+    --success: 34 197 94;
+    --danger: 239 68 68;
+    --warning: 245 158 11;
+    --info: 14 165 233;
+    --bullish: 22 163 74;       /* green */
+    --bearish: 220 38 38;        /* red */
+    --accent: 168 85 247;        /* purple */
+  }
+
+  * {
+    box-sizing: border-box;
+    border-color: rgb(var(--line) / 1);
+  }
+
+  html, body, #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+  }
+
+  body {
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11', 'tnum';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background: rgb(var(--bg-0));
+    color: rgb(var(--fg));
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgb(var(--bg-4));
+    border-radius: 4px;
+    border: 2px solid rgb(var(--bg-0));
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgb(var(--bg-5));
+  }
+
+  ::selection {
+    background: rgb(var(--brand) / 0.3);
+  }
+
+  /* Number tabular */
+  .num {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum';
+  }
+  .mono {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+}
+
+@layer components {
+  /* Panel - a reusable card */
+  .panel {
+    @apply bg-bg-1 border border-line rounded-md;
+  }
+  .panel-header {
+    @apply flex items-center justify-between px-3 py-2 border-b border-line bg-bg-2/50;
+  }
+  .panel-title {
+    @apply text-xs font-semibold uppercase tracking-wider text-fg-muted;
+  }
+  .panel-body {
+    @apply p-3;
+  }
+
+  /* Tabular data cells */
+  .cell {
+    @apply px-3 py-1.5 text-sm num;
+  }
+  .cell-right {
+    @apply text-right;
+  }
+  .cell-num {
+    @apply font-mono;
+  }
+
+  /* Status pill */
+  .pill {
+    @apply inline-flex items-center gap-1 px-1.5 py-0.5 text-2xs font-medium rounded;
+  }
+  .pill-bull {
+    @apply bg-bullish/15 text-bullish border border-bullish/20;
+  }
+  .pill-bear {
+    @apply bg-bearish/15 text-bearish border border-bearish/20;
+  }
+  .pill-warn {
+    @apply bg-warning/15 text-warning border border-warning/20;
+  }
+  .pill-info {
+    @apply bg-info/15 text-info border border-info/20;
+  }
+  .pill-neutral {
+    @apply bg-bg-3 text-fg-muted border border-line;
+  }
+
+  /* Buttons */
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded transition-colors;
+  }
+  .btn-primary {
+    @apply bg-brand text-white hover:bg-brand-600 active:bg-brand-700;
+  }
+  .btn-secondary {
+    @apply bg-bg-2 text-fg border border-line hover:bg-bg-3 hover:border-line-strong;
+  }
+  .btn-ghost {
+    @apply text-fg-muted hover:text-fg hover:bg-bg-2;
+  }
+  .btn-bull {
+    @apply bg-bullish/15 text-bullish border border-bullish/30 hover:bg-bullish/25;
+  }
+  .btn-bear {
+    @apply bg-bearish/15 text-bearish border border-bearish/30 hover:bg-bearish/25;
+  }
+
+  /* Input */
+  .input {
+    @apply w-full bg-bg-0 border border-line rounded px-2.5 py-1.5 text-sm text-fg placeholder:text-fg-dim focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand/30;
+  }
+
+  /* Data table */
+  .data-table {
+    @apply w-full text-sm border-collapse;
+  }
+  .data-table thead th {
+    @apply sticky top-0 z-10 bg-bg-2 px-3 py-2 text-left text-2xs font-semibold uppercase tracking-wider text-fg-muted border-b border-line;
+  }
+  .data-table tbody td {
+    @apply px-3 py-1.5 border-b border-line-subtle num;
+  }
+  .data-table tbody tr:hover td {
+    @apply bg-bg-2;
+  }
+  .data-table tbody tr.row-active td {
+    @apply bg-brand/10;
+  }
+
+  /* Live cells (up/down flash) */
+  .live-up {
+    @apply text-bullish;
+  }
+  .live-down {
+    @apply text-bearish;
+  }
+
+  /* Grid pattern background */
+  .bg-grid {
+    background-image:
+      linear-gradient(rgb(var(--line) / 0.15) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(var(--line) / 0.15) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  /* Glow effects */
+  .glow-brand {
+    box-shadow: 0 0 24px rgb(var(--brand) / 0.15), 0 0 0 1px rgb(var(--brand) / 0.3);
+  }
+  .glow-bull {
+    box-shadow: 0 0 20px rgb(var(--bullish) / 0.2);
+  }
+  .glow-bear {
+    box-shadow: 0 0 20px rgb(var(--bearish) / 0.2);
+  }
+}
+
+@layer utilities {
+  .text-balance { text-wrap: balance; }
+  .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+  .scrollbar-none::-webkit-scrollbar { display: none; }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+
+  /* Sparkline helpers */
+  .spark-up { stroke: rgb(var(--bullish)); fill: rgb(var(--bullish) / 0.1); }
+  .spark-down { stroke: rgb(var(--bearish)); fill: rgb(var(--bearish) / 0.1); }
+}
+
+/* Animation */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.pulse-dot {
+  animation: pulse-dot 1.6s ease-in-out infinite;
+}

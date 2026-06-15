@@ -10,6 +10,7 @@ import asyncio
 import contextlib
 import json
 import logging
+import threading
 from collections.abc import Callable
 from typing import Any
 
@@ -20,6 +21,7 @@ from brokers.upstox.websocket.feed_authorizer import (
 )
 from brokers.upstox.websocket.v3_auto_reconnect import UpstoxAutoReconnect
 from brokers.upstox.websocket.v3_decoder import UpstoxV3Decoder
+from brokers.common.event_bus import EventBus
 from brokers.upstox.websocket.v3_subscription_manager import (
     UpstoxV3SubscriptionLimits,
     UpstoxV3SubscriptionManager,
@@ -36,6 +38,10 @@ class UpstoxMarketDataV3Multiplexer:
     In production this opens a real ``websockets`` connection to the
     authorized URI. In tests the connection can be replaced via the
     ``socket_factory`` constructor argument.
+
+    Supports reconnect backfill: on reconnection, if a ``backfill_callback``
+    was provided, it is invoked to fetch missed bars between the last tick
+    time and the reconnection time.
     """
 
     def __init__(
@@ -45,28 +51,43 @@ class UpstoxMarketDataV3Multiplexer:
         limits: UpstoxV3SubscriptionLimits | None = None,
         auto_reconnect: UpstoxAutoReconnect | None = None,
         socket_factory: Callable[[str], Any] | None = None,
+        event_bus: EventBus | None = None,
+        backfill_callback: Callable[[str, Any, Any], list[dict]] | None = None,
     ) -> None:
         self._authorizer = authorizer
         self._decoder = decoder or UpstoxV3Decoder()
         self._subscriptions = UpstoxV3SubscriptionManager(limits)
         self._reconnect = auto_reconnect or UpstoxAutoReconnect()
         self._socket_factory = socket_factory or _default_socket_factory
+        self._event_bus = event_bus
+        self._backfill_callback = backfill_callback
         self._socket: Any = None
         self._listeners: list[TickListener] = []
+        self._listener_lock = threading.RLock()
         self._subscribed: set[str] = set()
         self._task: asyncio.Task[Any] | None = None
         self._stopped = False
+        # Reconnect backfill state
+        self._last_tick_time: dict[str, Any] = {}
+        self._disconnect_time: Any = None
+        self._just_reconnected = False
 
     @property
     def subscription_manager(self) -> UpstoxV3SubscriptionManager:
         return self._subscriptions
 
+    @property
+    def is_connected(self) -> bool:
+        return self._socket is not None and not self._stopped
+
     def add_listener(self, listener: TickListener) -> None:
-        self._listeners.append(listener)
+        with self._listener_lock:
+            self._listeners.append(listener)
 
     def remove_listener(self, listener: TickListener) -> None:
-        if listener in self._listeners:
-            self._listeners.remove(listener)
+        with self._listener_lock:
+            if listener in self._listeners:
+                self._listeners.remove(listener)
 
     def subscribe(
         self,
@@ -119,6 +140,8 @@ class UpstoxMarketDataV3Multiplexer:
 
     async def disconnect(self) -> None:
         self._stopped = True
+        from datetime import datetime, timezone
+        self._disconnect_time = datetime.now(timezone.utc)
         if self._task is not None:
             self._task.cancel()
             with contextlib.suppress(asyncio.CancelledError, Exception):
@@ -139,12 +162,8 @@ class UpstoxMarketDataV3Multiplexer:
     async def _maybe_send_initial_subscriptions(self) -> None:
         if not self._subscribed:
             return
-        for mode, keys in [
-            ("ltpc", list(self._subscriptions._by_mode["ltpc"])),
-            ("option_greeks", list(self._subscriptions._by_mode["option_greeks"])),
-            ("full", list(self._subscriptions._by_mode["full"])),
-            ("full_d30", list(self._subscriptions._by_mode["full_d30"])),
-        ]:
+        for mode in ("ltpc", "option_greeks", "full", "full_d30"):
+            keys = self._subscriptions.keys_for_mode(mode)
             if keys:
                 self._send_subscribe(keys, mode)
 
@@ -170,17 +189,26 @@ class UpstoxMarketDataV3Multiplexer:
         recv = getattr(self._socket, "recv", None)
         if recv is None:
             return
+        was_disconnected = False
         while not self._stopped:
             try:
                 raw = await recv() if asyncio.iscoroutinefunction(recv) else recv()
             except Exception as exc:
                 logger.warning("Upstox V3 recv error: %s", exc)
+                was_disconnected = True
+                if self._disconnect_time is None:
+                    from datetime import datetime, timezone
+                    self._disconnect_time = datetime.now(timezone.utc)
                 if not self._reconnect.should_retry():
                     break
                 delay = self._reconnect.next_delay()
                 self._reconnect.record_failure()
                 await asyncio.sleep(delay)
                 continue
+            # Successfully received — check if we just reconnected
+            if was_disconnected and self._backfill_callback is not None:
+                self._just_reconnected = True
+            was_disconnected = False
             self._reconnect.reset()
             if not raw:
                 continue
@@ -191,7 +219,13 @@ class UpstoxMarketDataV3Multiplexer:
                 except Exception:
                     continue
                 if msg.get("type") == "market_info":
-                    for listener in self._listeners:
+                    # Trigger backfill after market_info (reconnection confirmed)
+                    if self._just_reconnected:
+                        self._just_reconnected = False
+                        self._backfill_gap()
+                    with self._listener_lock:
+                        listeners = list(self._listeners)
+                    for listener in listeners:
                         with contextlib.suppress(Exception):
                             listener("market_info", msg)
                 continue
@@ -201,9 +235,63 @@ class UpstoxMarketDataV3Multiplexer:
                 continue
             if frame is None:
                 continue
-            for listener in self._listeners:
+            # Track tick times for backfill
+            self._track_tick_from_frame(frame)
+            with self._listener_lock:
+                listeners = list(self._listeners)
+            for listener in listeners:
                 with contextlib.suppress(Exception):
                     listener("tick", {"frame_type": frame.type, "payload": frame.payload})
+
+    def _track_tick_from_frame(self, frame: Any) -> None:
+        """Record latest tick time per instrument for gap detection."""
+        from datetime import datetime, timezone
+        payload = getattr(frame, "payload", None)
+        if payload is None:
+            return
+        instrument_key = getattr(payload, "instrument_key", None) or (payload.get("instrumentKey") if isinstance(payload, dict) else None)
+        if not instrument_key:
+            return
+        now = datetime.now(timezone.utc)
+        prev = self._last_tick_time.get(instrument_key)
+        if prev is None or now > prev:
+            self._last_tick_time[instrument_key] = now
+
+    def _backfill_gap(self) -> None:
+        """Fetch missed bars from REST and dispatch as ticks."""
+        from datetime import datetime, timezone
+        import asyncio
+        disconnect_time = self._disconnect_time
+        if disconnect_time is None:
+            return
+        now = datetime.now(timezone.utc)
+        self._disconnect_time = None
+        if disconnect_time >= now:
+            return
+        instrument_keys = list(self._last_tick_time.keys())
+        if not instrument_keys:
+            instrument_keys = list(self._subscribed)
+        if not instrument_keys:
+            return
+        logger.info(
+            "Backfilling %d instruments for gap %s → %s",
+            len(instrument_keys),
+            disconnect_time.isoformat(),
+            now.isoformat(),
+        )
+        try:
+            bars = self._backfill_callback(instrument_keys, disconnect_time, now)
+        except Exception as exc:
+            logger.warning("Backfill callback failed: %s", exc)
+            return
+        if not bars:
+            return
+        for bar in bars:
+            with self._listener_lock:
+                listeners = list(self._listeners)
+            for listener in listeners:
+                with contextlib.suppress(Exception):
+                    listener("tick", {"frame_type": "backfill", "payload": bar})
 
 
 def _default_socket_factory(url: str) -> Any:

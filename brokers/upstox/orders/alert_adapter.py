@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from brokers.common.api.ports import ConditionalAlertProvider
-from brokers.common.core.models import ConditionalAlert, ConditionalAlertRequest
+from brokers.common.core.domain import ConditionalAlert, ConditionalAlertRequest
 from brokers.upstox.orders.gtt_adapter import UpstoxGttAdapter
 
 

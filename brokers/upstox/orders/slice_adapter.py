@@ -11,9 +11,11 @@ from __future__ import annotations
 
 import logging
 import time
+from typing import Any
 
 from brokers.common.api.ports import SliceOrderCommand
-from brokers.common.core.models import Order, OrderRequest, SliceOrderRequest
+from brokers.common.core.domain import Order
+from brokers.common.core.models import OrderRequest, SliceOrderRequest
 from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from brokers.upstox.orders.order_client import UpstoxRestOrderClient

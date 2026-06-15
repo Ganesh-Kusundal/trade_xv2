@@ -1,7 +1,14 @@
-"""Core broker enums — inspired by Trade_J domain model.
+"""DEPRECATED: Use brokers.common.core.domain instead. Kept for Upstox compatibility.
 
+Original description: Core broker enums — inspired by Trade_J domain model.
 Each enum includes helper methods for common operations
 (e.g. ``from_value``, ``opposite``, ``valid_for``, ``is_terminal``).
+
+Canonical enums (Side, OrderStatus, ProductType, OrderType, Validity) live in
+``brokers.common.core.domain``.  This module retains broker-specific enums that
+have no domain.py equivalent (ExchangeSegment, FeedMode, InstrumentType,
+TransactionType) plus legacy copies of the canonical enums needed by the Upstox
+adapter and the Pydantic models in ``models.py``.
 """
 
 from __future__ import annotations

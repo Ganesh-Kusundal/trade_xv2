@@ -6,14 +6,17 @@ Mirrors ``brokers.dhan.orders.order_command_adapter.DhanOrderCommandAdapter``.
 from __future__ import annotations
 
 import logging
+from decimal import Decimal
 from typing import Any
 
 from brokers.common.api.ports import IdempotencyCachePort, OrderCommand
+from brokers.common.core.domain import Order, OrderResponse, Side as OrderSide
 from brokers.common.core.models import (
     OrderPreview,
     OrderRequest,
-    OrderResponse,
 )
+from brokers.common.event_bus import DomainEvent, EventBus
+from brokers.common.oms.risk_manager import RiskManager
 from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from brokers.upstox.orders.idempotency import InMemoryIdempotencyCache
@@ -32,6 +35,8 @@ class UpstoxOrderCommandAdapter(OrderCommand):
         use_v3: bool = True,
         algo_name: str | None = None,
         market_protection_default: int = -1,
+        event_bus: EventBus | None = None,
+        risk_manager: RiskManager | None = None,
     ) -> None:
         self._order_client = order_client
         self._instrument_resolver = instrument_resolver
@@ -39,6 +44,8 @@ class UpstoxOrderCommandAdapter(OrderCommand):
         self._use_v3 = use_v3
         self._algo_name = algo_name
         self._market_protection_default = market_protection_default
+        self._event_bus = event_bus
+        self._risk_manager = risk_manager
 
     def place_order(self, request: OrderRequest) -> OrderResponse:
         if request.correlation_id and self._idempotency_cache is not None:
@@ -46,15 +53,21 @@ class UpstoxOrderCommandAdapter(OrderCommand):
             if cached is not None:
                 return cached
 
+        if self._risk_manager is not None:
+            preview_order = self._to_domain_order(request)
+            risk_result = self._risk_manager.check_order(preview_order)
+            if not risk_result.allowed:
+                return OrderResponse.fail(f"Risk check failed: {risk_result.reason}")
+
         instrument_key = self._resolve_instrument_key(request)
         if not instrument_key:
-            return OrderResponse.create_failure(
+            return OrderResponse.fail(
                 f"Cannot resolve Upstox instrument_key for {request.symbol!r}"
             )
 
         preview = self.preview_order(request)
         if not preview.valid:
-            return OrderResponse.create_failure("; ".join(preview.errors))
+            return OrderResponse.fail("; ".join(preview.errors))
 
         payload = self._order_client.build_place_payload(
             request,
@@ -68,9 +81,11 @@ class UpstoxOrderCommandAdapter(OrderCommand):
             else:
                 result = self._order_client.place_order_v2(payload)
         except Exception as exc:
-            return OrderResponse.create_failure(str(exc))
+            return OrderResponse.fail(str(exc))
 
         response = UpstoxDomainMapper.to_order_response(result)
+        if response.success:
+            self._publish_order_placed(request, response)
         if request.correlation_id and self._idempotency_cache is not None and response.success:
             self._idempotency_cache.put(request.correlation_id, response)
         return response
@@ -125,3 +140,46 @@ class UpstoxOrderCommandAdapter(OrderCommand):
             return definition.instrument_key
         # Last resort: assume symbol is the bare instrument_key
         return request.symbol or None
+
+    def _to_domain_order(self, request: OrderRequest) -> Order:
+        from datetime import datetime, timezone
+        from brokers.common.core.domain import OrderStatus, OrderType, ProductType, Validity
+
+        return Order(
+            order_id="",
+            symbol=request.symbol or "",
+            exchange=request.exchange or "NSE",
+            side=OrderSide(request.transaction_type.value),
+            order_type=OrderType(request.order_type.value),
+            quantity=request.quantity,
+            price=request.price or Decimal("0"),
+            trigger_price=request.trigger_price or Decimal("0"),
+            product_type=ProductType(request.product_type.value),
+            validity=Validity(request.validity.value),
+            status=OrderStatus.OPEN,
+            timestamp=datetime.now(timezone.utc),
+            correlation_id=request.correlation_id,
+        )
+
+    def _publish_order_placed(self, request: OrderRequest, response: OrderResponse) -> None:
+        if self._event_bus is None:
+            return
+
+        try:
+            from dataclasses import replace
+            order = replace(
+                self._to_domain_order(request),
+                order_id=response.order_id or "",
+                status=response.status or self._to_domain_order(request).status,
+            )
+        except Exception:
+            # Defensive: do not let event publishing break order placement.
+            return
+        self._event_bus.publish(
+            DomainEvent.now(
+                "ORDER_PLACED",
+                {"order": order},
+                symbol=order.symbol,
+                source="UpstoxOrderCommandAdapter",
+            )
+        )

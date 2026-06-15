@@ -1,0 +1,202 @@
+"""Strategy parameter optimization — grid search over parameter space."""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass, field
+from itertools import product
+
+import pandas as pd
+
+from analytics.backtest import BacktestEngine, BacktestConfig
+from analytics.backtest.models import BacktestResult
+from analytics.pipeline.pipeline import FeaturePipeline
+from analytics.pipeline.features import RSI, ATR, SMA, ROC, Momentum, Trend, EMA
+from analytics.strategy import StrategyPipeline
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ParamGrid:
+    """Parameter grid for optimization."""
+
+    name: str
+    values: list[int | float | str]
+
+
+@dataclass
+class OptimizationResult:
+    """Result of parameter optimization."""
+
+    param_name: str
+    param_values: list[int | float | str]
+    results: list[dict] = field(default_factory=list)
+    best_params: dict = field(default_factory=dict)
+    best_return: float = 0.0
+    best_sharpe: float = 0.0
+
+    @property
+    def summary(self) -> pd.DataFrame:
+        """Return results as a DataFrame for easy analysis."""
+        return pd.DataFrame(self.results)
+
+
+def build_pipeline(
+    rsi_period: int = 14,
+    atr_period: int = 14,
+    sma_period: int = 20,
+    roc_period: int = 5,
+    momentum_period: int = 5,
+    trend_fast: int = 10,
+    trend_slow: int = 50,
+) -> FeaturePipeline:
+    """Build a feature pipeline with configurable parameters."""
+    return (
+        FeaturePipeline()
+        .add(RSI(period=rsi_period))
+        .add(ATR(period=atr_period))
+        .add(SMA(period=sma_period))
+        .add(ROC(period=roc_period))
+        .add(Momentum(period=momentum_period))
+        .add(Trend(fast_period=trend_fast, slow_period=trend_slow))
+    )
+
+
+def optimize_grid(
+    data: pd.DataFrame,
+    symbol: str = "OPTIMIZE",
+    param_grids: list[ParamGrid] | None = None,
+    strategy_name: str = "momentum",
+    initial_capital: float = 100_000,
+    warmup_bars: int = 50,
+    top_n: int = 10,
+) -> OptimizationResult:
+    """Run grid search optimization over parameter space.
+
+    Args:
+        data: OHLCV DataFrame
+        symbol: Symbol name for the backtest
+        param_grids: List of ParamGrid objects defining the search space
+        strategy_name: Strategy to optimize ("momentum" or "breakout")
+        initial_capital: Starting capital
+        warmup_bars: Warmup period
+        top_n: Number of top results to keep
+
+    Returns:
+        OptimizationResult with all results and best parameters
+    """
+    from analytics.strategy import MomentumStrategy, BreakoutStrategy
+
+    if param_grids is None:
+        # Default grid: optimize RSI period and SMA period
+        param_grids = [
+            ParamGrid("rsi_period", [7, 10, 14, 21]),
+            ParamGrid("sma_period", [10, 20, 30, 50]),
+        ]
+
+    # Generate all parameter combinations
+    param_names = [g.name for g in param_grids]
+    param_values = [g.values for g in param_grids]
+    combinations = list(product(*param_values))
+
+    logger.info("Optimizing %d parameter combinations", len(combinations))
+
+    result = OptimizationResult(
+        param_name=",".join(param_names),
+        param_values=[str(c) for c in combinations],
+    )
+
+    best_return = -float("inf")
+    best_sharpe = -float("inf")
+    best_params = {}
+
+    strategies = {
+        "momentum": MomentumStrategy,
+        "breakout": BreakoutStrategy,
+    }
+    StrategyClass = strategies.get(strategy_name, MomentumStrategy)
+
+    for combo in combinations:
+        params = dict(zip(param_names, combo))
+
+        try:
+            # Build pipeline with current parameters
+            pipeline = build_pipeline(
+                rsi_period=params.get("rsi_period", 14),
+                atr_period=params.get("atr_period", 14),
+                sma_period=params.get("sma_period", 20),
+                roc_period=params.get("roc_period", 5),
+                momentum_period=params.get("momentum_period", 5),
+                trend_fast=params.get("trend_fast", 10),
+                trend_slow=params.get("trend_slow", 50),
+            )
+
+            strategy = StrategyPipeline(strategies=[StrategyClass()])
+            config = BacktestConfig(initial_capital=initial_capital, warmup_bars=warmup_bars)
+
+            engine = BacktestEngine(pipeline, strategy, config)
+            bt_result = engine.run(data, symbol=symbol)
+
+            m = bt_result.metrics
+            result_row = {
+                "params": params,
+                "total_return_pct": m.total_return_pct,
+                "sharpe_ratio": m.sharpe_ratio,
+                "max_drawdown_pct": m.max_drawdown_pct,
+                "total_trades": m.trade_analysis.total_trades,
+                "win_rate": m.trade_analysis.win_rate,
+                "profit_factor": m.trade_analysis.profit_factor,
+            }
+            result.results.append(result_row)
+
+            # Track best
+            if m.sharpe_ratio > best_sharpe:
+                best_sharpe = m.sharpe_ratio
+                best_return = m.total_return_pct
+                best_params = params
+
+        except Exception as exc:
+            logger.warning("Failed for params %s: %s", params, exc)
+
+    result.best_params = best_params
+    result.best_return = best_return
+    result.best_sharpe = best_sharpe
+
+    return result
+
+
+def optimize_rsi_period(
+    data: pd.DataFrame,
+    symbol: str = "OPTIMIZE",
+    periods: list[int] | None = None,
+    initial_capital: float = 100_000,
+) -> OptimizationResult:
+    """Quick optimization of RSI period only."""
+    if periods is None:
+        periods = [5, 7, 10, 14, 21, 28]
+
+    return optimize_grid(
+        data=data,
+        symbol=symbol,
+        param_grids=[ParamGrid("rsi_period", periods)],
+        initial_capital=initial_capital,
+    )
+
+
+def optimize_sma_period(
+    data: pd.DataFrame,
+    symbol: str = "OPTIMIZE",
+    periods: list[int] | None = None,
+    initial_capital: float = 100_000,
+) -> OptimizationResult:
+    """Quick optimization of SMA period only."""
+    if periods is None:
+        periods = [10, 15, 20, 25, 30, 40, 50]
+
+    return optimize_grid(
+        data=data,
+        symbol=symbol,
+        param_grids=[ParamGrid("sma_period", periods)],
+        initial_capital=initial_capital,
+    )

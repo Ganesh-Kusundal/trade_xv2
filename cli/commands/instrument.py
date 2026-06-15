@@ -1,90 +1,136 @@
-"""CLI command handler for broker mapping diagnostics."""
+"""CLI command handler for instrument resolution diagnostics."""
 
 from __future__ import annotations
 
 from rich.console import Console
 from rich.table import Table
 
-from brokers.common.core.broker import Broker
-from brokers.common.core.instruments import InstrumentRegistry
-from brokers.dhan.mapper.seed_security_ids import DHAN_SEED_SECURITY_IDS
+from cli.services.broker_service import BrokerService
 
 
-def run(args: list[str], broker: Broker, console: Console) -> None:
+def run(args: list[str], broker_service: BrokerService, console: Console) -> None:
     """Entry point for instrument mapping subcommand."""
     if not args:
         console.print("[yellow]Usage: tradex instrument <symbol>[/yellow]")
         return
 
     symbol = args[0].upper().strip()
-    service = broker.instrument_service
-    registry = InstrumentRegistry()
+    gw = broker_service.active_broker
 
-    table = Table(title=f"Multi-Broker Mapping Diagnostics: {symbol}", header_style="bold cyan")
-    table.add_column("Broker Partner", style="bold white")
-    table.add_column("Instrument Key / Identifier", justify="center")
+    resolver = gw.instruments
+    resolver_stats = resolver.stats()
+
+    table = Table(
+        title=f"Instrument Resolution Diagnostics: {symbol}",
+        header_style="bold cyan",
+    )
+    table.add_column("Lookup Method", style="bold white")
+    table.add_column("Result", justify="center")
     table.add_column("Status", justify="center")
 
-    dhan_id = "N/A"
-    dhan_seg = "N/A"
-    dhan_status = "[red]Missing[/red]"
-
-    for exchange_label in ("IDX", "NSE", "IDX_I", "NFO"):
-        try:
-            result = service.resolve_symbol(symbol, exchange_label)
-            if result.is_single and result.definition is not None:
-                defn = result.definition
-                dhan_id = defn.security_id
-                dhan_seg = defn.exchange_segment.value
-                dhan_status = "[green]Active[/green]"
-                break
-        except Exception:
-            continue
-
-    catalog_loaded = service._indexes.catalog.is_loaded
-    if catalog_loaded:
-        fallback_status = "[green]Active[/green]"
-    else:
-        fallback_status = "[yellow]Seed-only[/yellow]"
-
-    table.add_row("Dhan Security ID", dhan_id, dhan_status)
-    table.add_row("Dhan Segment", dhan_seg, fallback_status)
-    table.add_row("Zerodha Instrument Token", "N/A", "[yellow]Unmapped[/yellow]")
-    table.add_row("Upstox Instrument Key", "N/A", "[yellow]Unmapped[/yellow]")
-
-    # Always show the verified Dhan seed ID for any registered symbol.
-    # The InstrumentRegistry is the canonical source of truth and is loaded
-    # from the audited ``brokers.dhan.mapper.seed_security_ids`` file.
-    if dhan_id == "N/A":
-        seed_id = DHAN_SEED_SECURITY_IDS.get(
-            (symbol, "IDX"),
-            seeds.get((symbol, "IDX_I"), seeds.get((symbol, "NSE"), "N/A")),
+    # 1. SymbolResolver catalog status
+    loaded = resolver_stats.get("loaded", False)
+    total = resolver_stats.get("total", 0)
+    if loaded:
+        table.add_row(
+            "Instrument Catalog",
+            f"{total:,} instruments loaded",
+            "[green]Active[/green]",
         )
-        if seed_id != "N/A":
-            table.add_row(f"Seed table ({symbol})", seed_id, "[yellow]Fallback[/yellow]")
     else:
-        # Symbol resolved from catalog — also print the verified seed for cross-check.
-        seed_id = DHAN_SEED_SECURITY_IDS.get(
-            (symbol, "IDX"),
-            seeds.get((symbol, "IDX_I"), seeds.get((symbol, "NSE"), "N/A")),
+        table.add_row(
+            "Instrument Catalog",
+            "Not loaded",
+            "[red]Not Loaded[/red]",
         )
-        if seed_id != "N/A" and seed_id != dhan_id:
-            table.add_row(f"Seed table ({symbol})", seed_id, "[yellow]Drift![/yellow]")
-        elif seed_id != "N/A":
-            table.add_row(f"Seed table ({symbol})", seed_id, "[green]Verified[/green]")
 
-    # Print a one-liner showing the audited ID straight from InstrumentRegistry
-    # (the single source of truth), so users can be sure they're seeing the
-    # pinned value.
-    audit_id = "N/A"
-    for exch in ("NSE", "BSE", "IDX", "IDX_I"):
-        try:
-            audit_id = registry.broker_identifier(symbol, exch)
-            table.add_row(f"Audited registry ({exch})", audit_id, "[green]Source of truth[/green]")
+    # 2. Try resolving by symbol across common exchanges
+    resolved = False
+    for exchange_label in ("NSE", "INDEX", "NFO", "BSE", "BFO", "MCX", "CDS"):
+        inst = resolver.get_by_symbol(symbol, exchange_label)
+        if inst is not None:
+            table.add_row(
+                f"Symbol ({exchange_label})",
+                f"Security ID: {inst.security_id} | Type: {inst.instrument_type.value}",
+                "[green]Resolved[/green]",
+            )
+            resolved = True
+            # Show additional details if available
+            if inst.expiry:
+                table.add_row(
+                    f"  Expiry",
+                    inst.expiry,
+                    "[dim]info[/dim]",
+                )
+            if inst.strike_price is not None:
+                table.add_row(
+                    f"  Strike",
+                    str(inst.strike_price),
+                    "[dim]info[/dim]",
+                )
+            if inst.option_type:
+                table.add_row(
+                    f"  Option Type",
+                    inst.option_type.value,
+                    "[dim]info[/dim]",
+                )
+            if inst.underlying:
+                table.add_row(
+                    f"  Underlying",
+                    inst.underlying,
+                    "[dim]info[/dim]",
+                )
+            if inst.lot_size and inst.lot_size > 1:
+                table.add_row(
+                    f"  Lot Size",
+                    str(inst.lot_size),
+                    "[dim]info[/dim]",
+                )
+            if inst.canonical_symbol:
+                table.add_row(
+                    f"  Canonical",
+                    inst.canonical_symbol,
+                    "[dim]info[/dim]",
+                )
             break
-        except KeyError:
-            continue
-    if audit_id == "N/A":
-        table.add_row("Audited registry", "N/A", "[red]Unregistered[/red]")
+
+    if not resolved:
+        table.add_row(
+            "Symbol Lookup (all exchanges)",
+            "Not found",
+            "[red]Missing[/red]",
+        )
+
+    # 3. Try resolve() which may raise InstrumentNotFoundError
+    try:
+        for exchange_label in ("NSE", "INDEX", "NFO"):
+            inst = resolver.resolve(symbol, exchange_label)
+            table.add_row(
+                f"Resolve ({exchange_label})",
+                f"{inst.symbol} [{inst.exchange.value}]",
+                "[green]OK[/green]",
+            )
+            break
+    except Exception:
+        table.add_row(
+            "Resolve (strict)",
+            "Symbol not in resolver index",
+            "[yellow]Not Indexed[/yellow]",
+        )
+
+    # 4. Search all instruments for partial matches
+    all_instruments = resolver.all_instruments()
+    partial_matches = [
+        i for i in all_instruments
+        if symbol in i.symbol.upper() and i.instrument_type.value in ("EQUITY", "FUTURE")
+    ]
+    if partial_matches and not resolved:
+        sample = partial_matches[:5]
+        symbols_str = ", ".join(f"{i.symbol} ({i.exchange.value})" for i in sample)
+        table.add_row(
+            "Partial Matches",
+            symbols_str,
+            f"[yellow]{len(partial_matches)} found[/yellow]",
+        )
 
     console.print(table)

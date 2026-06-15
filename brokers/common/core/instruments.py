@@ -144,36 +144,6 @@ class InstrumentRegistry:
         return Decimal(str(value))
 
     def _register_seed_instruments(self) -> None:
-        # Security IDs are verified against the official Dhan v2 instrument master
-        # CSV (api-scrip-master-YYYY-MM-DD.csv).  The single source of truth lives
-        # in ``brokers.dhan.mapper.seed_security_ids``.  Importing it here would
-        # create a back-edge (dhan -> common -> dhan), so we duplicate the small
-        # set and pin it with a regression test (see TestDhanSeedSecurityIds).
-        from brokers.dhan.mapper.seed_security_ids import (
-            DHAN_SEED_SECURITY_IDS,
-        )
-
-        equity_seed = [
-            (symbol, exchange, sid)
-            for (symbol, exchange), sid in DHAN_SEED_SECURITY_IDS.items()
-            if exchange in {"NSE", "BSE"}
-        ]
-        index_seed = [
-            (symbol, exchange, sid)
-            for (symbol, exchange), sid in DHAN_SEED_SECURITY_IDS.items()
-            if exchange in {"IDX", "IDX_I"}
-        ]
-        # De-duplicate (some symbols appear under both IDX and IDX_I)
-        seen = set()
-        for symbol, exchange, sid in equity_seed:
-            asset = InstrumentType.EQUITY
-            self.register(symbol, exchange, broker_identifier=sid, asset_class=asset)
-            seen.add((symbol, exchange))
-        for symbol, exchange, sid in index_seed:
-            self.register(
-                symbol,
-                exchange,
-                broker_identifier=sid,
-                asset_class=InstrumentType.INDEX,
-            )
-            seen.add((symbol, exchange))
+        # No-op: instrument resolution is now handled by brokers.dhan.resolver.SymbolResolver
+        # which loads from the Dhan instrument master CSV at runtime.
+        pass

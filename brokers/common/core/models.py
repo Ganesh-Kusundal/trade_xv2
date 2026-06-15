@@ -1,4 +1,16 @@
-"""Core domain models — broker-agnostic trading objects."""
+"""DEPRECATED: Use brokers.common.core.domain instead. Kept for Upstox compatibility.
+
+Canonical domain objects (Order, Position, Holding, Trade, FundLimits,
+OrderResponse, Quote, MarketDepth, etc.) live in
+``brokers.common.core.domain`` as lightweight dataclasses.
+
+This module retains Pydantic models that are still consumed by:
+  - The Upstox adapter (will be migrated in a future sprint)
+  - ``brokers.common.api.ports`` (SPI type annotations)
+  - ``brokers.common.core.mappers`` (Pydantic → domain translation layer)
+  - Request/response models (OrderRequest, SliceOrderRequest, etc.) that have
+    no domain.py equivalent because they are boundary-validation objects.
+"""
 
 from __future__ import annotations
 

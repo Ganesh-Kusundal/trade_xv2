@@ -6,10 +6,12 @@ This package re-exports it for ``from brokers.upstox import UpstoxBroker``.
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from .auth.config import UpstoxConnectionSettings, UpstoxSettingsLoader
 from .broker import UpstoxBroker as _UpstoxBroker
+from .factory import UpstoxBrokerFactory
+from .gateway import UpstoxBrokerGateway
 
 
 class UpstoxBroker:
@@ -28,4 +30,4 @@ class UpstoxBroker:
         return _UpstoxBroker(settings=settings, **kwargs)
 
 
-__all__ = ["UpstoxBroker", "UpstoxConnectionSettings", "UpstoxSettingsLoader"]
+__all__ = ["UpstoxBroker", "UpstoxBrokerFactory", "UpstoxBrokerGateway", "UpstoxConnectionSettings", "UpstoxSettingsLoader"]

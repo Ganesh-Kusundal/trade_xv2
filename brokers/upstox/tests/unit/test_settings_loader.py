@@ -106,7 +106,7 @@ class TestUpstoxConnectionSettingsProperties:
 class TestUpstoxSettingsLoaderFromEnv:
     def test_minimal(self):
         os.environ["UPSTOX_CLIENT_ID"] = "abc123"
-        s = UpstoxSettingsLoader.from_env()
+        s = UpstoxSettingsLoader.from_env(env_path=Path("/dev/null"))
         assert s.client_id == "abc123"
         assert s.auth_mode == "STATIC"
         assert s.environment == "LIVE"
@@ -142,7 +142,7 @@ class TestUpstoxSettingsLoaderFromEnv:
         }
         for k, v in env.items():
             os.environ[k] = v
-        s = UpstoxSettingsLoader.from_env()
+        s = UpstoxSettingsLoader.from_env(env_path=Path("/dev/null"))
         assert s.client_id == "cid"
         assert s.client_secret == "sec"
         assert s.redirect_uri == "http://localhost:9999"
@@ -167,24 +167,24 @@ class TestUpstoxSettingsLoaderFromEnv:
         os.environ["UPSTOX_CLIENT_ID"] = "cid"
         os.environ["UPSTOX_ENVIRONMENT"] = "SANDBOX"
         os.environ["UPSTOX_SANDBOX_REST_BASE_URL"] = "https://my-sb.example.com"
-        s = UpstoxSettingsLoader.from_env()
+        s = UpstoxSettingsLoader.from_env(env_path=Path("/dev/null"))
         assert s.rest_base_url == "https://my-sb.example.com"
 
     def test_missing_client_id_raises(self):
         with pytest.raises(ValueError, match="UPSTOX_CLIENT_ID is required"):
-            UpstoxSettingsLoader.from_env()
+            UpstoxSettingsLoader.from_env(env_path=Path("/dev/null"))
 
     def test_invalid_environment_raises(self):
         os.environ["UPSTOX_CLIENT_ID"] = "cid"
         os.environ["UPSTOX_ENVIRONMENT"] = "BOGUS"
         with pytest.raises(ValueError, match="UPSTOX_ENVIRONMENT must be one of"):
-            UpstoxSettingsLoader.from_env()
+            UpstoxSettingsLoader.from_env(env_path=Path("/dev/null"))
 
     def test_invalid_auth_mode_raises(self):
         os.environ["UPSTOX_CLIENT_ID"] = "cid"
         os.environ["UPSTOX_AUTH_MODE"] = "BOGUS"
         with pytest.raises(ValueError, match="UPSTOX_AUTH_MODE must be one of"):
-            UpstoxSettingsLoader.from_env()
+            UpstoxSettingsLoader.from_env(env_path=Path("/dev/null"))
 
     def test_loads_from_dotenv(self, tmp_path: Path):
         env_file = tmp_path / ".env.local"

@@ -10,7 +10,7 @@ import contextlib
 from datetime import datetime
 from typing import Any
 
-from brokers.common.core.models import MarketIntelligenceSnapshot
+from brokers.common.core.domain import MarketIntelligenceSnapshot
 from brokers.upstox.market_intelligence.client import UpstoxMarketIntelligenceClient
 
 

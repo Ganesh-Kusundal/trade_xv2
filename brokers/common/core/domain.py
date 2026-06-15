@@ -22,7 +22,7 @@ Usage::
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
@@ -67,13 +67,28 @@ class OrderStatus(str, Enum):
             # Common broker-specific → canonical
             "EXECUTED": cls.FILLED,
             "COMPLETE": cls.FILLED,
+            "TRADED": cls.FILLED,
             "TRIGGER_PENDING": cls.OPEN,
             "TRANSIT": cls.OPEN,
             "PENDING": cls.OPEN,
             "PLACED": cls.OPEN,
             "TRIGGERED": cls.OPEN,
+            "OPEN_PENDING": cls.OPEN,
+            "PUT_ORDER_REQ_RECEIVED": cls.OPEN,
+            "PARTIAL": cls.PARTIALLY_FILLED,
             "PARTIALLY_EXECUTED": cls.PARTIALLY_FILLED,
             "PARTIALLY_CANCELLED": cls.PARTIALLY_FILLED,
+            # Upstox-specific
+            "OPEN_ORDER": cls.OPEN,
+            "TRIGGER_ORDER": cls.OPEN,
+            "CANCEL_PENDING": cls.CANCELLED,
+            "REJECTED_BY_BROKER": cls.REJECTED,
+            "REJECTED_BY_EXCHANGE": cls.REJECTED,
+            "MODIFIED": cls.OPEN,
+            "MODIFIED_PENDING": cls.OPEN,
+            "AFTER_MARKET_ORDER_REQ_RECEIVED": cls.OPEN,
+            "AMO": cls.OPEN,
+            "MARGIN_TRADED": cls.PARTIALLY_FILLED,
         }
 
         return _MAP.get(normalized, cls.OPEN)
@@ -116,7 +131,7 @@ class Validity(str, Enum):
 # ── Domain Models ──────────────────────────────────────────────────────────
 
 
-@dataclass(slots=True, frozen=False)
+@dataclass(slots=True, frozen=True)
 class Order:
     """Canonical order — returned by every broker adapter."""
 
@@ -138,6 +153,11 @@ class Order:
     correlation_id: str | None = None
 
     @property
+    def average_price(self) -> Decimal:
+        """Alias for avg_price — Dhan and some brokers use this name."""
+        return self.avg_price
+
+    @property
     def remaining_quantity(self) -> int:
         return max(self.quantity - self.filled_quantity, 0)
 
@@ -145,8 +165,16 @@ class Order:
     def is_complete(self) -> bool:
         return self.status.is_terminal
 
+    def with_status(self, status: OrderStatus) -> Order:
+        """Return a new Order with the given status."""
+        return replace(self, status=status)
 
-@dataclass(slots=True, frozen=False)
+    def with_fill(self, filled_quantity: int, avg_price: Decimal) -> Order:
+        """Return a new Order with updated fill quantity and average fill price."""
+        return replace(self, filled_quantity=filled_quantity, avg_price=avg_price)
+
+
+@dataclass(slots=True, frozen=True)
 class Position:
     """Canonical position — returned by every broker adapter."""
 
@@ -167,8 +195,64 @@ class Position:
             return Decimal(str(abs(self.quantity))) * (self.avg_price - self.ltp)
         return Decimal("0")
 
+    def with_ltp(self, ltp: Decimal) -> Position:
+        """Return a new Position with the last traded price updated."""
+        unrealized = (
+            Decimal(str(self.quantity)) * (ltp - self.avg_price)
+            if self.quantity != 0
+            else Decimal("0")
+        )
+        return replace(self, ltp=ltp, unrealized_pnl=unrealized)
 
-@dataclass(slots=True, frozen=False)
+    def with_fill(self, quantity: int, price: Decimal) -> Position:
+        """Return a new Position after applying a signed fill.
+
+        ``quantity`` is the signed change (positive for a buy fill,
+        negative for a sell fill). Average price is recomputed correctly
+        for additions, partial closes, and side flips; realized PnL is
+        updated for the closed portion.
+        """
+        old_qty = self.quantity
+        old_avg = self.avg_price
+        delta = quantity
+        new_qty = old_qty + delta
+
+        if old_qty == 0:
+            new_avg = price
+            new_realized = self.realized_pnl
+        elif (old_qty > 0 and delta < 0) or (old_qty < 0 and delta > 0):
+            # Opposite-side fill: realize PnL on the closed portion.
+            closed = min(abs(old_qty), abs(delta))
+            pnl_factor = Decimal("1") if old_qty > 0 else Decimal("-1")
+            new_realized = self.realized_pnl + Decimal(str(closed)) * (price - old_avg) * pnl_factor
+            if new_qty == 0:
+                new_avg = Decimal("0")
+            elif abs(delta) > abs(old_qty):
+                # Net position flipped to the fill side.
+                new_avg = price
+            else:
+                new_avg = old_avg
+        else:
+            # Same-side fill: weighted average price.
+            new_realized = self.realized_pnl
+            new_avg = (Decimal(str(old_qty)) * old_avg + Decimal(str(delta)) * price) / Decimal(str(new_qty))
+
+        unrealized = (
+            Decimal(str(new_qty)) * (price - new_avg)
+            if new_qty != 0
+            else Decimal("0")
+        )
+        return replace(
+            self,
+            quantity=new_qty,
+            avg_price=new_avg,
+            ltp=price,
+            unrealized_pnl=unrealized,
+            realized_pnl=new_realized,
+        )
+
+
+@dataclass(slots=True, frozen=True)
 class Holding:
     """Canonical holding — returned by every broker adapter."""
 
@@ -181,7 +265,7 @@ class Holding:
     pnl: Decimal = Decimal("0")
 
 
-@dataclass(slots=True, frozen=False)
+@dataclass(slots=True, frozen=True)
 class Trade:
     """Canonical trade — returned by every broker adapter."""
 
@@ -231,3 +315,175 @@ class OrderResponse:
     @classmethod
     def fail(cls, message: str) -> OrderResponse:
         return cls(success=False, message=message)
+
+
+@dataclass(slots=True, frozen=True)
+class Balance:
+    """Canonical account balance — returned by every broker adapter."""
+
+    available_balance: Decimal = Decimal("0")
+    used_margin: Decimal = Decimal("0")
+    total_margin: Decimal = Decimal("0")
+    sod_limit: Decimal = Decimal("0")
+    collateral_amount: Decimal = Decimal("0")
+    utilized_amount: Decimal = Decimal("0")
+    withdrawable_balance: Decimal = Decimal("0")
+
+
+@dataclass(slots=True, frozen=True)
+class DepthLevel:
+    """Single price level in market depth."""
+
+    price: Decimal = Decimal("0")
+    quantity: int = 0
+    orders: int = 0
+
+
+@dataclass(slots=True, frozen=False)
+class MarketDepth:
+    """Canonical market depth — bid/ask ladder."""
+
+    bids: list[DepthLevel] | None = None
+    asks: list[DepthLevel] | None = None
+
+    def __post_init__(self) -> None:
+        if self.bids is None:
+            self.bids = []
+        if self.asks is None:
+            self.asks = []
+
+
+@dataclass(slots=True, frozen=True)
+class Quote:
+    """Canonical quote snapshot — returned by every broker adapter."""
+
+    symbol: str
+    ltp: Decimal = Decimal("0")
+    open: Decimal = Decimal("0")
+    high: Decimal = Decimal("0")
+    low: Decimal = Decimal("0")
+    close: Decimal = Decimal("0")
+    volume: int = 0
+    change: Decimal = Decimal("0")
+    bid: Decimal | None = None
+    ask: Decimal | None = None
+    timestamp: datetime | None = None
+
+
+@dataclass(slots=True, frozen=False)
+class Instrument:
+    """Canonical instrument master record."""
+
+    symbol: str
+    exchange: str
+    security_id: str
+    instrument_type: str
+    lot_size: int = 1
+    tick_size: Decimal = Decimal("0.05")
+    name: str | None = None
+    option_type: str | None = None
+    strike_price: Decimal | None = None
+    expiry: str | None = None
+    underlying: str | None = None
+    canonical_symbol: str | None = None
+
+
+# ── Additional Domain Types (Upstox Sprint 6) ──────────────────────────
+
+
+@dataclass(slots=True, frozen=False)
+class OptionContract:
+    """Option chain contract with greeks and market data."""
+
+    strike: Decimal = Decimal("0")
+    expiry: str = ""
+    instrument_type: str = "OPTION"
+    exchange: str = "NFO"
+    lot_size: int = 0
+    ce_ltp: Decimal | None = None
+    ce_bid: Decimal | None = None
+    ce_ask: Decimal | None = None
+    ce_iv: Decimal | None = None
+    ce_oi: int | None = None
+    ce_volume: int | None = None
+    pe_ltp: Decimal | None = None
+    pe_bid: Decimal | None = None
+    pe_ask: Decimal | None = None
+    pe_iv: Decimal | None = None
+    pe_oi: int | None = None
+    pe_volume: int | None = None
+
+
+@dataclass(slots=True, frozen=False)
+class ConditionalAlert:
+    """Conditional alert state."""
+
+    alert_id: str = ""
+    symbol: str = ""
+    condition: str = ""
+    status: str = "ACTIVE"
+
+
+@dataclass(slots=True, frozen=False)
+class ConditionalAlertRequest:
+    """Request model for placing a conditional alert."""
+
+    symbol: str = ""
+    exchange: str = "NSE"
+    condition_type: str = ""
+    threshold: Decimal = Decimal("0")
+
+
+@dataclass(slots=True, frozen=False)
+class MarketIntelligenceSnapshot:
+    """One-shot aggregate of market intelligence for an underlying."""
+
+    underlying: str = ""
+    pcr: Decimal = Decimal("0")
+    max_pain: Decimal = Decimal("0")
+    oi_data: dict = field(default_factory=dict)
+
+
+@dataclass(slots=True, frozen=False)
+class MarketDepthLevel:
+    """Single bid/ask level in an order book (alias-style name for Upstox)."""
+
+    price: Decimal = Decimal("0")
+    quantity: int = 0
+    orders: int = 0
+
+
+@dataclass(slots=True, frozen=False)
+class SliceOrderRequest:
+    """Request for splitting a large order into child orders."""
+
+    symbol: str = ""
+    exchange: str = "NSE"
+    side: Side = Side.BUY
+    quantity: int = 0
+    order_type: OrderType = OrderType.MARKET
+    product_type: ProductType = ProductType.INTRADAY
+
+
+@dataclass(slots=True, frozen=False)
+class PnlExitPolicy:
+    """Policy for PnL-based exit automation."""
+
+    target_pnl: Decimal = Decimal("0")
+    stop_loss: Decimal = Decimal("0")
+
+
+@dataclass(slots=True, frozen=False)
+class PnlExitResult:
+    """Result returned by PnL-exit automation."""
+
+    success: bool = False
+    message: str = ""
+
+
+# ── Upstox compatibility aliases ──────────────────────────────────────────
+
+TransactionType = Side  # Upstox uses TransactionType.BUY/SELL
+
+# Import ExchangeSegment enum from enums.py (has .NSE, .BSE, .NSE_FNO etc.)
+FeedMode = str          # Upstox uses string-based feed modes

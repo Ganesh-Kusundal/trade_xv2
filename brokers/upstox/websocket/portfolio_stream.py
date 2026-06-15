@@ -6,9 +6,11 @@ import asyncio
 import contextlib
 import json
 import logging
+import threading
 from collections.abc import Callable
 from typing import Any
 
+from brokers.common.event_bus import DomainEvent, EventBus
 from brokers.upstox.websocket.feed_authorizer import UpstoxFeedAuthorizer
 
 logger = logging.getLogger(__name__)
@@ -26,16 +28,29 @@ class UpstoxPortfolioStream:
         self,
         authorizer: UpstoxFeedAuthorizer,
         socket_factory: Callable[[str], Any] | None = None,
+        event_bus: EventBus | None = None,
     ) -> None:
         self._authorizer = authorizer
         self._socket_factory = socket_factory or _default_portfolio_factory
         self._socket: Any = None
         self._listeners: list[PortfolioListener] = []
+        self._listener_lock = threading.RLock()
         self._task: asyncio.Task[Any] | None = None
         self._stopped = False
+        self._event_bus = event_bus
+
+    @property
+    def is_connected(self) -> bool:
+        return self._socket is not None and not self._stopped
 
     def add_listener(self, listener: PortfolioListener) -> None:
-        self._listeners.append(listener)
+        with self._listener_lock:
+            self._listeners.append(listener)
+
+    def remove_listener(self, listener: PortfolioListener) -> None:
+        with self._listener_lock:
+            if listener in self._listeners:
+                self._listeners.remove(listener)
 
     async def connect(self) -> None:
         url = self._authorizer.authorize_portfolio_stream()
@@ -88,9 +103,37 @@ class UpstoxPortfolioStream:
             payload = msg.get("data") if isinstance(msg, dict) else {}
             if not isinstance(payload, dict):
                 continue
-            for listener in self._listeners:
+            with self._listener_lock:
+                listeners = list(self._listeners)
+            for listener in listeners:
                 with contextlib.suppress(Exception):
                     listener(str(update_type or "unknown"), payload)
+            self._publish(str(update_type or "unknown"), payload)
+
+    def _publish(self, update_type: str, payload: dict[str, Any]) -> None:
+        if self._event_bus is None:
+            return
+        try:
+            event_type = "PORTFOLIO_STREAM"
+            symbol = payload.get("symbol", payload.get("trading_symbol", ""))
+            if "order" in update_type.lower():
+                event_type = "ORDER_UPDATED"
+            elif "position" in update_type.lower():
+                event_type = "POSITION_UPDATED"
+            elif "holding" in update_type.lower():
+                event_type = "HOLDING_UPDATED"
+            elif "gtt" in update_type.lower():
+                event_type = "GTT_UPDATED"
+            self._event_bus.publish(
+                DomainEvent.now(
+                    event_type,
+                    {"update_type": update_type, "payload": payload},
+                    symbol=symbol or None,
+                    source="UpstoxPortfolioStream",
+                )
+            )
+        except Exception as exc:
+            logger.error("EventBus portfolio publish error: %s", exc)
 
 
 def _default_portfolio_factory(url: str) -> Any:

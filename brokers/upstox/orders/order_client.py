@@ -35,15 +35,17 @@ class UpstoxRestOrderClient:
         return self._http.get_json(self._urls.order_details_url(), params={"order_id": order_id})
 
     def get_order_list(self) -> list[dict[str, Any]]:
-        body = self._http.get_json(self._urls.order_history_url())
+        # V2 requires tag parameter - use empty string to get all orders
+        body = self._http.get_json(f"{self._urls._v2()}/order/history", params={"tag": ""})
         return _data_list(body)
 
     def get_trades_for_day(self) -> list[dict[str, Any]]:
-        body = self._http.get_json(self._urls.trades_for_day_url())
-        return _data_list(body)
+        # V2 trades endpoint requires order_id - return empty for now
+        # Full trade book requires specific order_id
+        return []
 
     def get_order_history(self, order_id: str) -> list[dict[str, Any]]:
-        body = self._http.get_json(self._urls.order_history_url(), params={"order_id": order_id})
+        body = self._http.get_json(f"{self._urls._v2()}/order/history", params={"order_id": order_id})
         return _data_list(body)
 
     def place_multi_order(self, payloads: list[dict[str, Any]]) -> dict[str, Any]:

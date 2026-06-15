@@ -1,0 +1,581 @@
+"""View Manager — orchestrates creation, refresh, and management of DuckDB analytics views."""
+
+from __future__ import annotations
+
+import logging
+import threading
+import time
+from pathlib import Path
+from typing import Any
+
+import duckdb
+
+from analytics.views.base import BaseViews
+from analytics.views.features import FeatureViews
+from analytics.views.scanner import ScannerViews
+from analytics.views.strategy import StrategyViews
+from analytics.views.quality import QualityViews
+
+logger = logging.getLogger(__name__)
+
+CATALOG_PATH = Path("market_data/catalog.duckdb")
+MATERIALIZED_DIR = Path("market_data/materialized")
+VERSION_KEEP_COUNT = 3
+
+
+def _connect_with_retry(path: str, read_only: bool, max_attempts: int = 10) -> duckdb.DuckDBPyConnection:
+    """Open a DuckDB connection, retrying with exponential backoff on lock conflicts.
+
+    DuckDB is single-writer. A writer (e.g. ``views create``) holds an exclusive lock,
+    so a concurrent reader (e.g. ``views count``) may see ``IO Error: Could not set
+    lock on file``. This helper retries with backoff so read commands don't fail
+    transiently.
+    """
+    delay = 0.05
+    for attempt in range(max_attempts):
+        try:
+            return duckdb.connect(path, read_only=read_only)
+        except (duckdb.IOException, duckdb.OperationalError, duckdb.ConnectionException) as exc:
+            msg = str(exc).lower()
+            is_lock_error = "lock" in msg or "could not set" in msg
+            if not is_lock_error or attempt == max_attempts - 1:
+                raise
+            time.sleep(delay)
+            delay = min(delay * 2, 1.0)
+    raise RuntimeError("unreachable")
+
+
+class ViewManager:
+    """Manages all DuckDB analytics views.
+
+    Usage:
+        vm = ViewManager()
+        vm.create_all()
+        vm.refresh()
+        result = vm.query("SELECT * FROM v_top3_candidates")
+    """
+
+    def __init__(self, catalog_path: str | Path | None = None, read_only: bool = False) -> None:
+        self._path = Path(catalog_path) if catalog_path else CATALOG_PATH
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        MATERIALIZED_DIR.mkdir(parents=True, exist_ok=True)
+        self._read_only = read_only
+        self._conns: dict[int, duckdb.DuckDBPyConnection] = {}
+        self._lock = threading.RLock()
+
+        self.base = BaseViews()
+        self.features = FeatureViews()
+        self.scanner = ScannerViews()
+        self.strategy = StrategyViews()
+        self.quality = QualityViews()
+
+    @property
+    def conn(self) -> duckdb.DuckDBPyConnection:
+        tid = threading.current_thread().ident
+        if tid is None:
+            tid = 0
+        with self._lock:
+            conn = self._conns.get(tid)
+            if conn is None:
+                conn = _connect_with_retry(str(self._path), read_only=self._read_only)
+                self._conns[tid] = conn
+            return conn
+
+    def close(self) -> None:
+        with self._lock:
+            for conn in list(self._conns.values()):
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+            self._conns.clear()
+
+    # ─── Materialization ─────────────────────────────────────────────────────
+
+    def materialize(self, table_name: str, sql: str, partition_by: str | None = None) -> float:
+        """Materialize a query result into a versioned Parquet table.
+
+        Writes to a timestamped directory first, then atomically promotes the
+        new version to "latest". Old versions are retained (see ``VERSION_KEEP_COUNT``)
+        so readers always see a consistent snapshot.
+        """
+        version_dir = MATERIALIZED_DIR / "versions" / table_name
+        version_dir.mkdir(parents=True, exist_ok=True)
+        version_ts = str(int(time.time() * 1_000_000))
+
+        start = time.perf_counter()
+
+        if partition_by:
+            part_dir = version_dir / version_ts
+            part_dir.mkdir(parents=True, exist_ok=True)
+            self.conn.execute(f"""
+                COPY ({sql}) TO '{part_dir}'
+                (FORMAT PARQUET, PARTITION_BY ({partition_by}))
+            """)
+            self._write_latest(table_name, f"versions/{table_name}/{version_ts}", partitioned=True)
+        else:
+            parquet_path = version_dir / f"{version_ts}.parquet"
+            self.conn.execute(f"""
+                COPY ({sql}) TO '{parquet_path}'
+                (FORMAT PARQUET, COMPRESSION 'SNAPPY')
+            """)
+            self._write_latest(table_name, f"versions/{table_name}/{version_ts}.parquet", partitioned=False)
+
+        self._cleanup_old_versions(table_name)
+
+        elapsed = time.perf_counter() - start
+        logger.info("Materialized %s version %s in %.2fs", table_name, version_ts, elapsed)
+        return elapsed
+
+    def _write_latest(self, table_name: str, version_path: str, partitioned: bool) -> None:
+        import json
+        latest_file = MATERIALIZED_DIR / "versions" / table_name / "latest.json"
+        latest_file.write_text(json.dumps({"path": version_path, "partitioned": partitioned}))
+
+    def _read_latest(self, table_name: str) -> dict[str, Any] | None:
+        import json
+        latest_file = MATERIALIZED_DIR / "versions" / table_name / "latest.json"
+        if not latest_file.exists():
+            return None
+        try:
+            return json.loads(latest_file.read_text())
+        except Exception:
+            return None
+
+    def _cleanup_old_versions(self, table_name: str) -> None:
+        version_dir = MATERIALIZED_DIR / "versions" / table_name
+        if not version_dir.exists():
+            return
+        entries = sorted(
+            [p for p in version_dir.iterdir() if p.name != "latest.json"],
+            key=lambda p: p.stat().st_mtime,
+        )
+        to_remove = entries[:-VERSION_KEEP_COUNT]
+        import shutil
+        for entry in to_remove:
+            try:
+                if entry.is_dir():
+                    shutil.rmtree(entry)
+                else:
+                    entry.unlink()
+            except Exception as exc:
+                logger.warning("Failed to remove old materialized version %s: %s", entry, exc)
+
+    def register_materialized(self, table_name: str, partition_by: str | None = None) -> None:
+        """Register the latest materialized Parquet table as a DuckDB table.
+
+        Creates a new table with a temporary name, then atomically swaps it in
+        via ``ALTER TABLE ... RENAME TO`` so readers never see a missing table.
+        """
+        latest = self._read_latest(table_name)
+        if latest is None:
+            return
+
+        version_path = MATERIALIZED_DIR / latest["path"]
+        if not version_path.exists():
+            return
+
+        temp_table = f"{table_name}_new_{int(time.time() * 1_000_000)}"
+        try:
+            if latest.get("partitioned") or partition_by:
+                self.conn.execute(f"""
+                    CREATE TABLE {temp_table} AS
+                    SELECT * FROM read_parquet('{version_path}/**/*.parquet', hive_partitioning=true)
+                """)
+            else:
+                self.conn.execute(f"""
+                    CREATE TABLE {temp_table} AS
+                    SELECT * FROM read_parquet('{version_path}')
+                """)
+            # Atomic swap: drop old, rename new.
+            self.conn.execute(f"DROP TABLE IF EXISTS {table_name}")
+            self.conn.execute(f"ALTER TABLE {temp_table} RENAME TO {table_name}")
+        except Exception:
+            self.conn.execute(f"DROP TABLE IF EXISTS {temp_table}")
+            raise
+
+    def drop_materialized(self, table_name: str) -> None:
+        """Drop a materialized table and remove all its versions."""
+        self.conn.execute(f"DROP TABLE IF EXISTS {table_name}")
+        version_dir = MATERIALIZED_DIR / "versions" / table_name
+        if version_dir.exists():
+            import shutil
+            shutil.rmtree(version_dir)
+
+    # ─── View Creation ───────────────────────────────────────────────────────
+
+    def create_all(self) -> dict[str, float]:
+        """Create all analytics views. Returns timing for each layer."""
+        timings: dict[str, float] = {}
+
+        layers = [
+            ("base", self.base.create_views),
+            ("features", self.features.create_views),
+            ("materialize", self._materialize_intermediates),
+            ("scanner", self.scanner.create_views),
+            ("strategy", self.strategy.create_views),
+            ("quality", self.quality.create_views),
+        ]
+
+        for name, creator in layers:
+            start = time.perf_counter()
+            try:
+                creator(self.conn)
+                elapsed = time.perf_counter() - start
+                timings[name] = elapsed
+                logger.info("Created %s views in %.2fs", name, elapsed)
+            except Exception as exc:
+                logger.error("Failed to create %s views: %s", name, exc)
+                timings[name] = -1.0
+
+        return timings
+
+    def _materialize_intermediates(self, conn: duckdb.DuckDBPyConnection) -> None:
+        """Materialize intermediate tables for intraday trading.
+
+        Strategy:
+        - m_intraday: Current day's 1m candles (~187K rows)
+        - m_recent_daily: Last 50 days daily candles for indicator warmup (~25K rows)
+        - m_symbol_snapshot: Latest candle per symbol with indicators (~500 rows)
+        """
+        tables = [
+            # ─── Intraday: Current day's 1m candles ────────────────────────────
+            # Use the most recent date with >= 100 symbols (full trading day)
+            ("m_intraday", """
+                WITH latest_full_day AS (
+                    SELECT CAST(timestamp AS DATE) as trade_date
+                    FROM v_candles_1m
+                    GROUP BY CAST(timestamp AS DATE)
+                    HAVING COUNT(DISTINCT symbol) >= 100
+                    ORDER BY trade_date DESC
+                    LIMIT 1
+                )
+                SELECT
+                    i.timestamp,
+                    i.symbol,
+                    i.open,
+                    i.high,
+                    i.low,
+                    i.close,
+                    i.volume,
+                    i.oi
+                FROM v_candles_1m i
+                INNER JOIN latest_full_day d ON CAST(i.timestamp AS DATE) = d.trade_date
+            """),
+            # ─── Recent daily: Last 50 days for indicator warmup ────────────────
+            ("m_recent_daily", """
+                WITH daily AS (
+                    SELECT
+                        CAST(timestamp AS DATE) as trade_date,
+                        symbol,
+                        FIRST(open ORDER BY timestamp) as open,
+                        MAX(high) as high,
+                        MIN(low) as low,
+                        LAST(close ORDER BY timestamp) as close,
+                        SUM(volume) as volume
+                    FROM v_candles_1m
+                    WHERE CAST(timestamp AS DATE) >= (
+                        SELECT MAX(CAST(timestamp AS DATE)) - INTERVAL '50 days'
+                        FROM v_candles_1m
+                    )
+                    GROUP BY CAST(timestamp AS DATE), symbol
+                )
+                SELECT
+                    trade_date,
+                    symbol,
+                    open,
+                    high,
+                    low,
+                    close,
+                    volume,
+                    -- SMA indicators
+                    AVG(close) OVER (PARTITION BY symbol ORDER BY trade_date
+                        ROWS BETWEEN 19 PRECEDING AND CURRENT ROW) as sma_20,
+                    AVG(close) OVER (PARTITION BY symbol ORDER BY trade_date
+                        ROWS BETWEEN 49 PRECEDING AND CURRENT ROW) as sma_50,
+                    -- RSI
+                    close - LAG(close) OVER (PARTITION BY symbol ORDER BY trade_date) as daily_change,
+                    -- Volume
+                    SUM(volume) OVER (PARTITION BY symbol ORDER BY trade_date
+                        ROWS BETWEEN 19 PRECEDING AND CURRENT ROW) / 20.0 as avg_volume_20,
+                    -- Momentum
+                    LAG(close, 5) OVER (PARTITION BY symbol ORDER BY trade_date) as close_5d,
+                    LAG(close, 10) OVER (PARTITION BY symbol ORDER BY trade_date) as close_10d,
+                    LAG(close, 20) OVER (PARTITION BY symbol ORDER BY trade_date) as close_20d
+                FROM daily
+            """),
+            # ─── Symbol snapshot: Latest candle + all indicators (~500 rows) ────
+            ("m_symbol_snapshot", """
+                WITH latest AS (
+                    SELECT
+                        symbol,
+                        LAST(timestamp ORDER BY timestamp) as last_ts,
+                        LAST(close ORDER BY timestamp) as close,
+                        LAST(high ORDER BY timestamp) as high,
+                        LAST(low ORDER BY timestamp) as low,
+                        LAST(open ORDER BY timestamp) as open,
+                        LAST(volume ORDER BY timestamp) as volume,
+                        SUM(volume) as total_volume_today
+                    FROM m_intraday
+                    GROUP BY symbol
+                ),
+                today_intraday AS (
+                    SELECT
+                        symbol,
+                        COUNT(*) as bars_today,
+                        MAX(high) as day_high,
+                        MIN(low) as day_low,
+                        FIRST(close ORDER BY timestamp) as day_open,
+                        LAST(close ORDER BY timestamp) as day_close,
+                        SUM(volume) as day_volume
+                    FROM m_intraday
+                    GROUP BY symbol
+                )
+                SELECT
+                    l.symbol,
+                    l.last_ts,
+                    l.close,
+                    l.high,
+                    l.low,
+                    l.open,
+                    l.volume as last_volume,
+                    t.bars_today,
+                    t.day_high,
+                    t.day_low,
+                    t.day_open,
+                    t.day_close,
+                    t.day_volume,
+                    r.sma_20,
+                    r.sma_50,
+                    r.close_5d,
+                    r.close_10d,
+                    r.close_20d,
+                    CASE
+                        WHEN r.close_5d > 0 THEN (l.close - r.close_5d) / r.close_5d * 100
+                        ELSE 0
+                    END as roc_5,
+                    CASE
+                        WHEN r.close_10d > 0 THEN (l.close - r.close_10d) / r.close_10d * 100
+                        ELSE 0
+                    END as roc_10,
+                    CASE
+                        WHEN r.close_20d > 0 THEN (l.close - r.close_20d) / r.close_20d * 100
+                        ELSE 0
+                    END as roc_20,
+                    CASE
+                        WHEN l.close > r.sma_20 AND r.sma_20 > r.sma_50 THEN 'Bullish'
+                        WHEN l.close < r.sma_20 AND r.sma_20 < r.sma_50 THEN 'Bearish'
+                        ELSE 'Neutral'
+                    END as trend,
+                    CASE
+                        WHEN t.day_volume > 0 AND r.avg_volume_20 > 0
+                        THEN t.day_volume / r.avg_volume_20
+                        ELSE 1.0
+                    END as relative_volume
+                FROM latest l
+                LEFT JOIN today_intraday t ON l.symbol = t.symbol
+                LEFT JOIN m_recent_daily r ON l.symbol = r.symbol
+                    AND r.trade_date = (SELECT MAX(trade_date) FROM m_recent_daily WHERE symbol = l.symbol)
+            """),
+            # ─── Intraday snapshot: Final scanner view (~500 rows) ─────────────
+            ("m_intraday_snapshot", """
+                SELECT
+                    s.symbol,
+                    s.close as ltp,
+                    s.day_open,
+                    s.day_high,
+                    s.day_low,
+                    s.day_close,
+                    s.day_volume,
+                    s.bars_today,
+                    s.sma_20,
+                    s.sma_50,
+                    s.roc_5,
+                    s.roc_10,
+                    s.roc_20,
+                    s.trend,
+                    s.relative_volume,
+                    s.close_5d,
+                    s.close_10d,
+                    s.close_20d,
+                    -- RSI from daily data
+                    CASE
+                        WHEN s.close_5d > 0 THEN (s.close - s.close_5d) / s.close_5d * 100
+                        ELSE 0
+                    END as rsi_approx,
+                    -- ATR approximation from daily range
+                    (s.day_high - s.day_low) as atr_approx,
+                    -- Composite intraday score
+                    (
+                        CASE
+                            WHEN s.trend = 'Bullish' THEN 80
+                            WHEN s.trend = 'Bearish' THEN 20
+                            ELSE 50
+                        END * 0.25 +
+                        CASE
+                            WHEN s.relative_volume > 2.0 THEN 90
+                            WHEN s.relative_volume > 1.5 THEN 70
+                            WHEN s.relative_volume > 1.0 THEN 50
+                            ELSE 30
+                        END * 0.25 +
+                        CASE
+                            WHEN s.roc_5 > 3 THEN 90
+                            WHEN s.roc_5 > 1 THEN 70
+                            WHEN s.roc_5 > 0 THEN 50
+                            WHEN s.roc_5 > -1 THEN 30
+                            ELSE 10
+                        END * 0.25 +
+                        CASE
+                            WHEN s.close > s.sma_20 THEN 70
+                            ELSE 30
+                        END * 0.25
+                    ) as intraday_score,
+                    -- Signal
+                    CASE
+                        WHEN s.roc_5 > 0 AND s.trend = 'Bullish' AND s.relative_volume > 1.5
+                        THEN 'BUY'
+                        WHEN s.roc_5 < 0 AND s.trend = 'Bearish'
+                        THEN 'SELL'
+                        WHEN s.relative_volume > 2.0 AND s.trend = 'Bullish'
+                        THEN 'BREAKOUT'
+                        ELSE 'NEUTRAL'
+                    END as signal
+                FROM m_symbol_snapshot s
+                WHERE s.bars_today > 0
+            """),
+        ]
+
+        for table_name, sql in tables:
+            try:
+                start = time.perf_counter()
+                self.materialize(table_name, sql)
+                self.register_materialized(table_name)
+                elapsed = time.perf_counter() - start
+                logger.info("Materialized %s (%.2fs)", table_name, elapsed)
+            except Exception as exc:
+                logger.error("Failed to materialize %s: %s", table_name, exc)
+
+    def drop_all(self) -> None:
+        """Drop all analytics views and materialized tables."""
+        views = self.list_views()
+        for v in views:
+            self.conn.execute(f"DROP VIEW IF EXISTS {v['name']}")
+        # Drop materialized tables
+        for tbl in ["m_intraday", "m_recent_daily", "m_symbol_snapshot", "m_intraday_snapshot"]:
+            self.conn.execute(f"DROP TABLE IF EXISTS {tbl}")
+        logger.info("Dropped %d views and materialized tables", len(views))
+
+    def refresh(self) -> dict[str, float]:
+        """Refresh all views (drop + recreate)."""
+        self.drop_all()
+        return self.create_all()
+
+    # ─── Querying ────────────────────────────────────────────────────────────
+
+    def query(self, sql: str, params: list | None = None) -> duckdb.DuckDBPyRelation:
+        """Execute a query against the analytics views."""
+        if params:
+            return self.conn.execute(sql, params)
+        return self.conn.execute(sql)
+
+    def query_df(self, sql: str, params: list | None = None) -> Any:
+        """Execute a query and return as pandas DataFrame."""
+        return self.query(sql, params).fetchdf()
+
+    def query_scalar(self, sql: str, params: list | None = None) -> Any:
+        """Execute a query and return single scalar value."""
+        result = self.query(sql, params).fetchone()
+        return result[0] if result else None
+
+    # ─── Introspection ───────────────────────────────────────────────────────
+
+    def list_views(self) -> list[dict]:
+        """List all views in the catalog."""
+        results = self.conn.execute(
+            "SELECT view_name, sql FROM duckdb_views() WHERE schema_name = 'main'"
+        ).fetchall()
+        return [{"name": r[0], "definition": r[1] or ""} for r in results]
+
+    def view_exists(self, view_name: str) -> bool:
+        """Check if a view exists."""
+        result = self.conn.execute(
+            "SELECT COUNT(*) FROM duckdb_views() WHERE view_name = ? AND schema_name = 'main'",
+            [view_name],
+        ).fetchone()
+        return result[0] > 0
+
+    def table_exists(self, table_name: str) -> bool:
+        """Check if a table exists."""
+        result = self.conn.execute(
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ? AND table_schema = 'main'",
+            [table_name],
+        ).fetchone()
+        return result[0] > 0
+
+    def view_columns(self, view_name: str) -> list[str]:
+        """Get column names for a view or table."""
+        try:
+            result = self.conn.execute(f"DESCRIBE {view_name}").fetchall()
+            return [r[0] for r in result]
+        except Exception:
+            return []
+
+    def view_count(self) -> int:
+        """Count total number of views."""
+        # duckdb_views() is the canonical catalog function — ~4x faster than
+        # pg_views and avoids depending on system view stability.
+        return self.conn.execute(
+            "SELECT COUNT(*) FROM duckdb_views() WHERE schema_name = 'main'"
+        ).fetchone()[0]
+
+    def table_count(self) -> int:
+        """Count total number of tables."""
+        return self.conn.execute(
+            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'main'"
+        ).fetchone()[0]
+
+    # ─── Performance ─────────────────────────────────────────────────────────
+
+    def benchmark(self, sql: str, iterations: int = 3) -> dict:
+        """Benchmark a query."""
+        times = []
+        for _ in range(iterations):
+            start = time.perf_counter()
+            self.conn.execute(sql).fetchall()
+            elapsed = time.perf_counter() - start
+            times.append(elapsed)
+
+        return {
+            "query": sql,
+            "iterations": iterations,
+            "avg_ms": (sum(times) / len(times)) * 1000,
+            "min_ms": min(times) * 1000,
+            "max_ms": max(times) * 1000,
+        }
+
+    def benchmark_all(self) -> list[dict]:
+        """Benchmark key analytics queries."""
+        queries = [
+            ("v_candles_1m", "SELECT COUNT(*) FROM v_candles_1m"),
+            ("v_latest_candle", "SELECT COUNT(*) FROM v_latest_candle"),
+            ("v_quality_score", "SELECT COUNT(*) FROM v_quality_score"),
+            ("v_trend_state", "SELECT * FROM v_trend_state WHERE symbol = 'RELIANCE' LIMIT 10"),
+            ("v_feature_rsi", "SELECT * FROM v_feature_rsi WHERE symbol = 'RELIANCE' LIMIT 10"),
+            ("v_feature_atr", "SELECT * FROM v_feature_atr WHERE symbol = 'RELIANCE' LIMIT 10"),
+            ("v_scanner_snapshot", "SELECT * FROM v_scanner_snapshot WHERE symbol = 'RELIANCE' LIMIT 10"),
+            ("v_top3_candidates", "SELECT * FROM v_top3_candidates LIMIT 3"),
+            ("v_top10_candidates", "SELECT * FROM v_top10_candidates LIMIT 10"),
+            ("v_strategy_candidates", "SELECT * FROM v_strategy_candidates WHERE symbol = 'RELIANCE' LIMIT 10"),
+        ]
+
+        results = []
+        for name, sql in queries:
+            if self.view_exists(name) or self.table_exists(name):
+                try:
+                    bench = self.benchmark(sql, iterations=2)
+                    bench["view"] = name
+                    results.append(bench)
+                except Exception as exc:
+                    logger.warning("Benchmark failed for %s: %s", name, exc)
+
+        return sorted(results, key=lambda x: x["avg_ms"])

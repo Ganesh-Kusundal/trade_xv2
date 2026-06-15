@@ -1,0 +1,45 @@
+"""FeaturePipeline — composable feature computation for scanner, strategy, and live."""
+
+from analytics.pipeline.features import (
+    ATR,
+    EMA,
+    MACD,
+    ROC,
+    RSI,
+    SMA,
+    VWAP,
+    ATRPercent,
+    BollingerBands,
+    Feature,
+    Gap,
+    HistoricalVolatility,
+    Momentum,
+    PriceDistance,
+    RelativeVolume,
+    SwingHighLow,
+    Trend,
+    VolumeSMA,
+)
+from analytics.pipeline.pipeline import FeaturePipeline
+
+__all__ = [
+    "ATR",
+    "EMA",
+    "MACD",
+    "ROC",
+    "RSI",
+    "SMA",
+    "VWAP",
+    "ATRPercent",
+    "BollingerBands",
+    "Feature",
+    "FeaturePipeline",
+    "Gap",
+    "HistoricalVolatility",
+    "Momentum",
+    "PriceDistance",
+    "RelativeVolume",
+    "SwingHighLow",
+    "Trend",
+    "VolumeSMA",
+]

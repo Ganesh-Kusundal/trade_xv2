@@ -1,231 +1,285 @@
+"""Unified broker contract test suite — Dhan implementation.
+
+Every test in ``DhanBrokerContractSuite`` validates a contract that ANY broker
+adapter (Dhan, Upstox, future brokers) must satisfy.  The suite is split into:
+
+* **Offline tests** — use ``FakeHttpClient`` + ``SymbolResolver`` loaded with
+  ``SAMPLE_ROWS``.  These run in CI with zero network access.
+* **Live tests** — use ``BrokerFactory.create()`` and are guarded by
+  ``@pytest.mark.skipif`` when ``.env.local`` is absent.  Rate-limit sleeps
+  are inserted between API calls (1.5 s for quotes, 3.5 s for option chain).
+
+Both Dhan and Upstox must pass equivalent contract suites to guarantee that
+any future broker can be added safely behind the ``BrokerGateway`` facade.
+"""
+
 from __future__ import annotations
 
-from datetime import datetime
+import os
+import sys
+import time
 from decimal import Decimal
-from unittest.mock import MagicMock
+from pathlib import Path
 
 import pytest
 
-from brokers.common.contracts import BrokerContractSuite
-from brokers.common.core.connection import ConnectionStatus
-from brokers.common.core.enums import OrderStatus, OrderType, TransactionType
-from brokers.dhan import DhanBroker
+# ---------------------------------------------------------------------------
+# Path setup — allow running from any cwd
+# ---------------------------------------------------------------------------
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 
-pytestmark = pytest.mark.contract
+from brokers.common.core.domain import OrderStatus
+from brokers.dhan.connection import DhanConnection
+from brokers.dhan.domain import (
+    Exchange,
+    MarketDepth,
+    Quote,
+)
+from brokers.dhan.exceptions import InstrumentNotFoundError
+from brokers.dhan.factory import BrokerFactory
+from brokers.dhan.gateway import BrokerGateway
+from brokers.dhan.orders import IdempotencyCache
+from brokers.dhan.tests.conftest import SAMPLE_ROWS, FakeHttpClient
+
+# ---------------------------------------------------------------------------
+# Live-skip guard
+# ---------------------------------------------------------------------------
+ENV_PATH = Path(__file__).resolve().parent.parent.parent.parent.parent / ".env.local"
+_live_env_loaded = False
+if ENV_PATH.exists() and ENV_PATH.stat().st_size > 0:
+    from dotenv import load_dotenv
+    load_dotenv(ENV_PATH, override=True)
+    _live_env_loaded = bool(os.environ.get("DHAN_CLIENT_ID"))
+
+skip_live = pytest.mark.skipif(not _live_env_loaded, reason=".env.local with DHAN_CLIENT_ID required for live API tests")
 
 
-class TestDhanBrokerContract(BrokerContractSuite):
-    broker_name = "dhan"
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
 
-    @pytest.fixture
-    def broker(self, monkeypatch) -> DhanBroker:
-        broker = DhanBroker(client_id="contract-client", access_token="contract-token")
 
-        # 1. Mock connection state and instrument service resolution
-        monkeypatch.setattr(broker, "_status", ConnectionStatus.CONNECTED)
-        monkeypatch.setattr(broker, "is_connected", lambda: True)
+@pytest.fixture()
+def offline_gateway() -> BrokerGateway:
+    """BrokerGateway backed by FakeHttpClient — no network access needed."""
+    client = FakeHttpClient()
+    conn = DhanConnection(client=client)
+    conn.instruments.load_from_rows(SAMPLE_ROWS)
+    return BrokerGateway(conn)
 
-        from brokers.common.core.enums import ExchangeSegment as CoreExchangeSegment
-        from brokers.dhan.mapper.instruments import DhanInstrumentDefinition, ResolutionResult
 
-        mock_defn = DhanInstrumentDefinition(
-            symbol="RELIANCE",
-            canonical_symbol="RELIANCE",
-            exchange_segment=CoreExchangeSegment.NSE,
-            security_id="2885",
-            instrument_type="EQUITY",
+@pytest.fixture(scope="module")
+def live_gateway() -> BrokerGateway:
+    """BrokerGateway backed by the real Dhan API — requires .env.local."""
+    gw = BrokerFactory.create(env_path=ENV_PATH, load_instruments=True)
+    yield gw
+    gw.close()
+
+
+# ===========================================================================
+# Contract Suite
+# ===========================================================================
+
+
+class DhanBrokerContractSuite:
+    """Contract tests that every broker adapter must pass.
+
+    The tests are grouped into six contract areas:
+    1. Instrument Resolution
+    2. Market Data
+    3. Orders
+    4. Portfolio
+    5. Options
+    6. Futures
+    """
+
+    # ── 1. Instrument Resolution Contract ──────────────────────────────
+
+    def test_resolver_loaded(self, offline_gateway: BrokerGateway) -> None:
+        """After loading, instruments.stats()['loaded'] must be True."""
+        stats = offline_gateway.instruments.stats()
+        assert stats["loaded"] is True
+
+    def test_resolve_equity(self, offline_gateway: BrokerGateway) -> None:
+        """resolve('RELIANCE', 'NSE') must return an Instrument with a security_id."""
+        inst = offline_gateway.instruments.resolve("RELIANCE", "NSE")
+        assert inst.security_id, "security_id must be non-empty"
+        assert inst.exchange == Exchange.NSE
+
+    def test_resolve_index(self, offline_gateway: BrokerGateway) -> None:
+        """resolve('NIFTY', 'INDEX') must return an Instrument."""
+        inst = offline_gateway.instruments.resolve("NIFTY", "INDEX")
+        assert inst.security_id, "security_id must be non-empty"
+        assert inst.exchange == Exchange.INDEX
+
+    def test_resolve_unknown_raises(self, offline_gateway: BrokerGateway) -> None:
+        """resolve('DOESNOTEXIST', 'NSE') must raise InstrumentNotFoundError."""
+        with pytest.raises(InstrumentNotFoundError):
+            offline_gateway.instruments.resolve("DOESNOTEXIST", "NSE")
+
+    # ── 2. Market Data Contract (live) ─────────────────────────────────
+
+    @skip_live
+    def test_quote_returns_quote_type(self, live_gateway: BrokerGateway) -> None:
+        """market_data.get_quote must return a Quote-like object with ltp > 0."""
+        quote = live_gateway.market_data.get_quote("RELIANCE", "NSE")
+        assert isinstance(quote, Quote)
+        assert quote.ltp > 0
+        time.sleep(1.5)
+
+    @skip_live
+    def test_depth_returns_bids_asks(self, live_gateway: BrokerGateway) -> None:
+        """market_data.get_depth must return an object with bids and asks."""
+        depth = live_gateway.market_data.get_depth("RELIANCE", "NSE")
+        assert isinstance(depth, MarketDepth)
+        assert hasattr(depth, "bids")
+        assert hasattr(depth, "asks")
+        assert len(depth.bids) > 0, "bids must be non-empty for a liquid stock"
+        assert len(depth.asks) > 0, "asks must be non-empty for a liquid stock"
+        time.sleep(1.5)
+
+    @skip_live
+    def test_ltp_returns_decimal(self, live_gateway: BrokerGateway) -> None:
+        """market_data.get_ltp must return a Decimal > 0."""
+        ltp = live_gateway.market_data.get_ltp("RELIANCE", "NSE")
+        assert isinstance(ltp, Decimal)
+        assert ltp > 0
+        time.sleep(1.5)
+
+    # ── 3. Order Contract ──────────────────────────────────────────────
+
+    def test_order_status_normalize(self) -> None:
+        """OrderStatus.normalize('COMPLETE') must map to FILLED.
+
+        This is a broker-agnostic domain contract — every adapter relies on
+        the same normalization mapping.
+        """
+        assert OrderStatus.normalize("COMPLETE") == OrderStatus.FILLED
+        assert OrderStatus.normalize("EXECUTED") == OrderStatus.FILLED
+        assert OrderStatus.normalize("TRANSIT") == OrderStatus.OPEN
+        assert OrderStatus.normalize("TRIGGER PENDING") == OrderStatus.OPEN
+        assert OrderStatus.normalize("PARTIALLY_EXECUTED") == OrderStatus.PARTIALLY_FILLED
+
+    def test_order_validation_rejects_bad_lot(
+        self, offline_gateway: BrokerGateway
+    ) -> None:
+        """validate_order with wrong lot size must return errors.
+
+        NIFTY 26 JUN FUT has lot_size=75; quantity=10 is not a valid multiple.
+        """
+        errors = offline_gateway.orders.validate_order(
+            symbol="NIFTY 26 JUN FUT",
+            exchange="NFO",
+            quantity=10,
+            order_type="MARKET",
+            product_type="INTRADAY",
         )
-        mock_result = ResolutionResult(status="single", definition=mock_defn)
-        monkeypatch.setattr(
-            broker.instrument_service, "resolve_security_id", lambda symbol, exchange: "2885"
+        assert len(errors) > 0, "Expected validation errors for non-lot-aligned quantity"
+        assert any("lot size" in e.lower() or "multiple" in e.lower() for e in errors)
+
+    def test_order_validation_rejects_bad_product(
+        self, offline_gateway: BrokerGateway
+    ) -> None:
+        """validate_order with CNC on NFO must return errors.
+
+        CNC is an equity-only product type and is not valid for derivatives (NSE_FNO).
+        """
+        errors = offline_gateway.orders.validate_order(
+            symbol="NIFTY 26 JUN FUT",
+            exchange="NFO",
+            quantity=75,
+            order_type="MARKET",
+            product_type="CNC",
         )
-        monkeypatch.setattr(
-            broker.instrument_service, "resolve_symbol", lambda symbol, exchange: mock_result
-        )
+        assert len(errors) > 0, "Expected validation errors for CNC on derivative segment"
+        assert any("CNC" in e or "product" in e.lower() for e in errors)
 
-        # 2. Mock get_historical_intraday
-        from brokers.common.core.models import HistoricalCandle
+    def test_idempotency_cache_exists(self, offline_gateway: BrokerGateway) -> None:
+        """The orders adapter must expose an idempotency cache to prevent duplicate orders."""
+        assert hasattr(offline_gateway.orders, "_idempotency")
+        cache = offline_gateway.orders._idempotency
+        assert isinstance(cache, IdempotencyCache)
 
-        mock_candles = [
-            HistoricalCandle(
-                timestamp=datetime.now(),
-                open=Decimal("100"),
-                high=Decimal("105"),
-                low=Decimal("99"),
-                close=Decimal("103"),
-                volume=120000,
-            )
-        ]
-        monkeypatch.setattr(
-            broker.market_data, "get_historical_intraday", lambda *args, **kwargs: mock_candles
-        )
-        monkeypatch.setattr(
-            broker.market_data,
-            "get_historical_intraday_for_symbol",
-            lambda *args, **kwargs: mock_candles,
-        )
+    # ── 4. Portfolio Contract (live) ───────────────────────────────────
 
-        # 3. Mock get_quote
-        from brokers.common.core.models import Quote
+    @skip_live
+    def test_positions_returns_list(self, live_gateway: BrokerGateway) -> None:
+        """portfolio.get_positions() must return a list."""
+        positions = live_gateway.portfolio.get_positions()
+        assert isinstance(positions, list)
 
-        mock_quote = Quote(
-            symbol="RELIANCE",
-            exchange="NSE",
-            last_price=Decimal("2500"),
-            volume=100000,
-            bid=Decimal("2499"),
-            ask=Decimal("2501"),
-        )
-        monkeypatch.setattr(broker.market_data, "get_quote", lambda *args, **kwargs: mock_quote)
-        monkeypatch.setattr(
-            broker.market_data, "get_quote_for_symbol", lambda *args, **kwargs: mock_quote
-        )
+    @skip_live
+    def test_holdings_returns_list(self, live_gateway: BrokerGateway) -> None:
+        """portfolio.get_holdings() must return a list."""
+        holdings = live_gateway.portfolio.get_holdings()
+        assert isinstance(holdings, list)
 
-        # 4. Mock get_option_chain
-        from brokers.common.core.models import OptionContract
+    @skip_live
+    def test_balance_returns_balance(self, live_gateway: BrokerGateway) -> None:
+        """portfolio.get_balance() must return a Balance-like object with available_balance."""
+        balance = live_gateway.portfolio.get_balance()
+        # Accept either the Dhan-specific Balance or the canonical Balance
+        assert hasattr(balance, "available_balance")
+        assert isinstance(balance.available_balance, Decimal)
 
-        mock_contracts = [
-            OptionContract(
-                strike=Decimal("25000"),
-                expiry="2026-07-30",
-                ce_ltp=Decimal("150"),
-                ce_volume=1000,
-                ce_oi=500,
-                pe_ltp=Decimal("140"),
-                pe_volume=900,
-                pe_oi=450,
-            )
-        ]
-        monkeypatch.setattr(
-            broker.options, "get_option_chain", lambda *args, **kwargs: mock_contracts
-        )
-        monkeypatch.setattr(
-            broker.options,
-            "get_option_chain_for_symbol",
-            lambda *args, **kwargs: mock_contracts,
-        )
+    # ── 5. Options Contract (live) ─────────────────────────────────────
 
-        # 5. Mock get_depth
-        from brokers.common.core.models import MarketDepth, MarketDepthLevel
+    @skip_live
+    def test_expiries_returns_list(self, live_gateway: BrokerGateway) -> None:
+        """options.get_expiries('NIFTY', 'INDEX') must return a non-empty list."""
+        expiries = live_gateway.options.get_expiries("NIFTY", "INDEX")
+        assert isinstance(expiries, list)
+        assert len(expiries) > 0, "NIFTY must have at least one expiry"
 
-        mock_depth = MarketDepth(
-            symbol="RELIANCE",
-            bids=[MarketDepthLevel(price=Decimal("2500"), quantity=100)],
-            asks=[MarketDepthLevel(price=Decimal("2501"), quantity=100)],
-        )
-        monkeypatch.setattr(broker.market_data, "get_depth", lambda *args, **kwargs: mock_depth)
-        monkeypatch.setattr(
-            broker.market_data, "get_depth_for_symbol", lambda *args, **kwargs: mock_depth
-        )
+    @skip_live
+    def test_option_chain_has_strikes(self, live_gateway: BrokerGateway) -> None:
+        """Option chain must have strikes, each with 'call' and 'put' dicts."""
+        expiries = live_gateway.options.get_expiries("NIFTY", "INDEX")
+        assert len(expiries) > 0
 
-        # 6. Mock place_order
-        from brokers.common.core.models import OrderResponse
+        time.sleep(3.5)
 
-        mock_order_res = OrderResponse(
-            success=True, order_id="DHAN12345", message="Success", order_status=OrderStatus.PENDING
-        )
-        monkeypatch.setattr(
-            broker.order_command, "place_order", lambda *args, **kwargs: mock_order_res
-        )
+        chain = live_gateway.options.get_option_chain("NIFTY", "INDEX", expiries[0])
+        assert "strikes" in chain
+        assert len(chain["strikes"]) > 0
 
-        # 7. Mock get_order_by_id and get_order_list
-        mock_raw_order = {
-            "orderId": "DHAN12345",
-            "tradingSymbol": "RELIANCE",
-            "exchangeSegment": "NSE_EQ",
-            "transactionType": "BUY",
-            "orderType": "LIMIT",
-            "quantity": 10,
-            "filledQty": 0,
-            "price": 2500.0,
-            "triggerPrice": 0.0,
-            "orderStatus": "PENDING",
-            "productType": "INTRADAY",
-            "validity": "DAY",
-            "averagePrice": 0.0,
-            "rejectReason": "",
-            "correlationId": "corr-123",
-        }
-        monkeypatch.setattr(broker, "get_order_by_id", lambda *args: mock_raw_order)
+        first_strike = chain["strikes"][0]
+        assert "call" in first_strike, "Each strike must have a 'call' leg"
+        assert "put" in first_strike, "Each strike must have a 'put' leg"
+        assert isinstance(first_strike["call"], dict)
+        assert isinstance(first_strike["put"], dict)
 
-        from brokers.common.core.models import Order
+    # ── 6. Futures Contract (offline) ──────────────────────────────────
 
-        mock_pydantic_orders = [
-            Order(
-                order_id="DHAN12345",
-                symbol="RELIANCE",
-                exchange="NSE",
-                transaction_type=TransactionType.BUY,
-                order_type=OrderType.LIMIT,
-                quantity=10,
-                price=Decimal("2500"),
-                status=OrderStatus.PENDING,
-            )
-        ]
-        monkeypatch.setattr(broker, "get_order_list", lambda *args: mock_pydantic_orders)
+    def test_futures_returns_contracts(self, offline_gateway: BrokerGateway) -> None:
+        """futures.get_contracts('GOLD', 'MCX') must return a list of contract dicts."""
+        contracts = offline_gateway.futures.get_contracts("GOLD", "MCX")
+        assert isinstance(contracts, list)
+        assert len(contracts) > 0, "GOLD must have at least one futures contract in cache"
+        # Each contract must expose the standard keys
+        for contract in contracts:
+            assert "security_id" in contract
+            assert "expiry" in contract
+            assert "lot_size" in contract
 
-        # 8. Mock get_positions / get_holdings / get_fund_limits / get_trades
-        mock_positions_res = {
-            "status": "success",
-            "data": [
-                {
-                    "securityId": "2885",
-                    "tradingSymbol": "RELIANCE",
-                    "exchangeSegment": "NSE_EQ",
-                    "netQuantity": 100,
-                    "buyAveragePrice": 2480.0,
-                    "lastPrice": 2500.0,
-                    "unrealizedPnl": 2000.0,
-                    "realizedPnl": 0.0,
-                    "productType": "INTRADAY",
-                }
-            ],
-        }
-        mock_holdings_res = {
-            "status": "success",
-            "data": [
-                {
-                    "securityId": "2885",
-                    "tradingSymbol": "RELIANCE",
-                    "exchangeSegment": "NSE_EQ",
-                    "quantity": 50,
-                    "availableQuantity": 50,
-                    "costPrice": 2450.0,
-                    "lastPrice": 2500.0,
-                    "pnlValue": 2500.0,
-                }
-            ],
-        }
-        mock_funds_res = {
-            "status": "success",
-            "data": {"availableBalance": 500000.0, "usedMargin": 5000.0, "totalMargin": 505000.0},
-        }
-        mock_trades_res = {
-            "status": "success",
-            "data": [
-                {
-                    "tradeId": "T123",
-                    "orderId": "DHAN12345",
-                    "tradingSymbol": "RELIANCE",
-                    "exchangeSegment": "NSE_EQ",
-                    "transactionType": "BUY",
-                    "tradedQty": 10,
-                    "tradedPrice": 2500.0,
-                    "productType": "INTRADAY",
-                }
-            ],
-        }
+    def test_is_commodity(self, offline_gateway: BrokerGateway) -> None:
+        """futures.is_commodity('GOLD') must be True; is_commodity('RELIANCE') must be False."""
+        assert offline_gateway.futures.is_commodity("GOLD") is True
+        assert offline_gateway.futures.is_commodity("SILVER") is True
+        assert offline_gateway.futures.is_commodity("CRUDEOIL") is True
+        assert offline_gateway.futures.is_commodity("RELIANCE") is False
+        assert offline_gateway.futures.is_commodity("NIFTY") is False
 
-        def mock_execute(executor, fn):
-            return fn()
 
-        monkeypatch.setattr(broker, "_execute_with_auth", mock_execute)
+# ---------------------------------------------------------------------------
+# Pytest-collectable subclass — inherits every contract test above.
+#
+# ``DhanBrokerContractSuite`` is the canonical suite name (mirrors the
+# ``BrokerContractSuite`` base class pattern in brokers.common.contracts).
+# Pytest requires a ``Test*``-prefixed class for collection, so this thin
+# subclass bridges the two conventions without duplicating any logic.
+# ---------------------------------------------------------------------------
 
-        mock_dhan = MagicMock()
-        mock_dhan.get_positions.return_value = mock_positions_res
-        mock_dhan.get_holdings.return_value = mock_holdings_res
-        mock_dhan.get_fund_limits.return_value = mock_funds_res
-        mock_dhan.get_trade_book.return_value = mock_trades_res
-        broker._dhan = mock_dhan
 
-        return broker
+class TestDhanBrokerContract(DhanBrokerContractSuite):
+    pass

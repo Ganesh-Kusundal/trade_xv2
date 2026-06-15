@@ -83,6 +83,15 @@ class UpstoxInstrumentLoader:
         known_segments = set(UpstoxSegmentMapper.all_upstox_segments())
         if segment.upper() not in known_segments:
             raise ValueError(f"Unknown segment: {segment}")
+        
+        expiry_val = record.get("expiry")
+        if isinstance(expiry_val, (int, float)):
+            from datetime import datetime, timezone
+            try:
+                expiry_val = datetime.fromtimestamp(expiry_val / 1000, tz=timezone.utc).strftime("%Y-%m-%d")
+            except Exception:
+                expiry_val = None
+        
         return UpstoxInstrumentDefinition(
             instrument_key=instrument_key,
             exchange=record.get("exchange", "") or "",
@@ -94,7 +103,7 @@ class UpstoxInstrumentLoader:
             isin=record.get("isin", "") or "",
             lot_size=int(record.get("lot_size", 0) or 0),
             tick_size=float(record.get("tick_size", 0) or 0.0),
-            expiry=record.get("expiry") or None,
+            expiry=expiry_val,
             strike=_to_float(record.get("strike")),
             option_type=record.get("option_type") or record.get("instrument_type") or None,
             underlying_key=record.get("underlying_key") or record.get("underlying_symbol") or None,

@@ -9,7 +9,7 @@ from decimal import Decimal
 from typing import Any
 
 from brokers.common.api.ports import GttOrderProvider
-from brokers.common.core.models import (
+from brokers.common.core.domain import (
     ConditionalAlert,
     ConditionalAlertRequest,
     Order,

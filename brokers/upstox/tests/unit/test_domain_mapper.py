@@ -4,39 +4,41 @@ from decimal import Decimal
 
 from brokers.common.core.enums import (
     ExchangeSegment,
-    OrderStatus,
-    OrderType,
-    ProductType,
-    TransactionType,
-    Validity,
 )
-from brokers.common.core.models import (
+from brokers.common.core.domain import (
     FundLimits,
     Holding,
     MarketDepth,
     OptionContract,
-    OrderRequest,
     OrderResponse,
+    OrderStatus,
+    OrderType,
     Position,
+    ProductType,
     Quote,
+    Side,
     Trade,
+    Validity,
+)
+from brokers.common.core.models import (
+    OrderRequest,
 )
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 
 
 def test_status_normalisation():
     cases = {
-        "put order req received": OrderStatus.PENDING,
+        "put order req received": OrderStatus.OPEN,
         "open": OrderStatus.OPEN,
-        "open pending": OrderStatus.PENDING,
-        "complete": OrderStatus.EXECUTED,
-        "filled": OrderStatus.EXECUTED,
+        "open pending": OrderStatus.OPEN,
+        "complete": OrderStatus.FILLED,
+        "filled": OrderStatus.FILLED,
         "cancelled": OrderStatus.CANCELLED,
         "rejected": OrderStatus.REJECTED,
-        "partially filled": OrderStatus.PARTIALLY_EXECUTED,
-        "trigger pending": OrderStatus.TRIGGER_PENDING,
-        "expired": OrderStatus.CANCELLED,
-        "after market order req received": OrderStatus.PENDING,
+        "partially filled": OrderStatus.PARTIALLY_FILLED,
+        "trigger pending": OrderStatus.OPEN,
+        "expired": OrderStatus.EXPIRED,
+        "after market order req received": OrderStatus.OPEN,
     }
     for raw, expected in cases.items():
         assert UpstoxDomainMapper.normalize_status(raw) is expected, raw
@@ -61,20 +63,24 @@ def test_validity_wire_round_trip():
 
 
 def test_txn_wire_round_trip():
-    for t in (TransactionType.BUY, TransactionType.SELL):
+    for t in (Side.BUY, Side.SELL):
         assert UpstoxDomainMapper.txn_from_wire(UpstoxDomainMapper.txn_to_wire(t)) is t
 
 
 def test_to_place_payload_basic():
+    from brokers.common.core.enums import TransactionType, OrderType as EnumsOrderType
+    from brokers.common.core.enums import ProductType as EnumsProductType
+    from brokers.common.core.enums import Validity as EnumsValidity
+
     req = OrderRequest(
         symbol="RELIANCE",
         exchange_segment=ExchangeSegment.NSE,
         transaction_type=TransactionType.BUY,
         quantity=10,
         price=Decimal("2500.50"),
-        order_type=OrderType.LIMIT,
-        product_type=ProductType.CNC,
-        validity=Validity.DAY,
+        order_type=EnumsOrderType.LIMIT,
+        product_type=EnumsProductType.CNC,
+        validity=EnumsValidity.DAY,
         correlation_id="corr-1",
     )
     payload = UpstoxDomainMapper.to_place_payload(req, "NSE_EQ|INE001A01023")
@@ -92,14 +98,18 @@ def test_to_place_payload_basic():
 
 
 def test_to_place_payload_with_slice_and_market_protection():
+    from brokers.common.core.enums import TransactionType, OrderType as EnumsOrderType
+    from brokers.common.core.enums import ProductType as EnumsProductType
+    from brokers.common.core.enums import Validity as EnumsValidity
+
     req = OrderRequest(
         symbol="TCS",
         transaction_type=TransactionType.SELL,
         quantity=1,
         price=Decimal("3500"),
-        order_type=OrderType.MARKET,
-        product_type=ProductType.INTRADAY,
-        validity=Validity.IOC,
+        order_type=EnumsOrderType.MARKET,
+        product_type=EnumsProductType.INTRADAY,
+        validity=EnumsValidity.IOC,
         slice=True,
         market_protection=3,
     )
@@ -158,11 +168,9 @@ def test_to_quote():
     q = UpstoxDomainMapper.to_quote(payload)
     assert isinstance(q, Quote)
     assert q.symbol == "RELIANCE"
-    assert q.last_price == Decimal("2500.5")
+    assert q.ltp == Decimal("2500.5")
     assert q.bid == Decimal("2500")
     assert q.ask == Decimal("2501")
-    assert q.bid_quantity == 100
-    assert q.ask_quantity == 200
     assert q.volume == 12345
 
 
@@ -184,9 +192,9 @@ def test_to_position():
     assert isinstance(p, Position)
     assert p.symbol == "RELIANCE"
     assert p.quantity == 10
-    assert p.buy_average_price == Decimal("2500")
+    assert p.avg_price == Decimal("2500")
     assert p.unrealized_pnl == Decimal("100")
-    assert p.last_price == Decimal("2510")
+    assert p.ltp == Decimal("2510")
 
 
 def test_to_holding():
@@ -201,8 +209,8 @@ def test_to_holding():
     h = UpstoxDomainMapper.to_holding(payload)
     assert isinstance(h, Holding)
     assert h.quantity == 100
-    assert h.cost_price == Decimal("2400")
-    assert h.pnl_value == Decimal("10000")
+    assert h.avg_price == Decimal("2400")
+    assert h.pnl == Decimal("10000")
 
 
 def test_to_trade():
@@ -221,7 +229,7 @@ def test_to_trade():
     assert t.trade_id == "TRD1"
     assert t.quantity == 5
     assert t.price == Decimal("2500")
-    assert t.transaction_type is TransactionType.BUY
+    assert t.side is Side.BUY
 
 
 def test_to_fund_limits():
@@ -241,7 +249,6 @@ def test_to_fund_limits():
     assert f.available_balance == Decimal("50000")
     assert f.used_margin == Decimal("10000")
     assert f.total_margin == Decimal("60000")
-    assert f.m2m_realized == Decimal("100")
 
 
 def test_to_historical_candles_from_array():
@@ -292,7 +299,6 @@ def test_to_market_depth():
     }
     d = UpstoxDomainMapper.to_market_depth(payload)
     assert isinstance(d, MarketDepth)
-    assert d.symbol == "RELIANCE"
     assert len(d.bids) == 1
     assert d.bids[0].price == Decimal("2500")
     assert d.bids[0].orders == 5

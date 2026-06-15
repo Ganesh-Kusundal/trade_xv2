@@ -1,187 +1,106 @@
-"""Abstract Broker interface — the canonical contract every adapter must implement.
+"""DEPRECATED: This module is no longer used. Kept for backward compatibility only.
 
-All broker adapters MUST satisfy this interface.  The rest of TradeXV2
-only depends on this ABC, never on Dhan/Upstox/Zerodha internals.
+The Broker ABC has been replaced by broker-specific gateway classes:
+- Dhan: brokers.dhan.gateway.BrokerGateway
+- Paper: brokers.paper.PaperGateway
+- Upstox: brokers.upstox.gateway.UpstoxBrokerGateway
 
-Usage::
-
-    from brokers.common.core.broker import Broker
-
-    class MyBroker(Broker):
-        ...
-
-    broker = MyBroker()
-    df = broker.get_historical_data("RELIANCE", "NSE", from_date, to_date)
-    # df is always a pd.DataFrame with HistoricalSchema columns
+All gateways now implement the MarketDataGateway ABC from brokers.common.gateway.
 """
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
+import warnings
 from datetime import date
 from decimal import Decimal
 
 from pandas import DataFrame
 
-from brokers.common.core.domain import (
-    FundLimits,
-    Holding,
-    Order,
-    OrderResponse,
-    Position,
-    Side,
-    Trade,
-)
+
+def _deprecated():
+    warnings.warn(
+        "brokers.common.core.broker.Broker is deprecated. "
+        "Use brokers.common.gateway.MarketDataGateway instead.",
+        DeprecationWarning,
+        stacklevel=3,
+    )
 
 
-class Broker(ABC):
-    """Abstract broker interface — every adapter must implement this.
+class Broker:
+    """DEPRECATED: Use MarketDataGateway instead.
 
-    Market data methods return DataFrames (canonical schemas).
-    Trading methods return domain objects (dataclasses).
+    This class is kept for backward compatibility only.
+    All new code should use brokers.common.gateway.MarketDataGateway.
     """
 
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        _deprecated()
+
     @property
-    @abstractmethod
     def name(self) -> str:
-        """Broker name (e.g. 'dhan', 'paper', 'upstox')."""
-        ...
+        _deprecated()
+        return ""
 
     @property
-    @abstractmethod
     def broker_id(self) -> str:
-        """Unique broker identifier."""
-        ...
+        _deprecated()
+        return ""
 
-    # ── Connection lifecycle ───────────────────────────────────────────
+    def connect(self) -> None:
+        _deprecated()
 
-    @abstractmethod
-    def connect(self) -> bool:
-        """Establish connection. Returns True on success."""
-        ...
-
-    @abstractmethod
-    def disconnect(self) -> bool:
-        """Tear down connection."""
-        ...
+    def disconnect(self) -> None:
+        _deprecated()
 
     def is_connected(self) -> bool:
-        """Whether the broker is currently connected."""
+        _deprecated()
         return False
 
-    # ── Market data (returns DataFrames) ──────────────────────────────
+    def get_historical_data(self, symbol: str, timeframe: str, start: date, end: date) -> DataFrame:
+        _deprecated()
+        return DataFrame()
 
-    @abstractmethod
-    def get_historical_data(
-        self,
-        symbol: str,
-        exchange: str,
-        from_date: date,
-        to_date: date,
-        timeframe: str = "1d",
-    ) -> DataFrame:
-        """Return historical OHLCV candles as a canonical DataFrame.
+    def get_quote(self, symbol: str) -> dict:
+        _deprecated()
+        return {}
 
-        Schema: HistoricalSchema — timestamp, open, high, low, close,
-        volume, oi, symbol, exchange, timeframe.
-        """
-        ...
+    def get_option_chain(self, underlying: str, expiry: date) -> DataFrame:
+        _deprecated()
+        return DataFrame()
 
-    @abstractmethod
-    def get_quote(
-        self,
-        symbol: str,
-        exchange: str,
-    ) -> DataFrame:
-        """Return real-time quote as a canonical DataFrame.
+    def get_market_depth(self, symbol: str) -> DataFrame:
+        _deprecated()
+        return DataFrame()
 
-        Schema: QuoteSchema — symbol, exchange, ltp, bid, ask,
-        volume, oi, timestamp.
-        """
-        ...
+    def place_order(self, symbol: str, side: str, quantity: int, price: Decimal, order_type: str) -> object:
+        _deprecated()
+        return None
 
-    @abstractmethod
-    def get_option_chain(
-        self,
-        underlying: str,
-        exchange: str,
-        expiry: str,
-    ) -> DataFrame:
-        """Return option chain as a canonical DataFrame.
+    def get_order(self, order_id: str) -> object:
+        _deprecated()
+        return None
 
-        Schema: OptionChainSchema — underlying, expiry,
-        strike, option_type, ltp, bid, ask, volume, oi, iv,
-        delta, gamma, theta, vega, rho, timestamp.
-        """
-        ...
+    def get_orders(self) -> list:
+        _deprecated()
+        return []
 
-    @abstractmethod
-    def get_market_depth(
-        self,
-        symbol: str,
-        exchange: str,
-    ) -> DataFrame:
-        """Return L2 market depth as a canonical DataFrame.
-
-        Schema: MarketDepthSchema — symbol, timestamp,
-        bid_price_1..20, bid_qty_1..20, ask_price_1..20, ask_qty_1..20.
-        """
-        ...
-
-    # ── Trading (returns domain objects) ───────────────────────────────
-
-    @abstractmethod
-    def place_order(
-        self,
-        symbol: str,
-        exchange: str,
-        side: Side,
-        quantity: int,
-        price: Decimal = Decimal("0"),
-        order_type: str = "MARKET",
-        product_type: str = "INTRADAY",
-        validity: str = "DAY",
-        trigger_price: Decimal = Decimal("0"),
-        correlation_id: str | None = None,
-    ) -> OrderResponse:
-        """Place an order and return a canonical OrderResponse."""
-        ...
-
-    @abstractmethod
-    def get_order(self, order_id: str) -> Order | None:
-        """Fetch a single order by ID."""
-        ...
-
-    @abstractmethod
-    def get_orders(self) -> list[Order]:
-        """Fetch all orders for the day."""
-        ...
-
-    @abstractmethod
     def cancel_order(self, order_id: str) -> bool:
-        """Cancel an order. Returns True on success."""
-        ...
+        _deprecated()
+        return False
 
-    # ── Portfolio (returns domain objects) ─────────────────────────────
+    def get_positions(self) -> list:
+        _deprecated()
+        return []
 
-    @abstractmethod
-    def get_positions(self) -> list[Position]:
-        """Return current positions."""
-        ...
+    def get_holdings(self) -> list:
+        _deprecated()
+        return []
 
-    @abstractmethod
-    def get_holdings(self) -> list[Holding]:
-        """Return holdings in the demat account."""
-        ...
+    def get_fund_limits(self) -> object:
+        _deprecated()
+        return None
 
-    @abstractmethod
-    def get_fund_limits(self) -> FundLimits:
-        """Return account fund limits."""
-        ...
-
-    # ── Trades ─────────────────────────────────────────────────────────
-
-    @abstractmethod
-    def get_trades(self) -> list[Trade]:
-        """Return the trade book for the day."""
-        ...
+    def get_trades(self) -> list:
+        _deprecated()
+        return []

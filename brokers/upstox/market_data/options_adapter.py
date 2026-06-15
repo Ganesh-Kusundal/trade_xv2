@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from brokers.common.api.ports import OptionsProvider
-from brokers.common.core.models import OptionContract
+from brokers.common.core.domain import OptionContract
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from brokers.upstox.market_data.options_client import UpstoxOptionsClient
 

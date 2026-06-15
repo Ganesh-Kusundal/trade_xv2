@@ -11,7 +11,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from brokers.common.core.enums import OrderStatus
+from brokers.common.core.domain import OrderStatus
 from brokers.upstox.market_data.portfolio_client import UpstoxPortfolioClient
 from brokers.upstox.orders.order_client import UpstoxRestOrderClient
 
@@ -113,6 +113,21 @@ class ReconciliationDrift:
                 )
 
 
+def create_reconciliation_service(
+    order_client: UpstoxRestOrderClient,
+    portfolio_client: UpstoxPortfolioClient,
+    oms: Any = None,
+    auto_repair: bool = False,
+) -> UpstoxReconciliationService:
+    """Factory function to create an UpstoxReconciliationService."""
+    return UpstoxReconciliationService(
+        order_client=order_client,
+        portfolio_client=portfolio_client,
+        oms=oms,
+        auto_repair=auto_repair,
+    )
+
+
 class UpstoxReconciliationService:
     """Run on boot, every 5 min, and on WS reconnect. Compares OMS state
     to Upstox's authoritative state and repairs drift (with safety guards).
@@ -192,11 +207,31 @@ class UpstoxReconciliationService:
     def _oms_positions(self) -> list[dict[str, Any]]:
         if self._oms is None:
             return []
+        # Prefer get_positions_as_dicts() for dict-compatible format
+        method = getattr(self._oms, "get_positions_as_dicts", None)
+        if method is not None:
+            try:
+                return method()
+            except Exception:
+                pass
+        # Fallback to get_positions()
         method = getattr(self._oms, "get_positions", None)
         if method is None:
             return []
         try:
-            return method()
+            result = method()
+            # Convert Position objects to dicts if needed
+            if result and not isinstance(result[0], dict):
+                return [
+                    {
+                        "exchange_segment": getattr(p, "exchange", ""),
+                        "trading_symbol": getattr(p, "symbol", ""),
+                        "net_quantity": getattr(p, "quantity", 0),
+                        "avg_price": str(getattr(p, "avg_price", "0")),
+                    }
+                    for p in result
+                ]
+            return result
         except Exception:
             return []
 

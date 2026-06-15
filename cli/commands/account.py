@@ -12,14 +12,14 @@ from cli.services.broker_service import BrokerService
 
 def show_account(broker_service: BrokerService, console: Console) -> None:
     """Print active account limits and margin information."""
-    broker = broker_service.active_broker
+    gw = broker_service.active_broker
     console.print(
-        f"Active Account: [bold yellow]{broker.name.upper()}[/bold yellow] (ID: {broker.broker_id})"
+        f"Active Account: [bold yellow]{broker_service.active_broker_name.upper()}[/bold yellow]"
     )
 
     try:
-        limits = broker.get_fund_limits()
-        positions = broker.get_positions()
+        balance = gw.portfolio.get_balance()
+        positions = gw.portfolio.get_positions()
 
         # Calculate PnLs
         realized = sum(pos.realized_pnl for pos in positions)
@@ -27,19 +27,17 @@ def show_account(broker_service: BrokerService, console: Console) -> None:
         total_pnl = realized + unrealized
 
         table = Table(
-            title=f"{broker.name.capitalize()} Account Summary", header_style="bold magenta"
+            title=f"{broker_service.active_broker_name.capitalize()} Account Summary",
+            header_style="bold magenta",
         )
         table.add_column("Metric", style="bold white")
         table.add_column("Value", justify="right")
 
-        table.add_row("Total Margin / Equity", f"Rs. {limits.total_margin:,.2f}")
-        table.add_row("Available Margin", f"Rs. {limits.available_balance:,.2f}")
-        table.add_row("Used Margin", f"Rs. {limits.used_margin:,.2f}")
-
-        # Mock collateral value for diagnostics visual richness
-        collateral = limits.total_margin - limits.available_balance - limits.used_margin
-        collateral_val = collateral if collateral > 0 else Decimal("0.00")
-        table.add_row("Collateral Value", f"Rs. {collateral_val:,.2f}")
+        table.add_row("SOD Limit / Equity", f"Rs. {balance.sod_limit:,.2f}")
+        table.add_row("Available Balance", f"Rs. {balance.available_balance:,.2f}")
+        table.add_row("Utilized Amount", f"Rs. {balance.utilized_amount:,.2f}")
+        table.add_row("Collateral Amount", f"Rs. {balance.collateral_amount:,.2f}")
+        table.add_row("Withdrawable Balance", f"Rs. {balance.withdrawable_balance:,.2f}")
 
         # Colorize PnLs
         def colorize_val(val: Decimal) -> str:

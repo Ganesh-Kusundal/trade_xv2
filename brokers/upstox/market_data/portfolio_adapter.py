@@ -6,7 +6,7 @@ from datetime import date
 from typing import Any
 
 from brokers.common.api.ports import PortfolioProvider
-from brokers.common.core.models import FundLimits, Holding, Position
+from brokers.common.core.domain import FundLimits, Holding, Position
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from brokers.upstox.market_data.portfolio_client import UpstoxPortfolioClient
 
