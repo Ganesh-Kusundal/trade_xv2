@@ -112,7 +112,27 @@ class BrokerFactory:
 
         # ── HTTP client ────────────────────────────────────────────
         from brokers.common.resilience.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
-        cb = CircuitBreaker("dhan-api", CircuitBreakerConfig(failure_threshold=5, open_duration_ms=30_000))
+
+        # Three independent circuit breakers — one per endpoint category.
+        # Phase A / A1 split the previous single "dhan-api" breaker so a
+        # failure storm on read endpoints (e.g. option-chain during a
+        # volatile session) cannot OPEN the breaker for write endpoints
+        # (order placement). This is the same failure mode that caused
+        # the documented DH-906 incident, generalised: any category's
+        # outage previously took out the others. See
+        # PRODUCTION_CERTIFICATION_REPORT §B1.
+        cb_read = CircuitBreaker(
+            "dhan-read-cb",
+            CircuitBreakerConfig(failure_threshold=10, open_duration_ms=15_000),
+        )
+        cb_write = CircuitBreaker(
+            "dhan-write-cb",
+            CircuitBreakerConfig(failure_threshold=3, open_duration_ms=30_000),
+        )
+        cb_admin = CircuitBreaker(
+            "dhan-admin-cb",
+            CircuitBreakerConfig(failure_threshold=5, open_duration_ms=30_000),
+        )
 
         # Per-instance refresh lock shared between the HTTP 401 handler
         # and the scheduler. This replaces the previous module-level
@@ -125,7 +145,9 @@ class BrokerFactory:
             access_token=token,
             token_refresh_fn=lambda: _refresh_via_auth(auth, env_file, refresh_lock),
             enable_retry=True,
-            circuit_breaker=cb,
+            read_circuit_breaker=cb_read,
+            write_circuit_breaker=cb_write,
+            admin_circuit_breaker=cb_admin,
         )
 
         # ── Connection + Gateway ───────────────────────────────────

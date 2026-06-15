@@ -37,6 +37,63 @@ _BASE_DELAY_MS = 500
 _MAX_DELAY_MS = 5000
 _REFRESH_COOLDOWN_SECONDS = 60
 
+# ── Endpoint categorization for circuit-breaker isolation (A1) ────────────
+#
+# Previously a single `CircuitBreaker("dhan-api")` protected every endpoint.
+# That meant a storm of failed historical-data reads (or option-chain calls)
+# would OPEN the breaker and block order placement. Phase A / A1 splits the
+# breaker into three categories so a failure in one class cannot take down
+# another:
+#
+#   READ   — market data; no user state change.  Most bursty, most likely
+#            to hit rate limits; failure here must NOT block orders.
+#   WRITE  — order placement, modification, cancellation. User money is on
+#            the line. The most sensitive category; opened quickly.
+#   ADMIN  — account state queries (positions/holdings/funds/orderbook/
+#            tradebook), broker auth (token refresh), kill switch. Default
+#            category for unrecognised endpoints.
+#
+# Endpoints are matched by `endpoint.startswith(prefix)` so `/charts/historical`
+# matches the prefix `/charts/`. Unknown endpoints default to ADMIN.
+_READ_CB_PREFIXES: tuple[str, ...] = (
+    "/marketfeed/ltp",
+    "/marketfeed/quote",
+    "/marketfeed/ohlc",
+    "/charts/",
+    "/optionchain",
+    "/marketstatus",
+    "/instruments",
+)
+_WRITE_CB_PREFIXES: tuple[str, ...] = (
+    "/orders",  # POST/PUT/DELETE on /orders is a write; the GET orderbook
+    # is also matched here, but the factory wires the read category to a
+    # higher threshold. We accept the slight imprecision — orderbook
+    # reads are rare on the hot path and the admin CB's threshold still
+    # protects against runaway 5xx storms.
+    "/killswitch",  # PUT /killswitch mutates broker session state
+    "/sliceorder",
+)
+# Note: /traderbook and /trades are intentionally NOT in the write list.
+# They are account-state reads; the categorization defaults them to
+# "admin" so they share the admin CB with /positions, /holdings,
+# /fundlimit, /traderbook. This keeps the orderbook failure mode
+# isolated from order placement.
+
+
+def _categorize_endpoint(endpoint: str) -> str:
+    """Return one of 'read', 'write', or 'admin' for an endpoint path.
+
+    Used by ``DhanHttpClient._get_circuit_breaker`` to route failures to
+    the category-specific circuit breaker.
+    """
+    for prefix in _WRITE_CB_PREFIXES:
+        if endpoint.startswith(prefix):
+            return "write"
+    for prefix in _READ_CB_PREFIXES:
+        if endpoint.startswith(prefix):
+            return "read"
+    return "admin"
+
 
 class DhanHttpClient:
     """Sync HTTP client with auth injection, token refresh, retry, and rate limiting."""
@@ -50,6 +107,9 @@ class DhanHttpClient:
         token_refresh_fn: Callable[[], str] | None = None,
         enable_retry: bool = True,
         circuit_breaker: CircuitBreaker | None = None,
+        read_circuit_breaker: CircuitBreaker | None = None,
+        write_circuit_breaker: CircuitBreaker | None = None,
+        admin_circuit_breaker: CircuitBreaker | None = None,
     ) -> None:
         self.client_id = client_id
         self.access_token = access_token
@@ -57,7 +117,13 @@ class DhanHttpClient:
         self._timeout = timeout
         self._token_refresh_fn = token_refresh_fn
         self._enable_retry = enable_retry
+        # Backwards-compat: a single ``circuit_breaker`` is used for any
+        # category whose specific CB was not provided. This keeps every
+        # existing test fixture working unchanged.
         self._circuit_breaker = circuit_breaker
+        self._read_circuit_breaker = read_circuit_breaker or circuit_breaker
+        self._write_circuit_breaker = write_circuit_breaker or circuit_breaker
+        self._admin_circuit_breaker = admin_circuit_breaker or circuit_breaker
         self._session = requests.Session()
         self._session.headers.update({
             "Accept": "application/json",
@@ -68,6 +134,20 @@ class DhanHttpClient:
         self._last_request_time: dict[str, float] = {}
         self._rate_lock = threading.Lock()
         self._last_refresh_time: float = 0.0
+
+    def _get_circuit_breaker(self, endpoint: str) -> CircuitBreaker | None:
+        """Return the circuit breaker that protects ``endpoint``.
+
+        Routes to the category-specific CB if one was supplied;
+        otherwise falls back to the single ``circuit_breaker`` argument
+        (backwards-compat path).
+        """
+        category = _categorize_endpoint(endpoint)
+        if category == "read":
+            return self._read_circuit_breaker
+        if category == "write":
+            return self._write_circuit_breaker
+        return self._admin_circuit_breaker
 
     def update_token(self, access_token: str) -> None:
         self.access_token = access_token
@@ -116,9 +196,13 @@ class DhanHttpClient:
         return False
 
     def _request(self, method: str, endpoint: str, json: dict | None = None) -> dict[str, Any]:
-        # Circuit breaker check — fast-fail if open
-        if self._circuit_breaker and self._circuit_breaker.state == CircuitState.OPEN:
-            if not self._circuit_breaker.allow_request():
+        # Circuit breaker check — fast-fail if the category-specific
+        # breaker for this endpoint is OPEN. The split (read / write /
+        # admin) is what stops a read-side failure storm from blocking
+        # order placement. See PRODUCTION_CERTIFICATION_REPORT §B1.
+        cb = self._get_circuit_breaker(endpoint)
+        if cb and cb.state == CircuitState.OPEN:
+            if not cb.allow_request():
                 raise DhanError(f"Circuit breaker open: {method} {endpoint}")
 
         self._throttle(endpoint)
@@ -132,8 +216,8 @@ class DhanHttpClient:
                 resp = self._session.request(method, url, json=json, timeout=self._timeout)
             except requests.RequestException as exc:
                 last_exc = DhanError(f"HTTP {method} {url} failed: {exc}")
-                if self._circuit_breaker:
-                    self._circuit_breaker.on_failure()
+                if cb:
+                    cb.on_failure()
                 if attempt < max_attempts:
                     delay = self._backoff_delay(attempt)
                     logger.warning("http_retry", extra={
@@ -167,8 +251,8 @@ class DhanHttpClient:
 
             # 5xx — server error, retry
             if resp.status_code >= 500:
-                if self._circuit_breaker:
-                    self._circuit_breaker.on_failure()
+                if cb:
+                    cb.on_failure()
                 if attempt < max_attempts:
                     delay = self._backoff_delay(attempt)
                     logger.warning("http_server_error_retry", extra={
@@ -202,12 +286,12 @@ class DhanHttpClient:
 
             if isinstance(data, dict) and data.get("status") == "failure":
                 remarks = data.get("remarks", "unknown error")
-                if self._circuit_breaker:
-                    self._circuit_breaker.on_failure()
+                if cb:
+                    cb.on_failure()
                 raise DhanError(f"API failure: {remarks}")
 
-            if self._circuit_breaker:
-                self._circuit_breaker.on_success()
+            if cb:
+                cb.on_success()
             return data
 
         # Should not reach here, but just in case
