@@ -24,6 +24,7 @@ from brokers.common.core.domain import (
     Trade,
 )
 from brokers.common.gateway import MarketDataGateway
+from brokers.common.lifecycle import LifecycleManager
 from brokers.common.oms.context import TradingContext
 from brokers.common.oms.factory import create_trading_context
 from brokers.dhan import BrokerFactory
@@ -365,7 +366,23 @@ def _order_to_dict(o: Order) -> dict:
 # ---------------------------------------------------------------------------
 
 class BrokerService:
-    """Resolves and manages the active broker (live Dhan gateway or mock)."""
+    """Resolves and manages the active broker (live Dhan gateway or mock).
+
+    Lifecycle ownership
+    -------------------
+    The service owns a :class:`LifecycleManager` (Phase A / A5) so every
+    ``ManagedService`` produced downstream — the ``TokenRefreshScheduler``
+    registered by ``BrokerFactory.create``, the ``ReconciliationService``
+    attached by ``TradingContext``, and any future scheduler — is drained
+    cleanly on ``close()``.
+
+    Previously the ``TokenRefreshScheduler`` was started as a bare daemon
+    thread by ``BrokerFactory.create()``'s backwards-compat path and never
+    stopped; the CLI's ``close()`` only called
+    ``TradingContext.stop_reconciliation()`` and ``gateway.close()``. This
+    left the scheduler thread to be reaped at process exit. See
+    PRODUCTION_CERTIFICATION_REPORT §B4.
+    """
 
     def __init__(self) -> None:
         self._gateway: MarketDataGateway | None = None
@@ -375,6 +392,21 @@ class BrokerService:
         self._dhan_load_error: str | None = None
         self._initialized = False
         self._trading_context: TradingContext | None = None
+        # A5: every background service in the system is owned by this
+        # LifecycleManager. Created eagerly so close() can stop_all()
+        # even if _ensure_initialized() failed midway.
+        self._lifecycle = LifecycleManager()
+
+    @property
+    def lifecycle(self) -> LifecycleManager:
+        """The LifecycleManager that owns every background service.
+
+        Exposed for tests and for the CLI's ``doctor`` command. The CLI
+        should never bypass this property to start or stop a service
+        directly — that re-introduces the ownership ambiguity Phase A
+        was designed to fix.
+        """
+        return self._lifecycle
 
     def _ensure_initialized(self) -> None:
         if self._initialized:
@@ -383,18 +415,50 @@ class BrokerService:
         _load_broker_env()
         if _ENV_PATH.exists():
             try:
+                # A5: pass the lifecycle so the factory registers
+                # TokenRefreshScheduler with it (instead of starting
+                # a bare daemon thread). The factory's backward-compat
+                # path is intentionally bypassed here.
                 self._gateway = BrokerFactory.create(
                     env_path=_ENV_PATH,
                     load_instruments=True,
+                    lifecycle=self._lifecycle,
                 )
                 self._create_trading_context()
-                logger.info("Dhan BrokerGateway created successfully")
+                # Register the reconciliation service (if any) with the
+                # lifecycle so it is drained on close().
+                self._attach_context_to_lifecycle()
+                # Start every registered service in registration order.
+                # TokenRefreshScheduler will now run as a ManagedService
+                # and join() cleanly on stop_all().
+                self._lifecycle.start_all()
+                logger.info("Dhan BrokerGateway created with lifecycle")
             except Exception as exc:
                 self._dhan_load_error = str(exc)
                 logger.warning("Failed to create Dhan gateway: %s", exc)
 
         if self._gateway is None:
             self._mock = MockBroker("dhan", "MOCK0001")
+
+    def _attach_context_to_lifecycle(self) -> None:
+        """Register the TradingContext's reconciliation service with the
+        LifecycleManager so it is drained on close().
+
+        Idempotent: a second call is a no-op (the LifecycleManager
+        refuses duplicate names).
+        """
+        if self._trading_context is None:
+            return
+        try:
+            # The ManagedService instances are stored on the context's
+            # private _reconciliation_service slot. We use the public
+            # attach_lifecycle() helper that TradingContext already
+            # provides, so this works even if internal storage changes.
+            self._trading_context.attach_lifecycle(self._lifecycle)
+        except Exception as exc:
+            # Never let attach failure take down gateway init — the
+            # service is best-effort and can be re-attached on retry.
+            logger.debug("attach_lifecycle_skipped: %s", exc)
 
     def _create_trading_context(self) -> None:
         """Create a TradingContext with reconciliation for the active gateway."""
@@ -492,13 +556,38 @@ class BrokerService:
         return statuses
 
     def close(self) -> None:
-        """Clean up the live gateway connection and stop reconciliation."""
+        """Clean up the live gateway connection and stop every managed service.
+
+        Order matters:
+          1. ``lifecycle.stop_all()`` first — drains the
+             ``TokenRefreshScheduler`` and ``ReconciliationService`` (and
+             any future ``ManagedService``) with bounded timeouts.
+          2. ``trading_context.stop_reconciliation()`` — kept for
+             backwards compatibility with any context that did not
+             receive an attach_lifecycle call (no-op if already drained).
+          3. ``gateway.close()`` — closes the HTTP session and any
+             broker-owned resources.
+
+        A failure in any step is logged and swallowed so the CLI can
+        always exit cleanly. The previous implementation relied on
+        process exit to reap leaked daemon threads; this version makes
+        shutdown deterministic.
+        """
+        # 1. Drain every ManagedService via the LifecycleManager.
+        try:
+            self._lifecycle.stop_all()
+        except Exception as exc:
+            logger.warning("lifecycle_stop_all_failed: %s", exc)
+        # 2. Best-effort belt-and-suspenders for any context that did
+        #    not receive the lifecycle. Safe to call twice.
         if self._trading_context is not None:
             try:
                 self._trading_context.stop_reconciliation()
             except Exception:
                 pass
             self._trading_context = None
+        # 3. Close the live gateway. This closes the HTTP session and
+        #    any broker-owned resources.
         if self._gateway is not None:
             try:
                 self._gateway.close()
