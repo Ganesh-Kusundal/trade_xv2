@@ -341,31 +341,7 @@ class OrdersAdapter:
 
     @staticmethod
     def _parse_order(raw: dict) -> Order:
-        status_str = (raw.get("orderStatus") or raw.get("status") or "OPEN").upper()
-        status = OrderStatus.normalize(status_str)
-
-        ot_str = (raw.get("orderType") or "MARKET").upper()
-        _OT_MAP = {"STOPLOSS_LIMIT": "STOP_LOSS", "STOPLOSS_MARKET": "STOP_LOSS_MARKET",
-                    "SL": "STOP_LOSS", "SLM": "STOP_LOSS_MARKET"}
-        ot_str = _OT_MAP.get(ot_str, ot_str)
-        try:
-            ot = OrderType(ot_str)
-        except ValueError:
-            ot = OrderType.MARKET
-
-        return Order(
-            order_id=str(raw.get("orderId", "")),
-            symbol=str(raw.get("tradingSymbol", "")),
-            exchange=_parse_exchange(raw.get("exchangeSegment", "NSE_EQ")),
-            side=OrderSide.BUY if raw.get("transactionType") == "BUY" else OrderSide.SELL,
-            order_type=ot,
-            quantity=int(raw.get("quantity", 0)),
-            filled_quantity=int(raw.get("filledQty", 0)),
-            price=_opt_dec(raw.get("price")) or Decimal("0"),
-            avg_price=_opt_dec(raw.get("averagePrice")) or Decimal("0"),
-            status=status,
-            reject_reason=raw.get("rejectReason") or "",
-        )
+        return Order.from_broker_dict(raw, exchange_resolver=_parse_exchange)
 
 
 def _parse_exchange(seg: str) -> Exchange:

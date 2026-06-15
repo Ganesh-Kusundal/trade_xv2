@@ -21,14 +21,15 @@ class UpstoxHistoricalV2Client:
         instrument_key: str,
         interval: str,
         to_date: date,
-        from_date: date,
+        from_date: date | None = None,
         unit: str | None = None,
     ) -> dict[str, Any]:
+        from_date_str = from_date.isoformat() if from_date else None
         url = self._urls.historical_candle_url(
             instrument_key=instrument_key,
             interval=interval,
             to_date=to_date.isoformat(),
-            from_date=from_date.isoformat(),
+            from_date=from_date_str,
         )
         params: dict[str, Any] = {}
         if unit:

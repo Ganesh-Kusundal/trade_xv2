@@ -121,25 +121,6 @@ class TestCircuitBreaker:
         assert cb.state == CircuitState.HALF_OPEN
 
 
-class TestTokenRefresh:
-    """Simulate token expiry and refresh."""
-
-    def test_expired_token_detected(self):
-        from brokers.dhan.factory import _is_token_expired
-
-        expired_token = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJleHAiOjF9.signature"
-        assert _is_token_expired(expired_token) is True
-
-    def test_valid_token_not_expired(self):
-        from brokers.dhan.factory import _is_token_expired
-        import base64, json, time
-
-        exp = int(time.time()) + 3600
-        payload = base64.urlsafe_b64encode(json.dumps({"exp": exp}).encode()).decode()
-        token = f"eyJ0eXAiOiJKV1Qi.{payload}.signature"
-        assert _is_token_expired(token) is False
-
-
 class TestRateLimiting:
     """Verify rate limiting prevents rapid requests."""
 

@@ -45,7 +45,7 @@ class UpstoxBrokerGateway(MarketDataGateway):
 
     @property
     def historical(self) -> Any:
-        return self._broker.market_data
+        return self
 
     @property
     def margin(self) -> Any:
@@ -96,16 +96,20 @@ class UpstoxBrokerGateway(MarketDataGateway):
         key = self._resolve_instrument_key(symbol, exchange)
         body = self._broker.market_data_v2.get_order_book(key)
         data = body.get("data", {})
-        buy = data.get("buy", []) if isinstance(data, dict) else []
-        sell = data.get("sell", []) if isinstance(data, dict) else []
+        depth = None
+        if isinstance(data, dict):
+            for v in data.values():
+                if isinstance(v, dict) and "depth" in v:
+                    depth = v["depth"]
+                    break
+        buy = depth.get("buy", []) if isinstance(depth, dict) else []
+        sell = depth.get("sell", []) if isinstance(depth, dict) else []
         bids = [DepthLevel(price=Decimal(str(l.get("price", 0))), quantity=int(l.get("quantity", 0)), orders=int(l.get("orders", 0))) for l in buy[:5]]
         asks = [DepthLevel(price=Decimal(str(l.get("price", 0))), quantity=int(l.get("quantity", 0)), orders=int(l.get("orders", 0))) for l in sell[:5]]
-        return MarketDepth(symbol=symbol, bids=bids, asks=asks)
+        return MarketDepth(bids=bids, asks=asks)
 
     def get_orderbook(self) -> list[Any]:
-        body = self._broker.order_client.get_order_list()
-        data = body.get("data", []) if isinstance(body, dict) else []
-        return [self._broker.order_query._parse_order(o) for o in data]
+        return self._broker.order_query.get_order_list()
 
     def get_trade_book(self) -> list[Any]:
         return []
@@ -166,16 +170,16 @@ class UpstoxBrokerGateway(MarketDataGateway):
 
         # V3 interval mapping: (unit, interval)
         interval_map = {
-            "1": ("minutes", "1"), "1M": ("minutes", "1"),
-            "3": ("minutes", "3"), "3M": ("minutes", "3"),
-            "5": ("minutes", "5"), "5M": ("minutes", "5"),
-            "15": ("minutes", "15"), "15M": ("minutes", "15"),
-            "30": ("minutes", "30"), "30M": ("minutes", "30"),
-            "60": ("hours", "1"), "60M": ("hours", "1"),
+            "1": ("minutes", "1"), "1MIN": ("minutes", "1"),
+            "3": ("minutes", "3"), "3MIN": ("minutes", "3"),
+            "5": ("minutes", "5"), "5MIN": ("minutes", "5"),
+            "15": ("minutes", "15"), "15MIN": ("minutes", "15"),
+            "30": ("minutes", "30"), "30MIN": ("minutes", "30"),
+            "60": ("hours", "1"), "60MIN": ("hours", "1"),
             "1H": ("hours", "1"), "4H": ("hours", "4"),
             "1D": ("days", "1"), "D": ("days", "1"), "DAY": ("days", "1"),
             "1W": ("weeks", "1"), "W": ("weeks", "1"),
-            "1M": ("months", "1"), "MONTH": ("months", "1"),
+            "MON": ("months", "1"), "MONTH": ("months", "1"),
         }
         unit, interval = interval_map.get(tf, ("days", "1"))
 
@@ -325,13 +329,17 @@ class UpstoxBrokerGateway(MarketDataGateway):
             try:
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
-                    # We're in an async context, schedule the coroutine
-                    asyncio.ensure_future(ws.connect())
+                    # We're in an async context, schedule connect and subscribe
+                    async def _connect_and_subscribe():
+                        await ws.connect()
+                        ws.subscribe([key], mode.lower())
+                        if on_tick:
+                            ws.add_listener(lambda _event_type, payload: on_tick(payload))
+                    asyncio.ensure_future(_connect_and_subscribe())
+                    return ws
                 else:
-                    # We're in a sync context, run until complete
                     loop.run_until_complete(ws.connect())
             except RuntimeError:
-                # No event loop, create one
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 loop.run_until_complete(ws.connect())

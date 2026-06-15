@@ -36,6 +36,17 @@ class DataCatalog:
             tid = 0
         with self._lock:
             conn = self._conns.get(tid)
+            if conn is not None:
+                if self._is_healthy(conn):
+                    return conn
+                else:
+                    logger.warning("DataCatalog: stale connection for thread %d, reconnecting", tid)
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+                    del self._conns[tid]
+                    conn = None
             if conn is None:
                 if not self._read_only:
                     self._db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -44,6 +55,14 @@ class DataCatalog:
                     self._init_schema(conn)
                 self._conns[tid] = conn
             return conn
+
+    def _is_healthy(self, conn: duckdb.DuckDBPyConnection) -> bool:
+        """Validate that a connection is still usable."""
+        try:
+            conn.execute("SELECT 1")
+            return True
+        except Exception:
+            return False
 
     def close(self) -> None:
         with self._lock:
@@ -134,7 +153,10 @@ class DataCatalog:
         ).fetchone()
         if result is None:
             return None
-        cols = [desc[0] for desc in self.conn.description]
+        cursor = self.conn.execute(
+            "SELECT * FROM symbols WHERE symbol = ?", [symbol]
+        )
+        cols = [desc[0] for desc in cursor.description]
         return dict(zip(cols, result))
 
     def list_symbols(self, timeframe: str = "1m") -> list[str]:

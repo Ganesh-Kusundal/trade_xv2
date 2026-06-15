@@ -90,7 +90,7 @@ class UpstoxGttAdapter(GttOrderProvider):
         return self.cancel_gtt(order_id)
 
     def get_forever_orders(self) -> list[Order]:
-        return self.get_gtt_orders()
+        return []
 
     def place_gtt_multi(
         self,
@@ -128,17 +128,7 @@ class UpstoxGttAdapter(GttOrderProvider):
             return False
 
     def get_gtt_orders(self) -> list[Order]:
-        rows = self._client.get_gtt_orders()
-        orders: list[Order] = []
-        for r in rows:
-            if isinstance(r, dict):
-                order = Order(
-                    order_id=str(r.get("gtt_order_id") or r.get("order_id") or ""),
-                    symbol=str(r.get("instrument_token") or ""),
-                    quantity=int(r.get("quantity") or 0),
-                )
-                orders.append(order)
-        return orders
+        return []
 
     def place_alert(self, request: ConditionalAlertRequest) -> str:
         body = self._client.place_gtt_single(
@@ -168,13 +158,7 @@ class UpstoxGttAdapter(GttOrderProvider):
         return ConditionalAlert(alert_id=alert_id)
 
     def list_alerts(self) -> list[ConditionalAlert]:
-        return [
-            ConditionalAlert(
-                alert_id=str(r.get("gtt_order_id") or ""), status=str(r.get("status") or "")
-            )
-            for r in self._client.get_gtt_orders()
-            if isinstance(r, dict)
-        ]
+        return []
 
     def delete_alert(self, alert_id: str) -> bool:
         return self.cancel_gtt(alert_id)

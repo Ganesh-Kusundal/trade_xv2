@@ -27,12 +27,11 @@ class UpstoxGttClient:
     def cancel_gtt(self, gtt_order_id: str) -> dict[str, Any]:
         return self._http.delete_json(self._urls.gtt_cancel_url() + f"/{gtt_order_id}")
 
-    def get_gtt_orders(self) -> list[dict[str, Any]]:
-        body = self._http.get_json(self._urls.gtt_orders_url())
-        if not isinstance(body, dict):
-            return []
-        data = body.get("data")
-        return data if isinstance(data, list) else []
+    def get_gtt_orders(self, gtt_order_id: str) -> dict[str, Any]:
+        return self._http.get_json(
+            self._urls.gtt_orders_url(),
+            params={"gtt_order_id": gtt_order_id},
+        )
 
     def get_gtt_order_details(self, gtt_order_id: str) -> dict[str, Any]:
         return self._http.get_json(self._urls.gtt_order_details_url() + f"/{gtt_order_id}")

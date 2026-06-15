@@ -14,11 +14,15 @@ class UpstoxNewsClient:
 
     def get_news(
         self,
+        category: str = "holdings",
         symbol: str | None = None,
         from_date: str | None = None,
         to_date: str | None = None,
+        instrument_keys: list[str] | None = None,
     ) -> list[dict[str, Any]]:
-        params: dict[str, Any] = {}
+        params: dict[str, Any] = {"category": category}
+        if instrument_keys:
+            params["instrument_key"] = ",".join(instrument_keys)
         if symbol:
             params["symbol"] = symbol
         if from_date:

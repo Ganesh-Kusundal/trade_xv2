@@ -206,224 +206,229 @@ def main() -> None:
         elif subcommand == "dashboard":
             cmd_dashboard.run(cmd_args, broker_service, console)
 
-    elif subcommand == "validate":
-        if cmd_args and cmd_args[0] == "history":
-            cmd_validate_history.run(cmd_args[1:], broker_service, console)
-        elif cmd_args and cmd_args[0] == "option-chain":
-            cmd_validate_option_chain.run(cmd_args[1:], broker_service, console)
-        else:
-            cmd_validate.run(cmd_args, broker_service, console)
-
-    elif subcommand == "benchmark":
-        cmd_benchmark.run(cmd_args, broker_service, console)
-
-    elif subcommand == "analytics":
-        cmd_analytics.run(cmd_args, broker_service, console)
-
-    elif subcommand == "compare":
-        cmd_compare.run(cmd_args, broker_service, console)
-
-    elif subcommand == "quality-report":
-        cmd_quality_report.run(cmd_args, broker_service, console)
-
-    elif subcommand == "instrument":
-        cmd_instrument_info.run(cmd_args, broker_service, console)
-
-    elif subcommand == "account" or subcommand == "funds":
-        cmd_account.run(cmd_args, broker_service, console)
-
-    elif subcommand == "holdings":
-        cmd_portfolio.show_holdings(broker_service, console)
-
-    elif subcommand == "positions":
-        cmd_portfolio.show_positions(broker_service, console)
-
-    elif subcommand == "orders":
-        status_filter = cmd_args[0] if cmd_args else None
-        cmd_oms.show_orders(broker_service, console, status_filter)
-
-    elif subcommand == "trades":
-        cmd_oms.show_trades(broker_service, console)
-
-    elif subcommand == "oms":
-        cmd_oms.show_oms_summary(broker_service, console)
-
-    elif subcommand == "quote":
-        if not cmd_args:
-            console.print("[yellow]Usage: tradex quote <symbol> [--live][/yellow]")
-            return
-        symbol = cmd_args[0]
-        try:
-            gw = _get_gateway()
-            quote = gw.market_data.get_quote(symbol)
-            if quote is not None:
-                from rich.table import Table
-
-                table = Table(title=f"Quote: {symbol.upper()}", header_style="bold green")
-                table.add_column("Metric", style="bold white")
-                table.add_column("Value", justify="right")
-                table.add_row("LTP", f"\u20b9{quote.ltp:,.2f}")
-                table.add_row("Open", f"\u20b9{quote.open:,.2f}")
-                table.add_row("High", f"\u20b9{quote.high:,.2f}")
-                table.add_row("Low", f"\u20b9{quote.low:,.2f}")
-                table.add_row("Close", f"\u20b9{quote.close:,.2f}")
-                table.add_row("Volume", f"{quote.volume:,}")
-                table.add_row("Change", f"\u20b9{quote.change:,.2f}")
-                console.print(table)
+        elif subcommand == "validate":
+            if cmd_args and cmd_args[0] == "history":
+                cmd_validate_history.run(cmd_args[1:], broker_service, console)
+            elif cmd_args and cmd_args[0] == "option-chain":
+                cmd_validate_option_chain.run(cmd_args[1:], broker_service, console)
             else:
-                console.print(f"[red]No quote data for {symbol}[/red]")
-        except Exception as exc:
-            console.print(f"[red]Error fetching quote for {symbol}: {exc}[/red]")
+                cmd_validate.run(cmd_args, broker_service, console)
 
-    elif subcommand == "depth":
-        if not cmd_args:
-            console.print("[yellow]Usage: tradex depth <symbol> [--live][/yellow]")
-            return
-        symbol = cmd_args[0]
-        try:
-            gw = _get_gateway()
-            depth = gw.market_data.get_depth(symbol)
-            if depth is not None and (depth.bids or depth.asks):
-                from rich.table import Table
+        elif subcommand == "benchmark":
+            cmd_benchmark.run(cmd_args, broker_service, console)
 
-                table = Table(title=f"Market Depth: {symbol.upper()}", header_style="bold magenta")
-                table.add_column("Bid Qty", style="green", justify="right")
-                table.add_column("Bid Price", style="bold green", justify="right")
-                table.add_column("Ask Price", style="bold red", justify="right")
-                table.add_column("Ask Qty", style="red", justify="right")
-                levels = max(len(depth.bids), len(depth.asks))
-                for i in range(levels):
-                    bid = depth.bids[i] if i < len(depth.bids) else None
-                    ask = depth.asks[i] if i < len(depth.asks) else None
-                    table.add_row(
-                        f"{bid.quantity:,}" if bid else "-",
-                        f"\u20b9{bid.price:,.2f}" if bid else "-",
-                        f"\u20b9{ask.price:,.2f}" if ask else "-",
-                        f"{ask.quantity:,}" if ask else "-",
-                    )
-                console.print(table)
-            else:
-                console.print(f"[red]No depth data for {symbol}[/red]")
-        except Exception as exc:
-            console.print(f"[red]Error fetching depth for {symbol}: {exc}[/red]")
+        elif subcommand == "analytics":
+            cmd_analytics.run(cmd_args, broker_service, console)
 
-    elif subcommand == "option-chain":
-        if not cmd_args:
-            console.print("[yellow]Usage: tradex option-chain <symbol> [--expiry <date>][/yellow]")
-            return
-        symbol = cmd_args[0]
-        expiry = None
-        if "--expiry" in cmd_args:
-            idx = cmd_args.index("--expiry")
-            if idx + 1 < len(cmd_args):
-                expiry = cmd_args[idx + 1]
-        try:
-            cmd_market.show_option_chain(broker_service, symbol, console, expiry)
-        except Exception as exc:
-            console.print(f"[red]Error fetching option-chain for {symbol}: {exc}[/red]")
+        elif subcommand == "compare":
+            cmd_compare.run(cmd_args, broker_service, console)
 
-    elif subcommand == "futures":
-        if not cmd_args:
-            console.print("[yellow]Usage: tradex futures <symbol>[/yellow]")
-            return
-        symbol = cmd_args[0]
-        try:
-            cmd_market.show_futures(broker_service, symbol, console)
-        except Exception as exc:
-            console.print(f"[red]Error fetching futures for {symbol}: {exc}[/red]")
+        elif subcommand == "quality-report":
+            cmd_quality_report.run(cmd_args, broker_service, console)
 
-    elif subcommand == "historical" or subcommand == "history":
-        if not cmd_args:
-            console.print("[yellow]Usage: tradex history <symbol>[/yellow]")
-            return
-        symbol = cmd_args[0]
-        try:
-            from datetime import date, timedelta
+        elif subcommand == "instrument":
+            cmd_instrument_info.run(cmd_args, broker_service, console)
 
-            gw = _get_gateway()
-            to_date = date.today()
-            from_date = to_date - timedelta(days=10)
-            df = gw.historical.get_historical(
-                symbol, "NSE",
-                from_date=from_date.strftime("%Y-%m-%d"),
-                to_date=to_date.strftime("%Y-%m-%d"),
-                timeframe="1D",
-            )
-            if df is not None and not df.empty:
-                from rich.table import Table
+        elif subcommand == "account" or subcommand == "funds":
+            cmd_account.run(cmd_args, broker_service, console)
 
-                table = Table(
-                    title=f"History: {symbol.upper()} (last 5 days)",
-                    header_style="bold magenta",
+        elif subcommand == "holdings":
+            cmd_portfolio.show_holdings(broker_service, console)
+
+        elif subcommand == "positions":
+            cmd_portfolio.show_positions(broker_service, console)
+
+        elif subcommand == "orders":
+            status_filter = cmd_args[0] if cmd_args else None
+            cmd_oms.show_orders(broker_service, console, status_filter)
+
+        elif subcommand == "trades":
+            cmd_oms.show_trades(broker_service, console)
+
+        elif subcommand == "oms":
+            cmd_oms.show_oms_summary(broker_service, console)
+
+        elif subcommand == "quote":
+            if not cmd_args:
+                console.print("[yellow]Usage: tradex quote <symbol> [--live][/yellow]")
+                return
+            symbol = cmd_args[0]
+            try:
+                gw = _get_gateway()
+                quote = gw.get_quote(symbol)
+                if quote is not None:
+                    from rich.table import Table
+
+                    table = Table(title=f"Quote: {symbol.upper()}", header_style="bold green")
+                    table.add_column("Metric", style="bold white")
+                    table.add_column("Value", justify="right")
+                    table.add_row("LTP", f"\u20b9{quote.ltp:,.2f}")
+                    table.add_row("Open", f"\u20b9{quote.open:,.2f}")
+                    table.add_row("High", f"\u20b9{quote.high:,.2f}")
+                    table.add_row("Low", f"\u20b9{quote.low:,.2f}")
+                    table.add_row("Close", f"\u20b9{quote.close:,.2f}")
+                    table.add_row("Volume", f"{quote.volume:,}")
+                    table.add_row("Change", f"\u20b9{quote.change:,.2f}")
+                    console.print(table)
+                else:
+                    console.print(f"[red]No quote data for {symbol}[/red]")
+            except Exception as exc:
+                console.print(f"[red]Error fetching quote for {symbol}: {exc}[/red]")
+
+        elif subcommand == "depth":
+            if not cmd_args:
+                console.print("[yellow]Usage: tradex depth <symbol> [--live][/yellow]")
+                return
+            symbol = cmd_args[0]
+            try:
+                gw = _get_gateway()
+                depth = gw.get_depth(symbol)
+                if depth is not None and (depth.bids or depth.asks):
+                    from rich.table import Table
+
+                    table = Table(title=f"Market Depth: {symbol.upper()}", header_style="bold magenta")
+                    table.add_column("Bid Qty", style="green", justify="right")
+                    table.add_column("Bid Price", style="bold green", justify="right")
+                    table.add_column("Ask Price", style="bold red", justify="right")
+                    table.add_column("Ask Qty", style="red", justify="right")
+                    levels = max(len(depth.bids), len(depth.asks))
+                    for i in range(levels):
+                        bid = depth.bids[i] if i < len(depth.bids) else None
+                        ask = depth.asks[i] if i < len(depth.asks) else None
+                        table.add_row(
+                            f"{bid.quantity:,}" if bid else "-",
+                            f"\u20b9{bid.price:,.2f}" if bid else "-",
+                            f"\u20b9{ask.price:,.2f}" if ask else "-",
+                            f"{ask.quantity:,}" if ask else "-",
+                        )
+                    console.print(table)
+                else:
+                    console.print(f"[red]No depth data for {symbol}[/red]")
+            except Exception as exc:
+                console.print(f"[red]Error fetching depth for {symbol}: {exc}[/red]")
+
+        elif subcommand == "option-chain":
+            if not cmd_args:
+                console.print("[yellow]Usage: tradex option-chain <symbol> [--expiry <date>][/yellow]")
+                return
+            symbol = cmd_args[0]
+            expiry = None
+            if "--expiry" in cmd_args:
+                idx = cmd_args.index("--expiry")
+                if idx + 1 < len(cmd_args):
+                    expiry = cmd_args[idx + 1]
+            try:
+                cmd_market.show_option_chain(broker_service, symbol, console, expiry)
+            except Exception as exc:
+                console.print(f"[red]Error fetching option-chain for {symbol}: {exc}[/red]")
+
+        elif subcommand == "futures":
+            if not cmd_args:
+                console.print("[yellow]Usage: tradex futures <symbol>[/yellow]")
+                return
+            symbol = cmd_args[0]
+            try:
+                cmd_market.show_futures(broker_service, symbol, console)
+            except Exception as exc:
+                console.print(f"[red]Error fetching futures for {symbol}: {exc}[/red]")
+
+        elif subcommand == "historical" or subcommand == "history":
+            if not cmd_args:
+                console.print("[yellow]Usage: tradex history <symbol>[/yellow]")
+                return
+            symbol = cmd_args[0]
+            try:
+                from datetime import date, timedelta
+
+                gw = _get_gateway()
+                to_date = date.today()
+                from_date = to_date - timedelta(days=10)
+                df = gw.historical.history(
+                    symbol, "NSE",
+                    from_date=from_date.strftime("%Y-%m-%d"),
+                    to_date=to_date.strftime("%Y-%m-%d"),
+                    timeframe="1D",
                 )
-                table.add_column("Date", style="bold white")
-                table.add_column("Open", justify="right")
-                table.add_column("High", justify="right")
-                table.add_column("Low", justify="right")
-                table.add_column("Close", justify="right")
-                table.add_column("Volume", justify="right")
-                for _, row in df.tail(5).iterrows():
-                    ts = row["timestamp"]
-                    date_str = ts.strftime("%Y-%m-%d") if hasattr(ts, "strftime") else str(ts)
-                    table.add_row(
-                        date_str,
-                        f"\u20b9{row['open']:,.2f}",
-                        f"\u20b9{row['high']:,.2f}",
-                        f"\u20b9{row['low']:,.2f}",
-                        f"\u20b9{row['close']:,.2f}",
-                        f"{int(row['volume']):,}",
+                if df is not None and not df.empty:
+                    from rich.table import Table
+
+                    table = Table(
+                        title=f"History: {symbol.upper()} (last 5 days)",
+                        header_style="bold magenta",
                     )
-                console.print(table)
-                console.print(f"[dim]{len(df)} candles total[/dim]")
-            else:
-                console.print(f"[red]No history data for {symbol}[/red]")
-        except Exception as exc:
-            console.print(f"[red]Error fetching history for {symbol}: {exc}[/red]")
+                    table.add_column("Date", style="bold white")
+                    table.add_column("Open", justify="right")
+                    table.add_column("High", justify="right")
+                    table.add_column("Low", justify="right")
+                    table.add_column("Close", justify="right")
+                    table.add_column("Volume", justify="right")
+                    for _, row in df.tail(5).iterrows():
+                        ts = row["timestamp"]
+                        date_str = ts.strftime("%Y-%m-%d") if hasattr(ts, "strftime") else str(ts)
+                        table.add_row(
+                            date_str,
+                            f"\u20b9{row['open']:,.2f}",
+                            f"\u20b9{row['high']:,.2f}",
+                            f"\u20b9{row['low']:,.2f}",
+                            f"\u20b9{row['close']:,.2f}",
+                            f"{int(row['volume']):,}",
+                        )
+                    console.print(table)
+                    console.print(f"[dim]{len(df)} candles total[/dim]")
+                else:
+                    console.print(f"[red]No history data for {symbol}[/red]")
+            except Exception as exc:
+                console.print(f"[red]Error fetching history for {symbol}: {exc}[/red]")
 
-    elif subcommand == "stream":
-        if not cmd_args:
-            console.print("[yellow]Usage: tradex stream <symbol>[/yellow]")
-            return
-        symbol = cmd_args[0]
-        try:
-            cmd_market.show_stream(broker_service, symbol, console)
-        except Exception as exc:
-            console.print(f"[red]Error streaming {symbol}: {exc}[/red]")
+        elif subcommand == "stream":
+            if not cmd_args:
+                console.print("[yellow]Usage: tradex stream <symbol>[/yellow]")
+                return
+            symbol = cmd_args[0]
+            try:
+                cmd_market.show_stream(broker_service, symbol, console)
+            except Exception as exc:
+                console.print(f"[red]Error streaming {symbol}: {exc}[/red]")
 
-    elif subcommand == "websocket":
-        cmd_websocket.run(cmd_args, broker_service, console)
+        elif subcommand == "websocket":
+            cmd_websocket.run(cmd_args, broker_service, console)
 
-    elif subcommand == "journal":
-        cmd_journal.run_journal(cmd_args, console)
+        elif subcommand == "journal":
+            cmd_journal.run_journal(cmd_args, console)
 
-    elif subcommand == "views":
-        cmd_views.run_views(cmd_args, console)
+        elif subcommand == "views":
+            cmd_views.run_views(cmd_args, console)
 
-    elif subcommand == "events":
-        cmd_events.run(cmd_args, event_bus_service, console)
+        elif subcommand == "events":
+            cmd_events.run(cmd_args, event_bus_service, console)
 
-    elif subcommand == "search":
-        cmd_search.run(cmd_args, broker_service, console)
+        elif subcommand == "search":
+            cmd_search.run(cmd_args, broker_service, console)
 
-    elif subcommand == "instruments":
-        cmd_instruments.run(cmd_args, broker_service, console)
+        elif subcommand == "instruments":
+            cmd_instruments.run(cmd_args, broker_service, console)
 
-    elif subcommand == "doctor":
-        cmd_doctor.run(cmd_args, broker_service, console)
+        elif subcommand == "doctor":
+            cmd_doctor.run(cmd_args, broker_service, console)
 
-    elif subcommand == "load-test":
-        cmd_load_test.run(cmd_args, broker_service, console)
+        elif subcommand == "load-test":
+            cmd_load_test.run(cmd_args, broker_service, console)
 
-    elif subcommand == "news":
-        cmd_news.run(cmd_args, broker_service, console)
+        elif subcommand == "news":
+            cmd_news.run(cmd_args, broker_service, console)
 
-    else:
+        else:
             console.print(f"[red]Error: Unknown command '{subcommand}'[/red]")
             console.print(
                 "[yellow]Available commands: broker, analytics, account/funds, holdings, positions, orders, trades, oms, quote, depth, option-chain, futures, historical/history, stream, websocket, events, search, instrument, instruments, doctor, load-test, news[/yellow]"
             )
     finally:
         broker_service.close()
+        if gateway is not None:
+            try:
+                gateway.close()
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":

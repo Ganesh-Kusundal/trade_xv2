@@ -386,10 +386,12 @@ class BrokerService:
 
     def __init__(self) -> None:
         self._gateway: MarketDataGateway | None = None
+        self._upstox_gateway: MarketDataGateway | None = None
         self._paper: PaperGateway | None = None
         self._mock: MockBroker | None = None
         self._active_name: str = "dhan"
         self._dhan_load_error: str | None = None
+        self._upstox_load_error: str | None = None
         self._initialized = False
         self._trading_context: TradingContext | None = None
         self._http_observability = None  # B8+B9 followup
@@ -514,6 +516,16 @@ class BrokerService:
                 os_ = getattr(conn, "order_stream", None)
                 if os_ is not None:
                     gauges["order_stream_connected"] = 1.0 if os_.is_connected else 0.0
+                # Token refresh metrics
+                scheduler = getattr(conn, "_token_scheduler", None)
+                if scheduler is not None:
+                    try:
+                        gauges["token_refresh_count"] = float(
+                            getattr(scheduler, "refresh_count", 0)
+                        )
+                        gauges["token_refresh_last_error"] = 1.0 if getattr(scheduler, "_last_error", None) else 0.0
+                    except Exception:
+                        pass
             client = getattr(conn, "_client", None) if conn is not None else None
             if client is not None:
                 for name, cb in (
@@ -626,6 +638,20 @@ class BrokerService:
 
         if self._gateway is None:
             self._mock = MockBroker("dhan", "MOCK0001")
+
+        # Try to create Upstox gateway
+        upstox_env_path = Path(".env.upstox")
+        if upstox_env_path.exists():
+            try:
+                from brokers.upstox.factory import UpstoxBrokerFactory
+                self._upstox_gateway = UpstoxBrokerFactory.create(
+                    env_path=upstox_env_path,
+                    load_instruments=True,
+                )
+                logger.info("Upstox BrokerGateway created")
+            except Exception as exc:
+                self._upstox_load_error = str(exc)
+                logger.warning("Failed to create Upstox gateway: %s", exc)
 
     def _start_websocket_services(self) -> None:
         """B-4: lazily create the market feed and order stream services
@@ -877,10 +903,12 @@ class BrokerService:
 
     @property
     def active_broker(self) -> MarketDataGateway | PaperGateway | MockBroker:
-        """Return the active broker: live Dhan, paper, or mock."""
+        """Return the active broker: live Dhan, live Upstox, paper, or mock."""
         self._ensure_initialized()
         if self._active_name == "paper" and self._paper is not None:
             return self._paper
+        if self._active_name == "upstox" and self._upstox_gateway is not None:
+            return self._upstox_gateway
         if self._gateway is not None:
             return self._gateway
         if self._paper is not None:
@@ -915,8 +943,12 @@ class BrokerService:
             if self._gateway is None:
                 raise ValueError("Dhan broker not available. Check .env.local credentials.")
             self._active_name = "dhan"
+        elif name_lower == "upstox":
+            if self._upstox_gateway is None:
+                raise ValueError("Upstox broker not available. Check .env.upstox credentials.")
+            self._active_name = "upstox"
         else:
-            raise ValueError(f"Broker '{name}' is not registered. Use 'dhan' or 'paper'.")
+            raise ValueError(f"Broker '{name}' is not registered. Use 'dhan', 'upstox', or 'paper'.")
         self._active_name = name_lower
 
     def use_paper(self) -> None:
@@ -930,6 +962,10 @@ class BrokerService:
             statuses.append({"broker": "Dhan", "status": "Connected"})
         else:
             statuses.append({"broker": "Dhan", "status": "Unavailable"})
+        if self._upstox_gateway is not None:
+            statuses.append({"broker": "Upstox", "status": "Connected"})
+        else:
+            statuses.append({"broker": "Upstox", "status": "Unavailable"})
         statuses.append({"broker": "Paper", "status": "Available"})
         return statuses
 

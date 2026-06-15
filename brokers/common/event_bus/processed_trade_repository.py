@@ -116,19 +116,27 @@ class ProcessedTradeRepository:
         Optional callback invoked when a duplicate is detected. Useful
         for emitting a metric without coupling this class to a metrics
         implementation.
+    max_age_seconds:
+        Maximum age in seconds for in-memory entries. Entries older than
+        this are evicted during cleanup. Default: 86400 (24 hours).
+        Set to 0 to disable eviction.
     """
 
     def __init__(
         self,
         persistence_path: str | Path | None = None,
         on_duplicate=None,
+        max_age_seconds: int = 86400,
     ) -> None:
         self._lock = threading.RLock()
         self._seen: set[TradeIdKey] = set()
+        self._key_timestamps: dict[TradeIdKey, float] = {}
+        self._max_age_seconds = max_age_seconds
         self._path = Path(persistence_path) if persistence_path else None
         self._on_duplicate = on_duplicate
         self._duplicates_observed = 0
         self._total_processed = 0
+        self._evicted = 0
         if self._path is not None:
             self._path.parent.mkdir(parents=True, exist_ok=True)
             self._load_from_disk()
@@ -150,6 +158,8 @@ class ProcessedTradeRepository:
                 "ProcessedTradeRepository.mark_processed requires a "
                 "non-empty trade_id"
             )
+        import time
+
         with self._lock:
             if key in self._seen:
                 self._duplicates_observed += 1
@@ -166,6 +176,7 @@ class ProcessedTradeRepository:
                 )
                 return False
             self._seen.add(key)
+            self._key_timestamps[key] = time.time()
             self._total_processed += 1
             if self._path is not None:
                 self._append_to_disk(key)
@@ -188,14 +199,43 @@ class ProcessedTradeRepository:
                 "size": len(self._seen),
                 "duplicates_observed": self._duplicates_observed,
                 "total_processed": self._total_processed,
+                "evicted": self._evicted,
             }
 
     def clear(self) -> None:
         """Wipe in-memory state. Persistence file is left untouched."""
         with self._lock:
             self._seen.clear()
+            self._key_timestamps.clear()
             self._duplicates_observed = 0
             self._total_processed = 0
+
+    def cleanup(self) -> int:
+        """Evict entries older than max_age_seconds.
+
+        Returns the number of entries evicted.
+        """
+        if self._max_age_seconds <= 0:
+            return 0
+        import time
+
+        now = time.time()
+        cutoff = now - self._max_age_seconds
+        evicted = 0
+        with self._lock:
+            expired = [k for k, ts in self._key_timestamps.items() if ts < cutoff]
+            for key in expired:
+                self._seen.discard(key)
+                del self._key_timestamps[key]
+                evicted += 1
+            self._evicted += evicted
+        if evicted > 0:
+            logger.info(
+                "ProcessedTradeRepository: evicted %d expired entries (age>%ds)",
+                evicted,
+                self._max_age_seconds,
+            )
+        return evicted
 
     # ── Persistence ───────────────────────────────────────────────────────
 

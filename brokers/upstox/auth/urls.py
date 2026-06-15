@@ -59,12 +59,15 @@ class UpstoxApiUrlResolver:
         return f"{self._v2()}/market-quote/ohlc"
 
     def market_quote_order_book_url(self) -> str:
-        return f"{self._v2()}/market-quote/order-book"
+        return f"{self._v2()}/market-quote/quotes"
 
     def historical_candle_url(
-        self, instrument_key: str, interval: str, to_date: str, from_date: str
+        self, instrument_key: str, interval: str, to_date: str, from_date: str | None = None
     ) -> str:
-        return f"{self._v2()}/historical-candle/{instrument_key}/{interval}/{to_date}/{from_date}"
+        url = f"{self._v2()}/historical-candle/{instrument_key}/{interval}/{to_date}"
+        if from_date:
+            url += f"/{from_date}"
+        return url
 
     def market_status_url(self, exchange: str = "NSE") -> str:
         return f"{self._v2()}/market/status/{exchange}"
@@ -135,7 +138,7 @@ class UpstoxApiUrlResolver:
         return f"{self._hft()}/order/gtt/cancel"
 
     def gtt_orders_url(self) -> str:
-        return f"{self._hft()}/order/gtt/orders"
+        return f"{self._v3()}/order/gtt"
 
     def gtt_order_details_url(self) -> str:
         return f"{self._hft()}/order/gtt/order-details"
@@ -249,7 +252,7 @@ class UpstoxApiUrlResolver:
 
     # ── IPO / MF / Fundamentals (v2) ────────────────────────────────
     def ipo_url(self) -> str:
-        return f"{self._v2()}/ipo"
+        return f"{self._v2()}/ipos"
 
     def mutual_funds_holdings_url(self) -> str:
         return f"{self._v2()}/mutual-funds/holdings"

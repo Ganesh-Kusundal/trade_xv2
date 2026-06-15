@@ -104,6 +104,17 @@ class TradeJournal:
             tid = 0
         with self._lock:
             conn = self._conns.get(tid)
+            if conn is not None:
+                if self._is_healthy(conn):
+                    return conn
+                else:
+                    logger.warning("TradeJournal: stale connection for thread %d, reconnecting", tid)
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+                    del self._conns[tid]
+                    conn = None
             if conn is None:
                 conn = _connect(self._path, read_only=self._read_only)
                 self._conns[tid] = conn
@@ -112,6 +123,14 @@ class TradeJournal:
                     conn.executescript(SCANS_SCHEMA)
                     conn.commit()
             return conn
+
+    def _is_healthy(self, conn: sqlite3.Connection) -> bool:
+        """Validate that a connection is still usable."""
+        try:
+            conn.execute("SELECT 1")
+            return True
+        except Exception:
+            return False
 
     def close(self) -> None:
         with self._lock:

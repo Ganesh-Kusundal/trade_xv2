@@ -174,6 +174,71 @@ class Order:
         """Return a new Order with updated fill quantity and average fill price."""
         return replace(self, filled_quantity=filled_quantity, avg_price=avg_price)
 
+    @classmethod
+    def from_broker_dict(
+        cls,
+        d: dict,
+        exchange_resolver: "Callable[[str], Any] | None" = None,
+    ) -> "Order":
+        """Construct a canonical Order from a broker-specific dict.
+
+        Supports the Dhan REST shape (``orderId``, ``tradingSymbol``,
+        ``exchangeSegment``, ``transactionType``, ``orderType``,
+        ``quantity``, ``filledQty``, ``price``, ``averagePrice``,
+        ``orderStatus``, ``rejectReason``) and a snake-case fallback
+        for adapters that already emit canonical-looking keys
+        (``order_id``, ``symbol``, ``side``, etc.).
+
+        ``exchange_resolver`` lets the caller map a segment string
+        (e.g. ``"NSE_EQ"``) to a richer exchange representation
+        (e.g. ``DhanExchange.NSE``). If absent, the segment string
+        is preserved as ``Order.exchange`` and the caller is
+        responsible for resolving it downstream.
+        """
+        # Snake_case fallback wins only when the Dhan key is absent.
+        order_id = str(d.get("orderId", d.get("order_id", "")))
+        symbol = str(d.get("tradingSymbol", d.get("symbol", "")))
+        raw_exchange = d.get("exchangeSegment", d.get("exchange", "NSE"))
+        exchange = exchange_resolver(raw_exchange) if exchange_resolver else raw_exchange
+        side_str = str(d.get("transactionType", d.get("side", "BUY"))).upper()
+        side = Side.BUY if side_str == "BUY" else Side.SELL
+
+        ot_str = str(d.get("orderType", d.get("order_type", "MARKET"))).upper()
+        _OT_ALIAS = {
+            "STOPLOSS_LIMIT": "STOP_LOSS",
+            "STOPLOSS_MARKET": "STOP_LOSS_MARKET",
+            "STOPLOSS-MARKET": "STOP_LOSS_MARKET",
+            "SL": "STOP_LOSS",
+            "SLM": "STOP_LOSS_MARKET",
+        }
+        ot_str = _OT_ALIAS.get(ot_str, ot_str)
+        try:
+            order_type = OrderType(ot_str)
+        except ValueError:
+            order_type = OrderType.MARKET
+
+        status_str = str(d.get("orderStatus", d.get("status", "OPEN"))).upper()
+        status = OrderStatus.normalize(status_str)
+
+        def _opt_dec(v: Any) -> Decimal | None:
+            if v in (None, ""):
+                return None
+            return Decimal(str(v))
+
+        return cls(
+            order_id=order_id,
+            symbol=symbol,
+            exchange=exchange,
+            side=side,
+            order_type=order_type,
+            quantity=int(d.get("quantity", 0)),
+            filled_quantity=int(d.get("filledQty", d.get("filled_quantity", 0))),
+            price=_opt_dec(d.get("price")) or Decimal("0"),
+            avg_price=_opt_dec(d.get("averagePrice", d.get("avg_price", d.get("average_price")))) or Decimal("0"),
+            status=status,
+            reject_reason=str(d.get("rejectReason", d.get("reject_reason", ""))),
+        )
+
 
 @dataclass(slots=True, frozen=True)
 class Position:
@@ -739,3 +804,34 @@ class BrokerConnection(ABC):
 
     def __exit__(self, *args) -> None:
         self.disconnect()
+
+
+@dataclass(slots=True, frozen=False)
+class DriftItem:
+    """Canonical reconciliation drift entry."""
+
+    kind: str  # "order_status", "missing_position", "extra_position", "quantity_mismatch"
+    severity: str  # "HIGH", "MEDIUM", "LOW"
+    symbol: str = ""
+    details: str = ""
+    payload: dict | None = None
+
+
+@dataclass(slots=True, frozen=False)
+class ReconciliationReport:
+    """Canonical reconciliation report — used by every broker adapter."""
+
+    drift_items: list[DriftItem] = field(default_factory=list)
+    broker_orders: int = 0
+    broker_positions: int = 0
+    orders_repaired: int = 0
+    positions_repaired: int = 0
+    timestamp_ms: int = 0
+
+    @property
+    def has_drift(self) -> bool:
+        return len(self.drift_items) > 0
+
+    @property
+    def high_severity_count(self) -> int:
+        return sum(1 for d in self.drift_items if d.severity in ("HIGH", "critical"))

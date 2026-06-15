@@ -12,8 +12,8 @@ class UpstoxIpoClient:
         self._http = http_client
         self._urls = url_resolver
 
-    def get_ipo_data(self) -> list[dict[str, Any]]:
-        body = self._http.get_json(self._urls.ipo_url())
+    def get_ipo_data(self, status: str = "open") -> list[dict[str, Any]]:
+        body = self._http.get_json(self._urls.ipo_url(), params={"status": status})
         if isinstance(body, list):
             return body
         if isinstance(body, dict):

@@ -1,49 +1,8 @@
 """Unit tests for BrokerFactory helper functions."""
 
-import base64
-import json
 import os
-import time
 
-
-from brokers.dhan.factory import _is_token_expired, _load_dotenv, _update_env_token
-
-
-def _make_jwt(payload: dict) -> str:
-    """Build a minimal JWT-like string with the given payload."""
-    header = base64.b64encode(json.dumps({"alg": "HS256"}).encode()).decode().rstrip("=")
-    body = base64.b64encode(json.dumps(payload).encode()).decode().rstrip("=")
-    signature = base64.b64encode(b"fakesignature").decode().rstrip("=")
-    return f"{header}.{body}.{signature}"
-
-
-def test_is_token_expired_with_expired_token():
-    """A token whose exp is in the past should be reported as expired."""
-    past_exp = int(time.time()) - 3600  # 1 hour ago
-    token = _make_jwt({"exp": past_exp, "sub": "user123"})
-    assert _is_token_expired(token) is True
-
-
-def test_is_token_expired_with_valid_token():
-    """A token whose exp is well in the future should not be expired."""
-    future_exp = int(time.time()) + 7200  # 2 hours from now
-    token = _make_jwt({"exp": future_exp, "sub": "user123"})
-    assert _is_token_expired(token) is False
-
-
-def test_is_token_expired_with_malformed_token():
-    """A malformed token (not 3 dot-separated parts) should be treated as expired."""
-    assert _is_token_expired("not-a-jwt") is True
-    assert _is_token_expired("") is True
-    assert _is_token_expired("a.b") is True
-
-
-def test_is_token_expired_within_buffer():
-    """A token expiring within the 5-minute buffer should be treated as expired."""
-    # Expires in 60 seconds — within the default 300-second buffer
-    near_exp = int(time.time()) + 60
-    token = _make_jwt({"exp": near_exp})
-    assert _is_token_expired(token) is True
+from brokers.dhan.factory import _load_dotenv, _update_env_token
 
 
 def test_load_dotenv(tmp_path):

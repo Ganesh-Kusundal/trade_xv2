@@ -31,5 +31,5 @@ class UpstoxMarketDataV2Client:
         return self._http.get_json(self._urls.market_quote_ohlc_url(), params=params)
 
     def get_order_book(self, instrument_key: str) -> dict[str, Any]:
-        params = {"instrument_key": instrument_key}
+        params = {"instrument_key": instrument_key, "quote": "BEST_FIVE"}
         return self._http.get_json(self._urls.market_quote_order_book_url(), params=params)

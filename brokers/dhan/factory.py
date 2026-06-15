@@ -231,19 +231,6 @@ def _refresh_via_auth(
         refresh_lock.release()
 
 
-def _is_token_expired(token: str, buffer_seconds: int = 300) -> bool:
-    """Check JWT expiry claim with a 5-minute buffer."""
-    try:
-        parts = token.split(".")
-        if len(parts) != 3:
-            return True
-        payload = json.loads(base64.b64decode(parts[1] + "=="))
-        exp: int = int(payload.get("exp", 0))
-        return exp < time.time() + buffer_seconds
-    except Exception:
-        return True
-
-
 def _generate_totp_token(client_id: str) -> Optional[str]:
     """Generate a fresh access token via TOTP. Returns None on failure."""
     pin = _read_secret("DHAN_PIN", "DHAN_PIN_FILE")

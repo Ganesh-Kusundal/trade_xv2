@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass, field
 from typing import Any
 
+from brokers.common.core.domain import DriftItem, ReconciliationReport
 from brokers.dhan.orders import OrdersAdapter
 from brokers.dhan.portfolio import PortfolioAdapter
 
@@ -36,30 +36,6 @@ def create_reconciliation_service(
         oms=oms,
         auto_repair=auto_repair,
     )
-
-
-@dataclass
-class DriftItem:
-    kind: str  # "order_status", "missing_position", "extra_position", "quantity_mismatch"
-    severity: str  # "HIGH", "MEDIUM", "LOW"
-    symbol: str = ""
-    details: str = ""
-
-
-@dataclass
-class ReconciliationReport:
-    drift_items: list[DriftItem] = field(default_factory=list)
-    broker_orders: int = 0
-    broker_positions: int = 0
-    timestamp_ms: int = 0
-
-    @property
-    def has_drift(self) -> bool:
-        return len(self.drift_items) > 0
-
-    @property
-    def high_severity_count(self) -> int:
-        return sum(1 for d in self.drift_items if d.severity == "HIGH")
 
 
 class DhanReconciliationService:

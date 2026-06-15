@@ -149,7 +149,8 @@ class TestSQLiteJournalConcurrency:
         path = tmp_path / "test_journal.sqlite"
         w = TradeJournal(catalog_path=path)
         try:
-            mode = w._conn.execute("PRAGMA journal_mode").fetchone()[0]
+            conn = w._ensure_conn()
+            mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
             assert mode.lower() == "wal", f"expected WAL, got {mode}"
         finally:
             w.close()

@@ -8,39 +8,13 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable
-from dataclasses import dataclass, field
 from typing import Any
 
-from brokers.common.core.domain import OrderStatus
+from brokers.common.core.domain import DriftItem, OrderStatus, ReconciliationReport
 from brokers.upstox.market_data.portfolio_client import UpstoxPortfolioClient
 from brokers.upstox.orders.order_client import UpstoxRestOrderClient
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class DriftItem:
-    kind: str
-    severity: str
-    payload: dict[str, Any]
-    message: str = ""
-
-
-@dataclass
-class ReconciliationReport:
-    drift_items: list[DriftItem] = field(default_factory=list)
-    orders_repaired: int = 0
-    positions_repaired: int = 0
-    timestamp_ms: int = 0
-
-    @property
-    def drift(self) -> ReconciliationDrift:
-        d = ReconciliationDrift()
-        d.items = list(self.drift_items)
-        return d
-
-    def has_critical(self) -> bool:
-        return any(i.severity == "critical" for i in self.drift_items)
 
 
 class ReconciliationDrift:
@@ -56,8 +30,8 @@ class ReconciliationDrift:
                     DriftItem(
                         kind="missing_local_order",
                         severity="critical",
+                        details=f"Upstox order {oid} not present in local OMS",
                         payload=order,
-                        message=f"Upstox order {oid} not present in local OMS",
                     )
                 )
         for oid, order in local_by_id.items():
@@ -69,8 +43,8 @@ class ReconciliationDrift:
                     DriftItem(
                         kind="missing_upstox_order",
                         severity="warning",
+                        details=f"Local order {oid} not present in Upstox state",
                         payload=order,
-                        message=f"Local order {oid} not present in Upstox state",
                     )
                 )
 
@@ -92,8 +66,8 @@ class ReconciliationDrift:
                     DriftItem(
                         kind="missing_local_position",
                         severity="critical",
+                        details=f"Upstox position {key} not present locally",
                         payload=pos,
-                        message=f"Upstox position {key} not present locally",
                     )
                 )
                 continue
@@ -107,8 +81,8 @@ class ReconciliationDrift:
                     DriftItem(
                         kind="position_quantity_mismatch",
                         severity="critical",
+                        details=f"Position {key}: local={local_qty} upstox={upstox_qty}",
                         payload={"local": local_pos, "upstox": pos},
-                        message=f"Position {key}: local={local_qty} upstox={upstox_qty}",
                     )
                 )
 

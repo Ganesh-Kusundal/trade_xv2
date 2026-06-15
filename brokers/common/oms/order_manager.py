@@ -28,8 +28,13 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
-class OrderRequest:
-    """Plain request object for placing an order."""
+class OmsOrderCommand:
+    """Plain request object for placing an order.
+
+    Renamed from ``OrderRequest`` to avoid colliding with the canonical
+    ``brokers.common.core.domain.OrderRequest`` (Upstox input shape). This
+    is the canonical command object for the OMS.
+    """
 
     symbol: str
     exchange: str
@@ -46,6 +51,11 @@ class OrderRequest:
         object.__setattr__(self, "price", Decimal(str(self.price)))
         if not self.correlation_id:
             object.__setattr__(self, "correlation_id", f"ord:{uuid.uuid4().hex[:12]}")
+
+
+# Backward-compat alias — kept so external imports that pre-date the
+# rename keep working. New code should use ``OmsOrderCommand``.
+OrderRequest = OmsOrderCommand
 
 
 class OrderResult:
@@ -116,8 +126,8 @@ class OrderManager:
 
     def place_order(
         self,
-        request: OrderRequest,
-        submit_fn: Callable[[OrderRequest], Order] | None = None,
+        request: OmsOrderCommand,
+        submit_fn: Callable[[OmsOrderCommand], Order] | None = None,
     ) -> OrderResult:
         """Place an order idempotently.
 
