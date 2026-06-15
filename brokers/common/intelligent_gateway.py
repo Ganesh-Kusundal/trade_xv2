@@ -2,16 +2,38 @@
 
 Routes requests to the fastest broker for each operation type.
 Supports parallel data fetching for batch operations.
+
+Observability contract
+----------------------
+Every silent ``except Exception: pass`` from the previous version has been
+replaced with a call to :meth:`IntelligentGateway._log_fallback`. Each
+fallback:
+
+1. Logs at WARNING level with the operation, the failing broker, and the
+   exception type / message.
+2. Increments the ``intelligent_gateway_fallback`` counter on the
+   attached :class:`EventMetrics` instance (keyed by operation, broker,
+   and exception class name) so an SRE can alert on systemic broker
+   outages.
+3. Returns the fallback broker's response (or an empty default), so
+   callers do not need to handle a new exception type.
+
+The metrics instance is optional; if not supplied, an isolated instance
+is created. Tests inject a fresh instance to assert counters.
 """
 
 from __future__ import annotations
 
+import logging
 from decimal import Decimal
-from typing import Any
+from typing import Any, Optional
 
 import pandas as pd
 
-from brokers.common.data_contracts import Quote, MarketDepth, FundLimits
+from brokers.common.data_contracts import FundLimits, MarketDepth, Quote
+from brokers.common.observability.event_metrics import EventMetrics
+
+logger = logging.getLogger(__name__)
 
 
 class IntelligentGateway:
@@ -26,9 +48,15 @@ class IntelligentGateway:
     - Positions/Holdings/Funds: Use first available
     """
 
-    def __init__(self, dhan_gateway=None, upstox_gateway=None):
+    def __init__(
+        self,
+        dhan_gateway=None,
+        upstox_gateway=None,
+        metrics: Optional[EventMetrics] = None,
+    ) -> None:
         self._dhan = dhan_gateway
         self._upstox = upstox_gateway
+        self._metrics = metrics or EventMetrics()
 
     @property
     def dhan(self):
@@ -38,13 +66,51 @@ class IntelligentGateway:
     def upstox(self):
         return self._upstox
 
+    @property
+    def metrics(self) -> EventMetrics:
+        return self._metrics
+
+    # ── Observability helpers ────────────────────────────────────────────
+
+    def _log_fallback(
+        self,
+        operation: str,
+        broker: str,
+        exc: BaseException,
+    ) -> None:
+        """Record a silent fallback: log + metric, never raise.
+
+        The previous implementation used ``except Exception: pass`` which
+        hid systemic broker outages. This helper restores observability
+        without changing the caller-visible behavior — the original
+        fallback (next broker, or empty default) still runs.
+        """
+        exc_type = type(exc).__name__
+        logger.warning(
+            "intelligent_gateway_fallback",
+            extra={
+                "operation": operation,
+                "broker": broker,
+                "exception_type": exc_type,
+                "exception_message": str(exc),
+            },
+        )
+        # Bucket by (operation, broker, exception_type) so a single noisy
+        # broker does not mask a different broker's failure.
+        self._metrics.inc(
+            "intelligent_gateway_fallback",
+            f"{operation}:{broker}:{exc_type}",
+        )
+
+    # ── Routing methods ──────────────────────────────────────────────────
+
     def ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:
         """Route to Upstox for faster LTP."""
         if self._upstox:
             try:
                 return self._upstox.ltp(symbol, exchange)
-            except Exception:
-                pass
+            except Exception as exc:
+                self._log_fallback("ltp", "upstox", exc)
         if self._dhan:
             return self._dhan.ltp(symbol, exchange)
         raise RuntimeError("No broker available")
@@ -54,8 +120,8 @@ class IntelligentGateway:
         if self._upstox:
             try:
                 return self._upstox.ltp_batch(symbols, exchange)
-            except Exception:
-                pass
+            except Exception as exc:
+                self._log_fallback("ltp_batch", "upstox", exc)
         if self._dhan:
             return self._dhan.ltp_batch(symbols, exchange)
         raise RuntimeError("No broker available")
@@ -65,8 +131,8 @@ class IntelligentGateway:
         if self._upstox:
             try:
                 return self._upstox.quote(symbol, exchange)
-            except Exception:
-                pass
+            except Exception as exc:
+                self._log_fallback("quote", "upstox", exc)
         if self._dhan:
             return self._dhan.quote(symbol, exchange)
         raise RuntimeError("No broker available")
@@ -76,8 +142,8 @@ class IntelligentGateway:
         if self._upstox:
             try:
                 return self._upstox.quote_batch(symbols, exchange)
-            except Exception:
-                pass
+            except Exception as exc:
+                self._log_fallback("quote_batch", "upstox", exc)
         if self._dhan:
             return self._dhan.quote_batch(symbols, exchange)
         raise RuntimeError("No broker available")
@@ -95,8 +161,8 @@ class IntelligentGateway:
         if self._dhan:
             try:
                 return self._dhan.history(symbol, exchange, timeframe, lookback_days, from_date, to_date)
-            except Exception:
-                pass
+            except Exception as exc:
+                self._log_fallback("history", "dhan", exc)
         if self._upstox:
             return self._upstox.history(symbol, exchange, timeframe, lookback_days, from_date, to_date)
         raise RuntimeError("No broker available")
@@ -112,8 +178,8 @@ class IntelligentGateway:
         if self._dhan:
             try:
                 return self._dhan.history_batch(symbols, exchange, timeframe, lookback_days)
-            except Exception:
-                pass
+            except Exception as exc:
+                self._log_fallback("history_batch", "dhan", exc)
         if self._upstox:
             return self._upstox.history_batch(symbols, exchange, timeframe, lookback_days)
         raise RuntimeError("No broker available")
@@ -123,8 +189,8 @@ class IntelligentGateway:
         if self._dhan:
             try:
                 return self._dhan.depth(symbol, exchange)
-            except Exception:
-                pass
+            except Exception as exc:
+                self._log_fallback("depth", "dhan", exc)
         if self._upstox:
             return self._upstox.depth(symbol, exchange)
         raise RuntimeError("No broker available")
@@ -139,8 +205,8 @@ class IntelligentGateway:
         if self._dhan:
             try:
                 return self._dhan.option_chain(underlying, exchange, expiry)
-            except Exception:
-                pass
+            except Exception as exc:
+                self._log_fallback("option_chain", "dhan", exc)
         if self._upstox:
             return self._upstox.option_chain(underlying, exchange, expiry)
         raise RuntimeError("No broker available")
@@ -154,8 +220,8 @@ class IntelligentGateway:
         if self._dhan:
             try:
                 return self._dhan.future_chain(underlying, exchange)
-            except Exception:
-                pass
+            except Exception as exc:
+                self._log_fallback("future_chain", "dhan", exc)
         return {"underlying": underlying, "exchange": exchange, "expiries": [], "contracts": []}
 
     def stream(
@@ -169,8 +235,8 @@ class IntelligentGateway:
         if self._dhan:
             try:
                 return self._dhan.stream(symbol, exchange, mode, on_tick)
-            except Exception:
-                pass
+            except Exception as exc:
+                self._log_fallback("stream", "dhan", exc)
         if self._upstox:
             return self._upstox.stream(symbol, exchange, mode, on_tick)
         raise RuntimeError("No broker available")
@@ -180,8 +246,8 @@ class IntelligentGateway:
         if self._dhan:
             try:
                 return self._dhan.positions()
-            except Exception:
-                pass
+            except Exception as exc:
+                self._log_fallback("positions", "dhan", exc)
         if self._upstox:
             return self._upstox.positions()
         return []
@@ -191,8 +257,8 @@ class IntelligentGateway:
         if self._dhan:
             try:
                 return self._dhan.holdings()
-            except Exception:
-                pass
+            except Exception as exc:
+                self._log_fallback("holdings", "dhan", exc)
         if self._upstox:
             return self._upstox.holdings()
         return []
@@ -202,8 +268,8 @@ class IntelligentGateway:
         if self._dhan:
             try:
                 return self._dhan.funds()
-            except Exception:
-                pass
+            except Exception as exc:
+                self._log_fallback("funds", "dhan", exc)
         if self._upstox:
             return self._upstox.funds()
         return FundLimits()
@@ -213,8 +279,8 @@ class IntelligentGateway:
         if self._dhan:
             try:
                 return self._dhan.trades()
-            except Exception:
-                pass
+            except Exception as exc:
+                self._log_fallback("trades", "dhan", exc)
         if self._upstox:
             return self._upstox.trades()
         return []
@@ -244,8 +310,8 @@ class IntelligentGateway:
         if self._dhan:
             try:
                 return self._dhan.search(query)
-            except Exception:
-                pass
+            except Exception as exc:
+                self._log_fallback("search", "dhan", exc)
         if self._upstox:
             return self._upstox.search(query)
         return []
