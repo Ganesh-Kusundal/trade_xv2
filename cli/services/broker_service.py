@@ -391,6 +391,7 @@ class BrokerService:
         self._dhan_load_error: str | None = None
         self._initialized = False
         self._trading_context: TradingContext | None = None
+        self._http_observability = None  # B8+B9 followup
         # A5: every background service in the system is owned by this
         # LifecycleManager. Created eagerly so close() can stop_all()
         # even if _ensure_initialized() failed midway.
@@ -406,6 +407,84 @@ class BrokerService:
         was designed to fix.
         """
         return self._lifecycle
+
+    @property
+    def http_observability(self):
+        """The HTTP observability server (Phase B / B8+B9).
+
+        Returns ``None`` before init or if the server failed to start.
+        Exposed so the CLI's ``doctor`` and ``metrics`` commands
+        (future work) can introspect it.
+        """
+        return self._http_observability
+
+    def _start_http_observability_server(self, risk_manager) -> None:
+        """B8+B9 followup: spin up the HTTP observability server.
+
+        Constructs an :class:`HttpObservabilityServer` with the OMS's
+        ``EventMetrics`` (so /metrics shows the same counters the
+        OMS increments) and a ``extra_gauges_fn`` that returns the
+        OMS risk state (daily_pnl, kill_switch, etc.). Registers
+        the server with the lifecycle so close() drains it.
+
+        Best-effort: if the bind fails (port in use) the service
+        is left as None and a warning is logged. Production
+        observability must not block init.
+        """
+        from brokers.common.observability.http_server import (
+            HttpObservabilityServer,
+        )
+
+        # Share the OMS's EventMetrics so /metrics shows the same
+        # counters the OMS increments. If the TradingContext is
+        # None (init failed), fall back to a fresh EventMetrics.
+        event_metrics = None
+        if self._trading_context is not None:
+            event_metrics = self._trading_context.metrics
+
+        def _extra_gauges() -> dict[str, float]:
+            """Return OMS risk state as Prometheus gauges."""
+            if risk_manager is None:
+                return {}
+            try:
+                snap = risk_manager.snapshot()
+            except Exception:
+                return {}
+            # Convert Decimal fields to float; coerce non-numeric to 0.
+            def _f(v: object) -> float:
+                try:
+                    return float(v)
+                except (TypeError, ValueError):
+                    return 0.0
+            return {
+                "daily_pnl": _f(snap.get("daily_pnl", "0")),
+                "kill_switch_active": 1.0 if snap.get("kill_switch") else 0.0,
+                "kill_switch_toggles": _f(snap.get("kill_switch_toggles", 0)),
+                "reset_count": _f(snap.get("reset_count", 0)),
+            }
+
+        try:
+            server = HttpObservabilityServer(
+                host="127.0.0.1",
+                port=8765,
+                lifecycle=self._lifecycle,
+                event_metrics=event_metrics,
+                extra_gauges_fn=_extra_gauges,
+            )
+            server.start()
+            # Register with the lifecycle so close() drains it.
+            try:
+                self._lifecycle.register(server)
+            except Exception as exc:  # pragma: no cover - duplicate name
+                logger.debug("http_server_register_failed: %s", exc)
+            self._http_observability = server
+            logger.info(
+                "http_observability_started",
+                extra={"host": "127.0.0.1", "port": 8765},
+            )
+        except Exception as exc:
+            logger.warning("http_observability_start_failed: %s", exc)
+            self._http_observability = None
 
     def _ensure_initialized(self) -> None:
         if self._initialized:
@@ -444,7 +523,11 @@ class BrokerService:
                 # TokenRefreshScheduler will now run as a ManagedService
                 # and join() cleanly on stop_all().
                 self._lifecycle.start_all()
-                logger.info("Dhan BrokerGateway created with lifecycle + OMS")
+                # B8+B9 followup: spin up the HTTP observability server
+                # so /healthz, /readyz, and /metrics are live in production.
+                # Registered with the lifecycle so close() drains it.
+                self._start_http_observability_server(oms_risk_manager)
+                logger.info("Dhan BrokerGateway created with lifecycle + OMS + HTTP /metrics")
             except Exception as exc:
                 self._dhan_load_error = str(exc)
                 logger.warning("Failed to create Dhan gateway: %s", exc)
