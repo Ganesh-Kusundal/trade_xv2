@@ -10,6 +10,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import logging
+import os
 import threading
 from datetime import date, datetime, timezone
 from decimal import Decimal
@@ -114,6 +115,9 @@ class EventLog:
 
     Thread-safe. Writes are line-buffered and fsynced so a crash loses at most
     the last event. Reads replay events in insertion order.
+
+    Append failures are **never silent**: every failure is logged at ERROR
+    level and recorded in :attr:`append_errors` so operators can alert on it.
     """
 
     def __init__(self, events_dir: str | Path | None = None) -> None:
@@ -122,6 +126,12 @@ class EventLog:
         self._lock = threading.RLock()
         self._current_file: Path | None = None
         self._current_handle: Any = None
+        self.append_errors: int = 0  # public counter, never reset mid-run
+
+    @property
+    def errors(self) -> int:
+        """Number of append errors since process start."""
+        return self.append_errors
 
     def _file_for(self, dt: datetime) -> Path:
         return self._events_dir / f"{dt.date().isoformat()}.jsonl"
@@ -140,7 +150,16 @@ class EventLog:
         return self._current_handle
 
     def append(self, event: DomainEvent) -> None:
-        """Append a single event to the current day's log."""
+        """Append a single event to the current day's log.
+
+        Raises
+        ------
+        OSError
+            If the log file cannot be written. The exception is **not**
+            swallowed — the bus will catch it, log it, and dead-letter the
+            event. Callers that need to swallow failures (none in
+            production) must do so explicitly.
+        """
         record = {
             "event_type": event.event_type,
             "timestamp": event.timestamp.isoformat(),
@@ -151,14 +170,26 @@ class EventLog:
         line = json.dumps(record, separators=(",", ":"), default=str)
         with self._lock:
             handle = self._ensure_handle(event.timestamp)
-            handle.write(line + "\n")
-            handle.flush()
             try:
-                handle.fileno()
-                import os
-                os.fsync(handle.fileno())
-            except (OSError, ValueError):
-                pass
+                handle.write(line + "\n")
+                handle.flush()
+                try:
+                    os.fsync(handle.fileno())
+                except (OSError, ValueError):
+                    # Some filesystems don't support fsync. The flush above
+                    # is the best we can do.
+                    pass
+            except (OSError, ValueError) as exc:
+                self.append_errors += 1
+                logger.error(
+                    "EventLog: failed to append %s to %s: %s",
+                    event.event_type,
+                    self._current_file,
+                    exc,
+                    exc_info=True,
+                )
+                # Re-raise so the EventBus can dead-letter the event.
+                raise
 
     def _serialize_payload(self, payload: dict[str, Any]) -> dict[str, Any]:
         """Best-effort serialization of domain objects in the payload."""

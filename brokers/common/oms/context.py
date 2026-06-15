@@ -8,8 +8,13 @@ from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
 
-from brokers.common.event_bus import EventBus
+from brokers.common.event_bus import (
+    DeadLetterQueue,
+    EventBus,
+    ProcessedTradeRepository,
+)
 from brokers.common.event_log import EventLog
+from brokers.common.observability.event_metrics import EventMetrics
 from brokers.common.oms.order_manager import OrderManager
 from brokers.common.oms.position_manager import PositionManager
 from brokers.common.oms.risk_manager import RiskConfig, RiskManager
@@ -27,6 +32,22 @@ class TradingContext:
 
     Optionally accepts a ``reconciliation_service`` and runs periodic
     reconciliation via a background thread.
+
+    Observability wiring
+    --------------------
+    A production :class:`TradingContext` **must** be constructed with at
+    least ``metrics`` and ``dead_letter_queue``. The bus will warn loudly
+    if either is missing and a handler raises.
+
+    Parameters
+    ----------
+    processed_trade_repository:
+        Idempotency ledger wired into :class:`OrderManager`. When omitted,
+        an in-memory ledger is created (lost on restart).
+    metrics:
+        :class:`EventMetrics` incremented by the bus and the OMS.
+    dead_letter_queue:
+        :class:`DeadLetterQueue` that receives failed handler invocations.
     """
 
     def __init__(
@@ -41,11 +62,34 @@ class TradingContext:
         replay_events: bool = True,
         reconciliation_service: Any = None,
         reconciliation_interval_seconds: float = 300.0,
+        processed_trade_repository: ProcessedTradeRepository | None = None,
+        metrics: EventMetrics | None = None,
+        dead_letter_queue: DeadLetterQueue | None = None,
     ) -> None:
         self._event_log = event_log
-        self._event_bus = event_bus or EventBus(event_log=event_log)
+        self._metrics = metrics or EventMetrics()
+        self._dead_letter_queue = dead_letter_queue or DeadLetterQueue()
 
-        self._position_manager = position_manager or PositionManager(event_bus=self._event_bus)
+        # If the caller supplied an event bus, attach observability to it
+        # silently; otherwise build a bus that has both observability hooks
+        # attached.
+        if event_bus is None:
+            self._event_bus = EventBus(
+                event_log=event_log,
+                metrics=self._metrics,
+                dead_letter_queue=self._dead_letter_queue,
+            )
+        else:
+            self._event_bus = event_bus
+
+        self._processed_trades = (
+            processed_trade_repository or ProcessedTradeRepository()
+        )
+        self._position_manager = position_manager or PositionManager(
+            event_bus=self._event_bus,
+            processed_trade_repository=self._processed_trades,
+            metrics=self._metrics,
+        )
         self._risk_manager = risk_manager or RiskManager(
             self._position_manager,
             risk_config or RiskConfig(),
@@ -54,12 +98,19 @@ class TradingContext:
         self._order_manager = order_manager or OrderManager(
             event_bus=self._event_bus,
             risk_manager=self._risk_manager,
+            processed_trade_repository=self._processed_trades,
+            metrics=self._metrics,
         )
 
         # Wire managers to the event bus.
         self._event_bus.subscribe("ORDER_UPDATED", self._order_manager.on_order_update)
+        # The OMS is the sole gatekeeper for trade idempotency. The
+        # position manager subscribes to TRADE_APPLIED (a downstream
+        # event the OMS publishes only after a trade has been accepted)
+        # rather than to raw TRADE events. This guarantees that
+        # duplicate websocket fills cannot double-count positions.
         self._event_bus.subscribe("TRADE", self._order_manager.on_trade)
-        self._event_bus.subscribe("TRADE", self._position_manager.on_trade)
+        self._event_bus.subscribe("TRADE_APPLIED", self._position_manager.on_trade_applied)
 
         # Reconciliation
         self._reconciliation_service = reconciliation_service
@@ -93,6 +144,27 @@ class TradingContext:
     @property
     def risk_manager(self) -> RiskManager:
         return self._risk_manager
+
+    @property
+    def metrics(self) -> EventMetrics:
+        return self._metrics
+
+    @property
+    def dead_letter_queue(self) -> DeadLetterQueue:
+        return self._dead_letter_queue
+
+    @property
+    def processed_trade_repository(self) -> ProcessedTradeRepository:
+        return self._processed_trades
+
+    def health(self) -> dict[str, Any]:
+        """Snapshot of observability state for the SRE / alerting layer."""
+        return {
+            "metrics": self._metrics.snapshot(),
+            "dead_letter": self._dead_letter_queue.stats(),
+            "trades": self._processed_trades.stats(),
+            "event_log_errors": self._event_log.errors if self._event_log else 0,
+        }
 
     def run_reconciliation(self) -> Any:
         """Run reconciliation immediately (called by timer or manually)."""
@@ -143,7 +215,13 @@ class TradingContext:
             self.run_reconciliation()
 
     def _replay_log_into_oms(self) -> None:
-        """Replay persisted ORDER_UPDATED/TRADE events to rebuild OMS state."""
+        """Replay persisted ORDER_UPDATED/TRADE events to rebuild OMS state.
+
+        Replay invokes the OMS handlers directly, which in turn publishes
+        ``TRADE_APPLIED`` for accepted trades; the position manager
+        subscribes to that event in the bus, so no direct call is needed
+        here.
+        """
         if self._event_log is None:
             return
         logger.info("Replaying event log into OMS")
@@ -157,7 +235,6 @@ class TradingContext:
                     self._order_manager.on_order_update(event)
                 elif event.event_type == "TRADE":
                     self._order_manager.on_trade(event)
-                    self._position_manager.on_trade(event)
                 count += 1
         finally:
             self._event_bus._logging_enabled = logging_was_enabled

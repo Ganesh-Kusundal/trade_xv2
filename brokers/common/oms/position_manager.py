@@ -6,32 +6,62 @@ Protected by one ``threading.RLock`` and uses immutable ``Position`` values.
 
 from __future__ import annotations
 
+import logging
 import threading
 from decimal import Decimal
-from typing import Callable
+from typing import Any, Callable
 
 from brokers.common.core.domain import Position, Trade
 from brokers.common.event_bus import DomainEvent, EventBus
 
+logger = logging.getLogger(__name__)
+
 
 class PositionManager:
-    """Thread-safe position book updated via trades and LTP ticks."""
+    """Thread-safe position book updated via trades and LTP ticks.
 
-    def __init__(self, event_bus: EventBus | None = None) -> None:
+    The manager is intentionally a *downstream* consumer of the OMS:
+    it subscribes to ``TRADE_APPLIED`` (published by :class:`OrderManager`
+    after a trade passes idempotency) rather than to raw ``TRADE`` events.
+    This guarantees that duplicate websocket fills cannot double-count
+    positions: the OMS rejects them, and the position manager never
+    sees them.
+    """
+
+    def __init__(
+        self,
+        event_bus: EventBus | None = None,
+        processed_trade_repository: Any | None = None,
+        metrics: Any | None = None,
+    ) -> None:
         self._lock = threading.RLock()
         self._positions: dict[str, Position] = {}
         self._event_bus = event_bus
+        self._handler_depth: int = 0
+        # Kept for backward compatibility; no longer used to gate writes.
+        self._processed_trades = processed_trade_repository
+        self._metrics = metrics
+        self._trades_applied = 0
 
     # ── Public API ──────────────────────────────────────────────────────────
 
     def apply_trade(self, trade: Trade) -> Position:
-        """Apply a trade to the position book and return the new position."""
-        key = self._key(trade.symbol, trade.exchange)
+        """Apply a trade to the position book and return the new position.
+
+        Idempotency is the OMS's responsibility: this method should only
+        be called with trades that the OMS has already accepted.
+        """
+        symbol_key = self._key(trade.symbol, trade.exchange)
         with self._lock:
-            current = self._positions.get(key, Position(symbol=trade.symbol, exchange=trade.exchange))
+            current = self._positions.get(
+                symbol_key, Position(symbol=trade.symbol, exchange=trade.exchange)
+            )
             delta = trade.quantity if trade.side.value == "BUY" else -trade.quantity
             updated = current.with_fill(delta, trade.price)
-            self._positions[key] = updated
+            self._positions[symbol_key] = updated
+            self._trades_applied += 1
+            if self._metrics is not None:
+                self._metrics.inc("TRADE_APPLIED", "position_updated")
             self._publish("POSITION_UPDATED", updated)
             return updated
 
@@ -115,10 +145,38 @@ class PositionManager:
     # ── Event handler ───────────────────────────────────────────────────────
 
     def on_trade(self, event: DomainEvent) -> None:
-        """Handle broker trade events from the event bus."""
-        trade = event.payload.get("trade")
-        if isinstance(trade, Trade):
-            self.apply_trade(trade)
+        """Handle broker trade events from the event bus.
+
+        Re-entrancy: a position update that the manager itself publishes
+        (via :meth:`apply_trade` or :meth:`upsert_position`) must not
+        re-enter this handler.
+        """
+        if self._handler_depth > 0:
+            return
+        self._handler_depth += 1
+        try:
+            trade = event.payload.get("trade")
+            if isinstance(trade, Trade):
+                self.apply_trade(trade)
+        finally:
+            self._handler_depth -= 1
+
+    def on_trade_applied(self, event: DomainEvent) -> None:
+        """Apply a trade that has been verified by the OMS.
+
+        Use this handler in production wiring; subscribing to raw
+        ``TRADE`` events would bypass OMS idempotency and risk
+        double-counting positions.
+        """
+        if self._handler_depth > 0:
+            return
+        self._handler_depth += 1
+        try:
+            trade = event.payload.get("trade")
+            if isinstance(trade, Trade):
+                self.apply_trade(trade)
+        finally:
+            self._handler_depth -= 1
 
     # ── Helpers ─────────────────────────────────────────────────────────────
 

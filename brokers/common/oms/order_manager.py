@@ -7,16 +7,24 @@ immutable ``Order`` / ``Trade`` value objects.
 
 from __future__ import annotations
 
+import logging
 import threading
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Callable
+from typing import Any, Callable
 
 from brokers.common.core.domain import Order, OrderStatus, OrderType, ProductType, Side, Trade
-from brokers.common.event_bus import DomainEvent, EventBus
+from brokers.common.event_bus import (
+    DomainEvent,
+    EventBus,
+    ProcessedTradeRepository,
+    TradeIdKey,
+)
 from brokers.common.oms.risk_manager import RiskManager
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -48,22 +56,55 @@ class OrderResult:
 
 
 class OrderManager:
-    """Thread-safe order book with idempotency, risk checks, and event publishing."""
+    """Thread-safe order book with idempotency, risk checks, and event publishing.
+
+    Parameters
+    ----------
+    event_bus:
+        Bus used to publish ``ORDER_PLACED`` / ``ORDER_UPDATED`` / etc.
+    risk_manager:
+        Pre-trade risk gate.
+    processed_trade_repository:
+        Idempotency ledger for trade events. When supplied, every
+        :meth:`record_trade` and :meth:`on_trade` invocation is checked
+        against it before mutating order state. This is the **only**
+        defence against double-position bugs.
+    metrics:
+        Optional :class:`EventMetrics` instance. Increments
+        ``(TRADE, trade_processed)`` and ``(TRADE, trade_duplicated)``
+        for every accepted / rejected trade.
+    """
 
     def __init__(
         self,
         event_bus: EventBus | None = None,
         risk_manager: RiskManager | None = None,
+        processed_trade_repository: ProcessedTradeRepository | None = None,
+        metrics: Any | None = None,
     ) -> None:
         self._lock = threading.RLock()
         self._orders: dict[str, Order] = {}
         self._orders_by_correlation: dict[str, Order] = {}
         self._event_bus = event_bus
         self._risk_manager = risk_manager
+        self._processed_trades = processed_trade_repository or ProcessedTradeRepository()
+        self._metrics = metrics
+        self._trades_processed = 0
+        self._trades_duplicated = 0
+        # Re-entrancy guard: when a handler is currently being invoked, an
+        # ORDER_UPDATED that the OMS publishes internally (e.g. via
+        # upsert_order) MUST NOT re-enter the OMS handler, otherwise we
+        # recurse forever. Set true at the entry of every event handler
+        # and reset on the way out.
+        self._handler_depth: int = 0
 
     @property
     def risk_manager(self) -> RiskManager | None:
         return self._risk_manager
+
+    @property
+    def processed_trade_repository(self) -> ProcessedTradeRepository:
+        return self._processed_trades
 
     def check_order(self, order: Order) -> bool:
         """Return True if the order passes the configured risk checks."""
@@ -128,20 +169,99 @@ class OrderManager:
                 self._orders_by_correlation[order.correlation_id] = order
             self._publish("ORDER_UPDATED", order)
 
-    def record_trade(self, trade: Trade) -> None:
-        """Record a trade and update the parent order."""
+    def record_trade(self, trade: Trade) -> bool:
+        """Record a trade and update the parent order.
+
+        Idempotent on ``trade.trade_id``: a duplicate trade is logged and
+        silently dropped before it can mutate order state.
+
+        After a trade is accepted, the OMS publishes a ``TRADE_APPLIED``
+        event that downstream consumers (e.g. :class:`PositionManager`)
+        can subscribe to. This is the only way trades should reach the
+        position book, so that idempotency is enforced exactly once.
+
+        Returns
+        -------
+        bool
+            True if the trade was accepted and applied.
+            False if the trade was a duplicate (already processed) or
+            referenced an unknown order.
+
+        Notes
+        -----
+        A trade for an unknown order is **not** marked in the ledger:
+        a later delivery of the order event should be allowed to retry
+        processing the trade.
+        """
+        if trade.trade_id is None or not str(trade.trade_id).strip():
+            raise ValueError(
+                "OrderManager.record_trade requires a non-empty trade.trade_id"
+            )
+        key = TradeIdKey.from_trade(trade)
         with self._lock:
+            if self._processed_trades.is_processed(key):
+                self._trades_duplicated += 1
+                if self._metrics is not None:
+                    self._metrics.inc("TRADE", "trade_duplicated")
+                logger.info(
+                    "OrderManager: trade %s for order %s is a duplicate; skipping",
+                    trade.trade_id,
+                    trade.order_id,
+                )
+                return False
+
             order = self._orders.get(trade.order_id)
             if order is None:
-                return
+                # Trade arrived before (or without) its order. Do NOT mark
+                # the ledger, so that once the order surfaces we can
+                # retry the trade by re-publishing the event.
+                logger.warning(
+                    "OrderManager: trade %s references unknown order %s; "
+                    "ledger will not be marked, retry on order delivery",
+                    trade.trade_id,
+                    trade.order_id,
+                )
+                return False
+
+            # Mark the ledger only after we have a known order — this
+            # guarantees a transient order-event race does not silently
+            # swallow a real trade.
+            self._processed_trades.mark_processed(key)
+
             new_filled = order.filled_quantity + trade.quantity
             new_avg = self._compute_avg_price(order, trade)
-            new_status = OrderStatus.FILLED if new_filled >= order.quantity else OrderStatus.PARTIALLY_FILLED
+            new_status = (
+                OrderStatus.FILLED
+                if new_filled >= order.quantity
+                else OrderStatus.PARTIALLY_FILLED
+            )
             updated = order.with_fill(new_filled, new_avg).with_status(new_status)
             self._orders[order.order_id] = updated
             if order.correlation_id:
                 self._orders_by_correlation[order.correlation_id] = updated
+            self._trades_processed += 1
+            if self._metrics is not None:
+                self._metrics.inc("TRADE", "trade_processed")
             self._publish("ORDER_UPDATED", updated)
+            # Downstream event consumed by PositionManager. The OMS is the
+            # sole gatekeeper for trade idempotency; downstream consumers
+            # must subscribe here, NOT to raw TRADE events, to avoid
+            # double-counting duplicates.
+            self._publish_trade_applied(trade)
+            return True
+
+    def _publish_trade_applied(self, trade: Trade) -> None:
+        """Publish a TRADE_APPLIED event after a trade is committed."""
+        if self._event_bus is None:
+            return
+        self._event_bus.publish(
+            DomainEvent.now(
+                "TRADE_APPLIED",
+                {"trade": trade},
+                symbol=trade.symbol,
+                source="OrderManager",
+            )
+        )
 
     def get_order(self, order_id: str) -> Order | None:
         with self._lock:
@@ -202,18 +322,41 @@ class OrderManager:
     # ── Event handlers ──────────────────────────────────────────────────────
 
     def on_order_update(self, event: DomainEvent) -> None:
-        """Handle broker order-update events."""
-        payload = event.payload
-        order = payload.get("order")
-        if isinstance(order, Order):
-            self.upsert_order(order)
+        """Handle broker order-update events from the bus.
+
+        Re-entrancy: if we are already inside an OMS handler, the
+        ORDER_UPDATED events that the OMS itself publishes (e.g. via
+        :meth:`upsert_order` or :meth:`record_trade`) must NOT re-enter
+        this handler. Otherwise a single external ORDER_UPDATED triggers
+        an infinite publish→handle→publish loop.
+        """
+        if self._handler_depth > 0:
+            return
+        self._handler_depth += 1
+        try:
+            payload = event.payload
+            order = payload.get("order")
+            if isinstance(order, Order):
+                self.upsert_order(order)
+        finally:
+            self._handler_depth -= 1
 
     def on_trade(self, event: DomainEvent) -> None:
-        """Handle broker trade events."""
-        payload = event.payload
-        trade = payload.get("trade")
-        if isinstance(trade, Trade):
-            self.record_trade(trade)
+        """Handle broker trade events from the bus.
+
+        Idempotent: duplicates are dropped silently (counted in metrics
+        and the ledger) before any state mutation.
+        """
+        if self._handler_depth > 0:
+            return
+        self._handler_depth += 1
+        try:
+            payload = event.payload
+            trade = payload.get("trade")
+            if isinstance(trade, Trade):
+                self.record_trade(trade)
+        finally:
+            self._handler_depth -= 1
 
     # ── Helpers ─────────────────────────────────────────────────────────────
 
