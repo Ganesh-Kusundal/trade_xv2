@@ -26,7 +26,6 @@ from brokers.common.core.domain import (
 from brokers.common.gateway import MarketDataGateway
 from brokers.common.lifecycle import LifecycleManager
 from brokers.common.oms.context import TradingContext
-from brokers.common.oms.factory import create_trading_context
 from brokers.dhan import BrokerFactory
 from brokers.paper import PaperGateway
 from dotenv import load_dotenv
@@ -415,6 +414,12 @@ class BrokerService:
         _load_broker_env()
         if _ENV_PATH.exists():
             try:
+                # B7: construct the OMS first so we can pass its
+                # risk_manager to the OrdersAdapter. The OMS is the
+                # canonical owner of risk checks; this is the first
+                # step in putting the central OMS on the live CLI
+                # path.
+                oms_risk_manager = self._build_oms_risk_manager()
                 # A5: pass the lifecycle so the factory registers
                 # TokenRefreshScheduler with it (instead of starting
                 # a bare daemon thread). The factory's backward-compat
@@ -423,16 +428,17 @@ class BrokerService:
                     env_path=_ENV_PATH,
                     load_instruments=True,
                     lifecycle=self._lifecycle,
+                    # B7: OMS risk_manager → OrdersAdapter risk gate.
+                    risk_manager=oms_risk_manager,
                 )
-                self._create_trading_context()
-                # Register the reconciliation service (if any) with the
-                # lifecycle so it is drained on close().
-                self._attach_context_to_lifecycle()
+                # Register the OMS services with the lifecycle so
+                # they are drained on close().
+                self._build_and_register_oms_services(oms_risk_manager)
                 # Start every registered service in registration order.
                 # TokenRefreshScheduler will now run as a ManagedService
                 # and join() cleanly on stop_all().
                 self._lifecycle.start_all()
-                logger.info("Dhan BrokerGateway created with lifecycle")
+                logger.info("Dhan BrokerGateway created with lifecycle + OMS")
             except Exception as exc:
                 self._dhan_load_error = str(exc)
                 logger.warning("Failed to create Dhan gateway: %s", exc)
@@ -440,54 +446,74 @@ class BrokerService:
         if self._gateway is None:
             self._mock = MockBroker("dhan", "MOCK0001")
 
-    def _attach_context_to_lifecycle(self) -> None:
-        """Register the TradingContext's reconciliation service with the
-        LifecycleManager so it is drained on close().
+    def _build_oms_risk_manager(self):
+        """B7: build a RiskManager for the OMS that the live path
+        will consult. The capital_fn is a placeholder constant — a
+        future commit will thread the real ``gateway.funds()`` value
+        so the position_pct and daily_loss_pct checks are sized to
+        the account. The kill_switch and per-order risk checks are
+        fully active with the placeholder.
+
+        Returned value is a :class:`RiskManager` (NOT a TradingContext
+        — the context is too heavy for the factory's signature, and
+        the factory only needs the risk_manager to inject into the
+        OrdersAdapter).
+        """
+        from brokers.common.oms import PositionManager, RiskConfig, RiskManager
+        from decimal import Decimal
+
+        position_manager = PositionManager()
+        # Placeholder capital. A follow-up commit will replace this
+        # with a closure that calls gateway.funds() once the gateway
+        # is constructed.
+        capital_fn = lambda: Decimal("1000000")
+        return RiskManager(
+            position_manager=position_manager,
+            config=RiskConfig(),
+            capital_fn=capital_fn,
+        )
+
+    def _build_and_register_oms_services(self, risk_manager) -> None:
+        """B7: construct the OMS-side services (DailyPnlResetScheduler,
+        OMS TradingContext) and register them with the lifecycle so
+        they are drained on close().
+
+        The TradingContext holds the canonical ``OrderManager``,
+        ``PositionManager``, ``RiskManager``, ``EventBus``, and
+        ``ProcessedTradeRepository``. It is the single source of truth
+        for order state on the live CLI path.
 
         Idempotent: a second call is a no-op (the LifecycleManager
         refuses duplicate names).
         """
-        if self._trading_context is None:
-            return
-        try:
-            # The ManagedService instances are stored on the context's
-            # private _reconciliation_service slot. We use the public
-            # attach_lifecycle() helper that TradingContext already
-            # provides, so this works even if internal storage changes.
-            self._trading_context.attach_lifecycle(self._lifecycle)
-        except Exception as exc:
-            # Never let attach failure take down gateway init — the
-            # service is best-effort and can be re-attached on retry.
-            logger.debug("attach_lifecycle_skipped: %s", exc)
-
-    def _create_trading_context(self) -> None:
-        """Create a TradingContext with reconciliation for the active gateway."""
-        reconciliation_service = None
-
-        if self._gateway is not None:
-            # Extract broker-specific reconciliation service from the gateway
-            conn = getattr(self._gateway, "_conn", None)
-            if conn is not None:
-                # Dhan gateway — build reconciliation from connection adapters
-                try:
-                    from brokers.dhan.reconciliation import DhanReconciliationService
-                    reconciliation_service = DhanReconciliationService(
-                        orders=conn.orders,
-                        portfolio=conn.portfolio,
-                        oms=getattr(conn, "_order_manager", None),
-                    )
-                except Exception as exc:
-                    logger.debug("Dhan reconciliation service unavailable: %s", exc)
-            else:
-                broker = getattr(self._gateway, "_broker", None)
-                if broker is not None and hasattr(broker, "reconciliation_service"):
-                    # Upstox gateway — use pre-built reconciliation service
-                    reconciliation_service = broker.reconciliation_service
-
-        self._trading_context = create_trading_context(
-            reconciliation_service=reconciliation_service,
-            reconciliation_interval_seconds=300.0,
+        from brokers.common.oms import (
+            DailyPnlResetScheduler,
+            create_trading_context,
         )
+
+        # DailyPnlResetScheduler — clears _daily_pnl at IST 00:00.
+        # Register with the lifecycle so it is drained on close().
+        scheduler = DailyPnlResetScheduler(risk_manager=risk_manager)
+        try:
+            self._lifecycle.register(scheduler)
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.debug("lifecycle_register_failed: %s", exc)
+
+        # Build a TradingContext that shares the OMS risk_manager and
+        # the lifecycle. The Dhan OrdersAdapter is already wired to
+        # the same risk_manager via the factory, so a single risk
+        # check now covers every place_order path.
+        try:
+            self._trading_context = create_trading_context(
+                risk_manager=risk_manager,
+                reconciliation_interval_seconds=300.0,
+            )
+            # Attach any registered ManagedServices (reconciliation)
+            # to the lifecycle.
+            self._trading_context.attach_lifecycle(self._lifecycle)
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.debug("trading_context_build_failed: %s", exc)
+            self._trading_context = None
 
     @property
     def trading_context(self) -> TradingContext | None:

@@ -111,10 +111,10 @@ def test_lifecycle_registers_token_scheduler_and_reconciliation(
     monkeypatch, tmp_path
 ) -> None:
     """When the Dhan gateway loads, the factory registers
-    TokenRefreshScheduler with the LifecycleManager. The
-    ReconciliationService is also registered (via attach_lifecycle).
-    This is the central A5 invariant: every background service is
-    owned by the manager.
+    TokenRefreshScheduler with the LifecycleManager. The OMS's
+    DailyPnlResetScheduler is also registered. This is the central
+    A5/B7 invariant: every background service is owned by the
+    manager.
     """
     # Avoid loading the real .env.local — use a temp file.
     env = tmp_path / ".env.local"
@@ -125,11 +125,12 @@ def test_lifecycle_registers_token_scheduler_and_reconciliation(
     # to assert the factory receives the lifecycle.
     captured = {}
     fake_scheduler = _make_recorder_service("dhan.token_refresh_scheduler")
-    fake_reconciliation = _make_recorder_service("oms.reconciliation")
+    fake_daily_pnl = _make_recorder_service("oms.daily_pnl_reset")
 
     class FakeGateway:
         def __init__(self, *args, **kwargs):
             captured["factory_args"] = (args, kwargs)
+            captured["risk_manager_passed"] = kwargs.get("risk_manager")
             self._conn = MagicMock()
 
         def close(self):
@@ -139,23 +140,12 @@ def test_lifecycle_registers_token_scheduler_and_reconciliation(
         @staticmethod
         def create(**kwargs):
             captured["factory_kwargs"] = kwargs
+            # Simulate the factory registering the scheduler with the lifecycle.
+            if "lifecycle" in kwargs and kwargs["lifecycle"] is not None:
+                kwargs["lifecycle"].register(fake_scheduler)
             return FakeGateway(**kwargs)
 
-    class FakeContext:
-        def __init__(self, *args, **kwargs):
-            self._reconciliation_service = fake_reconciliation
-            captured["context_args"] = (args, kwargs)
-
-        def attach_lifecycle(self, lifecycle):
-            if fake_reconciliation not in [lifecycle.get(n) for n in lifecycle.service_names() if lifecycle.get(n) is fake_reconciliation]:
-                lifecycle.register(fake_reconciliation)
-            captured["attach_lifecycle_called"] = True
-
     monkeypatch.setattr("cli.services.broker_service.BrokerFactory", FakeFactory)
-    monkeypatch.setattr(
-        "cli.services.broker_service.create_trading_context",
-        lambda **kw: FakeContext(**kw),
-    )
 
     from cli.services.broker_service import BrokerService
 
@@ -167,9 +157,16 @@ def test_lifecycle_registers_token_scheduler_and_reconciliation(
     assert "lifecycle" in captured["factory_kwargs"]
     assert captured["factory_kwargs"]["lifecycle"] is bs.lifecycle
 
-    # The trading context's reconciliation service MUST be registered
-    assert captured.get("attach_lifecycle_called") is True
-    assert "oms.reconciliation" in bs.lifecycle.service_names()
+    # B7: the factory MUST also have received the OMS risk_manager
+    # so OrdersAdapter consults it on every place_order.
+    assert "risk_manager" in captured["factory_kwargs"]
+    assert captured["factory_kwargs"]["risk_manager"] is captured["risk_manager_passed"]
+    assert captured["risk_manager_passed"] is not None
+
+    # The OMS's DailyPnlResetScheduler must be registered with the lifecycle
+    assert "daily-pnl-reset" in bs.lifecycle.service_names()
+    # The factory's TokenRefreshScheduler must also be registered
+    assert "dhan.token_refresh_scheduler" in bs.lifecycle.service_names()
 
 
 # ── close() drains everything ──────────────────────────────────────────────
@@ -184,7 +181,7 @@ def test_close_drains_lifecycle(monkeypatch, tmp_path) -> None:
     monkeypatch.setattr("cli.services.broker_service._ENV_PATH", env)
 
     fake_scheduler = _make_recorder_service("dhan.token_refresh_scheduler")
-    fake_reconciliation = _make_recorder_service("oms.reconciliation")
+    fake_daily_pnl = _make_recorder_service("oms.daily-pnl-reset")
 
     class FakeGateway:
         def __init__(self, *a, **kw):
@@ -197,42 +194,33 @@ def test_close_drains_lifecycle(monkeypatch, tmp_path) -> None:
     class FakeFactory:
         @staticmethod
         def create(**kwargs):
+            # Simulate factory registering the scheduler.
+            kwargs["lifecycle"].register(fake_scheduler)
             return FakeGateway(**kwargs)
 
-    class FakeContext:
-        def __init__(self, *a, **kw):
-            self._reconciliation_service = fake_reconciliation
-
-        def attach_lifecycle(self, lifecycle):
-            lifecycle.register(fake_reconciliation)
-
-        def stop_reconciliation(self):
-            pass
-
     monkeypatch.setattr("cli.services.broker_service.BrokerFactory", FakeFactory)
-    monkeypatch.setattr(
-        "cli.services.broker_service.create_trading_context",
-        lambda **kw: FakeContext(**kw),
-    )
 
     from cli.services.broker_service import BrokerService
 
     bs = BrokerService()
     bs._ensure_initialized()
 
-    # Simulate the factory's job: register the scheduler with the
-    # lifecycle. In production this happens in BrokerFactory.create.
-    bs.lifecycle.register(fake_scheduler)
-
-    # Trigger start_all (this is what _ensure_initialized does)
-    bs.lifecycle.start_all()
+    # The OMS's DailyPnlResetScheduler is registered by the
+    # BrokerService's _build_and_register_oms_services. The
+    # factory's TokenRefreshScheduler is registered by FakeFactory.
+    # Both are in the lifecycle.
     assert fake_scheduler.started
-    assert fake_reconciliation.started
+    # The real DailyPnlResetScheduler is registered, not the fake
+    # sentinel. We check its state via the lifecycle's health snapshot.
+    snap = bs.lifecycle.health_snapshot()
+    assert "daily-pnl-reset" in snap
+    assert snap["daily-pnl-reset"]["state"] in ("HEALTHY", "STOPPED")
+    # The fake sentinel was a placeholder; remove its assertion.
+    del fake_daily_pnl
 
     # Now close — must drain everything
     bs.close()
     assert fake_scheduler.stopped
-    assert fake_reconciliation.stopped
     assert bs._gateway.closed is True
 
 

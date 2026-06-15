@@ -46,7 +46,7 @@ class BrokerFactory:
         env_path: Optional[Path] = None,
         load_instruments: bool = True,
         event_bus: Optional[EventBus] = None,
-        risk_manager: Optional[RiskManager] = None,
+        risk_manager=None,
         backfill_callback: Optional[Callable[[str, datetime, datetime], list[dict]]] = None,
         reconciliation_service: Optional[object] = None,
         lifecycle: Optional["LifecycleManager"] = None,
@@ -154,6 +154,10 @@ class BrokerFactory:
         connection = DhanConnection(
             client=client,
             event_bus=event_bus,
+            # B7: thread the OMS's risk_manager so the OrdersAdapter
+            # consults it on every place_order call. The OMS is the
+            # canonical owner of risk checks; OrdersAdapter is a
+            # transport-layer executor.
             risk_manager=risk_manager,
             backfill_callback=backfill_callback,
             reconciliation_service=reconciliation_service,
