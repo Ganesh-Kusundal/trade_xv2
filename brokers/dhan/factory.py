@@ -157,6 +157,10 @@ class BrokerFactory:
             risk_manager=risk_manager,
             backfill_callback=backfill_callback,
             reconciliation_service=reconciliation_service,
+            # B5: thread the lifecycle so lazily-created WebSocket
+            # services (DhanMarketFeed, DhanOrderStream,
+            # PollingMarketFeed) are registered with it.
+            lifecycle=lifecycle,
         )
         connection._auth = auth  # Store auth manager on connection
         gateway = BrokerGateway(connection)

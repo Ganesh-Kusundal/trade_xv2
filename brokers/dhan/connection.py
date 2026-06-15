@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Optional
 
 from brokers.common.event_bus import EventBus
+from brokers.common.lifecycle import LifecycleManager
 from brokers.common.oms.risk_manager import RiskManager
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.resolver import SymbolResolver
@@ -20,13 +21,26 @@ from brokers.dhan.options import OptionsAdapter
 from brokers.dhan.futures import FuturesAdapter
 from brokers.dhan.margin import MarginAdapter
 from brokers.dhan.alerts import AlertsAdapter
-from brokers.dhan.websocket import DhanMarketFeed, DhanOrderStream
+from brokers.dhan.websocket import DhanMarketFeed, DhanOrderStream, PollingMarketFeed
 
 logger = logging.getLogger(__name__)
 
 
 class DhanConnection:
-    """Concrete connection wiring all Dhan adapters."""
+    """Concrete connection wiring all Dhan adapters.
+
+    Lifecycle ownership (Phase B / B5)
+    ---------------------------------
+    A :class:`LifecycleManager` may be supplied. When present, every
+    ``ManagedService`` produced by this connection (``DhanMarketFeed``,
+    ``DhanOrderStream``, ``PollingMarketFeed``) is registered with it
+    so the connection's ``close()`` can drain every background thread.
+
+    Previously, the WebSocket services were created lazily and ran as
+    bare daemon threads; ``close()`` only called ``disconnect()`` and
+    even ``disconnect()`` did not always join — the threads were
+    leaked until process exit.
+    """
 
     def __init__(
         self,
@@ -36,10 +50,15 @@ class DhanConnection:
         risk_manager: Optional[RiskManager] = None,
         backfill_callback: Optional[Callable[[str, datetime, datetime], list[dict]]] = None,
         reconciliation_service: Optional[object] = None,
+        lifecycle: Optional[LifecycleManager] = None,
     ):
         self._client = client
         self.instruments = resolver or SymbolResolver()
         self._event_bus = event_bus
+        # B5: if a lifecycle is provided, lazily-created WebSocket
+        # services will be registered with it. close() then drains
+        # every thread within bounded timeouts.
+        self._lifecycle = lifecycle
 
         self._market_data = MarketDataAdapter(client, self.instruments)
         self._historical = HistoricalAdapter(client, self.instruments)
@@ -53,6 +72,7 @@ class DhanConnection:
         self._alerts = AlertsAdapter(client, self.instruments)
         self._market_feed: Optional[DhanMarketFeed] = None
         self._order_stream: Optional[DhanOrderStream] = None
+        self._polling_feed: Optional[PollingMarketFeed] = None
         self._backfill_callback = backfill_callback
         self._reconciliation_service = reconciliation_service
 
@@ -138,7 +158,12 @@ class DhanConnection:
         instruments: list[tuple] | None = None,
         access_token_fn: Callable[[], str] | None = None,
     ) -> DhanMarketFeed:
-        """Create and return a DhanMarketFeed wired with this connection's backfill callback."""
+        """Create and return a DhanMarketFeed wired with this connection's backfill callback.
+
+        If a :class:`LifecycleManager` was supplied to the connection,
+        the new feed is registered with it. The feed's start() / stop()
+        / health() are then driven by the lifecycle.
+        """
         feed = DhanMarketFeed(
             client_id=self._client.client_id,
             access_token=access_token,
@@ -149,16 +174,83 @@ class DhanConnection:
             backfill_callback=self._backfill_callback,
         )
         self._market_feed = feed
+        if self._lifecycle is not None and feed.name not in self._lifecycle.service_names():
+            try:
+                self._lifecycle.register(feed)
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.debug("lifecycle_register_failed: %s", exc)
+        return feed
+
+    def create_order_stream(
+        self,
+        access_token: str | None = None,
+        access_token_fn: Callable[[], str] | None = None,
+    ) -> DhanOrderStream:
+        """Create and return a DhanOrderStream.
+
+        If a :class:`LifecycleManager` was supplied, the new stream is
+        registered with it.
+        """
+        stream = DhanOrderStream(
+            client_id=self._client.client_id,
+            access_token=access_token,
+            access_token_fn=access_token_fn,
+            event_bus=self._event_bus,
+        )
+        self._order_stream = stream
+        if self._lifecycle is not None and stream.name not in self._lifecycle.service_names():
+            try:
+                self._lifecycle.register(stream)
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.debug("lifecycle_register_failed: %s", exc)
+        return stream
+
+    def create_polling_feed(
+        self,
+        instruments: list[tuple],
+        interval_seconds: float = 2.0,
+    ) -> PollingMarketFeed:
+        """Create and return a PollingMarketFeed.
+
+        If a :class:`LifecycleManager` was supplied, the new feed is
+        registered with it.
+        """
+        feed = PollingMarketFeed(
+            http_client=self._client,
+            resolver=self.instruments,
+            instruments=instruments,
+            interval_seconds=interval_seconds,
+        )
+        self._polling_feed = feed
+        if self._lifecycle is not None and feed.name not in self._lifecycle.service_names():
+            try:
+                self._lifecycle.register(feed)
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.debug("lifecycle_register_failed: %s", exc)
         return feed
 
     def close(self) -> None:
-        """Close HTTP client, stop token scheduler, and disconnect WebSocket connections."""
-        # Stop token refresh scheduler
+        """Close HTTP client, stop token scheduler, and disconnect WebSocket connections.
+
+        B5: every ManagedService is stopped via ``stop(timeout_seconds)``
+        which joins the thread. The previous ``disconnect()`` was not
+        always called and never joined — the daemon threads leaked on
+        process exit.
+        """
+        # Stop token refresh scheduler (ManagedService)
         scheduler = getattr(self, "_token_scheduler", None)
         if scheduler is not None:
-            scheduler.stop()
-        if self._market_feed and self._market_feed.is_connected:
-            self._market_feed.disconnect()
-        if self._order_stream and self._order_stream.is_connected:
-            self._order_stream.disconnect()
+            try:
+                scheduler.stop()
+            except Exception as exc:
+                logger.warning("token_scheduler_stop_failed: %s", exc)
+        # Stop the WebSocket services via their ManagedService.stop()
+        # method which joins the thread within timeout.
+        for svc in (self._market_feed, self._order_stream, self._polling_feed):
+            if svc is None:
+                continue
+            try:
+                svc.stop(timeout_seconds=5.0)
+            except Exception as exc:
+                logger.warning("%s_stop_failed: %s", getattr(svc, "name", svc), exc)
         self._client.close()

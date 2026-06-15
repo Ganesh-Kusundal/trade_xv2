@@ -27,6 +27,11 @@ from brokers.common.core.domain import (
     Validity,
 )
 from brokers.common.event_bus import DomainEvent, EventBus
+from brokers.common.lifecycle.lifecycle import (
+    HealthState,
+    HealthStatus,
+    ManagedService,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -132,14 +137,22 @@ class _DhanContext:
         self._access_token = token
 
 
-class DhanMarketFeed:
+class DhanMarketFeed(ManagedService):
     """Wraps the SDK's MarketFeed for real-time market data.
 
     Supports reconnect backfill: on reconnection, if a ``backfill_callback``
     was provided, it is invoked to fetch missed bars between the last tick
     time and the reconnection time.  The returned bars are published as TICK
     events so downstream subscribers see no gap.
+
+    Implements :class:`ManagedService` (Phase B / B5) so the broker's
+    :class:`LifecycleManager` can start, stop, and health-check the
+    background thread. ``stop(timeout_seconds)`` joins the thread within
+    the timeout; the previous ``disconnect()`` only set ``_stop_event``
+    and never joined, leaking the daemon thread on process exit.
     """
+
+    name = "dhan.market_feed"
 
     def __init__(
         self,
@@ -195,7 +208,20 @@ class DhanMarketFeed:
         self._context.update_token(access_token)
 
     def connect(self) -> None:
-        """Start the WebSocket connection in a background daemon thread."""
+        """Start the WebSocket connection in a background daemon thread.
+
+        Deprecated alias for :meth:`start`. Kept for backwards
+        compatibility; new code should use :meth:`start` (the
+        ManagedService protocol method) so the lifecycle manager can
+        own this service.
+        """
+        self.start()
+
+    def start(self) -> None:
+        """ManagedService protocol: start the WebSocket thread.
+
+        Idempotent — re-calling while the thread is alive is a no-op.
+        """
         with self._lock:
             if self._thread and self._thread.is_alive():
                 logger.warning("Market feed already connected")
@@ -216,7 +242,11 @@ class DhanMarketFeed:
                 on_error=self._on_error,
             )
 
-            self._thread = threading.Thread(target=self._run, daemon=True)
+            self._thread = threading.Thread(
+                target=self._run,
+                name=self.name,
+                daemon=True,
+            )
             self._thread.start()
 
     def _run(self) -> None:
@@ -245,17 +275,69 @@ class DhanMarketFeed:
                 break
             backoff = min(backoff * 2, max_backoff)
 
-    def disconnect(self) -> None:
-        """Stop the WebSocket connection."""
+    def disconnect(self, timeout_seconds: float = 5.0) -> None:
+        """Stop the WebSocket connection.
+
+        Deprecated alias for :meth:`stop`. Kept for backwards
+        compatibility; new code should use :meth:`stop` (the
+        ManagedService protocol method).
+
+        Phase B / B5: the previous implementation set ``_stop_event``
+        but never joined the thread, so the daemon thread was leaked
+        until process exit. This implementation joins within the
+        timeout, matching the ManagedService contract.
+        """
+        self.stop(timeout_seconds=timeout_seconds)
+
+    def stop(self, timeout_seconds: float = 5.0) -> None:
+        """ManagedService protocol: stop the WebSocket thread.
+
+        Sets ``_stop_event`` (so the loop exits), closes the SDK
+        connection, and joins the thread within ``timeout_seconds``.
+        If the thread is still alive after the timeout, a warning is
+        logged and the call returns — the thread is left to be reaped
+        at process exit (it is a daemon, so it cannot block shutdown).
+        Idempotent: a second call is a no-op.
+        """
         self._stop_event.set()
         with self._lock:
             self._is_connected = False
             feed = self._feed
+            thread = self._thread
         if feed:
             try:
                 feed.close_connection()
             except Exception as exc:
                 logger.warning("Error closing market feed: %s", exc)
+        if thread and thread.is_alive():
+            thread.join(timeout=timeout_seconds)
+            if thread.is_alive():
+                logger.warning(
+                    "dhan.market_feed thread did not stop within %ss", timeout_seconds
+                )
+        logger.info("Market feed stopped")
+
+    def health(self) -> HealthStatus:
+        """ManagedService protocol: return a point-in-time health snapshot."""
+        with self._lock:
+            thread_alive = bool(self._thread and self._thread.is_alive())
+            is_connected = self._is_connected
+        if thread_alive and is_connected:
+            state = HealthState.HEALTHY
+            detail = "running and connected"
+        elif thread_alive and not is_connected:
+            state = HealthState.DEGRADED
+            detail = "thread running but feed not connected (reconnecting?)"
+        else:
+            state = HealthState.STOPPED
+            detail = "not started"
+        return HealthStatus(
+            state=state,
+            service=self.name,
+            last_check=datetime.now(timezone.utc),
+            detail=detail,
+            metrics={"connected": is_connected, "thread_alive": thread_alive},
+        )
 
     def subscribe(self, instruments: list[tuple]) -> None:
         """Add instruments to the subscription."""
@@ -472,8 +554,18 @@ class DhanMarketFeed:
         logger.error("Market feed error: %s", error)
 
 
-class DhanOrderStream:
-    """Wraps the SDK's OrderUpdate for real-time order status updates."""
+class DhanOrderStream(ManagedService):
+    """Wraps the SDK's OrderUpdate for real-time order status updates.
+
+    Implements :class:`ManagedService` (Phase B / B5) so the broker's
+    :class:`LifecycleManager` can start, stop, and health-check the
+    background thread. ``stop(timeout_seconds)`` joins the thread
+    within the timeout; the previous ``disconnect()`` only set
+    ``_stop_event`` and never joined, leaking the daemon thread on
+    process exit.
+    """
+
+    name = "dhan.order_stream"
 
     def __init__(
         self,
@@ -500,6 +592,14 @@ class DhanOrderStream:
         self._context.update_token(access_token)
 
     def connect(self) -> None:
+        """Deprecated alias for :meth:`start`."""
+        self.start()
+
+    def start(self) -> None:
+        """ManagedService protocol: start the order-stream thread.
+
+        Idempotent — re-calling while the thread is alive is a no-op.
+        """
         with self._lock:
             if self._thread and self._thread.is_alive():
                 logger.warning("Order stream already connected")
@@ -508,7 +608,11 @@ class DhanOrderStream:
             self._is_connected = True
             self._order_update = SDKOrderUpdate(dhan_context=self._context)
             self._order_update.on_update = self._on_order_update
-            self._thread = threading.Thread(target=self._run, daemon=True)
+            self._thread = threading.Thread(
+                target=self._run,
+                name=self.name,
+                daemon=True,
+            )
             self._thread.start()
 
     def _run(self) -> None:
@@ -524,10 +628,52 @@ class DhanOrderStream:
             with self._lock:
                 self._is_connected = False
 
-    def disconnect(self) -> None:
+    def disconnect(self, timeout_seconds: float = 5.0) -> None:
+        """Deprecated alias for :meth:`stop`."""
+        self.stop(timeout_seconds=timeout_seconds)
+
+    def stop(self, timeout_seconds: float = 5.0) -> None:
+        """ManagedService protocol: stop the order-stream thread.
+
+        Sets ``_stop_event``, joins the thread within
+        ``timeout_seconds``. The previous ``disconnect()`` did NOT
+        join — the daemon thread was leaked on process exit. This
+        implementation joins, matching the ManagedService contract.
+        Idempotent.
+        """
         self._stop_event.set()
         with self._lock:
             self._is_connected = False
+            thread = self._thread
+        if thread and thread.is_alive():
+            thread.join(timeout=timeout_seconds)
+            if thread.is_alive():
+                logger.warning(
+                    "dhan.order_stream thread did not stop within %ss", timeout_seconds
+                )
+        logger.info("Order stream stopped")
+
+    def health(self) -> HealthStatus:
+        """ManagedService protocol: return a point-in-time health snapshot."""
+        with self._lock:
+            thread_alive = bool(self._thread and self._thread.is_alive())
+            is_connected = self._is_connected
+        if thread_alive and is_connected:
+            state = HealthState.HEALTHY
+            detail = "running and connected"
+        elif thread_alive and not is_connected:
+            state = HealthState.DEGRADED
+            detail = "thread running but stream not connected"
+        else:
+            state = HealthState.STOPPED
+            detail = "not started"
+        return HealthStatus(
+            state=state,
+            service=self.name,
+            last_check=datetime.now(timezone.utc),
+            detail=detail,
+            metrics={"connected": is_connected, "thread_alive": thread_alive},
+        )
 
     def on_order_update(self, callback: Callable[[dict], None]) -> None:
         with self._lock:
@@ -620,12 +766,21 @@ class DhanOrderStream:
             logger.error("EventBus ORDER_UPDATED publish error: %s", exc)
 
 
-class PollingMarketFeed:
+class PollingMarketFeed(ManagedService):
     """REST polling fallback for market data when WebSocket is unavailable.
 
     Polls /marketfeed/ltp at regular intervals and dispatches quote callbacks.
     Same callback interface as DhanMarketFeed for drop-in replacement.
+
+    Implements :class:`ManagedService` (Phase B / B5) so the broker's
+    :class:`LifecycleManager` can start, stop, and health-check the
+    background polling thread. This class's ``stop`` was the only
+    one of the three that already joined — that behaviour is preserved
+    and surfaced through the new ``name``/``start``/``stop``/``health``
+    contract.
     """
+
+    name = "dhan.polling_market_feed"
 
     def __init__(
         self,
@@ -651,22 +806,70 @@ class PollingMarketFeed:
         self._is_connected = False
 
     def connect(self) -> None:
-        """Start polling in a background daemon thread."""
+        """Deprecated alias for :meth:`start`."""
+        self.start()
+
+    def start(self) -> None:
+        """ManagedService protocol: start the polling thread.
+
+        Idempotent — re-calling while the thread is alive is a no-op.
+        """
         if self._thread and self._thread.is_alive():
             return
         self._stop_event.clear()
         self._is_connected = True
-        self._thread = threading.Thread(target=self._poll_loop, daemon=True)
+        self._thread = threading.Thread(
+            target=self._poll_loop,
+            name=self.name,
+            daemon=True,
+        )
         self._thread.start()
         logger.info("Polling market feed started (interval=%ss)", self._interval)
 
-    def disconnect(self) -> None:
-        """Stop polling."""
+    def disconnect(self, timeout_seconds: float = 5.0) -> None:
+        """Deprecated alias for :meth:`stop`."""
+        self.stop(timeout_seconds=timeout_seconds)
+
+    def stop(self, timeout_seconds: float = 5.0) -> None:
+        """ManagedService protocol: stop the polling thread.
+
+        Sets ``_stop_event`` and joins the thread within
+        ``timeout_seconds``. The previous ``disconnect()`` already
+        joined at a 5s timeout — this method preserves that
+        behaviour and exposes it through the ManagedService contract.
+        Idempotent.
+        """
         self._stop_event.set()
         self._is_connected = False
         if self._thread:
-            self._thread.join(timeout=5)
+            self._thread.join(timeout=timeout_seconds)
+            if self._thread.is_alive():
+                logger.warning(
+                    "dhan.polling_market_feed thread did not stop within %ss",
+                    timeout_seconds,
+                )
         logger.info("Polling market feed stopped")
+
+    def health(self) -> HealthStatus:
+        """ManagedService protocol: return a point-in-time health snapshot."""
+        thread_alive = bool(self._thread and self._thread.is_alive())
+        is_connected = self._is_connected
+        if thread_alive and is_connected:
+            state = HealthState.HEALTHY
+            detail = "polling"
+        elif thread_alive and not is_connected:
+            state = HealthState.DEGRADED
+            detail = "thread running but not connected"
+        else:
+            state = HealthState.STOPPED
+            detail = "not started"
+        return HealthStatus(
+            state=state,
+            service=self.name,
+            last_check=datetime.now(timezone.utc),
+            detail=detail,
+            metrics={"connected": is_connected, "thread_alive": thread_alive},
+        )
 
     def on_quote(self, callback: Callable[[dict], None]) -> None:
         """Register callback for quote updates."""
