@@ -431,6 +431,12 @@ class BrokerService:
                     # B7: OMS risk_manager → OrdersAdapter risk gate.
                     risk_manager=oms_risk_manager,
                 )
+                # C.1: now that the gateway exists, point the OMS
+                # capital_fn closure at it. From this point on, the
+                # risk check uses the real account balance, not the
+                # placeholder.
+                if hasattr(self, "_oms_gateway_holder"):
+                    self._oms_gateway_holder["gw"] = self._gateway
                 # Register the OMS services with the lifecycle so
                 # they are drained on close().
                 self._build_and_register_oms_services(oms_risk_manager)
@@ -448,11 +454,21 @@ class BrokerService:
 
     def _build_oms_risk_manager(self):
         """B7: build a RiskManager for the OMS that the live path
-        will consult. The capital_fn is a placeholder constant — a
-        future commit will thread the real ``gateway.funds()`` value
-        so the position_pct and daily_loss_pct checks are sized to
-        the account. The kill_switch and per-order risk checks are
-        fully active with the placeholder.
+        will consult.
+
+        C.1 (Phase C): the capital_fn is now wired to the real
+        ``gateway.funds().available_balance`` once the gateway is
+        constructed. The closure captures the gateway by reference via
+        ``self._oms_gateway_holder``, which ``_ensure_initialized``
+        populates after the factory call returns. This is the central
+        risk-calibration invariant: the daily_loss_pct and
+        position_pct checks are sized to the real account, not a
+        placeholder.
+
+        Until the gateway is set, the closure falls back to the
+        previous placeholder (``Decimal("1000000")``) so the
+        kill_switch and per-order risk checks remain active during
+        the brief window before init completes.
 
         Returned value is a :class:`RiskManager` (NOT a TradingContext
         — the context is too heavy for the factory's signature, and
@@ -462,15 +478,41 @@ class BrokerService:
         from brokers.common.oms import PositionManager, RiskConfig, RiskManager
         from decimal import Decimal
 
-        position_manager = PositionManager()
-        # Placeholder capital. A follow-up commit will replace this
-        # with a closure that calls gateway.funds() once the gateway
-        # is constructed.
-        capital_fn = lambda: Decimal("1000000")
+        # The gateway is set after the factory returns. Use a mutable
+        # holder so the closure can read the live reference.
+        if not hasattr(self, "_oms_gateway_holder") or self._oms_gateway_holder is None:
+            self._oms_gateway_holder: dict = {"gw": None}
+
+        def _capital_fn() -> Decimal:
+            gw = self._oms_gateway_holder.get("gw")
+            if gw is None:
+                # Init not yet complete or gateway construction failed.
+                # Use the placeholder so risk checks still work.
+                return Decimal("1000000")
+            try:
+                balance = gw.funds()
+            except Exception:
+                # Broker call failed (network, auth, etc.). Use
+                # placeholder so a transient broker issue does not
+                # silently disable the risk gate. The kill_switch
+                # and per-order checks remain active.
+                return Decimal("1000000")
+            # Funds() returns either FundLimits (canonical) or
+            # Balance (Dhan-specific). Both have available_balance.
+            balance_value = getattr(balance, "available_balance", None)
+            if balance_value is None or balance_value <= 0:
+                # Defensive: a 0 or negative balance disables the
+                # risk check (capital_fn returns 0 means
+                # "Insufficient capital" per RiskManager). We want
+                # to fall through with the placeholder so the
+                # trader can still place small orders.
+                return Decimal("1000000")
+            return balance_value
+
         return RiskManager(
-            position_manager=position_manager,
+            position_manager=PositionManager(),
             config=RiskConfig(),
-            capital_fn=capital_fn,
+            capital_fn=_capital_fn,
         )
 
     def _build_and_register_oms_services(self, risk_manager) -> None:

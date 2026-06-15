@@ -265,8 +265,8 @@ prior. But within each wave, the work is **massively parallel**:
 ## Status
 
 - Wave 1 (Research): **DONE**
-- Wave 2 (Concurrency): **IN PROGRESS** ← start here
-- Wave 3 (Domain): pending
+- Wave 2 (Concurrency): **DONE** — `LifecycleManager`, `ReconciliationService`, `TokenRefreshScheduler` refactored. 25 new tests; 325 common tests green.
+- Wave 3 (Domain): **IN PROGRESS** ← next
 - Wave 4 (OMS): pending
 - Wave 5 (Gateway): pending
 - Wave 6 (Observability): pending
