@@ -166,6 +166,103 @@ def run_doctor(broker_service: BrokerService, console: Console) -> None:
             f"Balance retrieval failed: {e}",
         ))
 
+    # 8. LifecycleManager Health (B8+B9 followup)
+    # Every ManagedService in the system is owned by the broker's
+    # LifecycleManager. The doctor reports the state of each
+    # registered service so operators can spot FAILED/STOPPED
+    # services before they cause a production incident.
+    try:
+        snapshot = broker_service.lifecycle.health_snapshot()
+        if not snapshot:
+            results.append((
+                "Lifecycle Health",
+                "WARN",
+                "No ManagedServices registered (lifecycle empty).",
+            ))
+        else:
+            failed = [
+                (n, info.get("state", "UNKNOWN"))
+                for n, info in snapshot.items()
+                if info.get("state") in ("FAILED", "UNHEALTHY", "STOPPED")
+                and n != "http.observability"  # http.observability is ok if STOPPED before init
+            ]
+            if failed:
+                results.append((
+                    "Lifecycle Health",
+                    "FAIL",
+                    f"{len(failed)} service(s) not healthy: {', '.join(n for n, _ in failed[:3])}",
+                ))
+            else:
+                results.append((
+                    "Lifecycle Health",
+                    "PASS",
+                    f"{len(snapshot)} ManagedService(s) healthy: {', '.join(snapshot.keys())}",
+                ))
+    except Exception as e:
+        results.append((
+            "Lifecycle Health",
+            "FAIL",
+            f"Lifecycle health snapshot failed: {e}",
+        ))
+
+    # 9. OMS RiskManager State (B7 + A2+A3 + C.1)
+    # The OMS's RiskManager is the canonical risk gate on the live
+    # path. The doctor reports the kill-switch state, the daily PnL
+    # (so the operator can see if a loss-limit is approaching), and
+    # the last-reset time (so the operator can see if the IST 00:00
+    # rollover fired).
+    try:
+        if broker_service.trading_context is not None:
+            rm = broker_service.trading_context.risk_manager
+            snap = rm.snapshot()
+            ks = "ACTIVE" if snap.get("kill_switch") else "inactive"
+            daily_pnl = float(snap.get("daily_pnl", 0))
+            resets = int(snap.get("reset_count", 0))
+            results.append((
+                "OMS RiskManager",
+                "PASS",
+                f"kill_switch={ks} | daily_pnl={daily_pnl:.2f} | resets={resets}",
+            ))
+        else:
+            results.append((
+                "OMS RiskManager",
+                "WARN",
+                "No TradingContext (gateway init failed or mock mode).",
+            ))
+    except Exception as e:
+        results.append((
+            "OMS RiskManager",
+            "FAIL",
+            f"OMS risk snapshot failed: {e}",
+        ))
+
+    # 10. HTTP Observability Surface (B8+B9)
+    # The /healthz, /readyz, /metrics endpoints on port 8765 are
+    # the operator's primary observability surface. The doctor
+    # checks the server is running and reports the bound port.
+    try:
+        server = broker_service.http_observability
+        if server is not None:
+            h = server.health()
+            port = h.metrics.get("port", 0)
+            results.append((
+                "HTTP Observability",
+                "PASS" if h.state.value == "HEALTHY" else "WARN",
+                f"listening on 127.0.0.1:{port} (state={h.state.value})",
+            ))
+        else:
+            results.append((
+                "HTTP Observability",
+                "WARN",
+                "Server not started (bind may have failed or init incomplete).",
+            ))
+    except Exception as e:
+        results.append((
+            "HTTP Observability",
+            "FAIL",
+            f"HTTP observability check failed: {e}",
+        ))
+
     # Render results table
     table = Table(title="System Doctor Diagnostics Report", header_style="bold yellow")
     table.add_column("Diagnostics Check Item", style="bold white")

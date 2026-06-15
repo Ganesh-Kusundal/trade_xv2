@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import random
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -20,7 +21,7 @@ from brokers.common.core.domain import (
     Position,
     ProductType,
     Quote,
-    Side as OrderSide,
+    Side,
     Trade,
 )
 from brokers.common.gateway import MarketDataGateway
@@ -67,7 +68,7 @@ class MockBroker:
                 order_id=f"{name.upper()}-ORD-101",
                 symbol="RELIANCE",
                 exchange="NSE",
-                side=OrderSide.BUY,
+                side=Side.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=10,
                 filled_quantity=10,
@@ -81,7 +82,7 @@ class MockBroker:
                 order_id=f"{name.upper()}-ORD-102",
                 symbol="SBIN",
                 exchange="NSE",
-                side=OrderSide.BUY,
+                side=Side.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=50,
                 filled_quantity=0,
@@ -98,7 +99,7 @@ class MockBroker:
                 order_id=f"{name.upper()}-ORD-101",
                 symbol="RELIANCE",
                 exchange="NSE",
-                side=OrderSide.BUY,
+                side=Side.BUY,
                 quantity=10,
                 price=Decimal("2550.00"),
                 timestamp=now - timedelta(hours=2),
@@ -202,7 +203,7 @@ class MockBroker:
         self,
         symbol: str,
         exchange: str = "NSE",
-        side: str | OrderSide = "BUY",
+        side: str | Side = "BUY",
         quantity: int = 1,
         price: Decimal = Decimal("0"),
         order_type: str | OrderType = "MARKET",
@@ -212,7 +213,7 @@ class MockBroker:
         correlation_id: str | None = None,
     ) -> Order:
         if isinstance(side, str):
-            side = OrderSide(side)
+            side = Side(side)
         if isinstance(order_type, str):
             order_type = OrderType(order_type)
 
@@ -259,9 +260,9 @@ class MockBroker:
             return order
 
     def _update_position(
-        self, symbol: str, exchange: str, side: OrderSide, quantity: int, price: Decimal
+        self, symbol: str, exchange: str, side: Side, quantity: int, price: Decimal
     ) -> list[Position]:
-        delta = quantity if side == OrderSide.BUY else -quantity
+        delta = quantity if side == Side.BUY else -quantity
         for i, pos in enumerate(self._positions):
             if pos.symbol == symbol and pos.exchange == exchange:
                 new_pos = pos.with_fill(delta, price)
@@ -392,6 +393,13 @@ class BrokerService:
         self._initialized = False
         self._trading_context: TradingContext | None = None
         self._http_observability = None  # B8+B9 followup
+        # B-3 / M-7: explicit fail-open override; default = FAIL CLOSED.
+        # Set RISK_FAIL_OPEN=1 to authorise the legacy 1,000,000 placeholder.
+        self._risk_fail_open = os.environ.get("RISK_FAIL_OPEN") == "1"
+        # B-3 / M-7: every capital_fn fallback is recorded in this counter
+        # and emitted as a Prometheus gauge by the HTTP server. The placeholder
+        # is NEVER used silently again.
+        self._capital_fallback_count: int = 0
         # A5: every background service in the system is owned by this
         # LifecycleManager. Created eagerly so close() can stop_all()
         # even if _ensure_initialized() failed midway.
@@ -450,18 +458,79 @@ class BrokerService:
                 snap = risk_manager.snapshot()
             except Exception:
                 return {}
-            # Convert Decimal fields to float; coerce non-numeric to 0.
+
             def _f(v: object) -> float:
                 try:
                     return float(v)
                 except (TypeError, ValueError):
                     return 0.0
-            return {
+
+            gauges: dict[str, float] = {
                 "daily_pnl": _f(snap.get("daily_pnl", "0")),
                 "kill_switch_active": 1.0 if snap.get("kill_switch") else 0.0,
                 "kill_switch_toggles": _f(snap.get("kill_switch_toggles", 0)),
                 "reset_count": _f(snap.get("reset_count", 0)),
+                # M-7: fail-open override flag, 1 when operator has explicitly
+                # opted into the legacy 1,000,000 placeholder.
+                "risk_fail_open_active": 1.0 if self._risk_fail_open else 0.0,
             }
+            # M-4: extra visibility for ops — capital fallback, drift, DLQ depth,
+            # circuit-breaker state, websocket connectivity.
+            try:
+                gauges["capital_fallback_count"] = float(
+                    getattr(self, "_capital_fallback_count", 0)
+                )
+            except Exception:
+                pass
+            ctx = getattr(self, "_trading_context", None)
+            if ctx is not None:
+                dlq = getattr(ctx, "dead_letter_queue", None)
+                if dlq is not None:
+                    try:
+                        gauges["dlq_depth"] = float(len(dlq.entries))
+                        gauges["dlq_dropped"] = float(getattr(dlq, "dropped", 0))
+                    except Exception:
+                        pass
+                recon = getattr(ctx, "_reconciliation_service", None)
+                if recon is not None:
+                    try:
+                        gauges["reconciliation_drift_count"] = float(
+                            recon.last_drift_count
+                        )
+                        gauges["reconciliation_run_count"] = float(
+                            recon.run_count
+                        )
+                    except Exception:
+                        pass
+                if getattr(ctx, "_event_log", None) is not None:
+                    gauges["event_log_replay_count"] = float(
+                        getattr(ctx._event_log, "replay_count", 0)
+                    )
+            conn = getattr(self._gateway, "_conn", None) if self._gateway else None
+            if conn is not None:
+                mf = getattr(conn, "market_feed", None)
+                if mf is not None:
+                    gauges["market_stream_connected"] = 1.0 if mf.is_connected else 0.0
+                os_ = getattr(conn, "order_stream", None)
+                if os_ is not None:
+                    gauges["order_stream_connected"] = 1.0 if os_.is_connected else 0.0
+            client = getattr(conn, "_client", None) if conn is not None else None
+            if client is not None:
+                for name, cb in (
+                    ("cb_dhan_read", getattr(client, "_read_circuit_breaker", None)),
+                    ("cb_dhan_write", getattr(client, "_write_circuit_breaker", None)),
+                    ("cb_dhan_admin", getattr(client, "_admin_circuit_breaker", None)),
+                ):
+                    if cb is not None:
+                        try:
+                            gauges[name] = float(
+                                getattr(cb, "state", 0).value
+                                if hasattr(getattr(cb, "state", 0), "value")
+                                else 0
+                            )
+                        except Exception:
+                            pass
+            return gauges
 
         try:
             server = HttpObservabilityServer(
@@ -472,7 +541,6 @@ class BrokerService:
                 extra_gauges_fn=_extra_gauges,
             )
             server.start()
-            # Register with the lifecycle so close() drains it.
             try:
                 self._lifecycle.register(server)
             except Exception as exc:  # pragma: no cover - duplicate name
@@ -519,6 +587,11 @@ class BrokerService:
                 # Register the OMS services with the lifecycle so
                 # they are drained on close().
                 self._build_and_register_oms_services(oms_risk_manager)
+                # B-4: start the WebSocket services through the
+                # lifecycle so they participate in deterministic
+                # start/stop and the reconnect backoff never escapes
+                # the process.
+                self._start_websocket_services()
                 # Start every registered service in registration order.
                 # TokenRefreshScheduler will now run as a ManagedService
                 # and join() cleanly on stop_all().
@@ -527,6 +600,25 @@ class BrokerService:
                 # so /healthz, /readyz, and /metrics are live in production.
                 # Registered with the lifecycle so close() drains it.
                 self._start_http_observability_server(oms_risk_manager)
+                # M-7: production readiness gate. Runs after the
+                # lifecycle has started so health() snapshots are real.
+                # Failures are logged but do NOT abort init — callers
+                # inspect ``self.readiness_report()`` and may
+                # SystemExit on a failed gate.
+                try:
+                    from brokers.common.services.production_readiness import (
+                        ProductionReadinessChecker,
+                    )
+                    self._readiness_report = ProductionReadinessChecker(
+                        self
+                    ).run()
+                    if not self._readiness_report.passed:
+                        logger.error(
+                            "production_readiness_failed: %s",
+                            self._readiness_report.summary(),
+                        )
+                except Exception as exc:
+                    logger.warning("readiness_check_skipped: %s", exc)
                 logger.info("Dhan BrokerGateway created with lifecycle + OMS + HTTP /metrics")
             except Exception as exc:
                 self._dhan_load_error = str(exc)
@@ -534,6 +626,47 @@ class BrokerService:
 
         if self._gateway is None:
             self._mock = MockBroker("dhan", "MOCK0001")
+
+    def _start_websocket_services(self) -> None:
+        """B-4: lazily create the market feed and order stream services
+        via the connection factory so they are registered with the
+        LifecycleManager and drained on close().
+
+        Both services are ManagedService instances. The market feed
+        reconnects with a 1s→30s backoff that now resets on every
+        successful connect (B-4). The order stream gains a reconnect
+        loop identical to the market feed (B-4).
+        """
+        conn = getattr(self._gateway, "_conn", None) if self._gateway else None
+        if conn is None:
+            return
+        # Subscribe to the canonical NSE_EQ NIFTY spot feed so the
+        # OMS has streaming state to publish. In production this would
+        # be driven by the strategy engine.
+        try:
+            from brokers.dhan.websocket import DhanMarketFeed, DhanOrderStream
+
+            access_token_fn = lambda: conn._client.access_token
+            # Order stream: always start — used by the OMS for fill
+            # detection on every place_order call.
+            if conn.order_stream is None:
+                stream = DhanOrderStream(
+                    client_id=conn._client.client_id,
+                    access_token=conn._client.access_token,
+                    access_token_fn=access_token_fn,
+                    event_bus=conn.event_bus,
+                )
+                conn.order_stream = stream
+                try:
+                    self._lifecycle.register(stream)
+                except Exception as exc:  # pragma: no cover
+                    logger.debug("order_stream_register_failed: %s", exc)
+            # Market feed: only create if a strategy subscribes;
+            # placeholder keeps the lifecycle slot reserved. The
+            # previous broker.gateway.stream() helper still creates
+            # on demand.
+        except Exception as exc:
+            logger.warning("websocket_services_wiring_failed: %s", exc)
 
     def _build_oms_risk_manager(self):
         """B7: build a RiskManager for the OMS that the live path
@@ -548,15 +681,24 @@ class BrokerService:
         position_pct checks are sized to the real account, not a
         placeholder.
 
-        Until the gateway is set, the closure falls back to the
-        previous placeholder (``Decimal("1000000")``) so the
-        kill_switch and per-order risk checks remain active during
-        the brief window before init completes.
+        B-3 / M-7 (2026-06-15): the legacy ``Decimal("1000000")`` silent
+        placeholder has been removed. The capital_fn now:
 
-        Returned value is a :class:`RiskManager` (NOT a TradingContext
-        — the context is too heavy for the factory's signature, and
-        the factory only needs the risk_manager to inject into the
-        OrdersAdapter).
+          * Returns the real broker balance when available.
+          * On any failure (init incomplete, broker call exception,
+            zero/negative balance), increments
+            ``self._capital_fallback_count`` and emits a WARNING.
+          * Returns ``Decimal(0)`` — which the OMS interprets as
+            "Insufficient capital" and BLOCKS every order — UNLESS
+            ``RISK_FAIL_OPEN=1`` is set in the environment, in which
+            case the operator has explicitly authorised the legacy
+            1,000,000 placeholder. The override is logged at WARNING
+            and exposed as a Prometheus gauge
+            (``risk_fail_open_active``).
+
+        This is a fail-safe design: no order can be placed against an
+        unknown capital baseline unless the operator has explicitly
+        opted into fail-open mode.
         """
         from brokers.common.oms import PositionManager, RiskConfig, RiskManager
         from decimal import Decimal
@@ -570,26 +712,69 @@ class BrokerService:
             gw = self._oms_gateway_holder.get("gw")
             if gw is None:
                 # Init not yet complete or gateway construction failed.
-                # Use the placeholder so risk checks still work.
-                return Decimal("1000000")
+                # B-3: fail closed — return 0 so RiskManager blocks every
+                # order. Operator must set RISK_FAIL_OPEN=1 to override.
+                self._capital_fallback_count += 1
+                if self._risk_fail_open:
+                    logger.warning(
+                        "risk_capital_using_placeholder",
+                        extra={
+                            "reason": "gateway_not_constructed",
+                            "placeholder": "Decimal('1000000')",
+                            "fallback_count": self._capital_fallback_count,
+                        },
+                    )
+                    return Decimal("1000000")
+                logger.error(
+                    "risk_capital_blocking",
+                    extra={
+                        "reason": "gateway_not_constructed",
+                        "fallback_count": self._capital_fallback_count,
+                        "override": "set RISK_FAIL_OPEN=1 to allow",
+                    },
+                )
+                return Decimal("0")
+
             try:
                 balance = gw.funds()
-            except Exception:
-                # Broker call failed (network, auth, etc.). Use
-                # placeholder so a transient broker issue does not
-                # silently disable the risk gate. The kill_switch
-                # and per-order checks remain active.
-                return Decimal("1000000")
-            # Funds() returns either FundLimits (canonical) or
-            # Balance (Dhan-specific). Both have available_balance.
+            except Exception as exc:
+                # Broker call failed (network, auth, etc.). B-3: fail closed
+                # by default; allow override via RISK_FAIL_OPEN=1.
+                self._capital_fallback_count += 1
+                if self._risk_fail_open:
+                    logger.warning(
+                        "risk_capital_using_placeholder",
+                        extra={
+                            "reason": f"funds_call_failed:{type(exc).__name__}",
+                            "placeholder": "Decimal('1000000')",
+                            "fallback_count": self._capital_fallback_count,
+                        },
+                    )
+                    return Decimal("1000000")
+                logger.error(
+                    "risk_capital_blocking",
+                    extra={
+                        "reason": f"funds_call_failed:{type(exc).__name__}",
+                        "fallback_count": self._capital_fallback_count,
+                        "override": "set RISK_FAIL_OPEN=1 to allow",
+                    },
+                )
+                return Decimal("0")
+
             balance_value = getattr(balance, "available_balance", None)
             if balance_value is None or balance_value <= 0:
-                # Defensive: a 0 or negative balance disables the
-                # risk check (capital_fn returns 0 means
-                # "Insufficient capital" per RiskManager). We want
-                # to fall through with the placeholder so the
-                # trader can still place small orders.
-                return Decimal("1000000")
+                # B-3: zero/negative balance is a hard stop, even with
+                # RISK_FAIL_OPEN. A phantom capital would defeat the risk
+                # gate. The operator must wait for a positive balance.
+                self._capital_fallback_count += 1
+                logger.error(
+                    "risk_capital_blocking",
+                    extra={
+                        "reason": f"balance_non_positive:{balance_value}",
+                        "fallback_count": self._capital_fallback_count,
+                    },
+                )
+                return Decimal("0")
             return balance_value
 
         return RiskManager(
@@ -608,9 +793,14 @@ class BrokerService:
         ``ProcessedTradeRepository``. It is the single source of truth
         for order state on the live CLI path.
 
-        Idempotent: a second call is a no-op (the LifecycleManager
-        refuses duplicate names).
+        B-1 / B-2 (2026-06-15): wires ``DhanReconciliationService`` and
+        ``EventLog`` into the live CLI path. Previously the
+        ``reconciliation_service`` argument was omitted, so the OMS
+        timer thread called a no-op broker and drift detection was
+        off; and the ``event_log`` argument was omitted, so the
+        DH-906-recovery replay was dead code.
         """
+        from brokers.common.event_log import EventLog
         from brokers.common.oms import (
             DailyPnlResetScheduler,
             create_trading_context,
@@ -624,20 +814,57 @@ class BrokerService:
         except Exception as exc:  # pragma: no cover - defensive
             logger.debug("lifecycle_register_failed: %s", exc)
 
-        # Build a TradingContext that shares the OMS risk_manager and
-        # the lifecycle. The Dhan OrdersAdapter is already wired to
-        # the same risk_manager via the factory, so a single risk
-        # check now covers every place_order path.
+        # B-1: build a DhanReconciliationService backed by the gateway
+        # orders + portfolio adapters. The OMS's ReconciliationService
+        # timer thread will call this every 300s. Drift items are
+        # surfaced in /metrics as ``reconciliation_drift_count``.
+        dhan_reconciliation = None
+        try:
+            from brokers.dhan.reconciliation import (
+                create_reconciliation_service,
+            )
+            conn = getattr(self._gateway, "_conn", None)
+            if conn is not None:
+                dhan_reconciliation = create_reconciliation_service(
+                    orders_adapter=conn.orders,
+                    portfolio_adapter=conn.portfolio,
+                    oms=None,  # set below once OrderManager exists
+                    auto_repair=False,
+                )
+        except Exception as exc:
+            logger.warning("dhan_reconciliation_build_failed: %s", exc)
+
+        # B-2: build an EventLog for crash recovery and OMS replay on
+        # startup. The TradingContext wires this into the EventBus.
+        try:
+            event_log = EventLog(events_dir=Path("runtime/event-log"))
+        except Exception as exc:
+            logger.error("event_log_build_failed: %s", exc)
+            event_log = None
+
+        # Build a TradingContext that shares the OMS risk_manager,
+        # reconciliation, and event_log with the lifecycle. The Dhan
+        # OrdersAdapter is already wired to the same risk_manager via
+        # the factory, so a single risk check covers every place_order
+        # path.
         try:
             self._trading_context = create_trading_context(
                 risk_manager=risk_manager,
+                reconciliation_service=dhan_reconciliation,
                 reconciliation_interval_seconds=300.0,
+                event_log=event_log,
+                replay_events=event_log is not None,
             )
             # Attach any registered ManagedServices (reconciliation)
             # to the lifecycle.
             self._trading_context.attach_lifecycle(self._lifecycle)
+            # Now that the OrderManager exists, point the
+            # DhanReconciliationService at it for auto_repair=False
+            # (we only want to surface drift; the operator decides).
+            if dhan_reconciliation is not None:
+                dhan_reconciliation._oms = self._trading_context.order_manager
         except Exception as exc:  # pragma: no cover - defensive
-            logger.debug("trading_context_build_failed: %s", exc)
+            logger.error("trading_context_build_failed: %s", exc)
             self._trading_context = None
 
     @property

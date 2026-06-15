@@ -24,8 +24,29 @@ from cli.services.broker_service import BrokerService
 
 LIVE_DHAN = Path(__file__).resolve().parent.parent.parent / ".env.local"
 
+
+def _env_local_has_credentials() -> bool:
+    if not LIVE_DHAN.exists():
+        return False
+    try:
+        text = LIVE_DHAN.read_text()
+    except OSError:
+        return False
+    # B-5: .env.local may exist but be the redacted template, in
+    # which case no live Dhan test should run. Treat any of the
+    # required credentials as the gate.
+    for key in ("DHAN_CLIENT_ID", "DHAN_ACCESS_TOKEN", "DHAN_PIN"):
+        for line in text.splitlines():
+            if line.startswith(f"{key}=") and line.split("=", 1)[1].strip():
+                return True
+    return False
+
+
 pytestmark = [
-    pytest.mark.skipif(not LIVE_DHAN.exists(), reason=".env.local required for live Dhan CLI tests"),
+    pytest.mark.skipif(
+        not _env_local_has_credentials(),
+        reason="live Dhan credentials not configured in .env.local",
+    ),
 ]
 
 

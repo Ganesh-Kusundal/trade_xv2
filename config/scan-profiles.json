@@ -1,0 +1,55 @@
+{
+  "profiles": [
+    {
+      "id": "intraday-hybrid",
+      "mode": "HYBRID",
+      "universe": {
+        "segments": ["NSE_EQ", "NSE_FNO", "IDX_I"],
+        "assetClasses": ["EQUITY", "FUTURE", "OPTION"],
+        "underlyings": ["NIFTY", "BANKNIFTY", "RELIANCE", "TCS", "SBIN"]
+      },
+      "rest": { "batchSize": 20, "fetchOptionChainsOnCoarsePass": true },
+      "promotion": { "topN": 5, "feedMode": "QUOTE", "maxConcurrentPromotions": 10, "promotionTtlMinutes": 30 },
+      "optionFinePassEnabled": true,
+      "criteria": [
+        { "type": "pct-change-from-open", "min": 0.5 },
+        { "type": "volume-spike", "multiplier": 1.5, "min-volume": 1000 }
+      ]
+    },
+    {
+      "id": "option-liquidity",
+      "mode": "REST_SNAPSHOT",
+      "universe": {
+        "segments": ["IDX_I", "NSE_EQ", "NSE_FNO"],
+        "assetClasses": ["OPTION"],
+        "underlyings": ["NIFTY", "BANKNIFTY", "RELIANCE"]
+      },
+      "rest": { "batchSize": 20, "fetchOptionChainsOnCoarsePass": false },
+      "promotion": { "topN": 0 },
+      "optionFinePassEnabled": false,
+      "criteria": [],
+      "optionScan": {
+        "expiryPolicy": "NEAREST",
+        "sides": ["CE", "PE"],
+        "minOpenInterest": 5000,
+        "minVolume": 100,
+        "maxSpreadBps": 250,
+        "topNPerUnderlying": 5,
+        "topNGlobal": 20
+      }
+    },
+    {
+      "id": "institutional-baseline",
+      "mode": "PARQUET_HISTORICAL",
+      "universe": {
+        "segments": ["NSE_EQ"],
+        "assetClasses": ["EQUITY"],
+        "underlyings": []
+      },
+      "rest": { "batchSize": 20, "fetchOptionChainsOnCoarsePass": false },
+      "promotion": { "topN": 5, "feedMode": "QUOTE", "maxConcurrentPromotions": 0, "promotionTtlMinutes": 0 },
+      "optionFinePassEnabled": false,
+      "criteria": []
+    }
+  ]
+}

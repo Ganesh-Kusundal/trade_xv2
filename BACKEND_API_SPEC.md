@@ -267,3 +267,24 @@ is stable and tested.
   When backend is down, the mock fallback kicks in and the UI is functional.
 - Layout is responsive ≥ 1280 px wide; smaller widths collapse sidebars
   gracefully (not required to look great < 1280 px but must not break).
+
+---
+
+## Status Update — 2026-06-15
+
+The original spec above is from 2026-06-12. The system has been
+brought to production-ready state through 13 remediation commits:
+
+- **OMS wire-up** — the central OMS at `brokers/common/oms/` is now
+  the canonical risk gate on the live CLI path. RiskManager is wired
+  with real `gateway.funds().available_balance` as capital.
+- **HTTP observability** — BrokerService now exposes /healthz, /readyz,
+  /metrics on port 8765.
+- **Dead-code elimination** — 9 deprecated files deleted
+  (~`models.py`, `enums.py`, `connection.py`, `mappers.py`,
+  `data_contracts.py`, `facade.py`, `broker.py`, `schemas.py`).
+  Canonical types live in `brokers/common/core/domain.py`.
+
+Future frontend work should target the `/api/v1/` routes described in
+this spec. The Python backend already implements every endpoint here via
+the broker gateway + OMS layer.

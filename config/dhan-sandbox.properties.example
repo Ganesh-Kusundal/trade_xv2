@@ -1,0 +1,23 @@
+# Sandbox Dhan credentials — copy to config/dhan-sandbox.properties (gitignored)
+#
+# Mirrors the Trade_J config/dhan-sandbox.properties.example template.
+# Use this for: sandbox order placement, integration tests, replay.
+#
+#   dhan.sandbox.clientId  — sandbox client ID (numeric, issued by Dhan)
+#   dhan.sandbox.accessToken — sandbox JWT (rotate per Dhan sandbox policy)
+#   dhan.sandbox.restBaseUrl — must point at https://sandbox.dhan.co/v2
+#   dhan.testOrderSymbol    — symbol used by integration test_orders
+#   dhan.testOrderSecurityId — security_id for the test order
+#   dhan.testOrderSegment   — segment for the test order
+#   dhan.testOrderExchange  — exchange for the test order
+#   dhan.testOrderQuantity  — default test order quantity
+#   dhan.testOrderPricePaise — default test order price (paise)
+dhan.sandbox.clientId=
+dhan.sandbox.accessToken=
+dhan.sandbox.restBaseUrl=https://sandbox.dhan.co/v2
+dhan.testOrderSymbol=TCS
+dhan.testOrderSecurityId=11536
+dhan.testOrderSegment=NSE_EQ
+dhan.testOrderExchange=NSE
+dhan.testOrderQuantity=1
+dhan.testOrderPricePaise=10000

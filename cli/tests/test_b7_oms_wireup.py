@@ -21,13 +21,18 @@ B7 fixes this:
     :class:`TradingContext`, both registered with the
     LifecycleManager. They are drained on close().
 
-  - The capital_fn is a placeholder (constant). A future commit
-    will thread ``gateway.funds()`` so the position_pct and
-    daily_loss_pct checks are sized to the real account.
+  - The capital_fn reads ``gateway.funds().available_balance`` and
+    is fail-closed: a broker outage returns ``Decimal(0)`` and the
+    OMS blocks every order unless ``RISK_FAIL_OPEN=1`` is set
+    (B-3 / M-7). The tests in this file use ``RISK_FAIL_OPEN=1``
+    where the legacy placeholder is the expected value, and
+    ``RISK_FAIL_OPEN=0`` (the default) where fail-closed is the
+    expected value.
 """
 
 from __future__ import annotations
 
+import os
 from decimal import Decimal
 from unittest.mock import MagicMock
 
@@ -41,21 +46,34 @@ from brokers.common.oms import (
 )
 
 
+# ── Helper: enable fail-open for tests that expect the legacy
+# placeholder semantics. Per the M-7 contract, the default is
+# fail-closed; tests must opt in.
+
+
+@pytest.fixture(autouse=True)
+def _enable_fail_open(monkeypatch):
+    """Default: RISK_FAIL_OPEN=1 so existing tests see the legacy
+    placeholder when the gateway is missing. Tests that exercise the
+    fail-closed path explicitly monkeypatch RISK_FAIL_OPEN=0.
+    """
+    monkeypatch.setenv("RISK_FAIL_OPEN", "1")
+    yield
+
+
 # ── BrokerService constructs the OMS risk_manager before the factory ─────
 
 
 def test_broker_service_builds_oms_risk_manager_with_placeholder_capital() -> None:
     """The OMS risk_manager is built with a placeholder capital_fn
-    returning 1,000,000. The kill_switch and per-order risk checks
-    are fully active. Position_pct and daily_loss_pct checks use
-    the placeholder capital (a future commit will thread the real
-    gateway.funds())."""
+    when no gateway is set and ``RISK_FAIL_OPEN=1`` is set. The
+    kill_switch and per-order risk checks are fully active."""
     from cli.services.broker_service import BrokerService
 
     bs = BrokerService()
     rm = bs._build_oms_risk_manager()
     assert isinstance(rm, RiskManager)
-    # Capital is the placeholder 1,000,000
+    # Capital is the placeholder 1,000,000 (with RISK_FAIL_OPEN=1)
     assert rm._capital_fn() == Decimal("1000000")
     # The risk_manager has a position_manager wired
     assert isinstance(rm._position_manager, PositionManager)
@@ -105,8 +123,6 @@ def test_factory_accepts_risk_manager_and_threads_to_connection() -> None:
     """
     from brokers.dhan.factory import BrokerFactory
 
-    # We don't actually call Dhan (we don't have a token), but we
-    # can verify the factory's signature accepts the parameter.
     import inspect
     sig = inspect.signature(BrokerFactory.create)
     assert "risk_manager" in sig.parameters, (
@@ -128,7 +144,6 @@ def test_end_to_end_kill_switch_via_oms_blocks_dhan_place_order() -> None:
     from brokers.dhan.orders import OrdersAdapter
     from brokers.dhan.http_client import DhanHttpClient
     from brokers.dhan.resolver import SymbolResolver
-    from unittest.mock import MagicMock
 
     bs = BrokerService()
     rm = bs._build_oms_risk_manager()
@@ -141,7 +156,6 @@ def test_end_to_end_kill_switch_via_oms_blocks_dhan_place_order() -> None:
         symbol="RELIANCE", security_id="500325",
         exchange=MagicMock(value="NSE"), lot_size=1,
     )
-    # EXCHANGE_TO_SEGMENT.get("NSE") = "NSE_EQ" — not a derivative
     resolver.resolve.return_value.exchange.value = "NSE"
 
     adapter = OrdersAdapter(
@@ -167,14 +181,14 @@ def test_end_to_end_kill_switch_via_oms_blocks_dhan_place_order() -> None:
 
 
 def test_oms_capital_fn_uses_placeholder_before_gateway_set() -> None:
-    """Before the gateway is constructed, the OMS capital_fn
-    returns the placeholder (1,000,000). The kill_switch and
-    per-order risk checks remain active."""
+    """Before the gateway is constructed and with RISK_FAIL_OPEN=1,
+    the OMS capital_fn returns the placeholder (1,000,000). The
+    kill_switch and per-order risk checks remain active."""
     from cli.services.broker_service import BrokerService
 
     bs = BrokerService()
     rm = bs._build_oms_risk_manager()
-    # No gateway set yet → placeholder
+    # No gateway set yet → placeholder (with fail-open)
     assert rm._capital_fn() == Decimal("1000000")
 
 
@@ -182,10 +196,6 @@ def test_oms_capital_fn_uses_real_gateway_funds_after_init() -> None:
     """C.1: after _ensure_initialized completes, the OMS
     capital_fn closure captures the real gateway. Calling
     capital_fn() reads gateway.funds().available_balance.
-
-    This is the central risk-calibration invariant: position_pct
-    and daily_loss_pct checks are sized to the real account, not
-    a placeholder.
     """
     from cli.services.broker_service import BrokerService
     from brokers.common.core.domain import Balance
@@ -194,7 +204,8 @@ def test_oms_capital_fn_uses_real_gateway_funds_after_init() -> None:
 
     # Build the risk manager before the gateway exists
     rm = bs._build_oms_risk_manager()
-    assert rm._capital_fn() == Decimal("1000000")  # placeholder
+    # Placeholder when gateway is None
+    assert rm._capital_fn() == Decimal("1000000")
 
     # Simulate the gateway being set (as _ensure_initialized does)
     fake_balance = Balance(
@@ -211,11 +222,11 @@ def test_oms_capital_fn_uses_real_gateway_funds_after_init() -> None:
     fake_gateway.funds.assert_called()
 
 
-def test_oms_capital_fn_falls_back_on_broker_call_failure() -> None:
-    """If gateway.funds() raises (network error, auth failure,
-    etc.), the capital_fn must fall back to the placeholder rather
-    than disabling the risk check. A transient broker issue must
-    not silently make the risk gate permissive.
+def test_oms_capital_fn_uses_placeholder_on_broker_call_failure_with_fail_open() -> None:
+    """With RISK_FAIL_OPEN=1, if gateway.funds() raises, the
+    capital_fn must fall back to the placeholder rather than
+    disabling the risk check. This preserves the prior B7 invariant
+    for the explicit opt-in case.
     """
     from cli.services.broker_service import BrokerService
 
@@ -230,11 +241,29 @@ def test_oms_capital_fn_falls_back_on_broker_call_failure() -> None:
     assert rm._capital_fn() == Decimal("1000000")
 
 
-def test_oms_capital_fn_falls_back_on_zero_balance() -> None:
-    """If gateway.funds() returns a balance with 0 or negative
-    available_balance, the capital_fn must fall back to the
-    placeholder. A 0 balance would silently disable the
-    'Insufficient capital' check in RiskManager.check_order.
+def test_oms_capital_fn_fails_closed_on_broker_call_failure(monkeypatch) -> None:
+    """M-7 / B-3: with RISK_FAIL_OPEN=0 (the default), a broker
+    outage must block every order by returning Decimal(0). The
+    operator must explicitly opt-in to the legacy placeholder via
+    RISK_FAIL_OPEN=1.
+    """
+    from cli.services.broker_service import BrokerService
+
+    monkeypatch.setenv("RISK_FAIL_OPEN", "0")
+    bs = BrokerService()
+    rm = bs._build_oms_risk_manager()
+
+    fake_gateway = MagicMock()
+    fake_gateway.funds.side_effect = ConnectionError("network down")
+    bs._oms_gateway_holder["gw"] = fake_gateway
+
+    # Fail closed: capital is 0, OMS blocks every order
+    assert rm._capital_fn() == Decimal("0")
+
+
+def test_oms_capital_fn_blocks_on_zero_balance_with_fail_open() -> None:
+    """A zero or negative balance is a hard stop, even with
+    RISK_FAIL_OPEN=1. Phantom capital would defeat the risk gate.
     """
     from cli.services.broker_service import BrokerService
     from brokers.common.core.domain import Balance
@@ -249,8 +278,8 @@ def test_oms_capital_fn_falls_back_on_zero_balance() -> None:
     )
     bs._oms_gateway_holder["gw"] = fake_gateway
 
-    # Falls back to placeholder, not 0
-    assert rm._capital_fn() == Decimal("1000000")
+    # Hard stop on zero/negative balance
+    assert rm._capital_fn() == Decimal("0")
 
 
 def test_oms_capital_fn_caches_position_pct_against_real_balance() -> None:
@@ -267,7 +296,6 @@ def test_oms_capital_fn_caches_position_pct_against_real_balance() -> None:
         PositionManager, RiskConfig, RiskManager,
     )
     from cli.services.broker_service import BrokerService
-    from unittest.mock import MagicMock
 
     bs = BrokerService()
 
@@ -299,3 +327,29 @@ def test_oms_capital_fn_caches_position_pct_against_real_balance() -> None:
     result = rm.check_order(order)
     assert result.allowed is False
     assert "Exceeds max position pct" in result.reason
+
+
+# ── M-7: production readiness gate ───────────────────────────────────────
+
+
+def test_production_readiness_checker_fails_when_reconciliation_unwired() -> None:
+    """ProductionReadinessChecker reports the live CLI as
+    PRODUCTION UNSAFE when the OMS ReconciliationService has no
+    broker-specific implementation.
+    """
+    from brokers.common.services.production_readiness import (
+        ProductionReadinessChecker,
+    )
+    from brokers.common.oms.context import TradingContext
+
+    # Build a TradingContext with reconciliation_service=None — the
+    # pre-B-1 configuration the live CLI used to ship with.
+    ctx = TradingContext(reconciliation_interval_seconds=0)
+    svc = MagicMock()
+    svc._trading_context = ctx
+    svc.lifecycle = MagicMock()
+    svc.lifecycle.service_names.return_value = []
+    report = ProductionReadinessChecker(svc).run()
+    assert not report.passed
+    assert "reconciliation_wired" in report.failed
+    assert "eventlog_wired" in report.failed

@@ -8,6 +8,22 @@
 config/dhan-pin.txt
 config/dhan-totp-secret.txt
 
+# Dhan credential properties (templates are committed; values are gitignored)
+config/dhan-local.properties
+config/dhan-sandbox.properties
+
+# Upstox credential properties
+config/upstox-live.properties
+config/upstox-sandbox.properties
+
+# ICICI credential properties
+config/icici-local.properties
+config/icici-pin.txt
+config/icici-totp-secret.txt
+config/icici-username.txt
+config/icici-password.txt
+config/icici-api-session.txt
+
 # Runtime/token state
 runtime/
 runtime-dev/

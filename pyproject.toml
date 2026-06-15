@@ -68,7 +68,7 @@ addopts = "-ra --strict-markers --tb=short"
 
 # ─── coverage ─────────────────────────────────────────────
 [tool.coverage.run]
-source = ["brokers", "analytics"]
+source = ["brokers", "analytics", "cli", "datalake", "tests/chaos"]
 omit = [
     "*/tests/*",
     "*/__init__.py",

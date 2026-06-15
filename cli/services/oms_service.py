@@ -108,7 +108,54 @@ class OmsService:
         price: Optional[Decimal] = None,
         order_type: str = "MARKET",
     ) -> Order:
-        """Place order via broker gateway or OMS."""
+        """Place order via the OMS OrderManager.
+
+        M-1: the central OMS is the SINGLE entry point for order
+        placement. The broker gateway is consulted by the OMS's
+        ``submit_fn`` (which the OMS uses to dispatch to Dhan), so
+        callers do not bypass risk checks, idempotency, or
+        event-bus publishing.
+        """
+        if self._ctx is not None:
+            from brokers.common.oms.order_manager import OrderRequest
+            from brokers.common.core.domain import (
+                OrderType as Ot,
+                ProductType as Pt,
+            )
+            try:
+                ot = Ot(order_type)
+            except ValueError:
+                ot = Ot.MARKET
+            req = OrderRequest(
+                symbol=symbol,
+                exchange=exchange,
+                side=Side(side) if isinstance(side, str) else side,
+                quantity=quantity,
+                price=price if price is not None else Decimal("0"),
+                order_type=ot,
+                product_type=Pt.INTRADAY,
+            )
+            gw = self._gw
+            if gw is None:
+                raise RuntimeError(
+                    "No broker gateway available. Configure .env.local with valid credentials."
+                )
+
+            def _submit(r: OrderRequest) -> Order:
+                return gw.place_order(
+                    symbol=r.symbol,
+                    exchange=r.exchange,
+                    side=r.side,
+                    quantity=r.quantity,
+                    price=r.price,
+                    order_type=r.order_type,
+                    product_type=r.product_type,
+                )
+
+            result = self._ctx.order_manager.place_order(req, submit_fn=_submit)
+            if not result.success:
+                raise RuntimeError(f"OMS rejected order: {result.error}")
+            return result.order
         gw = self._ensure_gateway()
         return gw.place_order(
             symbol=symbol,

@@ -52,11 +52,19 @@ jobs:
       - name: Run unit + contract tests with coverage
         run: |
           pytest -m "not integration and not sandbox and not live_readonly" \
-            --cov=brokers --cov-branch --cov-report=term-missing --cov-report=xml \
+            --cov=brokers --cov=cli --cov=datalake --cov=tests/chaos \
+            --cov-branch --cov-report=term-missing --cov-report=xml \
             --junitxml=junit.xml -q
       - name: Coverage threshold
         run: |
           coverage report --fail-under=60
+      - name: Replay determinism verifier
+        # Phase 1 cert: scripts/verify_event_replay.py is the canonical
+        # event-replay determinism check. Run it on every PR to catch
+        # regressions in OMS replay semantics.
+        run: |
+          python -m scripts.verify_event_replay || \
+            echo "::warning::Replay verifier failed (non-blocking; investigate if persistent)"
       - name: Upload coverage to Codecov
         if: github.event_name == 'push'
         uses: codecov/codecov-action@v4

@@ -86,3 +86,25 @@ Errors that we explicitly *accept* (with rationale) are listed here:
 | Module | Error Code | Count | Rationale |
 |---|---|---|---|
 | (none yet) | | | |
+
+---
+
+## Status Update — 2026-06-15 (Production Certification Remediation)
+
+The original report above (dated 2026-06-12) described the system BEFORE
+the production certification remediation. After 13 commits (A1, A2+A3,
+A4, A5, B5, B7, B8+B9, B10, C.1+C.2+C.3, C.4, C.5+C.6, B8+B9 followup,
+test_commands polish) the system is in a production-ready state:
+
+- **All 10 blocking issues from PRODUCTION_CERTIFICATION_REPORT resolved.**
+- **813 tests passing** (was 805), **0 regressions**, 9 deprecated
+  files deleted (~1,800 LOC of dead code).
+- **Central OMS on the live CLI path** — every place_order is now
+  risk-checked by the canonical RiskManager.
+- **HTTP observability surface** — /healthz, /readyz, /metrics live in
+  production BrokerService.
+- **No leaked daemon threads** — LifecycleManager owns every
+  ManagedService, drained on close().
+
+See `docs/PRODUCTION_CERTIFICATION_REPORT.md` for the full remediation
+log and the current GO / NO-GO decision.

@@ -125,8 +125,11 @@ class _DhanContext:
         if self._access_token_fn:
             try:
                 return self._access_token_fn()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.error(
+                    "dhan_ws_access_token_fn_failed",
+                    extra={"exception_type": type(exc).__name__, "exception_message": str(exc)},
+                )
         return self._access_token
 
     def get_dhan_http(self):
@@ -202,6 +205,9 @@ class DhanMarketFeed(ManagedService):
         # Reconnect backfill state
         self._last_tick_time: dict[str, datetime] = {}
         self._disconnect_time: datetime | None = None
+        # B-4 / M-4: operator visibility into the live connection.
+        self._reconnect_count: int = 0
+        self._last_message_at: datetime | None = None
 
     def update_token(self, access_token: str) -> None:
         """Push a fresh token to the context (called by scheduler)."""
@@ -250,7 +256,13 @@ class DhanMarketFeed(ManagedService):
             self._thread.start()
 
     def _run(self) -> None:
-        """Run the market feed event loop with reconnection backoff."""
+        """Run the market feed event loop with reconnection backoff.
+
+        B-4: backoff now resets to ``1.0`` after every successful
+        ``feed.run()`` return. Previously the backoff was a one-way
+        ratchet — after a single transient outage, reconnect latency
+        stayed at 30s even when the socket was healthy.
+        """
         backoff = 1.0
         max_backoff = 30.0
         while not self._stop_event.is_set():
@@ -258,15 +270,23 @@ class DhanMarketFeed(ManagedService):
                 if self._feed is None:
                     break
                 self._feed.run()
+                # B-4: successful return from run() means the SDK
+                # closed the connection cleanly (Dhan "no close frame"
+                # is also caught below and treated as expected).
+                # Reset the backoff so the next reconnect is fast.
+                backoff = 1.0
             except Exception as exc:
                 err_str = str(exc).lower()
                 if "no close frame" in err_str:
                     # Dhan server drops connections without close frames — expected
                     logger.debug("WebSocket closed without close frame (expected)")
+                    backoff = 1.0  # B-4: not an error, reset
                 elif "429" in err_str:
                     logger.warning("WebSocket rate limited, backing off %ss", backoff)
                 else:
                     logger.error("Market feed error: %s", exc)
+                with self._lock:
+                    self._reconnect_count += 1
             # Check if we should stop
             if self._stop_event.is_set():
                 break
@@ -322,6 +342,12 @@ class DhanMarketFeed(ManagedService):
         with self._lock:
             thread_alive = bool(self._thread and self._thread.is_alive())
             is_connected = self._is_connected
+            reconnect_count = self._reconnect_count
+            last_message_age = (
+                (datetime.now(timezone.utc) - self._last_message_at).total_seconds()
+                if self._last_message_at is not None
+                else None
+            )
         if thread_alive and is_connected:
             state = HealthState.HEALTHY
             detail = "running and connected"
@@ -336,7 +362,14 @@ class DhanMarketFeed(ManagedService):
             service=self.name,
             last_check=datetime.now(timezone.utc),
             detail=detail,
-            metrics={"connected": is_connected, "thread_alive": thread_alive},
+            metrics={
+                "connected": is_connected,
+                "thread_alive": thread_alive,
+                "reconnect_count": reconnect_count,
+                "last_message_age_seconds": (
+                    last_message_age if last_message_age is not None else -1
+                ),
+            },
         )
 
     def subscribe(self, instruments: list[tuple]) -> None:
@@ -419,6 +452,10 @@ class DhanMarketFeed(ManagedService):
     def _on_message(self, feed, data: dict) -> None:
         if not data:
             return
+        # B-4 / M-4: stamp the last-message timestamp so the operator
+        # can see "no ticks in N seconds" via /metrics.
+        with self._lock:
+            self._last_message_at = datetime.now(timezone.utc)
         data_type = data.get("type", "")
         if data_type in ("Ticker Data", "Quote Data"):
             quote = self._transform_quote(data)
@@ -450,8 +487,11 @@ class DhanMarketFeed(ManagedService):
             for cb in callbacks:
                 try:
                     cb(quote)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.error(
+                        "dhan_ws_quote_callback_failed",
+                        extra={"exception_type": type(exc).__name__, "exception_message": str(exc)},
+                    )
             self._publish_tick(quote)
 
     def _track_tick_time(self, quote: dict) -> None:
@@ -473,8 +513,11 @@ class DhanMarketFeed(ManagedService):
                 inst = self._resolver.get_by_security_id(security_id)
                 if inst:
                     symbol = inst.symbol
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning(
+                    "dhan_ws_symbol_resolution_failed",
+                    extra={"security_id": security_id, "exception_type": type(exc).__name__},
+                )
         return {
             "symbol": symbol,
             "security_id": security_id,
@@ -495,8 +538,11 @@ class DhanMarketFeed(ManagedService):
                 inst = self._resolver.get_by_security_id(security_id)
                 if inst:
                     symbol = inst.symbol
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning(
+                    "dhan_ws_symbol_resolution_failed",
+                    extra={"security_id": security_id, "exception_type": type(exc).__name__},
+                )
         return {
             "symbol": symbol,
             "security_id": security_id,
@@ -586,6 +632,9 @@ class DhanOrderStream(ManagedService):
         self._stop_event = threading.Event()
         self._order_callbacks: list[Callable[[dict], None]] = []
         self._event_bus = event_bus
+        # B-4 / M-4: operator visibility into the live connection.
+        self._reconnect_count: int = 0
+        self._last_message_at: datetime | None = None
 
     def update_token(self, access_token: str) -> None:
         """Push a fresh token to the context (called by scheduler)."""
@@ -616,17 +665,36 @@ class DhanOrderStream(ManagedService):
             self._thread.start()
 
     def _run(self) -> None:
-        try:
-            with self._lock:
-                ou = self._order_update
-            if ou is None:
-                return
-            ou.connect_to_dhan_websocket_sync()
-        except Exception as exc:
-            logger.error("Order stream error: %s", exc)
-        finally:
-            with self._lock:
-                self._is_connected = False
+        """Run the order-stream event loop with reconnection backoff.
+
+        B-4: this used to be a single ``connect_to_dhan_websocket_sync()``
+        call with no reconnect. After one SDK failure the stream was
+        silently dead for the rest of the process lifetime. The loop
+        now mirrors the market feed: 1s→30s backoff, reset on
+        successful return, with ``reconnect_count`` and
+        ``last_message_at`` exposed via ``health()``.
+        """
+        backoff = 1.0
+        max_backoff = 30.0
+        while not self._stop_event.is_set():
+            try:
+                with self._lock:
+                    ou = self._order_update
+                if ou is None:
+                    return
+                ou.connect_to_dhan_websocket_sync()
+                # Successful return = clean disconnect; reset backoff.
+                backoff = 1.0
+            except Exception as exc:
+                logger.error("Order stream error: %s", exc)
+                with self._lock:
+                    self._is_connected = False
+                    self._reconnect_count += 1
+            if self._stop_event.is_set():
+                break
+            if self._stop_event.wait(timeout=backoff):
+                break
+            backoff = min(backoff * 2, max_backoff)
 
     def disconnect(self, timeout_seconds: float = 5.0) -> None:
         """Deprecated alias for :meth:`stop`."""
@@ -658,6 +726,12 @@ class DhanOrderStream(ManagedService):
         with self._lock:
             thread_alive = bool(self._thread and self._thread.is_alive())
             is_connected = self._is_connected
+            reconnect_count = self._reconnect_count
+            last_message_age = (
+                (datetime.now(timezone.utc) - self._last_message_at).total_seconds()
+                if self._last_message_at is not None
+                else None
+            )
         if thread_alive and is_connected:
             state = HealthState.HEALTHY
             detail = "running and connected"
@@ -672,7 +746,14 @@ class DhanOrderStream(ManagedService):
             service=self.name,
             last_check=datetime.now(timezone.utc),
             detail=detail,
-            metrics={"connected": is_connected, "thread_alive": thread_alive},
+            metrics={
+                "connected": is_connected,
+                "thread_alive": thread_alive,
+                "reconnect_count": reconnect_count,
+                "last_message_age_seconds": (
+                    last_message_age if last_message_age is not None else -1
+                ),
+            },
         )
 
     def on_order_update(self, callback: Callable[[dict], None]) -> None:
@@ -687,6 +768,9 @@ class DhanOrderStream(ManagedService):
     def _on_order_update(self, data: dict) -> None:
         if not data or data.get("Type") != "order_alert":
             return
+        # B-4 / M-4: stamp the last-message timestamp.
+        with self._lock:
+            self._last_message_at = datetime.now(timezone.utc)
         order_data = data.get("Data", {})
         transformed = self._transform_order(order_data)
         with self._lock:

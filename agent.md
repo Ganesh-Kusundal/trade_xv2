@@ -506,3 +506,29 @@ Code uses Unicode box-drawing comment banners to organize sections:
 - High-notional orders produce warnings unless strict validation is added
 - Sandbox/live tests should only run with explicit user approval and safe credentials
 - The `runtime/` directory stores token state and is gitignored
+
+---
+
+## Status Update — 2026-06-15
+
+The original guide above (dated 2026-06-11) is mostly accurate but
+references deprecated modules (`models.py`, `enums.py`, `connection.py`)
+and pre-OMS-wire-up architecture. After the 2026-06-15 production
+certification remediation:
+
+- **Deprecated modules deleted** — the canonical types live in
+  `brokers/common/core/domain.py`. `models.py`, `enums.py`,
+  `connection.py`, `mappers.py`, `data_contracts.py`, `facade.py`,
+  `broker.py`, `schemas.py` are GONE.
+- **The central OMS is on the live path** — see `brokers/common/oms/`.
+  The `TradingContext` holds the canonical `OrderManager`,
+  `PositionManager`, `RiskManager`, `EventBus`, and
+  `ProcessedTradeRepository`.
+- **RiskManager sizing is real** — `capital_fn` reads
+  `gateway.funds().available_balance` (not a placeholder).
+- **Every background service is lifecycle-owned** — the
+  `LifecycleManager` in `brokers/common/lifecycle/` is the single
+  owner of every `ManagedService`.
+
+For an up-to-date module-by-module walk, prefer
+`docs/PRODUCTION_CERTIFICATION_REPORT.md` and `README.md`.
