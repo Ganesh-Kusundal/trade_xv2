@@ -17,6 +17,7 @@ from datetime import datetime
 
 from brokers.common.core.auth import AuthManager, JsonTokenStateStore, TokenSource, TokenState
 from brokers.common.event_bus import EventBus
+from brokers.common.lifecycle import LifecycleManager
 from brokers.common.oms.risk_manager import RiskManager
 from brokers.dhan.connection import DhanConnection
 from brokers.dhan.gateway import BrokerGateway
@@ -36,9 +37,6 @@ _SCHEDULER_INTERVAL_SECONDS = 20 * 60
 # Buffer: refresh when 10 minutes remain
 _REFRESH_BUFFER_SECONDS = 600
 
-# Lock to prevent concurrent token refresh from HTTP 401 handler and scheduler
-_token_refresh_lock = threading.Lock()
-
 
 class BrokerFactory:
     @staticmethod
@@ -51,6 +49,7 @@ class BrokerFactory:
         risk_manager: Optional[RiskManager] = None,
         backfill_callback: Optional[Callable[[str, datetime, datetime], list[dict]]] = None,
         reconciliation_service: Optional[object] = None,
+        lifecycle: Optional["LifecycleManager"] = None,
     ) -> BrokerGateway:
         # Load env file first
         env_file = env_path or Path(".env.local")
@@ -115,10 +114,16 @@ class BrokerFactory:
         from brokers.common.resilience.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
         cb = CircuitBreaker("dhan-api", CircuitBreakerConfig(failure_threshold=5, open_duration_ms=30_000))
 
+        # Per-instance refresh lock shared between the HTTP 401 handler
+        # and the scheduler. This replaces the previous module-level
+        # `_token_refresh_lock` global, which leaked across every
+        # gateway constructed in the process.
+        refresh_lock = threading.Lock()
+
         client = DhanHttpClient(
             client_id=cid,
             access_token=token,
-            token_refresh_fn=lambda: _refresh_via_auth(auth, env_file),
+            token_refresh_fn=lambda: _refresh_via_auth(auth, env_file, refresh_lock),
             enable_retry=True,
             circuit_breaker=cb,
         )
@@ -152,20 +157,37 @@ class BrokerFactory:
             auth=auth,
             interval_seconds=_SCHEDULER_INTERVAL_SECONDS,
             buffer_seconds=_REFRESH_BUFFER_SECONDS,
+            refresh_lock=refresh_lock,
             on_refresh=_on_token_refresh,
         )
-        scheduler.start()
-        connection._token_scheduler = scheduler  # Store for cleanup
+        if lifecycle is not None:
+            # New path: the caller owns the lifecycle and the scheduler
+            # is just one of many managed services. The factory does
+            # not start it directly.
+            lifecycle.register(scheduler)
+            connection._token_scheduler = scheduler
+        else:
+            # Backward-compatible path: auto-start the scheduler. This
+            # path is the same one the CLI takes and keeps the daemon
+            # leak that Wave 2 is closing. New callers should always
+            # pass `lifecycle`.
+            scheduler.start()
+            connection._token_scheduler = scheduler
 
         return gateway
 
 
-def _refresh_via_auth(auth: AuthManager, env_file: Path) -> str | None:
+def _refresh_via_auth(
+    auth: AuthManager,
+    env_file: Path,
+    refresh_lock: threading.Lock,
+) -> str | None:
     """Refresh token via AuthManager and persist to .env.local.
 
-    Uses a lock to prevent concurrent refresh from HTTP 401 handler and scheduler.
+    Uses the lock shared with the scheduler to prevent concurrent
+    refresh from the HTTP 401 handler and the background scheduler.
     """
-    if not _token_refresh_lock.acquire(blocking=False):
+    if not refresh_lock.acquire(blocking=False):
         # Another refresh is already in progress
         logger.debug("Token refresh already in progress, skipping")
         return None
@@ -176,7 +198,7 @@ def _refresh_via_auth(auth: AuthManager, env_file: Path) -> str | None:
             return state.access_token
         return None
     finally:
-        _token_refresh_lock.release()
+        refresh_lock.release()
 
 
 def _is_token_expired(token: str, buffer_seconds: int = 300) -> bool:

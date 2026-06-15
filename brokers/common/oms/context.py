@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import threading
 from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
@@ -14,9 +13,11 @@ from brokers.common.event_bus import (
     ProcessedTradeRepository,
 )
 from brokers.common.event_log import EventLog
+from brokers.common.lifecycle import LifecycleManager
 from brokers.common.observability.event_metrics import EventMetrics
 from brokers.common.oms.order_manager import OrderManager
 from brokers.common.oms.position_manager import PositionManager
+from brokers.common.oms.reconciliation_service import ReconciliationService
 from brokers.common.oms.risk_manager import RiskConfig, RiskManager
 
 logger = logging.getLogger(__name__)
@@ -112,18 +113,37 @@ class TradingContext:
         self._event_bus.subscribe("TRADE", self._order_manager.on_trade)
         self._event_bus.subscribe("TRADE_APPLIED", self._position_manager.on_trade_applied)
 
-        # Reconciliation
-        self._reconciliation_service = reconciliation_service
-        self._reconciliation_interval = reconciliation_interval_seconds
-        self._recon_thread: threading.Thread | None = None
-        self._recon_stop_event = threading.Event()
+        # Reconciliation: an externally-owned ReconciliationService
+        # (a ManagedService) is created here so it can be registered
+        # with the lifecycle and drained on shutdown. The previous
+        # implementation started an anonymous daemon thread inside
+        # __init__ and never stopped it.
+        self._reconciliation_service: ReconciliationService | None = None
+        if (
+            reconciliation_service is not None
+            and reconciliation_interval_seconds > 0
+        ):
+            self._reconciliation_service = ReconciliationService(
+                order_manager=self._order_manager,
+                position_manager=self._position_manager,
+                reconciliation_service=reconciliation_service,
+                interval_seconds=reconciliation_interval_seconds,
+                event_bus=self._event_bus,
+            )
 
         if replay_events and self._event_log is not None:
             self._replay_log_into_oms()
 
-        # Start periodic reconciliation if service provided
-        if self._reconciliation_service is not None and self._reconciliation_interval > 0:
-            self._start_reconciliation_timer()
+    def attach_lifecycle(self, lifecycle: LifecycleManager) -> None:
+        """Register the context's managed services with a lifecycle.
+
+        Callers that own a :class:`LifecycleManager` (the CLI, the TUI,
+        the live gateway) MUST call this so the reconciliation service
+        (and any future managed services) participate in deterministic
+        start/stop.
+        """
+        if self._reconciliation_service is not None:
+            lifecycle.register(self._reconciliation_service)
 
     @property
     def event_bus(self) -> EventBus:
@@ -167,52 +187,25 @@ class TradingContext:
         }
 
     def run_reconciliation(self) -> Any:
-        """Run reconciliation immediately (called by timer or manually)."""
+        """Run reconciliation immediately (called by timer or manually).
+
+        The actual reconciliation now lives in
+        :class:`ReconciliationService`; this is a thin shim kept for
+        backward compatibility.
+        """
         if self._reconciliation_service is None:
             return None
-        try:
-            report = self._reconciliation_service.reconcile(
-                local_orders=self._order_manager.get_all_orders(),
-                local_positions=self._position_manager.get_positions_as_dicts(),
-            )
-            if hasattr(report, "has_drift") and report.has_drift:
-                logger.warning(
-                    "Reconciliation found %d drift items (high: %d)",
-                    len(report.drift_items),
-                    report.high_severity_count,
-                )
-            return report
-        except Exception as exc:
-            logger.error("Reconciliation failed: %s", exc)
-            return None
+        return self._reconciliation_service.run_now()
 
     def stop_reconciliation(self) -> None:
-        """Stop the periodic reconciliation timer."""
-        self._recon_stop_event.set()
-        if self._recon_thread is not None and self._recon_thread.is_alive():
-            self._recon_thread.join(timeout=5)
+        """Backward-compatible shim that delegates to the service.
 
-    def _start_reconciliation_timer(self) -> None:
-        """Start background thread for periodic reconciliation."""
-        self._recon_stop_event.clear()
-        self._recon_thread = threading.Thread(
-            target=self._reconciliation_loop,
-            daemon=True,
-            name="reconciliation-timer",
-        )
-        self._recon_thread.start()
-        logger.info(
-            "Reconciliation timer started (interval=%ss)",
-            self._reconciliation_interval,
-        )
-
-    def _reconciliation_loop(self) -> None:
-        """Background loop that runs reconciliation periodically."""
-        while not self._recon_stop_event.is_set():
-            # Wait for interval or stop signal
-            if self._recon_stop_event.wait(timeout=self._reconciliation_interval):
-                break
-            self.run_reconciliation()
+        Prefer registering the context with a
+        :class:`LifecycleManager` and calling :meth:`LifecycleManager.stop_all`.
+        """
+        if self._reconciliation_service is None:
+            return
+        self._reconciliation_service.stop()
 
     def _replay_log_into_oms(self) -> None:
         """Replay persisted ORDER_UPDATED/TRADE events to rebuild OMS state.
