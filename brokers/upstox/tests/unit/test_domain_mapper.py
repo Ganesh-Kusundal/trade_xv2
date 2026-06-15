@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from brokers.common.core.enums import (
+from brokers.common.core.domain import (
     ExchangeSegment,
 )
 from brokers.common.core.domain import (
@@ -20,7 +20,7 @@ from brokers.common.core.domain import (
     Trade,
     Validity,
 )
-from brokers.common.core.models import (
+from brokers.common.core.domain import (
     OrderRequest,
 )
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
@@ -68,9 +68,9 @@ def test_txn_wire_round_trip():
 
 
 def test_to_place_payload_basic():
-    from brokers.common.core.enums import TransactionType, OrderType as EnumsOrderType
-    from brokers.common.core.enums import ProductType as EnumsProductType
-    from brokers.common.core.enums import Validity as EnumsValidity
+    from brokers.common.core.domain import TransactionType, OrderType as EnumsOrderType
+    from brokers.common.core.domain import ProductType as EnumsProductType
+    from brokers.common.core.domain import Validity as EnumsValidity
 
     req = OrderRequest(
         symbol="RELIANCE",
@@ -98,9 +98,9 @@ def test_to_place_payload_basic():
 
 
 def test_to_place_payload_with_slice_and_market_protection():
-    from brokers.common.core.enums import TransactionType, OrderType as EnumsOrderType
-    from brokers.common.core.enums import ProductType as EnumsProductType
-    from brokers.common.core.enums import Validity as EnumsValidity
+    from brokers.common.core.domain import TransactionType, OrderType as EnumsOrderType
+    from brokers.common.core.domain import ProductType as EnumsProductType
+    from brokers.common.core.domain import Validity as EnumsValidity
 
     req = OrderRequest(
         symbol="TCS",

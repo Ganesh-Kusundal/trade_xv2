@@ -14,7 +14,7 @@ from unittest.mock import MagicMock
 import pandas as pd
 import pytest
 
-from brokers.common.data_contracts import FundLimits
+from brokers.common.core.domain import FundLimits
 from brokers.common.intelligent_gateway import IntelligentGateway
 from brokers.common.observability.event_metrics import EventMetrics
 

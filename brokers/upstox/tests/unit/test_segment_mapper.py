@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from brokers.common.core.enums import ExchangeSegment
+from brokers.common.core.domain import ExchangeSegment
 from brokers.upstox.instruments.segment_mapper import UpstoxSegmentMapper
 
 

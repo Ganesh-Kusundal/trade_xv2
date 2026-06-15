@@ -30,7 +30,7 @@ from typing import Any, Optional
 
 import pandas as pd
 
-from brokers.common.data_contracts import FundLimits, MarketDepth, Quote
+from brokers.common.core.domain import FundLimits, MarketDepth, Quote
 from brokers.common.observability.event_metrics import EventMetrics
 
 logger = logging.getLogger(__name__)

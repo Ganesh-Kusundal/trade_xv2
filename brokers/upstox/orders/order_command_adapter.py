@@ -11,7 +11,7 @@ from typing import Any
 
 from brokers.common.api.ports import IdempotencyCachePort, OrderCommand
 from brokers.common.core.domain import Order, OrderResponse, Side as OrderSide
-from brokers.common.core.models import (
+from brokers.common.core.domain import (
     OrderPreview,
     OrderRequest,
 )

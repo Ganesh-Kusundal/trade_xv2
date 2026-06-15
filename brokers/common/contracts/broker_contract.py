@@ -7,7 +7,7 @@ from typing import Any, ClassVar
 import pandas as pd
 import pytest
 
-from brokers.common.core.connection import Capability
+from brokers.common.core.domain import Capability
 from brokers.common.core.domain import (
     FundLimits,
     Holding,

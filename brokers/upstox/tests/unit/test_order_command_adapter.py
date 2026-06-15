@@ -5,14 +5,14 @@ from __future__ import annotations
 from decimal import Decimal
 from unittest.mock import MagicMock
 
-from brokers.common.core.enums import (
+from brokers.common.core.domain import (
     ExchangeSegment,
     OrderType as EnumsOrderType,
     ProductType as EnumsProductType,
     TransactionType,
     Validity as EnumsValidity,
 )
-from brokers.common.core.models import OrderRequest
+from brokers.common.core.domain import OrderRequest
 from brokers.common.event_bus import EventBus
 from brokers.upstox.orders.order_client import UpstoxRestOrderClient
 from brokers.upstox.orders.order_command_adapter import UpstoxOrderCommandAdapter

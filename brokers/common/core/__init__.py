@@ -10,8 +10,8 @@ from brokers.common.core.auth import (
     TokenState,
     TokenStateStore,
 )
-from brokers.common.core.connection import BrokerConnection, Capability, ConnectionStatus
-from brokers.common.core.enums import (
+from brokers.common.core.domain import BrokerConnection, Capability, ConnectionStatus
+from brokers.common.core.domain import (
     ExchangeSegment,
     FeedMode,
     InstrumentType,
@@ -22,7 +22,7 @@ from brokers.common.core.enums import (
     Validity,
 )
 from brokers.common.core.instruments import Instrument, InstrumentRegistry
-from brokers.common.core.models import (
+from brokers.common.core.domain import (
     ConditionalAlert,
     ConditionalAlertRequest,
     FundLimits,

@@ -22,6 +22,7 @@ Usage::
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, replace
 from datetime import datetime
 from decimal import Decimal
@@ -487,3 +488,254 @@ TransactionType = Side  # Upstox uses TransactionType.BUY/SELL
 
 # Import ExchangeSegment enum from enums.py (has .NSE, .BSE, .NSE_FNO etc.)
 FeedMode = str          # Upstox uses string-based feed modes
+
+
+# ── Upstox compatibility: enums from deprecated enums.py ──────────────────
+
+
+class ExchangeSegment(str, Enum):
+    """Exchange segments supported by the broker system.
+
+    Migrated from brokers.common.core.domain. The values use the
+    canonical wire-format strings (e.g. "NSE_EQ") so the segment
+    string used in the HTTP payload matches what the broker expects.
+    """
+
+    NSE = "NSE_EQ"
+    BSE = "BSE_EQ"
+    NSE_FNO = "NSE_FNO"
+    BSE_FNO = "BSE_FNO"
+    MCX = "MCXCOMM"
+    NSE_CURRENCY = "NSE_CURRENCY"
+    BSE_CURRENCY = "BSE_CURRENCY"
+    IDX_I = "IDX_I"
+
+
+class InstrumentType(str, Enum):
+    """Canonical instrument type categories."""
+
+    EQUITY = "EQUITY"
+    FUTURES = "FUTURES"
+    OPTIONS = "OPTIONS"
+    CURRENCY = "CURRENCY"
+    COMMODITY = "COMMODITY"
+    INDEX = "INDEX"
+
+
+# FeedMode is a string-based enum (LTP, QUOTE, FULL, etc.) — keep
+# as a simple str alias for now; future refactor can make it a
+# proper Enum. Matches the value of brokers.common.core.enums.FeedMode.
+FeedMode = str
+
+
+# ── Upstox compatibility: input shapes from deprecated models.py ──────
+
+
+@dataclass(slots=True, frozen=False)
+class OrderRequest:
+    """Input model for placing an order.
+
+    Migrated from the deprecated Pydantic model in
+    ``brokers.common.core.models``. Same fields and semantics, but as
+    a lightweight dataclass — no Pydantic validation overhead.
+    """
+
+    security_id: str = ""
+    symbol: str = ""
+    exchange: str = "NSE"
+    exchange_segment: ExchangeSegment = ExchangeSegment.NSE
+    transaction_type: TransactionType = TransactionType.BUY
+    quantity: int = 0
+    price: Decimal = Decimal("0")
+    trigger_price: Decimal | None = None
+    order_type: OrderType = OrderType.MARKET
+    product_type: ProductType = ProductType.INTRADAY
+    validity: Validity = Validity.DAY
+    correlation_id: str | None = None
+    tag: str | None = None
+    slice: bool = False
+    market_protection: int = -1
+    algo_name: str | None = None
+
+
+@dataclass(slots=True, frozen=False)
+class ModifyOrderRequest:
+    """Input model for modifying an existing order."""
+
+    order_id: str
+    quantity: int | None = None
+    price: Decimal | None = None
+    trigger_price: Decimal | None = None
+    order_type: OrderType | None = None
+    validity: Validity | None = None
+    product_type: ProductType | None = None
+
+
+@dataclass(slots=True, frozen=False)
+class OrderPreview:
+    """Outcome of pre-flight order validation."""
+
+    valid: bool = False
+    errors: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    notional: Decimal | None = None
+    margin_required: Decimal | None = None
+
+
+@dataclass(slots=True, frozen=False)
+class HistoricalCandle:
+    """A single OHLCV candle returned by the historical-data endpoint."""
+
+    timestamp: datetime | None = None
+    symbol: str = ""
+    exchange: str = "NSE"
+    open: Decimal = Decimal("0")
+    high: Decimal = Decimal("0")
+    low: Decimal = Decimal("0")
+    close: Decimal = Decimal("0")
+    volume: int = 0
+    open_interest: int = 0
+    timeframe: str = "1D"
+
+
+# ── Upstox compatibility: from deprecated connection.py ────────────────────
+
+
+class Capability(str, Enum):
+    """Capabilities a broker connection can provide (Upstox compat)."""
+
+    MARKET_DATA = "market_data"
+    ORDER_COMMAND = "order_command"
+    ORDER_QUERY = "order_query"
+    PORTFOLIO = "portfolio"
+    OPTIONS_CHAIN = "options_chain"
+    INSTRUMENTS = "instruments"
+    FUTURES = "futures"
+    HISTORICAL_DATA = "historical_data"
+    WEBSOCKET = "websocket"
+    BRACKET_ORDER = "bracket_order"
+    COVER_ORDER = "cover_order"
+    GTT_ORDER = "gtt_order"
+    SLICE_ORDER = "slice_order"
+    MARGIN = "margin"
+    NEWS = "news"
+    SESSION_RISK = "session_risk"
+    ALERTS = "alerts"
+    MARKET_STATUS = "market_status"
+    DEPTH = "depth"
+    ORDER_STREAM = "order_stream"
+    IDEMPOTENCY = "idempotency"
+    MULTI_ORDER = "multi_order"
+    KILL_SWITCH = "kill_switch"
+    STATIC_IP = "static_ip"
+    SMARTLIST = "smartlist"
+    FII_DII = "fii_dii"
+    OI_PCR_MAXPAIN = "oi_pcr_maxpain"
+    MARKET_INTELLIGENCE = "market_intelligence"
+    FUNDAMENTALS = "fundamentals"
+    IPO = "ipo"
+    MUTUAL_FUNDS = "mutual_funds"
+    PAYMENTS = "payments"
+    INSTRUMENT_SEARCH = "instrument_search"
+    HISTORICAL_TRADES = "historical_trades"
+    TSL = "trailing_stop_loss"
+    MTF = "mtf"
+    WEBHOOKS = "webhooks"
+    PORTFOLIO_STREAM = "portfolio_stream"
+    ORDER_SLICING = "order_slicing"
+    DEPTH_30 = "depth_30"
+    LEVEL2_MARKET_DATA = "level2_market_data"
+    OPTION_GREEKS = "option_greeks"
+    GLOBAL_MARKETS = "global_markets"
+    VOLATILITY_INDEX = "volatility_index"
+
+
+class ConnectionStatus(str, Enum):
+    """Lifecycle status of a broker connection (Upstox compat)."""
+
+    DISCONNECTED = "DISCONNECTED"
+    CONNECTING = "CONNECTING"
+    CONNECTED = "CONNECTED"
+    RECONNECTING = "RECONNECTING"
+
+    def is_connected(self) -> bool:
+        return self == ConnectionStatus.CONNECTED
+
+
+class BrokerConnection(ABC):
+    """Abstract broker connection with capability-based service discovery.
+
+    Migrated from brokers.common.core.domain. New broker adapters
+    should use the MarketDataGateway ABC from brokers.common.gateway
+    directly; this class is retained for Upstox backward compatibility.
+
+    Subclasses register providers in ``_capability_map`` during init.
+    Consumers discover services at runtime::
+
+        conn = SomeBrokerConnection(...)
+        if conn.has_capability(Capability.MARKET_DATA):
+            md_provider = conn.get_capability(Capability.MARKET_DATA)
+            quote = md_provider.get_quote("2885")
+    """
+
+    def __init__(
+        self,
+        name: str,
+        broker_id: str,
+        capabilities: set[Capability] | None = None,
+    ):
+        self._name = name
+        self._broker_id = broker_id
+        self._capabilities: set[Capability] = capabilities or set()
+        self._capability_map: dict[Capability, Any] = {}
+        self._status: ConnectionStatus = ConnectionStatus.DISCONNECTED
+
+    @abstractmethod
+    def connect(self) -> bool:
+        """Establish connection to the broker."""
+        ...
+
+    @abstractmethod
+    def disconnect(self) -> bool:
+        """Tear down the broker connection."""
+        ...
+
+    @abstractmethod
+    def reconnect(self) -> bool:
+        """Re-establish a dropped connection."""
+        ...
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def broker_id(self) -> str:
+        return self._broker_id
+
+    @property
+    def status(self) -> ConnectionStatus:
+        return self._status
+
+    def capabilities(self) -> set[Capability]:
+        return set(self._capabilities)
+
+    def has_capability(self, capability: Capability) -> bool:
+        return capability in self._capabilities
+
+    def get_capability(self, capability: Capability):
+        return self._capability_map.get(capability)
+
+    def _register_capability(self, capability: Capability, provider: Any) -> None:
+        self._capabilities.add(capability)
+        self._capability_map[capability] = provider
+
+    def _set_status(self, status: ConnectionStatus) -> None:
+        self._status = status
+
+    def __enter__(self) -> BrokerConnection:
+        self.connect()
+        return self
+
+    def __exit__(self, *args) -> None:
+        self.disconnect()

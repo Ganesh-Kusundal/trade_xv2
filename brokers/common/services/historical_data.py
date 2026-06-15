@@ -226,7 +226,7 @@ class HistoricalDataService:
         try:
             import pandas as pd
 
-            from brokers.common.core.models import HistoricalCandle
+            from brokers.common.core.domain import HistoricalCandle
 
             df = pd.read_parquet(path)
             out: list[HistoricalCandle] = []

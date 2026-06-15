@@ -8,7 +8,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any, Generic, Protocol, TypeVar
 
-from brokers.common.core.models import (
+from brokers.common.core.domain import (
     ConditionalAlert,
     ConditionalAlertRequest,
     FundLimits,

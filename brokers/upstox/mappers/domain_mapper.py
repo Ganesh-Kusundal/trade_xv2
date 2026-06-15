@@ -13,7 +13,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from brokers.common.core.enums import (
+from brokers.common.core.domain import (
     ExchangeSegment,
     InstrumentType,
 )
@@ -34,7 +34,7 @@ from brokers.common.core.domain import (
     Trade,
     Validity,
 )
-from brokers.common.core.models import (
+from brokers.common.core.domain import (
     HistoricalCandle,
     OrderRequest,
 )

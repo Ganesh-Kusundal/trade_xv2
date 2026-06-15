@@ -6,7 +6,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from decimal import Decimal
 
-from brokers.common.core.enums import ExchangeSegment, InstrumentType
+from brokers.common.core.domain import ExchangeSegment, InstrumentType
 
 
 @dataclass(frozen=True)

@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from brokers.common.core.connection import BrokerConnection, Capability, ConnectionStatus
+from brokers.common.core.domain import BrokerConnection, Capability, ConnectionStatus
 from brokers.common.event_bus import EventBus
 from brokers.common.oms.risk_manager import RiskManager
 from brokers.common.services.historical_data import HistoricalDataService
