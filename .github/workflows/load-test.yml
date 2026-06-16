@@ -1,0 +1,110 @@
+name: Load Testing
+
+on:
+  schedule:
+    - cron: '0 2 * * 1'  # Every Monday at 2 AM UTC
+  workflow_dispatch:     # Manual trigger
+  push:
+    branches: [main]
+    paths:
+      - 'brokers/**/*.py'
+      - 'cli/load_testing/**/*.py'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  load-test:
+    name: Load Test (Paper Broker)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      
+      - name: Run load tests
+        run: |
+          python -c "
+          import asyncio
+          from cli.load_testing.runner import LoadTestRunner
+          from cli.services.broker_service import BrokerService
+          from brokers.paper.paper_gateway import PaperGateway
+          
+          async def main():
+              # Create paper broker service
+              service = BrokerService(broker_name='paper')
+              await service.start()
+              
+              # Run load tests
+              runner = LoadTestRunner(service)
+              
+              endpoints = ['quotes', 'historical']
+              results = []
+              
+              for endpoint in endpoints:
+                  print(f'\n=== Testing {endpoint} ===')
+                  result = await runner.run_test(
+                      endpoint_type=endpoint,
+                      duration_seconds=5.0,
+                      concurrency=5
+                  )
+                  results.append(result)
+                  print(f\"Requests: {result['requests_sent']}\")
+                  print(f\"Success: {result['success_count']}\")
+                  print(f\"RPS: {result['rps']:.2f}\")
+                  print(f\"Avg Latency: {result['avg_latency_ms']:.2f}ms\")
+                  print(f\"Min Latency: {result['min_latency_ms']:.2f}ms\")
+                  print(f\"Max Latency: {result['max_latency_ms']:.2f}ms\")
+              
+              await service.close()
+              
+              # Check performance budget
+              budget = {
+                  'quotes': {'max_latency_ms': 100, 'min_rps': 50},
+                  'historical': {'max_latency_ms': 500, 'min_rps': 10},
+              }
+              
+              failures = []
+              for result in results:
+                  endpoint = result['endpoint']
+                  if endpoint in budget:
+                      b = budget[endpoint]
+                      if result['avg_latency_ms'] > b['max_latency_ms']:
+                          failures.append(
+                              f\"{endpoint}: avg latency {result['avg_latency_ms']:.2f}ms > {b['max_latency_ms']}ms budget\"
+                          )
+                      if result['rps'] < b['min_rps']:
+                          failures.append(
+                              f\"{endpoint}: RPS {result['rps']:.2f} < {b['min_rps']} budget\"
+                          )
+              
+              if failures:
+                  print('\n❌ Performance budget violations:')
+                  for f in failures:
+                      print(f'  - {f}')
+                  exit(1)
+              else:
+                  print('\n✅ All performance budgets met')
+          
+          asyncio.run(main())
+          "
+      
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: load-test-results
+          path: |
+            *.json
+            *.txt
