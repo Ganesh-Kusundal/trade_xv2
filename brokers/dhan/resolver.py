@@ -367,8 +367,8 @@ def _generate_alternate_keys(
                 keys.append(f"{und_up}{yyyy}{MMM}FUT")
                 keys.append(f"{und_up}{dd}{MMM}FUT")
                 keys.append(f"{und_up}FUT")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("alternate_key_generation_failed: %s", exc)
 
     res = []
     seen = set()

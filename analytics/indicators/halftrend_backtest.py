@@ -7,9 +7,12 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 import numpy as np
 import pandas as pd
@@ -212,8 +215,8 @@ def run_halftrend_backtest(top_n: int = 50, years: int = 1):
             if not df.empty and len(df) > 100:
                 avg_vol = df["volume"].mean()
                 volume_data[sym] = avg_vol
-        except:
-            pass
+        except Exception as exc:
+            logger.debug("volume_fetch_failed: %s: %s", sym, exc)
 
     # Sort by volume, take top N
     ranked = sorted(volume_data.items(), key=lambda x: x[1], reverse=True)[:top_n]
@@ -244,8 +247,8 @@ def run_halftrend_backtest(top_n: int = 50, years: int = 1):
 
             if i % 20 == 0:
                 print(f"  [{i}/{len(symbols)}] processed...")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("backtest_failed: %s: %s", sym, exc)
 
     # Summary
     if not results:

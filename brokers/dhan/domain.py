@@ -14,23 +14,18 @@ from dataclasses import dataclass
 from datetime import timedelta, timezone
 from decimal import Decimal
 from enum import Enum
+from typing import Any
 
 # ── Re-exports from canonical common domain ────────────────────────────────
 # These are the single source of truth for order/trade/position/holding
 # types and their associated enums across ALL broker adapters.
 from brokers.common.core.domain import (
-    Balance,
-    DepthLevel,
-    FundLimits,
     Holding,
-    MarketDepth,
     Order,
-    OrderResponse,
     OrderStatus,
     OrderType,
     Position,
     ProductType,
-    Quote,
     Side,
     Trade,
     Validity,
@@ -154,3 +149,176 @@ class Instrument:
 # enum so that ``OrderSide.BUY`` / ``OrderSide.SELL`` keep working.
 
 OrderSide = Side
+
+
+@dataclass(frozen=True)
+class SuperOrderLeg:
+    """Individual leg of a super order (Entry, Target, Stop Loss)."""
+
+    leg_name: str  # ENTRY_LEG, TARGET_LEG, STOP_LOSS_LEG
+    transaction_type: str
+    quantity: int
+    price: Decimal
+    trigger_price: Decimal | None = None
+    order_status: str | None = None
+    trailing_jump: Decimal | None = None
+
+
+@dataclass(frozen=True)
+class SuperOrder:
+    """Super Order with Entry + Target + Stop Loss + Trailing SL."""
+
+    order_id: str
+    correlation_id: str | None
+    transaction_type: str
+    exchange_segment: str
+    product_type: str
+    order_type: str
+    security_id: str
+    quantity: int
+    price: Decimal
+    target_price: Decimal
+    stop_loss_price: Decimal
+    trailing_jump: Decimal
+    order_status: str
+    leg_details: list[SuperOrderLeg]
+    trading_symbol: str | None = None
+    created_time: str | None = None
+
+
+# ── Forever Orders ───────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class ForeverOrderRequest:
+    """Request to place a forever order (SINGLE or OCO)."""
+
+    symbol: str
+    exchange: str
+    order_flag: str  # SINGLE or OCO
+    transaction_type: str
+    product_type: str
+    order_type: str
+    quantity: int
+    price: Decimal
+    trigger_price: Decimal
+    price1: Decimal | None = None  # OCO target price
+    trigger_price1: Decimal | None = None  # OCO target trigger
+    quantity1: int | None = None  # OCO target quantity
+    validity: str = "DAY"
+    correlation_id: str | None = None
+
+
+@dataclass(frozen=True)
+class ForeverOrder:
+    """Forever Order (Single GTT or OCO)."""
+
+    order_id: str
+    order_status: str
+    order_flag: str  # SINGLE or OCO
+    transaction_type: str
+    exchange_segment: str
+    product_type: str
+    order_type: str
+    trading_symbol: str
+    security_id: str
+    quantity: int
+    price: Decimal
+    trigger_price: Decimal
+    leg_name: str | None = None
+    created_time: str | None = None
+
+
+# ── Conditional Triggers ─────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class ConditionalTriggerRequest:
+    """Request to create a conditional trigger (price-based)."""
+
+    symbol: str
+    exchange: str
+    comparison_type: str  # PRICE_WITH_VALUE
+    operator: str  # CROSSING_UP, CROSSING_DOWN, GREATER_THAN, LESS_THAN
+    comparing_value: Decimal
+    exp_date: str  # YYYY-MM-DD
+    frequency: str = "ONCE"
+    orders: list[dict] | None = None  # Orders to execute when triggered
+    user_note: str | None = None
+
+
+@dataclass(frozen=True)
+class ConditionalTrigger:
+    """Conditional trigger order."""
+
+    alert_id: str
+    alert_status: str
+    comparison_type: str
+    exchange_segment: str
+    security_id: str
+    operator: str
+    comparing_value: Decimal
+    exp_date: str
+    frequency: str
+    orders: list[dict]
+    created_time: str | None = None
+    triggered_time: str | None = None
+    last_price: Decimal | None = None
+    user_note: str | None = None
+
+
+# ── Ledger ───────────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class LedgerEntry:
+    """Ledger entry for account transactions."""
+
+    narration: str
+    voucher_date: str
+    exchange: str
+    voucher_description: str
+    voucher_number: str
+    debit: Decimal
+    credit: Decimal
+    running_balance: Decimal
+
+
+# ── User Profile ─────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class UserProfile:
+    """User profile information."""
+
+    token_valid: bool
+    active_segments: list[str]
+    ddpi_status: str
+    mtf_enabled: bool
+    data_api_subscription: str
+    user_configurations: dict[str, Any]
+
+
+# ── IP Management ────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class IPConfig:
+    """IP configuration for static IP whitelisting."""
+
+    ip_address: str
+    ip_type: str  # PRIMARY or SECONDARY
+    status: str
+
+
+# ── Exit All ─────────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class ExitAllResponse:
+    """Response from exit all operation."""
+
+    positions_closed: int
+    orders_cancelled: int
+    success: bool
+    message: str

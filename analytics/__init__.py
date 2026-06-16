@@ -224,7 +224,6 @@ class Analytics:
         """
         if candidates is None:
             return self._strategy_pipeline
-        from analytics.scanner.models import Candidate
         logger.info("Running strategy pipeline on %d candidates", len(candidates))
         return self._strategy_pipeline.evaluate(candidates, features_by_symbol or {})
 

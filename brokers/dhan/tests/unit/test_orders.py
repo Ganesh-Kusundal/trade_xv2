@@ -201,3 +201,99 @@ def test_place_order_risk_check_blocks_order(fake_client, resolver):
         adapter.place_order("RELIANCE", "NSE", "BUY", 1000, price=Decimal("100"), order_type="LIMIT")
     assert "Risk check failed" in str(exc_info.value)
     assert len(fake_client.calls_for("POST", "/orders")) == 0
+
+
+def test_place_slice_order_payload(fake_client, resolver):
+    """Verify POST /orders/slicing payload (same as regular order)."""
+    fake_client.set_response("POST", "/orders/slicing", {
+        "data": {"orderId": "SLICE123"}
+    })
+    adapter = OrdersAdapter(fake_client, resolver)
+    order = adapter.place_slice_order(
+        symbol="RELIANCE",
+        exchange="NSE",
+        side="BUY",
+        quantity=1000,  # Large order for slicing
+        order_type="LIMIT",
+        price=Decimal("2450.00"),
+        product_type="INTRADAY",
+    )
+    payloads = fake_client.calls_for("POST", "/orders/slicing")
+    assert len(payloads) == 1
+    payload = payloads[0]
+    assert payload["dhanClientId"] == "TEST_CLIENT"
+    assert payload["securityId"] == "2885"
+    assert payload["exchangeSegment"] == "NSE_EQ"
+    assert payload["quantity"] == 1000
+    assert order.order_id == "SLICE123"
+
+
+def test_get_trade_history_payload(fake_client, resolver):
+    """Verify GET /trades/{from}/{to}/{page}."""
+    fake_client.set_response("GET", "/trades/2026-01-01/2026-01-31/0", {
+        "data": [
+            {
+                "tradeId": "TRD001",
+                "orderId": "ORD001",
+                "tradingSymbol": "RELIANCE",
+                "exchangeSegment": "NSE_EQ",
+                "transactionType": "BUY",
+                "tradedQty": 10,
+                "tradedPrice": 2449.75,
+            },
+        ]
+    })
+    adapter = OrdersAdapter(fake_client, resolver)
+    trades = adapter.get_trade_history("2026-01-01", "2026-01-31", page=0)
+    
+    calls = fake_client.calls_for("GET", "/trades/2026-01-01/2026-01-31/0")
+    assert calls is not None
+    assert len(trades) == 1
+    assert trades[0].trade_id == "TRD001"
+    assert trades[0].symbol == "RELIANCE"
+
+
+def test_get_trade_history_parsing(fake_client, resolver):
+    """Verify response parsing to list[Trade]."""
+    fake_client.set_response("GET", "/trades/2026-01-01/2026-01-31/0", {
+        "data": [
+            {
+                "tradeId": "TRD001",
+                "orderId": "ORD001",
+                "tradingSymbol": "RELIANCE",
+                "exchangeSegment": "NSE_EQ",
+                "transactionType": "BUY",
+                "tradedQty": 10,
+                "tradedPrice": 2449.75,
+            },
+            {
+                "tradeId": "TRD002",
+                "orderId": "ORD002",
+                "tradingSymbol": "TCS",
+                "exchangeSegment": "NSE_EQ",
+                "transactionType": "SELL",
+                "tradedQty": 5,
+                "tradedPrice": 3900.00,
+            },
+        ]
+    })
+    adapter = OrdersAdapter(fake_client, resolver)
+    trades = adapter.get_trade_history("2026-01-01", "2026-01-31")
+    
+    assert len(trades) == 2
+    assert trades[0].quantity == 10
+    assert trades[0].price == Decimal("2449.75")
+    assert trades[1].side == OrderSide.SELL
+
+
+def test_get_trade_history_pagination(fake_client, resolver):
+    """Verify page parameter handling."""
+    fake_client.set_response("GET", "/trades/2026-01-01/2026-01-31/2", {
+        "data": []
+    })
+    adapter = OrdersAdapter(fake_client, resolver)
+    trades = adapter.get_trade_history("2026-01-01", "2026-01-31", page=2)
+    
+    calls = fake_client.calls_for("GET", "/trades/2026-01-01/2026-01-31/2")
+    assert calls is not None
+    assert len(trades) == 0

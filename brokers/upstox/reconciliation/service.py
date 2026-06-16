@@ -186,8 +186,8 @@ class UpstoxReconciliationService:
         if method is not None:
             try:
                 return method()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("oms_get_positions_as_dicts_failed: %s", exc)
         # Fallback to get_positions()
         method = getattr(self._oms, "get_positions", None)
         if method is None:

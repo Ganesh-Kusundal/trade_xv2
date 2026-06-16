@@ -144,7 +144,6 @@ class TestCheckUniverse:
 
         engine = DataQualityEngine(root=str(tmp_path))
         # Monkey-patch UNIVERSE_FILES to use our test CSV
-        import datalake.quality as q
         from datalake.schema import UNIVERSE_FILES
         UNIVERSE_FILES["TEST5"] = str(csv_path)
 

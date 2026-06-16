@@ -72,6 +72,27 @@ class BrokerCapabilities:
     product_types: tuple[str, ...] = ("INTRADAY", "MARGIN")
     validities: tuple[str, ...] = ("DAY", "IOC")
 
+    # Advanced order types
+    super_orders: bool = False
+    forever_orders: bool = False
+    conditional_triggers: bool = False
+    slice_orders: bool = False
+
+    # Account management
+    ledger: bool = False
+    user_profile: bool = False
+    ip_management: bool = False
+    edis: bool = False
+    exit_all: bool = False
+    trade_pnl: bool = False
+    convert_position: bool = False
+
+    # Investment capabilities
+    ipo: bool = False
+    mutual_funds: bool = False
+    fundamentals: bool = False
+    payments: bool = False
+
     # Instrument capabilities
     load_instruments: bool = True
     search: bool = True

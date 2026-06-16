@@ -132,7 +132,7 @@ def test_main_module_populates_registry_on_import() -> None:
     elif chain but leaves it in the registry, the next test will catch
     the divergence.
     """
-    import cli.main
+    import cli.main  # noqa: F401 — triggers register() calls
 
     for name, module in EXPECTED_COMMANDS.items():
         assert name in registry.COMMANDS, (

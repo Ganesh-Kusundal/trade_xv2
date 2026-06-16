@@ -17,9 +17,13 @@ from brokers.common.services.historical_data import HistoricalDataService
 from brokers.upstox.auth.config import UpstoxConnectionSettings
 from brokers.upstox.auth.context import UpstoxAdapterContext
 from brokers.upstox.auth.token_manager import UpstoxTokenManager
+from brokers.upstox.fundamentals.adapter import UpstoxFundamentalsAdapter
+from brokers.upstox.fundamentals.client import UpstoxFundamentalsClient
 from brokers.upstox.instruments.loader import UpstoxInstrumentLoader
 from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
 from brokers.upstox.instruments.search import UpstoxInstrumentSearch
+from brokers.upstox.ipo.adapter import UpstoxIpoAdapter
+from brokers.upstox.ipo.client import UpstoxIpoClient
 from brokers.upstox.kill_switch.adapter import UpstoxKillSwitchAdapter
 from brokers.upstox.kill_switch.client import UpstoxKillSwitchClient
 from brokers.upstox.market_data.client_v2 import UpstoxMarketDataV2Client
@@ -38,9 +42,12 @@ from brokers.upstox.market_data.options_adapter import UpstoxOptionsAdapter
 from brokers.upstox.market_data.options_client import UpstoxOptionsClient
 from brokers.upstox.market_data.portfolio_adapter import UpstoxPortfolioAdapter
 from brokers.upstox.market_data.portfolio_client import UpstoxPortfolioClient
+from brokers.upstox.market_data.trade_pnl import TradePnLCalculator
 from brokers.upstox.market_intelligence.adapter import UpstoxMarketIntelligenceAdapter
 from brokers.upstox.market_intelligence.client import UpstoxMarketIntelligenceClient
 from brokers.upstox.market_intelligence.snapshot import UpstoxMarketIntelligenceSnapshotBuilder
+from brokers.upstox.mutual_funds.adapter import UpstoxMutualFundsAdapter
+from brokers.upstox.mutual_funds.client import UpstoxMutualFundsClient
 from brokers.upstox.news.adapter import UpstoxNewsAdapter
 from brokers.upstox.news.client import UpstoxNewsClient
 from brokers.upstox.orders.alert_adapter import UpstoxAlertAdapter
@@ -52,6 +59,8 @@ from brokers.upstox.orders.order_client import UpstoxRestOrderClient
 from brokers.upstox.orders.order_command_adapter import UpstoxOrderCommandAdapter
 from brokers.upstox.orders.order_query_adapter import UpstoxOrderQueryAdapter
 from brokers.upstox.orders.slice_adapter import UpstoxSliceAdapter
+from brokers.upstox.payments.adapter import UpstoxPaymentsAdapter
+from brokers.upstox.payments.client import UpstoxPaymentsClient
 from brokers.upstox.reconciliation.service import UpstoxReconciliationService
 from brokers.upstox.static_ip.adapter import UpstoxStaticIpAdapter
 from brokers.upstox.static_ip.client import UpstoxStaticIpClient
@@ -138,6 +147,18 @@ class UpstoxBroker(BrokerConnection):
         self.order_client = UpstoxRestOrderClient(
             self.context.http_client, self.context.url_resolver
         )
+        self.ipo_client = UpstoxIpoClient(
+            self.context.http_client, self.context.url_resolver
+        )
+        self.payments_client = UpstoxPaymentsClient(
+            self.context.http_client, self.context.url_resolver
+        )
+        self.mutual_funds_client = UpstoxMutualFundsClient(
+            self.context.http_client, self.context.url_resolver
+        )
+        self.fundamentals_client = UpstoxFundamentalsClient(
+            self.context.http_client, self.context.url_resolver
+        )
 
         # Adapters
         self.market_data = UpstoxMarketDataAdapter(
@@ -156,6 +177,10 @@ class UpstoxBroker(BrokerConnection):
         )
         self.kill_switch = UpstoxKillSwitchAdapter(self.kill_switch_client)
         self.static_ip = UpstoxStaticIpAdapter(self.static_ip_client)
+        self.ipo = UpstoxIpoAdapter(self.ipo_client)
+        self.payments = UpstoxPaymentsAdapter(self.payments_client)
+        self.mutual_funds = UpstoxMutualFundsAdapter(self.mutual_funds_client)
+        self.fundamentals = UpstoxFundamentalsAdapter(self.fundamentals_client)
 
         # Orders
         self.idempotency_cache = InMemoryIdempotencyCache()
@@ -211,6 +236,11 @@ class UpstoxBroker(BrokerConnection):
                 self.order_client, self.portfolio_client, oms=self._oms, auto_repair=False
             )
 
+        # Trade P&L Calculator
+        self.trade_pnl_calculator = TradePnLCalculator(
+            self.portfolio_client, self.market_data_v2
+        )
+
         self._register_all_capabilities()
 
     def _register_all_capabilities(self) -> None:
@@ -236,6 +266,10 @@ class UpstoxBroker(BrokerConnection):
         self._register_capability(Capability.MARKET_INTELLIGENCE, self.intelligence)
         self._register_capability(Capability.KILL_SWITCH, self.kill_switch)
         self._register_capability(Capability.STATIC_IP, self.static_ip)
+        self._register_capability(Capability.IPO, self.ipo)
+        self._register_capability(Capability.PAYMENTS, self.payments)
+        self._register_capability(Capability.MUTUAL_FUNDS, self.mutual_funds)
+        self._register_capability(Capability.FUNDAMENTALS, self.fundamentals)
         self._register_capability(Capability.PORTFOLIO_STREAM, self.market_data_websocket)
         self._register_capability(Capability.WEBHOOKS, self.feed_authorizer)
         self._register_capability(Capability.OPTION_GREEKS, self.intelligence)

@@ -1,6 +1,7 @@
 """Live integration tests for Dhan WebSocket — market feed and order stream.
 
 Requires .env.local with valid DHAN_CLIENT_ID and DHAN_ACCESS_TOKEN.
+Skips real WebSocket tests during off-market hours to avoid flaky failures.
 """
 
 from __future__ import annotations
@@ -10,6 +11,8 @@ import threading
 from pathlib import Path
 
 import pytest
+
+from tests.market_hours import skip_off_market
 
 ENV_PATH = Path(__file__).resolve().parent.parent.parent.parent.parent / ".env.local"
 LIVE_DHAN = ENV_PATH.exists()
@@ -54,6 +57,7 @@ class TestLiveWebSocket:
         stream.on_order_update(lambda u: updates.append(u))
         assert len(stream._order_callbacks) == 1
 
+    @skip_off_market(reason="WebSocket connection requires live market")
     def test_market_feed_connect_and_receive(self):
         """Connect to Dhan WebSocket, subscribe to NIFTY, verify at least 1 tick."""
         client_id, access_token = _load_credentials()
@@ -88,6 +92,7 @@ class TestLiveWebSocket:
         finally:
             feed.disconnect()
 
+    @skip_off_market(reason="Order stream requires live market")
     def test_order_stream_connect(self):
         """Connect to Dhan order stream and verify connection."""
         client_id, access_token = _load_credentials()

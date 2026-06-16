@@ -72,8 +72,8 @@ class OptionsAdapter:
                     ce_inst = self._resolver.get_by_security_id(str(ce_sec_id))
                     if ce_inst:
                         ce_symbol = ce_inst.symbol
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("ce_symbol_resolve_failed: %s", ce_sec_id)
 
             pe_symbol = ""
             if pe_sec_id:
@@ -81,8 +81,8 @@ class OptionsAdapter:
                     pe_inst = self._resolver.get_by_security_id(str(pe_sec_id))
                     if pe_inst:
                         pe_symbol = pe_inst.symbol
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("pe_symbol_resolve_failed: %s", pe_sec_id)
 
             strikes.append({
                 "strike": strike,

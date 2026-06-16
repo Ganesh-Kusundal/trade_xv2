@@ -31,8 +31,16 @@ if ENV_PATH.exists() and ENV_PATH.stat().st_size > 0:
         os.environ.get("UPSTOX_API_KEY") and os.environ.get("UPSTOX_ACCESS_TOKEN")
     )
 
+def _should_skip_live() -> bool:
+    """Skip live tests if credentials missing OR market is closed."""
+    if not _live_env_loaded:
+        return True
+    from tests.market_hours import is_market_open
+    return not is_market_open()
+
 skip_live = pytest.mark.skipif(
-    not _live_env_loaded, reason=".env.upstox with UPSTOX_API_KEY and UPSTOX_ACCESS_TOKEN required for live API tests"
+    _should_skip_live(),
+    reason="Live API tests require .env.upstox credentials and open market hours"
 )
 
 
@@ -92,12 +100,12 @@ class TestUpstoxDepthContract:
 class TestUpstoxPortfolioContract:
     @skip_live
     def test_holdings_returns_list(self, live_gateway):
-        holdings = live_gateway.portfolio.holdings()
+        holdings = live_gateway.holdings()
         assert isinstance(holdings, list)
 
     @skip_live
     def test_positions_returns_list(self, live_gateway):
-        positions = live_gateway.portfolio.positions()
+        positions = live_gateway.positions()
         assert isinstance(positions, list)
 
 

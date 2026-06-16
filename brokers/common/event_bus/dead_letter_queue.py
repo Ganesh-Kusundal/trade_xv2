@@ -13,6 +13,13 @@ entry is dropped and ``dropped`` counter is incremented.
 
 from __future__ import annotations
 
+import logging
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from typing import Any, Callable
+
+logger = logging.getLogger(__name__)
+
 import threading
 from collections import deque
 from dataclasses import dataclass
@@ -76,9 +83,9 @@ class DeadLetterQueue:
                 if self._on_drop is not None:
                     try:
                         self._on_drop(dead_letter)
-                    except Exception:
+                    except Exception as exc:
                         # Never let the drop callback break the producer.
-                        pass
+                        logger.debug("dead_letter_drop_callback_failed: %s", exc)
                 return False
             self._items.append(dead_letter)
             return True

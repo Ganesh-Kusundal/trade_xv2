@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 import time
 
 from rich.console import Console
 from rich.table import Table
+
+logger = logging.getLogger(__name__)
 
 
 def run(args: list[str], broker_service, console: Console) -> None:
@@ -51,16 +54,16 @@ def run(args: list[str], broker_service, console: Console) -> None:
         for s in syms:
             try:
                 gw.dhan.history(s, timeframe='1D', lookback_days=30)
-            except:
-                pass
+            except Exception as exc:
+                logger.debug("benchmark_dhan_history_failed: %s", exc)
         t_dhan = (time.time() - t0) * 1000
 
         t0 = time.time()
         for s in syms:
             try:
                 gw.upstox.history(s, timeframe='1D', lookback_days=30)
-            except:
-                pass
+            except Exception as exc:
+                logger.debug("benchmark_upstox_history_failed: %s", exc)
         t_up = (time.time() - t0) * 1000
 
         winner = "Dhan" if t_dhan < t_up else "Upstox"
@@ -83,16 +86,16 @@ def run(args: list[str], broker_service, console: Console) -> None:
         for s in syms:
             try:
                 gw.dhan.quote(s)
-            except:
-                pass
+            except Exception as exc:
+                logger.debug("benchmark_dhan_quote_failed: %s", exc)
         t_dhan = (time.time() - t0) * 1000
 
         t0 = time.time()
         for s in syms:
             try:
                 gw.upstox.quote(s)
-            except:
-                pass
+            except Exception as exc:
+                logger.debug("benchmark_upstox_quote_failed: %s", exc)
         t_up = (time.time() - t0) * 1000
 
         winner = "Dhan" if t_dhan < t_up else "Upstox"
@@ -115,16 +118,16 @@ def run(args: list[str], broker_service, console: Console) -> None:
         for s in syms:
             try:
                 gw.dhan.ltp(s)
-            except:
-                pass
+            except Exception as exc:
+                logger.debug("benchmark_dhan_ltp_failed: %s", exc)
         t_dhan = (time.time() - t0) * 1000
 
         t0 = time.time()
         for s in syms:
             try:
                 gw.upstox.ltp(s)
-            except:
-                pass
+            except Exception as exc:
+                logger.debug("benchmark_upstox_ltp_failed: %s", exc)
         t_up = (time.time() - t0) * 1000
 
         winner = "Dhan" if t_dhan < t_up else "Upstox"

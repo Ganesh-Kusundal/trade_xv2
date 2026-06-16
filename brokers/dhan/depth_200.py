@@ -236,13 +236,12 @@ class DhanDepth200Feed(ManagedService):
 
     def _connect_and_run(self) -> None:
         """Establish WebSocket connection and process messages."""
-        try:
-            import asyncio
+        import importlib.util
 
-            import websockets
-        except ImportError:
+        if importlib.util.find_spec("websockets") is None:
             logger.error("websockets package not installed: pip install websockets")
             return
+        import asyncio
 
         url = f"{self.ENDPOINT}?token={self._access_token}&clientId={self._client_id}&authType=2"
 

@@ -11,10 +11,12 @@ import duckdb
 
 from analytics.views.base import BaseViews
 from analytics.views.features import FeatureViews
+from analytics.views.options_views import OptionViews
 from analytics.views.quality import QualityViews
 from analytics.views.scanner import ScannerViews
 from analytics.views.strategy import StrategyViews
 from datalake.duckdb_utils import DEFAULT_CATALOG_PATH, connect_with_retry
+from datalake.options_analytics_sql import SQL_M_IV_SURFACE, SQL_M_MAX_PAIN, SQL_M_PCR
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +52,7 @@ class ViewManager:
         self.scanner = ScannerViews()
         self.strategy = StrategyViews()
         self.quality = QualityViews()
+        self.options = OptionViews()
 
     @property
     def conn(self) -> duckdb.DuckDBPyConnection:
@@ -61,8 +64,8 @@ class ViewManager:
         if self._conn is not None:
             try:
                 self._conn.close()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("view_manager_close_failed: %s", exc)
             self._conn = None
 
     # ─── Materialization ─────────────────────────────────────────────────────
@@ -191,6 +194,8 @@ class ViewManager:
             ("strategy", self.strategy.create_views),
             ("materialize_quality", self._materialize_quality),
             ("quality", self.quality.create_views),
+            ("materialize_options", self._materialize_options),
+            ("options", self.options.create_views),
         ]
 
         for name, creator in layers:
@@ -478,6 +483,32 @@ class ViewManager:
             except Exception as exc:
                 logger.error("Failed to materialize %s: %s", table_name, exc)
 
+    def _materialize_options(self, conn: duckdb.DuckDBPyConnection) -> None:
+        """Materialize option analytics tables from market_data/options/candles/.
+
+        Reads from migrated option Parquet data and computes:
+        - m_pcr: Put-Call Ratio (volume + OI) per (timestamp, underlying, expiry)
+        - m_max_pain: Max Pain strike per (timestamp, underlying, expiry)
+        - m_iv_surface: ATM IV, OTM put IV, OTM call IV, IV skew
+
+        These are expensive operations over 1M rows of option data
+        (Max Pain uses a self-join). Materialized once, refreshed on data sync.
+        """
+        tables = [
+            ("m_pcr", SQL_M_PCR),
+            ("m_max_pain", SQL_M_MAX_PAIN),
+            ("m_iv_surface", SQL_M_IV_SURFACE),
+        ]
+        for table_name, sql in tables:
+            try:
+                start = time.perf_counter()
+                self.materialize(table_name, sql)
+                self.register_materialized(table_name)
+                elapsed = time.perf_counter() - start
+                logger.info("Materialized %s (%.2fs)", table_name, elapsed)
+            except Exception as exc:
+                logger.error("Failed to materialize %s: %s", table_name, exc)
+
     def drop_all(self) -> None:
         """Drop all analytics views and materialized tables."""
         views = self.list_views()
@@ -487,11 +518,12 @@ class ViewManager:
                 continue
             try:
                 self.conn.execute(f"DROP VIEW IF EXISTS {v['name']}")
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("view_drop_failed: %s: %s", v['name'], exc)
         # Drop materialized tables
         for tbl in ["m_intraday", "m_recent_daily", "m_symbol_snapshot", "m_intraday_snapshot",
-                     "m_duplicate_candles", "m_missing_candles", "m_trading_days"]:
+                     "m_duplicate_candles", "m_missing_candles", "m_trading_days",
+                     "m_pcr", "m_max_pain", "m_iv_surface"]:
             self.conn.execute(f"DROP TABLE IF EXISTS {tbl}")
         logger.info("Dropped views and materialized tables")
 

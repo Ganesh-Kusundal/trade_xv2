@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
@@ -9,9 +10,20 @@ from typing import Any
 import pandas as pd
 
 from brokers.common.batch_mixin import BatchFetchMixin
-from brokers.common.core.domain import OrderResponse, Quote
+from brokers.common.core.domain import (
+    Balance,
+    Holding,
+    MarketDepth,
+    Order,
+    OrderResponse,
+    Position,
+    Quote,
+    Trade,
+)
 from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
 from brokers.upstox.broker import UpstoxBroker
+
+logger = logging.getLogger(__name__)
 
 
 class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
@@ -60,6 +72,22 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
     def websocket(self) -> Any:
         return self._broker.market_data_websocket
 
+    @property
+    def ipo(self) -> Any:
+        return self._broker.ipo
+
+    @property
+    def payments(self) -> Any:
+        return self._broker.payments
+
+    @property
+    def mutual_funds(self) -> Any:
+        return self._broker.mutual_funds
+
+    @property
+    def fundamentals(self) -> Any:
+        return self._broker.fundamentals
+
     # ── Market Data (ABC-aligned) ─────────────────────────────────────
 
     def ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:
@@ -71,8 +99,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
                 return Decimal(str(v["last_price"]))
         return Decimal("0")
 
-    def quote(self, symbol: str, exchange: str = "NSE") -> Any:
-        from brokers.common.core.domain import Quote
+    def quote(self, symbol: str, exchange: str = "NSE") -> Quote:
         key = self._resolve_instrument_key(symbol, exchange)
         body = self._broker.market_data_v2.get_quote([key])
         data = body.get("data", {})
@@ -90,10 +117,11 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
                     volume=int(v.get("volume", 0)),
                     change=Decimal(str(v.get("net_change", 0))),
                 )
+        logger.warning("quote_not_found", extra={"symbol": symbol, "exchange": exchange})
         return Quote(symbol=symbol)
 
-    def depth(self, symbol: str, exchange: str = "NSE") -> Any:
-        from brokers.common.core.domain import DepthLevel, MarketDepth
+    def depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
+        from brokers.common.core.domain import DepthLevel
         key = self._resolve_instrument_key(symbol, exchange)
         body = self._broker.market_data_v2.get_order_book(key)
         data = body.get("data", {})
@@ -109,13 +137,54 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         asks = [DepthLevel(price=Decimal(str(l.get("price", 0))), quantity=int(l.get("quantity", 0)), orders=int(l.get("orders", 0))) for l in sell[:5]]
         return MarketDepth(bids=bids, asks=asks)
 
-    def get_orderbook(self) -> list[Any]:
+    def get_orderbook(self) -> list[Order]:
         return self._broker.order_query.get_order_list()
 
-    def get_trade_book(self) -> list[Any]:
+    def get_trade_book(self) -> list[Trade]:
         raise NotImplementedError(
             "Upstox trade book endpoint is not available. Use orders/get_trades() instead."
         )
+
+    # ── IPO ────────────────────────────────────────────────────────────
+
+    def get_ipos(self, status: str = "open") -> list[dict[str, Any]]:
+        return self._broker.ipo.get_ipos(status=status)
+
+    # ── Payments ───────────────────────────────────────────────────────
+
+    def initiate_payout(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._broker.payments.initiate_payout(payload)
+
+    def get_payouts(self) -> list[dict[str, Any]]:
+        return self._broker.payments.get_payouts()
+
+    def modify_payout(self, payout_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._broker.payments.modify_payout(payout_id, payload)
+
+    def cancel_payout(self, payout_id: str) -> dict[str, Any]:
+        return self._broker.payments.cancel_payout(payout_id)
+
+    # ── Mutual Funds ───────────────────────────────────────────────────
+
+    def get_mutual_fund_holdings(self) -> list[dict[str, Any]]:
+        return self._broker.mutual_funds.get_holdings()
+
+    def place_mutual_fund_order(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._broker.mutual_funds.place_order(payload)
+
+    # ── Fundamentals ───────────────────────────────────────────────────
+
+    def get_pnl(self, isin: str) -> dict[str, Any]:
+        return self._broker.fundamentals.get_pnl(isin)
+
+    def get_balance_sheet(self, isin: str) -> dict[str, Any]:
+        return self._broker.fundamentals.get_balance_sheet(isin)
+
+    def get_cash_flow(self, isin: str) -> dict[str, Any]:
+        return self._broker.fundamentals.get_cash_flow(isin)
+
+    def get_ratios(self, isin: str) -> dict[str, Any]:
+        return self._broker.fundamentals.get_ratios(isin)
 
     # ── Lifecycle ──
 
@@ -255,16 +324,39 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
             "Upstox future chain is not supported. Use Dhan for future chains."
         )
 
-    def funds(self) -> Any:
+    def funds(self) -> Balance:
         return self._broker.portfolio.get_fund_limits()
 
-    def positions(self) -> list[Any]:
+    def positions(self) -> list[Position]:
         return self._broker.portfolio.get_positions()
 
-    def holdings(self) -> list[Any]:
+    def holdings(self) -> list[Holding]:
         return self._broker.portfolio.get_holdings()
 
-    def trades(self) -> list[Any]:
+    def get_user_profile(self) -> dict[str, Any]:
+        return self._broker.portfolio.get_profile()
+
+    def convert_position(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._broker.portfolio_client.convert_position(payload)
+
+    def get_trade_pnl(self) -> list[dict[str, Any]]:
+        pnl_results = self._broker.trade_pnl_calculator.calculate_all_pnl()
+        return [
+            {
+                "symbol": p.symbol,
+                "exchange": p.exchange,
+                "quantity": p.quantity,
+                "average_price": str(p.average_price),
+                "current_price": str(p.current_price),
+                "realized_pnl": str(p.realized_pnl),
+                "unrealized_pnl": str(p.unrealized_pnl),
+                "total_pnl": str(p.total_pnl),
+                "pnl_percentage": str(p.pnl_percentage),
+            }
+            for p in pnl_results
+        ]
+
+    def trades(self) -> list[Trade]:
         return self.get_trade_book()
 
     def describe(self) -> dict:
@@ -299,6 +391,15 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
             search=True,
             rate_limit_per_second=10,
             rate_limit_per_minute=200,
+            # Investment capabilities
+            ipo=True,
+            mutual_funds=True,
+            fundamentals=True,
+            payments=True,
+            # Account management
+            user_profile=True,
+            convert_position=True,
+            trade_pnl=True,
         )
 
     def search(self, query: str) -> list[dict]:

@@ -114,8 +114,8 @@ class TradeJournal:
                     logger.warning("TradeJournal: stale connection for thread %d, reconnecting", tid)
                     try:
                         conn.close()
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("journal_stale_conn_close_failed: %s", exc)
                     del self._conns[tid]
                     conn = None
             if conn is None:
@@ -140,8 +140,8 @@ class TradeJournal:
             for conn in list(self._conns.values()):
                 try:
                     conn.close()
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("journal_conn_close_failed: %s", exc)
             self._conns.clear()
 
     # ─── Trades ──────────────────────────────────────────────────────────────

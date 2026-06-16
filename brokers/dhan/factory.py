@@ -363,11 +363,11 @@ def _update_env_token(env_path: Path, token: str) -> None:
         if fd is not None:
             try:
                 fcntl.flock(fd, fcntl.LOCK_UN)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("file_unlock_failed: %s", exc)
             try:
                 os.close(fd)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("file_close_failed: %s", exc)
 
 

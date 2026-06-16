@@ -151,8 +151,8 @@ class BrokerService:
                 gauges["capital_fallback_count"] = float(
                     getattr(self, "_capital_fallback_count", 0)
                 )
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("capital_fallback_gauge_failed: %s", exc)
             ctx = getattr(self, "_trading_context", None)
             if ctx is not None:
                 dlq = getattr(ctx, "dead_letter_queue", None)
@@ -160,8 +160,8 @@ class BrokerService:
                     try:
                         gauges["dlq_depth"] = float(len(dlq.entries))
                         gauges["dlq_dropped"] = float(getattr(dlq, "dropped", 0))
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("dlq_gauge_failed: %s", exc)
                 recon = getattr(ctx, "_reconciliation_service", None)
                 if recon is not None:
                     try:
@@ -171,8 +171,8 @@ class BrokerService:
                         gauges["reconciliation_run_count"] = float(
                             recon.run_count
                         )
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("reconciliation_gauge_failed: %s", exc)
                 if getattr(ctx, "_event_log", None) is not None:
                     gauges["event_log_replay_count"] = float(
                         getattr(ctx._event_log, "replay_count", 0)
@@ -193,8 +193,8 @@ class BrokerService:
                             getattr(scheduler, "refresh_count", 0)
                         )
                         gauges["token_refresh_last_error"] = 1.0 if getattr(scheduler, "_last_error", None) else 0.0
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("token_refresh_gauge_failed: %s", exc)
             client = getattr(conn, "_client", None) if conn is not None else None
             if client is not None:
                 for name, cb in (
@@ -209,8 +209,8 @@ class BrokerService:
                                 if hasattr(getattr(cb, "state", 0), "value")
                                 else 0
                             )
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            logger.debug("circuit_breaker_gauge_failed: %s", exc)
             return gauges
 
         try:
@@ -668,13 +668,13 @@ class BrokerService:
         if self._trading_context is not None:
             try:
                 self._trading_context.stop_reconciliation()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("reconciliation_stop_failed: %s", exc)
             self._trading_context = None
         # 3. Close the live gateway. This closes the HTTP session and
         #    any broker-owned resources.
         if self._gateway is not None:
             try:
                 self._gateway.close()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("gateway_close_failed: %s", exc)

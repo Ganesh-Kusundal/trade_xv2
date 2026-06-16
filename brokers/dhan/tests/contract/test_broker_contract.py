@@ -39,6 +39,8 @@ from brokers.dhan.gateway import BrokerGateway
 from brokers.dhan.orders import IdempotencyCache
 from brokers.dhan.tests.conftest import SAMPLE_ROWS, FakeHttpClient
 
+from tests.market_hours import skip_off_market
+
 # ---------------------------------------------------------------------------
 # Live-skip guard
 # ---------------------------------------------------------------------------
@@ -49,7 +51,17 @@ if ENV_PATH.exists() and ENV_PATH.stat().st_size > 0:
     load_dotenv(ENV_PATH, override=True)
     _live_env_loaded = bool(os.environ.get("DHAN_CLIENT_ID"))
 
-skip_live = pytest.mark.skipif(not _live_env_loaded, reason=".env.local with DHAN_CLIENT_ID required for live API tests")
+def _should_skip_live() -> bool:
+    """Skip live tests if credentials missing OR market is closed."""
+    if not _live_env_loaded:
+        return True
+    from tests.market_hours import is_market_open
+    return not is_market_open()
+
+skip_live = pytest.mark.skipif(
+    _should_skip_live(),
+    reason="Live API tests require .env.local credentials and open market hours"
+)
 
 
 # ---------------------------------------------------------------------------

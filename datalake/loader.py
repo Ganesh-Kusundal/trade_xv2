@@ -10,18 +10,23 @@ All symbols are normalized (uppercased, stripped) before writing.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, time as dt_time
 from pathlib import Path
 
 import pandas as pd
 import pyarrow as pa
 
 from datalake.io import atomic_parquet_write
-from datalake.schema import CANONICAL_COLUMNS
+from datalake.schema import CANONICAL_COLUMNS, MARKET_CLOSE_HOUR, MARKET_CLOSE_MINUTE, MARKET_OPEN_HOUR, MARKET_OPEN_MINUTE
 from datalake.symbols import normalize_symbol
 from datalake.validation import validate_candles
 
 logger = logging.getLogger(__name__)
+
+# NSE trading hours
+NSE_MARKET_OPEN = dt_time(MARKET_OPEN_HOUR, MARKET_OPEN_MINUTE)  # 09:15
+NSE_MARKET_CLOSE = dt_time(MARKET_CLOSE_HOUR, MARKET_CLOSE_MINUTE)  # 15:30
+EXPECTED_CANDLES_PER_DAY = 375  # 1-minute candles for full trading day
 
 
 class HistoricalDataLoader:
@@ -66,6 +71,15 @@ class HistoricalDataLoader:
         if dup_count > 0:
             logger.warning("%s: dropping %d duplicate timestamps", symbol, dup_count)
         df = df.drop_duplicates(subset=["timestamp"], keep="last").sort_values("timestamp")
+
+        # Validate intraday completeness
+        if timeframe in ("1m", "5m", "15m", "30m"):
+            completeness = self._check_intraday_completeness(df, timeframe)
+            if completeness < 0.90:  # Less than 90% complete
+                logger.warning(
+                    "%s: Intraday completeness only %.1f%% (expected ~375 candles/day for 1m)",
+                    symbol, completeness * 100
+                )
 
         # Write to Parquet
         rows, invalid = self._write_parquet(df, symbol, timeframe)
@@ -157,7 +171,20 @@ class HistoricalDataLoader:
         last_date = ts.max()
         days_missing = (datetime.now() - last_date).days
 
-        if days_missing <= 1:
+        # Check for incomplete last day
+        incomplete_day = False
+        if timeframe in ("1m", "5m", "15m", "30m"):
+            last_day_candles = (ts.dt.date == last_date.date()).sum()
+            candles_per_hour = 60 // int(timeframe.replace("m", "").replace("h", "60"))
+            expected_last_day = int(candles_per_hour * 6.25)
+            if last_day_candles < expected_last_day * 0.90:  # Less than 90%
+                incomplete_day = True
+                logger.warning(
+                    "%s: Last day incomplete (%d/%d candles)",
+                    symbol, last_day_candles, expected_last_day
+                )
+
+        if days_missing <= 1 and not incomplete_day:
             logger.info("%s: no gaps detected", symbol)
             return 0
 
@@ -237,3 +264,32 @@ class HistoricalDataLoader:
             / symbol_to_path(symbol)
             / "data.parquet"
         )
+
+    def _check_intraday_completeness(self, df: pd.DataFrame, timeframe: str) -> float:
+        """Check intraday data completeness.
+
+        Returns
+        -------
+        float
+            Completeness ratio (0.0 to 1.0) based on expected candles per day.
+        """
+        if df.empty or "timestamp" not in df.columns:
+            return 0.0
+
+        # Calculate expected candles per day based on timeframe
+        candles_per_hour = 60 // int(timeframe.replace("m", "").replace("h", "60"))
+        trading_hours = 6.25  # 9:15 to 15:30 = 6.25 hours
+        expected_per_day = int(candles_per_hour * trading_hours)
+
+        # Group by date and count candles
+        ts = pd.to_datetime(df["timestamp"])
+        daily_counts = ts.groupby(ts.dt.date).count()
+
+        if len(daily_counts) == 0:
+            return 0.0
+
+        # Calculate average completeness
+        avg_candles = daily_counts.mean()
+        completeness = min(avg_candles / expected_per_day, 1.0)
+
+        return completeness

@@ -10,11 +10,17 @@ from brokers.common.event_bus import EventBus
 from brokers.common.lifecycle import LifecycleManager
 from brokers.common.oms.risk_manager import RiskManager
 from brokers.dhan.alerts import AlertsAdapter
+from brokers.dhan.conditional_triggers import ConditionalTriggersAdapter
 from brokers.dhan.depth_20 import DhanDepth20Feed
 from brokers.dhan.depth_200 import DhanDepth200Feed
+from brokers.dhan.edis import EDISAdapter
+from brokers.dhan.exit_all import ExitAllAdapter
+from brokers.dhan.forever_orders import ForeverOrdersAdapter
 from brokers.dhan.futures import FuturesAdapter
 from brokers.dhan.historical import HistoricalAdapter
 from brokers.dhan.http_client import DhanHttpClient
+from brokers.dhan.ip_management import IPManagementAdapter
+from brokers.dhan.ledger import LedgerAdapter
 from brokers.dhan.loader import InstrumentLoader
 from brokers.dhan.margin import MarginAdapter
 from brokers.dhan.market_data import MarketDataAdapter
@@ -22,6 +28,8 @@ from brokers.dhan.options import OptionsAdapter
 from brokers.dhan.orders import OrdersAdapter
 from brokers.dhan.portfolio import PortfolioAdapter
 from brokers.dhan.resolver import SymbolResolver
+from brokers.dhan.super_orders import SuperOrdersAdapter
+from brokers.dhan.user_profile import UserProfileAdapter
 from brokers.dhan.websocket import DhanMarketFeed, DhanOrderStream, PollingMarketFeed
 
 logger = logging.getLogger(__name__)
@@ -71,6 +79,14 @@ class DhanConnection:
         self._futures = FuturesAdapter(client, self.instruments)
         self._margin = MarginAdapter(client, self.instruments)
         self._alerts = AlertsAdapter(client, self.instruments)
+        self._super_orders = SuperOrdersAdapter(client, self.instruments)
+        self._forever_orders = ForeverOrdersAdapter(client, self.instruments)
+        self._conditional_triggers = ConditionalTriggersAdapter(client, self.instruments)
+        self._ledger = LedgerAdapter(client)
+        self._user_profile = UserProfileAdapter(client)
+        self._ip_management = IPManagementAdapter(client)
+        self._edis = EDISAdapter(client)
+        self._exit_all = ExitAllAdapter(client)
         self._market_feed: DhanMarketFeed | None = None
         self._order_stream: DhanOrderStream | None = None
         self._polling_feed: PollingMarketFeed | None = None
@@ -114,6 +130,38 @@ class DhanConnection:
     @property
     def alerts(self) -> AlertsAdapter:
         return self._alerts
+
+    @property
+    def super_orders(self) -> SuperOrdersAdapter:
+        return self._super_orders
+
+    @property
+    def forever_orders(self) -> ForeverOrdersAdapter:
+        return self._forever_orders
+
+    @property
+    def conditional_triggers(self) -> ConditionalTriggersAdapter:
+        return self._conditional_triggers
+
+    @property
+    def ledger(self) -> LedgerAdapter:
+        return self._ledger
+
+    @property
+    def user_profile(self) -> UserProfileAdapter:
+        return self._user_profile
+
+    @property
+    def ip_management(self) -> IPManagementAdapter:
+        return self._ip_management
+
+    @property
+    def edis(self) -> EDISAdapter:
+        return self._edis
+
+    @property
+    def exit_all(self) -> ExitAllAdapter:
+        return self._exit_all
 
     @property
     def backfill_callback(self) -> Callable[[str, datetime, datetime], list[dict]] | None:

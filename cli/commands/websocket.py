@@ -7,12 +7,15 @@ generating fake random values.
 
 from __future__ import annotations
 
+import logging
 import time
 from datetime import datetime
 from typing import Any
 
 from rich.console import Console
 from rich.live import Live
+
+logger = logging.getLogger(__name__)
 from rich.table import Table
 
 from cli.services.broker_service import BrokerService
@@ -47,8 +50,8 @@ def _ws_status(broker_service: BrokerService) -> dict[str, Any]:
                 try:
                     age = (datetime.now() - lt).total_seconds()
                     stats["last_tick_age_s"] = round(age, 1)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("tick_age_calc_failed: %s", exc)
             stats["tick_count"] = int(getattr(mf, "_tick_count", 0))
 
         # Order stream

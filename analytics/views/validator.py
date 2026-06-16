@@ -34,6 +34,9 @@ VALID_VIEWS = [
     "v_missing_candles",
     "v_duplicate_candles",
     "v_quality_score",
+    "v_pcr",
+    "v_max_pain",
+    "v_iv_surface",
 ]
 
 
@@ -123,8 +126,8 @@ class PointInTimeValidator:
                         report.add_issue(
                             f"Future data detected: max timestamp {max_ts} > now {now}"
                         )
-        except Exception:
-            pass  # View may not have timestamp column
+        except Exception as exc:
+            logger.debug("temporal_validation_failed: %s: %s", view_name, exc)  # View may not have timestamp column
 
     def _check_temporal_ordering(self, view_name: str, report: ValidationReport) -> None:
         """Check that data is temporally ordered."""
@@ -146,8 +149,8 @@ class PointInTimeValidator:
                 report.add_issue(
                     f"Temporal ordering violation: {result[0]} rows out of order"
                 )
-        except Exception:
-            pass  # View may not have required columns
+        except Exception as exc:
+            logger.debug("temporal_ordering_check_failed: %s: %s", view_name, exc)  # View may not have required columns
 
     def _check_feature_lag(self, view_name: str, report: ValidationReport) -> None:
         """Check that features use only past data (no look-ahead)."""
@@ -165,8 +168,8 @@ class PointInTimeValidator:
                     report.add_issue("FOLLOWING window frame detected — potential look-ahead bias")
                 if "UNBOUNDED FOLLOWING" in definition:
                     report.add_issue("UNBOUNDED FOLLOWING detected — potential look-ahead bias")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("feature_lag_check_failed: %s: %s", view_name, exc)
 
     def generate_summary(self, reports: list[ValidationReport]) -> dict:
         """Generate summary of all validation reports."""

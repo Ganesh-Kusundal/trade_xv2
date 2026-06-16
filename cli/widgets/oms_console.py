@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from decimal import Decimal
 
 from rich.text import Text
@@ -10,6 +11,8 @@ from textual.containers import Container, Horizontal, Vertical
 from textual.widgets import Button, DataTable, Input, Label, Select, Static
 
 from cli.services.oms_service import OmsService
+
+logger = logging.getLogger(__name__)
 
 
 class OmsConsoleWidget(Static):
@@ -152,8 +155,8 @@ class OmsConsoleWidget(Static):
                     f"{t.price:,.2f}",
                     f"{t.value:,.2f}",
                 )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("trades_display_failed: %s", exc)
 
     def handle_order_placement(self) -> None:
         """Read form inputs and execute order placement."""

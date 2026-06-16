@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical
@@ -9,6 +11,8 @@ from textual.widgets import Button, DataTable, Input, Label, Static
 
 from cli.commands.market import resolve_exchange
 from cli.services.broker_service import BrokerService
+
+logger = logging.getLogger(__name__)
 
 
 class MarketConsoleWidget(Static):
@@ -101,8 +105,8 @@ class MarketConsoleWidget(Static):
                 self.query_one("#q-ask", Label).update(f"Ask Price: Rs. {row['ask']:,.2f}")
                 self.query_one("#q-vol", Label).update(f"Volume: {int(row['volume']):,}")
                 self.query_one("#q-oi", Label).update(f"Open Interest: {int(row['oi']):,}")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("quote_display_failed: %s", exc)
 
         # 2. Update Depth
         try:
@@ -119,8 +123,8 @@ class MarketConsoleWidget(Static):
                         f"{row.get(f'ask_price_{i}', 0.0):,.2f}",
                         f"{int(row.get(f'ask_qty_{i}', 0)):,}",
                     )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("depth_display_failed: %s", exc)
 
         # 3. Update Option Chain (For underlying index or equity)
         try:
@@ -169,5 +173,5 @@ class MarketConsoleWidget(Static):
                         pe_vol,
                         pe_oi,
                     )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("option_chain_display_failed: %s", exc)

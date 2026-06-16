@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
@@ -11,9 +12,25 @@ import pandas as pd
 from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
 from brokers.common.core.domain import Balance, MarketDepth, Quote
 from brokers.dhan.connection import DhanConnection
-from brokers.dhan.domain import Holding, Order, Position, Trade
+from brokers.dhan.domain import (
+    ConditionalTrigger,
+    ConditionalTriggerRequest,
+    ExitAllResponse,
+    ForeverOrder,
+    ForeverOrderRequest,
+    Holding,
+    IPConfig,
+    LedgerEntry,
+    Order,
+    Position,
+    SuperOrder,
+    Trade,
+    UserProfile,
+)
 from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
 from brokers.dhan.websocket import DhanMarketFeed
+
+logger = logging.getLogger(__name__)
 
 
 class BrokerGateway(MarketDataGateway):
@@ -57,6 +74,38 @@ class BrokerGateway(MarketDataGateway):
     @property
     def alerts(self) -> Any:
         return self._conn.alerts
+
+    @property
+    def super_orders(self) -> Any:
+        return self._conn.super_orders
+
+    @property
+    def forever_orders(self) -> Any:
+        return self._conn.forever_orders
+
+    @property
+    def conditional_triggers(self) -> Any:
+        return self._conn.conditional_triggers
+
+    @property
+    def ledger(self) -> Any:
+        return self._conn.ledger
+
+    @property
+    def user_profile(self) -> Any:
+        return self._conn.user_profile
+
+    @property
+    def ip_management(self) -> Any:
+        return self._conn.ip_management
+
+    @property
+    def edis(self) -> Any:
+        return self._conn.edis
+
+    @property
+    def exit_all(self) -> Any:
+        return self._conn.exit_all
 
     # ── Order shortcuts ──
 
@@ -315,6 +364,74 @@ class BrokerGateway(MarketDataGateway):
     def trades(self) -> list[Trade]:
         return self.get_trade_book()
 
+    # ── Advanced Order Methods ──
+
+    def place_super_order(self, **kwargs) -> SuperOrder:
+        return self._conn.super_orders.place_super_order(**kwargs)
+
+    def modify_super_order(self, order_id: str, **kwargs) -> SuperOrder:
+        return self._conn.super_orders.modify_super_order(order_id, **kwargs)
+
+    def cancel_super_order_leg(self, order_id: str, leg_name: str) -> bool:
+        return self._conn.super_orders.cancel_super_order_leg(order_id, leg_name)
+
+    def get_super_orders(self) -> list[SuperOrder]:
+        return self._conn.super_orders.get_super_orders()
+
+    def place_forever_order(self, request: ForeverOrderRequest) -> ForeverOrder:
+        return self._conn.forever_orders.place_forever_order(request)
+
+    def modify_forever_order(self, order_id: str, request: ForeverOrderRequest) -> ForeverOrder:
+        return self._conn.forever_orders.modify_forever_order(order_id, request)
+
+    def cancel_forever_order(self, order_id: str) -> bool:
+        return self._conn.forever_orders.cancel_forever_order(order_id)
+
+    def get_all_forever_orders(self) -> list[ForeverOrder]:
+        return self._conn.forever_orders.get_all_forever_orders()
+
+    def place_conditional_trigger(self, request: ConditionalTriggerRequest) -> ConditionalTrigger:
+        return self._conn.conditional_triggers.place_trigger(request)
+
+    def modify_conditional_trigger(self, alert_id: str, request: ConditionalTriggerRequest) -> ConditionalTrigger:
+        return self._conn.conditional_triggers.modify_trigger(alert_id, request)
+
+    def delete_conditional_trigger(self, alert_id: str) -> bool:
+        return self._conn.conditional_triggers.delete_trigger(alert_id)
+
+    def get_conditional_trigger(self, alert_id: str) -> ConditionalTrigger:
+        return self._conn.conditional_triggers.get_trigger(alert_id)
+
+    def get_all_conditional_triggers(self) -> list[ConditionalTrigger]:
+        return self._conn.conditional_triggers.get_all_triggers()
+
+    def get_ledger(self, from_date: str, to_date: str) -> list[LedgerEntry]:
+        return self._conn.ledger.get_ledger(from_date, to_date)
+
+    def get_user_profile(self) -> UserProfile:
+        return self._conn.user_profile.get_profile()
+
+    def set_ip(self, ip_address: str, ip_type: str) -> dict:
+        return self._conn.ip_management.set_ip(ip_address, ip_type)
+
+    def modify_ip(self, ip_address: str, ip_type: str) -> dict:
+        return self._conn.ip_management.modify_ip(ip_address, ip_type)
+
+    def get_ip(self) -> list[IPConfig]:
+        return self._conn.ip_management.get_ip()
+
+    def generate_tpin(self) -> dict:
+        return self._conn.edis.generate_tpin()
+
+    def authorize_edis(self, isin: str, quantity: int, exchange: str) -> dict:
+        return self._conn.edis.authorize_edis(isin, quantity, exchange)
+
+    def check_edis_status(self, isin: str) -> dict:
+        return self._conn.edis.check_status(isin)
+
+    def exit_all(self) -> ExitAllResponse:
+        return self._conn.exit_all.exit_all()
+
     def describe(self) -> dict:
         return {
             "broker": "Dhan",
@@ -348,6 +465,17 @@ class BrokerGateway(MarketDataGateway):
             search=True,
             rate_limit_per_second=6,
             rate_limit_per_minute=200,
+            # Advanced order types
+            super_orders=True,
+            forever_orders=True,
+            conditional_triggers=True,
+            slice_orders=True,
+            # Account management
+            ledger=True,
+            user_profile=True,
+            ip_management=True,
+            edis=True,
+            exit_all=True,
         )
 
     def search(self, query: str) -> list[dict]:
@@ -462,7 +590,7 @@ class BrokerGateway(MarketDataGateway):
                     df = future.result()
                     if not df.empty:
                         frames.append(df)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("history_batch_future_failed: %s", exc)
         return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 

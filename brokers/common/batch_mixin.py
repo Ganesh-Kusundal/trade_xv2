@@ -18,6 +18,11 @@ from typing import Any
 import pandas as pd
 
 logger = logging.getLogger(__name__)
+from typing import Any
+
+import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 
 class BatchFetchMixin:
@@ -80,6 +85,6 @@ class BatchFetchMixin:
                     df = future.result()
                     if not df.empty:
                         frames.append(df)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("batch_fetch_future_failed: %s", exc)
         return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()

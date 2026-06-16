@@ -197,8 +197,8 @@ class InstrumentLoader:
                         if opt == "XX":
                             opt = ""
                         trading_symbol = f"{symbol_name.upper()}-{dd_mmm_yyyy}-{st_str}-{opt}"
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("mcx_symbol_parse_failed: %s", exc)
 
             rows.append({
                 "SEM_TRADING_SYMBOL": trading_symbol,

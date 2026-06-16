@@ -6,11 +6,14 @@ These tests verify validation logic against the real instrument catalog
 
 from __future__ import annotations
 
+import logging
 import os
 from decimal import Decimal
 from pathlib import Path
 
 import pytest
+
+logger = logging.getLogger(__name__)
 
 ENV_PATH = Path(__file__).resolve().parent.parent.parent.parent.parent / ".env.local"
 _live_env_loaded = False
@@ -70,8 +73,8 @@ class TestLiveValidation:
                     assert len(errors) > 0
                     assert any("lot size" in e.lower() or "multiple" in e.lower() or "not found" in e.lower() for e in errors)
                     return
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("lot_size_validation_fallback: %s", exc)
         # Fallback: test that unknown instrument is rejected
         errors = gateway.orders.validate_order(
             symbol="DOESNOTEXIST",
@@ -102,8 +105,8 @@ class TestLiveValidation:
                 assert len(errors) > 0
                 assert any("CNC" in e or "product" in e.lower() or "not found" in e.lower() for e in errors)
                 return
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("cnc_validation_fallback: %s", exc)
         # Fallback: test that unknown instrument on NFO is rejected
         errors = gateway.orders.validate_order(
             symbol="DOESNOTEXIST",
@@ -170,8 +173,8 @@ class TestLiveValidation:
                 )
                 assert len(errors) == 0
                 return
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("margin_validation_fallback: %s", exc)
         # If no F&O instruments found, skip
         import pytest
         pytest.skip("No F&O instruments available")

@@ -74,8 +74,8 @@ def _deserialize_value(value: Any, expected_type: type | None = None) -> Any:
         if isinstance(expected_type, type) and issubclass(expected_type, enum.Enum):
             try:
                 return expected_type(value)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("enum_value_parse_failed: %s=%s", expected_type, value)
 
     if isinstance(value, dict):
         if "__type__" in value:

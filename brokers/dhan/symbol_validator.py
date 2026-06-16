@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from datetime import date, datetime
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from brokers.dhan.domain import Exchange, InstrumentType, OptionType
 from brokers.dhan.loader import InstrumentLoader
@@ -155,8 +158,8 @@ class DhanSymbolValidator:
                         "securityId": inst.security_id,
                         "instrumentType": self._get_inst_type_code(inst.instrument_type)
                     })
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("symbol_candidate_build_failed: %s", inst.symbol)
 
         if not candidates:
             # Check for partial matches or underlying name

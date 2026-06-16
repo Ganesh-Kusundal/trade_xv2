@@ -74,8 +74,8 @@ class UpstoxPortfolioStream:
                     result = close()
                     if asyncio.iscoroutine(result):
                         await result
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("portfolio_stream_close_failed: %s", exc)
             self._socket = None
 
     async def _read_loop(self) -> None:

@@ -321,8 +321,8 @@ class HttpObservabilityServer(ManagedService):
                 # Capture the actual bound port (port=0 means OS-assigned).
                 try:
                     port_holder.append(site._server.sockets[0].getsockname()[1])
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("http_port_capture_failed: %s", exc)
                 ready.set()
                 # Run forever until the loop is stopped.
                 loop.run_forever()
@@ -332,8 +332,8 @@ class HttpObservabilityServer(ManagedService):
             finally:
                 try:
                     loop.run_until_complete(runner.cleanup())
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("http_runner_cleanup_failed: %s", exc)
                 loop.close()
 
         t = threading.Thread(
@@ -379,8 +379,8 @@ class HttpObservabilityServer(ManagedService):
             if hasattr(runner, "_server") and runner._server is not None:
                 try:
                     runner._server.close()
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("http_server_close_failed: %s", exc)
         except Exception as exc:
             logger.warning("http_observability_stop: %s", exc)
         logger.info("http_observability_stopped")

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from decimal import Decimal
 
 from rich.text import Text
@@ -10,6 +11,8 @@ from textual.containers import Container, Grid, Horizontal
 from textual.widgets import Button, DataTable, Label, Static
 
 from cli.services.broker_service import BrokerService
+
+logger = logging.getLogger(__name__)
 
 
 class BrokerConsoleWidget(Static):
@@ -128,6 +131,5 @@ class BrokerConsoleWidget(Static):
                     f"{hld.ltp:,.2f}",
                     Text(f"Rs. {h_pnl:,.2f}", style=pnl_style),
                 )
-        except Exception:
-            # Fallback for display stability if API returns errors
-            pass
+        except Exception as exc:
+            logger.debug("holdings_display_failed: %s", exc)  # Fallback for display stability if API returns errors

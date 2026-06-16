@@ -10,7 +10,6 @@ Validates:
 from __future__ import annotations
 
 import ast
-import inspect
 from pathlib import Path
 
 import pytest
@@ -167,3 +166,124 @@ class TestDhanGatewaySegmentMapping:
         """Fallback segment should use DEFAULT_SEGMENT constant, not hardcoded string."""
         from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
         assert EXCHANGE_TO_SEGMENT.get("UNKNOWN", DEFAULT_SEGMENT) == "NSE_EQ"
+
+
+class TestGatewayTypeSafety:
+    """Gateway return types must be specific, not `Any`."""
+
+    def _get_method_return_annotation(self, gateway_class, method_name: str) -> str | None:
+        import ast
+        with open(GATEWAY_DIR / f"{gateway_class.__module__.split('.')[1]}" / "gateway.py") as f:
+            tree = ast.parse(f.read())
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef) and node.name == gateway_class.__name__:
+                for item in node.body:
+                    if isinstance(item, ast.FunctionDef) and item.name == method_name:
+                        return ast.unparse(item.returns) if item.returns else None
+        return None
+
+    def test_dhan_quote_returns_quote_type(self):
+        from brokers.dhan.gateway import BrokerGateway as DhanGateway
+        ret = self._get_method_return_annotation(DhanGateway, "quote")
+        assert ret == "Quote", f"Expected 'Quote', got {ret!r}"
+
+    def test_dhan_positions_returns_list_position(self):
+        from brokers.dhan.gateway import BrokerGateway as DhanGateway
+        ret = self._get_method_return_annotation(DhanGateway, "positions")
+        assert ret == "list[Position]", f"Expected 'list[Position]', got {ret!r}"
+
+    def test_dhan_funds_returns_balance(self):
+        from brokers.dhan.gateway import BrokerGateway as DhanGateway
+        ret = self._get_method_return_annotation(DhanGateway, "funds")
+        assert ret == "Balance", f"Expected 'Balance', got {ret!r}"
+
+    def test_upstox_quote_returns_quote_type(self):
+        from brokers.upstox.gateway import UpstoxBrokerGateway
+        ret = self._get_method_return_annotation(UpstoxBrokerGateway, "quote")
+        assert ret == "Quote", f"Expected 'Quote', got {ret!r}"
+
+    def test_upstox_depth_returns_market_depth_type(self):
+        from brokers.upstox.gateway import UpstoxBrokerGateway
+        ret = self._get_method_return_annotation(UpstoxBrokerGateway, "depth")
+        assert ret == "MarketDepth", f"Expected 'MarketDepth', got {ret!r}"
+
+    def test_upstox_funds_returns_balance(self):
+        from brokers.upstox.gateway import UpstoxBrokerGateway
+        ret = self._get_method_return_annotation(UpstoxBrokerGateway, "funds")
+        assert ret == "Balance", f"Expected 'Balance', got {ret!r}"
+
+    def test_upstox_positions_returns_list_position(self):
+        from brokers.upstox.gateway import UpstoxBrokerGateway
+        ret = self._get_method_return_annotation(UpstoxBrokerGateway, "positions")
+        assert ret == "list[Position]", f"Expected 'list[Position]', got {ret!r}"
+
+    def test_upstox_holdings_returns_list_holding(self):
+        from brokers.upstox.gateway import UpstoxBrokerGateway
+        ret = self._get_method_return_annotation(UpstoxBrokerGateway, "holdings")
+        assert ret == "list[Holding]", f"Expected 'list[Holding]', got {ret!r}"
+
+    def test_upstox_trades_returns_list_trade(self):
+        from brokers.upstox.gateway import UpstoxBrokerGateway
+        ret = self._get_method_return_annotation(UpstoxBrokerGateway, "trades")
+        assert ret == "list[Trade]", f"Expected 'list[Trade]', got {ret!r}"
+
+    def test_upstox_get_orderbook_returns_list_order(self):
+        from brokers.upstox.gateway import UpstoxBrokerGateway
+        ret = self._get_method_return_annotation(UpstoxBrokerGateway, "get_orderbook")
+        assert ret == "list[Order]", f"Expected 'list[Order]', got {ret!r}"
+
+    def test_no_any_in_critical_domain_methods(self):
+        """Critical domain methods must not return `Any`."""
+        import ast
+        critical_methods = ["quote", "depth", "funds", "positions", "holdings", "trades"]
+        for gateway_name in ["dhan", "upstox"]:
+            gw_path = GATEWAY_DIR / gateway_name / "gateway.py"
+            with open(gw_path) as f:
+                tree = ast.parse(f.read())
+
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ClassDef):
+                    for item in node.body:
+                        if isinstance(item, ast.FunctionDef) and item.name in critical_methods:
+                            ret = ast.unparse(item.returns) if item.returns else None
+                            assert ret != "Any", (
+                                f"{gateway_name}.{node.name}.{item.name} returns Any"
+                            )
+
+
+class TestGatewayLogging:
+    """Gateway files must have proper logging setup."""
+
+    def test_dhan_gateway_has_logger(self):
+        """Dhan gateway must have a module-level logger."""
+        content = (GATEWAY_DIR / "dhan" / "gateway.py").read_text()
+        assert "import logging" in content
+        assert "logger = logging.getLogger(__name__)" in content
+
+    def test_upstox_gateway_has_logger(self):
+        """Upstox gateway must have a module-level logger."""
+        content = (GATEWAY_DIR / "upstox" / "gateway.py").read_text()
+        assert "import logging" in content
+        assert "logger = logging.getLogger(__name__)" in content
+
+
+class TestUpstoxQuoteLogging:
+    """Upstox quote() should log when data is not found."""
+
+    def test_quote_logs_warning_on_empty_data(self):
+        from unittest.mock import MagicMock, patch
+        from brokers.upstox.gateway import UpstoxBrokerGateway
+
+        gw = UpstoxBrokerGateway.__new__(UpstoxBrokerGateway)
+        gw._broker = MagicMock()
+        gw._broker.market_data_v2.get_quote.return_value = {"data": {}}
+        gw._broker.instrument_resolver.resolve.return_value = MagicMock(
+            instrument_key="NSE_EQ|INE001A01023"
+        )
+
+        with patch("brokers.upstox.gateway.logger") as mock_logger:
+            result = gw.quote("RELIANCE", "NSE")
+            assert mock_logger.warning.called, "Should log warning when quote data is empty"
+            assert result.symbol == "RELIANCE"
+

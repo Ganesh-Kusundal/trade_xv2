@@ -166,8 +166,8 @@ class TokenRefreshScheduler(ManagedService):
                 if self._on_error:
                     try:
                         self._on_error(exc)
-                    except Exception:
-                        pass
+                    except Exception as exc2:
+                        logger.debug("token_refresh_error_callback_failed: %s", exc2)
             self._stop_event.wait(timeout=self._interval)
 
     def _do_refresh(self) -> bool:
@@ -196,8 +196,8 @@ class TokenRefreshScheduler(ManagedService):
             if self._on_error:
                 try:
                     self._on_error(exc)
-                except Exception:
-                    pass
+                except Exception as exc2:
+                    logger.debug("token_refresh_error_callback_failed: %s", exc2)
             return False
         finally:
             self._refresh_lock.release()

@@ -6,9 +6,12 @@ Mirrors Trade_J ``UpstoxInstrumentResolver``: index by instrument_key, by
 
 from __future__ import annotations
 
+import logging
 import threading
 from collections import defaultdict
 from collections.abc import Iterable
+
+logger = logging.getLogger(__name__)
 
 from .definition import UpstoxInstrumentDefinition
 
@@ -248,8 +251,8 @@ def _generate_alternate_keys(
                 keys.append(f"{und_up}{yyyy}{MMM}FUT")
                 keys.append(f"{und_up}{dd}{MMM}FUT")
                 keys.append(f"{und_up}FUT")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("upstox_alternate_key_generation_failed: %s", exc)
 
     res = []
     seen = set()

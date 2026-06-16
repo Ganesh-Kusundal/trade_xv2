@@ -85,6 +85,7 @@ __all__ = [
     "OrderResponse",
     "OrderStatus",
     "OrderType",
+    "PnLCalculator",
     "PnLSnapshot",
     "PnlCalculator",
     "PnlExitPolicy",

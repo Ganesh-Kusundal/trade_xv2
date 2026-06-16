@@ -44,8 +44,8 @@ class DataCatalog:
         if self._conn is not None:
             try:
                 self._conn.close()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("catalog_close_failed: %s", exc)
             self._conn = None
 
     def _ensure_schema(self) -> None:

@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import sys
 from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
 from rich.console import Console
+
+logger = logging.getLogger(__name__)
 
 # Load environment variables once at startup so every subcommand sees them.
 _ENV_PATH = Path(".env.local")
@@ -81,6 +84,9 @@ from cli.commands import (
     validate_option_chain as cmd_validate_option_chain,
 )
 from cli.commands import (
+    options_sync as cmd_options_sync,
+)
+from cli.commands import (
     views as cmd_views,
 )
 from cli.commands import (
@@ -97,6 +103,7 @@ _register_cmd("dashboard", "cli.commands.dashboard")
 _register_cmd("validate", "cli.commands.validate")
 _register_cmd("validate-history", "cli.commands.validate_history")
 _register_cmd("validate-option-chain", "cli.commands.validate_option_chain")
+_register_cmd("options-sync", "cli.commands.options_sync")
 _register_cmd("benchmark", "cli.commands.benchmark")
 _register_cmd("compare", "cli.commands.compare")
 _register_cmd("quality-report", "cli.commands.quality_report")
@@ -192,6 +199,7 @@ def main() -> None:
             ("news", "Market news"),
             ("journal", "Trade journal (record, close, list, summary)"),
             ("views", "DuckDB analytics view management"),
+            ("options-sync", "Sync option data from Trade_J DuckDB (daily cron)"),
         ]
         for cmd, desc in cmds:
             console.print(f"  [cyan]{cmd:<25}[/cyan] {desc}")
@@ -439,6 +447,9 @@ def main() -> None:
         elif subcommand == "views":
             cmd_views.run_views(cmd_args, console)
 
+        elif subcommand == "options-sync":
+            cmd_options_sync.run_options_sync(cmd_args, console)
+
         elif subcommand == "events":
             cmd_events.run(cmd_args, event_bus_service, console)
 
@@ -467,8 +478,8 @@ def main() -> None:
         if gateway is not None:
             try:
                 gateway.close()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("gateway_close_failed: %s", exc)
 
 
 if __name__ == "__main__":

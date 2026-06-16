@@ -154,8 +154,8 @@ class UpstoxMarketDataV3Multiplexer:
                     result = close()
                     if asyncio.iscoroutine(result):
                         await result
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("websocket_close_failed: %s", exc)
             self._socket = None
         self._reconnect.reset()
 

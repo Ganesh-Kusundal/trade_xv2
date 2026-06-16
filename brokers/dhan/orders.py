@@ -350,6 +350,137 @@ class OrdersAdapter:
     def _parse_order(raw: dict) -> Order:
         return Order.from_broker_dict(raw, exchange_resolver=_parse_exchange)
 
+    def place_slice_order(self, symbol: str, exchange: str, **kwargs) -> Order:
+        """Place a slice order (automatically splits large orders).
+
+        Args:
+            symbol: Trading symbol
+            exchange: Exchange (NSE, NFO, etc.)
+            **kwargs: Same as place_order (side, quantity, price, etc.)
+
+        Returns:
+            Order with placed order information
+
+        Note:
+            Uses POST /orders/slicing endpoint instead of POST /orders.
+            Same payload structure as regular place_order.
+        """
+        # Reuse place_order logic but with different endpoint
+        # Build payload using same logic as place_order
+        inst = self._resolver.resolve(symbol, exchange)
+        segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, "NSE_EQ")
+
+        side = kwargs.get("side", "BUY")
+        quantity = kwargs["quantity"]
+        order_type = kwargs.get("order_type", "MARKET")
+        product_type = kwargs.get("product_type", "INTRADAY")
+        price = kwargs.get("price", Decimal("0"))
+        trigger_price = kwargs.get("trigger_price", Decimal("0"))
+        validity = kwargs.get("validity", "DAY")
+        correlation_id = kwargs.get("correlation_id")
+
+        # Pre-trade validation
+        self.validate_order(
+            symbol=symbol,
+            exchange=exchange,
+            quantity=quantity,
+            order_type=order_type,
+            product_type=product_type,
+            price=price if price > 0 else None,
+        )
+
+        payload = {
+            "dhanClientId": self._client.client_id,
+            "exchangeSegment": segment,
+            "securityId": inst.security_id,
+            "transactionType": side.upper(),
+            "orderType": order_type,
+            "productType": product_type,
+            "validity": validity,
+            "quantity": quantity,
+        }
+
+        if price and price > 0:
+            payload["price"] = float(price)
+        if trigger_price and trigger_price > 0:
+            payload["triggerPrice"] = float(trigger_price)
+        if correlation_id:
+            payload["correlationId"] = correlation_id
+
+        # Call slice order endpoint
+        data = self._client.post("/orders/slicing", json=payload)
+        order_data = data.get("data", data)
+        order = self._parse_order(order_data)
+
+        logger.info("slice_order_placed", extra={
+            "order_id": order.order_id,
+            "symbol": symbol,
+            "exchange": exchange,
+            "side": side,
+            "quantity": quantity,
+        })
+
+        if self._event_bus:
+            self._event_bus.publish(
+                DomainEvent.now(
+                    "ORDER_PLACED",
+                    {"order": order},
+                    symbol=order.symbol,
+                    source="DhanOrdersAdapter",
+                )
+            )
+
+        return order
+
+    def get_trade_history(self, from_date: str, to_date: str, page: int = 0) -> list[Trade]:
+        """Get trade history for a date range.
+
+        Args:
+            from_date: Start date in YYYY-MM-DD format
+            to_date: End date in YYYY-MM-DD format
+            page: Page number for pagination (default 0)
+
+        Returns:
+            List of Trade objects
+
+        Raises:
+            ValueError: If date format is invalid
+        """
+        import re
+        date_pattern = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+        if not date_pattern.match(from_date):
+            raise ValueError(f"Invalid from_date format: {from_date}. Expected YYYY-MM-DD")
+        if not date_pattern.match(to_date):
+            raise ValueError(f"Invalid to_date format: {to_date}. Expected YYYY-MM-DD")
+
+        data = self._client.get(f"/trades/{from_date}/{to_date}/{page}")
+        items = data.get("data", []) if isinstance(data, dict) else []
+        trades = [self._parse_trade(item) for item in (items if isinstance(items, list) else [])]
+
+        logger.info("trade_history_fetched", extra={
+            "from_date": from_date,
+            "to_date": to_date,
+            "page": page,
+            "count": len(trades),
+        })
+        return trades
+
+    @staticmethod
+    def _parse_trade(raw: dict) -> Trade:
+        """Parse trade from API response."""
+        from brokers.dhan.domain import IST
+
+        return Trade(
+            trade_id=str(raw.get("tradeId", raw.get("id", ""))),
+            order_id=str(raw.get("orderId", "")),
+            symbol=raw.get("tradingSymbol", raw.get("symbol", "")),
+            exchange=_parse_exchange(raw.get("exchangeSegment", "NSE_EQ")),
+            side=OrderSide(raw.get("transactionType", "BUY")),
+            quantity=raw.get("tradedQty", raw.get("quantity", 0)),
+            price=Decimal(str(raw.get("tradedPrice", raw.get("price", 0)))),
+            timestamp=raw.get("tradedTime", raw.get("createdAt")),
+        )
+
 
 def _parse_exchange(seg: str) -> Exchange:
     from brokers.dhan.segments import SEGMENT_TO_EXCHANGE

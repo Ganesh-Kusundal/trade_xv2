@@ -21,11 +21,19 @@ from brokers.common.resilience.errors import BrokerError, RateLimitError
 __all__ = [
     "AuthenticationError",
     "ConfigurationError",
+    "ConditionalTriggerError",
     "DhanError",
+    "EDISError",
+    "ExitAllError",
+    "ForeverOrderError",
     "InstrumentNotFoundError",
+    "IPManagementError",
+    "LedgerError",
     "MarketDataError",
     "OrderError",
     "RateLimitError",  # alias to canonical
+    "SuperOrderError",
+    "UserProfileError",
 ]
 
 
@@ -55,3 +63,38 @@ class AuthenticationError(DhanError):
 
 class ConfigurationError(DhanError):
     """Missing or invalid configuration."""
+
+
+# ── Feature-specific exceptions ──────────────────────────────────────────
+
+
+class SuperOrderError(DhanError):
+    """Super order placement/modification/cancellation failure."""
+
+
+class ForeverOrderError(DhanError):
+    """Forever order placement/modification/cancellation failure."""
+
+
+class ConditionalTriggerError(DhanError):
+    """Conditional trigger creation/modification/deletion failure."""
+
+
+class LedgerError(DhanError):
+    """Ledger fetch failure."""
+
+
+class UserProfileError(DhanError):
+    """User profile fetch failure."""
+
+
+class IPManagementError(DhanError):
+    """IP management operation failure."""
+
+
+class ExitAllError(DhanError):
+    """Exit all operation failure."""
+
+
+class EDISError(DhanError):
+    """eDIS/TPIN operation failure."""

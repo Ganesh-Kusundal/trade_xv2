@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import re
 import time
 from datetime import date, datetime, timedelta
@@ -11,6 +12,8 @@ from rich.live import Live
 from rich.table import Table
 
 from cli.services.broker_service import BrokerService
+
+logger = logging.getLogger(__name__)
 
 # Indices whose underlying segment uses INDEX exchange
 _INDEX_UNDERLYINGS = {"NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "SENSEX", "NIFTYNXT50"}
@@ -135,8 +138,8 @@ def show_option_chain(
             today_str = date.today().isoformat()
             future_expiries = sorted([e for e in raw_expiries if e >= today_str])
             expiry = future_expiries[0] if future_expiries else None
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("expiry_fetch_failed: %s: %s", sym, exc)
 
     if not expiry:
         # Hard fallback: next Thursday
@@ -428,8 +431,8 @@ def show_stream(
                 if len(rows) > 15:
                     rows.pop(0)
                 tick_count += 1
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("tick_processing_failed: %s", exc)
 
     # Subscribe via the canonical gateway.stream() interface
     ws_handle = None
@@ -452,8 +455,8 @@ def show_stream(
                         quote = gw.market_data.get_quote(symbol, exchange)
                         if quote is not None:
                             on_tick(quote)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("rest_polling_failed: %s", exc)
 
                 with lock:
                     current_rows = list(rows)
@@ -469,8 +472,8 @@ def show_stream(
     if ws_handle is not None:
         try:
             ws_handle.unsubscribe([f"{exchange}|{symbol}"])
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("websocket_unsubscribe_failed: %s", exc)
 
     console.print("[yellow]Tick Stream Monitor stopped.[/yellow]")
 
