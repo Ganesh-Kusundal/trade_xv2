@@ -88,7 +88,7 @@ class MarketConsoleWidget(Static):
 
         # 1. Update Quote
         try:
-            q_df = broker.get_quote(symbol, exchange)
+            q_df = broker.quote(symbol, exchange)
             if q_df is not None and not q_df.empty:
                 row = q_df.iloc[0]
                 self.query_one("#q-sym", Label).update(

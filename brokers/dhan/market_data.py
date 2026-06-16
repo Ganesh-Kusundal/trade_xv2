@@ -50,14 +50,14 @@ class MarketDataAdapter:
         sid = int(inst.security_id)
         data = self._client.post("/marketfeed/quote", json={segment: [sid]})
         raw = data["data"][segment][str(sid)]
-        bids = tuple(
+        bids = [
             DepthLevel(price=Decimal(str(l["price"])), quantity=int(l["quantity"]), orders=int(l.get("orders", 0)))
             for l in raw.get("depth", {}).get("buy", [])[:5]
-        )
-        asks = tuple(
+        ]
+        asks = [
             DepthLevel(price=Decimal(str(l["price"])), quantity=int(l["quantity"]), orders=int(l.get("orders", 0)))
             for l in raw.get("depth", {}).get("sell", [])[:5]
-        )
+        ]
         depth = MarketDepth(symbol=inst.canonical_symbol or inst.symbol, bids=bids, asks=asks)
         logger.debug("depth_fetched", extra={"symbol": symbol, "bid_levels": len(bids), "ask_levels": len(asks)})
         return depth

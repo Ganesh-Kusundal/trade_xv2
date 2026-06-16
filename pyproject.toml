@@ -41,7 +41,7 @@ dev = [
 # paper = "brokers.paper:PaperBroker"
 
 [tool.setuptools.packages.find]
-include = ["brokers*", "cli*", "analytics*", "oms*", "event_bus*", "portfolio*", "risk*", "strategy*", "backtesting*", "replay*"]
+include = ["brokers*", "cli*", "analytics*", "datalake*", "config*", "market_data*", "oms*", "event_bus*", "portfolio*", "risk*", "strategy*", "backtesting*", "replay*"]
 
 # ─── pytest ────────────────────────────────────────────────
 [tool.pytest.ini_options]
@@ -127,6 +127,7 @@ select = [
     "S",   # flake8-bandit (security)
     "C4",  # flake8-comprehensions
     "SIM", # flake8-simplify
+    "TID", # flake8-tidy-imports
 ]
 ignore = [
     "E501",  # line-too-long (handled by formatter)
@@ -138,6 +139,12 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["S", "B011"]
 "scripts/**/*.py" = ["S", "E", "F"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"brokers.dhan.domain.Quote" = {msg = "Import Quote from brokers.common.core.domain or brokers.common.core.models, not from brokers.dhan.domain"}
+"brokers.dhan.domain.Balance" = {msg = "Import Balance from brokers.common.core.domain or brokers.common.core.models, not from brokers.dhan.domain"}
+"brokers.dhan.domain.DepthLevel" = {msg = "Import DepthLevel from brokers.common.core.domain or brokers.common.core.models, not from brokers.dhan.domain"}
+"brokers.dhan.domain.MarketDepth" = {msg = "Import MarketDepth from brokers.common.core.domain or brokers.common.core.models, not from brokers.dhan.domain"}
 
 [tool.ruff.format]
 quote-style = "double"

@@ -26,12 +26,12 @@ class UpstoxMarketIntelligenceSnapshotBuilder:
         date: str | None = None,
     ) -> MarketIntelligenceSnapshot:
         snapshot = MarketIntelligenceSnapshot(underlying=underlying, as_of=datetime.now())
-        try:
-            pcr_body = self._client.get_pcr(underlying)
-            snapshot.pcr = _extract_pcr(pcr_body)
-        except Exception:
-            pass
         if expiry and date:
+            try:
+                pcr_body = self._client.get_pcr(underlying, expiry, date)
+                snapshot.pcr = _extract_pcr(pcr_body)
+            except Exception:
+                pass
             try:
                 mp = self._client.get_max_pain(underlying, expiry, date)
                 snapshot.max_pain = _extract_decimal(mp, "max_pain")
@@ -54,9 +54,11 @@ class UpstoxMarketIntelligenceSnapshotBuilder:
         with contextlib.suppress(Exception):
             snapshot.dii_flow = self._client.get_dii_flow()
         with contextlib.suppress(Exception):
-            snapshot.smartlist_futures = self._client.get_smartlist_futures()
+            result = self._client.get_smartlist_futures()
+            snapshot.smartlist_futures = result.get("smartlist", []) if isinstance(result, dict) else []
         with contextlib.suppress(Exception):
-            snapshot.smartlist_options = self._client.get_smartlist_options()
+            result = self._client.get_smartlist_options()
+            snapshot.smartlist_options = result.get("smartlist", []) if isinstance(result, dict) else []
         return snapshot
 
 

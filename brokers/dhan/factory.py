@@ -16,6 +16,7 @@ from collections.abc import Callable
 from datetime import datetime
 
 from brokers.common.core.auth import AuthManager, JsonTokenStateStore, TokenSource, TokenState
+from brokers.common.env_loader import load_env_file
 from brokers.common.event_bus import EventBus
 from brokers.common.lifecycle import LifecycleManager
 from brokers.common.oms.risk_manager import RiskManager
@@ -54,7 +55,7 @@ class BrokerFactory:
         # Load env file first
         env_file = env_path or Path(".env.local")
         if env_file.exists():
-            _load_dotenv(env_file)
+            load_env_file(env_file)
 
         cid = client_id or os.environ.get("DHAN_CLIENT_ID", "")
 
@@ -344,13 +345,3 @@ def _update_env_token(env_path: Path, token: str) -> None:
                 pass
 
 
-def _load_dotenv(path: Path) -> None:
-    """Minimal .env parser — no python-dotenv dependency."""
-    for line in path.read_text().splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, _, value = line.partition("=")
-        key = key.strip()
-        value = value.strip().strip('"').strip("'")
-        os.environ[key] = value  # Override, not setdefault, so fresh tokens take effect

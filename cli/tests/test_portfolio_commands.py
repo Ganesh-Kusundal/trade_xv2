@@ -12,7 +12,8 @@ import pytest
 from rich.console import Console
 
 from cli.commands import portfolio as cmd_portfolio
-from cli.services.broker_service import BrokerService, MockBroker
+from cli.services.broker_service import BrokerService
+from brokers.paper.mock_broker import MockBroker
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -20,14 +21,23 @@ from cli.services.broker_service import BrokerService, MockBroker
 
 @pytest.fixture()
 def broker_service():
-    """Return a BrokerService backed by MockBroker (no .env.local needed)."""
+    """Return a BrokerService backed by seeded MockBroker (no .env.local needed)."""
+    from brokers.paper.mock_broker import create_seeded_mock_broker
     svc = BrokerService.__new__(BrokerService)
     svc._gateway = None
+    svc._upstox_gateway = None
     svc._paper = None
-    svc._mock = MockBroker()
+    svc._mock = create_seeded_mock_broker("dhan")
     svc._active_name = "dhan"
     svc._dhan_load_error = None
+    svc._upstox_load_error = None
     svc._initialized = True
+    svc._trading_context = None
+    svc._http_observability = None
+    svc._risk_fail_open = False
+    svc._capital_fallback_count = 0
+    from brokers.common.lifecycle import LifecycleManager
+    svc._lifecycle = LifecycleManager()
     return svc
 
 

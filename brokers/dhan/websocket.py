@@ -804,7 +804,8 @@ class DhanOrderStream(ManagedService):
         if self._event_bus is None:
             return
         try:
-            status = OrderStatus.normalize(str(data.get("status", "OPEN")))
+            from brokers.dhan.status_mapper import normalize_dhan_status
+            status = normalize_dhan_status(str(data.get("status", "OPEN")))
             side = Side.BUY if str(data.get("side", "")).upper() == "BUY" else Side.SELL
             order_type = OrderType(str(data.get("order_type", "MARKET")).upper())
             product_type = ProductType(str(data.get("product_type", "INTRADAY")).upper())

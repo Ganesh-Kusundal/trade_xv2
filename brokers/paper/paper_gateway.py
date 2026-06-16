@@ -10,10 +10,13 @@ import pandas as pd
 from brokers.common.core.domain import (
     Balance,
     Holding,
+    MarketDepth,
     Order,
     OrderResponse,
+    Quote,
     Trade,
 )
+from brokers.common.batch_mixin import BatchFetchMixin
 from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
 from brokers.common.oms.context import TradingContext
 from brokers.common.oms.risk_manager import RiskConfig
@@ -23,7 +26,7 @@ from .paper_orders import PaperOrders
 from .paper_portfolio import PaperPortfolio
 
 
-class PaperGateway(MarketDataGateway):
+class PaperGateway(BatchFetchMixin, MarketDataGateway):
     """Unified paper-trading API implementing the frozen MarketDataGateway v1.0 contract.
 
     All market-data, order, and portfolio calls delegate to the
@@ -126,32 +129,32 @@ class PaperGateway(MarketDataGateway):
 
         return pd.DataFrame(rows)
 
-    def quote(self, symbol: str, exchange: str = "NSE") -> dict:
+    def quote(self, symbol: str, exchange: str = "NSE") -> Quote:
         q = self._market_data.get_quote(symbol, exchange)
-        return {
-            "symbol": symbol,
-            "ltp": float(q.ltp),
-            "open": float(q.open),
-            "high": float(q.high),
-            "low": float(q.low),
-            "close": float(q.close),
-            "volume": q.volume,
-            "change": float(q.change),
-            "bid": float(q.bid) if q.bid else None,
-            "ask": float(q.ask) if q.ask else None,
-            "timestamp": q.timestamp.isoformat() if q.timestamp else None,
-        }
+        return Quote(
+            symbol=symbol,
+            ltp=q.ltp,
+            open=q.open,
+            high=q.high,
+            low=q.low,
+            close=q.close,
+            volume=q.volume,
+            change=q.change,
+            bid=q.bid,
+            ask=q.ask,
+            timestamp=q.timestamp,
+        )
 
     def ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:
         return self._market_data.get_ltp(symbol, exchange)
 
-    def depth(self, symbol: str, exchange: str = "NSE") -> dict:
+    def depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
         d = self._market_data.get_depth(symbol, exchange)
-        return {
-            "symbol": symbol,
-            "bids": [{"price": float(b.price), "quantity": b.quantity, "orders": b.orders} for b in d.bids],
-            "asks": [{"price": float(a.price), "quantity": a.quantity, "orders": a.orders} for a in d.asks],
-        }
+        return MarketDepth(
+            symbol=symbol,
+            bids=list(d.bids),
+            asks=list(d.asks),
+        )
 
     def option_chain(
         self,
@@ -219,25 +222,6 @@ class PaperGateway(MarketDataGateway):
             @property
             def is_connected(self): return False
         return _PaperStream()
-
-    # =======================================================================
-    # Batch Market Data
-    # =======================================================================
-
-    def ltp_batch(self, symbols: list[str], exchange: str = "NSE") -> dict[str, Decimal]:
-        return {sym: self._market_data.get_ltp(sym, exchange) for sym in symbols}
-
-    def quote_batch(self, symbols: list[str], exchange: str = "NSE") -> dict[str, dict]:
-        return {sym: self.quote(sym, exchange) for sym in symbols}
-
-    def history_batch(
-        self,
-        symbols: list[str],
-        exchange: str = "NSE",
-        timeframe: str = "1D",
-        lookback_days: int = 90,
-    ) -> pd.DataFrame:
-        return self.history(symbols, exchange, timeframe, lookback_days)
 
     # =======================================================================
     # Trading

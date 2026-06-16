@@ -29,7 +29,7 @@ class ReconciliationDrift:
                 self.items.append(
                     DriftItem(
                         kind="missing_local_order",
-                        severity="critical",
+                        severity="HIGH",
                         details=f"Upstox order {oid} not present in local OMS",
                         payload=order,
                     )
@@ -42,7 +42,7 @@ class ReconciliationDrift:
                 self.items.append(
                     DriftItem(
                         kind="missing_upstox_order",
-                        severity="warning",
+                        severity="MEDIUM",
                         details=f"Local order {oid} not present in Upstox state",
                         payload=order,
                     )
@@ -65,7 +65,7 @@ class ReconciliationDrift:
                 self.items.append(
                     DriftItem(
                         kind="missing_local_position",
-                        severity="critical",
+                        severity="HIGH",
                         details=f"Upstox position {key} not present locally",
                         payload=pos,
                     )
@@ -80,7 +80,7 @@ class ReconciliationDrift:
                 self.items.append(
                     DriftItem(
                         kind="position_quantity_mismatch",
-                        severity="critical",
+                        severity="HIGH",
                         details=f"Position {key}: local={local_qty} upstox={upstox_qty}",
                         payload={"local": local_pos, "upstox": pos},
                     )
@@ -150,7 +150,7 @@ class UpstoxReconciliationService:
         positions_repaired = 0
         if self._auto_repair:
             for item in drift.items:
-                if item.severity != "critical":
+                if item.severity != "HIGH":
                     continue
                 if item.kind == "missing_local_order":
                     orders_repaired += self._repair_missing_order(item.payload)

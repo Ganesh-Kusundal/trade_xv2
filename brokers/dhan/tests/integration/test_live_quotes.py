@@ -44,13 +44,13 @@ class TestLiveQuotes:
 
     def test_nse_equity_quote(self, gateway: BrokerGateway):
         """RELIANCE on NSE should return a quote with ltp > 0."""
-        quote = gateway.get_quote("RELIANCE", "NSE")
+        quote = gateway.quote("RELIANCE", "NSE")
         assert quote.ltp > 0
         time.sleep(1.5)
 
     def test_index_quote(self, gateway: BrokerGateway):
         """NIFTY index should return a quote with ltp > 0."""
-        quote = gateway.get_quote("NIFTY", "INDEX")
+        quote = gateway.quote("NIFTY", "INDEX")
         assert quote.ltp > 0
         time.sleep(1.5)
 
@@ -72,5 +72,5 @@ class TestLiveQuotes:
         time.sleep(1.5)
 
         symbol = nearest["symbol"]
-        quote = gateway.get_quote(symbol, "MCX")
+        quote = gateway.quote(symbol, "MCX")
         assert quote.ltp > 0

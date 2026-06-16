@@ -80,7 +80,7 @@ class TestDepthResponseParsing:
             }
         }
         gw = UpstoxBrokerGateway(broker)
-        depth = gw.get_depth("RELIANCE", "NSE")
+        depth = gw.depth("RELIANCE", "NSE")
         assert isinstance(depth, MarketDepth)
         assert len(depth.bids) == 1
         assert depth.bids[0].price == Decimal("100.0")
@@ -94,7 +94,7 @@ class TestDepthResponseParsing:
         broker.instrument_resolver.resolve.return_value = MagicMock(instrument_key="NSE_EQ|INE002A01018")
         broker.market_data_v2.get_order_book.return_value = {"data": {}}
         gw = UpstoxBrokerGateway(broker)
-        depth = gw.get_depth("RELIANCE", "NSE")
+        depth = gw.depth("RELIANCE", "NSE")
         assert depth.bids == []
         assert depth.asks == []
 

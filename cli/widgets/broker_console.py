@@ -79,9 +79,9 @@ class BrokerConsoleWidget(Static):
 
         # Update metrics
         try:
-            limits = broker.get_fund_limits()
-            positions = broker.get_positions()
-            holdings = broker.get_holdings()
+            limits = broker.funds()
+            positions = broker.positions()
+            holdings = broker.holdings()
 
             realized = sum(p.realized_pnl for p in positions)
             unrealized = sum(p.unrealized_pnl for p in positions)

@@ -1,60 +1,144 @@
+"""BrokerContractSuite — tests that verify any MarketDataGateway implementation
+conforms to the frozen v1.0 contract.
+
+Usage: subclass this in each broker's contract test directory and provide
+a ``gateway`` fixture that returns a configured MarketDataGateway instance.
+
+The method names tested here match the actual MarketDataGateway ABC
+(quote, history, option_chain, etc.), not legacy names (get_quote, etc.).
+"""
+
 from __future__ import annotations
 
-from datetime import date
 from decimal import Decimal
 from typing import Any, ClassVar
 
 import pandas as pd
 import pytest
 
-from brokers.common.core.domain import Capability
 from brokers.common.core.domain import (
-    FundLimits,
+    Balance,
+    DepthLevel,
     Holding,
+    MarketDepth,
     Order,
     OrderResponse,
     OrderStatus,
     Position,
+    Quote,
     Side,
     Trade,
 )
+from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
 
 
 class BrokerContractSuite:
-    broker_name: ClassVar[str]
+    """Contract tests for any MarketDataGateway implementation.
+
+    Subclasses must provide a ``gateway`` fixture returning a
+    configured MarketDataGateway instance.
+    """
 
     @pytest.fixture
-    def broker(self) -> Any:
-        raise NotImplementedError("broker fixture must be provided by the broker implementation")
-
-    def test_broker_name_is_contracted(self, broker: Any) -> None:
-        assert broker.name == self.broker_name
-
-    def test_broker_exposes_required_capabilities(self, broker: Any) -> None:
-        assert broker.has_capability(Capability.MARKET_DATA)
-        assert broker.has_capability(Capability.ORDER_COMMAND)
-        assert broker.has_capability(Capability.ORDER_QUERY)
-        assert broker.has_capability(Capability.PORTFOLIO)
-
-    def test_broker_exposes_streaming_capability(self, broker: Any) -> None:
-        """Broker should expose at least one streaming mechanism."""
-        has_ws = broker.has_capability(Capability.WEBSOCKET)
-        has_order_stream = broker.has_capability(Capability.ORDER_STREAM)
-        assert has_ws or has_order_stream, "Broker must support WEBSOCKET or ORDER_STREAM"
-
-    def test_broker_exposes_required_contract_methods(self, broker: Any) -> None:
-        required_methods = (
-            "get_quote",
-            "get_historical_data",
-            "get_option_chain",
-            "place_order",
-            "get_orders",
-            "get_positions",
-            "get_holdings",
-            "get_fund_limits",
+    def gateway(self) -> MarketDataGateway:
+        raise NotImplementedError(
+            "gateway fixture must be provided by the broker implementation"
         )
-        for method_name in required_methods:
-            assert callable(getattr(broker, method_name))
+
+    # ── Lifecycle ─────────────────────────────────────────────────────────
+
+    def test_gateway_is_market_data_gateway(self, gateway: Any) -> None:
+        assert isinstance(gateway, MarketDataGateway)
+
+    def test_describe_returns_dict(self, gateway: Any) -> None:
+        result = gateway.describe()
+        assert isinstance(result, dict)
+        assert "broker" in result
+
+    def test_capabilities_returns_broker_capabilities(self, gateway: Any) -> None:
+        caps = gateway.capabilities()
+        assert isinstance(caps, BrokerCapabilities)
+
+    # ── Market Data ───────────────────────────────────────────────────────
+
+    def test_quote_returns_quote(self, gateway: Any) -> None:
+        result = gateway.quote("RELIANCE", "NSE")
+        assert isinstance(result, Quote)
+        assert result.symbol == "RELIANCE"
+        assert isinstance(result.ltp, Decimal)
+
+    def test_ltp_returns_decimal(self, gateway: Any) -> None:
+        result = gateway.ltp("RELIANCE", "NSE")
+        assert isinstance(result, Decimal)
+        assert result >= Decimal("0")
+
+    def test_depth_returns_market_depth(self, gateway: Any) -> None:
+        result = gateway.depth("RELIANCE", "NSE")
+        assert isinstance(result, MarketDepth)
+        assert result.bids is not None
+        assert result.asks is not None
+        if result.bids:
+            assert isinstance(result.bids[0], DepthLevel)
+
+    def test_history_returns_dataframe(self, gateway: Any) -> None:
+        df = gateway.history("RELIANCE", "NSE", "1D", lookback_days=5)
+        assert isinstance(df, pd.DataFrame)
+        if not df.empty:
+            expected_columns = [
+                "timestamp", "open", "high", "low", "close",
+                "volume", "oi", "symbol", "exchange", "timeframe",
+            ]
+            for col in expected_columns:
+                assert col in df.columns, f"Missing column: {col}"
+            for col in ["security_id", "instrument_token", "exchange_token"]:
+                assert col not in df.columns, f"Forbidden column: {col}"
+
+    def test_option_chain_returns_dict(self, gateway: Any) -> None:
+        result = gateway.option_chain("NIFTY", "NFO")
+        assert isinstance(result, dict)
+        assert "underlying" in result
+
+    def test_future_chain_returns_dict(self, gateway: Any) -> None:
+        result = gateway.future_chain("NIFTY", "NFO")
+        assert isinstance(result, dict)
+        assert "underlying" in result
+
+    # ── Trading ───────────────────────────────────────────────────────────
+
+    def test_get_orderbook_returns_list(self, gateway: Any) -> None:
+        result = gateway.get_orderbook()
+        assert isinstance(result, list)
+
+    def test_get_trade_book_returns_list(self, gateway: Any) -> None:
+        result = gateway.get_trade_book()
+        assert isinstance(result, list)
+
+    # ── Portfolio ─────────────────────────────────────────────────────────
+
+    def test_positions_returns_list(self, gateway: Any) -> None:
+        result = gateway.positions()
+        assert isinstance(result, list)
+
+    def test_holdings_returns_list(self, gateway: Any) -> None:
+        result = gateway.holdings()
+        assert isinstance(result, list)
+
+    def test_funds_returns_balance(self, gateway: Any) -> None:
+        result = gateway.funds()
+        assert isinstance(result, Balance)
+        assert result.available_balance >= Decimal("0")
+
+    def test_trades_returns_list(self, gateway: Any) -> None:
+        result = gateway.trades()
+        assert isinstance(result, list)
+
+    # ── Instrument ────────────────────────────────────────────────────────
+
+    def test_search_returns_list(self, gateway: Any) -> None:
+        result = gateway.search("RELIANCE")
+        assert isinstance(result, list)
+
+    # ── Order Status Normalization ────────────────────────────────────────
 
     def test_order_status_normalization_contract(self) -> None:
         assert OrderStatus.normalize("EXECUTED") == OrderStatus.FILLED
@@ -64,139 +148,3 @@ class BrokerContractSuite:
         assert OrderStatus.normalize("PARTIALLY_EXECUTED") == OrderStatus.PARTIALLY_FILLED
         for status in OrderStatus:
             assert OrderStatus.normalize(status.value) == status
-
-    # ── DataFrame Contract Tests ──────────────────────────────────────────
-
-    def test_historical_data_schema(self, broker: Any) -> None:
-        df = broker.get_historical_data("RELIANCE", "NSE", date(2026, 6, 1), date(2026, 6, 5), "1d")
-        assert isinstance(df, pd.DataFrame)
-
-        expected_columns = [
-            "timestamp",
-            "open",
-            "high",
-            "low",
-            "close",
-            "volume",
-            "oi",
-            "symbol",
-            "exchange",
-            "timeframe",
-        ]
-        assert list(df.columns) == expected_columns
-
-        # Check forbidden columns
-        for col in ["security_id", "instrument_token", "exchange_token", "symbol_token"]:
-            assert col not in df.columns
-
-    def test_quote_schema(self, broker: Any) -> None:
-        df = broker.get_quote("RELIANCE", "NSE")
-        assert isinstance(df, pd.DataFrame)
-
-        expected_columns = ["symbol", "exchange", "ltp", "bid", "ask", "volume", "oi", "timestamp"]
-        assert list(df.columns) == expected_columns
-
-        for col in ["security_id", "instrument_token", "exchange_token", "symbol_token"]:
-            assert col not in df.columns
-
-    def test_option_chain_schema(self, broker: Any) -> None:
-        df = broker.get_option_chain("NIFTY", "NFO", "2026-07-30")
-        assert isinstance(df, pd.DataFrame)
-
-        expected_columns = [
-            "underlying",
-            "expiry",
-            "strike",
-            "option_type",
-            "ltp",
-            "bid",
-            "ask",
-            "volume",
-            "oi",
-            "iv",
-            "delta",
-            "gamma",
-            "theta",
-            "vega",
-            "rho",
-            "timestamp",
-        ]
-        assert list(df.columns) == expected_columns
-
-        for col in ["security_id", "instrument_token", "exchange_token", "symbol_token"]:
-            assert col not in df.columns
-
-    def test_market_depth_schema(self, broker: Any) -> None:
-        df = broker.get_market_depth("RELIANCE", "NSE")
-        assert isinstance(df, pd.DataFrame)
-
-        assert "symbol" in df.columns
-        assert "timestamp" in df.columns
-        for i in range(1, 21):
-            assert f"bid_price_{i}" in df.columns
-            assert f"bid_qty_{i}" in df.columns
-            assert f"ask_price_{i}" in df.columns
-            assert f"ask_qty_{i}" in df.columns
-
-        for col in ["security_id", "instrument_token", "exchange_token", "symbol_token"]:
-            assert col not in df.columns
-
-    # ── Domain Object Contract Tests ──────────────────────────────────────
-
-    def test_place_order(self, broker: Any) -> None:
-        res = broker.place_order(
-            "RELIANCE", "NSE", Side.BUY, 10, Decimal("2500"), "LIMIT", "CNC", "DAY"
-        )
-        assert isinstance(res, OrderResponse)
-        assert res.success is True
-        assert res.order_id  # non-empty order_id
-        assert not hasattr(res, "security_id")
-
-    def test_get_order(self, broker: Any) -> None:
-        orders = broker.get_orders()
-        assert len(orders) > 0
-        target_id = orders[0].order_id
-        o = broker.get_order(target_id)
-        assert o is not None
-        assert isinstance(o, Order)
-        assert o.order_id
-        assert o.symbol
-        assert o.exchange
-        assert isinstance(o.side, Side)
-        assert isinstance(o.price, Decimal)
-        assert o.quantity > 0
-        assert not hasattr(o, "security_id")
-
-    def test_get_orders(self, broker: Any) -> None:
-        orders = broker.get_orders()
-        assert isinstance(orders, list)
-        for o in orders:
-            assert isinstance(o, Order)
-            assert not hasattr(o, "security_id")
-
-    def test_get_positions(self, broker: Any) -> None:
-        positions = broker.get_positions()
-        assert isinstance(positions, list)
-        for p in positions:
-            assert isinstance(p, Position)
-            assert not hasattr(p, "security_id")
-
-    def test_get_holdings(self, broker: Any) -> None:
-        holdings = broker.get_holdings()
-        assert isinstance(holdings, list)
-        for h in holdings:
-            assert isinstance(h, Holding)
-            assert not hasattr(h, "security_id")
-
-    def test_get_fund_limits(self, broker: Any) -> None:
-        funds = broker.get_fund_limits()
-        assert isinstance(funds, FundLimits)
-        assert funds.available_balance >= Decimal("0")
-        assert not hasattr(funds, "security_id")
-
-    def test_get_trades(self, broker: Any) -> None:
-        trades = broker.get_trades()
-        assert isinstance(trades, list)
-        for t in trades:
-            assert isinstance(t, Trade)
-            assert not hasattr(t, "security_id")

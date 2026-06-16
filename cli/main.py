@@ -90,10 +90,47 @@ from cli.commands import (
 from cli.commands import (
     views as cmd_views,
 )
+from cli.commands.registry import register as _register_cmd
 from cli.services.broker_service import BrokerService
 from cli.services.event_bus_service import EventBusService
 from cli.services.oms_service import OmsService
 from cli.views.tui_app import TradexTuiApp
+
+
+# ── Command registry (populated at import time for discoverability) ───────
+_register_cmd("broker", "cli.commands.broker")
+_register_cmd("dashboard", "cli.commands.dashboard")
+_register_cmd("validate", "cli.commands.validate")
+_register_cmd("validate-history", "cli.commands.validate_history")
+_register_cmd("validate-option-chain", "cli.commands.validate_option_chain")
+_register_cmd("benchmark", "cli.commands.benchmark")
+_register_cmd("compare", "cli.commands.compare")
+_register_cmd("quality-report", "cli.commands.quality_report")
+_register_cmd("instrument-info", "cli.commands.instrument_info")
+_register_cmd("account", "cli.commands.account")
+_register_cmd("holdings", "cli.commands.portfolio")
+_register_cmd("positions", "cli.commands.portfolio")
+_register_cmd("orders", "cli.commands.oms")
+_register_cmd("trades", "cli.commands.oms")
+_register_cmd("oms", "cli.commands.oms")
+_register_cmd("quote", "cli.commands.market")
+_register_cmd("depth", "cli.commands.market")
+_register_cmd("option-chain", "cli.commands.market")
+_register_cmd("futures", "cli.commands.market")
+_register_cmd("historical", "cli.commands.market")
+_register_cmd("history", "cli.commands.market")
+_register_cmd("stream", "cli.commands.market")
+_register_cmd("websocket", "cli.commands.websocket")
+_register_cmd("journal", "cli.commands.journal")
+_register_cmd("events", "cli.commands.events")
+_register_cmd("search", "cli.commands.search")
+_register_cmd("instrument", "cli.commands.instrument")
+_register_cmd("instruments", "cli.commands.instruments")
+_register_cmd("doctor", "cli.commands.doctor")
+_register_cmd("load-test", "cli.commands.load_test")
+_register_cmd("news", "cli.commands.news")
+_register_cmd("analytics", "cli.commands.analytics")
+_register_cmd("views", "cli.commands.views")
 
 
 def _try_create_gateway(broker: str = "dhan") -> Any:
@@ -255,7 +292,7 @@ def main() -> None:
             symbol = cmd_args[0]
             try:
                 gw = _get_gateway()
-                quote = gw.get_quote(symbol)
+                quote = gw.quote(symbol)
                 if quote is not None:
                     from rich.table import Table
 
@@ -282,7 +319,7 @@ def main() -> None:
             symbol = cmd_args[0]
             try:
                 gw = _get_gateway()
-                depth = gw.get_depth(symbol)
+                depth = gw.depth(symbol)
                 if depth is not None and (depth.bids or depth.asks):
                     from rich.table import Table
 

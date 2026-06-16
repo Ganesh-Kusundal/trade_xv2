@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+from brokers.common.env_loader import load_env_file
 from brokers.common.event_bus import EventBus
 from brokers.common.oms.risk_manager import RiskManager
 from brokers.upstox.auth.config import UpstoxConnectionSettings
@@ -29,7 +30,7 @@ class UpstoxBrokerFactory:
     ) -> UpstoxBrokerGateway:
         env_file = env_path or Path(".env.local")
         if env_file.exists():
-            _load_dotenv(env_file)
+            load_env_file(env_file)
 
         client_id = os.environ.get("UPSTOX_API_KEY", "")
         client_secret = os.environ.get("UPSTOX_API_SECRET", "")
@@ -73,12 +74,3 @@ class UpstoxBrokerFactory:
         return gateway
 
 
-def _load_dotenv(path: Path) -> None:
-    for line in path.read_text().splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, _, value = line.partition("=")
-        key = key.strip()
-        value = value.strip().strip('"').strip("'")
-        os.environ[key] = value

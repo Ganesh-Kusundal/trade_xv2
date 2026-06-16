@@ -75,20 +75,20 @@ class TestNetworkDisconnect:
     def test_get_ltp_network_failure(self, chaos_gateway):
         chaos_gateway._test_client._fail = True
         with pytest.raises(ConnectionError):
-            chaos_gateway.get_ltp("RELIANCE", "NSE")
+            chaos_gateway.ltp("RELIANCE", "NSE")
 
     def test_get_quote_network_failure(self, chaos_gateway):
         chaos_gateway._test_client._fail = True
         with pytest.raises(ConnectionError):
-            chaos_gateway.get_quote("RELIANCE", "NSE")
+            chaos_gateway.quote("RELIANCE", "NSE")
 
     def test_recovery_after_network_failure(self, chaos_gateway):
         chaos_gateway._test_client._fail = True
         with pytest.raises(ConnectionError):
-            chaos_gateway.get_ltp("RELIANCE", "NSE")
+            chaos_gateway.ltp("RELIANCE", "NSE")
 
         chaos_gateway._test_client._fail = False
-        result = chaos_gateway.get_ltp("RELIANCE", "NSE")
+        result = chaos_gateway.ltp("RELIANCE", "NSE")
         assert result is not None
 
 

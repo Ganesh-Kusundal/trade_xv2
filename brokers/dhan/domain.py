@@ -10,8 +10,8 @@ Usage::
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from dataclasses import dataclass
+from datetime import timedelta, timezone
 from decimal import Decimal
 from enum import Enum
 from typing import Optional
@@ -21,14 +21,18 @@ from typing import Optional
 # types and their associated enums across ALL broker adapters.
 
 from brokers.common.core.domain import (  # noqa: F401  (re-exports)
+    Balance,
+    DepthLevel,
     FundLimits,
     Holding,
+    MarketDepth,
     Order,
     OrderResponse,
     OrderStatus,
     OrderType,
     Position,
     ProductType,
+    Quote,
     Side,
     Trade,
     Validity,
@@ -96,56 +100,6 @@ class Instrument:
     @property
     def is_future(self) -> bool:
         return self.instrument_type == InstrumentType.FUTURE
-
-
-@dataclass(frozen=True)
-class Quote:
-    """Real-time quote — Dhan uses the ``ltp`` naming convention."""
-
-    symbol: str
-    ltp: Decimal
-    open: Decimal = Decimal("0")
-    high: Decimal = Decimal("0")
-    low: Decimal = Decimal("0")
-    close: Decimal = Decimal("0")
-    volume: int = 0
-    change: Decimal = Decimal("0")
-    timestamp: datetime = field(default_factory=lambda: datetime.now(IST))
-
-
-@dataclass(frozen=True)
-class DepthLevel:
-    """Single price level in the market depth."""
-
-    price: Decimal
-    quantity: int
-    orders: int = 0
-
-
-@dataclass(frozen=True)
-class MarketDepth:
-    """Full market depth (bid/ask ladder) for a symbol."""
-
-    symbol: str
-    bids: tuple[DepthLevel, ...]
-    asks: tuple[DepthLevel, ...]
-    timestamp: datetime = field(default_factory=lambda: datetime.now(IST))
-
-
-@dataclass(frozen=True)
-class Balance:
-    """Dhan-specific fund limits — extends canonical Balance with Dhan-specific fields.
-
-    IS-A relationship: Dhan Balance is a common Balance with additional fields.
-    """
-
-    available_balance: Decimal = Decimal("0")
-    sod_limit: Decimal = Decimal("0")
-    collateral_amount: Decimal = Decimal("0")
-    utilized_amount: Decimal = Decimal("0")
-    withdrawable_balance: Decimal = Decimal("0")
-    used_margin: Decimal = Decimal("0")
-    total_margin: Decimal = Decimal("0")
 
 
 # ── Backward-compatibility aliases ────────────────────────────────────────

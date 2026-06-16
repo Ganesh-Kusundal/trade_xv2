@@ -24,9 +24,10 @@ class TestPaperGateway:
     def test_quote_returns_dict(self):
         gw = PaperGateway()
         q = gw.quote("RELIANCE", "NSE")
-        assert isinstance(q, dict)
-        assert q["symbol"] == "RELIANCE"
-        assert q["ltp"] > 0
+        from brokers.common.core.domain import Quote
+        assert isinstance(q, Quote)
+        assert q.symbol == "RELIANCE"
+        assert q.ltp > 0
 
     def test_ltp(self):
         gw = PaperGateway()
@@ -37,10 +38,11 @@ class TestPaperGateway:
     def test_depth(self):
         gw = PaperGateway()
         d = gw.depth("RELIANCE", "NSE")
-        assert isinstance(d, dict)
-        assert len(d["bids"]) == 5
-        assert len(d["asks"]) == 5
-        assert d["bids"][0]["quantity"] > 0
+        from brokers.common.core.domain import MarketDepth
+        assert isinstance(d, MarketDepth)
+        assert len(d.bids) == 5
+        assert len(d.asks) == 5
+        assert d.bids[0].quantity > 0
 
     def test_place_order_returns_order_response(self):
         gw = PaperGateway()
@@ -170,22 +172,23 @@ class TestMockBroker:
         broker = MockBroker()
         broker.connect()
         broker.place_order("RELIANCE", "NSE", "BUY", 10, price=Decimal("2500"))
-        positions = broker.get_positions()
+        positions = broker.positions()
         assert len(positions) == 1
         assert positions[0].symbol == "RELIANCE"
 
     def test_get_balance(self):
         broker = MockBroker(initial_capital=Decimal("1000000"))
         broker.connect()
-        b = broker.get_balance()
+        b = broker.funds()
         assert isinstance(b, Balance)
         assert b.total_margin == Decimal("1000000")
 
     def test_get_quote(self):
         broker = MockBroker()
-        q = broker.get_quote("RELIANCE", "NSE")
-        assert isinstance(q, dict)
-        assert q["ltp"] > 0
+        q = broker.quote("RELIANCE", "NSE")
+        from brokers.common.core.domain import Quote
+        assert isinstance(q, Quote)
+        assert q.ltp > 0
 
     def test_trading_context_populates_oms(self):
         from brokers.common.oms.context import TradingContext

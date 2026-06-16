@@ -35,8 +35,7 @@ class UpstoxRestOrderClient:
         return self._http.get_json(self._urls.order_details_url(), params={"order_id": order_id})
 
     def get_order_list(self) -> list[dict[str, Any]]:
-        # V2 requires tag parameter - use empty string to get all orders
-        body = self._http.get_json(f"{self._urls._v2()}/order/history", params={"tag": ""})
+        body = self._http.get_json(f"{self._urls._v2()}/order/retrieve-all")
         return _data_list(body)
 
     def get_trades_for_day(self) -> list[dict[str, Any]]:

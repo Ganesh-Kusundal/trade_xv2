@@ -48,21 +48,21 @@ def live_gateway() -> UpstoxBrokerGateway:
 class TestUpstoxLTPContract:
     @skip_live
     def test_ltp_returns_decimal(self, live_gateway):
-        ltp = live_gateway.get_ltp("RELIANCE", "NSE")
+        ltp = live_gateway.ltp("RELIANCE", "NSE")
         assert isinstance(ltp, Decimal)
         assert ltp > 0
 
     @skip_live
     def test_ltp_multiple_symbols(self, live_gateway):
         for sym in ["RELIANCE", "INFY", "TCS"]:
-            ltp = live_gateway.get_ltp(sym, "NSE")
+            ltp = live_gateway.ltp(sym, "NSE")
             assert ltp > 0, f"LTP for {sym} should be positive"
 
 
 class TestUpstoxQuoteContract:
     @skip_live
     def test_quote_has_required_fields(self, live_gateway):
-        q = live_gateway.get_quote("RELIANCE", "NSE")
+        q = live_gateway.quote("RELIANCE", "NSE")
         assert isinstance(q, Quote)
         assert q.ltp > 0
         assert q.open > 0
@@ -73,7 +73,7 @@ class TestUpstoxQuoteContract:
 class TestUpstoxDepthContract:
     @skip_live
     def test_depth_returns_bids_and_asks(self, live_gateway):
-        depth = live_gateway.get_depth("RELIANCE", "NSE")
+        depth = live_gateway.depth("RELIANCE", "NSE")
         assert isinstance(depth, MarketDepth)
         assert isinstance(depth.bids, list)
         assert isinstance(depth.asks, list)
@@ -82,12 +82,12 @@ class TestUpstoxDepthContract:
 class TestUpstoxPortfolioContract:
     @skip_live
     def test_holdings_returns_list(self, live_gateway):
-        holdings = live_gateway.portfolio.get_holdings()
+        holdings = live_gateway.portfolio.holdings()
         assert isinstance(holdings, list)
 
     @skip_live
     def test_positions_returns_list(self, live_gateway):
-        positions = live_gateway.portfolio.get_positions()
+        positions = live_gateway.portfolio.positions()
         assert isinstance(positions, list)
 
 

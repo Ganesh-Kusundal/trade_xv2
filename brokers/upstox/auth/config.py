@@ -4,6 +4,8 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from brokers.common.env_loader import load_env_file
+
 UPSTOX_PREFIX = "UPSTOX"
 
 VALID_ENVIRONMENTS = ("LIVE", "SANDBOX")
@@ -130,11 +132,11 @@ class UpstoxSettingsLoader:
         prefix: str = PREFIX,
     ) -> UpstoxConnectionSettings:
         if env_path:
-            cls._load_dotenv(env_path)
+            load_env_file(env_path)
         else:
             for candidate in cls.DEFAULT_ENV_PATHS:
                 if candidate.exists():
-                    cls._load_dotenv(candidate)
+                    load_env_file(candidate)
                     break
 
         environment = cls._get(prefix, "ENVIRONMENT", default="LIVE").upper()
@@ -260,20 +262,6 @@ class UpstoxSettingsLoader:
             ),
             slice_default=cls._parse_bool(values.get(f"{prefix}.sliceDefault"), False),
         )
-
-    @staticmethod
-    def _load_dotenv(path: Path) -> None:
-        if not path.exists():
-            return
-        for raw in path.read_text().splitlines():
-            line = raw.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            key, value = line.split("=", 1)
-            key = key.strip()
-            value = value.strip().strip('"').strip("'")
-            os.environ[key] = value
-            os.environ.setdefault(key.upper(), value)
 
     @staticmethod
     def _read_properties(path: Path) -> dict[str, str]:

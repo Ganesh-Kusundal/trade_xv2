@@ -152,25 +152,25 @@ class DataLakeGateway(MarketDataGateway):
             df["timeframe"] = timeframe
         return df
 
-    def quote(self, symbol: str, exchange: str = "NSE") -> dict:
+    def quote(self, symbol: str, exchange: str = "NSE") -> Quote:
+        from brokers.common.core.domain import Quote as _Quote
         df = self._load_parquet(symbol, "1m")
         if df is None or df.empty:
-            return {"symbol": symbol, "ltp": 0, "open": 0, "high": 0, "low": 0, "close": 0, "volume": 0, "change": 0, "bid": 0, "ask": 0, "timestamp": datetime.now().isoformat()}
+            return _Quote(symbol=symbol)
         last = df.iloc[-1]
         prev_close = df.iloc[-2]["close"] if len(df) > 1 else last["close"]
-        return {
-            "symbol": symbol,
-            "ltp": float(last["close"]),
-            "open": float(last["open"]),
-            "high": float(last["high"]),
-            "low": float(last["low"]),
-            "close": float(last["close"]),
-            "volume": int(last["volume"]),
-            "change": float(last["close"] - prev_close),
-            "bid": float(last["low"]),
-            "ask": float(last["high"]),
-            "timestamp": str(last["timestamp"]),
-        }
+        return _Quote(
+            symbol=symbol,
+            ltp=Decimal(str(last["close"])),
+            open=Decimal(str(last["open"])),
+            high=Decimal(str(last["high"])),
+            low=Decimal(str(last["low"])),
+            close=Decimal(str(last["close"])),
+            volume=int(last["volume"]),
+            change=Decimal(str(last["close"] - prev_close)),
+            bid=Decimal(str(last["low"])),
+            ask=Decimal(str(last["high"])),
+        )
 
     def ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:
         df = self._load_parquet(symbol, "1m")
@@ -178,8 +178,9 @@ class DataLakeGateway(MarketDataGateway):
             return Decimal("0")
         return Decimal(str(df.iloc[-1]["close"]))
 
-    def depth(self, symbol: str, exchange: str = "NSE") -> dict:
-        return {"symbol": symbol, "bids": [], "asks": []}
+    def depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
+        from brokers.common.core.domain import MarketDepth as _MarketDepth
+        return _MarketDepth(symbol=symbol)
 
     def option_chain(
         self,

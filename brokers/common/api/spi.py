@@ -5,6 +5,7 @@ This module mirrors Trade_J's SPI concepts while staying idiomatic for Python.
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from enum import Enum
@@ -204,3 +205,75 @@ def _normalise_capability_mapping(
 
 # Backwards-compatible alias used by earlier code.
 CapabilityMetadataEntry = CapabilityMetadata
+
+
+# ── BrokerConnection (moved from domain.py) ───────────────────────────────
+
+
+class BrokerConnection(ABC):
+    """Abstract broker connection with capability-based service discovery.
+
+    New broker adapters should use the ``MarketDataGateway`` ABC from
+    ``brokers.common.gateway`` directly; this class is retained for
+    Upstox backward compatibility.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        broker_id: str,
+        capabilities: set[Any] | None = None,
+    ):
+        from brokers.common.core.types import Capability, ConnectionStatus
+        self._name = name
+        self._broker_id = broker_id
+        self._capabilities: set[Capability] = capabilities or set()
+        self._capability_map: dict[Capability, Any] = {}
+        self._status: ConnectionStatus = ConnectionStatus.DISCONNECTED
+
+    @abstractmethod
+    def connect(self) -> bool:
+        ...
+
+    @abstractmethod
+    def disconnect(self) -> bool:
+        ...
+
+    @abstractmethod
+    def reconnect(self) -> bool:
+        ...
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def broker_id(self) -> str:
+        return self._broker_id
+
+    @property
+    def status(self) -> Any:
+        return self._status
+
+    def capabilities(self) -> set[Any]:
+        return set(self._capabilities)
+
+    def has_capability(self, capability: Any) -> bool:
+        return capability in self._capabilities
+
+    def get_capability(self, capability: Any) -> Any:
+        return self._capability_map.get(capability)
+
+    def _register_capability(self, capability: Any, provider: Any) -> None:
+        self._capabilities.add(capability)
+        self._capability_map[capability] = provider
+
+    def _set_status(self, status: Any) -> None:
+        self._status = status
+
+    def __enter__(self) -> "BrokerConnection":
+        self.connect()
+        return self
+
+    def __exit__(self, *args: Any) -> None:
+        self.disconnect()

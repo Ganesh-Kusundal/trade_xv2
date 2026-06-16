@@ -2,11 +2,12 @@
 
 import os
 
-from brokers.dhan.factory import _load_dotenv, _update_env_token
+from brokers.common.env_loader import load_env_file
+from brokers.dhan.factory import _update_env_token
 
 
 def test_load_dotenv(tmp_path):
-    """_load_dotenv should parse key=value pairs and set os.environ."""
+    """load_env_file should parse key=value pairs and set os.environ."""
     env_file = tmp_path / ".env"
     env_file.write_text(
         "DHAN_CLIENT_ID=MYCLIENT\n"
@@ -17,7 +18,7 @@ def test_load_dotenv(tmp_path):
         "QUOTED_VAR='single_quoted'\n"
     )
 
-    _load_dotenv(env_file)
+    load_env_file(env_file)
 
     assert os.environ.get("DHAN_CLIENT_ID") == "MYCLIENT"
     assert os.environ.get("DHAN_ACCESS_TOKEN") == "mytoken123"
@@ -39,7 +40,7 @@ def test_load_dotenv_ignores_comments_and_blanks(tmp_path):
         "VALID_KEY=valid_value\n"
     )
 
-    _load_dotenv(env_file)
+    load_env_file(env_file)
 
     assert os.environ.get("VALID_KEY") == "valid_value"
 

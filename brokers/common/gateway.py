@@ -32,6 +32,7 @@ from brokers.common.core.domain import (
     OrderResponse,
     Position,
     Holding,
+    Quote,
     Trade,
 )
 
@@ -133,8 +134,8 @@ class MarketDataGateway(ABC):
         ...
 
     @abstractmethod
-    def quote(self, symbol: str, exchange: str = "NSE") -> dict:
-        """Return a quote dict with: symbol, ltp, open, high, low, close, volume, change, bid, ask, timestamp."""
+    def quote(self, symbol: str, exchange: str = "NSE") -> Quote:
+        """Return a canonical Quote with: symbol, ltp, open, high, low, close, volume, change, bid, ask, timestamp."""
         ...
 
     @abstractmethod
@@ -143,11 +144,8 @@ class MarketDataGateway(ABC):
         ...
 
     @abstractmethod
-    def depth(self, symbol: str, exchange: str = "NSE") -> dict:
-        """Return market depth with bids and asks.
-
-        Returns dict with: symbol, bids list[{price, quantity, orders}], asks list[{price, quantity, orders}].
-        """
+    def depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
+        """Return canonical MarketDepth with bids and asks."""
         ...
 
     @abstractmethod

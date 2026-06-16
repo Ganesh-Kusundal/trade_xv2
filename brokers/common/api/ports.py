@@ -1,4 +1,43 @@
-"""Service Provider Interface (SPI) — abstract capability contracts."""
+"""Service Provider Interface (SPI) — fine-grained capability contracts.
+
+These abstract classes define individual broker capabilities. Each port
+represents one capability that a broker adapter can implement:
+
+- ``OrderCommand`` — place/modify/cancel orders
+- ``OrderQuery`` — query orders and trades
+- ``MarketDataProvider`` — quotes, LTP, depth, historical data
+- ``PortfolioProvider`` — positions, holdings, funds
+- ``OptionsProvider`` — option chain data
+- ``FuturesProvider`` — futures chain data
+- ``MarginProvider`` — margin calculations
+- ``BracketOrderProvider`` — bracket/cover orders
+- ``GttOrderProvider`` — GTT (Good Till Triggered) orders
+- ``SliceOrderCommand`` — order slicing
+- ``ConditionalAlertProvider`` — conditional alerts
+- ``MarketStatusProvider`` — market status
+- ``NewsProvider`` — market news
+- ``MarketIntelligencePort`` — market intelligence
+- ``KillSwitchPort`` — emergency kill switch
+- ``StaticIPPort`` — static IP management
+- ``IdempotencyCachePort`` — idempotency caching
+
+The ``MarketDataGateway`` ABC in ``brokers.common.gateway`` is a
+coarse-grained facade that combines all these capabilities into a
+single interface. Consumers typically use the gateway; broker
+adapters implement the ports internally and wire them into the
+gateway.
+
+Relationship::
+
+    MarketDataGateway (facade)
+    ├── MarketDataProvider (quotes, ltp, depth)
+    ├── OrderCommand (place, modify, cancel)
+    ├── OrderQuery (get orders, trades)
+    ├── PortfolioProvider (positions, holdings, funds)
+    ├── OptionsProvider (option chain)
+    ├── FuturesProvider (future chain)
+    └── ... other ports
+"""
 
 from __future__ import annotations
 
@@ -47,7 +86,7 @@ class InstrumentDefinition(Protocol):
 
 
 class OrderCommand(ABC):
-    """Execute and manage orders."""
+    """Execute and manage orders. Gateway methods: place_order, cancel_order."""
 
     @abstractmethod
     def place_order(self, request: OrderRequest) -> OrderResponse:
@@ -71,7 +110,7 @@ class OrderCommand(ABC):
 
 
 class OrderQuery(ABC):
-    """Query orders and trades."""
+    """Query orders and trades. Gateway methods: get_orderbook, get_trade_book, trades."""
 
     @abstractmethod
     def get_order(self, order_id: str) -> Order | None:
@@ -100,7 +139,7 @@ class OrderQuery(ABC):
 
 
 class MarketDataProvider(ABC):
-    """Retrieve market data — quotes, history, option chain, depth."""
+    """Market data queries. Gateway methods: quote, ltp, depth, history, option_chain."""
 
     @abstractmethod
     def get_quote(
@@ -162,7 +201,7 @@ class MarketDataProvider(ABC):
 
 
 class PortfolioProvider(ABC):
-    """Retrieve portfolio state — positions, holdings, funds, ledger, profile."""
+    """Portfolio data. Gateway methods: positions, holdings, funds."""
 
     @abstractmethod
     def get_positions(self) -> list[Position]:
@@ -191,7 +230,7 @@ class PortfolioProvider(ABC):
 
 
 class OptionsProvider(ABC):
-    """Option-chain aware provider."""
+    """Option-chain aware provider. Gateway method: option_chain."""
 
     @abstractmethod
     def get_expiries(self, underlying: str, exchange_segment: Any) -> list[str]:
@@ -210,7 +249,7 @@ class OptionsProvider(ABC):
 
 
 class MarginProvider(ABC):
-    """Margin calculation."""
+    """Margin calculations. No direct gateway method; used internally by broker adapters."""
 
     @abstractmethod
     def calculate_margin(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -219,7 +258,7 @@ class MarginProvider(ABC):
 
 
 class FuturesProvider(ABC):
-    """Futures instrument capability."""
+    """Futures instrument capability. Gateway method: future_chain."""
 
     @abstractmethod
     def get_contracts(self, underlying: str, exchange_segment: Any) -> list[Any]:
@@ -243,7 +282,7 @@ class FuturesProvider(ABC):
 
 
 class BracketOrderProvider(ABC):
-    """Bracket order capability."""
+    """Bracket order capability. No direct gateway method; extends beyond the base gateway contract."""
 
     @abstractmethod
     def place_super_order(
@@ -280,7 +319,7 @@ class BracketOrderProvider(ABC):
 
 
 class CoverOrderProvider(ABC):
-    """Cover order capability."""
+    """Cover order capability. No direct gateway method; extends beyond the base gateway contract."""
 
     @abstractmethod
     def place_cover_order(self, request: OrderRequest, stop_loss_price: Decimal) -> Order:
@@ -294,7 +333,7 @@ class CoverOrderProvider(ABC):
 
 
 class GttOrderProvider(ABC):
-    """Good-till-triggered order capability."""
+    """Good-till-triggered order capability. No direct gateway method; extends beyond the base gateway contract."""
 
     @abstractmethod
     def place_forever_order(
@@ -333,7 +372,7 @@ class GttOrderProvider(ABC):
 
 
 class SliceOrderCommand(ABC):
-    """Slice large orders into child orders."""
+    """Slice large orders into child orders. No direct gateway method; extends beyond the base gateway contract."""
 
     @abstractmethod
     def place_slice_order(self, request: SliceOrderRequest) -> list[Order]:
@@ -342,7 +381,7 @@ class SliceOrderCommand(ABC):
 
 
 class ConditionalAlertProvider(ABC):
-    """Conditional alert capability."""
+    """Conditional alert capability. No direct gateway method; extends beyond the base gateway contract."""
 
     @abstractmethod
     def place_alert(self, request: ConditionalAlertRequest) -> str:
@@ -366,7 +405,7 @@ class ConditionalAlertProvider(ABC):
 
 
 class MarketStatusProvider(ABC):
-    """Market/session status provider."""
+    """Market/session status provider. No direct gateway method; extends beyond the base gateway contract."""
 
     @abstractmethod
     def get_market_status(self) -> dict[str, Any]:
@@ -375,7 +414,7 @@ class MarketStatusProvider(ABC):
 
 
 class NewsProvider(ABC):
-    """News feed provider."""
+    """News feed provider. No direct gateway method; extends beyond the base gateway contract."""
 
     @abstractmethod
     def get_news(self, **filters: Any) -> list[Any]:
@@ -387,7 +426,7 @@ T = TypeVar("T")
 
 
 class IdempotencyCachePort(ABC, Generic[T]):
-    """Idempotency cache for order placement safety."""
+    """Idempotency cache for order placement safety. Infrastructure port; not exposed via gateway."""
 
     @abstractmethod
     def get(self, key: str) -> T | None:
@@ -404,22 +443,36 @@ class MarketIntelligencePort(ABC):
     """Aggregated market intelligence — PCR, Max Pain, OI, FII/DII, Smartlist."""
 
     @abstractmethod
-    def get_pcr(self, underlying: str, interval: str = "1d") -> dict[str, Any]:
+    def get_pcr(
+        self,
+        instrument_key: str,
+        expiry: str,
+        date: str,
+        bucket_interval: int = 1,
+    ) -> dict[str, Any]:
         """Return Put/Call ratio data."""
         ...
 
     @abstractmethod
-    def get_max_pain(self, underlying: str, expiry: str, date: str) -> dict[str, Any]:
+    def get_max_pain(
+        self,
+        instrument_key: str,
+        expiry: str,
+        date: str,
+        bucket_interval: int = 1,
+    ) -> dict[str, Any]:
         """Return max-pain analysis."""
         ...
 
     @abstractmethod
-    def get_oi(self, underlying: str, expiry: str, date: str) -> dict[str, Any]:
+    def get_oi(self, instrument_key: str, expiry: str, date: str) -> dict[str, Any]:
         """Return open-interest build-up."""
         ...
 
     @abstractmethod
-    def get_fii_flow(self, segment: str, interval: str = "1D") -> dict[str, Any]:
+    def get_fii_flow(
+        self, data_type: str = "NSE_FO|INDEX_FUTURES", interval: str = "1D"
+    ) -> dict[str, Any]:
         """Return FII/DII flow."""
         ...
 
@@ -429,7 +482,12 @@ class MarketIntelligencePort(ABC):
         ...
 
     @abstractmethod
-    def get_smartlist(self, kind: str, asset_type: str, category: str) -> list[dict[str, Any]]:
+    def get_smartlist(
+        self,
+        kind: str,
+        asset_type: str = "INDEX",
+        category: str = "TOP_TRADED",
+    ) -> dict[str, Any]:
         """Return the broker's curated symbol list."""
         ...
 

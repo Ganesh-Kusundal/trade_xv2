@@ -8,12 +8,13 @@ from typing import Any, Optional
 
 import pandas as pd
 
+from brokers.common.batch_mixin import BatchFetchMixin
 from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
 from brokers.common.core.domain import OrderResponse
 from brokers.upstox.broker import UpstoxBroker
 
 
-class UpstoxBrokerGateway(MarketDataGateway):
+class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
     """Unified Upstox broker API. All calls delegate to UpstoxBroker adapters."""
 
     def __init__(self, broker: UpstoxBroker):
@@ -59,9 +60,9 @@ class UpstoxBrokerGateway(MarketDataGateway):
     def websocket(self) -> Any:
         return self._broker.market_data_websocket
 
-    # ── Market Data shortcuts ──
+    # ── Market Data (ABC-aligned) ─────────────────────────────────────
 
-    def get_ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:
+    def ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:
         key = self._resolve_instrument_key(symbol, exchange)
         body = self._broker.market_data_v2.get_ltp([key])
         data = body.get("data", {})
@@ -70,7 +71,7 @@ class UpstoxBrokerGateway(MarketDataGateway):
                 return Decimal(str(v["last_price"]))
         return Decimal("0")
 
-    def get_quote(self, symbol: str, exchange: str = "NSE") -> Any:
+    def quote(self, symbol: str, exchange: str = "NSE") -> Any:
         from brokers.common.core.domain import Quote
         key = self._resolve_instrument_key(symbol, exchange)
         body = self._broker.market_data_v2.get_quote([key])
@@ -91,7 +92,7 @@ class UpstoxBrokerGateway(MarketDataGateway):
                 )
         return Quote(symbol=symbol)
 
-    def get_depth(self, symbol: str, exchange: str = "NSE") -> Any:
+    def depth(self, symbol: str, exchange: str = "NSE") -> Any:
         from brokers.common.core.domain import MarketDepth, DepthLevel
         key = self._resolve_instrument_key(symbol, exchange)
         body = self._broker.market_data_v2.get_order_book(key)
@@ -114,17 +115,6 @@ class UpstoxBrokerGateway(MarketDataGateway):
     def get_trade_book(self) -> list[Any]:
         return []
 
-    # ── Portfolio shortcuts ──
-
-    def get_positions(self) -> list[Any]:
-        return self._broker.portfolio.get_positions()
-
-    def get_holdings(self) -> list[Any]:
-        return self._broker.portfolio.get_holdings()
-
-    def get_balance(self) -> Any:
-        return self._broker.portfolio.get_fund_limits()
-
     # ── Lifecycle ──
 
     def load_instruments(self, source: Optional[str] = None) -> None:
@@ -142,22 +132,11 @@ class UpstoxBrokerGateway(MarketDataGateway):
     def close(self) -> None:
         self._broker.disconnect()
 
-    # ── Spec-aligned convenience aliases ────────────────────────────
-
-    def ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:
-        return self.get_ltp(symbol, exchange)
-
-    def quote(self, symbol: str, exchange: str = "NSE") -> Any:
-        return self.get_quote(symbol, exchange)
-
-    def depth(self, symbol: str, exchange: str = "NSE") -> Any:
-        return self.get_depth(symbol, exchange)
-
     def history(
         self,
         symbol: str | list[str],
         exchange: str = "NSE",
-        timeframe: str = "1m",
+        timeframe: str = "1D",
         lookback_days: int = 90,
         from_date: str | None = None,
         to_date: str | None = None,
@@ -239,7 +218,7 @@ class UpstoxBrokerGateway(MarketDataGateway):
     def option_chain(
         self,
         underlying: str,
-        exchange: str = "NSE",
+        exchange: str = "NFO",
         expiry: str | None = None,
     ) -> dict:
         # Upstox option expiry endpoint is deprecated
@@ -255,18 +234,18 @@ class UpstoxBrokerGateway(MarketDataGateway):
     def future_chain(
         self,
         underlying: str,
-        exchange: str = "NSE",
+        exchange: str = "NFO",
     ) -> dict:
         return {"underlying": underlying, "exchange": "NSE_FO", "expiries": [], "contracts": []}
 
     def funds(self) -> Any:
-        return self.get_balance()
+        return self._broker.portfolio.get_fund_limits()
 
     def positions(self) -> list[Any]:
-        return self.get_positions()
+        return self._broker.portfolio.get_positions()
 
     def holdings(self) -> list[Any]:
-        return self.get_holdings()
+        return self._broker.portfolio.get_holdings()
 
     def trades(self) -> list[Any]:
         return self.get_trade_book()
@@ -347,60 +326,6 @@ class UpstoxBrokerGateway(MarketDataGateway):
         if on_tick:
             ws.add_listener(lambda _event_type, payload: on_tick(payload))
         return ws
-
-    # ── Parallel Data Fetching ──────────────────────────────────────
-
-    def ltp_batch(self, symbols: list[str], exchange: str = "NSE") -> dict[str, Decimal]:
-        """Fetch LTP for multiple symbols in parallel."""
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-        results = {}
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            futures = {executor.submit(self.ltp, sym, exchange): sym for sym in symbols}
-            for future in as_completed(futures):
-                sym = futures[future]
-                try:
-                    results[sym] = future.result()
-                except Exception:
-                    results[sym] = Decimal("0")
-        return results
-
-    def quote_batch(self, symbols: list[str], exchange: str = "NSE") -> dict[str, Any]:
-        """Fetch quotes for multiple symbols in parallel."""
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-        results = {}
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            futures = {executor.submit(self.quote, sym, exchange): sym for sym in symbols}
-            for future in as_completed(futures):
-                sym = futures[future]
-                try:
-                    results[sym] = future.result()
-                except Exception:
-                    pass
-        return results
-
-    def history_batch(
-        self,
-        symbols: list[str],
-        exchange: str = "NSE",
-        timeframe: str = "1D",
-        lookback_days: int = 90,
-    ) -> pd.DataFrame:
-        """Fetch history for multiple symbols in parallel."""
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-        frames = []
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            futures = {
-                executor.submit(self.history, sym, exchange, timeframe, lookback_days): sym
-                for sym in symbols
-            }
-            for future in as_completed(futures):
-                try:
-                    df = future.result()
-                    if not df.empty:
-                        frames.append(df)
-                except Exception:
-                    pass
-        return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
     # ── Internal ──
 

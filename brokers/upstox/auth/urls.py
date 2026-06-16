@@ -108,6 +108,9 @@ class UpstoxApiUrlResolver:
     def multi_order_v2_url(self) -> str:
         return f"{self._v2()}/order/multi/place"
 
+    def order_book_url(self) -> str:
+        return f"{self._v2()}/order/retrieve-all"
+
     def order_details_url(self) -> str:
         return f"{self._hft()}/order/details"
 

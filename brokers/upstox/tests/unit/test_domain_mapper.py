@@ -68,14 +68,14 @@ def test_txn_wire_round_trip():
 
 
 def test_to_place_payload_basic():
-    from brokers.common.core.domain import TransactionType, OrderType as EnumsOrderType
+    from brokers.common.core.domain import Side, OrderType as EnumsOrderType
     from brokers.common.core.domain import ProductType as EnumsProductType
     from brokers.common.core.domain import Validity as EnumsValidity
 
     req = OrderRequest(
         symbol="RELIANCE",
         exchange_segment=ExchangeSegment.NSE,
-        transaction_type=TransactionType.BUY,
+        transaction_type=Side.BUY,
         quantity=10,
         price=Decimal("2500.50"),
         order_type=EnumsOrderType.LIMIT,
@@ -98,13 +98,13 @@ def test_to_place_payload_basic():
 
 
 def test_to_place_payload_with_slice_and_market_protection():
-    from brokers.common.core.domain import TransactionType, OrderType as EnumsOrderType
+    from brokers.common.core.domain import Side, OrderType as EnumsOrderType
     from brokers.common.core.domain import ProductType as EnumsProductType
     from brokers.common.core.domain import Validity as EnumsValidity
 
     req = OrderRequest(
         symbol="TCS",
-        transaction_type=TransactionType.SELL,
+        transaction_type=Side.SELL,
         quantity=1,
         price=Decimal("3500"),
         order_type=EnumsOrderType.MARKET,

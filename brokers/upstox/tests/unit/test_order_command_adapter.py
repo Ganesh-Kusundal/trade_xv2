@@ -9,7 +9,7 @@ from brokers.common.core.domain import (
     ExchangeSegment,
     OrderType as EnumsOrderType,
     ProductType as EnumsProductType,
-    TransactionType,
+    Side,
     Validity as EnumsValidity,
 )
 from brokers.common.core.domain import OrderRequest
@@ -43,7 +43,7 @@ def test_place_order_publishes_event() -> None:
     request = OrderRequest(
         symbol="RELIANCE",
         exchange_segment=ExchangeSegment.NSE,
-        transaction_type=TransactionType.BUY,
+        transaction_type=Side.BUY,
         quantity=10,
         price=Decimal("2500"),
         order_type=EnumsOrderType.MARKET,
@@ -80,7 +80,7 @@ def test_place_order_failure_does_not_publish() -> None:
     request = OrderRequest(
         symbol="RELIANCE",
         exchange_segment=ExchangeSegment.NSE,
-        transaction_type=TransactionType.BUY,
+        transaction_type=Side.BUY,
         quantity=10,
         order_type=EnumsOrderType.MARKET,
         product_type=EnumsProductType.INTRADAY,
@@ -114,7 +114,7 @@ def test_place_order_risk_check_blocks_order() -> None:
     request = OrderRequest(
         symbol="RELIANCE",
         exchange_segment=ExchangeSegment.NSE,
-        transaction_type=TransactionType.BUY,
+        transaction_type=Side.BUY,
         quantity=1000,
         price=Decimal("100"),
         order_type=EnumsOrderType.LIMIT,

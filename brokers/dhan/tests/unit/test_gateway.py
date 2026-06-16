@@ -40,7 +40,7 @@ class TestBrokerGateway:
         expected = Quote(symbol="RELIANCE", ltp=Decimal("2500"))
         conn._market_data.get_quote.return_value = expected
 
-        result = gateway.get_quote("RELIANCE", "NSE")
+        result = gateway.quote("RELIANCE", "NSE")
 
         conn._market_data.get_quote.assert_called_once_with("RELIANCE", "NSE")
         assert result is expected
@@ -54,7 +54,7 @@ class TestBrokerGateway:
         expected = Balance(available_balance=Decimal("50000"))
         conn._portfolio.get_balance.return_value = expected
 
-        result = gateway.get_balance()
+        result = gateway.funds()
 
         conn._portfolio.get_balance.assert_called_once()
         assert result is expected
@@ -66,7 +66,7 @@ class TestBrokerGateway:
         expected = [Position(symbol="RELIANCE", exchange="NSE", quantity=10)]
         conn._portfolio.get_positions.return_value = expected
 
-        result = gateway.get_positions()
+        result = gateway.positions()
 
         conn._portfolio.get_positions.assert_called_once()
         assert result is expected

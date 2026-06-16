@@ -75,7 +75,8 @@ def _wire_status_to_domain_status(raw: str) -> OrderStatus:
     """Convert Upstox wire status string to canonical domain OrderStatus."""
     if not raw:
         return OrderStatus.OPEN
-    return OrderStatus.normalize(raw)
+    from brokers.upstox.status_mapper import normalize_upstox_status
+    return normalize_upstox_status(raw)
 
 
 def _str_or_none(value: Any) -> str | None:

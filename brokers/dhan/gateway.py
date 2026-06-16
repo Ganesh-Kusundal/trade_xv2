@@ -55,17 +55,6 @@ class BrokerGateway(MarketDataGateway):
     def alerts(self) -> Any:
         return self._conn.alerts
 
-    # ── Market Data shortcuts ──
-
-    def get_ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:
-        return self._conn.market_data.get_ltp(symbol, exchange)
-
-    def get_quote(self, symbol: str, exchange: str = "NSE") -> Quote:
-        return self._conn.market_data.get_quote(symbol, exchange)
-
-    def get_depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
-        return self._conn.market_data.get_depth(symbol, exchange)
-
     # ── Order shortcuts ──
 
     def place_order(self, *args, **kwargs) -> Order:
@@ -80,17 +69,6 @@ class BrokerGateway(MarketDataGateway):
     def get_trade_book(self) -> list[Trade]:
         return self._conn.orders.get_trade_book()
 
-    # ── Portfolio shortcuts ──
-
-    def get_positions(self) -> list[Position]:
-        return self._conn.portfolio.get_positions()
-
-    def get_holdings(self) -> list[Holding]:
-        return self._conn.portfolio.get_holdings()
-
-    def get_balance(self) -> Balance:
-        return self._conn.portfolio.get_balance()
-
     # ── Lifecycle ──
 
     def load_instruments(self, source: Optional[str] = None, use_cache: bool = True) -> None:
@@ -99,22 +77,22 @@ class BrokerGateway(MarketDataGateway):
     def close(self) -> None:
         self._conn.close()
 
-    # ── Spec-aligned convenience aliases ────────────────────────────
+    # ── Market Data (ABC-aligned) ─────────────────────────────────────
 
     def ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:
-        return self.get_ltp(symbol, exchange)
+        return self._conn.market_data.get_ltp(symbol, exchange)
 
     def quote(self, symbol: str, exchange: str = "NSE") -> Quote:
-        return self.get_quote(symbol, exchange)
+        return self._conn.market_data.get_quote(symbol, exchange)
 
     def depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
-        return self.get_depth(symbol, exchange)
+        return self._conn.market_data.get_depth(symbol, exchange)
 
     def history(
         self,
         symbol: str | list[str],
         exchange: str = "NSE",
-        timeframe: str = "1m",
+        timeframe: str = "1D",
         lookback_days: int = 90,
         from_date: str | None = None,
         to_date: str | None = None,
@@ -139,7 +117,7 @@ class BrokerGateway(MarketDataGateway):
     def option_chain(
         self,
         underlying: str,
-        exchange: str = "INDEX",
+        exchange: str = "NFO",
         expiry: str | None = None,
     ) -> dict:
         from brokers.dhan.segments import EXCHANGE_TO_SEGMENT
@@ -182,7 +160,7 @@ class BrokerGateway(MarketDataGateway):
     def future_chain(
         self,
         underlying: str,
-        exchange: str = "INDEX",
+        exchange: str = "NFO",
     ) -> dict:
         from brokers.dhan.segments import EXCHANGE_TO_SEGMENT
         nfo_map = {"NIFTY": "NFO", "BANKNIFTY": "NFO", "FINNIFTY": "NFO", "SENSEX": "BFO"}
@@ -200,13 +178,13 @@ class BrokerGateway(MarketDataGateway):
         return {"underlying": underlying, "exchange": dhan_exchange, "expiries": expiries, "contracts": chain}
 
     def funds(self) -> Balance:
-        return self.get_balance()
+        return self._conn.portfolio.get_balance()
 
     def positions(self) -> list[Position]:
-        return self.get_positions()
+        return self._conn.portfolio.get_positions()
 
     def holdings(self) -> list[Holding]:
-        return self.get_holdings()
+        return self._conn.portfolio.get_holdings()
 
     def trades(self) -> list[Trade]:
         return self.get_trade_book()
@@ -328,11 +306,3 @@ class BrokerGateway(MarketDataGateway):
                     pass
         return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
-    def expired_option_chain(
-        self,
-        underlying: str,
-        exchange: str = "NFO",
-        expiry: str = "",
-    ) -> dict:
-        """Fetch expired option chain data."""
-        return self.option_chain(underlying, exchange, expiry)

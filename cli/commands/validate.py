@@ -78,7 +78,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
     console.print("[cyan]Testing Quote...[/cyan]")
     try:
         t0 = time.time()
-        q = gw.get_quote(symbol, exchange)
+        q = gw.quote(symbol, exchange)
         latency = (time.time() - t0) * 1000
 
         results['quote'] = {
@@ -96,7 +96,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
     console.print("[cyan]Testing LTP...[/cyan]")
     try:
         t0 = time.time()
-        q2 = gw.get_quote(symbol, exchange)
+        q2 = gw.quote(symbol, exchange)
         ltp = q2.ltp
         latency = (time.time() - t0) * 1000
 
@@ -114,7 +114,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
     console.print("[cyan]Testing Depth...[/cyan]")
     try:
         t0 = time.time()
-        d = gw.get_depth(symbol, exchange)
+        d = gw.depth(symbol, exchange)
         latency = (time.time() - t0) * 1000
 
         bids = d.bids if d.bids else []
@@ -201,7 +201,7 @@ def _run_broker_validation(args: list[str], broker_service, console: Console) ->
     # 2. Quote
     console.print("[cyan]Testing Quote...[/cyan]")
     try:
-        q = gw.get_quote(symbol, 'NSE')
+        q = gw.quote(symbol, 'NSE')
         results['quote'] = {'status': 'PASS', 'ltp': f'₹{q.ltp}', 'volume': f'{q.volume:,}'}
         console.print(f"  Quote: PASS (LTP=₹{q.ltp}, Volume={q.volume:,})")
     except Exception as e:
@@ -211,7 +211,7 @@ def _run_broker_validation(args: list[str], broker_service, console: Console) ->
     # 3. Depth
     console.print("[cyan]Testing Depth...[/cyan]")
     try:
-        d = gw.get_depth(symbol, 'NSE')
+        d = gw.depth(symbol, 'NSE')
         bids = d.bids if d.bids else []
         asks = d.asks if d.asks else []
         has_data = len(bids) > 0 or len(asks) > 0

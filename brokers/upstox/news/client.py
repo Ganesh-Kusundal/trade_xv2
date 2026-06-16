@@ -21,8 +21,8 @@ class UpstoxNewsClient:
         instrument_keys: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         params: dict[str, Any] = {"category": category}
-        if instrument_keys:
-            params["instrument_key"] = ",".join(instrument_keys)
+        if instrument_keys and category == "instrument_keys":
+            params["instrument_keys"] = ",".join(instrument_keys)
         if symbol:
             params["symbol"] = symbol
         if from_date:
@@ -30,11 +30,18 @@ class UpstoxNewsClient:
         if to_date:
             params["to"] = to_date
         body = self._http.get_json(self._urls.news_url(), params=params)
+        if isinstance(body, dict):
+            data = body.get("data", {})
+            if isinstance(data, dict):
+                all_news = []
+                for key, items in data.items():
+                    if isinstance(items, list):
+                        all_news.extend(items)
+                return all_news
+            if isinstance(data, list):
+                return data
         if isinstance(body, list):
             return body
-        if isinstance(body, dict):
-            data = body.get("data")
-            return data if isinstance(data, list) else []
         return []
 
     def get_news_for_instruments(self, instrument_keys: list[str]) -> dict[str, Any]:
@@ -42,5 +49,5 @@ class UpstoxNewsClient:
             instrument_keys = [instrument_keys]
         return self._http.get_json(
             self._urls.news_url(),
-            params={"instrument_key": ",".join(instrument_keys)},
+            params={"category": "instrument_keys", "instrument_keys": ",".join(instrument_keys)},
         )

@@ -393,7 +393,7 @@ def test_scenario_6_crash_during_token_refresh_atomic_env(tmp_path):
     """Token refresh must be atomic on .env.local. A simulated crash
     mid-write leaves either the old or new token, never a partial.
     """
-    from brokers.dhan.factory import _update_env_token, _load_dotenv
+    from brokers.dhan.factory import _update_env_token
     import os
 
     env_path = tmp_path / ".env.local"
