@@ -9,10 +9,13 @@ from typing import Any, Callable, Optional
 
 from brokers.common.env_loader import load_env_file
 from brokers.common.event_bus import EventBus
+from brokers.common.instrument_cache import InstrumentCacheManager
 from brokers.common.oms.risk_manager import RiskManager
+from brokers.common.symbol_resolver import SymbolResolutionInterceptor
 from brokers.upstox.auth.config import UpstoxConnectionSettings
 from brokers.upstox.broker import UpstoxBroker
 from brokers.upstox.gateway import UpstoxBrokerGateway
+from brokers.upstox.instruments.cache_adapter import UpstoxInstrumentAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -63,10 +66,35 @@ class UpstoxBrokerFactory:
         )
         broker.connect()
 
+        # Set up SQLite instrument cache with lazy refresh
+        cache_db = Path(".cache/instruments.db")
+        cache_mgr = InstrumentCacheManager(db_path=cache_db)
+        adapter = UpstoxInstrumentAdapter(db_path=cache_db)
+        cache_mgr.register_adapter(adapter)
+        
+        # Register loader for transparent lazy refresh
+        # The loader downloads from Upstox CDN if cache is stale, then parses
+        def load_upstox_instruments():
+            cache_path = Path(".cache/upstox/complete.json.gz")
+            if cache_path.exists():
+                path = cache_path
+            else:
+                path = broker.instrument_loader.download(cache_path)
+            return broker.instrument_loader.load(path)
+        
+        cache_mgr.register_loader("upstox", load_upstox_instruments)
+        
+        # Create symbol resolution interceptor
+        symbol_interceptor = SymbolResolutionInterceptor(cache_mgr)
+        broker.symbol_interceptor = symbol_interceptor
+        broker.instrument_cache = cache_mgr
+
         gateway = UpstoxBrokerGateway(broker)
 
         if load_instruments:
             try:
+                # Trigger lazy refresh on first call
+                # This will populate SQLite cache if expired
                 gateway.load_instruments()
             except Exception as e:
                 logger.warning("Failed to load Upstox instruments: %s", e)

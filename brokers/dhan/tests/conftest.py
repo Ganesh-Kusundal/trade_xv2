@@ -80,6 +80,7 @@ class FakeHttpClient:
 # ---------------------------------------------------------------------------
 
 SAMPLE_ROWS = [
+    # ── Index ──
     {
         "SEM_TRADING_SYMBOL": "NIFTY",
         "SEM_SMST_SECURITY_ID": "13",
@@ -87,7 +88,10 @@ SAMPLE_ROWS = [
         "SEM_INSTRUMENT_NAME": "INDEX",
         "SEM_LOT_UNITS": 1,
         "SEM_TICK_SIZE": 0.05,
+        "SEM_CUSTOM_SYMBOL": "Nifty 50",
+        "SM_SYMBOL_NAME": "NIFTY",
     },
+    # ── NSE Equity ──
     {
         "SEM_TRADING_SYMBOL": "RELIANCE",
         "SEM_SMST_SECURITY_ID": "2885",
@@ -95,7 +99,10 @@ SAMPLE_ROWS = [
         "SEM_INSTRUMENT_NAME": "EQUITY",
         "SEM_LOT_UNITS": 1,
         "SEM_TICK_SIZE": 0.05,
+        "SEM_CUSTOM_SYMBOL": "Reliance Industries",
+        "SM_SYMBOL_NAME": "RELIANCE INDUSTRIES LTD",
     },
+    # ── BSE Equity ──
     {
         "SEM_TRADING_SYMBOL": "RELIANCE",
         "SEM_SMST_SECURITY_ID": "532",
@@ -103,9 +110,12 @@ SAMPLE_ROWS = [
         "SEM_INSTRUMENT_NAME": "EQUITY",
         "SEM_LOT_UNITS": 1,
         "SEM_TICK_SIZE": 0.05,
+        "SEM_CUSTOM_SYMBOL": "Reliance Industries",
+        "SM_SYMBOL_NAME": "RELIANCE INDUSTRIES LTD",
     },
+    # ── NSE F&O Option (CE) ──
     {
-        "SEM_TRADING_SYMBOL": "NIFTY 26 JUN 25000 CE",
+        "SEM_TRADING_SYMBOL": "NIFTY-26Jun2026-25000-CE",
         "SEM_SMST_SECURITY_ID": "55000",
         "SEM_EXM_EXCH_ID": "NSE_FNO",
         "SEM_INSTRUMENT_NAME": "OPTIDX",
@@ -115,9 +125,11 @@ SAMPLE_ROWS = [
         "SEM_STRIKE_PRICE": 25000,
         "SEM_OPTION_TYPE": "CE",
         "SEM_CUSTOM_SYMBOL": "NIFTY 26 JUN 25000 CALL",
+        "SM_SYMBOL_NAME": "NIFTY",
     },
+    # ── NSE F&O Option (PE) ──
     {
-        "SEM_TRADING_SYMBOL": "NIFTY 26 JUN 25000 PE",
+        "SEM_TRADING_SYMBOL": "NIFTY-26Jun2026-25000-PE",
         "SEM_SMST_SECURITY_ID": "55001",
         "SEM_EXM_EXCH_ID": "NSE_FNO",
         "SEM_INSTRUMENT_NAME": "OPTIDX",
@@ -127,17 +139,71 @@ SAMPLE_ROWS = [
         "SEM_STRIKE_PRICE": 25000,
         "SEM_OPTION_TYPE": "PE",
         "SEM_CUSTOM_SYMBOL": "NIFTY 26 JUN 25000 PUT",
+        "SM_SYMBOL_NAME": "NIFTY",
     },
+    # ── NSE F&O Future ──
     {
-        "SEM_TRADING_SYMBOL": "NIFTY 26 JUN FUT",
+        "SEM_TRADING_SYMBOL": "NIFTY-26Jun2026-FUT",
         "SEM_SMST_SECURITY_ID": "55100",
         "SEM_EXM_EXCH_ID": "NSE_FNO",
         "SEM_INSTRUMENT_NAME": "FUTIDX",
         "SEM_LOT_UNITS": 75,
         "SEM_TICK_SIZE": 0.05,
         "SEM_EXPIRY_DATE": "2026-06-26",
-        "SEM_CUSTOM_SYMBOL": "NIFTY",
+        "SEM_CUSTOM_SYMBOL": "NIFTY JUN FUT",
+        "SM_SYMBOL_NAME": "NIFTY",
     },
+    # ── MCX Commodity Future (near-month) ──
+    {
+        "SEM_TRADING_SYMBOL": "CRUDEOIL-18Jun2026-FUT",
+        "SEM_SMST_SECURITY_ID": "466500",
+        "SEM_EXM_EXCH_ID": "MCX_COMM",
+        "SEM_INSTRUMENT_NAME": "FUTCOM",
+        "SEM_LOT_UNITS": 100,
+        "SEM_TICK_SIZE": 1.0,
+        "SEM_EXPIRY_DATE": "2026-06-18",
+        "SEM_CUSTOM_SYMBOL": "CRUDEOIL JUN FUT",
+        "SM_SYMBOL_NAME": "CRUDEOIL",
+    },
+    # ── MCX Commodity Future (far-month) ──
+    {
+        "SEM_TRADING_SYMBOL": "CRUDEOIL-20Jul2026-FUT",
+        "SEM_SMST_SECURITY_ID": "466501",
+        "SEM_EXM_EXCH_ID": "MCX_COMM",
+        "SEM_INSTRUMENT_NAME": "FUTCOM",
+        "SEM_LOT_UNITS": 100,
+        "SEM_TICK_SIZE": 1.0,
+        "SEM_EXPIRY_DATE": "2026-07-20",
+        "SEM_CUSTOM_SYMBOL": "CRUDEOIL JUL FUT",
+        "SM_SYMBOL_NAME": "CRUDEOIL",
+    },
+    # ── MCX Commodity Option ──
+    {
+        "SEM_TRADING_SYMBOL": "CRUDEOIL-18Jun2026-5000-CE",
+        "SEM_SMST_SECURITY_ID": "466600",
+        "SEM_EXM_EXCH_ID": "MCX_COMM",
+        "SEM_INSTRUMENT_NAME": "OPTFUT",
+        "SEM_LOT_UNITS": 100,
+        "SEM_TICK_SIZE": 1.0,
+        "SEM_EXPIRY_DATE": "2026-06-18",
+        "SEM_STRIKE_PRICE": 5000,
+        "SEM_OPTION_TYPE": "CE",
+        "SEM_CUSTOM_SYMBOL": "CRUDEOIL 18 JUN 5000 CALL",
+        "SM_SYMBOL_NAME": "CRUDEOIL",
+    },
+    # ── GOLDM MCX Commodity Future ──
+    {
+        "SEM_TRADING_SYMBOL": "GOLDM-03Jul2026-FUT",
+        "SEM_SMST_SECURITY_ID": "466584",
+        "SEM_EXM_EXCH_ID": "MCX_COMM",
+        "SEM_INSTRUMENT_NAME": "FUTCOM",
+        "SEM_LOT_UNITS": 10,
+        "SEM_TICK_SIZE": 1.0,
+        "SEM_EXPIRY_DATE": "2026-07-03",
+        "SEM_CUSTOM_SYMBOL": "GOLDM JUL FUT",
+        "SM_SYMBOL_NAME": "GOLDM",
+    },
+    # ── GOLD MCX Commodity Future (near-month) ──
     {
         "SEM_TRADING_SYMBOL": "GOLD AUG FUT",
         "SEM_SMST_SECURITY_ID": "466583",
@@ -147,7 +213,9 @@ SAMPLE_ROWS = [
         "SEM_TICK_SIZE": 1.0,
         "SEM_EXPIRY_DATE": "2026-08-05",
         "SEM_CUSTOM_SYMBOL": "GOLD",
+        "SM_SYMBOL_NAME": "GOLD",
     },
+    # ── GOLD MCX Commodity Future (far-month) ──
     {
         "SEM_TRADING_SYMBOL": "GOLD OCT FUT",
         "SEM_SMST_SECURITY_ID": "483079",
@@ -157,6 +225,73 @@ SAMPLE_ROWS = [
         "SEM_TICK_SIZE": 1.0,
         "SEM_EXPIRY_DATE": "2026-10-05",
         "SEM_CUSTOM_SYMBOL": "GOLD",
+        "SM_SYMBOL_NAME": "GOLD",
+    },
+    # ── BSE F&O Option (SENSEX) ──
+    {
+        "SEM_TRADING_SYMBOL": "SENSEX-26Jun2026-80000-CE",
+        "SEM_SMST_SECURITY_ID": "70000",
+        "SEM_EXM_EXCH_ID": "BSE_FNO",
+        "SEM_INSTRUMENT_NAME": "OPTIDX",
+        "SEM_LOT_UNITS": 10,
+        "SEM_TICK_SIZE": 0.05,
+        "SEM_EXPIRY_DATE": "2026-06-26",
+        "SEM_STRIKE_PRICE": 80000,
+        "SEM_OPTION_TYPE": "CE",
+        "SEM_CUSTOM_SYMBOL": "SENSEX 26 JUN 80000 CALL",
+        "SM_SYMBOL_NAME": "SENSEX",
+    },
+    # ── Currency Future (NSE) ──
+    {
+        "SEM_TRADING_SYMBOL": "USDINR-26Jun2026-FUT",
+        "SEM_SMST_SECURITY_ID": "80000",
+        "SEM_EXM_EXCH_ID": "NSE_CURRENCY",
+        "SEM_INSTRUMENT_NAME": "FUTCUR",
+        "SEM_LOT_UNITS": 1000,
+        "SEM_TICK_SIZE": 0.0025,
+        "SEM_EXPIRY_DATE": "2026-06-26",
+        "SEM_CUSTOM_SYMBOL": "USDINR JUN FUT",
+        "SM_SYMBOL_NAME": "USDINR",
+    },
+    # ── Currency Option (NSE) ──
+    {
+        "SEM_TRADING_SYMBOL": "USDINR-26Jun2026-85-CE",
+        "SEM_SMST_SECURITY_ID": "80100",
+        "SEM_EXM_EXCH_ID": "NSE_CURRENCY",
+        "SEM_INSTRUMENT_NAME": "OPTCUR",
+        "SEM_LOT_UNITS": 1000,
+        "SEM_TICK_SIZE": 0.0025,
+        "SEM_EXPIRY_DATE": "2026-06-26",
+        "SEM_STRIKE_PRICE": 85,
+        "SEM_OPTION_TYPE": "CE",
+        "SEM_CUSTOM_SYMBOL": "USDINR 26 JUN 85 CALL",
+        "SM_SYMBOL_NAME": "USDINR",
+    },
+    # ── Stock F&O Option (RELIANCE) ──
+    {
+        "SEM_TRADING_SYMBOL": "RELIANCE-26Jun2026-3000-CE",
+        "SEM_SMST_SECURITY_ID": "60000",
+        "SEM_EXM_EXCH_ID": "NSE_FNO",
+        "SEM_INSTRUMENT_NAME": "OPTSTK",
+        "SEM_LOT_UNITS": 250,
+        "SEM_TICK_SIZE": 0.05,
+        "SEM_EXPIRY_DATE": "2026-06-26",
+        "SEM_STRIKE_PRICE": 3000,
+        "SEM_OPTION_TYPE": "CE",
+        "SEM_CUSTOM_SYMBOL": "RELIANCE 26 JUN 3000 CALL",
+        "SM_SYMBOL_NAME": "RELIANCE",
+    },
+    # ── Stock F&O Future (RELIANCE) ──
+    {
+        "SEM_TRADING_SYMBOL": "RELIANCE-26Jun2026-FUT",
+        "SEM_SMST_SECURITY_ID": "60100",
+        "SEM_EXM_EXCH_ID": "NSE_FNO",
+        "SEM_INSTRUMENT_NAME": "FUTSTK",
+        "SEM_LOT_UNITS": 250,
+        "SEM_TICK_SIZE": 0.05,
+        "SEM_EXPIRY_DATE": "2026-06-26",
+        "SEM_CUSTOM_SYMBOL": "RELIANCE JUN FUT",
+        "SM_SYMBOL_NAME": "RELIANCE",
     },
 ]
 

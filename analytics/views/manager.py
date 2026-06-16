@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -15,34 +14,12 @@ from analytics.views.features import FeatureViews
 from analytics.views.scanner import ScannerViews
 from analytics.views.strategy import StrategyViews
 from analytics.views.quality import QualityViews
+from datalake.duckdb_utils import ThreadLocalConnectionPool, DEFAULT_CATALOG_PATH
 
 logger = logging.getLogger(__name__)
 
-CATALOG_PATH = Path("market_data/catalog.duckdb")
 MATERIALIZED_DIR = Path("market_data/materialized")
 VERSION_KEEP_COUNT = 3
-
-
-def _connect_with_retry(path: str, read_only: bool, max_attempts: int = 10) -> duckdb.DuckDBPyConnection:
-    """Open a DuckDB connection, retrying with exponential backoff on lock conflicts.
-
-    DuckDB is single-writer. A writer (e.g. ``views create``) holds an exclusive lock,
-    so a concurrent reader (e.g. ``views count``) may see ``IO Error: Could not set
-    lock on file``. This helper retries with backoff so read commands don't fail
-    transiently.
-    """
-    delay = 0.05
-    for attempt in range(max_attempts):
-        try:
-            return duckdb.connect(path, read_only=read_only)
-        except (duckdb.IOException, duckdb.OperationalError, duckdb.ConnectionException) as exc:
-            msg = str(exc).lower()
-            is_lock_error = "lock" in msg or "could not set" in msg
-            if not is_lock_error or attempt == max_attempts - 1:
-                raise
-            time.sleep(delay)
-            delay = min(delay * 2, 1.0)
-    raise RuntimeError("unreachable")
 
 
 class ViewManager:
@@ -56,12 +33,11 @@ class ViewManager:
     """
 
     def __init__(self, catalog_path: str | Path | None = None, read_only: bool = False) -> None:
-        self._path = Path(catalog_path) if catalog_path else CATALOG_PATH
+        self._path = Path(catalog_path) if catalog_path else DEFAULT_CATALOG_PATH
         self._path.parent.mkdir(parents=True, exist_ok=True)
         MATERIALIZED_DIR.mkdir(parents=True, exist_ok=True)
         self._read_only = read_only
-        self._conns: dict[int, duckdb.DuckDBPyConnection] = {}
-        self._lock = threading.RLock()
+        self._pool = ThreadLocalConnectionPool(self._path, read_only=read_only)
 
         self.base = BaseViews()
         self.features = FeatureViews()
@@ -71,24 +47,10 @@ class ViewManager:
 
     @property
     def conn(self) -> duckdb.DuckDBPyConnection:
-        tid = threading.current_thread().ident
-        if tid is None:
-            tid = 0
-        with self._lock:
-            conn = self._conns.get(tid)
-            if conn is None:
-                conn = _connect_with_retry(str(self._path), read_only=self._read_only)
-                self._conns[tid] = conn
-            return conn
+        return self._pool.get()
 
     def close(self) -> None:
-        with self._lock:
-            for conn in list(self._conns.values()):
-                try:
-                    conn.close()
-                except Exception:
-                    pass
-            self._conns.clear()
+        self._pool.close_all()
 
     # ─── Materialization ─────────────────────────────────────────────────────
 

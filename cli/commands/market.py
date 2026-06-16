@@ -346,68 +346,130 @@ def show_historical(
         console.print(f"[red]Error fetching historical data: {exc}[/red]")
 
 
+def _build_stream_table(symbol: str, rows: list[list[str]]) -> Table:
+    """Build a refreshed tick table from the current rows buffer."""
+    tbl = Table(title=f"Live WebSocket Stream: {symbol.upper()}", header_style="bold cyan")
+    tbl.add_column("Time", style="dim white", min_width=10)
+    tbl.add_column("LTP", style="bold green", justify="right", min_width=12)
+    tbl.add_column("Open", justify="right")
+    tbl.add_column("High", style="green", justify="right")
+    tbl.add_column("Low", style="red", justify="right")
+    tbl.add_column("Volume", justify="right")
+    tbl.add_column("Change", justify="right")
+    for r in rows:
+        tbl.add_row(*r)
+    return tbl
+
+
 def show_stream(
     broker_service: BrokerService, symbol: str, console: Console
 ) -> None:
-    """Display real-time streaming ticks in a rolling table."""
+    """Stream live ticks via the broker WebSocket and display as a rolling table.
+
+    Uses ``gateway.stream()`` which subscribes to the broker WebSocket and
+    fires ``on_tick(quote: Quote)`` for every incoming tick.  The canonical
+    ``Quote`` object is broker-agnostic — no security IDs or instrument keys
+    are exposed here.
+
+    Falls back to polling REST quotes if the gateway does not support
+    ``stream()`` (e.g. MockBroker).
+    """
+    import threading
+
     gw = broker_service.active_broker
     exchange = resolve_exchange(symbol)
+
     console.print(
-        f"[yellow]Starting Live Stream Monitor for {symbol} ({exchange}). Press Ctrl+C to exit...[/yellow]"
+        f"[yellow]Connecting WebSocket for [bold]{symbol}[/bold] ({exchange})…  "
+        f"Press [bold]Ctrl+C[/bold] to exit.[/yellow]"
     )
 
     rows: list[list[str]] = []
+    lock = threading.Lock()
+    tick_count = 0
 
-    table = Table(header_style="bold cyan")
-    table.add_column("Timestamp", style="dim white")
-    table.add_column("Price", style="bold green", justify="right")
-    table.add_column("Open", justify="right")
-    table.add_column("High", justify="right")
-    table.add_column("Low", justify="right")
-    table.add_column("Volume", justify="right")
-
-    with Live(table, console=console, refresh_per_second=2) as live:
+    def on_tick(quote: object) -> None:
+        nonlocal tick_count
+        # Accept canonical Quote OR raw dict (fallback path)
         try:
-            for _ in range(20):  # Simulate 20 ticks
-                quote = gw.market_data.get_quote(symbol, exchange)
-                if quote is not None:
-                    ts_str = (
-                        quote.timestamp.strftime("%H:%M:%S.%f")[:-3]
-                        if isinstance(quote.timestamp, datetime)
-                        else str(quote.timestamp)
-                    )
+            if hasattr(quote, "ltp"):
+                ltp   = quote.ltp       # type: ignore[attr-defined]
+                open_ = quote.open      # type: ignore[attr-defined]
+                high  = quote.high      # type: ignore[attr-defined]
+                low   = quote.low       # type: ignore[attr-defined]
+                vol   = quote.volume    # type: ignore[attr-defined]
+                chg   = quote.change    # type: ignore[attr-defined]
+                ts    = quote.timestamp # type: ignore[attr-defined]
+            elif isinstance(quote, dict):
+                payload = quote.get("payload", quote)
+                ltp   = payload.get("last_price", 0) if isinstance(payload, dict) else 0
+                open_ = high = low = chg = 0
+                vol   = 0
+                ts    = None
+            else:
+                return
 
-                    rows.append(
-                        [
-                            ts_str,
-                            f"Rs. {quote.ltp:,.2f}",
-                            f"{quote.open:,.2f}",
-                            f"{quote.high:,.2f}",
-                            f"{quote.low:,.2f}",
-                            f"{quote.volume:,}",
-                        ]
-                    )
-                    # Keep last 10 ticks
-                    if len(rows) > 10:
-                        rows.pop(0)
+            ts_str = (
+                ts.strftime("%H:%M:%S") if ts and hasattr(ts, "strftime") else datetime.now().strftime("%H:%M:%S")
+            )
+            chg_str = f"[green]+{float(chg):,.2f}[/green]" if float(chg) >= 0 else f"[red]{float(chg):,.2f}[/red]"
 
-                    # Rebuild table
-                    new_table = Table(
-                        title=f"Live Tick Stream: {symbol}", header_style="bold cyan"
-                    )
-                    new_table.add_column("Timestamp", style="dim white")
-                    new_table.add_column("Price", style="bold green", justify="right")
-                    new_table.add_column("Open", justify="right")
-                    new_table.add_column("High", justify="right")
-                    new_table.add_column("Low", justify="right")
-                    new_table.add_column("Volume", justify="right")
+            row = [
+                ts_str,
+                f"₹{float(ltp):>12,.2f}",
+                f"{float(open_):,.2f}",
+                f"{float(high):,.2f}",
+                f"{float(low):,.2f}",
+                f"{int(vol):,}",
+                chg_str,
+            ]
+            with lock:
+                rows.append(row)
+                if len(rows) > 15:
+                    rows.pop(0)
+                tick_count += 1
+        except Exception:
+            pass
 
-                    for r in rows:
-                        new_table.add_row(*r)
+    # Subscribe via the canonical gateway.stream() interface
+    ws_handle = None
+    use_ws = hasattr(gw, "stream")
+    if use_ws:
+        try:
+            ws_handle = gw.stream(symbol, exchange=exchange, mode="LTP", on_tick=on_tick)
+        except Exception as exc:
+            console.print(f"[yellow]WebSocket unavailable ({exc}), falling back to REST polling.[/yellow]")
+            use_ws = False
 
-                    live.update(new_table)
+    with Live(_build_stream_table(symbol, rows), console=console, refresh_per_second=2) as live:
+        try:
+            while True:
                 time.sleep(0.5)
+
+                # Fallback: REST polling when WS is not available
+                if not use_ws:
+                    try:
+                        quote = gw.market_data.get_quote(symbol, exchange)
+                        if quote is not None:
+                            on_tick(quote)
+                    except Exception:
+                        pass
+
+                with lock:
+                    current_rows = list(rows)
+                tbl = _build_stream_table(symbol, current_rows)
+                # Append a footer showing tick count + connection type
+                conn_label = "[green]WS[/green]" if use_ws else "[yellow]REST[/yellow]"
+                tbl.caption = f"{conn_label} | Ticks received: [bold]{tick_count}[/bold]"
+                live.update(tbl)
         except KeyboardInterrupt:
+            pass
+
+    # Clean up: unsubscribe if the websocket supports it
+    if ws_handle is not None:
+        try:
+            ws_handle.unsubscribe([f"{exchange}|{symbol}"])
+        except Exception:
             pass
 
     console.print("[yellow]Tick Stream Monitor stopped.[/yellow]")

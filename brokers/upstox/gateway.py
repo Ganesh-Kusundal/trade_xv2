@@ -298,22 +298,45 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         mode: str = "LTP",
         on_tick: Any | None = None,
     ) -> Any:
+        """Subscribe to a live tick stream for *symbol* on *exchange*.
+
+        The *on_tick* callback receives a canonical :class:`brokers.common.core.models.Quote`
+        object — broker-specific ``instrument_key`` values are never exposed to
+        the caller.  If the resolver does not find a definition for the incoming
+        key the raw payload dict is forwarded instead so nothing is silently
+        dropped.
+
+        Args:
+            symbol:   Canonical trading symbol (e.g. ``"RELIANCE"``)
+            exchange: Exchange string (e.g. ``"NSE"``)
+            mode:     Subscription mode — ``"ltpc"`` | ``"full"`` | ``"option_greeks"``
+            on_tick:  Callable receiving a :class:`Quote` (or raw dict on
+                      resolution failure)
+        """
         from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
         segment = UpstoxDomainMapper.segment_to_wire(exchange)
         key = f"{segment}|{symbol}"
         ws = self._broker.market_data_websocket
-        # WebSocket connect is async - schedule it if not connected
+
+        # Wrap the caller's on_tick so it receives a Quote, not raw broker data.
+        wrapped_listener = None
+        if on_tick:
+            def wrapped_listener(_event_type: str, raw: dict[str, Any]) -> None:  # noqa: E306
+                quote = self._translate_tick_to_quote(raw)
+                on_tick(quote)
+
+        # WebSocket connect is async — schedule it if not connected.
         if not ws.is_connected:
             import asyncio
             try:
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
-                    # We're in an async context, schedule connect and subscribe
-                    async def _connect_and_subscribe():
+                    # We're in an async context — schedule connect & subscribe.
+                    async def _connect_and_subscribe() -> None:
                         await ws.connect()
                         ws.subscribe([key], mode.lower())
-                        if on_tick:
-                            ws.add_listener(lambda _event_type, payload: on_tick(payload))
+                        if wrapped_listener:
+                            ws.add_listener(wrapped_listener)
                     asyncio.ensure_future(_connect_and_subscribe())
                     return ws
                 else:
@@ -322,14 +345,20 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 loop.run_until_complete(ws.connect())
+
         ws.subscribe([key], mode.lower())
-        if on_tick:
-            ws.add_listener(lambda _event_type, payload: on_tick(payload))
+        if wrapped_listener:
+            ws.add_listener(wrapped_listener)
         return ws
 
     # ── Internal ──
 
     def _resolve_instrument_key(self, symbol: str, exchange: str) -> str:
+        """Return the Upstox ``instrument_key`` for a canonical *symbol*.
+
+        Tries the resolver first; falls back to constructing the key from the
+        segment mapping so calls never hard-fail on missing instrument data.
+        """
         from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
         segment = UpstoxDomainMapper.segment_to_wire(exchange)
         if segment == 'NSE':
@@ -340,6 +369,165 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         if defn:
             return defn.instrument_key
         return f"{segment}|{symbol}"
+
+    def _translate_tick_to_quote(self, raw: dict[str, Any]) -> "Quote | dict[str, Any]":
+        """Translate a raw WebSocket tick frame into a canonical :class:`Quote`.
+
+        The incoming *raw* dict has the shape produced by
+        :class:`brokers.upstox.websocket.market_data_v3.UpstoxMarketDataV3Multiplexer`:
+
+        .. code-block:: python
+
+            {
+                "frame_type": "ltpc" | "full" | "option_greeks" | ...,
+                "payload": <protobuf-decoded object or dict>,
+            }
+
+        Resolution flow:
+
+        1. Extract ``instrument_key`` from the payload.
+        2. Reverse-resolve the key to a :class:`~brokers.upstox.instruments.definition.UpstoxInstrumentDefinition`.
+        3. Derive a canonical symbol via :meth:`_canonical_symbol_for_defn`.
+        4. Build and return a :class:`~brokers.common.core.models.Quote`.
+
+        If the key cannot be resolved the raw dict is returned unchanged so
+        no data is silently dropped.
+        """
+        from brokers.common.core.models import Quote
+        try:
+            payload = raw.get("payload") if isinstance(raw, dict) else raw
+            if payload is None:
+                return raw
+
+            # Extract instrument_key — Protobuf objects use attribute access;
+            # dict payloads (e.g. backfill bars) use key access.
+            if isinstance(payload, dict):
+                inst_key = payload.get("instrument_key") or payload.get("instrumentKey", "")
+            else:
+                inst_key = (
+                    getattr(payload, "instrument_key", None)
+                    or getattr(payload, "instrumentKey", "")
+                )
+
+            if not inst_key:
+                return raw
+
+            # Resolve broker key → instrument definition
+            defn = self._broker.instrument_resolver.resolve(instrument_key=inst_key)
+            canonical_sym = self._canonical_symbol_for_defn(defn, inst_key)
+
+            # Extract price fields — prefer attribute access (Protobuf), then dict
+            def _f(name: str, default: float = 0.0) -> Decimal:
+                if isinstance(payload, dict):
+                    return Decimal(str(payload.get(name, default)))
+                return Decimal(str(getattr(payload, name, default) or default))
+
+            def _i(name: str) -> int:
+                if isinstance(payload, dict):
+                    return int(payload.get(name, 0) or 0)
+                return int(getattr(payload, name, 0) or 0)
+
+            # LTPC fields: last_price, close (prev close)
+            ltp   = _f("last_price") or _f("ltp")
+            close = _f("close_price") or _f("close") or _f("prev_close_price")
+
+            # OHLC — present in full / option_greeks modes
+            ohlc  = payload.get("ohlc", {}) if isinstance(payload, dict) else getattr(payload, "ohlc", None)
+            if isinstance(ohlc, dict):
+                open_ = Decimal(str(ohlc.get("open", 0) or 0))
+                high  = Decimal(str(ohlc.get("high", 0) or 0))
+                low   = Decimal(str(ohlc.get("low",  0) or 0))
+                cl    = Decimal(str(ohlc.get("close", 0) or 0))
+                if cl:
+                    close = cl
+            elif ohlc is not None:
+                open_ = Decimal(str(getattr(ohlc, "open", 0) or 0))
+                high  = Decimal(str(getattr(ohlc, "high", 0) or 0))
+                low   = Decimal(str(getattr(ohlc, "low",  0) or 0))
+                cl    = Decimal(str(getattr(ohlc, "close", 0) or 0))
+                if cl:
+                    close = cl
+            else:
+                open_ = _f("open")
+                high  = _f("high")
+                low   = _f("low")
+
+            volume = _i("volume") or _i("total_buy_quantity") + _i("total_sell_quantity")
+
+            # Best bid/ask
+            bid = _f("best_bid_price") or None
+            ask = _f("best_ask_price") or None
+            if bid is not None and bid == Decimal("0"):
+                bid = None
+            if ask is not None and ask == Decimal("0"):
+                ask = None
+
+            # Timestamp
+            ts = None
+            try:
+                from datetime import datetime, timezone
+                ts_raw = (
+                    payload.get("exchange_timestamp") if isinstance(payload, dict)
+                    else getattr(payload, "exchange_timestamp", None)
+                )
+                if ts_raw:
+                    if isinstance(ts_raw, (int, float)):
+                        ts = datetime.fromtimestamp(ts_raw / 1000, tz=timezone.utc)
+                    elif isinstance(ts_raw, str):
+                        ts = datetime.fromisoformat(ts_raw)
+                    else:
+                        ts = ts_raw
+            except Exception:
+                ts = None
+
+            return Quote(
+                symbol=canonical_sym,
+                ltp=ltp,
+                open=open_,
+                high=high,
+                low=low,
+                close=close,
+                volume=volume,
+                change=ltp - close if ltp and close else Decimal("0"),
+                bid=bid,
+                ask=ask,
+                timestamp=ts,
+            )
+        except Exception:
+            import logging
+            logging.getLogger(__name__).debug(
+                "Upstox tick translation failed; forwarding raw payload",
+                exc_info=True,
+            )
+            return raw
+
+    @staticmethod
+    def _canonical_symbol_for_defn(
+        defn: Any,  # UpstoxInstrumentDefinition | None
+        fallback_key: str = "",
+    ) -> str:
+        """Derive a clean, user-facing canonical symbol from a definition.
+
+        Priority:
+
+        1. ``defn.name`` — the long-form canonical name (e.g. ``"NIFTY 29 MAY 25 24800 CE"``).
+        2. ``defn.symbol`` — trading symbol.
+        3. ``defn.trading_symbol``
+        4. RHS of the ``instrument_key`` fallback (e.g. ``"NSE_EQ|RELIANCE"`` → ``"RELIANCE"``).
+        """
+        if defn is None:
+            if fallback_key and "|" in fallback_key:
+                return fallback_key.split("|", 1)[1]
+            return fallback_key
+        if defn.name:
+            return defn.name
+        if defn.symbol:
+            return defn.symbol
+        if defn.trading_symbol:
+            return defn.trading_symbol
+        if fallback_key and "|" in fallback_key:
+            return fallback_key.split("|", 1)[1]
+        return fallback_key
 
     # ── MarketDataGateway required methods ──
 

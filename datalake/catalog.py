@@ -10,11 +10,12 @@ read and write without sharing a single DuckDB connection object.
 from __future__ import annotations
 
 import logging
-import threading
 from pathlib import Path
 from datetime import datetime, date
 
 import duckdb
+
+from datalake.duckdb_utils import ThreadLocalConnectionPool
 
 logger = logging.getLogger(__name__)
 
@@ -26,52 +27,19 @@ class DataCatalog:
         self._root = Path(root)
         self._db_path = self._root / "catalog.duckdb"
         self._read_only = read_only
-        self._conns: dict[int, duckdb.DuckDBPyConnection] = {}
-        self._lock = threading.RLock()
+        self._pool = ThreadLocalConnectionPool(self._db_path, read_only=read_only)
 
     @property
     def conn(self) -> duckdb.DuckDBPyConnection:
-        tid = threading.current_thread().ident
-        if tid is None:
-            tid = 0
-        with self._lock:
-            conn = self._conns.get(tid)
-            if conn is not None:
-                if self._is_healthy(conn):
-                    return conn
-                else:
-                    logger.warning("DataCatalog: stale connection for thread %d, reconnecting", tid)
-                    try:
-                        conn.close()
-                    except Exception:
-                        pass
-                    del self._conns[tid]
-                    conn = None
-            if conn is None:
-                if not self._read_only:
-                    self._db_path.parent.mkdir(parents=True, exist_ok=True)
-                conn = duckdb.connect(str(self._db_path), read_only=self._read_only)
-                if not self._read_only:
-                    self._init_schema(conn)
-                self._conns[tid] = conn
-            return conn
-
-    def _is_healthy(self, conn: duckdb.DuckDBPyConnection) -> bool:
-        """Validate that a connection is still usable."""
-        try:
-            conn.execute("SELECT 1")
-            return True
-        except Exception:
-            return False
+        if not self._read_only:
+            self._db_path.parent.mkdir(parents=True, exist_ok=True)
+        conn = self._pool.get()
+        if not self._read_only:
+            self._init_schema(conn)
+        return conn
 
     def close(self) -> None:
-        with self._lock:
-            for conn in list(self._conns.values()):
-                try:
-                    conn.close()
-                except Exception:
-                    pass
-            self._conns.clear()
+        self._pool.close_all()
 
     def _init_schema(self, conn: duckdb.DuckDBPyConnection) -> None:
         """Create catalog tables if they don't exist."""

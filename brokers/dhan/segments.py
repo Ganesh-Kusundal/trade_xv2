@@ -20,7 +20,6 @@ SEGMENT_TO_EXCHANGE.update({
     "NSE_COMM": "MCX",
 })
 
-# CSV compact format: (EXCH_ID, SEGMENT) -> internal segment
 _COMPACT_SEGMENT_MAP: dict[tuple[str, str], str] = {
     ("NSE", "E"): "NSE_EQ",
     ("NSE", "D"): "NSE_FNO",
@@ -30,6 +29,9 @@ _COMPACT_SEGMENT_MAP: dict[tuple[str, str], str] = {
     ("BSE", "I"): "IDX_I",
     ("MCX", "M"): "MCX_COMM",
     ("CDS", "D"): "NSE_CURRENCY",
+    ("NSE", "C"): "NSE_CURRENCY",
+    ("BSE", "C"): "BSE_CURRENCY",
+    ("NSE", "M"): "NSE_COMM",
 }
 
 # Binary protocol numeric codes (Dhan v2 websocket)

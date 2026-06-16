@@ -77,6 +77,54 @@ class OptionType(str, Enum):
 
 
 @dataclass(frozen=True)
+class MarginRequest:
+    """Request shape for margin calculation."""
+
+    symbol: str
+    exchange: str
+    quantity: int
+    product_type: str
+    order_type: str
+    price: Optional[Decimal] = None
+    trigger_price: Optional[Decimal] = None
+
+
+@dataclass(frozen=True)
+class MarginResponse:
+    """Response from margin calculation API."""
+
+    total_margin: Decimal
+    order_margin: Decimal
+    exposure_margin: Decimal
+    available_margin: Optional[Decimal] = None
+    span_margin: Optional[Decimal] = None
+    
+
+@dataclass(frozen=True)
+class AlertRequest:
+    """Request to create a price alert."""
+
+    symbol: str
+    exchange: str
+    condition: str  # LTP_CROSSES_ABOVE, LTP_CROSSES_BELOW
+    trigger_price: Decimal
+    valid_until: Optional[str] = None  # YYYY-MM-DD format
+
+
+@dataclass(frozen=True)
+class Alert:
+    """Represents a created alert."""
+
+    alert_id: str
+    symbol: str
+    exchange: str
+    condition: str
+    trigger_price: Decimal
+    active: bool
+    created_at: Optional[str] = None
+
+
+@dataclass(frozen=True)
 class Instrument:
     """Full instrument definition as resolved by the Dhan symbol resolver."""
 
@@ -92,6 +140,7 @@ class Instrument:
     expiry: Optional[str] = None
     underlying: Optional[str] = None
     canonical_symbol: Optional[str] = None
+    sm_symbol_name: Optional[str] = None
 
     @property
     def is_option(self) -> bool:

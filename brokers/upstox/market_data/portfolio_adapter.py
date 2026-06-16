@@ -15,6 +15,25 @@ class UpstoxPortfolioAdapter(PortfolioProvider):
     def __init__(self, client: UpstoxPortfolioClient) -> None:
         self._client = client
 
+    def get_balance(self) -> Any:
+        """Get account balance/fund limits."""
+        from decimal import Decimal
+        from brokers.common.core.domain import Balance
+        
+        funds = self._client.get_funds()
+        data = funds.get("data", {}) if isinstance(funds, dict) else {}
+        equity = data.get("equity", {}) if isinstance(data, dict) else {}
+        
+        available = equity.get("available_margin", equity.get("available_cash", 0))
+        total = equity.get("net_margin", equity.get("net", 0))
+        used = equity.get("used_margin", equity.get("used", 0))
+        
+        return Balance(
+            available_balance=Decimal(str(available)),
+            used_margin=Decimal(str(used)),
+            total_margin=Decimal(str(total)),
+        )
+
     def get_positions(self) -> list[Position]:
         rows = self._client.get_short_term_positions()
         return [UpstoxDomainMapper.to_position(r) for r in rows]

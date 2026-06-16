@@ -133,7 +133,7 @@ _register_cmd("analytics", "cli.commands.analytics")
 _register_cmd("views", "cli.commands.views")
 
 
-def _try_create_gateway(broker: str = "dhan") -> Any:
+def _try_create_gateway(broker: str = "dhan", load_instruments: bool = True) -> Any:
     """Attempt to create a BrokerGateway; return None on failure."""
     if broker == "upstox":
         env_path = Path(".env.upstox")
@@ -141,7 +141,7 @@ def _try_create_gateway(broker: str = "dhan") -> Any:
             return None
         try:
             from brokers.upstox.factory import UpstoxBrokerFactory
-            return UpstoxBrokerFactory.create(env_path=env_path, load_instruments=True)
+            return UpstoxBrokerFactory.create(env_path=env_path, load_instruments=load_instruments)
         except Exception:
             return None
     else:
@@ -211,8 +211,11 @@ def main() -> None:
     cmd_args = args[1:]
 
     # Commands that don't need a broker gateway
-    _NO_GATEWAY_CMDS = {"help", "journal", "views"}
+    _NO_GATEWAY_CMDS = {"help", "journal", "views", "validate"}
 
+    # Commands that need instruments (historical, search, instruments)
+    _NEEDS_INSTRUMENTS = {"historical", "history", "search", "instrument", "instruments", "option-chain", "futures"}
+    
     # Lazy gateway accessor for market data commands
     gateway = None
     broker_service = BrokerService()
@@ -223,17 +226,24 @@ def main() -> None:
     def _get_gateway() -> Any:
         nonlocal _gw
         if _gw is None:
-            _gw = _try_create_gateway(broker_name)
+            # Only load instruments for commands that need them
+            load_inst = subcommand in _NEEDS_INSTRUMENTS
+            _gw = _try_create_gateway(broker_name, load_instruments=load_inst)
         return _gw
 
     # Skip gateway creation for commands that don't need it
     if subcommand not in _NO_GATEWAY_CMDS:
-        gateway = _try_create_gateway(broker_name)
+        # Only load instruments for commands that need them
+        load_inst = subcommand in _NEEDS_INSTRUMENTS
+        gateway = _try_create_gateway(broker_name, load_instruments=load_inst)
         _gw = gateway
 
-    # Wire TradingContext into OmsService when available
-    tc = broker_service.trading_context
-    oms_service = OmsService(gateway=gateway, trading_context=tc)
+    # Wire TradingContext into OmsService when available (only for live gateway commands)
+    tc = None
+    oms_service = None
+    if subcommand not in _NO_GATEWAY_CMDS:
+        tc = broker_service.trading_context
+        oms_service = OmsService(gateway=gateway, trading_context=tc)
 
     # 3. Subcommand routing
     try:

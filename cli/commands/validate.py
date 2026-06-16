@@ -8,9 +8,9 @@ from rich.table import Table
 
 
 def run(args: list[str], broker_service, console: Console) -> None:
-    """Validate data quality — broker health or CSV file."""
+    """Validate data quality — broker health, symbol mapping, or CSV file."""
     if not args:
-        console.print("[yellow]Usage: tradex validate <symbol> OR tradex validate broker OR tradex validate data <csv_file>[/yellow]")
+        console.print("[yellow]Usage: tradex validate <symbol> OR tradex validate broker OR tradex validate symbol <symbol_string> OR tradex validate data <csv_file>[/yellow]")
         return
 
     # Route subcommands
@@ -20,6 +20,10 @@ def run(args: list[str], broker_service, console: Console) -> None:
 
     if args[0].lower() == "broker":
         _run_broker_validation(args[1:], broker_service, console)
+        return
+
+    if args[0].lower() == "symbol":
+        _run_symbol_validation(args[1:], broker_service, console)
         return
 
     symbol = args[0].upper()
@@ -341,3 +345,36 @@ def _run_data_validation(args: list[str], broker_service, console: Console) -> N
         console.print(table)
     else:
         console.print("\n[green]No issues found![/green]")
+
+
+def _run_symbol_validation(args: list[str], broker_service, console: Console) -> None:
+    """Validate a symbol's mapping to DhanHQ instruments and output as JSON."""
+    if not args:
+        console.print("[yellow]Usage: tradex validate symbol <symbol_string> [--exchange <exchange>] [--segment <segment>][/yellow]")
+        return
+
+    symbol_str = args[0]
+    exchange = None
+    segment = None
+
+    # Parse arguments for optional filters
+    i = 1
+    while i < len(args):
+        if args[i] == "--exchange" and i + 1 < len(args):
+            exchange = args[i + 1]
+            i += 2
+        elif args[i] == "--segment" and i + 1 < len(args):
+            segment = args[i + 1]
+            i += 2
+        else:
+            i += 1
+
+    try:
+        from brokers.dhan.symbol_validator import DhanSymbolValidator
+        validator = DhanSymbolValidator()
+        result = validator.validate(symbol_str, exchange=exchange, segment=segment)
+        import json
+        console.print_json(json.dumps(result))
+    except Exception as e:
+        console.print(f"[red]Error performing symbol validation: {e}[/red]")
+

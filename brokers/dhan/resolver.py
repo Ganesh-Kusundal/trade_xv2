@@ -102,31 +102,25 @@ class SymbolResolver:
                 skipped += 1
                 continue
 
-            # Index by trading symbol
-            new_by_symbol[(inst.symbol.upper(), inst.exchange)] = inst
-            # Index by canonical symbol if different
-            if inst.canonical_symbol and inst.canonical_symbol.upper() != inst.symbol.upper():
-                new_by_symbol[(inst.canonical_symbol.upper(), inst.exchange)] = inst
-            # Stripped form
-            stripped = inst.symbol.upper().replace(" ", "").replace("-", "").replace("_", "")
-            new_by_symbol[(stripped, inst.exchange)] = inst
-            # CE/PE alternate forms for options
-            if inst.is_option and inst.option_type and inst.expiry and inst.underlying:
-                try:
-                    from datetime import datetime
-                    dt = datetime.strptime(inst.expiry[:10], "%Y-%m-%d")
-                    exp_str = dt.strftime("%d %b").upper()
-                    strike_str = str(int(inst.strike_price)) if inst.strike_price and inst.strike_price % 1 == 0 else str(inst.strike_price)
-                    ce_pe = "CE" if inst.option_type == OptionType.CALL else "PE"
-                    key_spaced = (f"{inst.underlying} {exp_str} {strike_str} {ce_pe}".upper(), inst.exchange)
-                    new_by_symbol[key_spaced] = inst
-                    key_compact = (f"{inst.underlying}{exp_str}{strike_str}{ce_pe}".replace(" ", "").upper(), inst.exchange)
-                    new_by_symbol[key_compact] = inst
-                except Exception:
-                    pass
+            # Generate robust alternate keys
+            alt_keys = _generate_alternate_keys(
+                symbol=inst.symbol,
+                inst_type=inst.instrument_type,
+                expiry=inst.expiry,
+                strike=inst.strike_price,
+                option_type=inst.option_type,
+                underlying=inst.underlying,
+                canonical_symbol=inst.canonical_symbol,
+                sm_symbol_name=inst.sm_symbol_name,
+            )
+
+            # Register all alternate keys
+            for k in alt_keys:
+                new_by_symbol[(k, inst.exchange)] = inst
 
             new_by_sid[inst.security_id] = inst
 
+            # Index by underlying for futures
             if inst.is_future and inst.underlying:
                 ukey = (inst.underlying.upper(), inst.exchange)
                 new_by_underlying.setdefault(ukey, []).append(inst)
@@ -143,11 +137,31 @@ class SymbolResolver:
 
     def _find(self, symbol: str, exch: Exchange) -> Optional[Instrument]:
         clean = symbol.strip().upper()
+        
+        # 1. Try direct lookup
         inst = self._by_symbol.get((clean, exch))
         if inst is not None:
             return inst
+            
+        # 2. Try stripped lookup
         stripped = clean.replace(" ", "").replace("-", "").replace("_", "")
-        return self._by_symbol.get((stripped, exch))
+        inst = self._by_symbol.get((stripped, exch))
+        if inst is not None:
+            return inst
+            
+        # 3. Try standardizing Option format CALL -> CE, PUT -> PE
+        if clean.endswith("CALL"):
+            clean = clean[:-4] + "CE"
+        elif clean.endswith("PUT"):
+            clean = clean[:-3] + "PE"
+            
+        inst = self._by_symbol.get((clean, exch))
+        if inst is not None:
+            return inst
+            
+        # 4. Try stripped Option format standard
+        stripped_cepe = clean.replace(" ", "").replace("-", "").replace("_", "")
+        return self._by_symbol.get((stripped_cepe, exch))
 
     @staticmethod
     def _normalise_exchange(exchange: str) -> Exchange:
@@ -165,6 +179,11 @@ class SymbolResolver:
         symbol = (row.get("SEM_TRADING_SYMBOL") or "").strip()
         security_id = str(row.get("SEM_SMST_SECURITY_ID") or "").strip()
         if not symbol or not security_id:
+            return None
+        try:
+            if int(float(security_id)) <= 0:
+                return None
+        except (TypeError, ValueError):
             return None
 
         segment = (row.get("SEM_EXM_EXCH_ID") or "").strip().upper()
@@ -187,18 +206,20 @@ class SymbolResolver:
         underlying = None
         canonical = (row.get("SEM_CUSTOM_SYMBOL") or "").strip() or None
 
-        if itype == InstrumentType.OPTION:
-            opt_raw = (row.get("SEM_OPTION_TYPE") or "").strip().upper()
-            option_type = _DHAN_OPTION_TYPE.get(opt_raw)
-            strike_price = _safe_decimal(row.get("SEM_STRIKE_PRICE")) if row.get("SEM_STRIKE_PRICE") is not None else None
+        # SM_SYMBOL_NAME is the authoritative underlying name from Dhan CSV
+        sm_symbol_name = (row.get("SM_SYMBOL_NAME") or "").strip() or None
+
+        if itype in (InstrumentType.OPTION, InstrumentType.FUTURE):
             expiry = row.get("SEM_EXPIRY_DATE")
-            if canonical:
-                underlying = canonical.split()[0].upper()
-            elif "-" in symbol:
-                underlying = symbol.split("-", 1)[0].upper()
-        elif itype == InstrumentType.FUTURE:
-            expiry = row.get("SEM_EXPIRY_DATE")
-            if canonical:
+            if itype == InstrumentType.OPTION:
+                opt_raw = (row.get("SEM_OPTION_TYPE") or "").strip().upper()
+                option_type = _DHAN_OPTION_TYPE.get(opt_raw)
+                strike_price = _safe_decimal(row.get("SEM_STRIKE_PRICE")) if row.get("SEM_STRIKE_PRICE") is not None else None
+
+            # Prefer SM_SYMBOL_NAME for underlying (root cause fix)
+            if sm_symbol_name:
+                underlying = sm_symbol_name.split()[0].upper()
+            elif canonical:
                 underlying = canonical.split()[0].upper()
             elif "-" in symbol:
                 underlying = symbol.split("-", 1)[0].upper()
@@ -220,6 +241,7 @@ class SymbolResolver:
             expiry=expiry,
             underlying=underlying,
             canonical_symbol=canonical,
+            sm_symbol_name=sm_symbol_name,
         )
 
 
@@ -238,3 +260,122 @@ def _safe_decimal(value, default: str = "0"):
         return Decimal(str(value))
     except Exception:
         return Decimal(default)
+
+
+def _generate_alternate_keys(
+    symbol: str,
+    inst_type: str | InstrumentType,
+    expiry: str | None,
+    strike,
+    option_type,
+    underlying: str | None,
+    canonical_symbol: str | None,
+    sm_symbol_name: str | None = None,
+) -> list[str]:
+    keys = []
+    
+    # 1. Primary symbol (SEM_TRADING_SYMBOL)
+    sym_up = symbol.strip().upper()
+    keys.append(sym_up)
+    
+    # 2. Canonical symbol (SEM_CUSTOM_SYMBOL)
+    if canonical_symbol:
+        canon_up = canonical_symbol.strip().upper()
+        keys.append(canon_up)
+        # Also generate CE/PE variant when SEM_CUSTOM_SYMBOL has CALL/PUT
+        if canon_up.endswith(" CALL"):
+            keys.append(canon_up[:-5] + " CE")
+        elif canon_up.endswith(" PUT"):
+            keys.append(canon_up[:-4] + " PE")
+        
+    # 3. Stripped symbol (no spaces, dashes, underscores)
+    stripped = sym_up.replace(" ", "").replace("-", "").replace("_", "")
+    keys.append(stripped)
+    
+    # 4. SM_SYMBOL_NAME as bare lookup key (e.g. "CRUDEOIL", "GOLDM", "USDINR")
+    #    This is the root cause fix — enables resolution by underlying name.
+    if sm_symbol_name:
+        keys.append(sm_symbol_name.strip().upper())
+    
+    # Standardize option type and instrument type
+    type_str = str(inst_type).upper()
+    is_option = "OPT" in type_str or "OPTION" in type_str
+    is_future = "FUT" in type_str or "FUTURE" in type_str
+    
+    if (is_option or is_future) and expiry and underlying:
+        try:
+            from datetime import datetime
+            dt = datetime.strptime(expiry[:10], "%Y-%m-%d")
+            dd = dt.strftime("%d")
+            dd_strip = str(int(dd))
+            MMM = dt.strftime("%b").upper()
+            yy = dt.strftime("%y")
+            yyyy = dt.strftime("%Y")
+            
+            # Month character for weekly options (1-9, O, N, D)
+            month_chars = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "O", "N", "D"]
+            month_char = month_chars[dt.month - 1]
+            
+            und_up = underlying.strip().upper()
+            
+            if is_option:
+                opt_str = str(option_type).upper()
+                ce_pe = "CE" if "CALL" in opt_str or "CE" in opt_str or "C" in opt_str else "PE"
+                call_put = "CALL" if ce_pe == "CE" else "PUT"
+                
+                # Format strike price
+                strike_str = ""
+                if strike is not None:
+                    try:
+                        st_val = float(strike)
+                        strike_str = str(int(st_val)) if st_val % 1 == 0 else str(st_val)
+                    except (ValueError, TypeError):
+                        strike_str = str(strike)
+                
+                # Generate spaced option forms with CE/PE:
+                keys.append(f"{und_up} {dd} {MMM} {yy} {strike_str} {ce_pe}")
+                keys.append(f"{und_up} {dd_strip} {MMM} {yy} {strike_str} {ce_pe}")
+                keys.append(f"{und_up} {dd} {MMM} {yyyy} {strike_str} {ce_pe}")
+                keys.append(f"{und_up} {dd_strip} {MMM} {yyyy} {strike_str} {ce_pe}")
+                keys.append(f"{und_up} {dd} {MMM} {strike_str} {ce_pe}")
+                keys.append(f"{und_up} {dd_strip} {MMM} {strike_str} {ce_pe}")
+                
+                # Generate spaced option forms with CALL/PUT:
+                keys.append(f"{und_up} {dd} {MMM} {strike_str} {call_put}")
+                keys.append(f"{und_up} {dd_strip} {MMM} {strike_str} {call_put}")
+                
+                # Generate compact option forms:
+                keys.append(f"{und_up}{dd}{MMM}{yy}{strike_str}{ce_pe}")
+                keys.append(f"{und_up}{dd_strip}{MMM}{yy}{strike_str}{ce_pe}")
+                keys.append(f"{und_up}{dd}{MMM}{yyyy}{strike_str}{ce_pe}")
+                keys.append(f"{und_up}{dd_strip}{MMM}{yyyy}{strike_str}{ce_pe}")
+                keys.append(f"{und_up}{dd}{MMM}{strike_str}{ce_pe}")
+                keys.append(f"{und_up}{dd_strip}{MMM}{strike_str}{ce_pe}")
+                
+                # Weekly format: e.g. NIFTY2662525000CE
+                keys.append(f"{und_up}{yy}{month_char}{dd}{strike_str}{ce_pe}")
+                keys.append(f"{und_up}{yy}{month_char}{dd_strip}{strike_str}{ce_pe}")
+                
+            elif is_future:
+                keys.append(f"{und_up} {MMM} FUT")
+                keys.append(f"{und_up} {yy} {MMM} FUT")
+                keys.append(f"{und_up} {yyyy} {MMM} FUT")
+                keys.append(f"{und_up} {dd} {MMM} FUT")
+                keys.append(f"{und_up} FUT")
+                
+                keys.append(f"{und_up}{MMM}FUT")
+                keys.append(f"{und_up}{yy}{MMM}FUT")
+                keys.append(f"{und_up}{yyyy}{MMM}FUT")
+                keys.append(f"{und_up}{dd}{MMM}FUT")
+                keys.append(f"{und_up}FUT")
+        except Exception:
+            pass
+            
+    res = []
+    seen = set()
+    for k in keys:
+        k_clean = k.strip().upper()
+        if k_clean and k_clean not in seen:
+            seen.add(k_clean)
+            res.append(k_clean)
+    return res

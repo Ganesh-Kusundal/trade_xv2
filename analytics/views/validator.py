@@ -10,6 +10,32 @@ import duckdb
 
 logger = logging.getLogger(__name__)
 
+# Canonical list of views created by the analytics pipeline.
+# Must match the views defined in base.py, features.py, scanner.py, strategy.py, quality.py.
+VALID_VIEWS = [
+    "v_candles_1m",
+    "v_daily_summary",
+    "v_latest_candle",
+    "v_feature_atr",
+    "v_feature_vwap",
+    "v_feature_volume",
+    "v_feature_momentum",
+    "v_feature_rsi",
+    "v_intraday_vwap",
+    "v_intraday_rsi",
+    "v_intraday_atr",
+    "v_intraday_snapshot",
+    "v_top3_candidates",
+    "v_top10_candidates",
+    "v_strategy_halftrend",
+    "v_strategy_candidates",
+    "v_strategy_momentum",
+    "v_strategy_breakout",
+    "v_missing_candles",
+    "v_duplicate_candles",
+    "v_quality_score",
+]
+
 
 @dataclass
 class ValidationReport:
@@ -38,24 +64,8 @@ class PointInTimeValidator:
 
     def validate_all(self) -> list[ValidationReport]:
         """Validate all key analytics views."""
-        views_to_validate = [
-            "v_candles_1m",
-            "v_daily_summary",
-            "v_feature_rsi",
-            "v_feature_atr",
-            "v_feature_vwap",
-            "v_feature_volume",
-            "v_feature_momentum",
-            "v_relative_strength",
-            "v_trend_state",
-            "v_scanner_snapshot",
-            "v_top3_candidates",
-            "v_top10_candidates",
-            "v_strategy_candidates",
-        ]
-
         reports = []
-        for view_name in views_to_validate:
+        for view_name in VALID_VIEWS:
             try:
                 report = self.validate_view(view_name)
                 reports.append(report)
@@ -82,14 +92,14 @@ class PointInTimeValidator:
         self._check_temporal_ordering(view_name, report)
 
         # Check 4: Feature calculation lag
-        if "feature" in view_name or "scanner" in view_name:
+        if "feature" in view_name or "scanner" in view_name or "intraday" in view_name:
             self._check_feature_lag(view_name, report)
 
         return report
 
     def _view_exists(self, view_name: str) -> bool:
         result = self._conn.execute(
-            "SELECT COUNT(*) FROM pg_views WHERE viewname = ? AND schemaname = 'main'",
+            "SELECT COUNT(*) FROM duckdb_views() WHERE view_name = ? AND schema_name = 'main'",
             [view_name],
         ).fetchone()
         return result[0] > 0
@@ -142,16 +152,13 @@ class PointInTimeValidator:
     def _check_feature_lag(self, view_name: str, report: ValidationReport) -> None:
         """Check that features use only past data (no look-ahead)."""
         try:
-            # Check for window functions that might leak future data
-            result = self._conn.execute(f"""
-                SELECT definition
-                FROM pg_views
-                WHERE viewname = '{view_name}'
-            """).fetchone()
+            result = self._conn.execute(
+                "SELECT sql FROM duckdb_views() WHERE view_name = ? AND schema_name = 'main'",
+                [view_name],
+            ).fetchone()
 
             if result and result[0]:
                 definition = result[0].upper()
-                # Red flags for look-ahead bias
                 if "LEAD(" in definition:
                     report.add_issue("LEAD() function detected — potential look-ahead bias")
                 if "ROWS BETWEEN" in definition and "FOLLOWING" in definition:

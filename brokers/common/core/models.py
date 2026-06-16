@@ -293,6 +293,7 @@ class MarketDepth:
     bids: list[DepthLevel] | None = None
     asks: list[DepthLevel] | None = None
     timestamp: datetime | None = None
+    depth_type: str = "DEPTH_5"  # DEPTH_5, DEPTH_20, DEPTH_200
 
     def __post_init__(self) -> None:
         if self.bids is None:

@@ -22,6 +22,8 @@ from brokers.dhan.futures import FuturesAdapter
 from brokers.dhan.margin import MarginAdapter
 from brokers.dhan.alerts import AlertsAdapter
 from brokers.dhan.websocket import DhanMarketFeed, DhanOrderStream, PollingMarketFeed
+from brokers.dhan.depth_20 import DhanDepth20Feed
+from brokers.dhan.depth_200 import DhanDepth200Feed
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +75,8 @@ class DhanConnection:
         self._market_feed: Optional[DhanMarketFeed] = None
         self._order_stream: Optional[DhanOrderStream] = None
         self._polling_feed: Optional[PollingMarketFeed] = None
+        self._depth_20_feed: Optional[DhanDepth20Feed] = None
+        self._depth_200_feed: Optional[DhanDepth200Feed] = None
         self._backfill_callback = backfill_callback
         self._reconciliation_service = reconciliation_service
 
@@ -204,6 +208,52 @@ class DhanConnection:
             except Exception as exc:  # pragma: no cover - defensive
                 logger.debug("lifecycle_register_failed: %s", exc)
         return stream
+
+    def create_depth_20_feed(
+        self,
+        access_token: str | None = None,
+        instrument: tuple[str, str] | None = None,
+    ) -> DhanDepth20Feed:
+        """Create and return a DhanDepth20Feed for 20-level depth.
+        
+        NSE Equity and Derivatives only. Max 50 instruments per connection.
+        """
+        feed = DhanDepth20Feed(
+            client_id=self._client.client_id,
+            access_token=access_token or self._client.access_token,
+            instruments=[instrument] if instrument else [],
+            event_bus=self._event_bus,
+        )
+        self._depth_20_feed = feed
+        if self._lifecycle is not None and feed.name not in self._lifecycle.service_names():
+            try:
+                self._lifecycle.register(feed)
+            except Exception as exc:
+                logger.debug("lifecycle_register_failed: %s", exc)
+        return feed
+
+    def create_depth_200_feed(
+        self,
+        access_token: str | None = None,
+        instrument: tuple[str, str] | None = None,
+    ) -> DhanDepth200Feed:
+        """Create and return a DhanDepth200Feed for 200-level depth.
+        
+        NSE Equity and Derivatives only. Max 1 instrument per connection.
+        """
+        feed = DhanDepth200Feed(
+            client_id=self._client.client_id,
+            access_token=access_token or self._client.access_token,
+            instrument=instrument,
+            event_bus=self._event_bus,
+        )
+        self._depth_200_feed = feed
+        if self._lifecycle is not None and feed.name not in self._lifecycle.service_names():
+            try:
+                self._lifecycle.register(feed)
+            except Exception as exc:
+                logger.debug("lifecycle_register_failed: %s", exc)
+        return feed
 
     def create_polling_feed(
         self,

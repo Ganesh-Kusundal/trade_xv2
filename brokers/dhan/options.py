@@ -63,6 +63,28 @@ class OptionsAdapter:
             pe = legs.get("pe", {}) or {}
             ce_greeks = ce.get("greeks", {}) or {}
             pe_greeks = pe.get("greeks", {}) or {}
+            
+            ce_sec_id = ce.get("security_id")
+            pe_sec_id = pe.get("security_id")
+            
+            ce_symbol = ""
+            if ce_sec_id:
+                try:
+                    ce_inst = self._resolver.get_by_security_id(str(ce_sec_id))
+                    if ce_inst:
+                        ce_symbol = ce_inst.symbol
+                except Exception:
+                    pass
+                    
+            pe_symbol = ""
+            if pe_sec_id:
+                try:
+                    pe_inst = self._resolver.get_by_security_id(str(pe_sec_id))
+                    if pe_inst:
+                        pe_symbol = pe_inst.symbol
+                except Exception:
+                    pass
+
             strikes.append({
                 "strike": strike,
                 "call": {
@@ -74,7 +96,8 @@ class OptionsAdapter:
                     "theta": _dec(ce_greeks.get("theta")),
                     "gamma": _dec(ce_greeks.get("gamma")),
                     "vega": _dec(ce_greeks.get("vega")),
-                    "security_id": ce.get("security_id"),
+                    "security_id": ce_sec_id,
+                    "symbol": ce_symbol,
                 },
                 "put": {
                     "ltp": _dec(pe.get("last_price")),
@@ -85,7 +108,8 @@ class OptionsAdapter:
                     "theta": _dec(pe_greeks.get("theta")),
                     "gamma": _dec(pe_greeks.get("gamma")),
                     "vega": _dec(pe_greeks.get("vega")),
-                    "security_id": pe.get("security_id"),
+                    "security_id": pe_sec_id,
+                    "symbol": pe_symbol,
                 },
             })
 

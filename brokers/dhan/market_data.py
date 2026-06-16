@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from decimal import Decimal
 
-from brokers.dhan.domain import DepthLevel, MarketDepth, Quote
+from brokers.dhan.domain import DepthLevel, MarketDepth, Quote, InstrumentType
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.resolver import SymbolResolver
 from brokers.dhan.segments import EXCHANGE_TO_SEGMENT
@@ -33,7 +33,7 @@ class MarketDataAdapter:
         raw = data["data"][segment][str(sid)]
         ohlc = raw.get("ohlc", {}) or {}
         quote = Quote(
-            symbol=inst.canonical_symbol or inst.symbol,
+            symbol=inst.symbol if inst.instrument_type == InstrumentType.EQUITY else (inst.canonical_symbol or inst.symbol),
             ltp=Decimal(str(raw.get("last_price", 0))),
             open=Decimal(str(ohlc.get("open", 0))),
             high=Decimal(str(ohlc.get("high", 0))),
@@ -58,7 +58,7 @@ class MarketDataAdapter:
             DepthLevel(price=Decimal(str(l["price"])), quantity=int(l["quantity"]), orders=int(l.get("orders", 0)))
             for l in raw.get("depth", {}).get("sell", [])[:5]
         ]
-        depth = MarketDepth(symbol=inst.canonical_symbol or inst.symbol, bids=bids, asks=asks)
+        depth = MarketDepth(symbol=inst.symbol if inst.instrument_type == InstrumentType.EQUITY else (inst.canonical_symbol or inst.symbol), bids=bids, asks=asks)
         logger.debug("depth_fetched", extra={"symbol": symbol, "bid_levels": len(bids), "ask_levels": len(asks)})
         return depth
 
@@ -131,7 +131,7 @@ class MarketDataAdapter:
                     inst = inst_map[sid]
                     ohlc = info.get("ohlc", {}) or {}
                     result[sym] = DhanQuote(
-                        symbol=inst.canonical_symbol or inst.symbol,
+                        symbol=inst.symbol if inst.instrument_type == InstrumentType.EQUITY else (inst.canonical_symbol or inst.symbol),
                         ltp=Decimal(str(info.get("last_price", 0))),
                         open=Decimal(str(ohlc.get("open", 0))),
                         high=Decimal(str(ohlc.get("high", 0))),

@@ -47,9 +47,9 @@ def test_get_futures_sorted(resolver):
 
 
 def test_get_futures_mcx(resolver):
-    futures = resolver.get_futures("GOLD", "MCX")
+    futures = resolver.get_futures("CRUDEOIL", "MCX")
     assert len(futures) == 2
-    # Should be sorted: AUG before OCT
+    # Should be sorted: JUN before JUL
     assert futures[0].expiry < futures[1].expiry
     assert all(f.instrument_type == InstrumentType.FUTURE for f in futures)
 
@@ -63,7 +63,8 @@ def test_load_from_rows_atomic(sample_rows):
 
 
 def test_stripped_symbol_match(resolver):
-    inst = resolver.resolve("NIFTY26JUN25000CE", "NFO")
+    # The trading symbol is NIFTY-26Jun2026-25000-CE, stripped form should also match
+    inst = resolver.get_by_symbol("NIFTY26JUN202625000CE", "NFO")
     assert inst is not None
     assert inst.security_id == "55000"
     assert inst.instrument_type == InstrumentType.OPTION
@@ -75,3 +76,44 @@ def test_exchange_normalization(resolver):
     assert inst is not None
     assert inst.security_id == "2885"
     assert inst.exchange == Exchange.NSE
+
+
+def test_resolve_indices_additional():
+    r = SymbolResolver()
+    r.load_from_rows([
+        {
+            "SEM_TRADING_SYMBOL": "NIFTY",
+            "SEM_SMST_SECURITY_ID": "13",
+            "SEM_EXM_EXCH_ID": "IDX_I",
+            "SEM_INSTRUMENT_NAME": "INDEX",
+            "SEM_LOT_UNITS": 1,
+            "SEM_TICK_SIZE": 0.05,
+        },
+        {
+            "SEM_TRADING_SYMBOL": "BANKNIFTY",
+            "SEM_SMST_SECURITY_ID": "25",
+            "SEM_EXM_EXCH_ID": "IDX_I",
+            "SEM_INSTRUMENT_NAME": "INDEX",
+            "SEM_LOT_UNITS": 1,
+            "SEM_TICK_SIZE": 0.05,
+        },
+        {
+            "SEM_TRADING_SYMBOL": "FINNIFTY",
+            "SEM_SMST_SECURITY_ID": "27",
+            "SEM_EXM_EXCH_ID": "IDX_I",
+            "SEM_INSTRUMENT_NAME": "INDEX",
+            "SEM_LOT_UNITS": 1,
+            "SEM_TICK_SIZE": 0.05,
+        },
+    ])
+    
+    for symbol, sec_id in [("NIFTY", "13"), ("BANKNIFTY", "25"), ("FINNIFTY", "27")]:
+        inst = r.resolve(symbol, "IDX_I")
+        assert inst.security_id == sec_id
+        assert inst.exchange == Exchange.INDEX
+        assert inst.instrument_type == InstrumentType.EQUITY
+        
+        # Test direct INDEX exchange normalization
+        inst_idx = r.resolve(symbol, "INDEX")
+        assert inst_idx.security_id == sec_id
+

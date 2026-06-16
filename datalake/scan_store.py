@@ -4,42 +4,32 @@ from __future__ import annotations
 
 import json
 import logging
-import time
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 import duckdb
 
+from datalake.duckdb_utils import ThreadLocalConnectionPool, DEFAULT_CATALOG_PATH
+
 logger = logging.getLogger(__name__)
 
-CATALOG_PATH = Path(__file__).parent.parent.parent / "market_data" / "catalog.duckdb"
+_pool: ThreadLocalConnectionPool | None = None
 
 
-def _connect_with_retry(path: str, read_only: bool, max_attempts: int = 10) -> duckdb.DuckDBPyConnection:
-    """Open a DuckDB connection, retrying with exponential backoff on lock conflicts."""
-    delay = 0.05
-    for attempt in range(max_attempts):
-        try:
-            return duckdb.connect(path, read_only=read_only)
-        except (duckdb.IOException, duckdb.OperationalError, duckdb.ConnectionException) as exc:
-            msg = str(exc).lower()
-            is_lock_error = "lock" in msg or "could not set" in msg
-            if not is_lock_error or attempt == max_attempts - 1:
-                raise
-            time.sleep(delay)
-            delay = min(delay * 2, 1.0)
-    raise RuntimeError("unreachable")
-
-
-def _get_connection(read_only: bool = False) -> duckdb.DuckDBPyConnection:
-    return _connect_with_retry(str(CATALOG_PATH), read_only=read_only)
+def _get_pool() -> ThreadLocalConnectionPool:
+    global _pool
+    if _pool is None:
+        _pool = ThreadLocalConnectionPool(DEFAULT_CATALOG_PATH)
+    return _pool
 
 
 def ensure_scan_table(conn: duckdb.DuckDBPyConnection | None = None) -> None:
     """Create the scan_results table if it doesn't exist."""
     close = False
     if conn is None:
-        conn = _get_connection()
+        conn = _get_pool().get()
         close = True
     try:
         conn.execute("""
@@ -65,7 +55,7 @@ def ensure_scan_table(conn: duckdb.DuckDBPyConnection | None = None) -> None:
         """)
     finally:
         if close:
-            conn.close()
+            pass
 
 
 def save_scan_result(
@@ -78,19 +68,17 @@ def save_scan_result(
     """Save scan results to DuckDB. Returns the scan_id."""
     close = False
     if conn is None:
-        conn = _get_connection()
+        conn = _get_pool().get()
         close = True
 
     try:
         ensure_scan_table(conn)
 
-        import uuid
         scan_id = f"scan_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S_%f')}_{scanner}_{uuid.uuid4().hex[:8]}"
         scanned_at = datetime.now(timezone.utc)
 
-        rows = []
-        for candidate in candidates:
-            rows.append((
+        rows = [
+            (
                 scan_id,
                 scanner,
                 candidate.symbol,
@@ -99,7 +87,9 @@ def save_scan_result(
                 universe_size,
                 scanned_at,
                 json.dumps(metadata) if metadata else "{}",
-            ))
+            )
+            for candidate in candidates
+        ]
 
         conn.executemany(
             "INSERT INTO scan_results VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
@@ -110,7 +100,7 @@ def save_scan_result(
         return scan_id
     finally:
         if close:
-            conn.close()
+            pass
 
 
 def get_recent_scans(
@@ -121,7 +111,7 @@ def get_recent_scans(
     """Get recent scan results from DuckDB."""
     close = False
     if conn is None:
-        conn = _get_connection(read_only=True)
+        conn = _get_pool().get()
         close = True
 
     try:
@@ -153,7 +143,7 @@ def get_recent_scans(
         ]
     finally:
         if close:
-            conn.close()
+            pass
 
 
 def get_scan_symbols(
@@ -163,7 +153,7 @@ def get_scan_symbols(
     """Get symbols from a specific scan."""
     close = False
     if conn is None:
-        conn = _get_connection(read_only=True)
+        conn = _get_pool().get()
         close = True
 
     try:
@@ -183,33 +173,63 @@ def get_scan_symbols(
         ]
     finally:
         if close:
-            conn.close()
+            pass
 
 
 def compare_scans(
     scan_id_1: str,
     scan_id_2: str,
     conn: duckdb.DuckDBPyConnection | None = None,
-) -> dict:
-    """Compare two scan results — find新增/removed/changed symbols."""
+) -> dict[str, Any]:
+    """Compare two scan results via SQL — find added/removed/changed symbols."""
     close = False
     if conn is None:
-        conn = _get_connection(read_only=True)
+        conn = _get_pool().get()
         close = True
 
     try:
-        symbols1 = {r["symbol"]: r["score"] for r in get_scan_symbols(scan_id_1, conn)}
-        symbols2 = {r["symbol"]: r["score"] for r in get_scan_symbols(scan_id_2, conn)}
+        ensure_scan_table(conn)
 
-        added = set(symbols2.keys()) - set(symbols1.keys())
-        removed = set(symbols1.keys()) - set(symbols2.keys())
-        common = set(symbols1.keys()) & set(symbols2.keys())
+        result = conn.execute("""
+            WITH s1 AS (
+                SELECT symbol, score FROM scan_results WHERE scan_id = ?
+            ),
+            s2 AS (
+                SELECT symbol, score FROM scan_results WHERE scan_id = ?
+            ),
+            added AS (
+                SELECT s2.symbol, s2.score, 'added' as change_type
+                FROM s2 LEFT JOIN s1 ON s2.symbol = s1.symbol
+                WHERE s1.symbol IS NULL
+            ),
+            removed AS (
+                SELECT s1.symbol, s1.score, 'removed' as change_type
+                FROM s1 LEFT JOIN s2 ON s1.symbol = s2.symbol
+                WHERE s2.symbol IS NULL
+            ),
+            changed AS (
+                SELECT
+                    s2.symbol,
+                    s2.score as new_score,
+                    s1.score as old_score,
+                    s2.score - s1.score as delta,
+                    'changed' as change_type
+                FROM s2 INNER JOIN s1 ON s2.symbol = s1.symbol
+                WHERE ABS(s2.score - s1.score) > 0.1
+            )
+            SELECT * FROM added
+            UNION ALL
+            SELECT * FROM removed
+            UNION ALL
+            SELECT symbol, delta, change_type FROM changed
+        """, [scan_id_1, scan_id_2]).fetchall()
 
-        changed = []
-        for sym in common:
-            delta = symbols2[sym] - symbols1[sym]
-            if abs(delta) > 0.1:
-                changed.append({"symbol": sym, "old_score": symbols1[sym], "new_score": symbols2[sym], "delta": delta})
+        added = [r[0] for r in result if r[2] == 'added']
+        removed = [r[0] for r in result if r[2] == 'removed']
+        changed = [
+            {"symbol": r[0], "old_score": r[1], "new_score": r[0], "delta": r[1]}
+            for r in result if r[2] == 'changed'
+        ]
 
         return {
             "scan_id_1": scan_id_1,
@@ -221,4 +241,4 @@ def compare_scans(
         }
     finally:
         if close:
-            conn.close()
+            pass

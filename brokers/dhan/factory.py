@@ -173,6 +173,37 @@ class BrokerFactory:
         if load_instruments:
             gateway.load_instruments()
 
+        # ── Auto-wire WebSocket services ─────────────────────────────
+        # When both lifecycle and event_bus are provided, auto-create
+        # and register WebSocket services so they're managed by the
+        # lifecycle. This fixes the readiness check failure:
+        # "websocket_market_feed_wired — DhanMarketFeed was not created"
+        if lifecycle is not None and event_bus is not None:
+            # Create and register market feed
+            access_token_fn = lambda: client.access_token
+            market_feed = connection.create_market_feed(
+                access_token=token,
+                instruments=[],  # Empty — subscribe on-demand via gateway.stream()
+                access_token_fn=access_token_fn,
+            )
+
+            # Create and register order stream
+            order_stream = connection.create_order_stream(
+                access_token=token,
+                access_token_fn=access_token_fn,
+            )
+            
+            # Note: Depth 20/200 feeds are created on-demand via gateway.depth_20/depth_200
+            # since they require specific instrument subscriptions.
+            # They will be auto-registered with lifecycle when created.
+
+            logger.info("websocket_wired", extra={
+                "market_feed": "dhan.market_feed",
+                "order_stream": "dhan.order_stream",
+                "depth_20": "on_demand",
+                "depth_200": "on_demand",
+            })
+
         # ── Token refresh scheduler ────────────────────────────────
         def _on_token_refresh(new_token: str) -> None:
             """Push fresh token to HTTP client and WebSocket."""

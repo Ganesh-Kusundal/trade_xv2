@@ -157,3 +157,39 @@ class TestGatewayShortcuts:
         """search() with no matches should return empty list."""
         results = offline_gateway.search("ZZZZNONEXISTENT")
         assert results == []
+
+    def test_depth_20_validation_index(self, offline_gateway):
+        # We need NIFTY to be resolved to verify the fallback or rest API call.
+        offline_gateway.instruments.load_from_rows([
+            {
+                "SEM_TRADING_SYMBOL": "NIFTY",
+                "SEM_SMST_SECURITY_ID": "13",
+                "SEM_EXM_EXCH_ID": "IDX_I",
+                "SEM_INSTRUMENT_NAME": "INDEX",
+                "SEM_LOT_UNITS": 1,
+                "SEM_TICK_SIZE": 0.05,
+            }
+        ])
+        
+        import unittest.mock as mock
+        with mock.patch.object(offline_gateway._conn.market_data, 'get_depth') as mock_get_depth:
+            offline_gateway.depth_20("NIFTY", "IDX_I")
+            mock_get_depth.assert_called_once_with("NIFTY", "IDX_I")
+
+    def test_depth_200_validation_index(self, offline_gateway):
+        offline_gateway.instruments.load_from_rows([
+            {
+                "SEM_TRADING_SYMBOL": "NIFTY",
+                "SEM_SMST_SECURITY_ID": "13",
+                "SEM_EXM_EXCH_ID": "IDX_I",
+                "SEM_INSTRUMENT_NAME": "INDEX",
+                "SEM_LOT_UNITS": 1,
+                "SEM_TICK_SIZE": 0.05,
+            }
+        ])
+        
+        import unittest.mock as mock
+        with mock.patch.object(offline_gateway._conn.market_data, 'get_depth') as mock_get_depth:
+            offline_gateway.depth_200("NIFTY", "IDX_I")
+            mock_get_depth.assert_called_once_with("NIFTY", "IDX_I")
+

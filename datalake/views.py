@@ -7,12 +7,15 @@ from pathlib import Path
 
 import duckdb
 
+from datalake.duckdb_utils import DEFAULT_CATALOG_PATH
+
 logger = logging.getLogger(__name__)
 
 
-def create_views(db_path: str = "market_data/catalog.duckdb") -> None:
+def create_views(db_path: str | Path | None = None) -> None:
     """Create all reusable DuckDB views."""
-    conn = duckdb.connect(db_path)
+    path = Path(db_path) if db_path else DEFAULT_CATALOG_PATH
+    conn = duckdb.connect(str(path))
 
     # Register all Parquet files as a view
     parquet_dir = Path(db_path).parent / "equities" / "candles" / "timeframe=1m"
