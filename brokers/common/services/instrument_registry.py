@@ -184,7 +184,18 @@ class InstrumentRegistry:
         put_inst = None
         for s in strikes:
             if s.get("strike") == atm_strike:
-                if s.get("option_type") == "CALL" or s.get("call_ltp") is not None:
+                opt_type = (s.get("option_type") or "").upper()
+                has_call = (
+                    opt_type in ("CALL", "CE")
+                    or s.get("call_ltp") is not None
+                    or s.get("ce_ltp") is not None
+                )
+                has_put = (
+                    opt_type in ("PUT", "PE")
+                    or s.get("put_ltp") is not None
+                    or s.get("pe_ltp") is not None
+                )
+                if has_call and call_inst is None:
                     call_inst = CanonicalInstrument(
                         symbol=f"{underlying} {atm_strike:.0f} CALL",
                         exchange=exchange,
@@ -195,7 +206,7 @@ class InstrumentRegistry:
                         expiry=expiry or chain.get("expiry", ""),
                         underlying=underlying,
                     )
-                if s.get("option_type") == "PUT" or s.get("put_ltp") is not None:
+                if has_put and put_inst is None:
                     put_inst = CanonicalInstrument(
                         symbol=f"{underlying} {atm_strike:.0f} PUT",
                         exchange=exchange,
@@ -206,7 +217,8 @@ class InstrumentRegistry:
                         expiry=expiry or chain.get("expiry", ""),
                         underlying=underlying,
                     )
-                break
+                if call_inst is not None and put_inst is not None:
+                    break
 
         return {"call": call_inst, "put": put_inst}
 

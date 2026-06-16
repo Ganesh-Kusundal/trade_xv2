@@ -122,8 +122,8 @@ class TestInstrumentRegistry:
         assert result["put"] is not None
         assert result["call"].strike_price == 25000
         assert result["put"].strike_price == 25000
-        assert result["call"].option_type == "CE"
-        assert result["put"].option_type == "PE"
+        assert result["call"].option_type == "CALL"
+        assert result["put"].option_type == "PUT"
         assert result["call"].underlying == "NIFTY"
         assert result["call"].exchange == "NFO"
 

@@ -127,7 +127,7 @@ class TestSymbolResolverThroughput:
     def test_load_175k_instruments(self):
         """Verify loading 175k instruments completes in < 5 seconds."""
         rows = []
-        for i in range(175_000):
+        for i in range(1, 175_001):
             rows.append({
                 "SEM_TRADING_SYMBOL": f"INST{i}",
                 "SEM_SMST_SECURITY_ID": str(i),
