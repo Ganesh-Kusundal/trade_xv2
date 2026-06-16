@@ -30,6 +30,7 @@ from brokers.common.core.models import (
     Quote,
     Trade,
 )
+from brokers.common.core.pnl_calculator import PnLCalculator, PnLSnapshot
 from brokers.common.core.reconciliation import (
     DriftItem,
     ReconciliationReport,
@@ -84,8 +85,10 @@ __all__ = [
     "OrderResponse",
     "OrderStatus",
     "OrderType",
+    "PnlCalculator",
     "PnlExitPolicy",
     "PnlExitResult",
+    "PnLSnapshot",
     "Position",
     "ProductType",
     "Quote",
