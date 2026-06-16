@@ -12,7 +12,7 @@ from brokers.common.core.auth import (
 )
 from brokers.common.core.domain import BrokerConnection
 from brokers.common.core.instruments import Instrument, InstrumentRegistry
-from brokers.common.core.models import (
+from brokers.common.core.domain import (
     Balance,
     ConditionalAlert,
     ConditionalAlertRequest,
