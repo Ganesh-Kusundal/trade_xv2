@@ -215,6 +215,9 @@ class BrokerFactory:
         symbol_interceptor = SymbolResolutionInterceptor(cache_mgr)
         connection.symbol_interceptor = symbol_interceptor
         connection.instrument_cache = cache_mgr
+        
+        # Wire interceptor to market_data adapter for fast symbol resolution
+        connection._market_data._symbol_interceptor = symbol_interceptor
 
         if load_instruments:
             gateway.load_instruments()

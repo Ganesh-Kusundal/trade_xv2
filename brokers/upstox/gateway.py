@@ -356,10 +356,18 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
     def _resolve_instrument_key(self, symbol: str, exchange: str) -> str:
         """Return the Upstox ``instrument_key`` for a canonical *symbol*.
 
-        Tries the resolver first; falls back to constructing the key from the
-        segment mapping so calls never hard-fail on missing instrument data.
+        Uses the symbol interceptor (SQLite cache) if available, falling back
+        to the legacy in-memory resolver, then to direct key construction.
         """
         from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
+
+        # Try symbol interceptor first (fast SQLite path with lazy refresh)
+        if hasattr(self._broker, 'symbol_interceptor') and self._broker.symbol_interceptor:
+            resolved = self._broker.symbol_interceptor.resolve("upstox", symbol, exchange)
+            if resolved:
+                return resolved.api_key
+
+        # Fallback to legacy in-memory resolver
         segment = UpstoxDomainMapper.segment_to_wire(exchange)
         if segment == 'NSE':
             segment = 'NSE_EQ'
@@ -368,6 +376,8 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         defn = self._broker.instrument_resolver.resolve(symbol=symbol, exchange_segment=segment)
         if defn:
             return defn.instrument_key
+
+        # Final fallback: construct key directly
         return f"{segment}|{symbol}"
 
     def _translate_tick_to_quote(self, raw: dict[str, Any]) -> "Quote | dict[str, Any]":

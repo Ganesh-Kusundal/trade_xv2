@@ -17,6 +17,27 @@ class MarketDataAdapter:
     def __init__(self, client: DhanHttpClient, resolver: SymbolResolver):
         self._client = client
         self._resolver = resolver
+        self._symbol_interceptor = None  # Set by factory if available
+
+    def _resolve_and_segment(self, symbol: str, exchange: str):
+        """Resolve symbol and get exchange segment.
+        
+        Uses the symbol interceptor (SQLite cache) if available, falling back
+        to the legacy in-memory resolver.
+        """
+        # Try symbol interceptor first (fast SQLite path with lazy refresh)
+        if self._symbol_interceptor:
+            resolved = self._symbol_interceptor.resolve("dhan", symbol, exchange)
+            if resolved:
+                # Get segment from resolved metadata
+                inst = self._resolver.resolve(symbol, exchange)  # Fallback for segment
+                segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, "NSE_EQ")
+                return inst, segment
+        
+        # Fallback to legacy resolver
+        inst = self._resolver.resolve(symbol, exchange)
+        segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, "NSE_EQ")
+        return inst, segment
 
     def get_ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:
         inst, segment = self._resolve_and_segment(symbol, exchange)
@@ -69,11 +90,6 @@ class MarketDataAdapter:
         result = data["data"][segment][str(sid)]["ohlc"]
         logger.debug("ohlc_fetched", extra={"symbol": symbol})
         return result
-
-    def _resolve_and_segment(self, symbol: str, exchange: str):
-        inst = self._resolver.resolve(symbol, exchange)
-        segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, "NSE_EQ")
-        return inst, segment
 
     def get_batch_ltp(self, symbols: list[str], exchange: str = "NSE") -> dict[str, Decimal]:
         """Fetch LTP for multiple symbols in one API call (up to 1000)."""
