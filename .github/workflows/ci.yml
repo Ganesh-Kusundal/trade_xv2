@@ -33,6 +33,14 @@ jobs:
       - name: MyPy
         run: mypy brokers/ || true  # warnings only at Phase 0
         continue-on-error: true
+      - name: Bandit security scan
+        run: |
+          bandit -r brokers/ cli/ datalake/ analytics/ -ll -f txt -o bandit-report.txt || true
+          # Upload report as artifact for review
+      - name: Safety check
+        run: |
+          safety check --json --output safety-report.json || true
+          # Upload report as artifact for review
 
   unit-and-contract:
     name: Unit & Contract Tests
@@ -77,6 +85,14 @@ jobs:
         with:
           name: test-results
           path: junit.xml
+      - name: Upload security reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            bandit-report.txt
+            safety-report.json
 
   integration:
     name: Integration Tests (Dhan sandbox only)
