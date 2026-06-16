@@ -8,6 +8,10 @@ import duckdb
 
 logger = logging.getLogger(__name__)
 
+# NSE market hours: 9:15-15:30 = 375 minutes
+TRADING_MINUTES_PER_DAY = 375
+TRADING_MINUTES_PARTIAL = 345
+
 
 class QualityViews:
     """Creates data quality views in DuckDB."""
@@ -20,7 +24,7 @@ class QualityViews:
 
     def _create_missing_candles(self, conn: duckdb.DuckDBPyConnection) -> None:
         """v_missing_candles — detect missing 1m candles during market hours."""
-        conn.execute("""
+        conn.execute(f"""
             CREATE OR REPLACE VIEW v_missing_candles AS
             WITH trading_hours AS (
                 SELECT
@@ -36,12 +40,12 @@ class QualityViews:
                 trade_date,
                 minute_count,
                 CASE
-                    WHEN minute_count < 375 THEN 'INCOMPLETE'
-                    WHEN minute_count < 345 THEN 'PARTIAL'
+                    WHEN minute_count < {TRADING_MINUTES_PER_DAY} THEN 'INCOMPLETE'
+                    WHEN minute_count < {TRADING_MINUTES_PARTIAL} THEN 'PARTIAL'
                     ELSE 'COMPLETE'
                 END as status
             FROM trading_hours
-            WHERE minute_count < 375
+            WHERE minute_count < {TRADING_MINUTES_PER_DAY}
             ORDER BY trade_date DESC, symbol
         """)
         logger.debug("Created v_missing_candles")
@@ -63,7 +67,7 @@ class QualityViews:
 
     def _create_quality_score(self, conn: duckdb.DuckDBPyConnection) -> None:
         """v_quality_score — trust score per symbol."""
-        conn.execute("""
+        conn.execute(f"""
             CREATE OR REPLACE VIEW v_quality_score AS
             WITH completeness AS (
                 SELECT
@@ -98,8 +102,8 @@ class QualityViews:
                 CASE
                     WHEN c.trading_days = 0 THEN 0
                     ELSE ROUND(
-                        (1.0 - COALESCE(d.dup_count, 0) / NULLIF(c.trading_days * 375.0, 0)) *
-                        (1.0 - COALESCE(m.missing_count, 0) / NULLIF(c.trading_days * 375.0, 0)) *
+                        (1.0 - COALESCE(d.dup_count, 0) / NULLIF(c.trading_days * {TRADING_MINUTES_PER_DAY}.0, 0)) *
+                        (1.0 - COALESCE(m.missing_count, 0) / NULLIF(c.trading_days * {TRADING_MINUTES_PER_DAY}.0, 0)) *
                         100, 2
                     )
                 END as quality_score

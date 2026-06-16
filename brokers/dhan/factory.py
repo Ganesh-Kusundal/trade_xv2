@@ -18,11 +18,14 @@ from datetime import datetime
 from brokers.common.core.auth import AuthManager, JsonTokenStateStore, TokenSource, TokenState
 from brokers.common.env_loader import load_env_file
 from brokers.common.event_bus import EventBus
+from brokers.common.instrument_cache import InstrumentCacheManager
 from brokers.common.lifecycle import LifecycleManager
 from brokers.common.oms.risk_manager import RiskManager
+from brokers.common.symbol_resolver import SymbolResolutionInterceptor
 from brokers.dhan.connection import DhanConnection
 from brokers.dhan.gateway import BrokerGateway
 from brokers.dhan.http_client import DhanHttpClient
+from brokers.dhan.instruments.cache_adapter import DhanInstrumentAdapter
 from brokers.dhan.token_scheduler import TokenRefreshScheduler
 
 logger = logging.getLogger(__name__)
@@ -169,6 +172,49 @@ class BrokerFactory:
         )
         connection._auth = auth  # Store auth manager on connection
         gateway = BrokerGateway(connection)
+
+        # Set up SQLite instrument cache with lazy refresh
+        cache_db = Path(".cache/instruments.db")
+        cache_mgr = InstrumentCacheManager(db_path=cache_db)
+        adapter = DhanInstrumentAdapter(db_path=cache_db)
+        cache_mgr.register_adapter(adapter)
+        
+        # Register loader for transparent lazy refresh
+        def load_dhan_instruments():
+            """Load Dhan instruments from CSV with caching."""
+            from brokers.dhan.instruments.loader import InstrumentLoader
+            # load_cached() handles download + parse, returns list of dicts
+            rows = InstrumentLoader.load_cached()
+            # Convert dicts to Instrument objects for the adapter
+            from brokers.dhan.domain import Instrument
+            instruments = []
+            for row in rows:
+                try:
+                    inst = Instrument(
+                        symbol=row.get("symbol", ""),
+                        exchange=row.get("exchange"),
+                        security_id=row.get("security_id", ""),
+                        instrument_type=row.get("instrument_type"),
+                        expiry=row.get("expiry"),
+                        strike_price=row.get("strike_price"),
+                        option_type=row.get("option_type"),
+                        underlying=row.get("underlying"),
+                        lot_size=row.get("lot_size", 1),
+                        tick_size=row.get("tick_size", 0.05),
+                        canonical_symbol=row.get("canonical_symbol"),
+                        sm_symbol_name=row.get("sm_symbol_name"),
+                    )
+                    instruments.append(inst)
+                except Exception:
+                    continue  # Skip invalid rows
+            return instruments
+        
+        cache_mgr.register_loader("dhan", load_dhan_instruments)
+        
+        # Create symbol resolution interceptor
+        symbol_interceptor = SymbolResolutionInterceptor(cache_mgr)
+        connection.symbol_interceptor = symbol_interceptor
+        connection.instrument_cache = cache_mgr
 
         if load_instruments:
             gateway.load_instruments()

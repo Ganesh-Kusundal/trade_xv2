@@ -21,6 +21,12 @@ logger = logging.getLogger(__name__)
 MATERIALIZED_DIR = Path("market_data/materialized")
 VERSION_KEEP_COUNT = 3
 
+# Named constants for magic numbers
+MIN_SYMBOLS_FOR_FULL_DAY = 100  # minimum distinct symbols to consider a day "full"
+DAILY_LOOKBACK_DAYS = 50        # days of daily candles for indicator warmup
+TRADING_MINUTES_PER_DAY = 375   # NSE market hours: 9:15-15:30 = 375 minutes
+TRADING_MINUTES_PARTIAL = 345   # threshold for "PARTIAL" day classification
+
 
 class ViewManager:
     """Manages all DuckDB analytics views.
@@ -519,15 +525,16 @@ class ViewManager:
         """Benchmark key analytics queries."""
         queries = [
             ("v_candles_1m", "SELECT COUNT(*) FROM v_candles_1m"),
+            ("v_daily_summary", "SELECT COUNT(*) FROM v_daily_summary"),
             ("v_latest_candle", "SELECT COUNT(*) FROM v_latest_candle"),
-            ("v_quality_score", "SELECT COUNT(*) FROM v_quality_score"),
-            ("v_trend_state", "SELECT * FROM v_trend_state WHERE symbol = 'RELIANCE' LIMIT 10"),
             ("v_feature_rsi", "SELECT * FROM v_feature_rsi WHERE symbol = 'RELIANCE' LIMIT 10"),
             ("v_feature_atr", "SELECT * FROM v_feature_atr WHERE symbol = 'RELIANCE' LIMIT 10"),
-            ("v_scanner_snapshot", "SELECT * FROM v_scanner_snapshot WHERE symbol = 'RELIANCE' LIMIT 10"),
+            ("v_feature_vwap", "SELECT * FROM v_feature_vwap WHERE symbol = 'RELIANCE' LIMIT 10"),
+            ("v_intraday_snapshot", "SELECT * FROM v_intraday_snapshot LIMIT 10"),
             ("v_top3_candidates", "SELECT * FROM v_top3_candidates LIMIT 3"),
             ("v_top10_candidates", "SELECT * FROM v_top10_candidates LIMIT 10"),
-            ("v_strategy_candidates", "SELECT * FROM v_strategy_candidates WHERE symbol = 'RELIANCE' LIMIT 10"),
+            ("v_strategy_candidates", "SELECT * FROM v_strategy_candidates LIMIT 10"),
+            ("v_quality_score", "SELECT * FROM v_quality_score LIMIT 10"),
         ]
 
         results = []

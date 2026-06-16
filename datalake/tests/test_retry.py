@@ -2,10 +2,9 @@
 
 Two concurrency strategies are now in play:
 
-* **DuckDB paths** (scan_store, analytics views) use a `_connect_with_retry`
-  helper that retries with exponential backoff when a writer holds the file.
-  Helper is duplicated in two modules: ``analytics.views.manager`` and
-  ``datalake.scan_store``.
+* **DuckDB paths** (scan_store, analytics views) use a shared
+  ``connect_with_retry`` helper from ``datalake.duckdb_utils`` that retries
+  with exponential backoff when a writer holds the file.
 * **TradeJournal** is now SQLite-backed with WAL mode, so concurrent readers
   + a single writer coexist without explicit locking. Tested here.
 """
@@ -25,8 +24,7 @@ import duckdb
 import pytest
 
 from datalake.journal import TradeJournal
-from datalake.scan_store import _connect_with_retry as scan_retry
-from analytics.views.manager import _connect_with_retry as views_retry
+from datalake.duckdb_utils import connect_with_retry
 
 
 @pytest.fixture
@@ -39,10 +37,10 @@ def tmp_db(tmp_path: Path) -> Path:
 
 
 class TestDuckDBRetryHelper:
-    """Direct unit tests for the retry helper used by scan_store + views."""
+    """Direct unit tests for the shared retry helper."""
 
     def test_succeeds_on_unlocked_file(self, tmp_db: Path) -> None:
-        conn = scan_retry(str(tmp_db), read_only=True, max_attempts=3)
+        conn = connect_with_retry(str(tmp_db), read_only=True, max_attempts=3)
         assert conn is not None
         conn.close()
 
@@ -64,7 +62,7 @@ c.close()
 
         try:
             t0 = time.time()
-            conn = views_retry(str(tmp_db), read_only=True, max_attempts=10)
+            conn = connect_with_retry(str(tmp_db), read_only=True, max_attempts=10)
             elapsed = time.time() - t0
             assert conn is not None
             conn.close()
@@ -75,7 +73,7 @@ c.close()
 
     def test_non_lock_error_propagates(self, tmp_db: Path) -> None:
         with pytest.raises(duckdb.IOException):
-            scan_retry("/nonexistent/path/db.duckdb", read_only=True, max_attempts=3)
+            connect_with_retry("/nonexistent/path/db.duckdb", read_only=True, max_attempts=3)
 
     def test_dual_read_only_connections(self, tmp_db: Path) -> None:
         a = duckdb.connect(str(tmp_db), read_only=True)
