@@ -26,10 +26,13 @@ _live_env_loaded = False
 if ENV_PATH.exists() and ENV_PATH.stat().st_size > 0:
     from dotenv import load_dotenv
     load_dotenv(ENV_PATH, override=True)
-    _live_env_loaded = bool(os.environ.get("UPSTOX_API_KEY"))
+    # Only enable live tests if BOTH API key AND access token are present
+    _live_env_loaded = bool(
+        os.environ.get("UPSTOX_API_KEY") and os.environ.get("UPSTOX_ACCESS_TOKEN")
+    )
 
 skip_live = pytest.mark.skipif(
-    not _live_env_loaded, reason=".env.upstox with UPSTOX_API_KEY required for live API tests"
+    not _live_env_loaded, reason=".env.upstox with UPSTOX_API_KEY and UPSTOX_ACCESS_TOKEN required for live API tests"
 )
 
 
@@ -39,6 +42,13 @@ def live_gateway() -> UpstoxBrokerGateway:
     gw = UpstoxBrokerFactory.create(env_path=ENV_PATH, load_instruments=True)
     yield gw
     gw.close()
+
+
+@pytest.fixture(scope="module")
+def mock_gateway():
+    """Return a PaperGateway for contract testing without live credentials."""
+    from brokers.paper.paper_gateway import PaperGateway
+    return PaperGateway()
 
 
 # ===========================================================================
