@@ -20,7 +20,6 @@ import duckdb
 
 from datalake.journal import DEFAULT_JOURNAL_PATH, _connect
 
-
 CATALOG_PATH = Path("market_data/catalog.duckdb")
 
 
@@ -96,7 +95,7 @@ def migrate(catalog: Path = CATALOG_PATH, target: Path = DEFAULT_JOURNAL_PATH, *
             trades = duck.execute("SELECT * FROM trade_journal").fetchall()
             cols = [d[0] for d in duck.execute("DESCRIBE trade_journal").fetchall()]
             for row in trades:
-                row_dict = dict(zip(cols, row))
+                row_dict = dict(zip(cols, row, strict=False))
                 # Convert datetime columns to ISO strings (avoids sqlite3 datetime deprecation)
                 for col, val in list(row_dict.items()):
                     if isinstance(val, datetime):
@@ -113,7 +112,7 @@ def migrate(catalog: Path = CATALOG_PATH, target: Path = DEFAULT_JOURNAL_PATH, *
             scans = duck.execute("SELECT * FROM scan_results").fetchall()
             cols = [d[0] for d in duck.execute("DESCRIBE scan_results").fetchall()]
             for row in scans:
-                row_dict = dict(zip(cols, row))
+                row_dict = dict(zip(cols, row, strict=False))
                 for col, val in list(row_dict.items()):
                     if isinstance(val, datetime):
                         row_dict[col] = val.isoformat()

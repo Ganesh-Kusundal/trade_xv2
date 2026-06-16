@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -15,12 +14,15 @@ _ENV_PATH = Path(".env.local")
 if _ENV_PATH.exists() and _ENV_PATH.stat().st_size > 0:
     load_dotenv(_ENV_PATH, override=True)
 
-from brokers.dhan import BrokerGateway, BrokerFactory
+from brokers.dhan import BrokerFactory
 from cli.commands import (
     account as cmd_account,
 )
 from cli.commands import (
     analytics as cmd_analytics,
+)
+from cli.commands import (
+    benchmark as cmd_benchmark,
 )
 
 # CLI Commands Imports
@@ -28,31 +30,10 @@ from cli.commands import (
     broker as cmd_broker,
 )
 from cli.commands import (
-    news as cmd_news,
-)
-from cli.commands import (
-    validate as cmd_validate,
-)
-from cli.commands import (
-    benchmark as cmd_benchmark,
-)
-from cli.commands import (
-    dashboard as cmd_dashboard,
-)
-from cli.commands import (
     compare as cmd_compare,
 )
 from cli.commands import (
-    validate_history as cmd_validate_history,
-)
-from cli.commands import (
-    validate_option_chain as cmd_validate_option_chain,
-)
-from cli.commands import (
-    quality_report as cmd_quality_report,
-)
-from cli.commands import (
-    instrument_info as cmd_instrument_info,
+    dashboard as cmd_dashboard,
 )
 from cli.commands import (
     doctor as cmd_doctor,
@@ -61,10 +42,13 @@ from cli.commands import (
     events as cmd_events,
 )
 from cli.commands import (
-    instrument as cmd_instrument,
+    instrument_info as cmd_instrument_info,
 )
 from cli.commands import (
     instruments as cmd_instruments,
+)
+from cli.commands import (
+    journal as cmd_journal,
 )
 from cli.commands import (
     load_test as cmd_load_test,
@@ -73,29 +57,39 @@ from cli.commands import (
     market as cmd_market,
 )
 from cli.commands import (
+    news as cmd_news,
+)
+from cli.commands import (
     oms as cmd_oms,
 )
 from cli.commands import (
     portfolio as cmd_portfolio,
 )
 from cli.commands import (
+    quality_report as cmd_quality_report,
+)
+from cli.commands import (
     search as cmd_search,
 )
 from cli.commands import (
-    websocket as cmd_websocket,
+    validate as cmd_validate,
 )
 from cli.commands import (
-    journal as cmd_journal,
+    validate_history as cmd_validate_history,
+)
+from cli.commands import (
+    validate_option_chain as cmd_validate_option_chain,
 )
 from cli.commands import (
     views as cmd_views,
+)
+from cli.commands import (
+    websocket as cmd_websocket,
 )
 from cli.commands.registry import register as _register_cmd
 from cli.services.broker_service import BrokerService
 from cli.services.event_bus_service import EventBusService
 from cli.services.oms_service import OmsService
-from cli.views.tui_app import TradexTuiApp
-
 
 # ── Command registry (populated at import time for discoverability) ───────
 _register_cmd("broker", "cli.commands.broker")
@@ -201,10 +195,10 @@ def main() -> None:
         ]
         for cmd, desc in cmds:
             console.print(f"  [cyan]{cmd:<25}[/cyan] {desc}")
-        console.print(f"\n[dim]Examples:[/dim]")
-        console.print(f"  tradex analytics scan-momentum --file universe.csv --limit 5")
-        console.print(f"  tradex analytics backtest --file ohlcv.csv --capital 100000")
-        console.print(f"  tradex validate data nifty500.csv --timeframe 1d")
+        console.print("\n[dim]Examples:[/dim]")
+        console.print("  tradex analytics scan-momentum --file universe.csv --limit 5")
+        console.print("  tradex analytics backtest --file ohlcv.csv --capital 100000")
+        console.print("  tradex validate data nifty500.csv --timeframe 1d")
         return
 
     subcommand = args[0].lower()
@@ -215,7 +209,7 @@ def main() -> None:
 
     # Commands that need instruments (historical, search, instruments)
     _NEEDS_INSTRUMENTS = {"historical", "history", "search", "instrument", "instruments", "option-chain", "futures"}
-    
+
     # Lazy gateway accessor for market data commands
     gateway = None
     broker_service = BrokerService()
@@ -240,10 +234,9 @@ def main() -> None:
 
     # Wire TradingContext into OmsService when available (only for live gateway commands)
     tc = None
-    oms_service = None
     if subcommand not in _NO_GATEWAY_CMDS:
         tc = broker_service.trading_context
-        oms_service = OmsService(gateway=gateway, trading_context=tc)
+        OmsService(gateway=gateway, trading_context=tc)
 
     # 3. Subcommand routing
     try:

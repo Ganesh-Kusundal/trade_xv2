@@ -1,15 +1,20 @@
-"""Convert Trade_J Parquet files → canonical schema.
+"""Convert Trade_J Parquet files → canonical schema (IST timestamps).
 
-Trade_J uses:
+Trade_J source format:
 - open_paisa (price in paise, /100 for rupees)
-- bar_time_ms (epoch milliseconds)
-- interval (always "1m")
+- bar_time_ms (epoch milliseconds — may be UTC OR IST depending on source)
+- interval (always "1m", dropped due to dict type issues)
 - ingested_at_ms (ignored)
 
-Canonical uses:
+Canonical format (IST):
 - open, high, low, close (rupees)
-- timestamp (datetime)
+- timestamp (naive datetime in IST)
 - symbol, exchange, volume, oi
+
+Timezone handling:
+- If bar_time_ms is in UTC (most common): convert to IST, strip timezone
+- If bar_time_ms is in IST: treat as IST, just strip timezone
+- Detection: check if the hour falls in NSE market hours (9:15-15:30 IST)
 """
 
 from __future__ import annotations
@@ -21,8 +26,38 @@ import pandas as pd
 import pyarrow as pa
 
 from datalake.io import atomic_parquet_write
+from datalake.schema import CANONICAL_COLUMNS
+from datalake.symbols import normalize_symbol
+from datalake.validation import validate_candles
 
 logger = logging.getLogger(__name__)
+
+MARKET_OPEN_HOUR = 9
+MARKET_OPEN_MINUTE = 15
+MARKET_CLOSE_HOUR = 15
+MARKET_CLOSE_MINUTE = 30
+
+
+def _detect_source_timezone(bar_time_ms: pd.Series) -> str:
+    """Detect whether bar_time_ms values are in UTC or IST.
+
+    Heuristic: if the majority of timestamps (interpreted as UTC) fall in
+    NSE market hours (9:15-15:30), the source is UTC. If they fall in
+    3:45-10:00 UTC (= IST market hours), the source is already IST.
+    """
+    sample = bar_time_ms.dropna().head(1000)
+    if sample.empty:
+        return "UTC"  # default assumption
+
+    as_utc = pd.to_datetime(sample, unit="ms", utc=True)
+    hours = as_utc.dt.hour
+    minutes = as_utc.dt.minute
+
+    ist_market_count = ((hours == MARKET_OPEN_HOUR) & (minutes >= MARKET_OPEN_MINUTE)).sum() + \
+        ((hours > MARKET_OPEN_HOUR) & (hours < MARKET_CLOSE_HOUR)).sum() + \
+        ((hours == MARKET_CLOSE_HOUR) & (minutes <= MARKET_CLOSE_MINUTE)).sum()
+
+    return "UTC" if ist_market_count > len(sample) * 0.5 else "IST"
 
 
 def convert_tradej_parquet(
@@ -30,7 +65,7 @@ def convert_tradej_parquet(
     symbol: str,
     exchange: str = "NSE",
 ) -> pd.DataFrame:
-    """Convert a single Trade_J Parquet file to canonical DataFrame.
+    """Convert a single Trade_J Parquet file to canonical DataFrame (IST).
 
     Parameters
     ----------
@@ -43,7 +78,7 @@ def convert_tradej_parquet(
 
     Returns
     -------
-    pd.DataFrame with canonical columns.
+    pd.DataFrame with canonical columns (timestamp in IST).
     """
     df = pd.read_parquet(src_path)
 
@@ -60,9 +95,22 @@ def convert_tradej_parquet(
         "close_paisa": "close",
     })
 
-    # Convert timestamp from epoch ms to datetime
-    if "timestamp" in df.columns:
-        df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms", utc=True).dt.tz_convert("Asia/Kolkata").dt.tz_localize(None)
+    # Convert timestamp with timezone detection
+    if "timestamp" in df.columns and not df["timestamp"].empty:
+        source_tz = _detect_source_timezone(df["timestamp"])
+        if source_tz == "UTC":
+            df["timestamp"] = (
+                pd.to_datetime(df["timestamp"], unit="ms", utc=True)
+                .dt.tz_convert("Asia/Kolkata")
+                .dt.tz_localize(None)
+            )
+        else:
+            df["timestamp"] = (
+                pd.to_datetime(df["timestamp"], unit="ms", utc=True)
+                .dt.tz_localize("Asia/Kolkata")
+                .dt.tz_localize(None)
+            )
+        logger.debug("%s: source timezone detected as %s", symbol, source_tz)
 
     # Convert paise to rupees (divide by 100)
     for col in ["open", "high", "low", "close"]:
@@ -70,24 +118,23 @@ def convert_tradej_parquet(
             df[col] = df[col] / 100.0
 
     # Add missing columns
-    df["symbol"] = symbol
+    df["symbol"] = normalize_symbol(symbol)
     df["exchange"] = exchange
     if "oi" not in df.columns:
         df["oi"] = 0
 
-    # Drop Trade_J-specific columns (including 'interval' which has dict type issues)
-    drop_cols = [c for c in df.columns if c not in [
-        "timestamp", "symbol", "exchange", "open", "high", "low", "close", "volume", "oi",
-        "vwap", "trade_count",
-    ]]
+    # Drop Trade_J-specific columns
+    drop_cols = [c for c in df.columns if c not in [*CANONICAL_COLUMNS, "vwap", "trade_count"]]
     df = df.drop(columns=drop_cols, errors="ignore")
 
-    # Ensure column order
-    canonical = ["timestamp", "symbol", "exchange", "open", "high", "low", "close", "volume", "oi"]
-    for col in canonical:
+    # Ensure canonical column order
+    for col in CANONICAL_COLUMNS:
         if col not in df.columns:
             df[col] = 0 if col in ("volume", "oi") else ""
-    df = df[canonical]
+    df = df[CANONICAL_COLUMNS]
+
+    # Validate OHLCV consistency
+    df = validate_candles(df, symbol=symbol, drop_invalid=True)
 
     return df
 
@@ -97,15 +144,15 @@ def convert_tradej_directory(
     target_dir: Path,
     symbols: list[str] | None = None,
     timeframe: str = "1m",
-) -> dict[str, int]:
+) -> dict[str, dict[str, int]]:
     """Convert all Trade_J Parquet files to canonical hive-partitioned layout.
 
     Parameters
     ----------
     tradej_bars_dir : Path
-        Path to Trade_J bars directory (e.g., data/historical-equity/bars/interval=1m/).
+        Path to Trade_J bars directory.
     target_dir : Path
-        Target directory (e.g., market_data/equities/candles/timeframe=1m/).
+        Target directory (hive-partitioned).
     symbols : list of str or None
         Specific symbols to convert. None = all.
     timeframe : str
@@ -113,28 +160,28 @@ def convert_tradej_directory(
 
     Returns
     -------
-    dict mapping symbol → number of rows written.
+    Dict mapping symbol → {rows, duplicates_dropped, invalid_dropped}.
     """
-    results: dict[str, int] = {}
+    results: dict[str, dict[str, int]] = {}
 
     symbol_dirs = sorted(tradej_bars_dir.iterdir())
     if symbols:
-        symbol_set = {s.upper() for s in symbols}
-        symbol_dirs = [d for d in symbol_dirs if d.name.replace("symbol=", "").upper() in symbol_set]
+        symbol_set = {normalize_symbol(s) for s in symbols}
+        symbol_dirs = [d for d in symbol_dirs if normalize_symbol(d.name.replace("symbol=", "")) in symbol_set]
 
     for sym_dir in symbol_dirs:
         if not sym_dir.is_dir():
             continue
 
-        symbol = sym_dir.name.replace("symbol=", "")
+        symbol = normalize_symbol(sym_dir.name.replace("symbol=", ""))
         logger.info("Converting %s...", symbol)
 
-        # Read all monthly partitions for this symbol
         parquet_files = sorted(sym_dir.glob("*.parquet"))
         if not parquet_files:
             continue
 
         dfs = []
+        invalid_total = 0
         for pf in parquet_files:
             try:
                 df = convert_tradej_parquet(pf, symbol)
@@ -145,8 +192,16 @@ def convert_tradej_directory(
         if not dfs:
             continue
 
+        sum(len(d) for d in dfs)
         combined = pd.concat(dfs, ignore_index=True)
-        combined = combined.sort_values("timestamp").drop_duplicates(subset=["timestamp"])
+        combined = combined.sort_values("timestamp")
+
+        # Log duplicates before dropping
+        dup_count = combined.duplicated(subset=["timestamp"]).sum()
+        if dup_count > 0:
+            logger.warning("%s: dropping %d duplicate timestamps", symbol, dup_count)
+
+        combined = combined.drop_duplicates(subset=["timestamp"], keep="last")
 
         # Write to hive partition atomically
         sym_target = target_dir / f"symbol={symbol}"
@@ -155,7 +210,11 @@ def convert_tradej_directory(
         table = pa.Table.from_pandas(combined, preserve_index=False)
         atomic_parquet_write(sym_target / "data.parquet", table, compression="snappy")
 
-        results[symbol] = len(combined)
-        logger.info("  %s: %d rows", symbol, len(combined))
+        results[symbol] = {
+            "rows": len(combined),
+            "duplicates_dropped": dup_count,
+            "invalid_dropped": invalid_total,
+        }
+        logger.info("  %s: %d rows (%d duplicates dropped)", symbol, len(combined), dup_count)
 
     return results

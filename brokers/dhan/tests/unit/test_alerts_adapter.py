@@ -6,8 +6,8 @@ from decimal import Decimal
 
 import pytest
 
-from brokers.dhan.domain import Alert, AlertRequest
 from brokers.dhan.alerts import AlertsAdapter
+from brokers.dhan.domain import Alert, AlertRequest
 
 
 class TestAlertsDomain:
@@ -53,7 +53,7 @@ class TestAlertsAdapter:
                 "status": "ACTIVE",
             }
         })
-        
+
         adapter = AlertsAdapter(fake_client, resolver)
         result = adapter.place(AlertRequest(
             symbol="RELIANCE",
@@ -61,7 +61,7 @@ class TestAlertsAdapter:
             condition="LTP_CROSSES_ABOVE",
             trigger_price=Decimal("2500.00"),
         ))
-        
+
         assert isinstance(result, Alert)
         assert result.alert_id == "ALERT_001"
         assert result.active is True
@@ -70,7 +70,7 @@ class TestAlertsAdapter:
     def test_place_alert_validation_negative_price(self, fake_client, resolver):
         """Should reject negative trigger price."""
         adapter = AlertsAdapter(fake_client, resolver)
-        
+
         with pytest.raises(ValueError, match="Trigger price must be positive"):
             adapter.place(AlertRequest(
                 symbol="RELIANCE",
@@ -82,7 +82,7 @@ class TestAlertsAdapter:
     def test_place_alert_validation_invalid_condition(self, fake_client, resolver):
         """Should reject invalid condition."""
         adapter = AlertsAdapter(fake_client, resolver)
-        
+
         with pytest.raises(ValueError, match="Invalid condition"):
             adapter.place(AlertRequest(
                 symbol="RELIANCE",
@@ -102,10 +102,10 @@ class TestAlertsAdapter:
                 "status": "ACTIVE",
             }
         })
-        
+
         adapter = AlertsAdapter(fake_client, resolver)
         alert = adapter.get("ALERT_001")
-        
+
         assert alert.alert_id == "ALERT_001"
         assert alert.condition == "LTP_CROSSES_ABOVE"
 
@@ -117,10 +117,10 @@ class TestAlertsAdapter:
                 {"alertId": "ALERT_002", "symbol": "TCS", "triggerPrice": 3500.0, "status": "ACTIVE"},
             ]
         })
-        
+
         adapter = AlertsAdapter(fake_client, resolver)
         alerts = adapter.list_all()
-        
+
         assert len(alerts) == 2
         assert alerts[0].alert_id == "ALERT_001"
         assert alerts[1].alert_id == "ALERT_002"
@@ -128,8 +128,8 @@ class TestAlertsAdapter:
     def test_delete_alert_success(self, fake_client, resolver):
         """Should delete alert successfully."""
         fake_client.set_response("DELETE", "/alerts/ALERT_001", {"success": True})
-        
+
         adapter = AlertsAdapter(fake_client, resolver)
         result = adapter.delete("ALERT_001")
-        
+
         assert result is True

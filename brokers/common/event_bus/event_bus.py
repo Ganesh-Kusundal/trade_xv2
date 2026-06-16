@@ -24,9 +24,10 @@ import logging
 import threading
 import traceback
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Callable, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from brokers.common.event_bus.dead_letter_queue import DeadLetterQueue
@@ -110,8 +111,8 @@ class EventBus:
     def __init__(
         self,
         event_log: Any | None = None,
-        dead_letter_queue: "DeadLetterQueue | None" = None,
-        metrics: "EventMetrics | None" = None,
+        dead_letter_queue: DeadLetterQueue | None = None,
+        metrics: EventMetrics | None = None,
         logging_enabled: bool = True,
         fail_fast: bool = False,
     ) -> None:

@@ -7,16 +7,17 @@ from typing import Any
 
 import pandas as pd
 
+from brokers.common.batch_mixin import BatchFetchMixin
 from brokers.common.core.domain import (
     Balance,
     Holding,
     MarketDepth,
     Order,
     OrderResponse,
+    Position,
     Quote,
     Trade,
 )
-from brokers.common.batch_mixin import BatchFetchMixin
 from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
 from brokers.common.oms.context import TradingContext
 from brokers.common.oms.risk_manager import RiskConfig
@@ -96,8 +97,9 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway):
         from_date: str | None = None,
         to_date: str | None = None,
     ) -> pd.DataFrame:
-        import numpy as np
         from datetime import datetime, timedelta, timezone
+
+        import numpy as np
 
         symbols = [symbol] if isinstance(symbol, str) else symbol
         n = lookback_days
@@ -170,12 +172,12 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway):
             chain.append({
                 "strike": strike,
                 "expiry": expiry or "2026-07-30",
-                "ce_ltp": round(max(0, base - strike + np.random.uniform(5, 50)), 2),
-                "pe_ltp": round(max(0, strike - base + np.random.uniform(5, 50)), 2),
-                "ce_oi": int(np.random.randint(10000, 100000)),
-                "pe_oi": int(np.random.randint(10000, 100000)),
-                "ce_volume": int(np.random.randint(1000, 50000)),
-                "pe_volume": int(np.random.randint(1000, 50000)),
+                "call_ltp": round(max(0, base - strike + np.random.uniform(5, 50)), 2),
+                "put_ltp": round(max(0, strike - base + np.random.uniform(5, 50)), 2),
+                "call_oi": int(np.random.randint(10000, 100000)),
+                "put_oi": int(np.random.randint(10000, 100000)),
+                "call_volume": int(np.random.randint(1000, 50000)),
+                "put_volume": int(np.random.randint(1000, 50000)),
             })
         return {
             "underlying": underlying,

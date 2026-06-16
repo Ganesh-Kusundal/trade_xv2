@@ -8,7 +8,6 @@ import pytest
 
 from brokers.dhan.resolver import SymbolResolver
 
-
 # ---------------------------------------------------------------------------
 # Fake HTTP client — sync mock replacing DhanHttpClient
 # ---------------------------------------------------------------------------

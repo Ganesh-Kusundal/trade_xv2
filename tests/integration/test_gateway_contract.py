@@ -9,26 +9,22 @@ Run with:
 """
 from __future__ import annotations
 
-import inspect
-from abc import ABC
 from decimal import Decimal
-from typing import Any
 
 import pandas as pd
 import pytest
 
-from brokers.common.gateway import MarketDataGateway, BrokerCapabilities
 from brokers.common.core.domain import (
+    Balance,
+    Holding,
+    MarketDepth,
     Order,
     OrderResponse,
     Position,
-    Holding,
     Quote,
     Trade,
-    Balance,
-    MarketDepth,
 )
-
+from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -73,7 +69,7 @@ class TestGatewayContract:
 
     def test_no_abstract_methods_remaining(self, paper_gateway):
         """PaperGateway must have implemented all abstract methods.
-        
+
         Since paper_gateway instantiated successfully, Python's ABC mechanism
         already verified all abstract methods are implemented. This test just
         documents that fact.

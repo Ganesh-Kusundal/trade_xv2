@@ -4,13 +4,16 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any
 
 import pandas as pd
 
-from brokers.common.gateway import MarketDataGateway, BrokerCapabilities
+from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
+from brokers.common.core.domain import Balance, MarketDepth, Quote
 from brokers.dhan.connection import DhanConnection
-from brokers.dhan.domain import Balance, Holding, MarketDepth, Order, Position, Quote, Trade
+from brokers.dhan.domain import Holding, Order, Position, Trade
+from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
+from brokers.dhan.websocket import DhanMarketFeed
 
 
 class BrokerGateway(MarketDataGateway):
@@ -71,7 +74,7 @@ class BrokerGateway(MarketDataGateway):
 
     # ── Lifecycle ──
 
-    def load_instruments(self, source: Optional[str] = None, use_cache: bool = True) -> None:
+    def load_instruments(self, source: str | None = None, use_cache: bool = True) -> None:
         self._conn.load_instruments(source=source, use_cache=use_cache)
 
     def close(self) -> None:
@@ -92,7 +95,7 @@ class BrokerGateway(MarketDataGateway):
         self,
         symbol: str,
         exchange: str = "NSE",
-        on_depth: "Any | None" = None,
+        on_depth: Any | None = None,
     ) -> MarketDepth:
         """Subscribe to 20-level market depth for *symbol* via WebSocket.
 
@@ -101,7 +104,7 @@ class BrokerGateway(MarketDataGateway):
         existing WebSocket and subscription.
 
         The method returns the most-recently cached
-        :class:`~brokers.common.core.models.MarketDepth` (up to 20 levels on
+        :class:`~brokers.common.core.domain.MarketDepth` (up to 20 levels on
         each side).  If no packet has been received yet it falls back to the
         5-level REST snapshot so callers always get *something*.
 
@@ -120,13 +123,11 @@ class BrokerGateway(MarketDataGateway):
                 f"Depth 20 only supported for NSE segments, got: {exchange}"
             )
 
-        from brokers.dhan.segments import EXCHANGE_TO_SEGMENT
-        from brokers.dhan.depth_20 import DhanDepth20Feed
 
-        inst    = self._conn.instruments.resolve(symbol, exchange)
-        segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, "NSE_EQ")
-        sid_str = inst.security_id          # string for the subscription msg
-        sid_int = int(sid_str)              # int for the cache key
+        inst = self._conn.instruments.resolve(symbol, exchange)
+        segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, DEFAULT_SEGMENT)
+        sid_str = inst.security_id
+        sid_int = int(sid_str)
 
         feed = self._conn._depth_20_feed
         if feed is None:
@@ -158,7 +159,7 @@ class BrokerGateway(MarketDataGateway):
         self,
         symbol: str,
         exchange: str = "NSE",
-        on_depth: "Any | None" = None,
+        on_depth: Any | None = None,
     ) -> MarketDepth:
         """Subscribe to 200-level market depth for *symbol* via WebSocket.
 
@@ -181,11 +182,9 @@ class BrokerGateway(MarketDataGateway):
                 f"Depth 200 only supported for NSE segments, got: {exchange}"
             )
 
-        from brokers.dhan.segments import EXCHANGE_TO_SEGMENT
-        from brokers.dhan.depth_200 import DhanDepth200Feed
 
-        inst    = self._conn.instruments.resolve(symbol, exchange)
-        segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, "NSE_EQ")
+        inst = self._conn.instruments.resolve(symbol, exchange)
+        segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, DEFAULT_SEGMENT)
         sid_str = inst.security_id
 
         feed = self._conn._depth_200_feed
@@ -249,7 +248,6 @@ class BrokerGateway(MarketDataGateway):
         exchange: str = "NFO",
         expiry: str | None = None,
     ) -> dict:
-        from brokers.dhan.segments import EXCHANGE_TO_SEGMENT
         mcx_underlyings = {"CRUDEOIL", "CRUDEOILM", "GOLD", "SILVER", "COPPER", "ZINC", "NATURALGAS", "ALUMINIUM", "LEAD", "NIKKEI"}
         sec_id = None
         seg = None
@@ -291,7 +289,6 @@ class BrokerGateway(MarketDataGateway):
         underlying: str,
         exchange: str = "NFO",
     ) -> dict:
-        from brokers.dhan.segments import EXCHANGE_TO_SEGMENT
         nfo_map = {"NIFTY": "NFO", "BANKNIFTY": "NFO", "FINNIFTY": "NFO", "SENSEX": "BFO"}
         dhan_exchange = nfo_map.get(underlying.upper(), exchange)
         contracts = self._conn.futures.get_contracts(underlying, dhan_exchange)
@@ -379,7 +376,7 @@ class BrokerGateway(MarketDataGateway):
         """Subscribe to a live tick stream for *symbol* on *exchange*.
 
         The *on_tick* callback receives a canonical
-        :class:`brokers.common.core.models.Quote` object.  Broker-specific
+        :class:`brokers.common.core.domain.Quote` object.  Broker-specific
         ``security_id`` values are never exposed to the caller.
 
         Args:
@@ -388,11 +385,9 @@ class BrokerGateway(MarketDataGateway):
             mode:     Subscription mode — ``"LTP"`` | ``"QUOTE"`` | ``"DEPTH"``.
             on_tick:  Callable receiving a :class:`Quote`.
         """
-        from brokers.common.core.models import Quote
-        from brokers.dhan.segments import EXCHANGE_TO_SEGMENT
-        from brokers.dhan.websocket import DhanMarketFeed
+        from brokers.common.core.domain import Quote
         inst = self._conn.instruments.resolve(symbol, exchange)
-        segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, "NSE_EQ")
+        segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, DEFAULT_SEGMENT)
         sid = int(inst.security_id)
         feed = self._conn.market_feed
         if feed is None:

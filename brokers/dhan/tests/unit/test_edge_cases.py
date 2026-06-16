@@ -3,14 +3,11 @@
 from __future__ import annotations
 
 import pytest
-from decimal import Decimal
 
-from brokers.common.core.domain import OrderStatus, Side, OrderType, ProductType
+from brokers.common.core.domain import OrderStatus
 from brokers.dhan.connection import DhanConnection
-from brokers.dhan.domain import Exchange
 from brokers.dhan.exceptions import InstrumentNotFoundError
 from brokers.dhan.gateway import BrokerGateway
-from brokers.dhan.resolver import SymbolResolver
 
 SAMPLE_ROWS = [
     {"SEM_TRADING_SYMBOL": "RELIANCE", "SEM_SMST_SECURITY_ID": "2885",
@@ -170,7 +167,7 @@ class TestGatewayShortcuts:
                 "SEM_TICK_SIZE": 0.05,
             }
         ])
-        
+
         import unittest.mock as mock
         with mock.patch.object(offline_gateway._conn.market_data, 'get_depth') as mock_get_depth:
             offline_gateway.depth_20("NIFTY", "IDX_I")
@@ -187,7 +184,7 @@ class TestGatewayShortcuts:
                 "SEM_TICK_SIZE": 0.05,
             }
         ])
-        
+
         import unittest.mock as mock
         with mock.patch.object(offline_gateway._conn.market_data, 'get_depth') as mock_get_depth:
             offline_gateway.depth_200("NIFTY", "IDX_I")

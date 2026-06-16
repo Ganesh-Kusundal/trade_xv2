@@ -13,9 +13,7 @@ Covers:
 
 from __future__ import annotations
 
-import time
 from datetime import datetime, timezone
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -30,7 +28,6 @@ from brokers.common.observability.http_server import (
     HttpObservabilityServer,
     render_prometheus_metrics,
 )
-
 
 # ── Prometheus renderer ───────────────────────────────────────────────────
 
@@ -259,7 +256,7 @@ def test_readyz_returns_503_when_a_service_failed() -> None:
     s.start()
     try:
         import asyncio
-        from aiohttp.test_utils import TestClient
+
         # Simulate the request directly
         port = _get_port(s)
 

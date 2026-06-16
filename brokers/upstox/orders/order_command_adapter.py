@@ -10,11 +10,13 @@ from decimal import Decimal
 from typing import Any
 
 from brokers.common.api.ports import IdempotencyCachePort, OrderCommand
-from brokers.common.core.domain import Order, OrderResponse, Side as OrderSide
 from brokers.common.core.domain import (
+    Order,
     OrderPreview,
     OrderRequest,
+    OrderResponse,
 )
+from brokers.common.core.domain import Side as OrderSide
 from brokers.common.event_bus import DomainEvent, EventBus
 from brokers.common.oms.risk_manager import RiskManager
 from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
@@ -143,6 +145,7 @@ class UpstoxOrderCommandAdapter(OrderCommand):
 
     def _to_domain_order(self, request: OrderRequest) -> Order:
         from datetime import datetime, timezone
+
         from brokers.common.core.domain import OrderStatus, OrderType, ProductType, Validity
 
         return Order(

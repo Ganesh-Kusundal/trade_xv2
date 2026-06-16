@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import threading
 from decimal import Decimal
-from typing import Any, Callable
+from typing import Any
 
 from brokers.common.core.domain import Position, Trade
 from brokers.common.event_bus import DomainEvent, EventBus
@@ -127,10 +127,7 @@ class PositionManager:
                 return pos
             # Update existing position
             delta = quantity - current.quantity
-            if delta != 0:
-                updated = current.with_fill(delta, avg_price)
-            else:
-                updated = current
+            updated = current.with_fill(delta, avg_price) if delta != 0 else current
             if ltp:
                 updated = updated.with_ltp(ltp)
             self._positions[key] = updated

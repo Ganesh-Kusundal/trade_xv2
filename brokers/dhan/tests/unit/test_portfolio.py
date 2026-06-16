@@ -2,7 +2,6 @@
 
 from decimal import Decimal
 
-
 from brokers.dhan.domain import ProductType
 from brokers.dhan.portfolio import PortfolioAdapter
 

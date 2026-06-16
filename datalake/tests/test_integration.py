@@ -5,16 +5,16 @@ Verifies the full research chain works end-to-end with synthetic Parquet data.
 
 from __future__ import annotations
 
-import numpy as np
-import pandas as pd
-import pytest
 from pathlib import Path
 
-from datalake.research import ResearchAPI
-from analytics.pipeline import FeaturePipeline, RSI, ROC, ATR, SMA, Trend, RelativeVolume
+import numpy as np
+import pandas as pd
+
+from analytics.pipeline import ATR, ROC, RSI, SMA, FeaturePipeline, Trend
 from analytics.scanner import MomentumScanner
-from analytics.strategy.pipeline import StrategyPipeline, MomentumStrategy
 from analytics.scanner.models import Candidate
+from analytics.strategy.pipeline import MomentumStrategy, StrategyPipeline
+from datalake.research import ResearchAPI
 
 
 def _write_parquet(path: Path, df: pd.DataFrame) -> None:
@@ -214,8 +214,8 @@ class TestMomentumStrategyWeakened:
 
         # Find a row where RSI is between 35-45 and ROC > 2%
         last = features.iloc[-1]
-        rsi = last.get("rsi", 50)
-        roc = last.get("roc", 0)
+        last.get("rsi", 50)
+        last.get("roc", 0)
 
         strategy = MomentumStrategy()
         candidate = Candidate(symbol="TEST", score=50.0)

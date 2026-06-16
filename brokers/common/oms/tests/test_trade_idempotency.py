@@ -10,15 +10,12 @@ The actual contract is:
 """
 from __future__ import annotations
 
-import logging
-
 import pytest
 
 from brokers.common.core.domain import (
     Order,
     OrderStatus,
     OrderType,
-    ProductType,
     Side,
     Trade,
 )

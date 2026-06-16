@@ -66,7 +66,7 @@ def services():
     # the token, the test will pass automatically.
     try:
         gw.funds()  # cheapest authenticated call
-    except Exception as exc:  # noqa: BLE001 — skip on any broker error
+    except Exception as exc:
         pytest.skip(f"Dhan API auth failed (likely stale token in .env.local): {exc}")
 
     return broker_service

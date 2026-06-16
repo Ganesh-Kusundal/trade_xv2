@@ -28,19 +28,17 @@ import threading
 import time
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
+from typing import ClassVar
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from brokers.common.core.domain import (
-    Order,
     OrderStatus,
-    OrderType,
-    ProductType,
     Side,
     Trade,
 )
-from brokers.common.event_bus import EventBus, DomainEvent
+from brokers.common.event_bus import DomainEvent, EventBus
 from brokers.common.lifecycle import LifecycleManager
 from brokers.common.lifecycle.lifecycle import (
     HealthState,
@@ -56,7 +54,6 @@ from brokers.common.oms import (
     RiskConfig,
     RiskManager,
 )
-
 
 # ── 1. Lifecycle drain with stuck service ─────────────────────────────────
 
@@ -87,7 +84,7 @@ class _StuckService(ManagedService):
 class _QuickService(ManagedService):
     """A service that records its stop() call and returns quickly."""
 
-    instances: list["_QuickService"] = []
+    instances: ClassVar[list[_QuickService]] = []
 
     def __init__(self, name: str) -> None:
         self.name = name
@@ -252,7 +249,7 @@ def test_dhan_token_refresh_does_not_replay_under_cooldown() -> None:
     the request fails with AuthenticationError. This protects
     against a token-refresh feedback loop.
     """
-    from brokers.dhan.http_client import DhanHttpClient, _REFRESH_COOLDOWN_SECONDS
+    from brokers.dhan.http_client import _REFRESH_COOLDOWN_SECONDS, DhanHttpClient
 
     refresh_calls = {"n": 0}
 

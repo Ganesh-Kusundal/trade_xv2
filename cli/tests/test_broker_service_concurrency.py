@@ -1,9 +1,6 @@
 """Concurrency tests for the shared MockBroker (brokers.paper.mock_broker)."""
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from decimal import Decimal
-
-import pytest
 
 from brokers.paper.mock_broker import MockBroker
 

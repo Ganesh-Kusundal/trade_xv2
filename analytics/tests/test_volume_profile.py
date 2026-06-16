@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from analytics.volume_profile.volume_profile import VolumeProfileBuilder
 
 from .helpers import prices

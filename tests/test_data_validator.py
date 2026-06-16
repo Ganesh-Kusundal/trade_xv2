@@ -1,8 +1,8 @@
 """Tests for DataQualityValidator — missing candles, duplicates, OI/volume anomalies, timestamps."""
 
+
 import pandas as pd
-import pytest
-from datetime import datetime, timedelta
+
 from brokers.common.services.data_validator import DataQualityValidator, ValidationReport
 
 
@@ -90,7 +90,7 @@ class TestDataQualityValidator:
 
     def test_detect_negative_oi(self):
         df = self._make_df(n=20)
-        df.loc[5, "oi"] = int(-100)
+        df.loc[5, "oi"] = -100
         validator = DataQualityValidator()
         issues = validator.check_oi_anomalies(df)
         assert any("negative" in i.message.lower() for i in issues)

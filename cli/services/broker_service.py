@@ -6,12 +6,13 @@ import logging
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 from brokers.common.gateway import MarketDataGateway
 from brokers.common.lifecycle import LifecycleManager
 from brokers.common.oms.context import TradingContext
 from brokers.dhan import BrokerFactory
 from brokers.paper import PaperGateway
-from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +28,7 @@ def _load_broker_env() -> None:
 # ---------------------------------------------------------------------------
 # Mock broker — uses the shared MockBroker from brokers.paper.mock_broker
 # ---------------------------------------------------------------------------
-from brokers.paper.mock_broker import MockBroker, create_seeded_mock_broker  # noqa: F401
-
+from brokers.paper.mock_broker import MockBroker, create_seeded_mock_broker
 
 # ---------------------------------------------------------------------------
 # BrokerService
@@ -339,9 +339,10 @@ class BrokerService:
         # OMS has streaming state to publish. In production this would
         # be driven by the strategy engine.
         try:
-            from brokers.dhan.websocket import DhanMarketFeed, DhanOrderStream
+            from brokers.dhan.websocket import DhanOrderStream
 
-            access_token_fn = lambda: conn._client.access_token
+            def access_token_fn():
+                return conn._client.access_token
             # Order stream: always start — used by the OMS for fill
             # detection on every place_order call.
             if conn.order_stream is None:
@@ -395,8 +396,9 @@ class BrokerService:
         unknown capital baseline unless the operator has explicitly
         opted into fail-open mode.
         """
-        from brokers.common.oms import PositionManager, RiskConfig, RiskManager
         from decimal import Decimal
+
+        from brokers.common.oms import PositionManager, RiskConfig, RiskManager
 
         # The gateway is set after the factory returns. Use a mutable
         # holder so the closure can read the live reference.

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from brokers.common.gateway import MarketDataGateway
 from cli.services.broker_service import BrokerService
 
@@ -11,7 +9,7 @@ from cli.services.broker_service import BrokerService
 class DoctorDiagnostics:
     """Runs connectivity, authentication, and API sanity checks on any broker."""
 
-    def __init__(self, broker_service: BrokerService, gateway: Optional[MarketDataGateway] = None):
+    def __init__(self, broker_service: BrokerService, gateway: MarketDataGateway | None = None):
         self._broker_service = broker_service
         self._gw = gateway
 

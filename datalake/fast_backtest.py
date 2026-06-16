@@ -8,17 +8,21 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
+from analytics.backtest.models import (
+    BacktestConfig,
+    BacktestResult,
+    PerformanceMetrics,
+    TradeAnalysis,
+)
 from analytics.pipeline.pipeline import FeaturePipeline
-from analytics.strategy.pipeline import StrategyPipeline
-from analytics.strategy.models import Signal, SignalType
 from analytics.scanner.models import Candidate
-from analytics.backtest.models import BacktestConfig, BacktestResult, PerformanceMetrics, TradeAnalysis
+from analytics.strategy.models import Signal, SignalType
+from analytics.strategy.pipeline import StrategyPipeline
 
 logger = logging.getLogger(__name__)
 

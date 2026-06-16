@@ -101,7 +101,7 @@ class SectorMapper:
         df = pd.read_csv(path)
         if "symbol" not in df.columns or "sector" not in df.columns:
             raise ValueError(f"CSV must have 'symbol' and 'sector' columns, got: {list(df.columns)}")
-        mapping = dict(zip(df["symbol"].str.upper(), df["sector"]))
+        mapping = dict(zip(df["symbol"].str.upper(), df["sector"], strict=False))
         return cls.from_dict(mapping)
 
     @classmethod

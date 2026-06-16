@@ -44,7 +44,7 @@ class TestDhanDepth200Feed:
             access_token="TOKEN",
             instrument=("NSE_EQ", "2885"),
         )
-        
+
         with pytest.raises(ValueError, match="Only 1 instrument allowed"):
             feed.subscribe(("NSE_EQ", "2886"))
 
@@ -54,16 +54,16 @@ class TestDhanDepth200Feed:
             client_id="CLIENT",
             access_token="TOKEN",
         )
-        
+
         feed.subscribe(("NSE_EQ", "2885"))
-        
+
         assert len(feed._subscriptions) == 1
         assert feed._instrument == ("NSE_EQ", "2885")
 
     def test_depth_200_init_over_limit_raises(self):
         """Should raise ValueError if initialized with instrument when one exists."""
         # This test validates the constructor validation
-        feed = DhanDepth200Feed(
+        DhanDepth200Feed(
             client_id="CLIENT",
             access_token="TOKEN",
             instrument=("NSE_EQ", "2885"),
@@ -111,7 +111,7 @@ class TestDhanDepth200Feed:
             client_id="CLIENT",
             access_token="TOKEN",
         )
-        
+
         assert hasattr(feed, 'name')
         assert hasattr(feed, 'start')
         assert hasattr(feed, 'stop')
@@ -121,12 +121,12 @@ class TestDhanDepth200Feed:
     def test_depth_200_health_not_started(self):
         """Health should be STOPPED before start()."""
         from brokers.common.lifecycle.lifecycle import HealthState
-        
+
         feed = DhanDepth200Feed(
             client_id="CLIENT",
             access_token="TOKEN",
         )
-        
+
         health = feed.health()
         assert health.state == HealthState.STOPPED
         assert "not started" in health.detail

@@ -2,20 +2,19 @@
 
 Tracks: symbols, date ranges, row counts, data quality, missing data.
 Provides fast queries over Parquet files without loading them.
-
-Connections are thread-local so concurrent scanners / strategies can safely
-read and write without sharing a single DuckDB connection object.
 """
 
 from __future__ import annotations
 
 import logging
+import threading
+from datetime import date
 from pathlib import Path
-from datetime import datetime, date
 
 import duckdb
 
-from datalake.duckdb_utils import ThreadLocalConnectionPool
+from datalake.duckdb_utils import connect_with_retry
+from datalake.symbols import normalize_symbol
 
 logger = logging.getLogger(__name__)
 
@@ -23,23 +22,36 @@ logger = logging.getLogger(__name__)
 class DataCatalog:
     """DuckDB-backed metadata catalog for the data lake."""
 
+    _schema_lock = threading.Lock()
+
     def __init__(self, root: str = "market_data", read_only: bool = False) -> None:
         self._root = Path(root)
         self._db_path = self._root / "catalog.duckdb"
         self._read_only = read_only
-        self._pool = ThreadLocalConnectionPool(self._db_path, read_only=read_only)
+        if not read_only:
+            self._db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._conn: duckdb.DuckDBPyConnection | None = None
+        if not read_only:
+            self._ensure_schema()
 
     @property
     def conn(self) -> duckdb.DuckDBPyConnection:
-        if not self._read_only:
-            self._db_path.parent.mkdir(parents=True, exist_ok=True)
-        conn = self._pool.get()
-        if not self._read_only:
-            self._init_schema(conn)
-        return conn
+        if self._conn is None:
+            self._conn = connect_with_retry(str(self._db_path), read_only=self._read_only)
+        return self._conn
 
     def close(self) -> None:
-        self._pool.close_all()
+        if self._conn is not None:
+            try:
+                self._conn.close()
+            except Exception:
+                pass
+            self._conn = None
+
+    def _ensure_schema(self) -> None:
+        """Initialize schema once under a class-level lock."""
+        with self._schema_lock:
+            self._init_schema(self.conn)
 
     def _init_schema(self, conn: duckdb.DuckDBPyConnection) -> None:
         """Create catalog tables if they don't exist."""
@@ -108,6 +120,7 @@ class DataCatalog:
         **kwargs,
     ) -> None:
         """Register or update a symbol in the catalog."""
+        symbol = normalize_symbol(symbol)
         self.conn.execute("""
             INSERT OR REPLACE INTO symbols
             (symbol, exchange, first_date, last_date, total_rows, timeframe, parquet_path, updated_at)
@@ -116,6 +129,7 @@ class DataCatalog:
 
     def get_symbol(self, symbol: str) -> dict | None:
         """Get symbol metadata."""
+        symbol = normalize_symbol(symbol)
         result = self.conn.execute(
             "SELECT * FROM symbols WHERE symbol = ?", [symbol]
         ).fetchone()
@@ -125,7 +139,7 @@ class DataCatalog:
             "SELECT * FROM symbols WHERE symbol = ?", [symbol]
         )
         cols = [desc[0] for desc in cursor.description]
-        return dict(zip(cols, result))
+        return dict(zip(cols, result, strict=False))
 
     def list_symbols(self, timeframe: str = "1m") -> list[str]:
         """List all registered symbols."""
@@ -164,7 +178,6 @@ class DataCatalog:
             if not parquet_path.exists():
                 continue
 
-            # Get stats using pandas (avoids PyArrow schema merge issues)
             try:
                 import pandas as pd
                 df = pd.read_parquet(parquet_path, columns=["timestamp"])

@@ -3,9 +3,6 @@
 from __future__ import annotations
 
 import inspect
-from typing import get_type_hints
-
-import pytest
 
 
 def _get_public_methods(cls: type) -> dict[str, inspect.Signature]:
@@ -15,7 +12,7 @@ def _get_public_methods(cls: type) -> dict[str, inspect.Signature]:
         if name.startswith("_"):
             continue
         obj = getattr(cls, name, None)
-        if callable(obj) and not isinstance(obj, (property, staticmethod, classmethod)):
+        if callable(obj) and not isinstance(obj, property | staticmethod | classmethod):
             try:
                 methods[name] = inspect.signature(obj)
             except (ValueError, TypeError):
@@ -34,8 +31,8 @@ def test_all_gateways_implement_abc_methods() -> None:
             abc_methods.add(name)
 
     from brokers.dhan.gateway import BrokerGateway
-    from brokers.upstox.gateway import UpstoxBrokerGateway
     from brokers.paper.paper_gateway import PaperGateway
+    from brokers.upstox.gateway import UpstoxBrokerGateway
 
     for gw_cls in (BrokerGateway, UpstoxBrokerGateway, PaperGateway):
         for method_name in abc_methods:

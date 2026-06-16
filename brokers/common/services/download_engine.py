@@ -29,11 +29,12 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, ClassVar
 
 import pandas as pd
 import pyarrow as pa
@@ -112,7 +113,7 @@ class HistoricalDownloadEngine:
     """
 
     # Timeframe to max days mapping (Upstox limits)
-    TIMEFRAME_MAX_DAYS = {
+    TIMEFRAME_MAX_DAYS: ClassVar[dict[str, int]] = {
         "1m": 30,
         "5m": 30,
         "15m": 30,
@@ -173,10 +174,7 @@ class HistoricalDownloadEngine:
 
         # Calculate date range
         end = date.fromisoformat(to_date) if to_date else date.today()
-        if from_date:
-            start = date.fromisoformat(from_date)
-        else:
-            start = end - timedelta(days=years * 365)
+        start = date.fromisoformat(from_date) if from_date else end - timedelta(days=years * 365)
 
         # Check broker capabilities for this timeframe
         max_days = self.TIMEFRAME_MAX_DAYS.get(timeframe, 365)

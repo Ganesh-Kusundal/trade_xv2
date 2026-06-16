@@ -2,10 +2,10 @@
 
 from brokers.dhan.domain import Exchange
 from brokers.dhan.segments import (
-    EXCHANGE_TO_SEGMENT,
-    SEGMENT_TO_EXCHANGE,
-    NUMERIC_TO_SEGMENT,
     _COMPACT_SEGMENT_MAP,
+    EXCHANGE_TO_SEGMENT,
+    NUMERIC_TO_SEGMENT,
+    SEGMENT_TO_EXCHANGE,
 )
 
 

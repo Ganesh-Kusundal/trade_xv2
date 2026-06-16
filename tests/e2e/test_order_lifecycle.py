@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import threading
 from decimal import Decimal
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -28,7 +27,6 @@ from brokers.common.event_bus.dead_letter_queue import DeadLetterQueue
 from brokers.common.event_log import EventLog
 from brokers.common.observability.event_metrics import EventMetrics
 from brokers.common.oms import (
-    OrderManager,
     PositionManager,
     RiskConfig,
     RiskManager,

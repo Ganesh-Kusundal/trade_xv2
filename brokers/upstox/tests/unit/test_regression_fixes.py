@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import date, timedelta
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 
 class TestHistoricalIntervalMapping:
@@ -15,8 +12,7 @@ class TestHistoricalIntervalMapping:
     def _get_interval_map(self):
         from brokers.upstox.gateway import UpstoxBrokerGateway
         broker = MagicMock()
-        gw = UpstoxBrokerGateway(broker)
-        tf = "1M"
+        UpstoxBrokerGateway(broker)
         interval_map = {
             "1": ("minutes", "1"), "1MIN": ("minutes", "1"),
             "3": ("minutes", "3"), "3MIN": ("minutes", "3"),
@@ -64,8 +60,8 @@ class TestDepthResponseParsing:
     """Verify get_depth parses the nested quotes response format."""
 
     def test_depth_parses_nested_format(self):
-        from brokers.upstox.gateway import UpstoxBrokerGateway
         from brokers.common.core.domain import MarketDepth
+        from brokers.upstox.gateway import UpstoxBrokerGateway
 
         broker = MagicMock()
         broker.instrument_resolver.resolve.return_value = MagicMock(instrument_key="NSE_EQ|INE002A01018")
@@ -167,7 +163,7 @@ class TestMarketDepthInit:
     """Verify MarketDepth doesn't accept symbol kwarg."""
 
     def test_market_depth_no_symbol(self):
-        from brokers.common.core.domain import MarketDepth, DepthLevel
+        from brokers.common.core.domain import MarketDepth
         depth = MarketDepth(bids=[], asks=[])
         assert depth.bids == []
         assert depth.asks == []

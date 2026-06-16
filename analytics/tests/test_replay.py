@@ -9,11 +9,17 @@ import pandas as pd
 import pytest
 
 from analytics.pipeline import ATR, RSI, SMA, FeaturePipeline
-from analytics.replay import Bar, Position, ReplayConfig, ReplayEngine, ReplayMode, ReplayResult, ReplaySession, Trade
-from analytics.scanner.models import Candidate
-from analytics.strategy.models import Signal, SignalType
+from analytics.replay import (
+    Bar,
+    Position,
+    ReplayConfig,
+    ReplayEngine,
+    ReplayMode,
+    ReplayResult,
+    ReplaySession,
+    Trade,
+)
 from analytics.strategy.pipeline import MomentumStrategy, StrategyPipeline
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -346,7 +352,7 @@ class TestAnalyticsFacade:
     def test_replay_with_data(
         self, sample_ohlcv: pd.DataFrame, default_pipeline: FeaturePipeline
     ) -> None:
-        from analytics.replay import ReplayEngine, ReplayConfig
+        from analytics.replay import ReplayConfig, ReplayEngine
         engine = ReplayEngine(default_pipeline, config=ReplayConfig(warmup_bars=20))
         result = engine.run(sample_ohlcv, symbol="TEST")
         assert result.bars_processed == 120

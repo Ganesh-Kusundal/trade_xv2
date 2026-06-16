@@ -5,21 +5,16 @@ from decimal import Decimal
 
 import pytest
 
+from brokers.common.core.domain import DepthLevel, MarketDepth, Quote
 from brokers.dhan.domain import (
-    Balance,
-    DepthLevel,
     Exchange,
-    Holding,
     Instrument,
     InstrumentType,
-    MarketDepth,
     Order,
     OrderSide,
     OrderStatus,
     OrderType,
     Position,
-    Quote,
-    Trade,
 )
 from brokers.dhan.resolver import SymbolResolver
 

@@ -13,7 +13,6 @@ from rich.console import Console
 
 from cli.commands import portfolio as cmd_portfolio
 from cli.services.broker_service import BrokerService
-from brokers.paper.mock_broker import MockBroker
 
 # ---------------------------------------------------------------------------
 # Fixtures

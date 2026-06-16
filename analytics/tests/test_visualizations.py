@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import pandas as pd
-import pytest
-
 from analytics.visualizations.charts import attach_charts, ohlcv_chart, score_chart
 
 from .helpers import prices

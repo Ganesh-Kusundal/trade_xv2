@@ -22,7 +22,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Callable, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 logger = logging.getLogger(__name__)
 
@@ -248,7 +248,7 @@ class LifecycleManager:
                 continue
             try:
                 status = self._services[name].health()
-            except Exception as exc:  # noqa: BLE001 — health must never raise
+            except Exception as exc:
                 status = HealthStatus(
                     state=HealthState.FAILED,
                     service=name,
@@ -284,7 +284,7 @@ class LifecycleManager:
                 self._started.add(name)
                 self._start_failed.discard(name)
             logger.info("LifecycleManager: %s started", name)
-        except Exception as exc:  # noqa: BLE001 — must not abort start_all
+        except Exception as exc:
             logger.error(
                 "LifecycleManager: %s failed to start: %s: %s",
                 name,
@@ -363,7 +363,7 @@ class LifecycleManager:
     ) -> None:
         try:
             service.stop()
-        except BaseException as exc:  # noqa: BLE001
+        except BaseException as exc:
             container["err"] = exc
 
 

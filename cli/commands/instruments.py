@@ -46,14 +46,14 @@ def _lookup(symbol: str, broker_service, console: Console) -> None:
         if inst:
             table.add_row(f"Match ({exch})", f"{inst.symbol} | sid={inst.security_id} | type={inst.instrument_type.value}")
             if inst.expiry:
-                table.add_row(f"  Expiry", inst.expiry)
+                table.add_row("  Expiry", inst.expiry)
             if inst.strike_price:
-                table.add_row(f"  Strike", str(inst.strike_price))
+                table.add_row("  Strike", str(inst.strike_price))
             if inst.option_type:
-                table.add_row(f"  Option Type", inst.option_type.value)
+                table.add_row("  Option Type", inst.option_type.value)
             if inst.underlying:
-                table.add_row(f"  Underlying", inst.underlying)
-            table.add_row(f"  Lot Size", str(inst.lot_size))
+                table.add_row("  Underlying", inst.underlying)
+            table.add_row("  Lot Size", str(inst.lot_size))
 
     if not table.rows:
         table.add_row("Result", "[red]Not found in any exchange[/red]")

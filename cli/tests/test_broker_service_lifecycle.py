@@ -20,13 +20,9 @@ These tests verify the A5 fix:
 from __future__ import annotations
 
 import threading
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 from brokers.common.lifecycle import LifecycleManager, ManagedService
-from brokers.common.oms import TradingContext
-
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -55,8 +51,9 @@ def _make_recorder_service(name: str = "test-recorder") -> ManagedService:
             self.stop_event.set()
 
         def health(self):
-            from brokers.common.lifecycle.lifecycle import HealthState, HealthStatus
             from datetime import datetime, timezone
+
+            from brokers.common.lifecycle.lifecycle import HealthState, HealthStatus
             state = HealthState.HEALTHY if self.started and not self.stopped else HealthState.STOPPED
             return HealthStatus(
                 state=state,
@@ -125,7 +122,7 @@ def test_lifecycle_registers_token_scheduler_and_reconciliation(
     # to assert the factory receives the lifecycle.
     captured = {}
     fake_scheduler = _make_recorder_service("dhan.token_refresh_scheduler")
-    fake_daily_pnl = _make_recorder_service("oms.daily_pnl_reset")
+    _make_recorder_service("oms.daily_pnl_reset")
 
     class FakeGateway:
         def __init__(self, *args, **kwargs):

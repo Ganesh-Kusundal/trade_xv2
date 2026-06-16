@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from decimal import Decimal
 
-from brokers.dhan.domain import DepthLevel, MarketDepth, Quote, InstrumentType
+from brokers.common.core.domain import DepthLevel, MarketDepth, Quote
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.resolver import SymbolResolver
 from brokers.dhan.segments import EXCHANGE_TO_SEGMENT
@@ -17,24 +17,8 @@ class MarketDataAdapter:
     def __init__(self, client: DhanHttpClient, resolver: SymbolResolver):
         self._client = client
         self._resolver = resolver
-        self._symbol_interceptor = None  # Set by factory if available
 
     def _resolve_and_segment(self, symbol: str, exchange: str):
-        """Resolve symbol and get exchange segment.
-        
-        Uses the symbol interceptor (SQLite cache) if available, falling back
-        to the legacy in-memory resolver.
-        """
-        # Try symbol interceptor first (fast SQLite path with lazy refresh)
-        if self._symbol_interceptor:
-            resolved = self._symbol_interceptor.resolve("dhan", symbol, exchange)
-            if resolved:
-                # Get segment from resolved metadata
-                inst = self._resolver.resolve(symbol, exchange)  # Fallback for segment
-                segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, "NSE_EQ")
-                return inst, segment
-        
-        # Fallback to legacy resolver
         inst = self._resolver.resolve(symbol, exchange)
         segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, "NSE_EQ")
         return inst, segment
@@ -53,8 +37,10 @@ class MarketDataAdapter:
         data = self._client.post("/marketfeed/quote", json={segment: [sid]})
         raw = data["data"][segment][str(sid)]
         ohlc = raw.get("ohlc", {}) or {}
+        from brokers.dhan.domain import InstrumentType
+        display = inst.symbol if inst.instrument_type == InstrumentType.EQUITY else (inst.canonical_symbol or inst.symbol)
         quote = Quote(
-            symbol=inst.symbol if inst.instrument_type == InstrumentType.EQUITY else (inst.canonical_symbol or inst.symbol),
+            symbol=display,
             ltp=Decimal(str(raw.get("last_price", 0))),
             open=Decimal(str(ohlc.get("open", 0))),
             high=Decimal(str(ohlc.get("high", 0))),
@@ -79,7 +65,9 @@ class MarketDataAdapter:
             DepthLevel(price=Decimal(str(l["price"])), quantity=int(l["quantity"]), orders=int(l.get("orders", 0)))
             for l in raw.get("depth", {}).get("sell", [])[:5]
         ]
-        depth = MarketDepth(symbol=inst.symbol if inst.instrument_type == InstrumentType.EQUITY else (inst.canonical_symbol or inst.symbol), bids=bids, asks=asks)
+        from brokers.dhan.domain import InstrumentType
+        display = inst.symbol if inst.instrument_type == InstrumentType.EQUITY else (inst.canonical_symbol or inst.symbol)
+        depth = MarketDepth(symbol=display, bids=bids, asks=asks)
         logger.debug("depth_fetched", extra={"symbol": symbol, "bid_levels": len(bids), "ask_levels": len(asks)})
         return depth
 
@@ -92,10 +80,8 @@ class MarketDataAdapter:
         return result
 
     def get_batch_ltp(self, symbols: list[str], exchange: str = "NSE") -> dict[str, Decimal]:
-        """Fetch LTP for multiple symbols in one API call (up to 1000)."""
         segment_map: dict[str, list[int]] = {}
         symbol_map: dict[int, str] = {}
-        
         for sym in symbols:
             try:
                 inst, segment = self._resolve_and_segment(sym, exchange)
@@ -104,10 +90,8 @@ class MarketDataAdapter:
                 symbol_map[sid] = sym
             except Exception:
                 continue
-        
         if not segment_map:
             return {}
-        
         data = self._client.post("/marketfeed/ltp", json=segment_map)
         result = {}
         for seg, sids in data.get("data", {}).items():
@@ -118,12 +102,11 @@ class MarketDataAdapter:
         return result
 
     def get_batch_quote(self, symbols: list[str], exchange: str = "NSE") -> dict[str, Quote]:
-        """Fetch quotes for multiple symbols in one API call (up to 1000)."""
-        from brokers.dhan.domain import Quote as DhanQuote
+        from brokers.dhan.domain import InstrumentType
+        from brokers.common.core.domain import Quote as DhanQuote
         segment_map: dict[str, list[int]] = {}
         symbol_map: dict[int, str] = {}
-        inst_map: dict[int, Any] = {}
-        
+        inst_map: dict[int, object] = {}
         for sym in symbols:
             try:
                 inst, segment = self._resolve_and_segment(sym, exchange)
@@ -133,21 +116,19 @@ class MarketDataAdapter:
                 inst_map[sid] = inst
             except Exception:
                 continue
-        
         if not segment_map:
             return {}
-        
         data = self._client.post("/marketfeed/quote", json=segment_map)
         result = {}
         for seg, sids in data.get("data", {}).items():
             for sid_str, info in sids.items():
                 sid = int(sid_str)
                 if sid in symbol_map:
-                    sym = symbol_map[sid]
                     inst = inst_map[sid]
                     ohlc = info.get("ohlc", {}) or {}
-                    result[sym] = DhanQuote(
-                        symbol=inst.symbol if inst.instrument_type == InstrumentType.EQUITY else (inst.canonical_symbol or inst.symbol),
+                    display = inst.symbol if inst.instrument_type == InstrumentType.EQUITY else (inst.canonical_symbol or inst.symbol)
+                    result[symbol_map[sid]] = DhanQuote(
+                        symbol=display,
                         ltp=Decimal(str(info.get("last_price", 0))),
                         open=Decimal(str(ohlc.get("open", 0))),
                         high=Decimal(str(ohlc.get("high", 0))),

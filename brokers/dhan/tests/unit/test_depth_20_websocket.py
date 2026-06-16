@@ -43,8 +43,8 @@ class TestDhanDepth20Feed:
 
     def test_depth_20_subscribe_over_limit_raises(self):
         """Should raise ValueError if >50 instruments."""
-        instruments = [(f"NSE_EQ", str(i)) for i in range(51)]
-        
+        instruments = [("NSE_EQ", str(i)) for i in range(51)]
+
         with pytest.raises(ValueError, match="Maximum 50 instruments"):
             DhanDepth20Feed(
                 client_id="CLIENT",
@@ -58,11 +58,11 @@ class TestDhanDepth20Feed:
             client_id="CLIENT",
             access_token="TOKEN",
         )
-        
+
         # Subscribe 50 instruments
-        instruments = [(f"NSE_EQ", str(i)) for i in range(50)]
+        instruments = [("NSE_EQ", str(i)) for i in range(50)]
         feed.subscribe(instruments)
-        
+
         assert len(feed._subscriptions) == 50
 
     def test_depth_20_subscribe_over_limit_after_init_raises(self):
@@ -72,10 +72,10 @@ class TestDhanDepth20Feed:
             access_token="TOKEN",
             instruments=[("NSE_EQ", "1")],
         )
-        
+
         # Try to subscribe 50 more (total would be 51)
-        instruments = [(f"NSE_EQ", str(i)) for i in range(2, 52)]
-        
+        instruments = [("NSE_EQ", str(i)) for i in range(2, 52)]
+
         with pytest.raises(ValueError, match="Maximum 50 instruments"):
             feed.subscribe(instruments)
 
@@ -119,7 +119,7 @@ class TestDhanDepth20Feed:
             client_id="CLIENT",
             access_token="TOKEN",
         )
-        
+
         assert hasattr(feed, 'name')
         assert hasattr(feed, 'start')
         assert hasattr(feed, 'stop')
@@ -129,12 +129,12 @@ class TestDhanDepth20Feed:
     def test_depth_20_health_not_started(self):
         """Health should be STOPPED before start()."""
         from brokers.common.lifecycle.lifecycle import HealthState
-        
+
         feed = DhanDepth20Feed(
             client_id="CLIENT",
             access_token="TOKEN",
         )
-        
+
         health = feed.health()
         assert health.state == HealthState.STOPPED
         assert "not started" in health.detail

@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 import pandas as pd
-import pytest
 
 from analytics.backtest.optimizer import (
-    ParamGrid,
     OptimizationResult,
+    ParamGrid,
+    build_pipeline,
     optimize_grid,
     optimize_rsi_period,
     optimize_sma_period,
-    build_pipeline,
 )
 
 

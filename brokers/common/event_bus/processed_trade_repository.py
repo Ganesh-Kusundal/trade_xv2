@@ -61,7 +61,7 @@ class TradeIdKey:
             object.__setattr__(self, "order_id", str(self.order_id).strip())
 
     @classmethod
-    def from_trade(cls, trade: Any) -> "TradeIdKey":
+    def from_trade(cls, trade: Any) -> TradeIdKey:
         """Build a key from a domain ``Trade`` (or any duck-typed object)."""
         trade_id = getattr(trade, "trade_id", "") or ""
         broker_trade_id = (
@@ -77,7 +77,7 @@ class TradeIdKey:
         )
 
     @classmethod
-    def from_payload(cls, payload: dict[str, Any]) -> "TradeIdKey":
+    def from_payload(cls, payload: dict[str, Any]) -> TradeIdKey:
         """Build a key from a raw event payload ``{"trade": Trade(...)}``."""
         trade = payload.get("trade")
         if trade is not None:
@@ -96,7 +96,7 @@ class TradeIdKey:
         }
 
     @classmethod
-    def from_dict(cls, raw: dict[str, Any]) -> "TradeIdKey":
+    def from_dict(cls, raw: dict[str, Any]) -> TradeIdKey:
         return cls(
             trade_id=str(raw.get("trade_id", "")),
             broker_trade_id=raw.get("broker_trade_id"),
@@ -261,7 +261,7 @@ class ProcessedTradeRepository:
         if not self._path.exists():
             return
         loaded = 0
-        with open(self._path, "r", encoding="utf-8") as f:
+        with open(self._path, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if not line:

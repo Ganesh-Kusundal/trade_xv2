@@ -19,7 +19,6 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import date
 from decimal import Decimal
 from typing import Any
 
@@ -27,15 +26,14 @@ import pandas as pd
 
 from brokers.common.core.domain import (
     Balance,
+    Holding,
     MarketDepth,
     Order,
     OrderResponse,
     Position,
-    Holding,
     Quote,
     Trade,
 )
-
 
 # ---------------------------------------------------------------------------
 # Capability Matrix

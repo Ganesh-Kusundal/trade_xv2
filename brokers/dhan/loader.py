@@ -167,14 +167,14 @@ class InstrumentLoader:
         for r in reader:
             if r.get("SEGMENT") != "M":
                 continue
-            
+
             symbol_name = (r.get("SYMBOL_NAME") or "").strip()
             instrument = (r.get("INSTRUMENT") or "").strip()
             expiry_date_str = (r.get("SM_EXPIRY_DATE") or "").strip()
             strike_price_str = (r.get("STRIKE_PRICE") or "").strip()
             option_type = (r.get("OPTION_TYPE") or "").strip()
             display_name = (r.get("DISPLAY_NAME") or "").strip()
-            
+
             # Construct trading symbol if possible
             trading_symbol = symbol_name
             if expiry_date_str:
@@ -183,7 +183,7 @@ class InstrumentLoader:
                     dt_str = expiry_date_str.split()[0]
                     dt = datetime.strptime(dt_str, "%Y-%m-%d")
                     dd_mmm_yyyy = dt.strftime("%d%b%Y")
-                    
+
                     if "FUT" in instrument.upper() and "OPT" not in instrument.upper():
                         trading_symbol = f"{symbol_name.upper()}-{dd_mmm_yyyy}-FUT"
                     elif "OPT" in instrument.upper():
@@ -192,7 +192,7 @@ class InstrumentLoader:
                             st_str = str(int(st)) if st % 1 == 0 else str(st)
                         except (ValueError, TypeError):
                             st_str = strike_price_str
-                        
+
                         opt = option_type.upper()
                         if opt == "XX":
                             opt = ""

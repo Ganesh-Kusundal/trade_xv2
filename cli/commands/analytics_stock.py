@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-import pandas as pd
 from rich.console import Console
 
 from analytics import Analytics

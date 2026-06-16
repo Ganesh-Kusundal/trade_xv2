@@ -106,13 +106,13 @@ def test_resolve_indices_additional():
             "SEM_TICK_SIZE": 0.05,
         },
     ])
-    
+
     for symbol, sec_id in [("NIFTY", "13"), ("BANKNIFTY", "25"), ("FINNIFTY", "27")]:
         inst = r.resolve(symbol, "IDX_I")
         assert inst.security_id == sec_id
         assert inst.exchange == Exchange.INDEX
         assert inst.instrument_type == InstrumentType.EQUITY
-        
+
         # Test direct INDEX exchange normalization
         inst_idx = r.resolve(symbol, "INDEX")
         assert inst_idx.security_id == sec_id

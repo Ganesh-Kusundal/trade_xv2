@@ -2,30 +2,21 @@
 
 from __future__ import annotations
 
-import base64
-import json
 import logging
 import os
 import threading
-import time
-from pathlib import Path
-from typing import Optional
-from urllib.parse import urlencode
-
 from collections.abc import Callable
 from datetime import datetime
+from pathlib import Path
+from urllib.parse import urlencode
 
 from brokers.common.core.auth import AuthManager, JsonTokenStateStore, TokenSource, TokenState
 from brokers.common.env_loader import load_env_file
 from brokers.common.event_bus import EventBus
-from brokers.common.instrument_cache import InstrumentCacheManager
 from brokers.common.lifecycle import LifecycleManager
-from brokers.common.oms.risk_manager import RiskManager
-from brokers.common.symbol_resolver import SymbolResolutionInterceptor
 from brokers.dhan.connection import DhanConnection
 from brokers.dhan.gateway import BrokerGateway
 from brokers.dhan.http_client import DhanHttpClient
-from brokers.dhan.instruments.cache_adapter import DhanInstrumentAdapter
 from brokers.dhan.token_scheduler import TokenRefreshScheduler
 
 logger = logging.getLogger(__name__)
@@ -45,15 +36,15 @@ _REFRESH_BUFFER_SECONDS = 600
 class BrokerFactory:
     @staticmethod
     def create(
-        client_id: Optional[str] = None,
-        access_token: Optional[str] = None,
-        env_path: Optional[Path] = None,
+        client_id: str | None = None,
+        access_token: str | None = None,
+        env_path: Path | None = None,
         load_instruments: bool = True,
-        event_bus: Optional[EventBus] = None,
+        event_bus: EventBus | None = None,
         risk_manager=None,
-        backfill_callback: Optional[Callable[[str, datetime, datetime], list[dict]]] = None,
-        reconciliation_service: Optional[object] = None,
-        lifecycle: Optional["LifecycleManager"] = None,
+        backfill_callback: Callable[[str, datetime, datetime], list[dict]] | None = None,
+        reconciliation_service: object | None = None,
+        lifecycle: LifecycleManager | None = None,
     ) -> BrokerGateway:
         # Load env file first
         env_file = env_path or Path(".env.local")
@@ -173,52 +164,6 @@ class BrokerFactory:
         connection._auth = auth  # Store auth manager on connection
         gateway = BrokerGateway(connection)
 
-        # Set up SQLite instrument cache with lazy refresh
-        cache_db = Path(".cache/instruments.db")
-        cache_mgr = InstrumentCacheManager(db_path=cache_db)
-        adapter = DhanInstrumentAdapter(db_path=cache_db)
-        cache_mgr.register_adapter(adapter)
-        
-        # Register loader for transparent lazy refresh
-        def load_dhan_instruments():
-            """Load Dhan instruments from CSV with caching."""
-            from brokers.dhan.instruments.loader import InstrumentLoader
-            # load_cached() handles download + parse, returns list of dicts
-            rows = InstrumentLoader.load_cached()
-            # Convert dicts to Instrument objects for the adapter
-            from brokers.dhan.domain import Instrument
-            instruments = []
-            for row in rows:
-                try:
-                    inst = Instrument(
-                        symbol=row.get("symbol", ""),
-                        exchange=row.get("exchange"),
-                        security_id=row.get("security_id", ""),
-                        instrument_type=row.get("instrument_type"),
-                        expiry=row.get("expiry"),
-                        strike_price=row.get("strike_price"),
-                        option_type=row.get("option_type"),
-                        underlying=row.get("underlying"),
-                        lot_size=row.get("lot_size", 1),
-                        tick_size=row.get("tick_size", 0.05),
-                        canonical_symbol=row.get("canonical_symbol"),
-                        sm_symbol_name=row.get("sm_symbol_name"),
-                    )
-                    instruments.append(inst)
-                except Exception:
-                    continue  # Skip invalid rows
-            return instruments
-        
-        cache_mgr.register_loader("dhan", load_dhan_instruments)
-        
-        # Create symbol resolution interceptor
-        symbol_interceptor = SymbolResolutionInterceptor(cache_mgr)
-        connection.symbol_interceptor = symbol_interceptor
-        connection.instrument_cache = cache_mgr
-        
-        # Wire interceptor to market_data adapter for fast symbol resolution
-        connection._market_data._symbol_interceptor = symbol_interceptor
-
         if load_instruments:
             gateway.load_instruments()
 
@@ -229,19 +174,20 @@ class BrokerFactory:
         # "websocket_market_feed_wired — DhanMarketFeed was not created"
         if lifecycle is not None and event_bus is not None:
             # Create and register market feed
-            access_token_fn = lambda: client.access_token
-            market_feed = connection.create_market_feed(
+            def access_token_fn():
+                return client.access_token
+            connection.create_market_feed(
                 access_token=token,
                 instruments=[],  # Empty — subscribe on-demand via gateway.stream()
                 access_token_fn=access_token_fn,
             )
 
             # Create and register order stream
-            order_stream = connection.create_order_stream(
+            connection.create_order_stream(
                 access_token=token,
                 access_token_fn=access_token_fn,
             )
-            
+
             # Note: Depth 20/200 feeds are created on-demand via gateway.depth_20/depth_200
             # since they require specific instrument subscriptions.
             # They will be auto-registered with lifecycle when created.
@@ -312,7 +258,7 @@ def _refresh_via_auth(
         refresh_lock.release()
 
 
-def _generate_totp_token(client_id: str) -> Optional[str]:
+def _generate_totp_token(client_id: str) -> str | None:
     """Generate a fresh access token via TOTP. Returns None on failure."""
     pin = _read_secret("DHAN_PIN", "DHAN_PIN_FILE")
     totp_secret = _read_secret("DHAN_TOTP_SECRET", "DHAN_TOTP_SECRET_FILE")
@@ -337,7 +283,7 @@ def _generate_totp_token(client_id: str) -> Optional[str]:
         return None
 
 
-def _read_secret(env_key: str, file_key: str) -> Optional[str]:
+def _read_secret(env_key: str, file_key: str) -> str | None:
     """Read a secret from env var or file."""
     val = os.environ.get(env_key, "")
     if val:

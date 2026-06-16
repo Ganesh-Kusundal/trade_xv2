@@ -14,7 +14,7 @@ These tests verify the split:
 from __future__ import annotations
 
 import json
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -28,7 +28,6 @@ from brokers.dhan.http_client import (
     DhanHttpClient,
     _categorize_endpoint,
 )
-
 
 # ── Endpoint categorization ──────────────────────────────────────────────
 

@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
-import pytest
-from datetime import date, timedelta
-from pathlib import Path
 
 from datalake.quality import DataQualityEngine, QualityReport
 
@@ -146,7 +145,6 @@ class TestCheckUniverse:
         engine = DataQualityEngine(root=str(tmp_path))
         # Monkey-patch UNIVERSE_FILES to use our test CSV
         import datalake.quality as q
-        original = q.Path.__qualname__
         from datalake.schema import UNIVERSE_FILES
         UNIVERSE_FILES["TEST5"] = str(csv_path)
 
@@ -167,7 +165,7 @@ class TestCheckWithCatalog:
 
         catalog = DataCatalog(root=str(tmp_path))
         engine = DataQualityEngine(root=str(tmp_path), catalog=catalog)
-        report = engine.check("TEST")
+        engine.check("TEST")
 
         # Should have recorded quality in catalog
         result = catalog.conn.execute(

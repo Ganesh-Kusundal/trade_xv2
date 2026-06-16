@@ -22,10 +22,11 @@ Usage::
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Callable
+from typing import Any
 
 from brokers.common.core.types import (
     OrderStatus,
@@ -82,8 +83,8 @@ class Order:
     def from_broker_dict(
         cls,
         d: dict,
-        exchange_resolver: "Callable[[str], Any] | None" = None,
-    ) -> "Order":
+        exchange_resolver: Callable[[str], Any] | None = None,
+    ) -> Order:
         """Construct a canonical Order from a broker-specific dict."""
         order_id = str(d.get("orderId", d.get("order_id", "")))
         symbol = str(d.get("tradingSymbol", d.get("symbol", "")))
@@ -356,18 +357,18 @@ class OptionContract:
     instrument_type: str = "OPTION"
     exchange: str = "NFO"
     lot_size: int = 0
-    ce_ltp: Decimal | None = None
-    ce_bid: Decimal | None = None
-    ce_ask: Decimal | None = None
-    ce_iv: Decimal | None = None
-    ce_oi: int | None = None
-    ce_volume: int | None = None
-    pe_ltp: Decimal | None = None
-    pe_bid: Decimal | None = None
-    pe_ask: Decimal | None = None
-    pe_iv: Decimal | None = None
-    pe_oi: int | None = None
-    pe_volume: int | None = None
+    call_ltp: Decimal | None = None
+    call_bid: Decimal | None = None
+    call_ask: Decimal | None = None
+    call_iv: Decimal | None = None
+    call_oi: int | None = None
+    call_volume: int | None = None
+    put_ltp: Decimal | None = None
+    put_bid: Decimal | None = None
+    put_ask: Decimal | None = None
+    put_iv: Decimal | None = None
+    put_oi: int | None = None
+    put_volume: int | None = None
 
 
 @dataclass(slots=True, frozen=False)

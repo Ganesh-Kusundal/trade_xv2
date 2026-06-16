@@ -12,13 +12,11 @@ Or as part of full suite:
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any
 
 import pytest
 
 from brokers.common.core.domain import Position, Trade
 from brokers.common.core.pnl_calculator import PnLCalculator
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -132,9 +130,8 @@ class TestEventBusBenchmarks:
     @pytest.fixture
     def event_bus(self):
         """Create a fresh EventBus for testing."""
-        from brokers.common.event_bus import EventBus
+        from brokers.common.event_bus import DeadLetterQueue, EventBus
         from brokers.common.observability.event_metrics import EventMetrics
-        from brokers.common.event_bus import DeadLetterQueue
 
         metrics = EventMetrics()
         dlq = DeadLetterQueue()
@@ -143,8 +140,9 @@ class TestEventBusBenchmarks:
     @pytest.mark.performance
     def test_publish_100_events(self, benchmark, event_bus):
         """Publishing 100 events should be fast."""
-        from brokers.common.event_bus import DomainEvent
         from datetime import datetime
+
+        from brokers.common.event_bus import DomainEvent
 
         def publish_batch():
             for i in range(100):
@@ -160,8 +158,9 @@ class TestEventBusBenchmarks:
     @pytest.mark.performance
     def test_handler_dispatch(self, benchmark, event_bus):
         """Event handler dispatch should be fast."""
-        from brokers.common.event_bus import DomainEvent
         from datetime import datetime
+
+        from brokers.common.event_bus import DomainEvent
 
         results = []
 
@@ -192,9 +191,9 @@ class TestOrderManagerBenchmarks:
     @pytest.fixture
     def order_manager(self):
         """Create a fresh OrderManager for testing."""
-        from brokers.common.event_bus import EventBus, DeadLetterQueue
-        from brokers.common.oms.order_manager import OrderManager
+        from brokers.common.event_bus import DeadLetterQueue, EventBus
         from brokers.common.observability.event_metrics import EventMetrics
+        from brokers.common.oms.order_manager import OrderManager
 
         metrics = EventMetrics()
         dlq = DeadLetterQueue()
@@ -204,7 +203,7 @@ class TestOrderManagerBenchmarks:
     @pytest.mark.performance
     def test_place_order(self, benchmark, order_manager):
         """Order placement should be fast."""
-        from brokers.common.core.domain import Order, Side, OrderType, ProductType
+        from brokers.common.core.domain import Order, OrderType, ProductType, Side
 
         order = Order(
             order_id="O1",
@@ -235,8 +234,8 @@ class TestRiskManagerBenchmarks:
     @pytest.fixture
     def risk_manager(self):
         """Create a fresh RiskManager for testing."""
-        from brokers.common.oms.risk_manager import RiskManager, RiskConfig
         from brokers.common.oms.position_manager import PositionManager
+        from brokers.common.oms.risk_manager import RiskConfig, RiskManager
 
         config = RiskConfig(
             max_position_pct=Decimal("10"),
@@ -253,7 +252,7 @@ class TestRiskManagerBenchmarks:
     @pytest.mark.performance
     def test_check_order_fast(self, benchmark, risk_manager):
         """Risk check should be fast."""
-        from brokers.common.core.domain import Order, Side, OrderType, ProductType
+        from brokers.common.core.domain import Order, OrderType, ProductType, Side
 
         # Create a small order that should pass risk checks
         order = Order(
@@ -288,7 +287,7 @@ class TestDataLakeBenchmarks:
         """Writing small Parquet file should be fast."""
         import pandas as pd
         import pyarrow as pa
-        import pyarrow.parquet as pq
+
         from datalake.io import atomic_parquet_write
 
         # Create small test data

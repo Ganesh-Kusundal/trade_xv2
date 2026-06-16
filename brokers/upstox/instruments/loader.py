@@ -19,7 +19,6 @@ import logging
 import pickle
 import time
 from collections.abc import Iterator
-from datetime import datetime, time as dtime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -43,16 +42,16 @@ class UpstoxInstrumentLoader:
     def download(self, cache_path: Path) -> Path:
         """Download instruments only if cache is missing or older than 1 day."""
         cache_path = Path(cache_path)
-        
+
         # Check if cache is still valid
         if self._is_cache_valid(cache_path):
             logger.debug("Using cached instruments (valid for 24h)")
             return cache_path
-        
+
         # Cache invalid or missing - download fresh
         logger.info("Downloading fresh instrument catalog from Upstox...")
         cache_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         start = time.time()
         with requests.get(COMPLETE_JSON_URL, stream=True, timeout=self._timeout) as resp:
             resp.raise_for_status()
@@ -60,23 +59,23 @@ class UpstoxInstrumentLoader:
                 for chunk in resp.iter_content(chunk_size=64 * 1024):
                     if chunk:
                         fp.write(chunk)
-        
+
         elapsed = time.time() - start
         file_size_mb = cache_path.stat().st_size / (1024 * 1024)
         logger.info(
             f"Instrument catalog downloaded: {file_size_mb:.1f}MB in {elapsed:.1f}s"
         )
         return cache_path
-    
+
     def _is_cache_valid(self, cache_path: Path) -> bool:
         """Check if cache file exists and is less than 24 hours old."""
         if not cache_path.exists():
             return False
-        
+
         try:
             file_age_seconds = time.time() - cache_path.stat().st_mtime
             file_age_hours = file_age_seconds / 3600
-            
+
             if file_age_hours < CACHE_VALIDITY_HOURS:
                 logger.debug(
                     f"Cache valid: {file_age_hours:.1f}h old (< {CACHE_VALIDITY_HOURS}h)"
@@ -95,7 +94,7 @@ class UpstoxInstrumentLoader:
         """Load instruments with pickle caching for fast subsequent loads."""
         path = Path(path)
         pkl_path = path.with_suffix('.pkl')
-        
+
         # Try to load from pickle cache first
         if self._is_pickle_cache_valid(path, pkl_path):
             try:
@@ -109,7 +108,7 @@ class UpstoxInstrumentLoader:
                 return defs
             except Exception as e:
                 logger.warning(f"Pickle cache load failed: {e}")
-        
+
         # Parse from JSON/gz (slow)
         logger.info("Parsing instrument catalog from JSON...")
         start = time.time()
@@ -117,7 +116,7 @@ class UpstoxInstrumentLoader:
         for d in self.iter_definitions(path):
             defs.append(d)
         elapsed = time.time() - start
-        
+
         # Save to pickle cache
         try:
             with open(pkl_path, 'wb') as f:
@@ -129,16 +128,16 @@ class UpstoxInstrumentLoader:
             )
         except Exception as e:
             logger.warning(f"Failed to save pickle cache: {e}")
-        
+
         return defs
-    
+
     def _is_pickle_cache_valid(self, json_path: Path, pkl_path: Path) -> bool:
         """Check if pickle cache exists and is newer than JSON cache."""
         if not pkl_path.exists():
             return False
         if not json_path.exists():
             return False
-        
+
         try:
             pkl_mtime = pkl_path.stat().st_mtime
             json_mtime = json_path.stat().st_mtime
@@ -184,15 +183,15 @@ class UpstoxInstrumentLoader:
         known_segments = set(UpstoxSegmentMapper.all_upstox_segments())
         if segment.upper() not in known_segments:
             raise ValueError(f"Unknown segment: {segment}")
-        
+
         expiry_val = record.get("expiry")
-        if isinstance(expiry_val, (int, float)):
+        if isinstance(expiry_val, int | float):
             from datetime import datetime, timezone
             try:
                 expiry_val = datetime.fromtimestamp(expiry_val / 1000, tz=timezone.utc).strftime("%Y-%m-%d")
             except Exception:
                 expiry_val = None
-        
+
         return UpstoxInstrumentDefinition(
             instrument_key=instrument_key,
             exchange=record.get("exchange", "") or "",

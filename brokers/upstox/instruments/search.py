@@ -25,7 +25,7 @@ class UpstoxInstrumentSearch:
             else None
         )
         if url is None:
-            from ..auth.urls import UpstoxApiUrlResolver
+            from brokers.upstox.auth.urls import UpstoxApiUrlResolver
 
             resolver = UpstoxApiUrlResolver(self._http.settings)
             url = resolver.instrument_search_url()

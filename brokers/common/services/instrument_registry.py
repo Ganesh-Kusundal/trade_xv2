@@ -28,7 +28,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import date, datetime
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -185,24 +184,24 @@ class InstrumentRegistry:
         put_inst = None
         for s in strikes:
             if s.get("strike") == atm_strike:
-                if s.get("option_type") == "CE" or s.get("ce_ltp") is not None:
+                if s.get("option_type") == "CALL" or s.get("call_ltp") is not None:
                     call_inst = CanonicalInstrument(
-                        symbol=f"{underlying} {atm_strike:.0f} CE",
+                        symbol=f"{underlying} {atm_strike:.0f} CALL",
                         exchange=exchange,
                         name=f"{underlying} ATM Call",
                         instrument_type="OPTION",
-                        option_type="CE",
+                        option_type="CALL",
                         strike_price=atm_strike,
                         expiry=expiry or chain.get("expiry", ""),
                         underlying=underlying,
                     )
-                if s.get("option_type") == "PE" or s.get("pe_ltp") is not None:
+                if s.get("option_type") == "PUT" or s.get("put_ltp") is not None:
                     put_inst = CanonicalInstrument(
-                        symbol=f"{underlying} {atm_strike:.0f} PE",
+                        symbol=f"{underlying} {atm_strike:.0f} PUT",
                         exchange=exchange,
                         name=f"{underlying} ATM Put",
                         instrument_type="OPTION",
-                        option_type="PE",
+                        option_type="PUT",
                         strike_price=atm_strike,
                         expiry=expiry or chain.get("expiry", ""),
                         underlying=underlying,
@@ -258,7 +257,7 @@ class InstrumentRegistry:
     ) -> list[dict]:
         """Get option chain as list of canonical strike dicts.
 
-        Returns list of dicts with: strike, expiry, ce_ltp, pe_ltp, ce_oi, pe_oi.
+        Returns list of dicts with: strike, expiry, call_ltp, put_ltp, call_oi, put_oi.
         No security_id exposed.
         """
         self._ensure_loaded()

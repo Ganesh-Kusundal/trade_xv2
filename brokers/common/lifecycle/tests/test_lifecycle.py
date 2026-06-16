@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import threading
 import time
-from typing import Any
+from typing import ClassVar
 
 import pytest
 
@@ -19,7 +19,7 @@ from brokers.common.lifecycle import (
 class _RecorderService(ManagedService):
     """A trivial service that records its lifecycle events."""
 
-    instances: list["_RecorderService"] = []
+    instances: ClassVar[list[_RecorderService]] = []
 
     def __init__(self, name: str = "test.recorder") -> None:
         self.name = name

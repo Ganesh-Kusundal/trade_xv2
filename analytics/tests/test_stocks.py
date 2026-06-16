@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import pytest
-
-from analytics.features.volume import VolumeAnalytics
 from analytics.features.relative_strength import RelativeStrengthAnalyzer
+from analytics.features.volume import VolumeAnalytics
 from analytics.futures.futures_analytics import FuturesAnalytics
 from analytics.stocks.stock_analytics import StockAnalytics
 

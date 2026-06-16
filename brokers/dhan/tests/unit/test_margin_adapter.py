@@ -61,7 +61,7 @@ class TestMarginAdapter:
                 "exposureMargin": 234.50,
             }
         })
-        
+
         adapter = MarginAdapter(fake_client, resolver)
         result = adapter.calculate(MarginRequest(
             symbol="RELIANCE",
@@ -70,7 +70,7 @@ class TestMarginAdapter:
             product_type="INTRADAY",
             order_type="MARKET",
         ))
-        
+
         assert isinstance(result, MarginResponse)
         assert result.total_margin == Decimal("1234.50")
         assert result.order_margin == Decimal("1000.00")
@@ -79,7 +79,7 @@ class TestMarginAdapter:
     def test_calculate_margin_validation_negative_quantity(self, fake_client, resolver):
         """Should reject negative quantity."""
         adapter = MarginAdapter(fake_client, resolver)
-        
+
         with pytest.raises(ValueError, match="Quantity must be positive"):
             adapter.calculate(MarginRequest(
                 symbol="RELIANCE",
@@ -92,7 +92,7 @@ class TestMarginAdapter:
     def test_calculate_margin_validation_zero_quantity(self, fake_client, resolver):
         """Should reject zero quantity."""
         adapter = MarginAdapter(fake_client, resolver)
-        
+
         with pytest.raises(ValueError, match="Quantity must be positive"):
             adapter.calculate(MarginRequest(
                 symbol="RELIANCE",
@@ -105,7 +105,7 @@ class TestMarginAdapter:
     def test_calculate_margin_validation_limit_no_price(self, fake_client, resolver):
         """Should reject LIMIT order without price."""
         adapter = MarginAdapter(fake_client, resolver)
-        
+
         with pytest.raises(ValueError, match="require price"):
             adapter.calculate(MarginRequest(
                 symbol="RELIANCE",
@@ -124,7 +124,7 @@ class TestMarginAdapter:
                 "exposureMargin": 100.00,
             }
         })
-        
+
         adapter = MarginAdapter(fake_client, resolver)
         adapter.calculate(MarginRequest(
             symbol="RELIANCE",
@@ -134,7 +134,7 @@ class TestMarginAdapter:
             order_type="LIMIT",
             price=Decimal("2500.00"),
         ))
-        
+
         # Verify price was sent in payload
         payloads = fake_client.calls_for("POST", "/margincalculator")
         assert len(payloads) == 1

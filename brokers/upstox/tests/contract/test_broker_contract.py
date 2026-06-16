@@ -15,7 +15,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 
-from brokers.common.core.domain import MarketDepth, OrderStatus, Quote
+from brokers.common.core.domain import MarketDepth, Quote
 from brokers.upstox.gateway import UpstoxBrokerGateway
 
 # ---------------------------------------------------------------------------
@@ -112,7 +112,6 @@ class TestUpstoxFundsContract:
 class TestUpstoxOrdersContract:
     @skip_live
     def test_order_list_returns_list(self, live_gateway):
-        from brokers.upstox.factory import UpstoxBrokerFactory
         broker = live_gateway._broker
         orders = broker.order_query.get_order_list()
         assert isinstance(orders, list)
@@ -155,8 +154,8 @@ class TestUpstoxHistoricalContract:
 class TestUpstoxMarketStatusContract:
     @skip_live
     def test_market_status_returns_data(self, live_gateway):
-        from brokers.upstox.factory import UpstoxBrokerFactory
         import requests
+
         broker = live_gateway._broker
         token = broker.settings.access_token
         headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}

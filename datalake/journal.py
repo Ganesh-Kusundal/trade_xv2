@@ -11,6 +11,7 @@ in ``cli/commands/journal.py`` and tests keep working without modification.
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 import threading
 from datetime import datetime
@@ -18,6 +19,8 @@ from pathlib import Path
 from typing import Any
 
 DEFAULT_JOURNAL_PATH = Path("market_data/journal.sqlite")
+
+logger = logging.getLogger(__name__)
 
 
 # Schema. Uses TEXT for everything that DuckDB would have typed precisely

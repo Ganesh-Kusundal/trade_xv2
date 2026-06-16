@@ -19,7 +19,6 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
-from unittest.mock import MagicMock
 
 import pytest
 

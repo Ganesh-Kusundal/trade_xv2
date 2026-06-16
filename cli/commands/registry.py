@@ -57,4 +57,4 @@ def reset() -> None:
     COMMANDS.clear()
 
 
-__all__ = ["COMMANDS", "register", "lookup", "reset"]
+__all__ = ["COMMANDS", "lookup", "register", "reset"]

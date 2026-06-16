@@ -2,19 +2,23 @@
 
 from __future__ import annotations
 
-import pandas as pd
 from rich.console import Console
 from rich.table import Table
 
-from datalake.gateway import DataLakeGateway
-from datalake.fast_backtest import FastBacktestEngine
-from analytics.pipeline.pipeline import FeaturePipeline
-from analytics.pipeline.features import (
-    EMA, RSI, MACD, ROC, ATR, Momentum, Trend, VolumeSMA,
-    BollingerBands, RelativeVolume, SwingHighLow, SMA,
-)
-from analytics.strategy import StrategyPipeline, MomentumStrategy, BreakoutStrategy
 from analytics.backtest import BacktestConfig
+from analytics.pipeline.features import (
+    ATR,
+    ROC,
+    RSI,
+    SMA,
+    Momentum,
+    RelativeVolume,
+    Trend,
+)
+from analytics.pipeline.pipeline import FeaturePipeline
+from analytics.strategy import BreakoutStrategy, MomentumStrategy, StrategyPipeline
+from datalake.fast_backtest import FastBacktestEngine
+from datalake.gateway import DataLakeGateway
 
 
 def run_datalake_backtest(args: list[str], console: Console) -> None:
@@ -117,8 +121,8 @@ def run_datalake_backtest(args: list[str], console: Console) -> None:
                     f"{m.max_drawdown_pct:.1f}%",
                     f"{m.sharpe_ratio:.2f}",
                 )
-            except Exception as e:
-                bt_table.add_row(str(i), sym, f"[red]Error[/red]", "-", "-", "-", "-")
+            except Exception:
+                bt_table.add_row(str(i), sym, "[red]Error[/red]", "-", "-", "-", "-")
 
         console.print(bt_table)
     else:

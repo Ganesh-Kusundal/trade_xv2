@@ -7,14 +7,11 @@ graceful degradation and recovery.
 from __future__ import annotations
 
 import time
-from unittest.mock import patch, MagicMock
 
 import pytest
+
 from brokers.dhan.connection import DhanConnection
-from brokers.dhan.domain import Exchange
 from brokers.dhan.gateway import BrokerGateway
-from brokers.dhan.http_client import DhanHttpClient
-from brokers.dhan.resolver import SymbolResolver
 
 SAMPLE_ROWS = [
     {"SEM_TRADING_SYMBOL": "RELIANCE", "SEM_SMST_SECURITY_ID": "2885",
@@ -96,7 +93,11 @@ class TestCircuitBreaker:
     """Verify circuit breaker opens after repeated failures."""
 
     def test_circuit_opens_after_failures(self, chaos_gateway):
-        from brokers.common.resilience.circuit_breaker import CircuitBreaker, CircuitBreakerConfig, CircuitState
+        from brokers.common.resilience.circuit_breaker import (
+            CircuitBreaker,
+            CircuitBreakerConfig,
+            CircuitState,
+        )
 
         config = CircuitBreakerConfig(failure_threshold=3, open_duration_ms=1000)
         cb = CircuitBreaker("test", config)
@@ -107,7 +108,11 @@ class TestCircuitBreaker:
         assert cb.state == CircuitState.OPEN
 
     def test_circuit_half_open_after_timeout(self):
-        from brokers.common.resilience.circuit_breaker import CircuitBreaker, CircuitBreakerConfig, CircuitState
+        from brokers.common.resilience.circuit_breaker import (
+            CircuitBreaker,
+            CircuitBreakerConfig,
+            CircuitState,
+        )
 
         config = CircuitBreakerConfig(failure_threshold=2, open_duration_ms=100)
         cb = CircuitBreaker("test", config)

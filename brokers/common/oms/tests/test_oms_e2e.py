@@ -31,17 +31,13 @@ from __future__ import annotations
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
+from typing import ClassVar
+from unittest.mock import MagicMock
 
 import pytest
 
 from brokers.common.core.domain import (
-    Order,
-    OrderStatus,
-    OrderType,
-    ProductType,
     Side,
     Trade,
 )
@@ -65,7 +61,6 @@ from brokers.common.resilience.circuit_breaker import (
     CircuitBreakerConfig,
     CircuitState,
 )
-
 
 # ── 1. Place-order with kill-switch under contention ─────────────────────
 
@@ -286,7 +281,7 @@ def test_record_trade_known_order_dedupes_on_second_call() -> None:
 class _StopOrderRecorder(ManagedService):
     """Records the order in which its ``stop()`` is called."""
 
-    instances: list["_StopOrderRecorder"] = []
+    instances: ClassVar[list[_StopOrderRecorder]] = []
 
     def __init__(self, name: str) -> None:
         self.name = name

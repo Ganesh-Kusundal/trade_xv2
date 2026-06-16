@@ -18,16 +18,11 @@ tests do not depend on wall-clock progression.
 from __future__ import annotations
 
 import json
-import tempfile
 import threading
-import time
 from datetime import datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock
-
-import pytest
 
 from brokers.common.core.domain import (
     Order,
@@ -41,10 +36,9 @@ from brokers.common.event_bus import EventBus
 from brokers.common.event_log import EventLog
 from brokers.common.oms.context import TradingContext
 from brokers.common.oms.factory import create_trading_context
-from brokers.common.oms.order_manager import OrderRequest, OrderManager
+from brokers.common.oms.order_manager import OrderRequest
 from brokers.common.oms.position_manager import PositionManager
 from brokers.common.oms.risk_manager import RiskConfig, RiskManager
-
 
 # ── helpers ──────────────────────────────────────────────────────────
 
@@ -301,7 +295,6 @@ def test_scenario_4_crash_during_reconciliation_drift_persists(tmp_path):
     ctx, _, _ = _build_context(events_dir)
     # Stub a DhanReconciliationService-style adapter that always reports drift.
     from brokers.dhan.reconciliation import (
-        DhanReconciliationService,
         DriftItem,
         ReconciliationReport,
     )
@@ -347,7 +340,6 @@ def test_scenario_4_crash_during_reconciliation_drift_persists(tmp_path):
     rec = _FakeRecSvc()
     rec.run_now()
     assert rec.last_drift_count == 1
-    ctx = None
     # Restart: build a new context, the new reconciliation service
     # runs again and sees the same drift.
     new_ctx, _, _ = _build_context(events_dir)
@@ -393,8 +385,8 @@ def test_scenario_6_crash_during_token_refresh_atomic_env(tmp_path):
     """Token refresh must be atomic on .env.local. A simulated crash
     mid-write leaves either the old or new token, never a partial.
     """
+
     from brokers.dhan.factory import _update_env_token
-    import os
 
     env_path = tmp_path / ".env.local"
     env_path.write_text(

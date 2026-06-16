@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from textual.app import App, ComposeResult
 from textual.widgets import Footer, Header, TabbedContent, TabPane
 
@@ -20,7 +22,7 @@ class TradexTuiApp(App):
     """TradeXV2 Interactive Diagnostics TUI Application."""
 
     CSS_PATH = "tui.tcss"
-    BINDINGS = [
+    BINDINGS: ClassVar[list] = [
         ("q", "quit", "Quit Application"),
         ("r", "refresh_all", "Refresh Active Panel"),
     ]

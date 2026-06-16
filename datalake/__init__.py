@@ -24,19 +24,19 @@ Usage:
     report = lake.quality.check("RELIANCE")
 """
 
-from datalake.research import ResearchAPI
 from datalake.catalog import DataCatalog
-from datalake.quality import DataQualityEngine
 from datalake.loader import HistoricalDataLoader
+from datalake.quality import DataQualityEngine
+from datalake.research import ResearchAPI
 from datalake.updater import IncrementalUpdater
 
 __all__ = [
-    "DataLake",
-    "ResearchAPI",
     "DataCatalog",
+    "DataLake",
     "DataQualityEngine",
     "HistoricalDataLoader",
     "IncrementalUpdater",
+    "ResearchAPI",
 ]
 
 

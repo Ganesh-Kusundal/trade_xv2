@@ -15,8 +15,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import pytest
-
 from brokers.common.core.domain import Side, Trade
 from brokers.common.event_bus import ProcessedTradeRepository, TradeIdKey
 

@@ -9,12 +9,12 @@ import pandas as pd
 from rich.console import Console
 from rich.table import Table
 
-from datalake.gateway import DataLakeGateway
+from analytics.backtest import BacktestConfig, BacktestEngine
 from analytics.indicators.halftrend import HalfTrend
-from analytics.pipeline import FeaturePipeline, RSI, ATR
-from analytics.backtest import BacktestEngine, BacktestConfig
-from analytics.strategy import StrategyPipeline
 from analytics.indicators.halftrend_backtest import HalfTrendStrategy
+from analytics.pipeline import ATR, RSI, FeaturePipeline
+from analytics.strategy import StrategyPipeline
+from datalake.gateway import DataLakeGateway
 
 
 def run_halftrend(args: list[str], broker_service, console: Console) -> None:

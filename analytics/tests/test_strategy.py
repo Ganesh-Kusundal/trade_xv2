@@ -17,7 +17,6 @@ from analytics.strategy.pipeline import (
 )
 from analytics.strategy.protocols import Strategy
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

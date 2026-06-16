@@ -45,7 +45,7 @@ def _make_multi(n=100, symbols=None):
 
 
 def _pipeline():
-    from analytics.pipeline import RSI, ATR, SMA
+    from analytics.pipeline import ATR, RSI, SMA
     return FeaturePipeline().add(RSI(14)).add(ATR(14)).add(SMA(20))
 
 

@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from threading import RLock
 from dataclasses import replace
 from datetime import datetime, timezone
 from decimal import Decimal
+from threading import RLock
 
 from brokers.common.core.domain import (
     Order,

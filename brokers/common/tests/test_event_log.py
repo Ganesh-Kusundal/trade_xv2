@@ -7,8 +7,6 @@ alerting layer can observe it.
 
 from __future__ import annotations
 
-import json
-import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path

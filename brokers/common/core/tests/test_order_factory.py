@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-import pytest
-
 from brokers.common.core.domain import (
     Order,
     OrderStatus,
@@ -13,7 +11,6 @@ from brokers.common.core.domain import (
     ProductType,
     Side,
 )
-
 
 # ── Pure-factory tests (no broker-specific resolver) ──────────────────────
 

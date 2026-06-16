@@ -85,11 +85,11 @@ class ScannerViews:
                         PARTITION BY symbol ORDER BY timestamp
                         ROWS BETWEEN 13 PRECEDING AND CURRENT ROW
                     ) = 0 THEN 100.0
-                    ELSE 100.0 - (100.0 / (1.0 + 
+                    ELSE 100.0 - (100.0 / (1.0 +
                         AVG(CASE WHEN change > 0 THEN change ELSE 0 END) OVER (
                             PARTITION BY symbol ORDER BY timestamp
                             ROWS BETWEEN 13 PRECEDING AND CURRENT ROW
-                        ) / 
+                        ) /
                         AVG(CASE WHEN change < 0 THEN ABS(change) ELSE 0 END) OVER (
                             PARTITION BY symbol ORDER BY timestamp
                             ROWS BETWEEN 13 PRECEDING AND CURRENT ROW

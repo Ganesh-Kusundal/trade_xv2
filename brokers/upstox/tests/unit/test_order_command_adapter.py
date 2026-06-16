@@ -7,12 +7,18 @@ from unittest.mock import MagicMock
 
 from brokers.common.core.domain import (
     ExchangeSegment,
-    OrderType as EnumsOrderType,
-    ProductType as EnumsProductType,
+    OrderRequest,
     Side,
+)
+from brokers.common.core.domain import (
+    OrderType as EnumsOrderType,
+)
+from brokers.common.core.domain import (
+    ProductType as EnumsProductType,
+)
+from brokers.common.core.domain import (
     Validity as EnumsValidity,
 )
-from brokers.common.core.domain import OrderRequest
 from brokers.common.event_bus import EventBus
 from brokers.upstox.orders.order_client import UpstoxRestOrderClient
 from brokers.upstox.orders.order_command_adapter import UpstoxOrderCommandAdapter

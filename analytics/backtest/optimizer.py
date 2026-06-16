@@ -8,10 +8,9 @@ from itertools import product
 
 import pandas as pd
 
-from analytics.backtest import BacktestEngine, BacktestConfig
-from analytics.backtest.models import BacktestResult
+from analytics.backtest import BacktestConfig, BacktestEngine
+from analytics.pipeline.features import ATR, ROC, RSI, SMA, Momentum, Trend
 from analytics.pipeline.pipeline import FeaturePipeline
-from analytics.pipeline.features import RSI, ATR, SMA, ROC, Momentum, Trend, EMA
 from analytics.strategy import StrategyPipeline
 
 logger = logging.getLogger(__name__)
@@ -86,7 +85,7 @@ def optimize_grid(
     Returns:
         OptimizationResult with all results and best parameters
     """
-    from analytics.strategy import MomentumStrategy, BreakoutStrategy
+    from analytics.strategy import BreakoutStrategy, MomentumStrategy
 
     if param_grids is None:
         # Default grid: optimize RSI period and SMA period
@@ -118,7 +117,7 @@ def optimize_grid(
     StrategyClass = strategies.get(strategy_name, MomentumStrategy)
 
     for combo in combinations:
-        params = dict(zip(param_names, combo))
+        params = dict(zip(param_names, combo, strict=False))
 
         try:
             # Build pipeline with current parameters

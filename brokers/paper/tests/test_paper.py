@@ -4,16 +4,12 @@ from decimal import Decimal
 
 from brokers.common.core.domain import (
     Balance,
-    MarketDepth,
-    Order,
     OrderResponse,
     OrderStatus,
-    Quote,
     Side,
     Trade,
 )
 from brokers.paper import MockBroker, PaperGateway
-
 
 # ---------------------------------------------------------------------------
 # PaperGateway tests
@@ -211,6 +207,7 @@ class TestMockBroker:
 
     def test_paper_gateway_risk_gate_rejects_excessive_order(self):
         from decimal import Decimal
+
         from brokers.common.oms.context import TradingContext
         from brokers.common.oms.risk_manager import RiskConfig
         ctx = TradingContext(

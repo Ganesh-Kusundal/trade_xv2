@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+
 from rich.console import Console
 from rich.table import Table
 
@@ -33,8 +34,9 @@ def run(args: list[str], broker_service, console: Console) -> None:
 
     # Get gateway
     try:
-        from cli.services.broker_registry import create_gateway
         from pathlib import Path
+
+        from cli.services.broker_registry import create_gateway
 
         dhan = create_gateway("dhan", env_path=Path('.env.local'), load_instruments=True)
         if dhan:
@@ -180,9 +182,11 @@ def _run_broker_validation(args: list[str], broker_service, console: Console) ->
     # 1. Historical Validation
     console.print("[cyan]Testing Historical Data...[/cyan]")
     try:
-        from dotenv import load_dotenv
-        from cli.services.broker_registry import create_gateway
         from pathlib import Path
+
+        from dotenv import load_dotenv
+
+        from cli.services.broker_registry import create_gateway
 
         env_path = Path('.env.local')
         if env_path.exists():
@@ -285,7 +289,9 @@ def _run_broker_validation(args: list[str], broker_service, console: Console) ->
 def _run_data_validation(args: list[str], broker_service, console: Console) -> None:
     """Validate data quality of a CSV file."""
     from pathlib import Path
+
     import pandas as pd
+
     from brokers.common.services.data_validator import DataQualityValidator
 
     if not args:

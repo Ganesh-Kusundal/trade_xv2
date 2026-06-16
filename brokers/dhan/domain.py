@@ -14,13 +14,11 @@ from dataclasses import dataclass
 from datetime import timedelta, timezone
 from decimal import Decimal
 from enum import Enum
-from typing import Optional
 
 # ── Re-exports from canonical common domain ────────────────────────────────
 # These are the single source of truth for order/trade/position/holding
 # types and their associated enums across ALL broker adapters.
-
-from brokers.common.core.domain import (  # noqa: F401  (re-exports)
+from brokers.common.core.domain import (
     Balance,
     DepthLevel,
     FundLimits,
@@ -85,8 +83,8 @@ class MarginRequest:
     quantity: int
     product_type: str
     order_type: str
-    price: Optional[Decimal] = None
-    trigger_price: Optional[Decimal] = None
+    price: Decimal | None = None
+    trigger_price: Decimal | None = None
 
 
 @dataclass(frozen=True)
@@ -96,9 +94,9 @@ class MarginResponse:
     total_margin: Decimal
     order_margin: Decimal
     exposure_margin: Decimal
-    available_margin: Optional[Decimal] = None
-    span_margin: Optional[Decimal] = None
-    
+    available_margin: Decimal | None = None
+    span_margin: Decimal | None = None
+
 
 @dataclass(frozen=True)
 class AlertRequest:
@@ -108,7 +106,7 @@ class AlertRequest:
     exchange: str
     condition: str  # LTP_CROSSES_ABOVE, LTP_CROSSES_BELOW
     trigger_price: Decimal
-    valid_until: Optional[str] = None  # YYYY-MM-DD format
+    valid_until: str | None = None  # YYYY-MM-DD format
 
 
 @dataclass(frozen=True)
@@ -121,7 +119,7 @@ class Alert:
     condition: str
     trigger_price: Decimal
     active: bool
-    created_at: Optional[str] = None
+    created_at: str | None = None
 
 
 @dataclass(frozen=True)
@@ -134,13 +132,13 @@ class Instrument:
     instrument_type: InstrumentType
     lot_size: int = 1
     tick_size: Decimal = Decimal("0.05")
-    name: Optional[str] = None
-    option_type: Optional[OptionType] = None
-    strike_price: Optional[Decimal] = None
-    expiry: Optional[str] = None
-    underlying: Optional[str] = None
-    canonical_symbol: Optional[str] = None
-    sm_symbol_name: Optional[str] = None
+    name: str | None = None
+    option_type: OptionType | None = None
+    strike_price: Decimal | None = None
+    expiry: str | None = None
+    underlying: str | None = None
+    canonical_symbol: str | None = None
+    sm_symbol_name: str | None = None
 
     @property
     def is_option(self) -> bool:

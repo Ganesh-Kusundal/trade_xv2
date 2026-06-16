@@ -32,19 +32,16 @@ B7 fixes this:
 
 from __future__ import annotations
 
-import os
 from decimal import Decimal
 from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.common.lifecycle import LifecycleManager
 from brokers.common.oms import (
     PositionManager,
     RiskConfig,
     RiskManager,
 )
-
 
 # ── Helper: enable fail-open for tests that expect the legacy
 # placeholder semantics. Per the M-7 contract, the default is
@@ -121,9 +118,9 @@ def test_factory_accepts_risk_manager_and_threads_to_connection() -> None:
     the B7 invariant: the OMS risk_manager is the canonical risk
     check on the live path.
     """
-    from brokers.dhan.factory import BrokerFactory
-
     import inspect
+
+    from brokers.dhan.factory import BrokerFactory
     sig = inspect.signature(BrokerFactory.create)
     assert "risk_manager" in sig.parameters, (
         "BrokerFactory.create must accept risk_manager= parameter (B7)"
@@ -137,13 +134,11 @@ def test_end_to_end_kill_switch_via_oms_blocks_dhan_place_order() -> None:
     """A complete chain: BrokerService builds the OMS, sets the
     kill_switch, the OrdersAdapter's risk_manager (the same OMS
     instance) is consulted, and a place_order is blocked."""
-    from brokers.common.oms import RiskManager
-    from brokers.common.oms.position_manager import PositionManager
-    from cli.services.broker_service import BrokerService
     from brokers.dhan.exceptions import OrderError
-    from brokers.dhan.orders import OrdersAdapter
     from brokers.dhan.http_client import DhanHttpClient
+    from brokers.dhan.orders import OrdersAdapter
     from brokers.dhan.resolver import SymbolResolver
+    from cli.services.broker_service import BrokerService
 
     bs = BrokerService()
     rm = bs._build_oms_risk_manager()
@@ -197,8 +192,8 @@ def test_oms_capital_fn_uses_real_gateway_funds_after_init() -> None:
     capital_fn closure captures the real gateway. Calling
     capital_fn() reads gateway.funds().available_balance.
     """
-    from cli.services.broker_service import BrokerService
     from brokers.common.core.domain import Balance
+    from cli.services.broker_service import BrokerService
 
     bs = BrokerService()
 
@@ -265,8 +260,8 @@ def test_oms_capital_fn_blocks_on_zero_balance_with_fail_open() -> None:
     """A zero or negative balance is a hard stop, even with
     RISK_FAIL_OPEN=1. Phantom capital would defeat the risk gate.
     """
-    from cli.services.broker_service import BrokerService
     from brokers.common.core.domain import Balance
+    from cli.services.broker_service import BrokerService
 
     bs = BrokerService()
     rm = bs._build_oms_risk_manager()
@@ -290,10 +285,17 @@ def test_oms_capital_fn_caches_position_pct_against_real_balance() -> None:
     This is the production impact of C.1.
     """
     from brokers.common.core.domain import (
-        Balance, Order, OrderStatus, OrderType, ProductType, Side,
+        Balance,
+        Order,
+        OrderStatus,
+        OrderType,
+        ProductType,
+        Side,
     )
     from brokers.common.oms import (
-        PositionManager, RiskConfig, RiskManager,
+        PositionManager,
+        RiskConfig,
+        RiskManager,
     )
     from cli.services.broker_service import BrokerService
 
@@ -337,10 +339,10 @@ def test_production_readiness_checker_fails_when_reconciliation_unwired() -> Non
     PRODUCTION UNSAFE when the OMS ReconciliationService has no
     broker-specific implementation.
     """
+    from brokers.common.oms.context import TradingContext
     from brokers.common.services.production_readiness import (
         ProductionReadinessChecker,
     )
-    from brokers.common.oms.context import TradingContext
 
     # Build a TradingContext with reconciliation_service=None — the
     # pre-B-1 configuration the live CLI used to ship with.

@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
-import pytest
-from datetime import datetime, timedelta
-from pathlib import Path
 
 from datalake.research import ResearchAPI
 
@@ -97,7 +96,6 @@ class TestUniverse:
         pd.DataFrame({"symbol": ["RELIANCE", "TCS", "HDFCBANK"]}).to_csv(csv_path, index=False)
 
         # Patch UNIVERSE_FILES
-        import datalake.research as r
         from datalake.schema import UNIVERSE_FILES
         UNIVERSE_FILES["TEST"] = str(csv_path)
 
@@ -115,7 +113,6 @@ class TestUniverse:
         csv_path = universe_dir / "TEST.csv"
         pd.DataFrame({"symbol": ["RELIANCE", "NONEXISTENT"]}).to_csv(csv_path, index=False)
 
-        import datalake.research as r
         from datalake.schema import UNIVERSE_FILES
         UNIVERSE_FILES["TEST"] = str(csv_path)
 
@@ -134,7 +131,6 @@ class TestScan:
         csv_path = universe_dir / "TEST.csv"
         pd.DataFrame({"symbol": ["RELIANCE", "TCS", "HDFCBANK"]}).to_csv(csv_path, index=False)
 
-        import datalake.research as r
         from datalake.schema import UNIVERSE_FILES
         UNIVERSE_FILES["TEST"] = str(csv_path)
 

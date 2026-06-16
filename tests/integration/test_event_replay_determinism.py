@@ -5,13 +5,10 @@ trades, runs the verifier, and asserts it classifies the state correctly.
 """
 from __future__ import annotations
 
-import json
 import subprocess
 import sys
 from decimal import Decimal
 from pathlib import Path
-
-import pytest
 
 from brokers.common.core.domain import (
     Order,
@@ -21,7 +18,7 @@ from brokers.common.core.domain import (
     Side,
     Trade,
 )
-from brokers.common.event_bus import DomainEvent
+from brokers.common.event_bus import DomainEvent, ProcessedTradeRepository
 from brokers.common.event_log import EventLog
 from brokers.common.observability.event_metrics import EventMetrics
 from brokers.common.oms.context import TradingContext

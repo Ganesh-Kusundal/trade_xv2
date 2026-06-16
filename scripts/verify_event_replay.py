@@ -146,9 +146,7 @@ def _build_context(
 def _replay_into(ctx: TradingContext, events: Iterable[DomainEvent]) -> int:
     count = 0
     for event in events:
-        if event.event_type == "TRADE":
-            ctx.event_bus.publish(event)
-        elif event.event_type == "ORDER_UPDATED":
+        if event.event_type == "TRADE" or event.event_type == "ORDER_UPDATED":
             ctx.event_bus.publish(event)
         count += 1
     return count

@@ -2,20 +2,18 @@
 
 from __future__ import annotations
 
-import tempfile
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
 
 import duckdb
 import pytest
 
 from datalake.scan_store import (
+    compare_scans,
     ensure_scan_table,
-    save_scan_result,
     get_recent_scans,
     get_scan_symbols,
-    compare_scans,
+    save_scan_result,
 )
 
 

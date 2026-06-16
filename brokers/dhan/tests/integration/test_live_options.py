@@ -6,8 +6,8 @@ They are skipped automatically when the env file is absent.
 
 from __future__ import annotations
 
-import sys
 import os
+import sys
 import time
 from pathlib import Path
 

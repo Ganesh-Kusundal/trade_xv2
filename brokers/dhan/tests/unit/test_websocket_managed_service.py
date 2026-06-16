@@ -22,21 +22,16 @@ drains every thread within bounded timeouts.
 
 from __future__ import annotations
 
-import threading
 import time
 from unittest.mock import MagicMock
 
-import pytest
-
 from brokers.common.lifecycle.lifecycle import (
     HealthState,
-    HealthStatus,
     LifecycleManager,
     ManagedService,
 )
 from brokers.dhan.connection import DhanConnection
 from brokers.dhan.websocket import DhanMarketFeed, DhanOrderStream, PollingMarketFeed
-
 
 # ── ManagedService protocol compliance ────────────────────────────────────
 

@@ -2,25 +2,28 @@
 
 from __future__ import annotations
 
-import numpy as np
-import pandas as pd
-import pytest
 from pathlib import Path
 
-from datalake.converter import convert_tradej_parquet, convert_tradej_directory
+import numpy as np
+import pandas as pd
+
+from datalake.converter import convert_tradej_directory, convert_tradej_parquet
 
 
 def _make_tradej_parquet(
     path: Path, symbol: str = "TEST", n: int = 10, start: str = "2026-01-01",
 ) -> None:
-    """Create a synthetic Trade_J Parquet file."""
+    """Create a synthetic Trade_J Parquet file with valid OHLC."""
     np.random.seed(42)
     close = 10000 + np.cumsum(np.random.randn(n) * 100)  # paise
+    high_offset = np.abs(np.random.randint(50, 200, n))
+    low_offset = np.abs(np.random.randint(50, 200, n))
+    open_offset = np.random.randint(-50, 50, n)
     df = pd.DataFrame({
         "bar_time_ms": pd.date_range(start, periods=n, freq="1min").astype(np.int64) // 10**6,
-        "open_paisa": close.astype(np.int64) + np.random.randint(-50, 50, n),
-        "high_paisa": close.astype(np.int64) + np.abs(np.random.randint(0, 200, n)),
-        "low_paisa": close.astype(np.int64) - np.abs(np.random.randint(0, 200, n)),
+        "open_paisa": close.astype(np.int64) + open_offset,
+        "high_paisa": close.astype(np.int64) + high_offset,
+        "low_paisa": close.astype(np.int64) - low_offset,
         "close_paisa": close.astype(np.int64),
         "volume": np.random.randint(100, 10000, n),
         "interval": "1m",
@@ -125,9 +128,9 @@ class TestConvertDirectory:
         results = convert_tradej_directory(tradej_dir, target_dir)
 
         assert len(results) == 3
-        assert results["RELIANCE"] == 20
-        assert results["TCS"] == 20
-        assert results["HDFCBANK"] == 20
+        assert results["RELIANCE"]["rows"] == 20
+        assert results["TCS"]["rows"] == 20
+        assert results["HDFCBANK"]["rows"] == 20
 
         # Check hive layout
         assert (target_dir / "symbol=RELIANCE" / "data.parquet").exists()
@@ -167,7 +170,7 @@ class TestConvertDirectory:
 
         results = convert_tradej_directory(tradej_dir, target_dir)
 
-        assert results["TEST"] == 30  # 10 + 10 + 10
+        assert results["TEST"]["rows"] == 30  # 10 + 10 + 10
 
     def test_duplicates_removed(self, tmp_path: Path) -> None:
         tradej_dir = tmp_path / "tradej" / "bars"
@@ -181,4 +184,5 @@ class TestConvertDirectory:
         results = convert_tradej_directory(tradej_dir, target_dir)
 
         # Should deduplicate by timestamp
-        assert results["TEST"] <= 20
+        assert results["TEST"]["rows"] <= 20
+        assert results["TEST"]["duplicates_dropped"] == 10

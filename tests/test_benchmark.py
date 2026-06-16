@@ -1,8 +1,8 @@
 """Tests for BenchmarkSuite — mock gateway benchmarks."""
 
-import pytest
 from unittest.mock import MagicMock
-from brokers.common.services.benchmark import BenchmarkSuite, BenchmarkReport, BenchmarkResult
+
+from brokers.common.services.benchmark import BenchmarkResult, BenchmarkSuite
 
 
 class TestBenchmarkSuite:

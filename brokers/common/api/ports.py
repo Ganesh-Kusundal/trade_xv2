@@ -44,7 +44,6 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from datetime import date
 from decimal import Decimal
-from pathlib import Path
 from typing import Any, Generic, Protocol, TypeVar
 
 from brokers.common.core.domain import (
@@ -59,8 +58,6 @@ from brokers.common.core.domain import (
     OrderPreview,
     OrderRequest,
     OrderResponse,
-    PnlExitPolicy,
-    PnlExitResult,
     Position,
     Quote,
     SliceOrderRequest,

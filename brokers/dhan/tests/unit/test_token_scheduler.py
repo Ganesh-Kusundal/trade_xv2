@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import time
-import threading
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.common.core.auth import AuthManager, TokenState, TokenSource
+from brokers.common.core.auth import AuthManager, TokenSource, TokenState
 from brokers.dhan.token_scheduler import TokenRefreshScheduler
 
 

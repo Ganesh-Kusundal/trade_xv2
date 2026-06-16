@@ -159,7 +159,7 @@ def test_reconcile_auto_repair_upserts_missing_order():
     oms.get_all_orders.return_value = []
 
     recon = DhanReconciliationService(orders, portfolio, oms=oms, auto_repair=True)
-    report = recon.reconcile(local_orders=[])
+    recon.reconcile(local_orders=[])
     oms.upsert_order.assert_called_once_with(broker_order)
 
 
@@ -176,7 +176,7 @@ def test_reconcile_auto_repair_upserts_position():
     oms.get_positions_as_dicts.return_value = []
 
     recon = DhanReconciliationService(orders, portfolio, oms=oms, auto_repair=True)
-    report = recon.reconcile(local_positions=[])
+    recon.reconcile(local_positions=[])
     oms.upsert_position.assert_called_once()
     call_args = oms.upsert_position.call_args[0][0]
     assert call_args["symbol"] == "RELIANCE"
@@ -197,5 +197,5 @@ def test_reconcile_no_repair_when_auto_repair_false():
     oms.get_all_orders.return_value = []
 
     recon = DhanReconciliationService(orders, portfolio, oms=oms, auto_repair=False)
-    report = recon.reconcile(local_orders=[])
+    recon.reconcile(local_orders=[])
     oms.upsert_order.assert_not_called()

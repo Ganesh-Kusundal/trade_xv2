@@ -12,8 +12,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from brokers.common.api.ports import CoverOrderProvider
-from brokers.common.core.domain import Order
-from brokers.common.core.domain import OrderRequest
+from brokers.common.core.domain import Order, OrderRequest
 from brokers.upstox.orders.order_client import UpstoxRestOrderClient
 
 

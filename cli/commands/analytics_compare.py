@@ -6,7 +6,7 @@ import pandas as pd
 from rich.console import Console
 from rich.table import Table
 
-from analytics.backtest.comparator import compare_strategies, compare_parameters
+from analytics.backtest.comparator import compare_parameters, compare_strategies
 
 
 def run_compare(args: list[str], console: Console) -> None:

@@ -4,14 +4,10 @@ from __future__ import annotations
 
 import base64
 import json
-import os
 import time
-from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
-import pytest
-
-from brokers.common.core.auth import AuthManager, JsonTokenStateStore, TokenState, TokenSource
+from brokers.common.core.auth import AuthManager, JsonTokenStateStore, TokenSource, TokenState
 
 
 def _make_jwt(payload: dict) -> str:

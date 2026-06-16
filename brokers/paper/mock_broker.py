@@ -125,14 +125,14 @@ def create_seeded_mock_broker(
     from datetime import datetime, timedelta, timezone
 
     from brokers.common.core.domain import (
+        Holding,
         Order,
         OrderStatus,
         OrderType,
         Position,
-        Holding,
-        Trade,
         ProductType,
         Side,
+        Trade,
     )
 
     broker = MockBroker(initial_capital=initial_capital, name=name)

@@ -178,8 +178,8 @@ class TestLiveValidation:
 
     def test_idempotency_cache_prevents_duplicate(self, gateway):
         """Placing same correlation_id twice should return cached result."""
-        from brokers.dhan.orders import IdempotencyCache
         from brokers.common.core.domain import Order, OrderStatus
+        from brokers.dhan.orders import IdempotencyCache
 
         cache = IdempotencyCache()
         cached_order = Order(

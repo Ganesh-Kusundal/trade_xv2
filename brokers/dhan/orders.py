@@ -14,13 +14,20 @@ import time
 import uuid
 from contextlib import contextmanager
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any
 
-from brokers.dhan.domain import (
-    Exchange, Order, OrderSide, OrderStatus, OrderType, ProductType, Trade, Validity,
-)
 from brokers.common.event_bus import DomainEvent, EventBus
 from brokers.common.oms.risk_manager import RiskManager
+from brokers.dhan.domain import (
+    Exchange,
+    Order,
+    OrderSide,
+    OrderStatus,
+    OrderType,
+    ProductType,
+    Trade,
+    Validity,
+)
 from brokers.dhan.exceptions import OrderError
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.resolver import SymbolResolver
@@ -100,7 +107,7 @@ class OrdersAdapter:
         quantity: int,
         order_type: str | OrderType,
         product_type: str | ProductType,
-        price: Optional[Decimal] = None,
+        price: Decimal | None = None,
     ) -> list[str]:
         """Validate an order before submission. Returns list of error strings (empty = valid)."""
         errors: list[str] = []
@@ -143,7 +150,7 @@ class OrdersAdapter:
     def validate_order_warnings(
         self,
         quantity: int,
-        price: Optional[Decimal] = None,
+        price: Decimal | None = None,
     ) -> list[str]:
         """Return non-blocking warnings. High notional is the main check."""
         warnings: list[str] = []
@@ -162,11 +169,11 @@ class OrdersAdapter:
         side: str | OrderSide = "BUY",
         quantity: int = 0,
         order_type: str | OrderType = "MARKET",
-        price: Optional[Decimal] = None,
-        trigger_price: Optional[Decimal] = None,
+        price: Decimal | None = None,
+        trigger_price: Decimal | None = None,
         product_type: str | ProductType = "INTRADAY",
         validity: str | Validity = "DAY",
-        correlation_id: Optional[str] = None,
+        correlation_id: str | None = None,
     ) -> Order:
         # Always generate a correlation id so every placement is idempotent.
         if not correlation_id:
@@ -350,7 +357,7 @@ def _parse_exchange(seg: str) -> Exchange:
     return Exchange(exch)
 
 
-def _opt_dec(val) -> Optional[Decimal]:
+def _opt_dec(val) -> Decimal | None:
     if val in (None, ""):
         return None
     return Decimal(str(val))

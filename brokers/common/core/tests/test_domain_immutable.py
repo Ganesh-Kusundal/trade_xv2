@@ -13,7 +13,6 @@ from brokers.common.core.domain import (
     OrderStatus,
     OrderType,
     Position,
-    ProductType,
     Quote,
     Side,
     Trade,

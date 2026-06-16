@@ -7,8 +7,8 @@ No broker access required — reads only from local Parquet files.
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import pandas as pd
 
@@ -109,7 +109,7 @@ class ResearchAPI:
         symbols = self._load_universe_list(universe)
         available = []
         for symbol in symbols:
-            parquet_path = self._root / "equities" / "candles" / f"timeframe=1m" / f"symbol={symbol}" / "data.parquet"
+            parquet_path = self._root / "equities" / "candles" / "timeframe=1m" / f"symbol={symbol}" / "data.parquet"
             if parquet_path.exists():
                 available.append(symbol)
         return available

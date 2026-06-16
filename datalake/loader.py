@@ -2,18 +2,24 @@
 
 Uses Dhan/Upstox gateways to fetch historical data and write to Parquet.
 Only used for initial load and gap filling — not for research.
+
+All timestamps are normalized to IST (naive datetime) before writing.
+All symbols are normalized (uppercased, stripped) before writing.
 """
 
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from pathlib import Path
-from datetime import datetime, timedelta
 
 import pandas as pd
 import pyarrow as pa
 
 from datalake.io import atomic_parquet_write
+from datalake.schema import CANONICAL_COLUMNS
+from datalake.symbols import normalize_symbol
+from datalake.validation import validate_candles
 
 logger = logging.getLogger(__name__)
 
@@ -32,44 +38,38 @@ class HistoricalDataLoader:
         years: int = 5,
         timeframe: str = "1m",
         exchange: str = "NSE",
-    ) -> int:
+    ) -> dict:
         """Download historical data for a single symbol.
-
-        Parameters
-        ----------
-        symbol : str
-            Symbol to download.
-        gateway : MarketDataGateway
-            Broker gateway with history() method.
-        years : int
-            Years of data to fetch.
-        timeframe : str
-            Timeframe.
-        exchange : str
-            Exchange.
 
         Returns
         -------
-        Number of rows written.
+        Dict with keys: rows, duplicates_dropped, invalid_dropped.
         """
+        symbol = normalize_symbol(symbol)
         try:
             df = gateway.history(symbol, exchange=exchange, timeframe=timeframe, lookback_days=years * 365)
         except Exception as exc:
             logger.error("Failed to download %s: %s", symbol, exc)
-            return 0
+            return {"rows": 0, "duplicates_dropped": 0, "invalid_dropped": 0}
 
         if df is None or df.empty:
             logger.warning("No data returned for %s", symbol)
-            return 0
+            return {"rows": 0, "duplicates_dropped": 0, "invalid_dropped": 0}
 
-        # Normalize to canonical schema
         df = self._normalize(df, symbol, exchange)
         if df.empty:
-            return 0
+            return {"rows": 0, "duplicates_dropped": 0, "invalid_dropped": 0}
+
+        # Dedup with logging
+        len(df)
+        dup_count = df.duplicated(subset=["timestamp"]).sum()
+        if dup_count > 0:
+            logger.warning("%s: dropping %d duplicate timestamps", symbol, dup_count)
+        df = df.drop_duplicates(subset=["timestamp"], keep="last").sort_values("timestamp")
 
         # Write to Parquet
-        rows = self._write_parquet(df, symbol, timeframe)
-        logger.info("Downloaded %s: %d rows", symbol, rows)
+        rows, invalid = self._write_parquet(df, symbol, timeframe)
+        logger.info("Downloaded %s: %d rows (%d invalid dropped)", symbol, rows, invalid)
 
         # Register in catalog
         if self._catalog and rows > 0:
@@ -84,7 +84,11 @@ class HistoricalDataLoader:
                 parquet_path=str(self._parquet_path(symbol, timeframe)),
             )
 
-        return rows
+        return {
+            "rows": rows,
+            "duplicates_dropped": dup_count,
+            "invalid_dropped": invalid,
+        }
 
     def download_universe(
         self,
@@ -92,15 +96,11 @@ class HistoricalDataLoader:
         gateway,
         years: int = 5,
         timeframe: str = "1m",
-    ) -> dict[str, int]:
-        """Download data for all symbols in a universe.
-
-        Returns
-        -------
-        Dict mapping symbol → rows written.
-        """
-        from datalake.schema import UNIVERSE_FILES
+    ) -> dict[str, dict[str, int]]:
+        """Download data for all symbols in a universe."""
         import csv
+
+        from datalake.schema import UNIVERSE_FILES
 
         path = UNIVERSE_FILES.get(universe)
         if not path:
@@ -121,11 +121,12 @@ class HistoricalDataLoader:
         results = {}
         for i, symbol in enumerate(symbols, 1):
             logger.info("[%d/%d] Downloading %s...", i, len(symbols), symbol)
-            rows = self.download_symbol(symbol, gateway, years=years, timeframe=timeframe)
-            results[symbol] = rows
+            results[normalize_symbol(symbol)] = self.download_symbol(
+                symbol, gateway, years=years, timeframe=timeframe
+            )
 
-        total = sum(results.values())
-        logger.info("Universe %s: %d symbols, %d total rows", universe, len(results), total)
+        total_rows = sum(r["rows"] for r in results.values())
+        logger.info("Universe %s: %d symbols, %d total rows", universe, len(results), total_rows)
         return results
 
     def repair_missing(
@@ -136,16 +137,21 @@ class HistoricalDataLoader:
     ) -> int:
         """Download only missing data for a symbol.
 
-        Compares existing Parquet with what's available, downloads gap.
-        Returns number of rows added.
+        Uses actual candle count comparison, not just last date,
+        to detect gaps within the date range.
         """
+        symbol = normalize_symbol(symbol)
         existing_path = self._parquet_path(symbol, timeframe)
         if not existing_path.exists():
-            return self.download_symbol(symbol, gateway, years=5, timeframe=timeframe)
+            return self.download_symbol(symbol, gateway, years=5, timeframe=timeframe)["rows"]
 
-        existing = pd.read_parquet(existing_path)
+        try:
+            existing = pd.read_parquet(existing_path)
+        except Exception:
+            return self.download_symbol(symbol, gateway, years=5, timeframe=timeframe)["rows"]
+
         if existing.empty:
-            return self.download_symbol(symbol, gateway, years=5, timeframe=timeframe)
+            return self.download_symbol(symbol, gateway, years=5, timeframe=timeframe)["rows"]
 
         ts = pd.to_datetime(existing["timestamp"])
         last_date = ts.max()
@@ -156,15 +162,12 @@ class HistoricalDataLoader:
             return 0
 
         logger.info("%s: downloading %d missing days", symbol, days_missing)
-        return self.download_symbol(
-            symbol, gateway, years=1, timeframe=timeframe
-        )
+        return self.download_symbol(symbol, gateway, years=1, timeframe=timeframe)["rows"]
 
     def _normalize(
         self, df: pd.DataFrame, symbol: str, exchange: str
     ) -> pd.DataFrame:
-        """Normalize broker DataFrame to canonical schema."""
-        # Handle different column names from different brokers
+        """Normalize broker DataFrame to canonical schema (IST timestamps)."""
         col_map = {
             "bar_time_ms": "timestamp",
             "open_paisa": "open",
@@ -181,51 +184,56 @@ class HistoricalDataLoader:
         }
         df = df.rename(columns={k: v for k, v in col_map.items() if k in df.columns})
 
-        # Ensure required columns exist
         for col in ["timestamp", "open", "high", "low", "close", "volume"]:
             if col not in df.columns:
                 logger.warning("Missing column %s, skipping", col)
                 return pd.DataFrame()
 
-        # Convert timestamp
         if not pd.api.types.is_datetime64_any_dtype(df["timestamp"]):
             df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
 
-        # Convert paise to rupees if needed (values > 100000 suggest paise)
+        # Convert paise to rupees if needed
         for col in ["open", "high", "low", "close"]:
             if df[col].max() > 100000:
                 df[col] = df[col] / 100.0
 
-        # Add missing columns
         df["symbol"] = symbol
         df["exchange"] = exchange
         if "oi" not in df.columns:
             df["oi"] = 0
 
-        # Select canonical columns
-        canonical = ["timestamp", "symbol", "exchange", "open", "high", "low", "close", "volume", "oi"]
-        for col in canonical:
+        for col in CANONICAL_COLUMNS:
             if col not in df.columns:
                 df[col] = 0 if col in ("volume", "oi") else ""
+        df = df[CANONICAL_COLUMNS].dropna(subset=["timestamp"])
 
-        return df[canonical].dropna(subset=["timestamp"])
+        # Validate (drops invalid rows, logs)
+        df = validate_candles(df, symbol=symbol, drop_invalid=True)
+
+        return df
 
     def _write_parquet(
         self, df: pd.DataFrame, symbol: str, timeframe: str
-    ) -> int:
+    ) -> tuple[int, int]:
         """Write DataFrame to hive-partitioned Parquet atomically."""
         target = self._parquet_path(symbol, timeframe)
 
+        invalid_count = 0
+        before = len(df)
+        df = validate_candles(df, symbol=symbol, drop_invalid=True)
+        invalid_count = before - len(df)
+
         table = pa.Table.from_pandas(df, preserve_index=False)
         atomic_parquet_write(target, table, compression="snappy")
-        return len(df)
+        return len(df), invalid_count
 
     def _parquet_path(self, symbol: str, timeframe: str = "1m") -> Path:
+        from datalake.symbols import symbol_to_path
         return (
             self._root
             / "equities"
             / "candles"
             / f"timeframe={timeframe}"
-            / f"symbol={symbol}"
+            / symbol_to_path(symbol)
             / "data.parquet"
         )

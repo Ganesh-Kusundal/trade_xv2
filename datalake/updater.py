@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from pathlib import Path
-from datetime import datetime, timedelta
 
 import pandas as pd
 import pyarrow as pa
@@ -34,8 +34,9 @@ class IncrementalUpdater:
         -------
         Dict mapping symbol → rows added.
         """
-        from datalake.schema import UNIVERSE_FILES
         import csv
+
+        from datalake.schema import UNIVERSE_FILES
 
         path = UNIVERSE_FILES.get(universe)
         if not path:

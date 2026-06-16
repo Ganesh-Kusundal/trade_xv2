@@ -1,17 +1,19 @@
-"""Canonical domain — re-export facade.
+"""Canonical domain — public re-export facade.
 
-This module is a **thin re-export layer** that preserves backward
-compatibility for every ``from brokers.common.core.domain import ...``
-statement in the codebase. The actual definitions live in focused
+This module is the canonical import path for all domain types that cross
+adapter, OMS, CLI, analytics, and test boundaries. It preserves backward
+compatibility for existing ``from brokers.common.core.domain import ...``
+statements while keeping the concrete dataclass definitions in focused
 sub-modules:
 
 * :mod:`brokers.common.core.types` — enums (``Side``, ``OrderStatus``, etc.)
-* :mod:`brokers.common.core.models` — domain dataclasses (``Order``, ``Position``, etc.)
+* :mod:`brokers.common.core.models` — compatibility home for canonical dataclasses
 * :mod:`brokers.common.core.requests` — input shapes (``OrderRequest``, etc.)
 * :mod:`brokers.common.core.reconciliation` — drift/reconciliation types
 
-New code SHOULD import from the specific sub-modules directly.
-Existing code that imports from this module continues to work unchanged.
+New code SHOULD import from this module. Existing code that imports from the
+focused sub-modules continues to work, but new public call sites should prefer
+``brokers.common.core.domain`` to make the adapter boundary explicit.
 """
 
 from __future__ import annotations

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from analytics.ranking.ranking import RankingEngine
 from analytics.scanner.scanners import MomentumScanner
 

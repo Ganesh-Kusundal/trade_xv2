@@ -18,14 +18,15 @@ Usage:
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 
+from brokers.common.core.domain import MarketDepth, Quote
 from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
+from datalake.symbols import normalize_symbol, symbol_to_path
 
 logger = logging.getLogger(__name__)
 
@@ -42,10 +43,10 @@ class DataLakeGateway(MarketDataGateway):
         self._candles_dir = self._root / "equities" / "candles"
 
     def _parquet_path(self, symbol: str, timeframe: str) -> Path:
-        return self._candles_dir / f"timeframe={timeframe}" / f"symbol={symbol}" / "data.parquet"
+        return self._candles_dir / f"timeframe={timeframe}" / symbol_to_path(symbol) / "data.parquet"
 
     def _load_parquet(self, symbol: str, timeframe: str) -> pd.DataFrame | None:
-        # Try exact timeframe first
+        symbol = normalize_symbol(symbol)
         path = self._parquet_path(symbol, timeframe)
         if path.exists():
             try:
@@ -54,7 +55,6 @@ class DataLakeGateway(MarketDataGateway):
                 logger.error("Failed to read %s: %s", path, exc)
                 return None
 
-        # Fall back to 1m data and resample
         if timeframe != "1m":
             df_1m = self._load_parquet(symbol, "1m")
             if df_1m is not None and not df_1m.empty:
@@ -110,14 +110,8 @@ class DataLakeGateway(MarketDataGateway):
             return df
 
         ts = pd.to_datetime(df["timestamp"])
-        if to_date:
-            end = pd.Timestamp(to_date)
-        else:
-            end = ts.max()
-        if from_date:
-            start = pd.Timestamp(from_date)
-        else:
-            start = end - pd.Timedelta(days=lookback_days)
+        end = pd.Timestamp(to_date) if to_date else ts.max()
+        start = pd.Timestamp(from_date) if from_date else end - pd.Timedelta(days=lookback_days)
 
         mask = (ts >= start) & (ts <= end)
         return df[mask].copy()
@@ -142,6 +136,7 @@ class DataLakeGateway(MarketDataGateway):
             ]
             return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
+        symbol = normalize_symbol(symbol)
         df = self._load_parquet(symbol, timeframe)
         if df is None or df.empty:
             return pd.DataFrame()
@@ -154,6 +149,7 @@ class DataLakeGateway(MarketDataGateway):
 
     def quote(self, symbol: str, exchange: str = "NSE") -> Quote:
         from brokers.common.core.domain import Quote as _Quote
+        symbol = normalize_symbol(symbol)
         df = self._load_parquet(symbol, "1m")
         if df is None or df.empty:
             return _Quote(symbol=symbol)
@@ -173,6 +169,7 @@ class DataLakeGateway(MarketDataGateway):
         )
 
     def ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:
+        symbol = normalize_symbol(symbol)
         df = self._load_parquet(symbol, "1m")
         if df is None or df.empty:
             return Decimal("0")

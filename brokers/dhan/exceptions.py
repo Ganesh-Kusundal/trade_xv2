@@ -16,7 +16,6 @@ from __future__ import annotations
 
 from brokers.common.resilience.errors import BrokerError, RateLimitError
 
-
 # Re-export canonical RateLimitError so existing imports still work.
 # New code should import directly from brokers.common.resilience.errors.
 __all__ = [

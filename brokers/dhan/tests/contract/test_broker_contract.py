@@ -28,12 +28,10 @@ import pytest
 # ---------------------------------------------------------------------------
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 
-from brokers.common.core.domain import OrderStatus
+from brokers.common.core.domain import OrderStatus, MarketDepth, Quote
 from brokers.dhan.connection import DhanConnection
 from brokers.dhan.domain import (
     Exchange,
-    MarketDepth,
-    Quote,
 )
 from brokers.dhan.exceptions import InstrumentNotFoundError
 from brokers.dhan.factory import BrokerFactory

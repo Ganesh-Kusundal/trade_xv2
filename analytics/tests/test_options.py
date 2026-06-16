@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from analytics.options.options_analytics import (
     GreeksAnalytics,
     IVAnalytics,

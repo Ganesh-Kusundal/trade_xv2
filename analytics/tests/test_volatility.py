@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from analytics.volatility.volatility_analytics import VolatilityAnalytics
 
 from .helpers import prices

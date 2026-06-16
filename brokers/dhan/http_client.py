@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 import logging
-import time
 import threading
+import time
 from collections.abc import Callable
 from typing import Any
 
 import requests
 
-from brokers.dhan.exceptions import AuthenticationError, DhanError, RateLimitError
 from brokers.common.resilience.circuit_breaker import CircuitBreaker, CircuitState
+from brokers.dhan.exceptions import AuthenticationError, DhanError, RateLimitError
 
 logger = logging.getLogger(__name__)
 

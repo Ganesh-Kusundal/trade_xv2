@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from analytics.core.feature_builder import FeatureBuilder
 
 from .helpers import prices

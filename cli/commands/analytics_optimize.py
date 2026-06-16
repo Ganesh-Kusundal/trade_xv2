@@ -7,10 +7,9 @@ from rich.console import Console
 from rich.table import Table
 
 from analytics.backtest.optimizer import (
+    ParamGrid,
     optimize_grid,
     optimize_rsi_period,
-    optimize_sma_period,
-    ParamGrid,
 )
 
 

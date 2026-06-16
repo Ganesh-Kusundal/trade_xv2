@@ -11,9 +11,8 @@ Severity vocabulary: "HIGH", "MEDIUM", "LOW" (canonical, ADR-005).
 from __future__ import annotations
 
 import logging
-from typing import Any
 
-from brokers.common.core.models import Order, OrderStatus, Position
+from brokers.common.core.domain import Order, OrderStatus, Position
 from brokers.common.core.reconciliation import DriftItem
 
 logger = logging.getLogger(__name__)

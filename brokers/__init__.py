@@ -25,8 +25,8 @@ from brokers.dhan import (
     Exchange,
     Instrument,
     InstrumentLoader,
-    InstrumentType,
     InstrumentNotFoundError,
+    InstrumentType,
     MarketDepth,
     OptionType,
     Quote,
@@ -37,8 +37,22 @@ from brokers.dhan import (
 OrderSide = Side
 
 __all__ = [
+    # Dhan-specific types (from brokers.dhan)
+    "Balance",
+    # Infrastructure (from brokers.dhan)
+    "BrokerFactory",
+    "BrokerGateway",
+    "DhanConnection",
+    "DhanHttpClient",
+    "Exchange",
     # Canonical domain types (from brokers.common.core.domain)
     "Holding",
+    "Instrument",
+    "InstrumentLoader",
+    "InstrumentNotFoundError",
+    "InstrumentType",
+    "MarketDepth",
+    "OptionType",
     "Order",
     "OrderResponse",
     "OrderSide",
@@ -46,23 +60,9 @@ __all__ = [
     "OrderType",
     "Position",
     "ProductType",
+    "Quote",
     "Side",
+    "SymbolResolver",
     "Trade",
     "Validity",
-    # Dhan-specific types (from brokers.dhan)
-    "Balance",
-    "Exchange",
-    "Instrument",
-    "InstrumentLoader",
-    "InstrumentNotFoundError",
-    "InstrumentType",
-    "MarketDepth",
-    "OptionType",
-    "Quote",
-    # Infrastructure (from brokers.dhan)
-    "BrokerFactory",
-    "BrokerGateway",
-    "DhanConnection",
-    "DhanHttpClient",
-    "SymbolResolver",
 ]

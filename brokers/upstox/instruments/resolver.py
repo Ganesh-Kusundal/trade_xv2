@@ -43,13 +43,13 @@ class UpstoxInstrumentResolver:
                 # Primary index
                 key = (sym.upper(), definition.exchange_segment.upper())
                 self._by_symbol_segment[key] = definition
-                
+
                 # Retrieve canonical segments/exchanges for alias indexing
-                from brokers.upstox.instruments.segment_mapper import UpstoxSegmentMapper
                 from brokers.common.core.instruments import InstrumentRegistry
+                from brokers.upstox.instruments.segment_mapper import UpstoxSegmentMapper
                 xv2_segment = UpstoxSegmentMapper.to_safe(definition.exchange_segment)
                 canonical_exch = InstrumentRegistry.canonical_exchange(xv2_segment)
-                
+
                 # Generate alternate lookup keys
                 alt_keys = _generate_alternate_keys(
                     symbol=sym,
@@ -60,12 +60,12 @@ class UpstoxInstrumentResolver:
                     underlying=definition.underlying_symbol,
                     canonical_symbol=definition.name
                 )
-                
+
                 for k in alt_keys:
                     self._by_symbol_segment[(k, definition.exchange_segment.upper())] = definition
                     self._by_symbol_segment[(k, xv2_segment.value.upper())] = definition
                     self._by_symbol_segment[(k, canonical_exch.upper())] = definition
-                    
+
                 if sym:
                     self._by_symbol_index[sym.upper()].append(definition)
             self._loaded = True
@@ -89,28 +89,28 @@ class UpstoxInstrumentResolver:
             if symbol and exchange_segment:
                 clean_sym = symbol.strip().upper()
                 clean_seg = exchange_segment.strip().upper()
-                
+
                 # 1. Try standard lookup
                 d = self._by_symbol_segment.get((clean_sym, clean_seg))
                 if d is not None:
                     return d
-                    
+
                 # 2. Try stripped lookup
                 stripped_sym = clean_sym.replace(" ", "").replace("-", "").replace("_", "")
                 d = self._by_symbol_segment.get((stripped_sym, clean_seg))
                 if d is not None:
                     return d
-                    
+
                 # 3. Try standardizing Option format CALL -> CE, PUT -> PE
                 if clean_sym.endswith("CALL"):
                     clean_sym = clean_sym[:-4] + "CE"
                 elif clean_sym.endswith("PUT"):
                     clean_sym = clean_sym[:-3] + "PE"
-                    
+
                 d = self._by_symbol_segment.get((clean_sym, clean_seg))
                 if d is not None:
                     return d
-                    
+
                 # 4. Try stripped Option format standard
                 stripped_cepe = clean_sym.replace(" ", "").replace("-", "").replace("_", "")
                 d = self._by_symbol_segment.get((stripped_cepe, clean_seg))
@@ -171,24 +171,24 @@ def _generate_alternate_keys(
     canonical_symbol: str | None
 ) -> list[str]:
     keys = []
-    
+
     # 1. Primary symbol
     sym_up = symbol.strip().upper()
     keys.append(sym_up)
-    
+
     # 2. Canonical symbol
     if canonical_symbol:
         keys.append(canonical_symbol.strip().upper())
-        
+
     # 3. Stripped symbol (no spaces, dashes, underscores)
     stripped = sym_up.replace(" ", "").replace("-", "").replace("_", "")
     keys.append(stripped)
-    
+
     # Standardize option type and instrument type
     type_str = str(inst_type).upper()
     is_option = "OPT" in type_str or "OPTION" in type_str
     is_future = "FUT" in type_str or "FUTURE" in type_str
-    
+
     if (is_option or is_future) and expiry and underlying:
         try:
             from datetime import datetime
@@ -198,17 +198,17 @@ def _generate_alternate_keys(
             MMM = dt.strftime("%b").upper()
             yy = dt.strftime("%y")
             yyyy = dt.strftime("%Y")
-            
+
             # Month character for weekly options (1-9, O, N, D)
             month_chars = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "O", "N", "D"]
             month_char = month_chars[dt.month - 1]
-            
+
             und_up = underlying.strip().upper()
-            
+
             if is_option:
                 opt_str = str(option_type).upper()
                 ce_pe = "CE" if "CALL" in opt_str or "CE" in opt_str or "C" in opt_str else "PE"
-                
+
                 # Format strike price
                 strike_str = ""
                 if strike is not None:
@@ -217,7 +217,7 @@ def _generate_alternate_keys(
                         strike_str = str(int(st_val)) if st_val % 1 == 0 else str(st_val)
                     except (ValueError, TypeError):
                         strike_str = str(strike)
-                
+
                 # Generate spaced option forms:
                 keys.append(f"{und_up} {dd} {MMM} {yy} {strike_str} {ce_pe}")
                 keys.append(f"{und_up} {dd_strip} {MMM} {yy} {strike_str} {ce_pe}")
@@ -225,7 +225,7 @@ def _generate_alternate_keys(
                 keys.append(f"{und_up} {dd_strip} {MMM} {yyyy} {strike_str} {ce_pe}")
                 keys.append(f"{und_up} {dd} {MMM} {strike_str} {ce_pe}")
                 keys.append(f"{und_up} {dd_strip} {MMM} {strike_str} {ce_pe}")
-                
+
                 # Generate compact option forms:
                 keys.append(f"{und_up}{dd}{MMM}{yy}{strike_str}{ce_pe}")
                 keys.append(f"{und_up}{dd_strip}{MMM}{yy}{strike_str}{ce_pe}")
@@ -233,24 +233,24 @@ def _generate_alternate_keys(
                 keys.append(f"{und_up}{dd_strip}{MMM}{yyyy}{strike_str}{ce_pe}")
                 keys.append(f"{und_up}{dd}{MMM}{strike_str}{ce_pe}")
                 keys.append(f"{und_up}{dd_strip}{MMM}{strike_str}{ce_pe}")
-                
+
                 # Weekly format: e.g. NIFTY2662525000CE
                 keys.append(f"{und_up}{yy}{month_char}{dd}{strike_str}{ce_pe}")
                 keys.append(f"{und_up}{yy}{month_char}{dd_strip}{strike_str}{ce_pe}")
-                
+
             elif is_future:
                 keys.append(f"{und_up} {yy} {MMM} FUT")
                 keys.append(f"{und_up} {yyyy} {MMM} FUT")
                 keys.append(f"{und_up} {dd} {MMM} FUT")
                 keys.append(f"{und_up} FUT")
-                
+
                 keys.append(f"{und_up}{yy}{MMM}FUT")
                 keys.append(f"{und_up}{yyyy}{MMM}FUT")
                 keys.append(f"{und_up}{dd}{MMM}FUT")
                 keys.append(f"{und_up}FUT")
         except Exception:
             pass
-            
+
     res = []
     seen = set()
     for k in keys:

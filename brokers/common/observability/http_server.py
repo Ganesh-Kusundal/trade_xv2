@@ -29,10 +29,9 @@ Excluded from B8/B9:
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any
 
 from aiohttp import web
 
@@ -56,7 +55,7 @@ def _escape_label_value(v: str) -> str:
 def render_prometheus_metrics(
     event_metrics_snapshot: dict[str, dict[str, int]],
     lifecycle_health: dict[str, dict[str, Any]],
-    extra_gauges: Optional[dict[str, float]] = None,
+    extra_gauges: dict[str, float] | None = None,
 ) -> str:
     """Render a Prometheus text exposition payload.
 
@@ -154,22 +153,22 @@ class HttpObservabilityServer(ManagedService):
         self,
         host: str = "127.0.0.1",
         port: int = 8765,
-        lifecycle: Optional[LifecycleManager] = None,
-        event_metrics: Optional[Any] = None,
-        extra_gauges_fn: Optional[Any] = None,
+        lifecycle: LifecycleManager | None = None,
+        event_metrics: Any | None = None,
+        extra_gauges_fn: Any | None = None,
     ) -> None:
         self._host = host
         self._port = port
         self._lifecycle = lifecycle
         self._event_metrics = event_metrics
         self._extra_gauges_fn = extra_gauges_fn
-        self._runner: Optional[web.AppRunner] = None
-        self._site: Optional[web.TCPSite] = None
-        self._runner_thread: Optional[asyncio.AbstractEventLoop] = None
+        self._runner: web.AppRunner | None = None
+        self._site: web.TCPSite | None = None
+        self._runner_thread: asyncio.AbstractEventLoop | None = None
         # Metrics
         self._request_count = 0
-        self._started_at: Optional[datetime] = None
-        self._last_error: Optional[str] = None
+        self._started_at: datetime | None = None
+        self._last_error: str | None = None
 
     # ── aiohttp request handlers ───────────────────────────────────────
 
@@ -412,4 +411,4 @@ class HttpObservabilityServer(ManagedService):
 
 
 # We need `threading` for the background thread in start().
-import threading  # noqa: E402
+import threading

@@ -11,11 +11,8 @@ Two concurrency strategies are now in play:
 
 from __future__ import annotations
 
-import sqlite3
 import subprocess
 import sys
-import tempfile
-import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -23,8 +20,8 @@ from pathlib import Path
 import duckdb
 import pytest
 
-from datalake.journal import TradeJournal
 from datalake.duckdb_utils import connect_with_retry
+from datalake.journal import TradeJournal
 
 
 @pytest.fixture

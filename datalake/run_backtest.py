@@ -14,19 +14,25 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from datalake.gateway import DataLakeGateway
-from analytics.pipeline.pipeline import FeaturePipeline
-from analytics.pipeline.features import (
-    EMA, RSI, MACD, ROC, ATR, Momentum, Trend, VolumeSMA,
-    BollingerBands, RelativeVolume, SwingHighLow, SMA, VWAP,
-)
-from analytics.strategy import StrategyPipeline, MomentumStrategy, BreakoutStrategy
-from analytics.scanner.scanners import MomentumScanner
-from analytics.backtest import BacktestEngine, BacktestConfig
-from analytics.scanner.models import Candidate
+import logging
 
 import pandas as pd
-import logging
+
+from analytics.backtest import BacktestConfig, BacktestEngine
+from analytics.pipeline.features import (
+    ATR,
+    ROC,
+    RSI,
+    SMA,
+    Momentum,
+    RelativeVolume,
+    Trend,
+)
+from analytics.pipeline.pipeline import FeaturePipeline
+from analytics.scanner.scanners import MomentumScanner
+from analytics.strategy import BreakoutStrategy, MomentumStrategy, StrategyPipeline
+from datalake.gateway import DataLakeGateway
+
 logging.basicConfig(level=logging.WARNING, format='%(asctime)s %(name)s %(levelname)s %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -87,7 +93,7 @@ def run_single_backtest(symbol: str, years: int = 5):
     result = engine.run(data, symbol=symbol)
 
     ta = result.metrics.trade_analysis
-    print(f"\nResults:")
+    print("\nResults:")
     print(f"  Total Return: {result.metrics.total_return_pct:.2f}%")
     print(f"  Sharpe Ratio: {result.metrics.sharpe_ratio:.3f}")
     print(f"  Max Drawdown: {result.metrics.max_drawdown_pct:.2f}%")
@@ -159,7 +165,7 @@ def run_scan_and_backtest(top_n: int = 10, years: int = 2):
         returns = [r.metrics.total_return_pct for _, r in results]
         sharpes = [r.metrics.sharpe_ratio for _, r in results]
         trade_counts = [r.metrics.trade_analysis.total_trades for _, r in results]
-        print(f"\nPortfolio Summary:")
+        print("\nPortfolio Summary:")
         print(f"  Symbols backtested: {len(results)}")
         print(f"  Avg Return: {sum(returns)/len(returns):.2f}%")
         print(f"  Avg Sharpe: {sum(sharpes)/len(sharpes):.3f}")
@@ -169,7 +175,7 @@ def run_scan_and_backtest(top_n: int = 10, years: int = 2):
 
         # Sort by return
         results.sort(key=lambda x: x[1].metrics.total_return_pct, reverse=True)
-        print(f"\nTop 5:")
+        print("\nTop 5:")
         for sym, r in results[:5]:
             ta = r.metrics.trade_analysis
             print(f"  {sym}: {r.metrics.total_return_pct:.2f}% | Sharpe {r.metrics.sharpe_ratio:.3f} | {ta.total_trades} trades | Win {ta.win_rate*100:.0f}%")

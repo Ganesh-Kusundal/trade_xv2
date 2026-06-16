@@ -160,7 +160,7 @@ class TokenRefreshScheduler(ManagedService):
         while not self._stop_event.is_set():
             try:
                 self._do_refresh()
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 self._last_error = f"{type(exc).__name__}: {exc}"
                 logger.error("Token refresh scheduler error: %s", exc)
                 if self._on_error:
@@ -190,7 +190,7 @@ class TokenRefreshScheduler(ManagedService):
             self._last_error = "no valid token available"
             logger.warning("Token refresh check failed — no valid token available")
             return False
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             self._last_error = f"{type(exc).__name__}: {exc}"
             logger.warning("Token refresh failed: %s", exc)
             if self._on_error:

@@ -149,10 +149,7 @@ class SectorStrengthScorer:
     def _score_sector(self, sector: str, data: pd.DataFrame) -> SectorStrength:
         """Compute strength for a single sector."""
         # Get per-symbol data
-        if "symbol" in data.columns:
-            symbols = data["symbol"].unique()
-        else:
-            symbols = ["SECTOR"]
+        symbols = data["symbol"].unique() if "symbol" in data.columns else ["SECTOR"]
 
         stock_count = len(symbols)
 

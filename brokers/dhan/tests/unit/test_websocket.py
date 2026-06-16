@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import sys
 import os
+import sys
 
 # Ensure project root is on sys.path for direct pytest invocation
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
@@ -100,7 +100,7 @@ class TestDhanMarketFeed:
 
         try:
             feed.subscribe([(1, "2885", 15)])
-            assert False, "Expected RuntimeError"
+            raise AssertionError("Expected RuntimeError")
         except RuntimeError as e:
             assert "connect()" in str(e)
 
@@ -114,7 +114,7 @@ class TestDhanMarketFeed:
 
         try:
             feed.unsubscribe([(1, "2885", 15)])
-            assert False, "Expected RuntimeError"
+            raise AssertionError("Expected RuntimeError")
         except RuntimeError as e:
             assert "connect()" in str(e)
 
@@ -420,8 +420,8 @@ class TestPollingMarketFeed:
     """Verify PollingMarketFeed API surface and behavior."""
 
     def test_init(self):
-        from brokers.dhan.websocket import PollingMarketFeed
         from brokers.dhan.tests.conftest import FakeHttpClient
+        from brokers.dhan.websocket import PollingMarketFeed
 
         client = FakeHttpClient()
         instruments = [("NSE_EQ", "2885", "LTP")]
@@ -437,8 +437,8 @@ class TestPollingMarketFeed:
         assert not feed.is_connected
 
     def test_on_quote_callback_registration(self):
-        from brokers.dhan.websocket import PollingMarketFeed
         from brokers.dhan.tests.conftest import FakeHttpClient
+        from brokers.dhan.websocket import PollingMarketFeed
 
         feed = PollingMarketFeed(
             http_client=FakeHttpClient(),
@@ -450,9 +450,10 @@ class TestPollingMarketFeed:
         assert len(feed._quote_callbacks) == 1
 
     def test_connect_starts_thread(self):
-        from brokers.dhan.websocket import PollingMarketFeed
-        from brokers.dhan.tests.conftest import FakeHttpClient
         import time
+
+        from brokers.dhan.tests.conftest import FakeHttpClient
+        from brokers.dhan.websocket import PollingMarketFeed
 
         feed = PollingMarketFeed(
             http_client=FakeHttpClient(),
@@ -470,9 +471,10 @@ class TestPollingMarketFeed:
         assert not feed.is_connected
 
     def test_disconnect_stops_thread(self):
-        from brokers.dhan.websocket import PollingMarketFeed
-        from brokers.dhan.tests.conftest import FakeHttpClient
         import time
+
+        from brokers.dhan.tests.conftest import FakeHttpClient
+        from brokers.dhan.websocket import PollingMarketFeed
 
         feed = PollingMarketFeed(
             http_client=FakeHttpClient(),
@@ -487,9 +489,10 @@ class TestPollingMarketFeed:
         assert not feed.is_connected
 
     def test_double_connect_is_safe(self):
-        from brokers.dhan.websocket import PollingMarketFeed
-        from brokers.dhan.tests.conftest import FakeHttpClient
         import time
+
+        from brokers.dhan.tests.conftest import FakeHttpClient
+        from brokers.dhan.websocket import PollingMarketFeed
 
         feed = PollingMarketFeed(
             http_client=FakeHttpClient(),
@@ -514,7 +517,8 @@ class TestDhanMarketFeedBackfill:
 
     def test_backfill_callback_stored(self):
         """backfill_callback must be stored on construction."""
-        cb = lambda symbol, from_dt, to_dt: []
+        def cb(symbol, from_dt, to_dt):
+            return []
         feed = DhanMarketFeed(
             client_id="CLIENT",
             access_token="TOKEN",
@@ -534,7 +538,7 @@ class TestDhanMarketFeedBackfill:
 
     def test_track_tick_time(self):
         """_track_tick_time must record latest tick time per symbol."""
-        from datetime import datetime, timezone
+        from datetime import datetime
         feed = DhanMarketFeed(
             client_id="CLIENT",
             access_token="TOKEN",
@@ -546,7 +550,7 @@ class TestDhanMarketFeedBackfill:
 
     def test_on_close_records_disconnect_time(self):
         """_on_close must record disconnect_time."""
-        from datetime import datetime, timezone
+        from datetime import datetime
         feed = DhanMarketFeed(
             client_id="CLIENT",
             access_token="TOKEN",
@@ -591,6 +595,7 @@ class TestDhanMarketFeedBackfill:
     def test_backfill_publishes_tick_events(self):
         """_backfill_gap must publish TICK events for backfilled bars."""
         from datetime import datetime, timezone
+
         from brokers.common.event_bus import EventBus
         bus = EventBus()
         received = []

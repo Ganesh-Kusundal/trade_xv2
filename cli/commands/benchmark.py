@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import time
+
 from rich.console import Console
 from rich.table import Table
-from rich.panel import Panel
 
 
 def run(args: list[str], broker_service, console: Console) -> None:
@@ -14,9 +14,10 @@ def run(args: list[str], broker_service, console: Console) -> None:
 
     # Get gateways
     try:
+        from pathlib import Path
+
         from brokers.common.intelligent_gateway import IntelligentGateway
         from cli.services.broker_registry import create_gateway
-        from pathlib import Path
 
         dhan = create_gateway("dhan", env_path=Path('.env.local'), load_instruments=True)
         upstox = create_gateway("upstox", env_path=Path('.env.upstox'), load_instruments=True)
@@ -138,7 +139,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
     t_dhan = (time.time() - t0) * 1000
     strikes = len(chain.get('strikes', []))
     console.print(f"  Dhan NIFTY: {t_dhan:.0f}ms ({strikes} strikes)")
-    console.print(f"  Upstox: N/A (deprecated)")
+    console.print("  Upstox: N/A (deprecated)")
 
     # 5. Summary
     console.print("\n" + "="*50)

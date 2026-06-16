@@ -4,12 +4,11 @@ from decimal import Decimal
 
 from brokers.common.core.domain import (
     ExchangeSegment,
-)
-from brokers.common.core.domain import (
     FundLimits,
     Holding,
     MarketDepth,
     OptionContract,
+    OrderRequest,
     OrderResponse,
     OrderStatus,
     OrderType,
@@ -19,9 +18,6 @@ from brokers.common.core.domain import (
     Side,
     Trade,
     Validity,
-)
-from brokers.common.core.domain import (
-    OrderRequest,
 )
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 
@@ -68,8 +64,9 @@ def test_txn_wire_round_trip():
 
 
 def test_to_place_payload_basic():
-    from brokers.common.core.domain import Side, OrderType as EnumsOrderType
+    from brokers.common.core.domain import OrderType as EnumsOrderType
     from brokers.common.core.domain import ProductType as EnumsProductType
+    from brokers.common.core.domain import Side
     from brokers.common.core.domain import Validity as EnumsValidity
 
     req = OrderRequest(
@@ -98,8 +95,9 @@ def test_to_place_payload_basic():
 
 
 def test_to_place_payload_with_slice_and_market_protection():
-    from brokers.common.core.domain import Side, OrderType as EnumsOrderType
+    from brokers.common.core.domain import OrderType as EnumsOrderType
     from brokers.common.core.domain import ProductType as EnumsProductType
+    from brokers.common.core.domain import Side
     from brokers.common.core.domain import Validity as EnumsValidity
 
     req = OrderRequest(

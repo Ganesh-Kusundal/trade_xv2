@@ -58,37 +58,37 @@ def run(args: list[str], broker_service: BrokerService, console: Console) -> Non
             # Show additional details if available
             if inst.expiry:
                 table.add_row(
-                    f"  Expiry",
+                    "  Expiry",
                     inst.expiry,
                     "[dim]info[/dim]",
                 )
             if inst.strike_price is not None:
                 table.add_row(
-                    f"  Strike",
+                    "  Strike",
                     str(inst.strike_price),
                     "[dim]info[/dim]",
                 )
             if inst.option_type:
                 table.add_row(
-                    f"  Option Type",
+                    "  Option Type",
                     inst.option_type.value,
                     "[dim]info[/dim]",
                 )
             if inst.underlying:
                 table.add_row(
-                    f"  Underlying",
+                    "  Underlying",
                     inst.underlying,
                     "[dim]info[/dim]",
                 )
             if inst.lot_size and inst.lot_size > 1:
                 table.add_row(
-                    f"  Lot Size",
+                    "  Lot Size",
                     str(inst.lot_size),
                     "[dim]info[/dim]",
                 )
             if inst.canonical_symbol:
                 table.add_row(
-                    f"  Canonical",
+                    "  Canonical",
                     inst.canonical_symbol,
                     "[dim]info[/dim]",
                 )

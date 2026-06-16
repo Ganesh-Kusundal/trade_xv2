@@ -7,7 +7,6 @@ from rich.console import Console
 from rich.table import Table
 
 from analytics import Analytics
-from analytics.core.models import AnalysisResult
 from analytics.reports.reports import print_result
 from analytics.sector import SectorAnalyzer
 

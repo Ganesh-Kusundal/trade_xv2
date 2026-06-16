@@ -14,6 +14,7 @@ import threading
 from collections.abc import Callable
 from typing import Any
 
+from brokers.common.event_bus import EventBus
 from brokers.upstox.websocket.feed_authorizer import (
     UpstoxFeedAuthorizer,
     build_subscribe_payload,
@@ -21,7 +22,6 @@ from brokers.upstox.websocket.feed_authorizer import (
 )
 from brokers.upstox.websocket.v3_auto_reconnect import UpstoxAutoReconnect
 from brokers.upstox.websocket.v3_decoder import UpstoxV3Decoder
-from brokers.common.event_bus import EventBus
 from brokers.upstox.websocket.v3_subscription_manager import (
     UpstoxV3SubscriptionLimits,
     UpstoxV3SubscriptionManager,
@@ -260,7 +260,6 @@ class UpstoxMarketDataV3Multiplexer:
     def _backfill_gap(self) -> None:
         """Fetch missed bars from REST and dispatch as ticks."""
         from datetime import datetime, timezone
-        import asyncio
         disconnect_time = self._disconnect_time
         if disconnect_time is None:
             return

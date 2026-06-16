@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from brokers.dhan.domain import Exchange
 
+DEFAULT_SEGMENT = "NSE_EQ"
+
 EXCHANGE_TO_SEGMENT: dict[str, str] = {
     "NSE": "NSE_EQ",
     "BSE": "BSE_EQ",

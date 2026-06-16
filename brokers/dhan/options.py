@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 from decimal import Decimal
-from typing import Optional
 
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.resolver import SymbolResolver
@@ -32,7 +31,7 @@ class OptionsAdapter:
         exchange: str,
         expiry: str,
         *,
-        security_id: Optional[int] = None,
+        security_id: int | None = None,
     ) -> dict:
         """Fetch full option chain. Pass security_id for MCX commodities."""
         if security_id is not None:
@@ -63,10 +62,10 @@ class OptionsAdapter:
             pe = legs.get("pe", {}) or {}
             ce_greeks = ce.get("greeks", {}) or {}
             pe_greeks = pe.get("greeks", {}) or {}
-            
+
             ce_sec_id = ce.get("security_id")
             pe_sec_id = pe.get("security_id")
-            
+
             ce_symbol = ""
             if ce_sec_id:
                 try:
@@ -75,7 +74,7 @@ class OptionsAdapter:
                         ce_symbol = ce_inst.symbol
                 except Exception:
                     pass
-                    
+
             pe_symbol = ""
             if pe_sec_id:
                 try:
@@ -137,7 +136,7 @@ class OptionsAdapter:
         return inst, segment
 
 
-def _dec(value) -> Optional[Decimal]:
+def _dec(value) -> Decimal | None:
     if value in (None, ""):
         return None
     return Decimal(str(value))

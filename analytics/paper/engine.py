@@ -51,7 +51,7 @@ from analytics.paper.models import (
 from analytics.pipeline.pipeline import FeaturePipeline
 from analytics.replay.models import Bar
 from analytics.scanner.models import Candidate
-from analytics.strategy.models import Signal, SignalType
+from analytics.strategy.models import Signal
 from analytics.strategy.pipeline import StrategyPipeline
 
 logger = logging.getLogger(__name__)
@@ -427,7 +427,7 @@ class PaperTradingEngine:
             commission=commission,
             slippage=slippage_cost,
             strategy=signal.strategy,
-            reasons=[signal.signal_type.value] + signal.reasons,
+            reasons=[signal.signal_type.value, *signal.reasons],
         )
         session.orders.append(order)
 
@@ -540,19 +540,13 @@ class PaperTradingEngine:
 
         # Stop-loss check
         if pos.stop_loss is not None:
-            if pos.side == PositionSide.LONG and bar.low <= pos.stop_loss:
-                self._close_position(bar.symbol, pos.stop_loss, bar.timestamp, session, "Stop-loss hit")
-                return
-            elif pos.side == PositionSide.SHORT and bar.high >= pos.stop_loss:
+            if pos.side == PositionSide.LONG and bar.low <= pos.stop_loss or pos.side == PositionSide.SHORT and bar.high >= pos.stop_loss:
                 self._close_position(bar.symbol, pos.stop_loss, bar.timestamp, session, "Stop-loss hit")
                 return
 
         # Take-profit check
         if pos.take_profit is not None:
-            if pos.side == PositionSide.LONG and bar.high >= pos.take_profit:
-                self._close_position(bar.symbol, pos.take_profit, bar.timestamp, session, "Take-profit hit")
-                return
-            elif pos.side == PositionSide.SHORT and bar.low <= pos.take_profit:
+            if pos.side == PositionSide.LONG and bar.high >= pos.take_profit or pos.side == PositionSide.SHORT and bar.low <= pos.take_profit:
                 self._close_position(bar.symbol, pos.take_profit, bar.timestamp, session, "Take-profit hit")
                 return
 

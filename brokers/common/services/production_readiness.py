@@ -23,8 +23,9 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +76,7 @@ class ProductionReadinessChecker:
         for name, fn in self._checks():
             try:
                 passed, message = fn()
-            except Exception as exc:  # noqa: BLE001 — checks must never raise
+            except Exception as exc:
                 passed, message = False, f"check raised: {type(exc).__name__}: {exc}"
             report.checks.append(ReadinessCheck(name, passed, message))
             if not passed:

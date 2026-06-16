@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import logging
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any
 
 import pandas as pd
 
@@ -52,7 +52,7 @@ class IntelligentGateway:
         self,
         dhan_gateway=None,
         upstox_gateway=None,
-        metrics: Optional[EventMetrics] = None,
+        metrics: EventMetrics | None = None,
     ) -> None:
         self._dhan = dhan_gateway
         self._upstox = upstox_gateway

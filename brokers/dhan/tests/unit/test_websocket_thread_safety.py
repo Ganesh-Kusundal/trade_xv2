@@ -4,13 +4,9 @@ from __future__ import annotations
 
 import threading
 import time
-from collections.abc import Callable
 from unittest.mock import MagicMock
 
-import pytest
-
 from brokers.dhan.websocket import DhanMarketFeed, DhanOrderStream
-
 
 # ---------------------------------------------------------------------------
 # DhanMarketFeed

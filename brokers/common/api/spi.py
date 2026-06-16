@@ -271,7 +271,7 @@ class BrokerConnection(ABC):
     def _set_status(self, status: Any) -> None:
         self._status = status
 
-    def __enter__(self) -> "BrokerConnection":
+    def __enter__(self) -> BrokerConnection:
         self.connect()
         return self
 

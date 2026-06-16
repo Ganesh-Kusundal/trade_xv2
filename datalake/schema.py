@@ -1,4 +1,9 @@
-"""Canonical candle schema — broker-agnostic, used across all modules."""
+"""Canonical candle schema — broker-agnostic, used across all modules.
+
+All timestamps are stored as **naive datetime in IST (Asia/Kolkata)**.
+The source data may be in any timezone, but must be converted to IST
+before writing. This is enforced by the converter and the quality views.
+"""
 
 from __future__ import annotations
 
@@ -6,8 +11,8 @@ import pyarrow as pa
 
 # Canonical column names
 CANONICAL_COLUMNS = [
-    "timestamp",    # ISO-8601 string or pd.Timestamp
-    "symbol",       # NSE symbol (e.g., "RELIANCE")
+    "timestamp",    # Naive datetime in IST (Asia/Kolkata)
+    "symbol",       # NSE symbol (e.g., "RELIANCE"), uppercased, stripped
     "exchange",     # "NSE", "BSE", "NFO"
     "open",         # Price in rupees
     "high",
@@ -21,6 +26,13 @@ OPTIONAL_COLUMNS = [
     "vwap",         # Volume-weighted average price
     "trade_count",  # Number of trades
 ]
+
+# NSE market hours in IST
+MARKET_OPEN_HOUR = 9      # 9:15 IST
+MARKET_OPEN_MINUTE = 15
+MARKET_CLOSE_HOUR = 15    # 15:30 IST
+MARKET_CLOSE_MINUTE = 30
+TRADING_MINUTES_PER_DAY = 375  # (15*60 + 30) - (9*60 + 15) + 1 = 376... actually 375 unique minute marks
 
 # PyArrow schema for Parquet files
 ARROW_SCHEMA = pa.schema([

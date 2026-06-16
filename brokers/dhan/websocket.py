@@ -4,12 +4,9 @@ from __future__ import annotations
 
 import logging
 import threading
-import time
 from collections.abc import Callable
-from dataclasses import replace
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Optional
 
 from dhanhq.marketfeed import MarketFeed as SDKMarketFeed
 from dhanhq.orderupdate import OrderUpdate as SDKOrderUpdate
@@ -18,7 +15,6 @@ from brokers.common.core.domain import (
     DepthLevel,
     MarketDepth,
     Order,
-    OrderStatus,
     OrderType,
     ProductType,
     Quote,
@@ -195,8 +191,8 @@ class DhanMarketFeed(ManagedService):
         self._resolver = resolver
         self._event_bus = event_bus
         self._backfill_callback = backfill_callback
-        self._feed: Optional[SDKMarketFeed] = None
-        self._thread: Optional[threading.Thread] = None
+        self._feed: SDKMarketFeed | None = None
+        self._thread: threading.Thread | None = None
         self._is_connected = False
         self._lock = threading.RLock()
         self._stop_event = threading.Event()
@@ -625,8 +621,8 @@ class DhanOrderStream(ManagedService):
             access_token=access_token,
             access_token_fn=access_token_fn,
         )
-        self._order_update: Optional[SDKOrderUpdate] = None
-        self._thread: Optional[threading.Thread] = None
+        self._order_update: SDKOrderUpdate | None = None
+        self._thread: threading.Thread | None = None
         self._is_connected = False
         self._lock = threading.RLock()
         self._stop_event = threading.Event()
@@ -886,7 +882,7 @@ class PollingMarketFeed(ManagedService):
         self._instruments = instruments
         self._interval = interval_seconds
         self._quote_callbacks: list[Callable[[dict], None]] = []
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
         self._is_connected = False
 

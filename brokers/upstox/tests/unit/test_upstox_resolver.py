@@ -15,7 +15,6 @@ from __future__ import annotations
 from brokers.upstox.instruments.definition import UpstoxInstrumentDefinition
 from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver, _generate_alternate_keys
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

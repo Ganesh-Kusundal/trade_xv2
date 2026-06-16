@@ -8,23 +8,21 @@ from __future__ import annotations
 
 import argparse
 import sys
+from dataclasses import dataclass
 from pathlib import Path
-from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from datalake.gateway import DataLakeGateway
+from analytics.backtest.models import (
+    BacktestConfig,
+)
 from analytics.indicators.halftrend import HalfTrend
-from analytics.pipeline.pipeline import FeaturePipeline
-from analytics.pipeline.features import RSI, ATR
-from analytics.strategy import StrategyPipeline, Signal, SignalType
-from analytics.strategy.models import StrategyResult
 from analytics.scanner.models import Candidate
-from analytics.backtest.models import BacktestConfig, BacktestResult, PerformanceMetrics, TradeAnalysis
-
+from analytics.strategy import Signal, SignalType
+from datalake.gateway import DataLakeGateway
 
 # ---------------------------------------------------------------------------
 # HalfTrend Strategy (wraps indicator for StrategyPipeline)
@@ -246,7 +244,7 @@ def run_halftrend_backtest(top_n: int = 50, years: int = 1):
 
             if i % 20 == 0:
                 print(f"  [{i}/{len(symbols)}] processed...")
-        except Exception as e:
+        except Exception:
             pass
 
     # Summary
@@ -271,11 +269,11 @@ def run_halftrend_backtest(top_n: int = 50, years: int = 1):
 
     # Top 10
     results.sort(key=lambda x: x["return"], reverse=True)
-    print(f"\nTop 10:")
+    print("\nTop 10:")
     for r in results[:10]:
         print(f"  {r['symbol']}: {r['return']:+.2f}% | {r['trades']} trades | Win {r['win_rate']:.0f}% | Sharpe {r['sharpe']:.3f}")
 
-    print(f"\nBottom 5:")
+    print("\nBottom 5:")
     for r in results[-5:]:
         print(f"  {r['symbol']}: {r['return']:+.2f}% | {r['trades']} trades | Win {r['win_rate']:.0f}%")
 

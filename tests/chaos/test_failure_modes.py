@@ -44,7 +44,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -55,7 +55,7 @@ from brokers.common.core.domain import (
     ProductType,
     Side,
 )
-from brokers.common.event_bus import EventBus, DomainEvent
+from brokers.common.event_bus import DomainEvent, EventBus
 from brokers.common.lifecycle.lifecycle import (
     HealthState,
     HealthStatus,
@@ -64,12 +64,11 @@ from brokers.common.lifecycle.lifecycle import (
 )
 from brokers.common.observability.event_metrics import EventMetrics
 from brokers.common.oms import (
+    DailyPnlResetScheduler,
     PositionManager,
     RiskConfig,
     RiskManager,
-    DailyPnlResetScheduler,
 )
-
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 

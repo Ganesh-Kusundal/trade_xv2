@@ -8,8 +8,7 @@ from unittest import mock
 
 import pytest
 
-from brokers.common.core.models import DepthLevel, MarketDepth
-
+from brokers.common.core.domain import DepthLevel, MarketDepth
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Helpers

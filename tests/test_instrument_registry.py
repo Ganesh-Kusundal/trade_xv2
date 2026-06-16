@@ -1,8 +1,10 @@
 """Tests for InstrumentRegistry — canonical instrument resolution, ATM, future chain."""
 
-import pytest
 from unittest.mock import MagicMock
-from brokers.common.services.instrument_registry import InstrumentRegistry, CanonicalInstrument
+
+import pytest
+
+from brokers.common.services.instrument_registry import CanonicalInstrument, InstrumentRegistry
 
 
 class TestCanonicalInstrument:

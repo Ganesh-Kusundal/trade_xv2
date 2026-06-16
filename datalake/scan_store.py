@@ -6,56 +6,42 @@ import json
 import logging
 import uuid
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
 import duckdb
 
-from datalake.duckdb_utils import ThreadLocalConnectionPool, DEFAULT_CATALOG_PATH
+from datalake.duckdb_utils import DEFAULT_CATALOG_PATH, connect_with_retry
 
 logger = logging.getLogger(__name__)
 
-_pool: ThreadLocalConnectionPool | None = None
+
+def _get_connection() -> duckdb.DuckDBPyConnection:
+    return connect_with_retry(str(DEFAULT_CATALOG_PATH))
 
 
-def _get_pool() -> ThreadLocalConnectionPool:
-    global _pool
-    if _pool is None:
-        _pool = ThreadLocalConnectionPool(DEFAULT_CATALOG_PATH)
-    return _pool
-
-
-def ensure_scan_table(conn: duckdb.DuckDBPyConnection | None = None) -> None:
+def ensure_scan_table(conn: duckdb.DuckDBPyConnection) -> None:
     """Create the scan_results table if it doesn't exist."""
-    close = False
-    if conn is None:
-        conn = _get_pool().get()
-        close = True
-    try:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS scan_results (
-                scan_id VARCHAR,
-                scanner VARCHAR,
-                symbol VARCHAR,
-                score DOUBLE,
-                reasons VARCHAR,
-                universe_size INTEGER,
-                scanned_at TIMESTAMP,
-                metadata VARCHAR,
-                PRIMARY KEY (scan_id, symbol)
-            )
-        """)
-        conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_scan_results_scanner
-            ON scan_results(scanner)
-        """)
-        conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_scan_results_scanned_at
-            ON scan_results(scanned_at)
-        """)
-    finally:
-        if close:
-            pass
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS scan_results (
+            scan_id VARCHAR,
+            scanner VARCHAR,
+            symbol VARCHAR,
+            score DOUBLE,
+            reasons VARCHAR,
+            universe_size INTEGER,
+            scanned_at TIMESTAMP,
+            metadata VARCHAR,
+            PRIMARY KEY (scan_id, symbol)
+        )
+    """)
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_scan_results_scanner
+        ON scan_results(scanner)
+    """)
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_scan_results_scanned_at
+        ON scan_results(scanned_at)
+    """)
 
 
 def save_scan_result(
@@ -66,10 +52,9 @@ def save_scan_result(
     conn: duckdb.DuckDBPyConnection | None = None,
 ) -> str:
     """Save scan results to DuckDB. Returns the scan_id."""
-    close = False
-    if conn is None:
-        conn = _get_pool().get()
-        close = True
+    own_conn = conn is None
+    if own_conn:
+        conn = _get_connection()
 
     try:
         ensure_scan_table(conn)
@@ -99,8 +84,8 @@ def save_scan_result(
         logger.info("Saved %d scan results with id %s", len(rows), scan_id)
         return scan_id
     finally:
-        if close:
-            pass
+        if own_conn:
+            conn.close()
 
 
 def get_recent_scans(
@@ -109,10 +94,9 @@ def get_recent_scans(
     conn: duckdb.DuckDBPyConnection | None = None,
 ) -> list[dict]:
     """Get recent scan results from DuckDB."""
-    close = False
-    if conn is None:
-        conn = _get_pool().get()
-        close = True
+    own_conn = conn is None
+    if own_conn:
+        conn = _get_connection()
 
     try:
         ensure_scan_table(conn)
@@ -142,8 +126,8 @@ def get_recent_scans(
             for row in rows
         ]
     finally:
-        if close:
-            pass
+        if own_conn:
+            conn.close()
 
 
 def get_scan_symbols(
@@ -151,10 +135,9 @@ def get_scan_symbols(
     conn: duckdb.DuckDBPyConnection | None = None,
 ) -> list[dict]:
     """Get symbols from a specific scan."""
-    close = False
-    if conn is None:
-        conn = _get_pool().get()
-        close = True
+    own_conn = conn is None
+    if own_conn:
+        conn = _get_connection()
 
     try:
         rows = conn.execute(
@@ -172,8 +155,8 @@ def get_scan_symbols(
             for row in rows
         ]
     finally:
-        if close:
-            pass
+        if own_conn:
+            conn.close()
 
 
 def compare_scans(
@@ -182,10 +165,9 @@ def compare_scans(
     conn: duckdb.DuckDBPyConnection | None = None,
 ) -> dict[str, Any]:
     """Compare two scan results via SQL — find added/removed/changed symbols."""
-    close = False
-    if conn is None:
-        conn = _get_pool().get()
-        close = True
+    own_conn = conn is None
+    if own_conn:
+        conn = _get_connection()
 
     try:
         ensure_scan_table(conn)
@@ -240,5 +222,5 @@ def compare_scans(
             "summary": f"Added {len(added)}, Removed {len(removed)}, Changed {len(changed)}",
         }
     finally:
-        if close:
-            pass
+        if own_conn:
+            conn.close()

@@ -87,7 +87,7 @@ def _refresh_views(console: Console) -> None:
     vm = ViewManager()
     try:
         console.print("[dim]Refreshing all views...[/dim]")
-        timings = vm.refresh()
+        vm.refresh()
         console.print(f"[bold green]Refreshed {vm.view_count()} views.[/bold green]")
     finally:
         vm.close()

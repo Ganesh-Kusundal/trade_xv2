@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 from decimal import Decimal
-from typing import Any
 
 from brokers.dhan.domain import Alert, AlertRequest
 from brokers.dhan.http_client import DhanHttpClient
@@ -21,10 +20,10 @@ class AlertsAdapter:
 
     def place(self, request: AlertRequest) -> Alert:
         """Create a new price alert.
-        
+
         Args:
             request: AlertRequest with alert details
-            
+
         Returns:
             Alert with created alert information
         """
@@ -37,11 +36,11 @@ class AlertsAdapter:
                 "errors": errors,
             })
             raise ValueError(f"Alert request validation failed: {msg}")
-        
+
         # Resolve instrument
         inst = self._resolver.resolve(request.symbol, request.exchange)
         segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, "NSE_EQ")
-        
+
         # Build API payload
         payload = {
             "dhanClientId": self._client.client_id,
@@ -50,13 +49,13 @@ class AlertsAdapter:
             "alertCondition": request.condition,
             "triggerPrice": float(request.trigger_price),
         }
-        
+
         if request.valid_until:
             payload["validTill"] = request.valid_until
-        
+
         # Call API
         data = self._client.post("/alerts", json=payload)
-        
+
         # Parse response
         alert_data = data.get("data", data)
         alert = Alert(
@@ -68,50 +67,50 @@ class AlertsAdapter:
             active=True,
             created_at=alert_data.get("createdAt"),
         )
-        
+
         logger.info("alert_placed", extra={
             "alert_id": alert.alert_id,
             "symbol": request.symbol,
             "trigger_price": str(request.trigger_price),
         })
-        
+
         return alert
 
     def get(self, alert_id: str) -> Alert:
         """Get details of a specific alert.
-        
+
         Args:
             alert_id: Alert ID
-            
+
         Returns:
             Alert with alert details
         """
         data = self._client.get(f"/alerts/{alert_id}")
         alert_data = data.get("data", data)
-        
+
         alert = self._parse_alert(alert_data)
         logger.info("alert_fetched", extra={"alert_id": alert_id})
         return alert
 
     def list_all(self) -> list[Alert]:
         """List all active alerts.
-        
+
         Returns:
             List of Alert objects
         """
         data = self._client.get("/alerts")
         items = data.get("data", []) if isinstance(data, dict) else []
-        
+
         alerts = [self._parse_alert(item) for item in (items if isinstance(items, list) else [])]
         logger.info("alerts_listed", extra={"count": len(alerts)})
         return alerts
 
     def delete(self, alert_id: str) -> bool:
         """Delete an alert.
-        
+
         Args:
             alert_id: Alert ID to delete
-            
+
         Returns:
             True if deletion successful
         """
@@ -119,20 +118,20 @@ class AlertsAdapter:
         success = isinstance(data, dict)
         logger.info("alert_deleted", extra={"alert_id": alert_id, "success": success})
         return success
-    
+
     def _validate_request(self, request: AlertRequest) -> list[str]:
         """Validate alert request. Returns list of errors (empty = valid)."""
         errors = []
-        
+
         if request.trigger_price <= 0:
             errors.append(f"Trigger price must be positive, got {request.trigger_price}")
-        
+
         valid_conditions = {"LTP_CROSSES_ABOVE", "LTP_CROSSES_BELOW"}
         if request.condition not in valid_conditions:
             errors.append(f"Invalid condition: {request.condition}. Must be one of {valid_conditions}")
-        
+
         return errors
-    
+
     def _parse_alert(self, data: dict) -> Alert:
         """Parse alert from API response."""
         return Alert(

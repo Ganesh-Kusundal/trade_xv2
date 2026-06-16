@@ -28,7 +28,6 @@ Usage:
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
 
 import pandas as pd
 
@@ -37,13 +36,12 @@ from analytics.replay.models import (
     Bar,
     Position,
     ReplayConfig,
-    ReplayMode,
     ReplayResult,
     ReplaySession,
     Trade,
 )
 from analytics.scanner.models import Candidate
-from analytics.strategy.models import Signal, SignalType
+from analytics.strategy.models import Signal
 from analytics.strategy.pipeline import StrategyPipeline
 
 logger = logging.getLogger(__name__)

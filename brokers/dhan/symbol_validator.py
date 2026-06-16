@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 import re
-import json
-from datetime import datetime, date
-from decimal import Decimal
-from typing import Any, Optional
+from datetime import date, datetime
+from typing import Any
 
+from brokers.dhan.domain import Exchange, InstrumentType, OptionType
 from brokers.dhan.loader import InstrumentLoader
 from brokers.dhan.resolver import SymbolResolver
-from brokers.dhan.domain import Exchange, InstrumentType, OptionType
 
 # Regex patterns for F&O symbol parsing
 # Format 1: "NIFTY 26 JUN 25000 CE" or "BANKNIFTY 24 JUL 55000 PE"
@@ -43,7 +41,7 @@ _MONTH_MAP = {
 }
 
 
-def parse_fo_symbol(symbol: str) -> Optional[dict[str, Any]]:
+def parse_fo_symbol(symbol: str) -> dict[str, Any] | None:
     """Parse a symbol string to extract F&O fields.
 
     Returns a dict with:
@@ -110,7 +108,7 @@ def parse_fo_symbol(symbol: str) -> Optional[dict[str, Any]]:
 class DhanSymbolValidator:
     """Validator for DhanHQ symbol mapping and verification."""
 
-    def __init__(self, resolver: Optional[SymbolResolver] = None) -> None:
+    def __init__(self, resolver: SymbolResolver | None = None) -> None:
         if resolver is None:
             self.resolver = SymbolResolver()
             rows = InstrumentLoader.load_cached()
@@ -118,28 +116,28 @@ class DhanSymbolValidator:
         else:
             self.resolver = resolver
 
-    def validate(self, symbol: str, exchange: Optional[str] = None, segment: Optional[str] = None) -> dict[str, Any]:
+    def validate(self, symbol: str, exchange: str | None = None, segment: str | None = None) -> dict[str, Any]:
         """Normalize, match against the instrument master, and validate the symbol.
 
         Handles both standard equity/indices and F&O symbols.
         """
         # 1. Normalize Symbol
         normalized_sym = symbol.strip().upper()
-        
+
         # Check if F&O
         fo_info = parse_fo_symbol(normalized_sym)
-        
+
         if fo_info:
             return self._validate_fo(normalized_sym, fo_info, exchange, segment)
         else:
             return self._validate_standard(normalized_sym, exchange, segment)
 
-    def _validate_standard(self, symbol: str, exchange_filter: Optional[str] = None, segment_filter: Optional[str] = None) -> dict[str, Any]:
+    def _validate_standard(self, symbol: str, exchange_filter: str | None = None, segment_filter: str | None = None) -> dict[str, Any]:
         """Validate standard equity/index symbols."""
         candidates = []
-        
+
         exchanges_to_check = [exchange_filter] if exchange_filter else ["NSE", "BSE", "INDEX", "MCX", "CDS", "NFO", "BFO"]
-        
+
         for exch_str in exchanges_to_check:
             try:
                 inst = self.resolver.resolve(symbol, exch_str)
@@ -148,7 +146,7 @@ class DhanSymbolValidator:
                     segment_val = self._get_segment_code(inst.exchange, inst.instrument_type)
                     if segment_filter and segment_filter.upper() != segment_val:
                         continue
-                        
+
                     candidates.append({
                         "exchange": inst.exchange.value,
                         "segment": segment_val,
@@ -167,7 +165,7 @@ class DhanSymbolValidator:
                 i for i in all_insts
                 if symbol == (i.underlying or "").upper() or symbol in i.symbol.upper() or (i.canonical_symbol and symbol in i.canonical_symbol.upper())
             ]
-            
+
             if partial_matches:
                 # Format partial matches as candidates
                 for inst in partial_matches[:10]:
@@ -184,7 +182,7 @@ class DhanSymbolValidator:
                     "message": f"Multiple candidates found for '{symbol}'. Please specify a specific contract.",
                     "candidates": candidates
                 }
-                
+
             return {
                 "status": "INVALID",
                 "message": f"Symbol '{symbol}' not found in Dhan instrument master.",
@@ -204,7 +202,7 @@ class DhanSymbolValidator:
         res["status"] = "VALID"
         return res
 
-    def _validate_fo(self, symbol: str, fo_info: dict[str, Any], exchange_filter: Optional[str] = None, segment_filter: Optional[str] = None) -> dict[str, Any]:
+    def _validate_fo(self, symbol: str, fo_info: dict[str, Any], exchange_filter: str | None = None, segment_filter: str | None = None) -> dict[str, Any]:
         """Validate F&O derivatives (options and futures)."""
         underlying = fo_info["underlying"]
         exp_day = fo_info["expiry_day"]
@@ -215,7 +213,7 @@ class DhanSymbolValidator:
 
         # 1. Search Dhan instrument master
         all_insts = self.resolver.all_instruments()
-        
+
         matches = []
         for inst in all_insts:
             # Check underlying name
@@ -224,7 +222,7 @@ class DhanSymbolValidator:
                 inst_und = inst.symbol.split("-")[0]
             if not inst_und and inst.canonical_symbol:
                 inst_und = inst.canonical_symbol.split()[0]
-                
+
             if inst_und.upper() != underlying:
                 continue
 
@@ -246,7 +244,7 @@ class DhanSymbolValidator:
             if opt_type is not None:
                 if inst.option_type is None:
                     continue
-                inst_opt_type = "CE" if inst.option_type == OptionType.CALL else "PE"
+                inst_opt_type = "CALL" if inst.option_type == OptionType.CALL else "PUT"
                 if inst_opt_type != opt_type:
                     continue
 
@@ -256,7 +254,7 @@ class DhanSymbolValidator:
                     dt = datetime.strptime(inst.expiry[:10], "%Y-%m-%d")
                     inst_month = dt.strftime("%b").upper()
                     inst_day = dt.day
-                    
+
                     if inst_month != exp_month:
                         continue
                     if exp_day is not None and inst_day != exp_day:
@@ -293,7 +291,7 @@ class DhanSymbolValidator:
             # If a weekly expiry, it usually falls on a Wednesday or Thursday.
             likely_year = None
             current_yr = datetime.now().year
-            
+
             # Find a year where the day of the week matches typical F&O expiry days (Wed/Thu)
             # or default to current year
             target_day = exp_day if exp_day is not None else 25 # fallback
@@ -306,10 +304,10 @@ class DhanSymbolValidator:
                         break
                 except ValueError:
                     continue
-                    
+
             if not likely_year:
                 likely_year = current_yr
-                
+
             expiry_str = f"{likely_year}-{month_num:02d}-{target_day:02d}"
             try:
                 expiry_date = date(likely_year, month_num, target_day)
@@ -354,7 +352,7 @@ class DhanSymbolValidator:
                 "strike": strike,
                 "optionType": opt_type,
                 "status": "AMBIGUOUS",
-                "message": f"Multiple matching instruments found in active master.",
+                "message": "Multiple matching instruments found in active master.",
                 "candidates": candidates
             }
 

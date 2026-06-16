@@ -11,7 +11,7 @@ The method names tested here match the actual MarketDataGateway ABC
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any, ClassVar
+from typing import Any
 
 import pandas as pd
 import pytest
@@ -19,15 +19,9 @@ import pytest
 from brokers.common.core.domain import (
     Balance,
     DepthLevel,
-    Holding,
     MarketDepth,
-    Order,
-    OrderResponse,
     OrderStatus,
-    Position,
     Quote,
-    Side,
-    Trade,
 )
 from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
 

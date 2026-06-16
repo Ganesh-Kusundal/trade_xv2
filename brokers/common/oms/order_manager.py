@@ -10,10 +10,11 @@ from __future__ import annotations
 import logging
 import threading
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Any, Callable
+from typing import Any
 
 from brokers.common.core.domain import Order, OrderStatus, OrderType, ProductType, Side, Trade
 from brokers.common.event_bus import (

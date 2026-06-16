@@ -4,8 +4,6 @@ from __future__ import annotations
 import time
 from unittest.mock import MagicMock
 
-import pytest
-
 from brokers.common.event_bus import DomainEvent, EventBus
 from brokers.common.lifecycle import HealthState, LifecycleManager
 from brokers.common.observability.event_metrics import EventMetrics

@@ -5,12 +5,12 @@ from __future__ import annotations
 from datalake.schema import (
     ARROW_SCHEMA,
     CANONICAL_COLUMNS,
+    HIVE_PARTITION_TEMPLATE,
     OPTIONAL_COLUMNS,
     TIMEFRAMES,
-    UNIVERSE_FILES,
-    UNIVERSE_DIR,
     TRADEJ_SCHEMA,
-    HIVE_PARTITION_TEMPLATE,
+    UNIVERSE_DIR,
+    UNIVERSE_FILES,
 )
 
 
@@ -20,7 +20,7 @@ class TestCanonicalColumns:
 
     def test_required_column_names(self) -> None:
         expected = ["timestamp", "symbol", "exchange", "open", "high", "low", "close", "volume", "oi"]
-        assert CANONICAL_COLUMNS == expected
+        assert expected == CANONICAL_COLUMNS
 
     def test_first_column_is_timestamp(self) -> None:
         assert CANONICAL_COLUMNS[0] == "timestamp"

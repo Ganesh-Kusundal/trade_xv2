@@ -5,25 +5,24 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from datetime import datetime
-from typing import Optional
 
 from brokers.common.event_bus import EventBus
 from brokers.common.lifecycle import LifecycleManager
 from brokers.common.oms.risk_manager import RiskManager
-from brokers.dhan.http_client import DhanHttpClient
-from brokers.dhan.resolver import SymbolResolver
-from brokers.dhan.loader import InstrumentLoader
-from brokers.dhan.market_data import MarketDataAdapter
-from brokers.dhan.historical import HistoricalAdapter
-from brokers.dhan.orders import OrdersAdapter
-from brokers.dhan.portfolio import PortfolioAdapter
-from brokers.dhan.options import OptionsAdapter
-from brokers.dhan.futures import FuturesAdapter
-from brokers.dhan.margin import MarginAdapter
 from brokers.dhan.alerts import AlertsAdapter
-from brokers.dhan.websocket import DhanMarketFeed, DhanOrderStream, PollingMarketFeed
 from brokers.dhan.depth_20 import DhanDepth20Feed
 from brokers.dhan.depth_200 import DhanDepth200Feed
+from brokers.dhan.futures import FuturesAdapter
+from brokers.dhan.historical import HistoricalAdapter
+from brokers.dhan.http_client import DhanHttpClient
+from brokers.dhan.loader import InstrumentLoader
+from brokers.dhan.margin import MarginAdapter
+from brokers.dhan.market_data import MarketDataAdapter
+from brokers.dhan.options import OptionsAdapter
+from brokers.dhan.orders import OrdersAdapter
+from brokers.dhan.portfolio import PortfolioAdapter
+from brokers.dhan.resolver import SymbolResolver
+from brokers.dhan.websocket import DhanMarketFeed, DhanOrderStream, PollingMarketFeed
 
 logger = logging.getLogger(__name__)
 
@@ -47,12 +46,12 @@ class DhanConnection:
     def __init__(
         self,
         client: DhanHttpClient,
-        resolver: Optional[SymbolResolver] = None,
-        event_bus: Optional[EventBus] = None,
-        risk_manager: Optional[RiskManager] = None,
-        backfill_callback: Optional[Callable[[str, datetime, datetime], list[dict]]] = None,
-        reconciliation_service: Optional[object] = None,
-        lifecycle: Optional[LifecycleManager] = None,
+        resolver: SymbolResolver | None = None,
+        event_bus: EventBus | None = None,
+        risk_manager: RiskManager | None = None,
+        backfill_callback: Callable[[str, datetime, datetime], list[dict]] | None = None,
+        reconciliation_service: object | None = None,
+        lifecycle: LifecycleManager | None = None,
     ):
         self._client = client
         self.instruments = resolver or SymbolResolver()
@@ -72,11 +71,11 @@ class DhanConnection:
         self._futures = FuturesAdapter(client, self.instruments)
         self._margin = MarginAdapter(client, self.instruments)
         self._alerts = AlertsAdapter(client, self.instruments)
-        self._market_feed: Optional[DhanMarketFeed] = None
-        self._order_stream: Optional[DhanOrderStream] = None
-        self._polling_feed: Optional[PollingMarketFeed] = None
-        self._depth_20_feed: Optional[DhanDepth20Feed] = None
-        self._depth_200_feed: Optional[DhanDepth200Feed] = None
+        self._market_feed: DhanMarketFeed | None = None
+        self._order_stream: DhanOrderStream | None = None
+        self._polling_feed: PollingMarketFeed | None = None
+        self._depth_20_feed: DhanDepth20Feed | None = None
+        self._depth_200_feed: DhanDepth200Feed | None = None
         self._backfill_callback = backfill_callback
         self._reconciliation_service = reconciliation_service
 
@@ -109,7 +108,7 @@ class DhanConnection:
         return self._margin
 
     @property
-    def event_bus(self) -> Optional[EventBus]:
+    def event_bus(self) -> EventBus | None:
         return self._event_bus
 
     @property
@@ -117,17 +116,17 @@ class DhanConnection:
         return self._alerts
 
     @property
-    def backfill_callback(self) -> Optional[Callable[[str, datetime, datetime], list[dict]]]:
+    def backfill_callback(self) -> Callable[[str, datetime, datetime], list[dict]] | None:
         """Backfill callback for market feed reconnect gap fill."""
         return self._backfill_callback
 
     @property
-    def reconciliation_service(self) -> Optional[object]:
+    def reconciliation_service(self) -> object | None:
         """Reconciliation service wired into the trading context."""
         return self._reconciliation_service
 
     @property
-    def market_feed(self) -> Optional[DhanMarketFeed]:
+    def market_feed(self) -> DhanMarketFeed | None:
         """Real-time market data feed (lazy — None until explicitly created)."""
         return self._market_feed
 
@@ -136,7 +135,7 @@ class DhanConnection:
         self._market_feed = value
 
     @property
-    def order_stream(self) -> Optional[DhanOrderStream]:
+    def order_stream(self) -> DhanOrderStream | None:
         """Real-time order update stream (lazy — None until explicitly created)."""
         return self._order_stream
 
@@ -144,7 +143,11 @@ class DhanConnection:
     def order_stream(self, value: DhanOrderStream) -> None:
         self._order_stream = value
 
-    def load_instruments(self, source: Optional[str] = None, use_cache: bool = True) -> None:
+    def load_instruments(self, source: str | None = None, use_cache: bool = True) -> None:
+        """Load instruments into memory resolver."""
+        import time
+
+        start = time.monotonic()
         if source is not None:
             if source.startswith(("http://", "https://")):
                 rows = InstrumentLoader.load_from_url(source)
@@ -154,7 +157,21 @@ class DhanConnection:
             rows = InstrumentLoader.load_cached()
         else:
             rows = InstrumentLoader.load_cached(force_refresh=True)
+        load_time = time.monotonic() - start
+
+        logger.info(
+            "instrument_load_completed",
+            extra={"count": len(rows), "load_time_s": round(load_time, 2), "source": source or "cached"},
+        )
+
+        start = time.monotonic()
         self.instruments.load_from_rows(rows)
+        memory_time = time.monotonic() - start
+
+        logger.info(
+            "instrument_memory_load_completed",
+            extra={"count": len(rows), "memory_time_s": round(memory_time, 2)},
+        )
 
     def create_market_feed(
         self,
@@ -215,7 +232,7 @@ class DhanConnection:
         instrument: tuple[str, str] | None = None,
     ) -> DhanDepth20Feed:
         """Create and return a DhanDepth20Feed for 20-level depth.
-        
+
         NSE Equity and Derivatives only. Max 50 instruments per connection.
         """
         feed = DhanDepth20Feed(
@@ -238,7 +255,7 @@ class DhanConnection:
         instrument: tuple[str, str] | None = None,
     ) -> DhanDepth200Feed:
         """Create and return a DhanDepth200Feed for 200-level depth.
-        
+
         NSE Equity and Derivatives only. Max 1 instrument per connection.
         """
         feed = DhanDepth200Feed(

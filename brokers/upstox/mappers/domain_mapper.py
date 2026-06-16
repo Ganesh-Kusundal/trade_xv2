@@ -14,16 +14,16 @@ from decimal import Decimal
 from typing import Any
 
 from brokers.common.core.domain import (
-    ExchangeSegment,
-    InstrumentType,
-)
-from brokers.common.core.domain import (
     DepthLevel,
+    ExchangeSegment,
     FundLimits,
+    HistoricalCandle,
     Holding,
+    InstrumentType,
     MarketDepth,
     OptionContract,
     Order,
+    OrderRequest,
     OrderResponse,
     OrderStatus,
     OrderType,
@@ -33,10 +33,6 @@ from brokers.common.core.domain import (
     Side,
     Trade,
     Validity,
-)
-from brokers.common.core.domain import (
-    HistoricalCandle,
-    OrderRequest,
 )
 
 from .price_parser import UpstoxPriceParser
@@ -183,13 +179,13 @@ class UpstoxDomainMapper:
 
     @staticmethod
     def segment_from_wire(segment: str) -> ExchangeSegment:
-        from ..instruments.segment_mapper import UpstoxSegmentMapper
+        from brokers.upstox.instruments.segment_mapper import UpstoxSegmentMapper
 
         return UpstoxSegmentMapper.to_safe(segment)
 
     @staticmethod
     def segment_to_wire(segment: ExchangeSegment) -> str:
-        from ..instruments.segment_mapper import UpstoxSegmentMapper
+        from brokers.upstox.instruments.segment_mapper import UpstoxSegmentMapper
 
         return UpstoxSegmentMapper.to_wire(segment)
 
@@ -413,12 +409,12 @@ class UpstoxDomainMapper:
             ).value,
             exchange=str(payload.get("exchange") or "NFO"),
             lot_size=_to_int(payload.get("lot_size")),
-            ce_ltp=UpstoxPriceParser.parse(
+            call_ltp=UpstoxPriceParser.parse(
                 payload.get("call_options", {}).get("market_data", {}).get("ltp") or 0
             )
             if isinstance(payload.get("call_options"), dict)
             else None,
-            pe_ltp=UpstoxPriceParser.parse(
+            put_ltp=UpstoxPriceParser.parse(
                 payload.get("put_options", {}).get("market_data", {}).get("ltp") or 0
             )
             if isinstance(payload.get("put_options"), dict)

@@ -14,12 +14,8 @@ from __future__ import annotations
 
 import socket
 from decimal import Decimal
-from unittest.mock import MagicMock
-
-import pytest
 
 from brokers.common.lifecycle import LifecycleManager
-from brokers.common.observability.event_metrics import EventMetrics
 from brokers.common.observability.http_server import HttpObservabilityServer
 
 
@@ -57,12 +53,14 @@ def test_lifecycle_starts_empty_and_http_observability_is_none() -> None:
 def test_extra_gauges_returns_daily_pnl_and_kill_switch() -> None:
     """The extra_gauges_fn returns the OMS risk state as Prometheus
     gauges. daily_pnl is a Decimal; kill_switch_active is 1/0."""
-    from cli.services.broker_service import BrokerService
     from brokers.common.oms import (
-        PositionManager, RiskConfig, RiskManager,
+        PositionManager,
+        RiskConfig,
+        RiskManager,
     )
+    from cli.services.broker_service import BrokerService
 
-    bs = BrokerService()
+    BrokerService()
     rm = RiskManager(
         position_manager=PositionManager(),
         config=RiskConfig(),

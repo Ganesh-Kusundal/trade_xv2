@@ -6,10 +6,10 @@ import pandas as pd
 from rich.console import Console
 from rich.table import Table
 
-from analytics.backtest import BacktestEngine, BacktestConfig
-from analytics.pipeline import FeaturePipeline, RSI, ATR, SMA
-from analytics.paper import PaperTradingEngine, PaperConfig
-from analytics.strategy import StrategyPipeline, MomentumStrategy
+from analytics.backtest import BacktestConfig, BacktestEngine
+from analytics.paper import PaperConfig, PaperTradingEngine
+from analytics.pipeline import ATR, RSI, SMA, FeaturePipeline
+from analytics.strategy import MomentumStrategy, StrategyPipeline
 
 
 def run_backtest(args: list[str], console: Console) -> None:

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Optional
 
 from brokers.common.core.domain import Order, OrderStatus, Side, Trade
 from brokers.common.gateway import MarketDataGateway
@@ -20,18 +19,18 @@ class OmsService:
 
     def __init__(
         self,
-        gateway: Optional[MarketDataGateway] = None,
+        gateway: MarketDataGateway | None = None,
         trading_context: TradingContext | None = None,
     ) -> None:
         self._gw = gateway
         self._ctx = trading_context
 
     @property
-    def gateway(self) -> Optional[MarketDataGateway]:
+    def gateway(self) -> MarketDataGateway | None:
         return self._gw
 
     @property
-    def trading_context(self) -> Optional[TradingContext]:
+    def trading_context(self) -> TradingContext | None:
         return self._ctx
 
     def _orders(self) -> list[Order]:
@@ -105,7 +104,7 @@ class OmsService:
         exchange: str = "NSE",
         side: str | Side = "BUY",
         quantity: int = 0,
-        price: Optional[Decimal] = None,
+        price: Decimal | None = None,
         order_type: str = "MARKET",
     ) -> Order:
         """Place order via the OMS OrderManager.
@@ -117,11 +116,13 @@ class OmsService:
         event-bus publishing.
         """
         if self._ctx is not None:
-            from brokers.common.oms.order_manager import OrderRequest
             from brokers.common.core.domain import (
                 OrderType as Ot,
+            )
+            from brokers.common.core.domain import (
                 ProductType as Pt,
             )
+            from brokers.common.oms.order_manager import OrderRequest
             try:
                 ot = Ot(order_type)
             except ValueError:

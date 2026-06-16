@@ -15,9 +15,8 @@ from decimal import Decimal
 from typing import Any
 from unittest.mock import MagicMock
 
+from brokers.common.core.domain import Quote
 from brokers.upstox.gateway import UpstoxBrokerGateway
-from brokers.common.core.models import Quote
-
 
 # ---------------------------------------------------------------------------
 # Helpers

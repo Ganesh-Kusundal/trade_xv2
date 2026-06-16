@@ -33,7 +33,6 @@ import logging
 import threading
 import time as _time
 from datetime import datetime, timedelta, timezone
-from typing import Optional
 
 from brokers.common.lifecycle.lifecycle import (
     HealthState,
@@ -92,14 +91,14 @@ class DailyPnlResetScheduler(ManagedService):
         self._rollover_hour = rollover_hour_ist
         self._poll_interval = poll_interval_seconds
         self._stop_event = threading.Event()
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         # The last rollover moment (as a Unix timestamp) we already
         # fired on. Used to prevent double-firing if the loop iterates
         # more than once within the same rollover window.
         self._last_reset_unix: float = 0.0
         # Monotonic counters for health().
         self._reset_count: int = 0
-        self._last_error: Optional[str] = None
+        self._last_error: str | None = None
         self._start_time_monotonic: float = 0.0
 
     # ── ManagedService protocol ─────────────────────────────────────────

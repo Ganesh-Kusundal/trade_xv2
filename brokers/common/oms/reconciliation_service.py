@@ -144,7 +144,7 @@ class ReconciliationService(ManagedService):
                 break
             try:
                 self._run_once()
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 self._last_error = f"{type(exc).__name__}: {exc}"
                 logger.error("Reconciliation loop error: %s", exc)
 
@@ -165,7 +165,7 @@ class ReconciliationService(ManagedService):
             else:
                 self._last_drift_count = 0
             self._last_error = None
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             self._last_error = f"{type(exc).__name__}: {exc}"
             logger.error("Reconciliation failed: %s", exc)
             return None
@@ -184,6 +184,6 @@ class ReconciliationService(ManagedService):
                             },
                         )
                     )
-                except Exception:  # noqa: BLE001
+                except Exception:
                     logger.exception("Failed to publish RECONCILIATION_COMPLETED")
         return report

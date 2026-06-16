@@ -14,10 +14,8 @@ from unittest.mock import MagicMock
 import pandas as pd
 import pytest
 
-from brokers.common.core.domain import FundLimits
 from brokers.common.intelligent_gateway import IntelligentGateway
 from brokers.common.observability.event_metrics import EventMetrics
-
 
 # ── Fixtures ────────────────────────────────────────────────────────────
 
@@ -70,10 +68,10 @@ def test_upstox_failure_logs_and_meters_then_falls_back_to_dhan(
     assert len(fallback_logs) == 1
     rec = fallback_logs[0]
     assert rec.levelname == "WARNING"
-    assert getattr(rec, "operation") == "ltp"
-    assert getattr(rec, "broker") == "upstox"
-    assert getattr(rec, "exception_type") == "ConnectionError"
-    assert "upstox 503" in getattr(rec, "exception_message")
+    assert rec.operation == "ltp"
+    assert rec.broker == "upstox"
+    assert rec.exception_type == "ConnectionError"
+    assert "upstox 503" in rec.exception_message
 
 
 def test_dhan_failure_logs_and_meters_then_falls_back_to_upstox(
@@ -89,7 +87,7 @@ def test_dhan_failure_logs_and_meters_then_falls_back_to_upstox(
     assert _fallback_count(metrics, "history", "dhan") == 1
     fallback_logs = [r for r in caplog.records if r.message == "intelligent_gateway_fallback"]
     assert len(fallback_logs) == 1
-    assert getattr(fallback_logs[0], "exception_type") == "TimeoutError"
+    assert fallback_logs[0].exception_type == "TimeoutError"
 
 
 def test_both_brokers_fail_secondary_exception_propagates(metrics: EventMetrics) -> None:

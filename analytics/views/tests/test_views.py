@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import tempfile
 from pathlib import Path
 
 import duckdb
@@ -10,11 +9,10 @@ import pytest
 
 from analytics.views.base import BaseViews
 from analytics.views.features import FeatureViews
-from analytics.views.scanner import ScannerViews
-from analytics.views.strategy import StrategyViews
-from analytics.views.quality import QualityViews
-from analytics.views.validator import PointInTimeValidator
 from analytics.views.manager import ViewManager
+from analytics.views.quality import QualityViews
+from analytics.views.scanner import ScannerViews
+from analytics.views.validator import PointInTimeValidator
 
 
 @pytest.fixture
@@ -198,6 +196,9 @@ class TestScannerViews:
 
 class TestQualityViews:
     def test_create_duplicate_candles(self, conn: duckdb.DuckDBPyConnection) -> None:
+        # Create materialized tables that quality views now depend on
+        conn.execute("CREATE TABLE IF NOT EXISTS m_duplicate_candles (symbol VARCHAR, timestamp TIMESTAMP, duplicate_count BIGINT)")
+        conn.execute("CREATE TABLE IF NOT EXISTS m_missing_candles (symbol VARCHAR, trade_date DATE, minute_count BIGINT)")
         views = QualityViews()
         views._create_duplicate_candles(conn)
         result = conn.execute("SELECT COUNT(*) FROM v_duplicate_candles").fetchone()

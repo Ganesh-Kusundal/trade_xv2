@@ -12,10 +12,11 @@ import json
 import logging
 import os
 import threading
-from datetime import date, datetime, timezone
+from collections.abc import Callable
+from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from brokers.common.event_bus import DomainEvent
 
@@ -38,7 +39,7 @@ def _serialize_value(value: Any) -> Any:
     """Best-effort serialization of domain objects and primitives."""
     if value is None:
         return None
-    if isinstance(value, (str, int, float, bool)):
+    if isinstance(value, str | int | float | bool):
         return value
     if isinstance(value, Decimal):
         return {"__type__": "decimal", "value": str(value)}
@@ -54,7 +55,7 @@ def _serialize_value(value: Any) -> Any:
         for field in dataclasses.fields(value):
             result[field.name] = _serialize_value(getattr(value, field.name))
         return result
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, list | tuple):
         return [_serialize_value(v) for v in value]
     if isinstance(value, dict):
         return {k: _serialize_value(v) for k, v in value.items()}
@@ -215,7 +216,7 @@ class EventLog:
         files = sorted(self._events_dir.glob("*.jsonl"))
         for path in files:
             try:
-                with open(path, "r", encoding="utf-8") as f:
+                with open(path, encoding="utf-8") as f:
                     # Read all lines up front so newly appended events during
                     # replay are not recursively processed.
                     lines = [line.strip() for line in f if line.strip()]
@@ -257,7 +258,7 @@ class EventLog:
                 self._current_handle = None
                 self._current_file = None
 
-    def __enter__(self) -> "EventLog":
+    def __enter__(self) -> EventLog:
         return self
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:

@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any
 
 import pandas as pd
 
 from brokers.common.batch_mixin import BatchFetchMixin
+from brokers.common.core.domain import OrderResponse, Quote
 from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
-from brokers.common.core.domain import OrderResponse
 from brokers.upstox.broker import UpstoxBroker
 
 
@@ -93,7 +93,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         return Quote(symbol=symbol)
 
     def depth(self, symbol: str, exchange: str = "NSE") -> Any:
-        from brokers.common.core.domain import MarketDepth, DepthLevel
+        from brokers.common.core.domain import DepthLevel, MarketDepth
         key = self._resolve_instrument_key(symbol, exchange)
         body = self._broker.market_data_v2.get_order_book(key)
         data = body.get("data", {})
@@ -113,12 +113,19 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         return self._broker.order_query.get_order_list()
 
     def get_trade_book(self) -> list[Any]:
-        return []
+        raise NotImplementedError(
+            "Upstox trade book endpoint is not available. Use orders/get_trades() instead."
+        )
 
     # ── Lifecycle ──
 
-    def load_instruments(self, source: Optional[str] = None) -> None:
+    def load_instruments(self, source: str | None = None) -> None:
+        import logging
+        import time
         from pathlib import Path
+
+        logger = logging.getLogger(__name__)
+
         cache_path = Path(".cache/upstox/complete.json.gz")
         if source:
             path = Path(source)
@@ -126,8 +133,22 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
             path = cache_path
         else:
             path = self._broker.instrument_loader.download(cache_path)
+
+        start = time.monotonic()
         defs = self._broker.instrument_loader.load(path)
+        load_time = time.monotonic() - start
+        logger.info(
+            "instrument_load_completed",
+            extra={"count": len(defs), "load_time_s": round(load_time, 2), "source": source or "cached"},
+        )
+
+        start = time.monotonic()
         self._broker.instrument_resolver.register_many(defs)
+        memory_time = time.monotonic() - start
+        logger.info(
+            "instrument_memory_load_completed",
+            extra={"count": len(defs), "memory_time_s": round(memory_time, 2)},
+        )
 
     def close(self) -> None:
         self._broker.disconnect()
@@ -175,7 +196,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         from datetime import datetime
         to_dt = datetime.strptime(to_date, "%Y-%m-%d").date()
         from_dt = datetime.strptime(from_date, "%Y-%m-%d").date()
-        
+
         # V3 limits: 1 month for minutes, 1 quarter for hours, 1 decade for days
         if unit == "minutes":
             max_days = 30
@@ -183,10 +204,10 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
             max_days = 90
         else:
             max_days = 3650  # 10 years for days/weeks/months
-        
+
         if (to_dt - from_dt).days > max_days:
             from_dt = to_dt - timedelta(days=max_days)
-        
+
         # Use V3 client
         body = self._broker.historical_v3.get_candles(key, unit, interval, to_dt, from_dt)
         data = body.get("data", {})
@@ -221,22 +242,18 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         exchange: str = "NFO",
         expiry: str | None = None,
     ) -> dict:
-        # Upstox option expiry endpoint is deprecated
-        # Return empty chain with error message
-        return {
-            "underlying": underlying,
-            "expiry": expiry or "N/A",
-            "spot": 0,
-            "strikes": [],
-            "error": "Upstox option chain endpoint deprecated. Use Dhan for option chains."
-        }
+        raise NotImplementedError(
+            "Upstox option chain endpoint is deprecated. Use Dhan for option chains."
+        )
 
     def future_chain(
         self,
         underlying: str,
         exchange: str = "NFO",
     ) -> dict:
-        return {"underlying": underlying, "exchange": "NSE_FO", "expiries": [], "contracts": []}
+        raise NotImplementedError(
+            "Upstox future chain is not supported. Use Dhan for future chains."
+        )
 
     def funds(self) -> Any:
         return self._broker.portfolio.get_fund_limits()
@@ -300,7 +317,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
     ) -> Any:
         """Subscribe to a live tick stream for *symbol* on *exchange*.
 
-        The *on_tick* callback receives a canonical :class:`brokers.common.core.models.Quote`
+        The *on_tick* callback receives a canonical :class:`brokers.common.core.domain.Quote`
         object — broker-specific ``instrument_key`` values are never exposed to
         the caller.  If the resolver does not find a definition for the incoming
         key the raw payload dict is forwarded instead so nothing is silently
@@ -321,7 +338,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         # Wrap the caller's on_tick so it receives a Quote, not raw broker data.
         wrapped_listener = None
         if on_tick:
-            def wrapped_listener(_event_type: str, raw: dict[str, Any]) -> None:  # noqa: E306
+            def wrapped_listener(_event_type: str, raw: dict[str, Any]) -> None:
                 quote = self._translate_tick_to_quote(raw)
                 on_tick(quote)
 
@@ -354,20 +371,9 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
     # ── Internal ──
 
     def _resolve_instrument_key(self, symbol: str, exchange: str) -> str:
-        """Return the Upstox ``instrument_key`` for a canonical *symbol*.
-
-        Uses the symbol interceptor (SQLite cache) if available, falling back
-        to the legacy in-memory resolver, then to direct key construction.
-        """
+        """Return the Upstox instrument_key for a canonical symbol."""
         from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 
-        # Try symbol interceptor first (fast SQLite path with lazy refresh)
-        if hasattr(self._broker, 'symbol_interceptor') and self._broker.symbol_interceptor:
-            resolved = self._broker.symbol_interceptor.resolve("upstox", symbol, exchange)
-            if resolved:
-                return resolved.api_key
-
-        # Fallback to legacy in-memory resolver
         segment = UpstoxDomainMapper.segment_to_wire(exchange)
         if segment == 'NSE':
             segment = 'NSE_EQ'
@@ -376,11 +382,9 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         defn = self._broker.instrument_resolver.resolve(symbol=symbol, exchange_segment=segment)
         if defn:
             return defn.instrument_key
-
-        # Final fallback: construct key directly
         return f"{segment}|{symbol}"
 
-    def _translate_tick_to_quote(self, raw: dict[str, Any]) -> "Quote | dict[str, Any]":
+    def _translate_tick_to_quote(self, raw: dict[str, Any]) -> Quote | dict[str, Any]:
         """Translate a raw WebSocket tick frame into a canonical :class:`Quote`.
 
         The incoming *raw* dict has the shape produced by
@@ -398,12 +402,12 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         1. Extract ``instrument_key`` from the payload.
         2. Reverse-resolve the key to a :class:`~brokers.upstox.instruments.definition.UpstoxInstrumentDefinition`.
         3. Derive a canonical symbol via :meth:`_canonical_symbol_for_defn`.
-        4. Build and return a :class:`~brokers.common.core.models.Quote`.
+        4. Build and return a :class:`~brokers.common.core.domain.Quote`.
 
         If the key cannot be resolved the raw dict is returned unchanged so
         no data is silently dropped.
         """
-        from brokers.common.core.models import Quote
+        from brokers.common.core.domain import Quote
         try:
             payload = raw.get("payload") if isinstance(raw, dict) else raw
             if payload is None:
@@ -481,7 +485,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
                     else getattr(payload, "exchange_timestamp", None)
                 )
                 if ts_raw:
-                    if isinstance(ts_raw, (int, float)):
+                    if isinstance(ts_raw, int | float):
                         ts = datetime.fromtimestamp(ts_raw / 1000, tz=timezone.utc)
                     elif isinstance(ts_raw, str):
                         ts = datetime.fromisoformat(ts_raw)
@@ -557,7 +561,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         """Place an order via Upstox."""
         try:
             from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
-            segment = UpstoxDomainMapper.segment_to_wire(exchange)
+            UpstoxDomainMapper.segment_to_wire(exchange)
             key = self._resolve_instrument_key(symbol, exchange)
 
             # Map order type

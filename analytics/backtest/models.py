@@ -22,10 +22,9 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-import numpy as np
 import pandas as pd
 
-from analytics.replay.models import ReplayConfig, ReplayResult, Trade
+from analytics.replay.models import ReplayConfig, ReplayResult
 
 logger = logging.getLogger(__name__)
 

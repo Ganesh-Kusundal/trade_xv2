@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.resolver import SymbolResolver
 
@@ -57,7 +55,7 @@ class FuturesAdapter:
             for inst in instruments
         ]
 
-    def get_nearest(self, underlying: str, exchange: str) -> Optional[dict]:
+    def get_nearest(self, underlying: str, exchange: str) -> dict | None:
         contracts = self.get_contracts(underlying, exchange)
         return contracts[0] if contracts else None
 

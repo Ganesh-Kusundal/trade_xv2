@@ -11,10 +11,10 @@ import duckdb
 
 from analytics.views.base import BaseViews
 from analytics.views.features import FeatureViews
+from analytics.views.quality import QualityViews
 from analytics.views.scanner import ScannerViews
 from analytics.views.strategy import StrategyViews
-from analytics.views.quality import QualityViews
-from datalake.duckdb_utils import ThreadLocalConnectionPool, DEFAULT_CATALOG_PATH
+from datalake.duckdb_utils import DEFAULT_CATALOG_PATH, connect_with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ class ViewManager:
         self._path.parent.mkdir(parents=True, exist_ok=True)
         MATERIALIZED_DIR.mkdir(parents=True, exist_ok=True)
         self._read_only = read_only
-        self._pool = ThreadLocalConnectionPool(self._path, read_only=read_only)
+        self._conn: duckdb.DuckDBPyConnection | None = None
 
         self.base = BaseViews()
         self.features = FeatureViews()
@@ -53,10 +53,17 @@ class ViewManager:
 
     @property
     def conn(self) -> duckdb.DuckDBPyConnection:
-        return self._pool.get()
+        if self._conn is None:
+            self._conn = connect_with_retry(str(self._path), read_only=self._read_only)
+        return self._conn
 
     def close(self) -> None:
-        self._pool.close_all()
+        if self._conn is not None:
+            try:
+                self._conn.close()
+            except Exception:
+                pass
+            self._conn = None
 
     # ─── Materialization ─────────────────────────────────────────────────────
 
@@ -182,6 +189,7 @@ class ViewManager:
             ("materialize", self._materialize_intermediates),
             ("scanner", self.scanner.create_views),
             ("strategy", self.strategy.create_views),
+            ("materialize_quality", self._materialize_quality),
             ("quality", self.quality.create_views),
         ]
 
@@ -423,15 +431,69 @@ class ViewManager:
             except Exception as exc:
                 logger.error("Failed to materialize %s: %s", table_name, exc)
 
+    def _materialize_quality(self, conn: duckdb.DuckDBPyConnection) -> None:
+        """Materialize quality-related tables from v_candles_1m.
+
+        These are expensive GROUP BY operations over 231M Parquet rows that
+        would take seconds as live views. Materializing them brings query time
+        from ~14s to <50ms.
+        """
+        tables = [
+            # ─── Trading days: distinct (symbol, trade_date) pairs ───────────
+            # Used by v_quality_score for accurate completeness calculation
+            # across full history (not just the 50-day m_recent_daily window).
+            ("m_trading_days", """
+                SELECT DISTINCT symbol, CAST(timestamp AS DATE) as trade_date
+                FROM v_candles_1m
+            """),
+            # ─── Duplicate candles: GROUP BY symbol, timestamp on 231M rows ────
+            ("m_duplicate_candles", """
+                SELECT
+                    symbol,
+                    timestamp,
+                    COUNT(*) as duplicate_count
+                FROM v_candles_1m
+                GROUP BY symbol, timestamp
+                HAVING COUNT(*) > 1
+            """),
+            # ─── Missing candles: GROUP BY symbol, date on 231M rows ──────────
+            ("m_missing_candles", """
+                SELECT
+                    symbol,
+                    CAST(timestamp AS DATE) as trade_date,
+                    COUNT(DISTINCT EXTRACT(HOUR FROM timestamp) * 60 + EXTRACT(MINUTE FROM timestamp)) as minute_count
+                FROM v_candles_1m
+                WHERE EXTRACT(HOUR FROM timestamp) BETWEEN 9 AND 15
+                GROUP BY symbol, CAST(timestamp AS DATE)
+            """),
+        ]
+
+        for table_name, sql in tables:
+            try:
+                start = time.perf_counter()
+                self.materialize(table_name, sql)
+                self.register_materialized(table_name)
+                elapsed = time.perf_counter() - start
+                logger.info("Materialized %s (%.2fs)", table_name, elapsed)
+            except Exception as exc:
+                logger.error("Failed to materialize %s: %s", table_name, exc)
+
     def drop_all(self) -> None:
         """Drop all analytics views and materialized tables."""
         views = self.list_views()
         for v in views:
-            self.conn.execute(f"DROP VIEW IF EXISTS {v['name']}")
+            # Skip internal/system views (duckdb_*, information_schema, etc.)
+            if v["name"].startswith("duckdb_") or v["name"].startswith("information_"):
+                continue
+            try:
+                self.conn.execute(f"DROP VIEW IF EXISTS {v['name']}")
+            except Exception:
+                pass
         # Drop materialized tables
-        for tbl in ["m_intraday", "m_recent_daily", "m_symbol_snapshot", "m_intraday_snapshot"]:
+        for tbl in ["m_intraday", "m_recent_daily", "m_symbol_snapshot", "m_intraday_snapshot",
+                     "m_duplicate_candles", "m_missing_candles", "m_trading_days"]:
             self.conn.execute(f"DROP TABLE IF EXISTS {tbl}")
-        logger.info("Dropped %d views and materialized tables", len(views))
+        logger.info("Dropped views and materialized tables")
 
     def refresh(self) -> dict[str, float]:
         """Refresh all views (drop + recreate)."""
@@ -458,9 +520,9 @@ class ViewManager:
     # ─── Introspection ───────────────────────────────────────────────────────
 
     def list_views(self) -> list[dict]:
-        """List all views in the catalog."""
+        """List all user-created views in the catalog."""
         results = self.conn.execute(
-            "SELECT view_name, sql FROM duckdb_views() WHERE schema_name = 'main'"
+            "SELECT view_name, sql FROM duckdb_views() WHERE schema_name = 'main' AND internal = false"
         ).fetchall()
         return [{"name": r[0], "definition": r[1] or ""} for r in results]
 
@@ -489,11 +551,9 @@ class ViewManager:
             return []
 
     def view_count(self) -> int:
-        """Count total number of views."""
-        # duckdb_views() is the canonical catalog function — ~4x faster than
-        # pg_views and avoids depending on system view stability.
+        """Count total number of user-created views."""
         return self.conn.execute(
-            "SELECT COUNT(*) FROM duckdb_views() WHERE schema_name = 'main'"
+            "SELECT COUNT(*) FROM duckdb_views() WHERE schema_name = 'main' AND internal = false"
         ).fetchone()[0]
 
     def table_count(self) -> int:

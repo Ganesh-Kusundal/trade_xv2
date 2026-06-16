@@ -6,9 +6,9 @@ import pandas as pd
 from rich.console import Console
 from rich.table import Table
 
-from analytics.replay import ReplayEngine, ReplayConfig
-from analytics.pipeline import FeaturePipeline, RSI, ATR, SMA
-from analytics.strategy import StrategyPipeline, MomentumStrategy
+from analytics.pipeline import ATR, RSI, SMA, FeaturePipeline
+from analytics.replay import ReplayConfig, ReplayEngine
+from analytics.strategy import MomentumStrategy, StrategyPipeline
 
 
 def run_replay(args: list[str], console: Console) -> None:
@@ -18,7 +18,6 @@ def run_replay(args: list[str], console: Console) -> None:
     warmup = 20
     slippage = 0.01
     commission = 0.0003
-    speed = 1.0
     index = 0
     while index < len(args):
         arg = args[index]
@@ -38,7 +37,7 @@ def run_replay(args: list[str], console: Console) -> None:
             commission = float(args[index + 1])
             index += 2
         elif arg == "--speed" and index + 1 < len(args):
-            speed = float(args[index + 1])
+            float(args[index + 1])
             index += 2
         else:
             index += 1

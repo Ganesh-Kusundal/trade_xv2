@@ -18,9 +18,10 @@ def run(args: list[str], broker_service, console: Console) -> None:
 
     # Get gateway
     try:
+        from pathlib import Path
+
         from brokers.common.intelligent_gateway import IntelligentGateway
         from cli.services.broker_registry import create_gateway
-        from pathlib import Path
 
         dhan = create_gateway("dhan", env_path=Path('.env.local'), load_instruments=True)
         upstox = create_gateway("upstox", env_path=Path('.env.upstox'), load_instruments=True)
@@ -72,6 +73,6 @@ def run(args: list[str], broker_service, console: Console) -> None:
             table.add_row("Lot Size", str(defn.lot_size))
             console.print(table)
         else:
-            console.print(f"  Resolution failed: instrument not found")
+            console.print("  Resolution failed: instrument not found")
     except Exception as e:
         console.print(f"  Resolution failed: {e}")

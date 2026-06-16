@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, date
+from datetime import date, timedelta
 from pathlib import Path
 
 import pandas as pd
@@ -137,8 +137,9 @@ class DataQualityEngine:
 
     def check_universe(self, universe: str = "NIFTY500", timeframe: str = "1m") -> list[QualityReport]:
         """Check quality for all symbols in a universe."""
-        from datalake.schema import UNIVERSE_FILES
         import csv
+
+        from datalake.schema import UNIVERSE_FILES
 
         path = UNIVERSE_FILES.get(universe)
         if not path:
@@ -163,7 +164,6 @@ class DataQualityEngine:
 
     def _check_intraday_gaps(self, ts: pd.Series, timeframe: str, report: QualityReport) -> None:
         """Check for gaps in intraday data."""
-        from datalake.schema import TIMEFRAMES
         delta_map = {
             "1m": timedelta(minutes=1),
             "5m": timedelta(minutes=5),

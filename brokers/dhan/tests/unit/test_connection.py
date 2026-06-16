@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-import sys
 import os
+import sys
 
 # Ensure project root is on sys.path for direct pytest invocation
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 
 from brokers.dhan.connection import DhanConnection
 from brokers.dhan.resolver import SymbolResolver
-from brokers.dhan.tests.conftest import FakeHttpClient, SAMPLE_ROWS
+from brokers.dhan.tests.conftest import SAMPLE_ROWS, FakeHttpClient
 
 
 class TestDhanConnection:

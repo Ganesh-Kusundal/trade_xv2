@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import pandas as pd
-import pytest
 
 from analytics.backtest.comparator import (
     ComparisonResult,
-    compare_strategies,
     compare_parameters,
+    compare_strategies,
 )
 
 
