@@ -178,8 +178,9 @@ if __name__ == "__main__":
         logger.error("Add them to .env.local or export as environment variables")
         sys.exit(1)
 
-    logger.info(f"Client ID: {client_id}")
-    logger.info(f"Access token: {access_token[:20]}...")
+    # NEVER log credentials or token prefixes — only confirm presence.
+    # CWE-532: insertion of sensitive info into log file.
+    logger.info("DHAN credentials present (DHAN_CLIENT_ID, DHAN_ACCESS_TOKEN set)")
 
     # Run tests
     try:

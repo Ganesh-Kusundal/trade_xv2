@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import random
 
+from brokers.common.event_bus import EventBus
+
 
 class EventBusService:
     """Monitors event bus traffic and manages metrics/counters."""
 
     def __init__(self):
+        self.event_bus = EventBus()
         self._counters = {
             "Market Events": 0,
             "Signal Events": 0,

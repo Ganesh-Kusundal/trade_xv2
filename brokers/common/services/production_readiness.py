@@ -134,6 +134,7 @@ class ProductionReadinessChecker:
             ("dhan_token_present", self._check_dhan_token),
             ("http_observability_started", self._check_http_observability),
             ("lifecycle_started", self._check_lifecycle),
+            ("ssl_hardening", self._check_ssl_hardening),
         ]
 
     # ── Individual checks ─────────────────────────────────────────────
@@ -301,3 +302,36 @@ class ProductionReadinessChecker:
         if not snap:
             return False, "LifecycleManager has no services registered"
         return True, f"LifecycleManager has {len(snap)} service(s) registered"
+
+    def _check_ssl_hardening(self) -> tuple[bool, str]:
+        """REF-38: every outbound HTTP session in the live path MUST be
+        built with :class:`brokers.common.ssl_hardening.HardenedHTTPSAdapter`.
+
+        A session using the default ``requests`` adapter is acceptable
+        for tests but must not be used in live trading — the audit
+        flagged this as a P1 hardening gap because an accidental
+        ``verify=False`` is not caught at any layer.
+
+        The check inspects ``broker_service._http_sessions`` (a list
+        the CLI populates at startup). If no list is registered the
+        check is skipped — production deployments are required to
+        register at least one session, but absence here is logged
+        as a warning rather than a hard failure to avoid blocking
+        dry-runs.
+        """
+        sessions = getattr(self._svc, "_http_sessions", None)
+        if not sessions:
+            return True, (
+                "no outbound sessions registered for SSL check (acceptable "
+                "for dry-run; production must register hardened sessions)"
+            )
+        # Local import keeps the readiness module importable in tests
+        # that don't have requests installed.
+        from brokers.common.ssl_hardening import assert_secure_session
+
+        for idx, session in enumerate(sessions):
+            try:
+                assert_secure_session(session)
+            except RuntimeError as exc:
+                return False, f"http_sessions[{idx}] is not TLS-hardened: {exc}"
+        return True, f"all {len(sessions)} outbound session(s) use hardened TLS"

@@ -8,7 +8,7 @@ from decimal import Decimal
 from brokers.dhan.domain import Alert, AlertRequest
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.resolver import SymbolResolver
-from brokers.dhan.segments import EXCHANGE_TO_SEGMENT
+from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ class AlertsAdapter:
 
         # Resolve instrument
         inst = self._resolver.resolve(request.symbol, request.exchange)
-        segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, "NSE_EQ")
+        segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, DEFAULT_SEGMENT)
 
         # Build API payload
         payload = {

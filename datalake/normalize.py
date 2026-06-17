@@ -22,6 +22,7 @@ from pathlib import Path
 import duckdb
 
 from datalake.io import atomic_parquet_write
+from datalake.paths import DEFAULT_DATA_ROOT, DEFAULT_TIMEFRAME, symbol_partition_path
 from datalake.schema import CANONICAL_COLUMNS
 
 logger = logging.getLogger(__name__)
@@ -29,7 +30,11 @@ logger = logging.getLogger(__name__)
 MARKET_TZ = "Asia/Kolkata"
 
 
-def detect_timezone(conn: duckdb.DuckDBPyConnection, symbol: str, data_root: str = "market_data") -> str:
+def detect_timezone(
+    conn: duckdb.DuckDBPyConnection,
+    symbol: str,
+    data_root: str = DEFAULT_DATA_ROOT,
+) -> str:
     """Detect whether a symbol's data is in IST, UTC, or IST-shifted.
 
     Uses non-overlapping hour ranges to avoid double-counting:
@@ -42,7 +47,7 @@ def detect_timezone(conn: duckdb.DuckDBPyConnection, symbol: str, data_root: str
 
     Returns one of: 'IST', 'UTC', 'IST_SHIFTED', 'UNKNOWN', 'MIXED'.
     """
-    pattern = f"{data_root}/equities/candles/timeframe=1m/symbol={symbol}/data.parquet"
+    pattern = str(symbol_partition_path(data_root, symbol, DEFAULT_TIMEFRAME))
     try:
         rows = conn.execute(f"""
             SELECT EXTRACT(HOUR FROM timestamp) as hr, COUNT(*) as cnt
@@ -76,7 +81,7 @@ def detect_timezone(conn: duckdb.DuckDBPyConnection, symbol: str, data_root: str
 def normalize_symbol(
     conn: duckdb.DuckDBPyConnection,
     symbol: str,
-    data_root: str = "market_data",
+    data_root: str = DEFAULT_DATA_ROOT,
     dry_run: bool = False,
 ) -> str:
     """Normalize one symbol's Parquet file to IST timestamps.
@@ -91,7 +96,7 @@ def normalize_symbol(
     if tz == "UNKNOWN":
         return "SKIPPED"
 
-    path = Path(f"{data_root}/equities/candles/timeframe=1m/symbol={symbol}/data.parquet")
+    path = symbol_partition_path(data_root, symbol, DEFAULT_TIMEFRAME)
     if not path.exists():
         return "SKIPPED"
 
@@ -135,9 +140,9 @@ def normalize_symbol(
     return tz
 
 
-def normalize_all(dry_run: bool = False, data_root: str = "market_data") -> dict[str, int]:
+def normalize_all(dry_run: bool = False, data_root: str = DEFAULT_DATA_ROOT) -> dict[str, int]:
     """Normalize all symbols. Returns a count of each timezone detected."""
-    root = Path(f"{data_root}/equities/candles/timeframe=1m")
+    root = Path(data_root) / "equities" / "candles" / f"timeframe={DEFAULT_TIMEFRAME}"
     if not root.exists():
         logger.error("No data found at %s", root)
         return {}

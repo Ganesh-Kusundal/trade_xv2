@@ -243,3 +243,242 @@ class TestErrorCodes:
 
         assert BRO_ERR_AUTH_FAILED.startswith("BRO-")
         assert BRO_ERR_TIMEOUT.startswith("BRO-")
+
+
+# ============================================================================
+# REF-40: Guardrail enforcement — these tests fail CI if a known
+# regression pattern is reintroduced. They are deliberately
+# conservative: a false positive is acceptable, a false negative is
+# not. If a guardrail is too noisy, it should be tightened, not
+# removed.
+# ============================================================================
+
+
+def _file_contains_verify_false(filepath: Path) -> list[int]:
+    """Detect ``requests`` calls or ``Session`` constructions that pass
+    ``verify=False`` (REF-38: TLS hardening).
+
+    Catches:
+    - ``requests.get(..., verify=False)``
+    - ``Session(verify=False)``
+    - ``session.verify = False``
+    - ``httpx.Client(verify=False)``
+    """
+    lines: list[int] = []
+    try:
+        content = filepath.read_text()
+        tree = ast.parse(content, filename=str(filepath))
+        for node in ast.walk(tree):
+            # kwargs to calls
+            if isinstance(node, ast.Call):
+                for kw in node.keywords:
+                    if kw.arg == "verify":
+                        value = kw.value
+                        if isinstance(value, ast.Constant) and value.value is False:
+                            lines.append(node.lineno)
+            # assignments: ``session.verify = False``
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if (
+                        isinstance(target, ast.Attribute)
+                        and target.attr == "verify"
+                        and isinstance(node.value, ast.Constant)
+                        and node.value.value is False
+                    ):
+                        lines.append(node.lineno)
+    except (SyntaxError, UnicodeDecodeError):
+        pass
+    return lines
+
+
+def _file_contains_pickle_load(filepath: Path) -> list[int]:
+    """Detect ``pickle.load`` / ``pickle.loads`` on untrusted data
+    (REF-31: CWE-502).
+
+    The Upstox loader previously called ``pickle.load`` on a file
+    that may have been tampered with — a remote-code-execution
+    vector. This guard prevents that pattern from coming back.
+    """
+    lines: list[int] = []
+    try:
+        content = filepath.read_text()
+        tree = ast.parse(content, filename=str(filepath))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            # pickle.load / pickle.loads
+            is_pickle = (
+                isinstance(func, ast.Attribute)
+                and func.attr in ("load", "loads")
+                and isinstance(func.value, ast.Name)
+                and func.value.id == "pickle"
+            )
+            if is_pickle:
+                lines.append(node.lineno)
+    except (SyntaxError, UnicodeDecodeError):
+        pass
+    return lines
+
+
+def _file_contains_bare_token_log(filepath: Path) -> list[tuple[int, str]]:
+    """Detect logger calls that interpolate a variable whose name
+    contains ``token``, ``secret``, ``password``, ``api_key`` (REF-29:
+    logging redaction).
+
+    Catches:
+    - ``logger.info(f"token={t}")``
+    - ``logger.debug("api_key=%s", k)``
+    - ``logging.warning("password: %s", p)``
+
+    The redaction filter is defence-in-depth — code review should
+    prevent these in the first place. This guard enforces the
+    code-review half.
+    """
+    findings: list[tuple[int, str]] = []
+    sensitive_kw = ("token", "secret", "password", "api_key", "apikey")
+    logger_names = {"logger", "logging"}
+    logger_methods = {
+        "debug",
+        "info",
+        "warning",
+        "error",
+        "exception",
+        "critical",
+        "log",
+    }
+    try:
+        content = filepath.read_text()
+        tree = ast.parse(content, filename=str(filepath))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            # logger.info(...)  /  logging.warning(...)
+            if not isinstance(func, ast.Attribute):
+                continue
+            if func.attr not in logger_methods:
+                continue
+            if not isinstance(func.value, ast.Name) or func.value.id not in logger_names:
+                continue
+            # Inspect args
+            for arg in node.args:
+                # f-string interpolation
+                if isinstance(arg, ast.JoinedStr):
+                    for value in arg.values:
+                        if isinstance(value, ast.FormattedValue):
+                            if _expr_mentions_sensitive(value.value, sensitive_kw):
+                                findings.append((node.lineno, f"f-string with sensitive var"))
+                            continue
+                        if isinstance(value, ast.Constant) and isinstance(value.value, str):
+                            if any(kw in value.value.lower() for kw in sensitive_kw):
+                                findings.append((node.lineno, f"literal contains sensitive kw"))
+                # bare %s / .format string
+                elif isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                    if any(kw in arg.value.lower() for kw in ("token=", "secret=", "password=", "api_key=")):
+                        findings.append((node.lineno, f"format string mentions secret"))
+    except (SyntaxError, UnicodeDecodeError):
+        pass
+    return findings
+
+
+def _expr_mentions_sensitive(node: ast.AST, sensitive_kw: tuple[str, ...]) -> bool:
+    """Recursively walk an expression looking for variable names
+    whose identifier contains any of the sensitive keywords.
+    """
+    for sub in ast.walk(node):
+        if isinstance(sub, ast.Name):
+            if any(kw in sub.id.lower() for kw in sensitive_kw):
+                return True
+        if isinstance(sub, ast.Attribute):
+            if any(kw in sub.attr.lower() for kw in sensitive_kw):
+                return True
+    return False
+
+
+class TestGuardrailNoVerifyFalse:
+    """REF-38: no ``verify=False`` on outbound HTTP sessions in
+    production code. SSL hardening requires the ``HardenedHTTPSAdapter``
+    be used; this guard catches the regression where someone bypasses
+    the helper with ``verify=False``.
+    """
+
+    @pytest.mark.parametrize("directory", ["brokers", "scripts", "cli"])
+    def test_no_verify_false(self, directory: str):
+        if not (ROOT / directory).exists():
+            pytest.skip(f"{directory}/ not present")
+        files = _find_python_files([directory])
+        violations: dict[str, list[int]] = {}
+        for filepath in files:
+            # Skip the ssl_hardening module itself — it must be able
+            # to inspect ``verify=False`` to enforce the rule.
+            if "ssl_hardening" in str(filepath):
+                continue
+            if "/tests/" in str(filepath) or "/test_" in str(filepath):
+                continue
+            lines = _file_contains_verify_false(filepath)
+            if lines:
+                violations[str(filepath.relative_to(ROOT))] = lines
+        assert not violations, (
+            "verify=False detected in production code. "
+            "Use brokers.common.ssl_hardening.create_pinned_session() instead. "
+            f"Violations: {violations}"
+        )
+
+
+class TestGuardrailNoPickleLoad:
+    """REF-31: no ``pickle.load`` in production code. CWE-502
+    (deserialization of untrusted data) is a remote-code-execution
+    vector; the Upstox loader previously had this pattern.
+    """
+
+    @pytest.mark.parametrize("directory", ["brokers", "scripts", "cli"])
+    def test_no_pickle_load(self, directory: str):
+        if not (ROOT / directory).exists():
+            pytest.skip(f"{directory}/ not present")
+        files = _find_python_files([directory])
+        violations: dict[str, list[int]] = {}
+        for filepath in files:
+            # The migration tool itself may need to read legacy
+            # pickle files in a controlled environment. We allow
+            # it ONLY inside the broker that owns the loader and
+            # only when it is explicitly safe-guarded (file rename
+            # + quarantine + json rebuild). The loader module is
+            # allowed to *refer* to pickle for documentation; this
+            # guard rejects active ``pickle.load()`` calls anywhere
+            # except in tests of the guard itself.
+            if "/tests/" in str(filepath) or "/test_" in str(filepath):
+                continue
+            lines = _file_contains_pickle_load(filepath)
+            if lines:
+                violations[str(filepath.relative_to(ROOT))] = lines
+        assert not violations, (
+            "pickle.load() detected in production code. "
+            "Use json.load() or a domain-specific deserializer. "
+            f"Violations: {violations}"
+        )
+
+
+class TestGuardrailNoBareTokenLogging:
+    """REF-29: no logger call interpolating a token-named variable
+    in production code. The redaction filter is defence-in-depth;
+    code should not put secrets in logs in the first place.
+    """
+
+    @pytest.mark.parametrize("directory", ["brokers", "scripts", "cli"])
+    def test_no_bare_token_logging(self, directory: str):
+        if not (ROOT / directory).exists():
+            pytest.skip(f"{directory}/ not present")
+        files = _find_python_files([directory])
+        violations: dict[str, list[tuple[int, str]]] = {}
+        for filepath in files:
+            if "/tests/" in str(filepath) or "/test_" in str(filepath):
+                continue
+            findings = _file_contains_bare_token_log(filepath)
+            if findings:
+                violations[str(filepath.relative_to(ROOT))] = findings
+        assert not violations, (
+            "Token/secret/password interpolation in logger call detected. "
+            "Use extra={...} or pass an explicit redacted value. "
+            f"Violations: {violations}"
+        )

@@ -9,7 +9,7 @@ from brokers.dhan.domain import ConditionalTrigger, ConditionalTriggerRequest
 from brokers.dhan.exceptions import ConditionalTriggerError
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.resolver import SymbolResolver
-from brokers.dhan.segments import EXCHANGE_TO_SEGMENT
+from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ class ConditionalTriggersAdapter:
             raise ValueError(f"Conditional trigger validation failed: {msg}")
 
         inst = self._resolver.resolve(request.symbol, request.exchange)
-        segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, "NSE_EQ")
+        segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, DEFAULT_SEGMENT)
 
         payload = {
             "dhanClientId": self._client.client_id,
@@ -102,7 +102,7 @@ class ConditionalTriggersAdapter:
             ConditionalTriggerError: If API call fails
         """
         inst = self._resolver.resolve(request.symbol, request.exchange)
-        segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, "NSE_EQ")
+        segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, DEFAULT_SEGMENT)
 
         payload = {
             "exchangeSegment": segment,

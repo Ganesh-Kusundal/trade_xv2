@@ -9,7 +9,7 @@ import pandas as pd
 from brokers.dhan.exceptions import MarketDataError
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.resolver import SymbolResolver
-from brokers.dhan.segments import EXCHANGE_TO_SEGMENT
+from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ class HistoricalAdapter:
         timeframe: str = "1D",
     ) -> pd.DataFrame:
         inst = self._resolver.resolve(symbol, exchange)
-        segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, "NSE_EQ")
+        segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, DEFAULT_SEGMENT)
         interval = _TIMEFRAME_MAP.get(timeframe, timeframe)
         instrument_type = self._get_instrument_type(inst)
 
