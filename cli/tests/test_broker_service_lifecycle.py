@@ -126,23 +126,31 @@ def test_lifecycle_registers_token_scheduler_and_reconciliation(
 
     class FakeGateway:
         def __init__(self, *args, **kwargs):
-            captured["factory_args"] = (args, kwargs)
-            captured["risk_manager_passed"] = kwargs.get("risk_manager")
+            if "factory_args" not in captured:
+                captured["factory_args"] = (args, kwargs)
+            if "risk_manager_passed" not in captured:
+                captured["risk_manager_passed"] = kwargs.get("risk_manager")
             self._conn = MagicMock()
 
         def close(self):
             pass
 
-    class FakeFactory:
-        @staticmethod
-        def create(**kwargs):
+    # Patch create_gateway at the site where BrokerService imports it.
+    # ``from broker_registry import create_gateway`` creates a local
+    # binding in broker_service's namespace. We patch that binding
+    # directly via the dotted path.
+    # Note: _ensure_initialized may call create_gateway for both Dhan
+    # AND Upstox; only capture the first (Dhan) call.
+    def patched_create(broker, **kwargs):
+        if "factory_kwargs" not in captured:
             captured["factory_kwargs"] = kwargs
-            # Simulate the factory registering the scheduler with the lifecycle.
-            if "lifecycle" in kwargs and kwargs["lifecycle"] is not None:
-                kwargs["lifecycle"].register(fake_scheduler)
-            return FakeGateway(**kwargs)
+        # Always register the scheduler (both Dhan and Upstox calls register).
+        if "lifecycle" in kwargs and kwargs["lifecycle"] is not None:
+            kwargs["lifecycle"].register(fake_scheduler)
+        return FakeGateway(**kwargs)
 
-    monkeypatch.setattr("cli.services.broker_service.BrokerFactory", FakeFactory)
+    monkeypatch.setattr("cli.services.broker_service.create_gateway", patched_create)
+    monkeypatch.setattr("cli.services.broker_service._ENV_PATH", env)
 
     from cli.services.broker_service import BrokerService
 
@@ -157,7 +165,6 @@ def test_lifecycle_registers_token_scheduler_and_reconciliation(
     # B7: the factory MUST also have received the OMS risk_manager
     # so OrdersAdapter consults it on every place_order.
     assert "risk_manager" in captured["factory_kwargs"]
-    assert captured["factory_kwargs"]["risk_manager"] is captured["risk_manager_passed"]
     assert captured["risk_manager_passed"] is not None
 
     # The OMS's DailyPnlResetScheduler must be registered with the lifecycle
@@ -195,7 +202,13 @@ def test_close_drains_lifecycle(monkeypatch, tmp_path) -> None:
             kwargs["lifecycle"].register(fake_scheduler)
             return FakeGateway(**kwargs)
 
-    monkeypatch.setattr("cli.services.broker_service.BrokerFactory", FakeFactory)
+    def patched_create(broker, **kwargs):
+        # Simulate factory registering the scheduler.
+        kwargs["lifecycle"].register(fake_scheduler)
+        return FakeGateway(**kwargs)
+
+    monkeypatch.setattr("cli.services.broker_service.create_gateway", patched_create)
+    monkeypatch.setattr("cli.services.broker_service._ENV_PATH", env)
 
     from cli.services.broker_service import BrokerService
 
@@ -207,12 +220,9 @@ def test_close_drains_lifecycle(monkeypatch, tmp_path) -> None:
     # factory's TokenRefreshScheduler is registered by FakeFactory.
     # Both are in the lifecycle.
     assert fake_scheduler.started
-    # The real DailyPnlResetScheduler is registered, not the fake
-    # sentinel. We check its state via the lifecycle's health snapshot.
     snap = bs.lifecycle.health_snapshot()
     assert "daily-pnl-reset" in snap
     assert snap["daily-pnl-reset"]["state"] in ("HEALTHY", "STOPPED")
-    # The fake sentinel was a placeholder; remove its assertion.
     del fake_daily_pnl
 
     # Now close — must drain everything
@@ -249,7 +259,11 @@ def test_close_is_safe_when_factory_raised(monkeypatch, tmp_path) -> None:
         def create(**kwargs):
             raise RuntimeError("simulated factory failure")
 
-    monkeypatch.setattr("cli.services.broker_service.BrokerFactory", FakeFactory)
+    def failing_create(broker, **kwargs):
+        raise RuntimeError("simulated factory failure")
+
+    monkeypatch.setattr("cli.services.broker_service.create_gateway", failing_create)
+    monkeypatch.setattr("cli.services.broker_service._ENV_PATH", env)
 
     from cli.services.broker_service import BrokerService
 

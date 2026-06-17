@@ -85,8 +85,8 @@ def create_gateway(
     """
     broker = broker.lower().strip()
 
-    resolved = resolve_env_path(broker, env_path)
-
+    # Pass the env_path directly — builders handle None internally
+    # by falling back to their default env file convention.
     builders = {
         "dhan": _create_dhan,
         "upstox": _create_upstox,
@@ -98,7 +98,7 @@ def create_gateway(
         return None
 
     return builder(
-        resolved,
+        env_path,
         load_instruments=load_instruments,
         event_bus=event_bus,
         lifecycle=lifecycle,
@@ -128,7 +128,7 @@ def list_available_brokers() -> list[dict[str, Any]]:
 
 
 def _create_dhan(
-    env_path: Path | None,
+    env_path: str | Path | None,
     *,
     load_instruments: bool = True,
     event_bus: Any | None = None,
@@ -139,8 +139,9 @@ def _create_dhan(
     try:
         from brokers.dhan.factory import BrokerFactory
 
+        resolved = Path(env_path) if env_path is not None else None
         return BrokerFactory().create(
-            env_path=env_path,
+            env_path=resolved,
             load_instruments=load_instruments,
             event_bus=event_bus,
             lifecycle=lifecycle,
@@ -155,7 +156,7 @@ def _create_dhan(
 
 
 def _create_upstox(
-    env_path: Path | None,
+    env_path: str | Path | None,
     *,
     load_instruments: bool = True,
     event_bus: Any | None = None,
@@ -166,8 +167,9 @@ def _create_upstox(
     try:
         from brokers.upstox.factory import UpstoxBrokerFactory
 
+        resolved = Path(env_path) if env_path is not None else None
         return UpstoxBrokerFactory().create(
-            env_path=env_path,
+            env_path=resolved,
             load_instruments=load_instruments,
             event_bus=event_bus,
             lifecycle=lifecycle,

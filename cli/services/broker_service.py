@@ -11,7 +11,7 @@ from brokers.common.lifecycle import LifecycleManager
 from brokers.common.oms.context import TradingContext
 from brokers.paper import PaperGateway
 
-from cli.services.broker_registry import create_gateway, list_available_brokers
+from cli.services.broker_registry import create_gateway
 
 logger = logging.getLogger(__name__)
 
@@ -307,17 +307,21 @@ class BrokerService:
         # Try to create Upstox gateway using the unified registry.
         upstox_env_path = Path(".env.upstox")
         if upstox_env_path.exists():
-            self._upstox_gateway = create_gateway(
-                "upstox",
-                env_path=upstox_env_path,
-                load_instruments=True,
-                lifecycle=self._lifecycle,
-            )
-            if self._upstox_gateway is not None:
-                logger.info("Upstox BrokerGateway created")
-            else:
-                self._upstox_load_error = "create_gateway returned None"
-                logger.warning("Failed to create Upstox gateway")
+            try:
+                self._upstox_gateway = create_gateway(
+                    "upstox",
+                    env_path=upstox_env_path,
+                    load_instruments=True,
+                    lifecycle=self._lifecycle,
+                )
+                if self._upstox_gateway is not None:
+                    logger.info("Upstox BrokerGateway created")
+                else:
+                    self._upstox_load_error = "create_gateway returned None"
+                    logger.warning("Failed to create Upstox gateway")
+            except Exception as exc:
+                self._upstox_load_error = str(exc)
+                logger.warning("Failed to create Upstox gateway: %s", exc)
 
     def _start_websocket_services(self) -> None:
         """B-4: lazily create the market feed and order stream services
