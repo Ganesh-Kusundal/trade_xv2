@@ -6,6 +6,7 @@ import threading
 
 import pytest
 
+from brokers.common.core.domain import OrderRequest
 from brokers.dhan.domain import Order, OrderSide, OrderStatus, OrderType, ProductType, Validity
 from brokers.dhan.orders import IdempotencyCache, OrdersAdapter
 
@@ -78,7 +79,7 @@ def test_place_order_generates_correlation_id(fake_client, resolver):
     """If no correlation_id is supplied, one is generated and sent to Dhan."""
     fake_client.set_response("POST", "/orders", {"data": {"orderId": "ORD-GEN"}})
     adapter = OrdersAdapter(fake_client, resolver)
-    order = adapter.place_order(symbol="RELIANCE", exchange="NSE", quantity=1)
+    order = adapter.place_order(OrderRequest(symbol="RELIANCE", exchange="NSE", quantity=1))
 
     payloads = fake_client.calls_for("POST", "/orders")
     assert len(payloads) == 1
@@ -92,7 +93,7 @@ def test_place_order_uses_supplied_correlation_id(fake_client, resolver):
     fake_client.set_response("POST", "/orders", {"data": {"orderId": "ORD-SUP"}})
     adapter = OrdersAdapter(fake_client, resolver)
     cid = "my-correlation-id"
-    order = adapter.place_order(symbol="RELIANCE", exchange="NSE", quantity=1, correlation_id=cid)
+    order = adapter.place_order(OrderRequest(symbol="RELIANCE", exchange="NSE", quantity=1, correlation_id=cid))
 
     assert order.correlation_id == cid
     payloads = fake_client.calls_for("POST", "/orders")
@@ -105,8 +106,8 @@ def test_place_order_idempotency_returns_cached_order(fake_client, resolver):
     adapter = OrdersAdapter(fake_client, resolver)
     cid = "idem-cid"
 
-    first = adapter.place_order(symbol="RELIANCE", exchange="NSE", quantity=1, correlation_id=cid)
-    second = adapter.place_order(symbol="RELIANCE", exchange="NSE", quantity=1, correlation_id=cid)
+    first = adapter.place_order(OrderRequest(symbol="RELIANCE", exchange="NSE", quantity=1, correlation_id=cid))
+    second = adapter.place_order(OrderRequest(symbol="RELIANCE", exchange="NSE", quantity=1, correlation_id=cid))
 
     assert first is second
     assert fake_client.call_count == 1
@@ -124,12 +125,12 @@ def test_place_order_concurrent_idempotency_posts_once(fake_client, resolver):
     def worker() -> None:
         try:
             barrier.wait(timeout=2)
-            order = adapter.place_order(
+            order = adapter.place_order(OrderRequest(
                 symbol="RELIANCE",
                 exchange="NSE",
                 quantity=1,
                 correlation_id=cid,
-            )
+            ))
             results.append(order)
         except Exception as exc:
             errors.append(exc)
@@ -160,12 +161,12 @@ def test_place_order_concurrent_unique_correlation_ids(fake_client, resolver):
     def worker(idx: int) -> None:
         try:
             barrier.wait(timeout=2)
-            order = adapter.place_order(
+            order = adapter.place_order(OrderRequest(
                 symbol="RELIANCE",
                 exchange="NSE",
                 quantity=1,
                 correlation_id=f"unique-{idx}",
-            )
+            ))
             results.append(order)
         except Exception as exc:
             errors.append(exc)
@@ -190,7 +191,7 @@ def test_place_order_validation_failure_is_not_cached(fake_client, resolver):
     cid = "bad-order"
 
     with pytest.raises(OrderError):
-        adapter.place_order(symbol="RELIANCE", exchange="NSE", quantity=0, correlation_id=cid)
+        adapter.place_order(OrderRequest(symbol="RELIANCE", exchange="NSE", quantity=0, correlation_id=cid))
 
     assert fake_client.call_count == 0
     assert adapter._idempotency.get(cid) is None

@@ -50,6 +50,9 @@ class UpstoxOrderCommandAdapter(OrderCommand):
         self._risk_manager = risk_manager
 
     def place_order(self, request: OrderRequest) -> OrderResponse:
+        # NOTE: Exception policy divergence (F-20, P1) -- this adapter
+        # returns OrderResponse.fail() on errors; Dhan's OrdersAdapter
+        # raises OrderError. The gateway layer unifies both.
         if request.correlation_id and self._idempotency_cache is not None:
             cached = self._idempotency_cache.get(request.correlation_id)
             if cached is not None:

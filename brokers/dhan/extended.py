@@ -48,6 +48,29 @@ class DhanExtendedCapabilities:
         """Access the instrument resolver for symbol resolution."""
         return self._conn.instruments
 
+    @property
+    def orders(self) -> Any:
+        """Access the orders adapter (idempotency cache, validation, etc.)."""
+        return self._conn.orders
+
+    # ── Portfolio shortcuts (contract-suite compat) ─────────────────
+
+    def get_positions(self) -> list[Any]:
+        """Get current positions."""
+        return self._conn.portfolio.get_positions()
+
+    def get_holdings(self) -> list[Any]:
+        """Get current holdings."""
+        return self._conn.portfolio.get_holdings()
+
+    def get_balance(self) -> Any:
+        """Get account balance."""
+        return self._conn.portfolio.get_balance()
+
+    def get_expiries(self, underlying: str, exchange: str = "NFO") -> list[str]:
+        """Alias for get_option_expiries — used by contract suite."""
+        return self.get_option_expiries(underlying, exchange)
+
     # ── Super Orders (Bracket Orders) ─────────────────────────────────
 
     def place_super_order(self, **kwargs: Any) -> Any:

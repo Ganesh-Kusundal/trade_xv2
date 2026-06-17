@@ -80,11 +80,11 @@ class PaperTradingEngine:
 
     def __init__(
         self,
-        pipeline: FeaturePipeline,
+        pipeline: FeaturePipeline | None = None,
         strategy_pipeline: StrategyPipeline | None = None,
         config: PaperConfig | None = None,
     ) -> None:
-        self._pipeline = pipeline
+        self._pipeline = pipeline or FeaturePipeline()
         self._strategy = strategy_pipeline or StrategyPipeline()
         self._config = config or PaperConfig()
 
@@ -166,7 +166,7 @@ class PaperTradingEngine:
 
         # Run FeaturePipeline
         try:
-            features = self._pipeline.run(window_df) if self._pipeline is not None else window_df
+            features = self._pipeline.run(window_df)
         except Exception as exc:
             logger.warning("FeaturePipeline failed at bar %d: %s", session.bar_count, exc)
             features = window_df
@@ -175,7 +175,7 @@ class PaperTradingEngine:
         candidate = Candidate(symbol=bar.symbol, score=50.0, reasons=["live"])
 
         # Run StrategyPipeline
-        signals = self._strategy.evaluate_single(candidate, features) if self._strategy is not None else []
+        signals = self._strategy.evaluate_single(candidate, features)
 
         # Process signals
         for signal in signals:
@@ -241,7 +241,7 @@ class PaperTradingEngine:
 
             # Run FeaturePipeline
             try:
-                features = self._pipeline.run(window_df) if self._pipeline is not None else window_df
+                features = self._pipeline.run(window_df)
             except Exception as exc:
                 logger.warning(
                     "FeaturePipeline failed at bar %d: %s", session.bar_count, exc
@@ -252,7 +252,7 @@ class PaperTradingEngine:
             candidate = Candidate(symbol=symbol, score=50.0, reasons=["paper"])
 
             # Run StrategyPipeline
-            signals = self._strategy.evaluate_single(candidate, features) if self._strategy is not None else []
+            signals = self._strategy.evaluate_single(candidate, features)
 
             # Process signals
             for signal in signals:
@@ -329,13 +329,13 @@ class PaperTradingEngine:
                 # Feature pipeline
                 window_df = self._build_window(window, config.window_size)
                 try:
-                    features = self._pipeline.run(window_df) if self._pipeline is not None else window_df
+                    features = self._pipeline.run(window_df)
                 except Exception as exc:
                     logger.warning("FeaturePipeline failed for %s: %s", sym, exc)
                     features = window_df
 
                 candidate = Candidate(symbol=sym, score=50.0, reasons=["paper"])
-                signals = self._strategy.evaluate_single(candidate, features) if self._strategy is not None else []
+                signals = self._strategy.evaluate_single(candidate, features)
 
                 for signal in signals:
                     all_signals.append(signal)

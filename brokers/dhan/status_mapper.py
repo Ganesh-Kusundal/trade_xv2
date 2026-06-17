@@ -1,13 +1,17 @@
-"""Dhan order status mapper — translates Dhan-specific status strings to canonical."""
+"""Dhan order status mapper — translates Dhan-specific status strings to canonical.
+
+Extends :data:`brokers.common.status_mapper.COMMON_STATUS_MAP` with
+Dhan-specific status strings that have no Upstox equivalent.
+"""
 
 from __future__ import annotations
 
 from brokers.common.core.domain import OrderStatus
+from brokers.common.status_mapper import COMMON_STATUS_MAP
 
 DHAN_STATUS_MAP: dict[str, OrderStatus] = {
-    "EXECUTED": OrderStatus.FILLED,
-    "COMPLETE": OrderStatus.FILLED,
-    "TRADED": OrderStatus.FILLED,
+    **COMMON_STATUS_MAP,
+    # Dhan-specific additions
     "TRANSIT": OrderStatus.OPEN,
     "TRIGGER_PENDING": OrderStatus.OPEN,
     "PENDING": OrderStatus.OPEN,
@@ -15,14 +19,7 @@ DHAN_STATUS_MAP: dict[str, OrderStatus] = {
     "TRIGGERED": OrderStatus.OPEN,
     "OPEN_PENDING": OrderStatus.OPEN,
     "PUT_ORDER_REQ_RECEIVED": OrderStatus.OPEN,
-    "PARTIAL": OrderStatus.PARTIALLY_FILLED,
-    "PARTIALLY_EXECUTED": OrderStatus.PARTIALLY_FILLED,
     "PARTIALLY_CANCELLED": OrderStatus.PARTIALLY_FILLED,
-    "AFTER_MARKET_ORDER_REQ_RECEIVED": OrderStatus.OPEN,
-    "AMO": OrderStatus.OPEN,
-    "MARGIN_TRADED": OrderStatus.PARTIALLY_FILLED,
-    "CANCELLED": OrderStatus.CANCELLED,
-    "REJECTED": OrderStatus.REJECTED,
 }
 
 

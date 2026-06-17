@@ -147,16 +147,21 @@ class PositionManager:
         Re-entrancy: a position update that the manager itself publishes
         (via :meth:`apply_trade` or :meth:`upsert_position`) must not
         re-enter this handler.
+
+        Thread-safe: the depth guard is inside ``_lock`` (see
+        :class:`OrderManager.on_order_update`).
         """
-        if self._handler_depth > 0:
-            return
-        self._handler_depth += 1
+        with self._lock:
+            if self._handler_depth > 0:
+                return
+            self._handler_depth += 1
         try:
             trade = event.payload.get("trade")
             if isinstance(trade, Trade):
                 self.apply_trade(trade)
         finally:
-            self._handler_depth -= 1
+            with self._lock:
+                self._handler_depth -= 1
 
     def on_trade_applied(self, event: DomainEvent) -> None:
         """Apply a trade that has been verified by the OMS.
@@ -164,16 +169,20 @@ class PositionManager:
         Use this handler in production wiring; subscribing to raw
         ``TRADE`` events would bypass OMS idempotency and risk
         double-counting positions.
+
+        Thread-safe: the depth guard is inside ``_lock``.
         """
-        if self._handler_depth > 0:
-            return
-        self._handler_depth += 1
+        with self._lock:
+            if self._handler_depth > 0:
+                return
+            self._handler_depth += 1
         try:
             trade = event.payload.get("trade")
             if isinstance(trade, Trade):
                 self.apply_trade(trade)
         finally:
-            self._handler_depth -= 1
+            with self._lock:
+                self._handler_depth -= 1
 
     # ── Helpers ─────────────────────────────────────────────────────────────
 

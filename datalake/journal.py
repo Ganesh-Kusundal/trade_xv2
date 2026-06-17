@@ -46,18 +46,8 @@ CREATE TABLE IF NOT EXISTS trade_journal (
 );
 """
 
-SCANS_SCHEMA = """
-CREATE TABLE IF NOT EXISTS scan_results (
-    scan_id        TEXT,
-    scanner        TEXT NOT NULL,
-    symbol         TEXT NOT NULL,
-    score          REAL,
-    reasons        TEXT,
-    universe_size  INTEGER,
-    scanned_at     TEXT DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (scan_id, symbol)
-);
-"""
+# NOTE: scan_results moved to datalake/scan_store.py (DuckDB, single source of truth).
+# Old SCANS_SCHEMA and scan methods removed — I-16 fix.
 
 
 def _connect(path: Path, read_only: bool) -> sqlite3.Connection:
@@ -123,7 +113,6 @@ class TradeJournal:
                 self._conns[tid] = conn
                 if not self._read_only:
                     conn.executescript(TRADES_SCHEMA)
-                    conn.executescript(SCANS_SCHEMA)
                     conn.commit()
             return conn
 
@@ -211,7 +200,7 @@ class TradeJournal:
             pnl_pct = ((exit_price - trade["entry_price"]) / trade["entry_price"]) * 100
         else:
             pnl = (trade["entry_price"] - exit_price) * trade["quantity"]
-            pnl_pct = ((trade["entry_price"] - exit_price) / exit_price) * 100
+            pnl_pct = ((trade["entry_price"] - exit_price) / trade["entry_price"]) * 100
 
         conn = self._ensure_conn()
         conn.execute(
@@ -299,59 +288,6 @@ class TradeJournal:
             "losing_trades": total_trades - winning_trades,
             "win_rate": win_rate,
         }
-
-    # ─── Scans ───────────────────────────────────────────────────────────────
-
-    def save_scan_result(
-        self,
-        scan_id: str,
-        scanner: str,
-        symbol: str,
-        score: float | None = None,
-        reasons: str | None = None,
-        universe_size: int | None = None,
-    ) -> None:
-        """Save a scan result."""
-        import uuid
-        if not scan_id:
-            scan_id = f"scan_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}_{scanner}_{uuid.uuid4().hex[:8]}"
-        conn = self._ensure_conn()
-        conn.execute(
-            """
-            INSERT INTO scan_results (scan_id, scanner, symbol, score, reasons, universe_size)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            [scan_id, scanner, symbol.upper(), score, reasons, universe_size],
-        )
-        conn.commit()
-
-    def get_recent_scans(self, limit: int = 10) -> list[dict]:
-        """Get recent scan snapshots."""
-        conn = self._ensure_conn()
-        rows = conn.execute(
-            """
-            SELECT scan_id, scanner, MAX(scanned_at) as scanned_at, COUNT(*) as symbols
-            FROM scan_results
-            GROUP BY scan_id, scanner
-            ORDER BY scanned_at DESC
-            LIMIT ?
-            """,
-            [limit],
-        ).fetchall()
-        return [
-            {"scan_id": r["scan_id"], "scanner": r["scanner"], "scanned_at": r["scanned_at"], "symbols": r["symbols"]}
-            for r in rows
-        ]
-
-    def get_scan_symbols(self, scan_id: str) -> list[dict]:
-        """Get symbols from a specific scan."""
-        conn = self._ensure_conn()
-        rows = conn.execute(
-            "SELECT symbol, score, reasons FROM scan_results WHERE scan_id = ? ORDER BY score DESC",
-            [scan_id],
-        ).fetchall()
-        return [{"symbol": r["symbol"], "score": r["score"], "reasons": r["reasons"]} for r in rows]
-
 
 def _iso(value: datetime | None) -> str | None:
     """Serialize a datetime as ISO 8601 string (matching DuckDB's TIMESTAMP format)."""

@@ -57,13 +57,30 @@ class FastBacktestEngine:
         pipeline: FeaturePipeline,
         strategy_pipeline: StrategyPipeline | None = None,
         config: BacktestConfig | None = None,
+        *,
+        production: bool = False,
     ) -> None:
         self._pipeline = pipeline
         self._strategy = strategy_pipeline or StrategyPipeline()
         self._config = config or BacktestConfig()
+        self._production = production
+        self._warned_lookahead: bool = False
 
     def run(self, data: pd.DataFrame, *, symbol: str = "SYMBOL") -> BacktestResult:
         """Run optimized backtest on OHLCV DataFrame."""
+        if self._production:
+            raise RuntimeError(
+                "FastBacktestEngine has documented look-ahead bias "
+                "(features at bar N may use data from bar N+1). "
+                "Use the standard BacktestEngine for production backtesting."
+            )
+        if not self._warned_lookahead:
+            self._warned_lookahead = True
+            logger.warning(
+                "FastBacktestEngine uses pre-computed features on the full "
+                "dataset — features at bar N may use data from bar N+1. "
+                "For production backtesting, use the standard BacktestEngine."
+            )
         if data.empty or len(data) < self._config.warmup_bars + 10:
             return BacktestResult()
 

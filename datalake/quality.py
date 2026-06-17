@@ -98,12 +98,28 @@ class DataQualityEngine:
         else:
             self._check_daily_gaps(ts, report)
 
-        # OHLC consistency
+        # OHLC consistency — validate price relationships
         if all(c in df.columns for c in ["open", "high", "low", "close"]):
-            bad = (df["high"] < df["low"]).sum()
-            if bad > 0:
-                report.issues.append(f"{bad} rows with high < low")
+            bad_hl = (df["high"] < df["low"]).sum()
+            if bad_hl > 0:
+                report.issues.append(f"{bad_hl} rows with high < low")
                 report.status = "WARNING"
+            bad_close_high = (df["close"] > df["high"]).sum()
+            if bad_close_high > 0:
+                report.issues.append(f"{bad_close_high} rows with close > high")
+                report.status = "WARNING"
+            bad_close_low = (df["close"] < df["low"]).sum()
+            if bad_close_low > 0:
+                report.issues.append(f"{bad_close_low} rows with close < low")
+                report.status = "WARNING"
+            # Zero-range candles (open=high=low=close) may indicate missing data
+            zero_range = (
+                (df["open"] == df["high"]) &
+                (df["high"] == df["low"]) &
+                (df["low"] == df["close"])
+            ).sum()
+            if zero_range > 0:
+                report.issues.append(f"{zero_range} zero-range candles (possible stale data)")
 
         # Zero volume
         if "volume" in df.columns:
@@ -136,24 +152,12 @@ class DataQualityEngine:
         return report
 
     def check_universe(self, universe: str = "NIFTY500", timeframe: str = "1m") -> list[QualityReport]:
-        """Check quality for all symbols in a universe."""
-        import csv
+        """Check quality for all symbols in a universe (I-17: DuckDB first)."""
+        from datalake.schema import load_universe
 
-        from datalake.schema import UNIVERSE_FILES
-
-        path = UNIVERSE_FILES.get(universe)
-        if not path:
+        symbols = load_universe(universe, catalog=self._catalog)
+        if not symbols:
             return []
-
-        p = Path(path)
-        if not p.exists():
-            p = self._root.parent / path
-        if not p.exists():
-            return []
-
-        with open(p) as f:
-            reader = csv.DictReader(f)
-            symbols = [row["symbol"] for row in reader]
 
         reports = []
         for symbol in symbols:

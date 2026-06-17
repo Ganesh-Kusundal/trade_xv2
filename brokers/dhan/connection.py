@@ -34,6 +34,31 @@ from brokers.dhan.websocket import DhanMarketFeed, DhanOrderStream, PollingMarke
 
 logger = logging.getLogger(__name__)
 
+# ── Adapter registry: (attr_name, adapter_class) ──
+# Each entry constructs an adapter from (client, instruments).
+# Entries are split by whether the adapter's constructor takes the
+# instrument resolver as a second positional arg.
+_ADAPTERS_WITH_INSTRUMENTS: list[tuple[str, type]] = [
+    ("_market_data",            MarketDataAdapter),
+    ("_historical",             HistoricalAdapter),
+    ("_portfolio",              PortfolioAdapter),
+    ("_options",                OptionsAdapter),
+    ("_futures",                FuturesAdapter),
+    ("_margin",                 MarginAdapter),
+    ("_alerts",                 AlertsAdapter),
+    ("_super_orders",           SuperOrdersAdapter),
+    ("_forever_orders",         ForeverOrdersAdapter),
+    ("_conditional_triggers",   ConditionalTriggersAdapter),
+]
+
+_ADAPTERS_CLIENT_ONLY: list[tuple[str, type]] = [
+    ("_ledger",         LedgerAdapter),
+    ("_user_profile",   UserProfileAdapter),
+    ("_ip_management",  IPManagementAdapter),
+    ("_edis",           EDISAdapter),
+    ("_exit_all",       ExitAllAdapter),
+]
+
 
 class DhanConnection:
     """Concrete connection wiring all Dhan adapters.
@@ -69,24 +94,16 @@ class DhanConnection:
         # every thread within bounded timeouts.
         self._lifecycle = lifecycle
 
-        self._market_data = MarketDataAdapter(client, self.instruments)
-        self._historical = HistoricalAdapter(client, self.instruments)
+        # ── Registry-driven adapter construction ──
+        for attr_name, adapter_cls in _ADAPTERS_WITH_INSTRUMENTS:
+            setattr(self, attr_name, adapter_cls(client, self.instruments))
+        for attr_name, adapter_cls in _ADAPTERS_CLIENT_ONLY:
+            setattr(self, attr_name, adapter_cls(client))
+
+        # Special case: OrdersAdapter takes extra kwargs
         self._orders = OrdersAdapter(
             client, self.instruments, event_bus=event_bus, risk_manager=risk_manager
         )
-        self._portfolio = PortfolioAdapter(client, self.instruments)
-        self._options = OptionsAdapter(client, self.instruments)
-        self._futures = FuturesAdapter(client, self.instruments)
-        self._margin = MarginAdapter(client, self.instruments)
-        self._alerts = AlertsAdapter(client, self.instruments)
-        self._super_orders = SuperOrdersAdapter(client, self.instruments)
-        self._forever_orders = ForeverOrdersAdapter(client, self.instruments)
-        self._conditional_triggers = ConditionalTriggersAdapter(client, self.instruments)
-        self._ledger = LedgerAdapter(client)
-        self._user_profile = UserProfileAdapter(client)
-        self._ip_management = IPManagementAdapter(client)
-        self._edis = EDISAdapter(client)
-        self._exit_all = ExitAllAdapter(client)
         self._market_feed: DhanMarketFeed | None = None
         self._order_stream: DhanOrderStream | None = None
         self._polling_feed: PollingMarketFeed | None = None

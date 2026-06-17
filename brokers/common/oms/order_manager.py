@@ -159,12 +159,20 @@ class OrderManager:
             if self._risk_manager is not None:
                 risk_result = self._risk_manager.check_order(order)
                 if not risk_result.allowed:
+                    self._publish(
+                        "ORDER_REJECTED", order,
+                        reason=risk_result.reason,
+                    )
                     return OrderResult(success=False, error=risk_result.reason)
 
             if submit_fn is not None:
                 try:
                     order = submit_fn(request)
                 except Exception as exc:
+                    self._publish(
+                        "ORDER_REJECTED", order,
+                        reason=str(exc),
+                    )
                     return OrderResult(success=False, error=str(exc))
 
             self._orders[order.order_id] = order
@@ -265,12 +273,14 @@ class OrderManager:
         """Publish a TRADE_APPLIED event after a trade is committed."""
         if self._event_bus is None:
             return
+        correlation_id: str | None = getattr(trade, "correlation_id", None)
         self._event_bus.publish(
             DomainEvent.now(
                 "TRADE_APPLIED",
                 {"trade": trade},
                 symbol=trade.symbol,
                 source="OrderManager",
+                correlation_id=correlation_id,
             )
         )
 
@@ -316,13 +326,31 @@ class OrderManager:
                 for o in self._orders.values()
             ]
 
-    def cancel_order(self, order_id: str) -> OrderResult:
+    def cancel_order(
+        self,
+        order_id: str,
+        cancel_fn: Callable[[str], bool] | None = None,
+    ) -> OrderResult:
+        """Cancel an order locally and optionally at the broker.
+
+        If ``cancel_fn`` is provided, it is called to cancel the order
+        at the broker. If the broker cancel fails, the local state is
+        NOT updated (the order stays open and the error is returned).
+        """
         with self._lock:
             order = self._orders.get(order_id)
             if order is None:
                 return OrderResult(success=False, error="Order not found")
             if order.status.is_terminal:
                 return OrderResult(success=False, error="Order already final")
+
+            if cancel_fn is not None:
+                try:
+                    if not cancel_fn(order_id):
+                        return OrderResult(success=False, error="Broker cancel failed")
+                except Exception as exc:
+                    return OrderResult(success=False, error=str(exc))
+
             updated = order.with_status(OrderStatus.CANCELLED)
             self._orders[order_id] = updated
             if order.correlation_id:
@@ -340,44 +368,66 @@ class OrderManager:
         :meth:`upsert_order` or :meth:`record_trade`) must NOT re-enter
         this handler. Otherwise a single external ORDER_UPDATED triggers
         an infinite publish→handle→publish loop.
+
+        Thread-safe: the depth check/increment is inside ``_lock`` so
+        concurrent threads cannot race on ``_handler_depth`` and
+        permanently disable the handler.
         """
-        if self._handler_depth > 0:
-            return
-        self._handler_depth += 1
+        with self._lock:
+            if self._handler_depth > 0:
+                return
+            self._handler_depth += 1
         try:
             payload = event.payload
             order = payload.get("order")
             if isinstance(order, Order):
                 self.upsert_order(order)
         finally:
-            self._handler_depth -= 1
+            with self._lock:
+                self._handler_depth -= 1
 
     def on_trade(self, event: DomainEvent) -> None:
         """Handle broker trade events from the bus.
 
         Idempotent: duplicates are dropped silently (counted in metrics
         and the ledger) before any state mutation.
+
+        Thread-safe: the depth guard is inside ``_lock`` (see
+        :meth:`on_order_update`).
         """
-        if self._handler_depth > 0:
-            return
-        self._handler_depth += 1
+        with self._lock:
+            if self._handler_depth > 0:
+                return
+            self._handler_depth += 1
         try:
             payload = event.payload
             trade = payload.get("trade")
             if isinstance(trade, Trade):
                 self.record_trade(trade)
         finally:
-            self._handler_depth -= 1
+            with self._lock:
+                self._handler_depth -= 1
 
     # ── Helpers ─────────────────────────────────────────────────────────────
 
-    def _publish(self, event_type: str, obj: Order | Trade) -> None:
+    def _publish(
+        self, event_type: str, obj: Order | Trade,
+        *, reason: str | None = None,
+    ) -> None:
         if self._event_bus is None:
             return
         symbol = obj.symbol if hasattr(obj, "symbol") else None
+        correlation_id: str | None = getattr(obj, "correlation_id", None)
         payload: dict = {"order": obj} if isinstance(obj, Order) else {"trade": obj}
+        if reason is not None:
+            payload["reason"] = reason
         self._event_bus.publish(
-            DomainEvent.now(event_type, payload, symbol=symbol, source="OrderManager")
+            DomainEvent.now(
+                event_type, payload,
+                symbol=symbol,
+                source="OrderManager",
+                correlation_id=correlation_id,
+            )
         )
 
     @staticmethod

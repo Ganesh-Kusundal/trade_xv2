@@ -1,0 +1,31 @@
+# ICICI Direct credentials (read-only by default) — copy to config/icici-local.properties (gitignored)
+#
+# Mirrors the Trade_J config/icici-local.properties.example template.
+# Used by the optional ICICI Direct Breeze adapter.
+#
+#   icici.appKey              — ICICI Breeze AppKey
+#   icici.secretKey           — ICICI Breeze secret
+#   icici.authMode            — BROWSER_AUTOMATED | API_SESSION
+#   icici.totpSecretFile      — path to TOTP secret
+#   icici.usernameFile        — path to username file
+#   icici.passwordFile        — path to password file
+#   icici.apiSessionFile      — path to API session token
+#   icici.tokenStateFile      — persisted token state
+#   icici.ordersEnabled       — false by default (read-only)
+#   icici.loginRedirectPort   — local callback port
+#   icici.loginRedirectPath   — local callback path
+#   icici.browserHeadless     — true for headless login
+#   icici.browserLoginTimeoutSeconds — login timeout
+icici.appKey=
+icici.secretKey=
+icici.authMode=BROWSER_AUTOMATED
+icici.totpSecretFile=config/icici-totp-secret.txt
+icici.usernameFile=config/icici-username.txt
+icici.passwordFile=config/icici-password.txt
+icici.apiSessionFile=config/icici-api-session.txt
+icici.tokenStateFile=runtime/icici-token-state.json
+icici.ordersEnabled=false
+icici.loginRedirectPort=9080
+icici.loginRedirectPath=/api
+icici.browserHeadless=false
+icici.browserLoginTimeoutSeconds=120

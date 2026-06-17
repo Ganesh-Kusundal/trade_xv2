@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 
-from brokers.common.core.domain import Balance, Quote
+from brokers.common.core.domain import Balance, OrderRequest, Quote
 from brokers.dhan.connection import DhanConnection
 from brokers.dhan.domain import Order, OrderType, Position, Side
 from brokers.dhan.gateway import BrokerGateway
@@ -88,18 +88,20 @@ class TestBrokerGateway:
             quantity=10,
         )
 
-        conn._orders.place_order.assert_called_once_with(
-            symbol="RELIANCE",
-            exchange="NSE",
-            side="BUY",
-            quantity=10,
-            price=None,
-            order_type="MARKET",
-            trigger_price=None,
-            product_type="INTRADAY",
-            validity="DAY",
-            correlation_id=None,
-        )
+        call_args = conn._orders.place_order.call_args[0]
+        assert len(call_args) == 1
+        request = call_args[0]
+        assert isinstance(request, OrderRequest)
+        assert request.symbol == "RELIANCE"
+        assert request.exchange == "NSE"
+        assert request.transaction_type.value == "BUY"
+        assert request.quantity == 10
+        assert request.price is None or request.price == Decimal("0")
+        assert request.order_type.value == "MARKET"
+        assert request.trigger_price is None
+        assert request.product_type.value == "INTRADAY"
+        assert request.validity.value == "DAY"
+        assert request.correlation_id is None
         assert result is expected
 
     # -- lifecycle -------------------------------------------------------

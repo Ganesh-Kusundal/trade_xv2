@@ -88,10 +88,16 @@ def optimize_grid(
     from analytics.strategy import BreakoutStrategy, MomentumStrategy
 
     if param_grids is None:
-        # Default grid: optimize RSI period and SMA period
+        # Default grid: sweep all 7 parameters that compare_parameters uses.
+        # Previously only swept 2 (rsi_period, sma_period).
         param_grids = [
-            ParamGrid("rsi_period", [7, 10, 14, 21]),
-            ParamGrid("sma_period", [10, 20, 30, 50]),
+            ParamGrid("rsi_period", [7, 14, 21]),
+            ParamGrid("atr_period", [7, 14, 21]),
+            ParamGrid("sma_period", [10, 20, 50]),
+            ParamGrid("roc_period", [3, 5, 10]),
+            ParamGrid("momentum_period", [3, 5, 10]),
+            ParamGrid("trend_fast", [5, 10, 20]),
+            ParamGrid("trend_slow", [30, 50, 100]),
         ]
 
     # Generate all parameter combinations
@@ -100,6 +106,12 @@ def optimize_grid(
     combinations = list(product(*param_values))
 
     logger.info("Optimizing %d parameter combinations", len(combinations))
+    if len(combinations) > 500:
+        logger.warning(
+            "Large parameter space (%d combinations). This may take a long time. "
+            "Consider passing a smaller param_grids list for faster iteration.",
+            len(combinations),
+        )
 
     result = OptimizationResult(
         param_name=",".join(param_names),

@@ -207,27 +207,6 @@ class TestTradeJournalSummary:
         assert summary["total_pnl"] == 10
 
 
-class TestTradeJournalScans:
-    def test_save_scan_result(self, journal: TradeJournal) -> None:
-        journal.save_scan_result(
-            scan_id="SCAN001",
-            scanner="momentum",
-            symbol="RELIANCE",
-            score=85.0,
-            reasons='["strong_momentum"]',
-            universe_size=500,
-        )
-        symbols = journal.get_scan_symbols("SCAN001")
-        assert len(symbols) == 1
-        assert symbols[0]["symbol"] == "RELIANCE"
-
-    def test_get_recent_scans(self, journal: TradeJournal) -> None:
-        journal.save_scan_result("SCAN010_A", "momentum", "RELIANCE", 85.0, universe_size=500)
-        journal.save_scan_result("SCAN010_A", "momentum", "INFY", 70.0, universe_size=500)
-        scans = journal.get_recent_scans()
-        assert len(scans) == 1
-        assert scans[0]["symbols"] == 2
-
 
 class TestTradeJournalThreadSafety:
     def test_concurrent_record_trade(self, journal: TradeJournal) -> None:

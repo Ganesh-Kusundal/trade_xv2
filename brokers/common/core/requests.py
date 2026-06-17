@@ -38,6 +38,7 @@ class OrderRequest:
     correlation_id: str | None = None
     tag: str | None = None
     slice: bool = False
+    is_amo: bool = False
     market_protection: int = -1
     algo_name: str | None = None
 

@@ -34,7 +34,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
         console.print(f"[red]Error creating gateway: {e}[/red]")
         return
 
-    # Historical Quality
+    # Historical Quality — also capture quality data for overall score
     console.print("[cyan]Historical Data Quality[/cyan]")
     table = Table(show_header=True, header_style="bold")
     table.add_column("Broker", style="cyan")
@@ -43,14 +43,26 @@ def run(args: list[str], broker_service, console: Console) -> None:
     table.add_column("Duplicates", justify="right")
     table.add_column("Schema", justify="center")
 
+    # Collect quality data for the overall score to avoid double-fetching
+    quality_data: dict[str, dict] = {}
+
     for name, broker in [("Dhan", gw.dhan), ("Upstox", gw.upstox)]:
+        if broker is None:
+            table.add_row(name, "N/A", "-", "-", "-")
+            continue
         try:
             df = broker.history('TCS', timeframe='1D', lookback_days=30)
             rows = len(df)
             duplicates = df.duplicated(subset=['timestamp']).sum() if not df.empty else 0
-            schema_ok = list(df.columns) == ['timestamp', 'open', 'high', 'low', 'close', 'volume', 'oi', 'symbol', 'exchange', 'timeframe']
+            expected_cols = ['timestamp', 'open', 'high', 'low', 'close', 'volume', 'oi', 'symbol', 'exchange', 'timeframe']
+            schema_ok = list(df.columns) == expected_cols
+            missing = df.isnull().sum().sum() if not df.empty else 0
             quality = 100 - (duplicates / rows * 100) if rows > 0 else 0
             table.add_row(name, f"{quality:.2f}%", str(rows), str(duplicates), "PASS" if schema_ok else "FAIL")
+            quality_data[name] = {
+                "rows": rows, "duplicates": duplicates, "missing": missing,
+                "quality": quality, "schema_ok": schema_ok,
+            }
         except Exception as e:
             table.add_row(name, "ERROR", "-", "-", str(e)[:20])
 
@@ -116,10 +128,42 @@ def run(args: list[str], broker_service, console: Console) -> None:
 
     console.print(table)
 
-    # Overall Score
+    # Overall Score — reuses quality data already fetched in Historical Quality
     console.print("\n" + "="*50)
     console.print("[bold]OVERALL DATA QUALITY SCORE[/bold]")
     console.print("="*50)
-    console.print("  Dhan: 99.9% (Historical + Option Chain + Futures)")
-    console.print("  Upstox: 99.5% (Historical + Quote only)")
+
+    for broker_name, broker in [("Dhan", gw.dhan), ("Upstox", gw.upstox)]:
+        if broker is None:
+            console.print(f"  {broker_name}: Not configured")
+            continue
+
+        qd = quality_data.get(broker_name)
+        if qd is None:
+            console.print(f"  {broker_name}: Could not compute (see Historical Quality above)")
+            continue
+
+        # Detect capabilities (lightweight — only where historical already worked)
+        capabilities = ["Historical"]
+        try:
+            broker.quote('TCS')
+            capabilities.append("Quote")
+        except Exception:
+            pass
+        try:
+            broker.option_chain('NIFTY')
+            capabilities.append("Option Chain")
+        except Exception:
+            pass
+        try:
+            broker.future_chain('NIFTY')
+            capabilities.append("Futures")
+        except Exception:
+            pass
+
+        console.print(f"  {broker_name}:")
+        console.print(f"    Quality: {qd['quality']:.1f}% ({qd['rows']} rows, {qd['duplicates']} duplicates, {qd['missing']} missing)")
+        console.print(f"    Schema: {'PASS' if qd['schema_ok'] else 'FAIL'}")
+        console.print(f"    Capabilities: {', '.join(capabilities)}")
+
     console.print("  Recommendation: Use Dhan for complete data coverage")

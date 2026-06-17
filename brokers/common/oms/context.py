@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
@@ -144,15 +145,25 @@ class TradingContext:
         """Register the context's managed services with a lifecycle.
 
         Callers that own a :class:`LifecycleManager` (the CLI, the TUI,
-        the live gateway) MUST call this so the reconciliation service
-        (and any future managed services) participate in deterministic
-        start/stop.
+        the live gateway) MUST call this so the reconciliation service,
+        DLQ monitor, DailyPnlResetScheduler, and any future managed
+        services participate in deterministic start/stop.
         """
         if self._reconciliation_service is not None:
             lifecycle.register(self._reconciliation_service)
         # REF-19: ensure the trade-id ledger's cleanup thread is
         # stopped deterministically when the lifecycle drains.
         self._processed_trades.stop_auto_cleanup()
+        # Register a lightweight DLQ monitor that periodically checks
+        # dead-letter queue depth and drains on shutdown so operators
+        # don't lose visibility of handler failures.
+        self._register_dlq_monitor(lifecycle)
+        # Auto-wire DailyPnlResetScheduler — resets _daily_pnl at
+        # IST 00:00 so yesterday's loss doesn't block today's orders.
+        # Previously only wired by BrokerService; callers that use
+        # TradingContext directly (tests, scripts, custom entry points)
+        # would silently accumulate PnL across days.
+        self._register_daily_pnl_reset(lifecycle)
 
     @property
     def event_bus(self) -> EventBus:
@@ -215,6 +226,91 @@ class TradingContext:
         if self._reconciliation_service is None:
             return
         self._reconciliation_service.stop()
+
+    def _register_daily_pnl_reset(self, lifecycle: LifecycleManager) -> None:
+        """Auto-wire a DailyPnlResetScheduler so daily PnL is always reset.
+
+        NOTE: BrokerService._ensure_initialized ALSO registers its own
+        scheduler on the same RiskManager. This is safe (reset is
+        idempotent) but results in two daemon threads. TODO: remove
+        the duplicate registration from BrokerService once this method
+        is proven in production.
+        """
+        from brokers.common.oms.daily_pnl_reset_scheduler import DailyPnlResetScheduler
+        scheduler = DailyPnlResetScheduler(risk_manager=self._risk_manager)
+        lifecycle.register(scheduler)
+
+    def _register_dlq_monitor(self, lifecycle: LifecycleManager) -> None:
+        """Register a lightweight DLQ depth monitor with the lifecycle.
+
+        Periodically logs dead-letter queue depth so operators can alert
+        on handler failures. On shutdown (stop), drains the DLQ and logs
+        any remaining entries so they are not silently lost.
+        """
+        from brokers.common.event_bus import DeadLetterQueue
+        from brokers.common.lifecycle import HealthState, ManagedService
+
+        dlq: DeadLetterQueue = self._dead_letter_queue
+
+        class _DlqMonitor(ManagedService):
+            name = "oms.dlq_monitor"
+
+            def __init__(self, queue: DeadLetterQueue):
+                self._queue = queue
+                self._thread: threading.Thread | None = None
+                self._stop = threading.Event()
+                self._last_depth = 0
+                self._total_drained = 0
+
+            def start(self) -> None:
+                if self._thread and self._thread.is_alive():
+                    return
+                self._stop.clear()
+                self._thread = threading.Thread(
+                    target=self._loop, daemon=True, name="dlq-monitor"
+                )
+                self._thread.start()
+
+            def stop(self, timeout_seconds: float = 30.0) -> None:
+                self._stop.set()
+                if self._thread:
+                    self._thread.join(timeout=timeout_seconds)
+                    self._thread = None
+                # Drain remaining DLQ entries on shutdown so they are
+                # visible in logs, not silently lost.
+                try:
+                    drained = self._queue.drain()
+                    self._total_drained += len(drained)
+                    if drained:
+                        logger.warning(
+                            "DLQ drain on shutdown: %d entries. First: %s",
+                            len(drained),
+                            drained[0].to_dict() if drained else "none",
+                        )
+                except Exception as exc:
+                    logger.debug("dlq_shutdown_drain_failed: %s", exc)
+
+            def health(self):
+                from brokers.common.lifecycle import build_health
+                return build_health(
+                    self.name,
+                    HealthState.HEALTHY if self._last_depth == 0 else HealthState.DEGRADED,
+                    detail=f"depth={self._last_depth}, total_drained={self._total_drained}",
+                    metrics={"depth": self._last_depth, "total_drained": self._total_drained},
+                )
+
+            def _loop(self) -> None:
+                while not self._stop.wait(timeout=60.0):
+                    stats = self._queue.stats()
+                    self._last_depth = stats["size"]
+                    if self._last_depth > 0:
+                        logger.warning(
+                            "DLQ depth: %d entries, %d dropped (lifetime)",
+                            self._last_depth,
+                            stats.get("dropped", 0),
+                        )
+
+        lifecycle.register(_DlqMonitor(dlq))
 
     def _replay_log_into_oms(self) -> None:
         """Replay persisted ORDER_UPDATED/TRADE events to rebuild OMS state.

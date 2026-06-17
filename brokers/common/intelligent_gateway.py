@@ -35,6 +35,8 @@ from brokers.common.observability.event_metrics import EventMetrics
 
 logger = logging.getLogger(__name__)
 
+_RAISE = object()  # sentinel for _route() default="raise RuntimeError"
+
 
 class IntelligentGateway:
     """Combines Dhan and Upstox for optimal performance.
@@ -69,6 +71,39 @@ class IntelligentGateway:
     @property
     def metrics(self) -> EventMetrics:
         return self._metrics
+
+    # ── Generic routing helper ───────────────────────────────────────────
+
+    def _route(
+        self,
+        operation: str,
+        *args: Any,
+        primary: str = "dhan",
+        fallback: str | None = None,
+        default: Any = _RAISE,
+        **kwargs: Any,
+    ) -> Any:
+        """Route *operation* to the primary broker gateway, falling back on failure.
+
+        On primary failure: logs a WARNING + increments a fallback metric,
+        then tries the fallback broker (if configured). If both fail or no
+        brokers are available, returns *default* or raises RuntimeError.
+        """
+        primary_gw = getattr(self, f"_{primary}", None)
+        if primary_gw:
+            try:
+                return getattr(primary_gw, operation)(*args, **kwargs)
+            except Exception as exc:
+                self._log_fallback(operation, primary, exc)
+
+        if fallback is not None:
+            fallback_gw = getattr(self, f"_{fallback}", None)
+            if fallback_gw:
+                return getattr(fallback_gw, operation)(*args, **kwargs)
+
+        if default is not _RAISE:
+            return default
+        raise RuntimeError("No broker available")
 
     # ── Observability helpers ────────────────────────────────────────────
 
@@ -105,48 +140,16 @@ class IntelligentGateway:
     # ── Routing methods ──────────────────────────────────────────────────
 
     def ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:
-        """Route to Upstox for faster LTP."""
-        if self._upstox:
-            try:
-                return self._upstox.ltp(symbol, exchange)
-            except Exception as exc:
-                self._log_fallback("ltp", "upstox", exc)
-        if self._dhan:
-            return self._dhan.ltp(symbol, exchange)
-        raise RuntimeError("No broker available")
+        return self._route("ltp", symbol, exchange, primary="upstox", fallback="dhan")
 
     def ltp_batch(self, symbols: list[str], exchange: str = "NSE") -> dict[str, Decimal]:
-        """Get LTP for multiple symbols using parallel fetching."""
-        if self._upstox:
-            try:
-                return self._upstox.ltp_batch(symbols, exchange)
-            except Exception as exc:
-                self._log_fallback("ltp_batch", "upstox", exc)
-        if self._dhan:
-            return self._dhan.ltp_batch(symbols, exchange)
-        raise RuntimeError("No broker available")
+        return self._route("ltp_batch", symbols, exchange, primary="upstox", fallback="dhan")
 
     def quote(self, symbol: str, exchange: str = "NSE") -> Quote:
-        """Route to Upstox for faster quotes."""
-        if self._upstox:
-            try:
-                return self._upstox.quote(symbol, exchange)
-            except Exception as exc:
-                self._log_fallback("quote", "upstox", exc)
-        if self._dhan:
-            return self._dhan.quote(symbol, exchange)
-        raise RuntimeError("No broker available")
+        return self._route("quote", symbol, exchange, primary="upstox", fallback="dhan")
 
     def quote_batch(self, symbols: list[str], exchange: str = "NSE") -> dict[str, Quote]:
-        """Get quotes for multiple symbols using parallel fetching."""
-        if self._upstox:
-            try:
-                return self._upstox.quote_batch(symbols, exchange)
-            except Exception as exc:
-                self._log_fallback("quote_batch", "upstox", exc)
-        if self._dhan:
-            return self._dhan.quote_batch(symbols, exchange)
-        raise RuntimeError("No broker available")
+        return self._route("quote_batch", symbols, exchange, primary="upstox", fallback="dhan")
 
     def history(
         self,
@@ -157,15 +160,11 @@ class IntelligentGateway:
         from_date: str | None = None,
         to_date: str | None = None,
     ) -> pd.DataFrame:
-        """Route to Dhan for better historical data support."""
-        if self._dhan:
-            try:
-                return self._dhan.history(symbol, exchange, timeframe, lookback_days, from_date, to_date)
-            except Exception as exc:
-                self._log_fallback("history", "dhan", exc)
-        if self._upstox:
-            return self._upstox.history(symbol, exchange, timeframe, lookback_days, from_date, to_date)
-        raise RuntimeError("No broker available")
+        return self._route(
+            "history", symbol, exchange, timeframe, lookback_days,
+            from_date=from_date, to_date=to_date,
+            primary="dhan", fallback="upstox",
+        )
 
     def history_batch(
         self,
@@ -174,26 +173,13 @@ class IntelligentGateway:
         timeframe: str = "1D",
         lookback_days: int = 90,
     ) -> pd.DataFrame:
-        """Fetch history for multiple symbols using parallel fetching."""
-        if self._dhan:
-            try:
-                return self._dhan.history_batch(symbols, exchange, timeframe, lookback_days)
-            except Exception as exc:
-                self._log_fallback("history_batch", "dhan", exc)
-        if self._upstox:
-            return self._upstox.history_batch(symbols, exchange, timeframe, lookback_days)
-        raise RuntimeError("No broker available")
+        return self._route(
+            "history_batch", symbols, exchange, timeframe, lookback_days,
+            primary="dhan", fallback="upstox",
+        )
 
     def depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
-        """Route to Dhan (Upstox endpoint deprecated)."""
-        if self._dhan:
-            try:
-                return self._dhan.depth(symbol, exchange)
-            except Exception as exc:
-                self._log_fallback("depth", "dhan", exc)
-        if self._upstox:
-            return self._upstox.depth(symbol, exchange)
-        raise RuntimeError("No broker available")
+        return self._route("depth", symbol, exchange, primary="dhan", fallback="upstox")
 
     def option_chain(
         self,
@@ -201,28 +187,21 @@ class IntelligentGateway:
         exchange: str = "INDEX",
         expiry: str | None = None,
     ) -> dict:
-        """Route to Dhan for better option chain support."""
-        if self._dhan:
-            try:
-                return self._dhan.option_chain(underlying, exchange, expiry)
-            except Exception as exc:
-                self._log_fallback("option_chain", "dhan", exc)
-        if self._upstox:
-            return self._upstox.option_chain(underlying, exchange, expiry)
-        raise RuntimeError("No broker available")
+        return self._route(
+            "option_chain", underlying, exchange, expiry,
+            primary="dhan", fallback="upstox",
+        )
 
     def future_chain(
         self,
         underlying: str,
         exchange: str = "INDEX",
     ) -> dict:
-        """Route to Dhan (Upstox doesn't support)."""
-        if self._dhan:
-            try:
-                return self._dhan.future_chain(underlying, exchange)
-            except Exception as exc:
-                self._log_fallback("future_chain", "dhan", exc)
-        return {"underlying": underlying, "exchange": exchange, "expiries": [], "contracts": []}
+        return self._route(
+            "future_chain", underlying, exchange,
+            primary="dhan",
+            default={"underlying": underlying, "exchange": exchange, "expiries": [], "contracts": []},
+        )
 
     def stream(
         self,
@@ -231,59 +210,22 @@ class IntelligentGateway:
         mode: str = "LTP",
         on_tick: Any | None = None,
     ) -> Any:
-        """Route to Dhan for streaming."""
-        if self._dhan:
-            try:
-                return self._dhan.stream(symbol, exchange, mode, on_tick)
-            except Exception as exc:
-                self._log_fallback("stream", "dhan", exc)
-        if self._upstox:
-            return self._upstox.stream(symbol, exchange, mode, on_tick)
-        raise RuntimeError("No broker available")
+        return self._route(
+            "stream", symbol, exchange, mode, on_tick,
+            primary="dhan", fallback="upstox",
+        )
 
     def positions(self) -> list[Any]:
-        """Get positions from first available broker."""
-        if self._dhan:
-            try:
-                return self._dhan.positions()
-            except Exception as exc:
-                self._log_fallback("positions", "dhan", exc)
-        if self._upstox:
-            return self._upstox.positions()
-        return []
+        return self._route("positions", primary="dhan", fallback="upstox", default=[])
 
     def holdings(self) -> list[Any]:
-        """Get holdings from first available broker."""
-        if self._dhan:
-            try:
-                return self._dhan.holdings()
-            except Exception as exc:
-                self._log_fallback("holdings", "dhan", exc)
-        if self._upstox:
-            return self._upstox.holdings()
-        return []
+        return self._route("holdings", primary="dhan", fallback="upstox", default=[])
 
     def funds(self) -> FundLimits:
-        """Get funds from first available broker."""
-        if self._dhan:
-            try:
-                return self._dhan.funds()
-            except Exception as exc:
-                self._log_fallback("funds", "dhan", exc)
-        if self._upstox:
-            return self._upstox.funds()
-        return FundLimits()
+        return self._route("funds", primary="dhan", fallback="upstox", default=FundLimits())
 
     def trades(self) -> list[Any]:
-        """Get trades from first available broker."""
-        if self._dhan:
-            try:
-                return self._dhan.trades()
-            except Exception as exc:
-                self._log_fallback("trades", "dhan", exc)
-        if self._upstox:
-            return self._upstox.trades()
-        return []
+        return self._route("trades", primary="dhan", fallback="upstox", default=[])
 
     def describe(self) -> dict:
         """Return combined broker metadata."""
@@ -306,12 +248,4 @@ class IntelligentGateway:
         }
 
     def search(self, query: str) -> list[dict]:
-        """Search instruments from first available broker."""
-        if self._dhan:
-            try:
-                return self._dhan.search(query)
-            except Exception as exc:
-                self._log_fallback("search", "dhan", exc)
-        if self._upstox:
-            return self._upstox.search(query)
-        return []
+        return self._route("search", query, primary="dhan", fallback="upstox", default=[])
