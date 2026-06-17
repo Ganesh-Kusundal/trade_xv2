@@ -11,13 +11,13 @@ import pytest
 from analytics.pipeline import ATR, RSI, SMA, FeaturePipeline
 from analytics.replay import (
     Bar,
-    Position,
     ReplayConfig,
     ReplayEngine,
     ReplayMode,
     ReplayResult,
     ReplaySession,
-    Trade,
+    SimulatedPosition,
+    SimulatedTrade,
 )
 from analytics.strategy.pipeline import MomentumStrategy, StrategyPipeline
 
@@ -149,7 +149,7 @@ class TestReplaySession:
 
     def test_equity_with_position(self) -> None:
         session = ReplaySession(capital=80_000)
-        session.position = Position(
+        session.position = SimulatedPosition(
             symbol="TCS", side="BUY", entry_price=100, quantity=200,
             entry_time=datetime.now(timezone.utc),
         )
@@ -173,9 +173,9 @@ class TestReplaySession:
 # ---------------------------------------------------------------------------
 
 
-class TestTrade:
+class TestSimulatedTrade:
     def test_trade_creation(self) -> None:
-        trade = Trade(
+        trade = SimulatedTrade(
             symbol="TCS", side="BUY", entry_price=100, exit_price=110,
             quantity=100, pnl=1000, pnl_pct=10.0,
         )

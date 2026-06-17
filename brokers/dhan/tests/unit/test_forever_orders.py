@@ -130,7 +130,8 @@ def test_cancel_forever_order(fake_client, resolver):
     })
     adapter = ForeverOrdersAdapter(fake_client, resolver)
     result = adapter.cancel_forever_order("FO123456")
-    assert result is True
+    assert result.success is True
+    assert result.order_id == "FO123456"
     calls = fake_client.calls_for("DELETE", "/forever/orders/FO123456")
     assert len(calls) == 1
 

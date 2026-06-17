@@ -34,6 +34,12 @@ import threading
 import time as _time
 from datetime import datetime, timedelta, timezone
 
+from brokers.common.core.constants import (
+    DAILY_PNL_POLL_INTERVAL_SECONDS,
+    DAILY_PNL_ROLLOVER_HOUR_IST,
+    DEFAULT_STOP_TIMEOUT_SECONDS,
+    IST_OFFSET,
+)
 from brokers.common.lifecycle.lifecycle import (
     HealthState,
     HealthStatus,
@@ -46,10 +52,10 @@ logger = logging.getLogger(__name__)
 
 # IST is UTC+5:30 with no daylight savings. Use a fixed offset to avoid
 # pulling in pytz / zoneinfo as a runtime dependency.
-_IST = timezone(timedelta(hours=5, minutes=30))
+_IST = IST_OFFSET
 
-_DEFAULT_POLL_INTERVAL_SECONDS = 60.0
-_DEFAULT_ROLLOVER_HOUR_IST = 0  # 00:00 IST
+_DEFAULT_POLL_INTERVAL_SECONDS = DAILY_PNL_POLL_INTERVAL_SECONDS
+_DEFAULT_ROLLOVER_HOUR_IST = DAILY_PNL_ROLLOVER_HOUR_IST
 
 
 class DailyPnlResetScheduler(ManagedService):
@@ -125,7 +131,7 @@ class DailyPnlResetScheduler(ManagedService):
             extra={"poll_interval_s": self._poll_interval},
         )
 
-    def stop(self, timeout_seconds: float = 5.0) -> None:
+    def stop(self, timeout_seconds: float = DEFAULT_STOP_TIMEOUT_SECONDS) -> None:
         """Stop the scheduler thread. Idempotent. Joins within timeout."""
         if not self._thread:
             return

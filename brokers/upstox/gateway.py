@@ -11,6 +11,7 @@ from typing import Any
 
 import pandas as pd
 
+from config.indices import index_upstox_key
 from brokers.common.batch_mixin import BatchFetchMixin
 from brokers.common.core.domain import (
     Balance,
@@ -365,8 +366,24 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
     # ── Internal ──
 
     def _resolve_instrument_key(self, symbol: str, exchange: str) -> str:
-        """Return the Upstox instrument_key for a canonical symbol."""
+        """Return the Upstox instrument_key for a canonical symbol.
 
+        For index symbols (NIFTY, BANKNIFTY, etc.) the hardcoded mapping
+        in :mod:`config.indices` is checked first, since indices use a
+        different segment (``NSE_INDEX``) than equities (``NSE_EQ``).
+        """
+
+        # 1. Check hardcoded index mapping first (indices have different segment)
+        idx_key = index_upstox_key(symbol)
+        if idx_key is not None:
+            # Verify the key resolves (the asset JSON includes indices)
+            defn = self._broker.instrument_resolver.resolve(instrument_key=idx_key)
+            if defn:
+                return defn.instrument_key
+            # Fall through — return the hardcoded key anyway (it's a known index)
+            return idx_key
+
+        # 2. Normal segment resolution for equities/F&O
         segment = UpstoxDomainMapper.segment_to_wire(exchange)
         if segment == 'NSE':
             segment = 'NSE_EQ'
@@ -623,13 +640,56 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
                 message=str(e),
             )
 
-    def cancel_order(self, order_id: str) -> bool:
-        """Cancel an order via Upstox."""
-        # Security guard: prevent live order cancellation if disabled
+    def cancel_order(self, order_id: str) -> OrderResponse:
+        """Cancel an order via Upstox.
+
+        Returns:
+            :class:`OrderResponse` with ``success`` reflecting the
+            broker's response. Network/auth errors are reported as
+            ``success=False`` with a diagnostic error code; this method
+            never raises.
+        """
         if not self._broker.settings.allow_live_orders:
-            raise RuntimeError("Live order cancellation is disabled. Set allow_live_orders=True in configuration.")
+            return OrderResponse.fail(
+                message=(
+                    "Live order cancellation is disabled. "
+                    "Set allow_live_orders=True in configuration."
+                ),
+                error_code="BRO_ERR_NOT_SUPPORTED",
+            )
         try:
             body = self._broker.order_client.cancel_order(order_id)
-            return body.get("status") == "success" if isinstance(body, dict) else False
-        except Exception:
-            return False
+        except Exception as exc:
+            logger.warning(
+                "upstox_cancel_network_error",
+                extra={"order_id": order_id, "error": str(exc)},
+            )
+            return OrderResponse.fail(
+                message=f"network error: {exc}",
+                error_code="BRO_ERR_CONNECTION_FAILED",
+            )
+        if not isinstance(body, dict):
+            return OrderResponse.fail(
+                message="malformed broker response (not a dict)",
+                raw_payload={"raw": repr(body)},
+            )
+        broker_status = str(body.get("status", "")).lower()
+        if broker_status in {"success", "ok"}:
+            return OrderResponse.ok(
+                order_id=order_id,
+                message=str(body.get("message", "Order cancelled")),
+                raw_payload=body,
+            )
+        return OrderResponse.fail(
+            message=str(
+                body.get("errors", [{}])[0].get("message")
+                if isinstance(body.get("errors"), list) and body.get("errors")
+                else body.get("message", "Cancel failed")
+            ),
+            error_code=str(
+                body.get("errors", [{}])[0].get("errorCode")
+                if isinstance(body.get("errors"), list) and body.get("errors")
+                else ""
+            ),
+            raw_payload=body,
+        )

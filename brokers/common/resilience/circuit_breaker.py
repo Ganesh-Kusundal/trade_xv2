@@ -9,6 +9,16 @@ import time
 from dataclasses import dataclass
 from enum import Enum
 
+from brokers.common.core.constants import (
+    BACKOFF_JITTER,
+    BACKOFF_MULTIPLIER,
+    CIRCUIT_BREAKER_FAILURE_THRESHOLD,
+    CIRCUIT_BREAKER_OPEN_DURATION_MS,
+    CIRCUIT_BREAKER_SUCCESS_THRESHOLD,
+    MAX_RETRY_DELAY_MS,
+    RETRY_BASE_DELAY_MS,
+)
+
 
 class CircuitState(Enum):
     """State of a circuit breaker."""
@@ -22,9 +32,9 @@ class CircuitState(Enum):
 class CircuitBreakerConfig:
     """Configuration for a circuit breaker."""
 
-    failure_threshold: int = 5
-    success_threshold: int = 3
-    open_duration_ms: int = 30_000  # 30 seconds default
+    failure_threshold: int = CIRCUIT_BREAKER_FAILURE_THRESHOLD
+    success_threshold: int = CIRCUIT_BREAKER_SUCCESS_THRESHOLD
+    open_duration_ms: int = CIRCUIT_BREAKER_OPEN_DURATION_MS  # 30 seconds default
 
     def __post_init__(self):
         if self.failure_threshold <= 0:

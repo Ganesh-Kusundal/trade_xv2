@@ -94,6 +94,15 @@ class DhanConnection:
         self._depth_200_feed: DhanDepth200Feed | None = None
         self._backfill_callback = backfill_callback
         self._reconciliation_service = reconciliation_service
+        # REF-13: token-receiver registry. Any service that holds a
+        # broker token (HTTP client, market feed, order stream, depth
+        # feeds) registers itself here so the TokenRefreshScheduler's
+        # callback can push fresh tokens to all of them in one pass.
+        # The previous design hard-coded the market feed only; the
+        # order stream and depth feeds silently continued with the
+        # stale token until their next reconnect — that was the
+        # documented DH-906-incident failure mode.
+        self._token_receivers: list[Callable[[str], None]] = []
 
     @property
     def market_data(self) -> MarketDataAdapter:
@@ -273,6 +282,9 @@ class DhanConnection:
             backfill_callback=self._backfill_callback,
         )
         self._market_feed = feed
+        # REF-13: self-register as a token receiver so the scheduler
+        # can push fresh tokens to the feed.
+        self.register_token_receiver(feed.update_token)
         if self._lifecycle is not None and feed.name not in self._lifecycle.service_names():
             try:
                 self._lifecycle.register(feed)
@@ -297,6 +309,8 @@ class DhanConnection:
             event_bus=self._event_bus,
         )
         self._order_stream = stream
+        # REF-13: order stream also receives refreshed tokens.
+        self.register_token_receiver(stream.update_token)
         if self._lifecycle is not None and stream.name not in self._lifecycle.service_names():
             try:
                 self._lifecycle.register(stream)
@@ -320,6 +334,10 @@ class DhanConnection:
             event_bus=self._event_bus,
         )
         self._depth_20_feed = feed
+        # REF-13: depth feeds receive refreshed tokens too. The feed
+        # must define an update_token() method.
+        if hasattr(feed, "update_token"):
+            self.register_token_receiver(feed.update_token)
         if self._lifecycle is not None and feed.name not in self._lifecycle.service_names():
             try:
                 self._lifecycle.register(feed)
@@ -343,6 +361,8 @@ class DhanConnection:
             event_bus=self._event_bus,
         )
         self._depth_200_feed = feed
+        if hasattr(feed, "update_token"):
+            self.register_token_receiver(feed.update_token)
         if self._lifecycle is not None and feed.name not in self._lifecycle.service_names():
             try:
                 self._lifecycle.register(feed)
@@ -373,6 +393,51 @@ class DhanConnection:
             except Exception as exc:  # pragma: no cover - defensive
                 logger.debug("lifecycle_register_failed: %s", exc)
         return feed
+
+    # ── Token-receiver registry (REF-13) ──────────────────────────────────
+
+    def register_token_receiver(
+        self, receiver: Callable[[str], None]
+    ) -> Callable[[str], None]:
+        """Register a callable invoked whenever a new access token arrives.
+
+        Used by the :class:`TokenRefreshScheduler`'s ``on_refresh``
+        callback to push fresh tokens to the HTTP client and every
+        WebSocket / depth service. The previous design hard-coded only
+        the market feed, so the order stream and depth feeds silently
+        kept using the stale token until their next reconnect cycle.
+
+        Idempotent: registering the same callable twice is a no-op.
+        Returns the receiver unchanged so the call site can be used in
+        an expression.
+        """
+        if receiver is not None and receiver not in self._token_receivers:
+            self._token_receivers.append(receiver)
+        return receiver
+
+    def broadcast_token(self, new_token: str) -> int:
+        """Push ``new_token`` to every registered receiver.
+
+        Returns the number of receivers notified. Failures in any one
+        receiver are logged and isolated so a single broken subscriber
+        cannot block the others.
+        """
+        if not new_token:
+            return 0
+        delivered = 0
+        for receiver in list(self._token_receivers):
+            try:
+                receiver(new_token)
+                delivered += 1
+            except Exception as exc:  # pragma: no cover - defensive
+                receiver_name = getattr(
+                    receiver, "__qualname__", repr(receiver)
+                )
+                logger.warning(
+                    "token_receiver_failed",
+                    extra={"receiver": receiver_name, "error": str(exc)},
+                )
+        return delivered
 
     def close(self) -> None:
         """Close HTTP client, stop token scheduler, and disconnect WebSocket connections.

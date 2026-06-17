@@ -267,8 +267,27 @@ class MarketDataGateway(ABC):
         ...
 
     @abstractmethod
-    def cancel_order(self, order_id: str) -> bool:
-        """Cancel an open order. Returns True if cancelled."""
+    def cancel_order(self, order_id: str) -> OrderResponse:
+        """Cancel an open order.
+
+        Returns:
+            :class:`OrderResponse` with ``success=True`` when the broker
+            confirmed the cancellation. A response with
+            ``success=False`` carries the broker's error message in
+            :attr:`OrderResponse.message` and a diagnostic code in
+            :attr:`OrderResponse.error_code`.
+
+            The boolean-equivalent form ``bool(response)`` and
+            ``response.is_success`` is preserved for backward compat
+            — both are equivalent to ``response.success``.
+
+        Notes:
+            Implementations MUST NOT raise for non-existent or
+            already-cancelled orders; they MUST return a structured
+            failure response instead. The only acceptable exceptions
+            are infrastructure failures (network, auth) which the
+            caller is expected to retry.
+        """
         ...
 
     @abstractmethod

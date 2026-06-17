@@ -28,6 +28,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
+from brokers.common.core.constants import DEFAULT_TICK_SIZE
 from brokers.common.core.types import (
     OrderStatus,
     OrderType,
@@ -251,20 +252,109 @@ class FundLimits:
 
 @dataclass(slots=True, frozen=False)
 class OrderResponse:
-    """Canonical response from order placement/modification/cancellation."""
+    """Canonical response from any order write operation.
+
+    Used for ``place_order``, ``modify_order``, ``cancel_order``,
+    ``place_slice_order`` and the corresponding delete operations. The
+    previous design had each adapter returning a heterogeneous mix of
+    ``bool``, ``dict`` and ``(broker_id, broker_msg)`` tuples, which
+    forced the OMS to special-case success detection for each broker.
+
+    Invariants
+    ----------
+    * ``success`` MUST be ``True`` when the broker confirmed the action.
+      ``"pending"`` or ``"transit"`` are NOT success — the call must be
+      retried. Callers that need a tri-state can use :attr:`status` and
+      :class:`OrderStatus`.
+    * ``order_id`` is the **broker's** id when the broker returned one.
+      For modify/cancel, the original id of the affected order.
+    * ``broker_order_id`` is an alias for ``order_id`` kept for callers
+      that already used the older name; new code should use ``order_id``.
+    * ``error_code`` is the canonical :class:`BrokerErrorCode` (string)
+      and ``http_status`` is the wire status the broker returned; both
+      are diagnostic only and must not be parsed for business logic.
+    * ``raw_payload`` is the broker's raw response body, kept verbatim
+      for forensic / audit / reconciliation. It is **not** part of the
+      contract — schema differences across brokers are expected.
+    """
 
     success: bool
     order_id: str = ""
     message: str = ""
     status: OrderStatus = OrderStatus.OPEN
+    broker_order_id: str = ""
+    error_code: str = ""
+    http_status: int | None = None
+    raw_payload: dict[str, Any] | None = None
+    latency_ms: float = 0.0
 
     @classmethod
-    def ok(cls, order_id: str, message: str = "Success") -> OrderResponse:
-        return cls(success=True, order_id=order_id, message=message)
+    def ok(
+        cls,
+        order_id: str = "",
+        message: str = "Success",
+        status: OrderStatus = OrderStatus.OPEN,
+        raw_payload: dict[str, Any] | None = None,
+        http_status: int | None = 200,
+        latency_ms: float = 0.0,
+    ) -> OrderResponse:
+        """Construct a successful response.
+
+        ``broker_order_id`` defaults to ``order_id`` so callers that only
+        pass one argument do not have to duplicate it.
+        """
+        return cls(
+            success=True,
+            order_id=order_id,
+            broker_order_id=order_id,
+            message=message,
+            status=status,
+            http_status=http_status,
+            raw_payload=raw_payload,
+            latency_ms=latency_ms,
+        )
 
     @classmethod
-    def fail(cls, message: str) -> OrderResponse:
-        return cls(success=False, message=message)
+    def fail(
+        cls,
+        message: str,
+        error_code: str = "",
+        http_status: int | None = None,
+        raw_payload: dict[str, Any] | None = None,
+        latency_ms: float = 0.0,
+        status: OrderStatus = OrderStatus.REJECTED,
+    ) -> OrderResponse:
+        """Construct a failed response.
+
+        ``error_code`` SHOULD be a :class:`BrokerErrorCode` string when
+        the broker returned a recognisable error; otherwise the broker's
+        own error code (e.g. ``"DH-906"``) is acceptable.
+        """
+        return cls(
+            success=False,
+            message=message,
+            status=status,
+            error_code=error_code,
+            http_status=http_status,
+            raw_payload=raw_payload,
+            latency_ms=latency_ms,
+        )
+
+    def with_broker_id(self, broker_id: str) -> OrderResponse:
+        """Return a copy with ``broker_order_id`` populated.
+
+        Useful when the response is created before the broker returns
+        its native id (e.g. inside a retry wrapper).
+        """
+        return _replace(self, broker_order_id=broker_id)
+
+
+# Sentinel for the ``_replace`` helper above; we cannot use
+# ``dataclasses.replace`` as a default because ``OrderResponse`` has
+# ``frozen=False`` and we want to remain compatible with that.
+def _replace(resp: OrderResponse, **changes: Any) -> OrderResponse:
+    from dataclasses import replace as _dc_replace
+    return _dc_replace(resp, **changes)
 
 
 @dataclass(slots=True, frozen=True)
@@ -342,7 +432,7 @@ class Instrument:
     security_id: str
     instrument_type: str
     lot_size: int = 1
-    tick_size: Decimal = Decimal("0.05")
+    tick_size: Decimal = DEFAULT_TICK_SIZE
     name: str | None = None
     option_type: str | None = None
     strike_price: Decimal | None = None

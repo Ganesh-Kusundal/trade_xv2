@@ -152,7 +152,8 @@ def test_cancel_super_order_entry_leg(fake_client, resolver):
     })
     adapter = SuperOrdersAdapter(fake_client, resolver)
     result = adapter.cancel_super_order_leg("SO123456", "ENTRY_LEG")
-    assert result is True
+    assert result.success is True
+    assert result.order_id == "SO123456"
     calls = fake_client.calls_for("DELETE", "/super/orders/SO123456/ENTRY_LEG")
     assert len(calls) == 1
 
@@ -164,7 +165,8 @@ def test_cancel_super_order_target_leg(fake_client, resolver):
     })
     adapter = SuperOrdersAdapter(fake_client, resolver)
     result = adapter.cancel_super_order_leg("SO123456", "TARGET_LEG")
-    assert result is True
+    assert result.success is True
+    assert result.order_id == "SO123456"
 
 
 def test_get_super_order_list(fake_client, resolver):

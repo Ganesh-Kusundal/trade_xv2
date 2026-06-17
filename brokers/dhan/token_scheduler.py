@@ -17,15 +17,19 @@ import time
 from collections.abc import Callable
 
 from brokers.common.core.auth import AuthManager
+from brokers.common.core.constants import (
+    DEFAULT_STOP_TIMEOUT_SECONDS,
+    DHAN_TOKEN_REFRESH_BUFFER_SECONDS,
+    DHAN_TOKEN_SCHEDULER_INTERVAL_SECONDS,
+)
 from brokers.common.lifecycle import HealthState, ManagedService, build_health
 
 logger = logging.getLogger(__name__)
 
-# Default refresh interval: 20 minutes
-_DEFAULT_INTERVAL_SECONDS = 20 * 60
-
-# Default buffer: refresh when 10 minutes remain
-_DEFAULT_BUFFER_SECONDS = 600
+# Defaults — re-exported from core.constants for callers that want
+# the raw values without importing core.constants directly.
+_DEFAULT_INTERVAL_SECONDS = DHAN_TOKEN_SCHEDULER_INTERVAL_SECONDS
+_DEFAULT_BUFFER_SECONDS = DHAN_TOKEN_REFRESH_BUFFER_SECONDS
 
 
 class TokenRefreshScheduler(ManagedService):
@@ -96,7 +100,7 @@ class TokenRefreshScheduler(ManagedService):
             self._buffer,
         )
 
-    def stop(self, timeout_seconds: float = 5.0) -> None:
+    def stop(self, timeout_seconds: float = DEFAULT_STOP_TIMEOUT_SECONDS) -> None:
         """Stop the background refresh thread. Idempotent."""
         self._stop_event.set()
         if self._thread:

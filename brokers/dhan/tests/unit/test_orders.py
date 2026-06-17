@@ -55,9 +55,25 @@ def test_cancel_order(fake_client, resolver):
     fake_client.set_response("DELETE", "/orders/ORD123456", {"status": "success"})
     adapter = OrdersAdapter(fake_client, resolver)
     result = adapter.cancel_order("ORD123456")
-    assert result is True
+    assert result.success is True
+    assert result.order_id == "ORD123456"
     # Verify the correct endpoint was called
     assert fake_client.calls_for("DELETE", "/orders/ORD123456") is not None
+
+
+def test_cancel_order_broker_error(fake_client, resolver):
+    """When the broker returns a non-success status, the adapter must
+    return a structured failure — not treat any dict as success."""
+    fake_client.set_response(
+        "DELETE",
+        "/orders/ORD123456",
+        {"status": "error", "errorCode": "DH-906", "errorMessage": "Invalid token"},
+    )
+    adapter = OrdersAdapter(fake_client, resolver)
+    result = adapter.cancel_order("ORD123456")
+    assert result.success is False
+    assert result.error_code == "DH-906"
+    assert "Invalid token" in result.message
 
 
 def test_get_orderbook_parsing(fake_client, resolver):

@@ -205,7 +205,7 @@ class TestDomainModelCorrelationId:
 
     def test_trade_has_correlation_id(self):
         """Trade model must have correlation_id field."""
-        from brokers.common.core.models import Trade
+        from brokers.common.core.domain import Trade
 
         if not hasattr(Trade, "__dataclass_fields__"):
             pytest.skip("Trade is not a dataclass")
@@ -220,7 +220,7 @@ class TestDomainModelCorrelationId:
 
     def test_position_has_correlation_id(self):
         """Position model must have correlation_id field."""
-        from brokers.common.core.models import Position
+        from brokers.common.core.domain import Position
 
         if not hasattr(Position, "__dataclass_fields__"):
             pytest.skip("Position is not a dataclass")

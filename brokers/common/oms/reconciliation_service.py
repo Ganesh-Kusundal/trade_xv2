@@ -13,6 +13,11 @@ import threading
 import time
 from typing import Any
 
+from brokers.common.core.constants import (
+    DEFAULT_STOP_TIMEOUT_SECONDS,
+    MIN_SLEEP_SECONDS,
+    RECONCILIATION_INTERVAL_SECONDS,
+)
 from brokers.common.event_bus import EventBus
 from brokers.common.lifecycle import HealthState, ManagedService, build_health
 from brokers.common.oms.order_manager import OrderManager
@@ -51,15 +56,15 @@ class ReconciliationService(ManagedService):
         order_manager: OrderManager,
         position_manager: PositionManager,
         reconciliation_service: Any,
-        interval_seconds: float = 300.0,
+        interval_seconds: float = RECONCILIATION_INTERVAL_SECONDS,
         event_bus: EventBus | None = None,
     ) -> None:
         self._order_manager = order_manager
         self._position_manager = position_manager
         self._reconciliation_service = reconciliation_service
-        # 1ms minimum so the loop can never busy-spin. Tests use
+        # Minimum sleep so the loop can never busy-spin. Tests use
         # sub-second intervals; production should use ≥5s.
-        self._interval = max(0.001, float(interval_seconds))
+        self._interval = max(MIN_SLEEP_SECONDS, float(interval_seconds))
         self._event_bus = event_bus
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
@@ -82,7 +87,7 @@ class ReconciliationService(ManagedService):
             "Reconciliation service started (interval=%.1fs)", self._interval
         )
 
-    def stop(self, timeout_seconds: float = 5.0) -> None:
+    def stop(self, timeout_seconds: float = DEFAULT_STOP_TIMEOUT_SECONDS) -> None:
         self._stop_event.set()
         if self._thread:
             self._thread.join(timeout=timeout_seconds)

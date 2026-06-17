@@ -13,7 +13,7 @@ from analytics.backtest import (
     PerformanceMetrics,
 )
 from analytics.pipeline import ATR, RSI, SMA, FeaturePipeline
-from analytics.replay.models import Trade
+from analytics.replay.models import SimulatedTrade
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -95,9 +95,9 @@ class TestTradeAnalysis:
 
     def test_analyze_trades_computes_metrics(self) -> None:
         trades = [
-            Trade(symbol="A", side="BUY", entry_price=100, exit_price=110, quantity=100, pnl=1000, pnl_pct=10.0, strategy="Momentum"),
-            Trade(symbol="B", side="BUY", entry_price=100, exit_price=95, quantity=100, pnl=-500, pnl_pct=-5.0, strategy="Momentum"),
-            Trade(symbol="C", side="BUY", entry_price=100, exit_price=115, quantity=100, pnl=1500, pnl_pct=15.0, strategy="Breakout"),
+            SimulatedTrade(symbol="A", side="BUY", entry_price=100, exit_price=110, quantity=100, pnl=1000, pnl_pct=10.0, strategy="Momentum"),
+            SimulatedTrade(symbol="B", side="BUY", entry_price=100, exit_price=95, quantity=100, pnl=-500, pnl_pct=-5.0, strategy="Momentum"),
+            SimulatedTrade(symbol="C", side="BUY", entry_price=100, exit_price=115, quantity=100, pnl=1500, pnl_pct=15.0, strategy="Breakout"),
         ]
         engine = BacktestEngine(FeaturePipeline())
         analysis = engine._analyze_trades(trades)

@@ -37,7 +37,7 @@ from analytics.backtest.models import (
 )
 from analytics.pipeline.pipeline import FeaturePipeline
 from analytics.replay.engine import ReplayEngine
-from analytics.replay.models import ReplayResult, Trade
+from analytics.replay.models import ReplayResult, SimulatedTrade
 from analytics.strategy.pipeline import StrategyPipeline
 
 logger = logging.getLogger(__name__)
@@ -180,7 +180,7 @@ class BacktestEngine:
 
         return metrics
 
-    def _analyze_trades(self, trades: list[Trade]) -> TradeAnalysis:
+    def _analyze_trades(self, trades: list[SimulatedTrade]) -> TradeAnalysis:
         """Analyze all completed trades."""
         analysis = TradeAnalysis()
         if not trades:

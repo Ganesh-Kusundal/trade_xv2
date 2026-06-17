@@ -1,4 +1,9 @@
-"""O(1) symbol → Instrument resolver backed by dictionaries."""
+"""O(1) symbol → Instrument resolver backed by dictionaries.
+
+Index symbols (NIFTY, BANKNIFTY, etc.) are resolved via a hardcoded
+fallback in :mod:`config.indices` when they are not present in the
+instrument cache.
+"""
 
 from __future__ import annotations
 
@@ -6,6 +11,7 @@ import logging
 import threading
 from collections.abc import Iterable
 
+from config.indices import is_index, get_index_entry
 from brokers.dhan.domain import Exchange, Instrument, InstrumentType, OptionType
 from brokers.dhan.exceptions import InstrumentNotFoundError
 from brokers.dhan.segments import SEGMENT_TO_EXCHANGE
@@ -160,7 +166,49 @@ class SymbolResolver:
 
         # 4. Try stripped Option format standard
         stripped_cepe = clean.replace(" ", "").replace("-", "").replace("_", "")
-        return self._by_symbol.get((stripped_cepe, exch))
+        inst = self._by_symbol.get((stripped_cepe, exch))
+        if inst is not None:
+            return inst
+
+        # 5. Index fallback: if symbol is a known index, try Exchange.INDEX
+        #    Indices are often stored with exchange=INDEX in the CSV, but
+        #    users typically query with exchange=NSE.  This fallback catches
+        #    that case when the cache is populated with index instruments.
+        if is_index(clean):
+            index_exch = Exchange("INDEX")
+            if exch != index_exch:
+                idx_inst = self._by_symbol.get((clean, index_exch))
+                if idx_inst is not None:
+                    return idx_inst
+                # Also try stripped
+                idx_inst = self._by_symbol.get((stripped, index_exch))
+                if idx_inst is not None:
+                    return idx_inst
+
+        # 6. Hardcoded index fallback: if symbol is a known index with a
+        #    hardcoded Dhan security_id, create a synthetic Instrument.
+        #    This works even when instruments are NOT loaded (load_instruments=False)
+        #    or the index isn't present in the CSV.
+        if is_index(clean):
+            entry = get_index_entry(clean)
+            if entry and entry.dhan_security_id:
+                from decimal import Decimal
+                logger.info(
+                    "index_resolved_via_hardcoded_id",
+                    extra={"symbol": clean, "security_id": entry.dhan_security_id, "name": entry.canonical_name},
+                )
+                return Instrument(
+                    symbol=clean,
+                    exchange=Exchange("INDEX"),
+                    security_id=entry.dhan_security_id,
+                    instrument_type=InstrumentType.EQUITY,
+                    lot_size=1,
+                    tick_size=Decimal("0.05"),
+                    name="INDEX",
+                    canonical_symbol=entry.canonical_name,
+                )
+
+        return None
 
     @staticmethod
     def _normalise_exchange(exchange: str) -> Exchange:

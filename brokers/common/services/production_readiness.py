@@ -37,6 +37,20 @@ class ReadinessCheck:
     message: str
 
 
+class ProductionReadinessError(RuntimeError):
+    """Raised by :meth:`ProductionReadinessChecker.run_or_raise` when
+    any pre-flight check failed.
+
+    The associated :class:`ReadinessReport` is attached as
+    :attr:`report` so operators can inspect exactly which checks
+    failed and why.
+    """
+
+    def __init__(self, report: "ReadinessReport") -> None:
+        self.report = report
+        super().__init__(report.summary())
+
+
 @dataclass
 class ReadinessReport:
     checks: list[ReadinessCheck] = field(default_factory=list)
@@ -82,6 +96,28 @@ class ProductionReadinessChecker:
             if not passed:
                 report.failed.append(name)
                 logger.error("readiness_check_failed: %s — %s", name, message)
+        return report
+
+    def run_or_raise(
+        self,
+        error_factory: Callable[[ReadinessReport], BaseException] | None = None,
+    ) -> ReadinessReport:
+        """Run the checks and raise if any failed.
+
+        REF-17: this is the canonical entry point for production paths.
+        A caller that uses :meth:`run` and ignores the result is the
+        exact anti-pattern the audit called out. The default factory
+        raises :class:`ProductionReadinessError` so an unsafe
+        configuration cannot accidentally make it past the gate.
+
+        Args:
+            error_factory: Optional override for the exception type
+                (useful in tests that want to assert a specific class).
+        """
+        report = self.run()
+        if not report.passed:
+            factory = error_factory or ProductionReadinessError
+            raise factory(report)
         return report
 
     def _checks(self) -> list[tuple[str, Callable[[], tuple[bool, str]]]]:
@@ -196,21 +232,37 @@ class ProductionReadinessChecker:
 
     def _check_capital_fn(self) -> tuple[bool, str]:
         """M-7 / B-3: the capital_fn must NOT silently fall back to a phantom
-        1,000,000 placeholder. The fail-safe (RISK_FAIL_OPEN=1) requires an
-        explicit operator override that is logged and metricised.
+        1,000,000 placeholder.
+
+        REF-17: the original implementation accepted ``RISK_FAIL_OPEN=1``
+        and *passed* the readiness check, allowing live trading to start
+        with a phantom 1,000,000 INR capital placeholder. That was the
+        "looks fine at boot, breaks under load" failure pattern the
+        production-readiness gate was created to prevent.
+
+        The corrected contract:
+
+        * The check is **closed by default** — only ``RISK_FAIL_OPEN=0``
+          (the unset case) passes.
+        * ``RISK_FAIL_OPEN=1`` is a developer-only override and now
+          *fails* the readiness check, with a structured message that
+          tells the operator exactly how to disable the gate for testing
+          (``RISK_FAIL_OPEN=0`` or simply unset the variable).
+        * An empty / unset ``RISK_FAIL_OPEN`` is treated identically to
+          ``0`` — the safe state must be the default state, not require
+          a flag.
         """
-        if os.environ.get("RISK_FAIL_OPEN") == "1":
-            return True, (
-                "RISK_FAIL_OPEN=1 is set — operator has explicitly authorised "
-                "trading when capital is unknown. The capital_fn will return "
-                "Decimal(0) and risk checks will block every order until the "
-                "broker balance is recoverable."
+        val = (os.environ.get("RISK_FAIL_OPEN") or "").strip()
+        if val == "1":
+            return False, (
+                "RISK_FAIL_OPEN=1 is set — this is a developer override and is "
+                "REJECTED in production. Unset the variable (or set it to 0) "
+                "to enable the production safety gate. Phantom-capital trading "
+                "must never go live."
             )
-        # If we got here, the operator did not opt into fail-open. The
-        # capital_fn may still use a phantom fallback internally; we cannot
-        # detect that without a probe. The presence of a real gateway
-        # balance is checked separately by _check_dhan_credentials.
-        return True, "RISK_FAIL_OPEN not set; capital_fn must use real balance"
+        return True, (
+            "RISK_FAIL_OPEN is unset/0; capital_fn must use real broker balance"
+        )
 
     def _check_dhan_credentials(self) -> tuple[bool, str]:
         cid = os.environ.get("DHAN_CLIENT_ID", "").strip()

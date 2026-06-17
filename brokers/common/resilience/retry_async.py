@@ -11,6 +11,7 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Generic, TypeVar
 
+from brokers.common.core.constants import MAX_RETRY_DELAY_MS
 from brokers.common.resilience.backoff import BackoffStrategy, ExponentialBackoff
 from brokers.common.resilience.circuit_breaker import CircuitBreaker
 from brokers.common.resilience.errors import (
@@ -52,7 +53,7 @@ class AsyncRetryExecutor(Generic[T]):
         self.rate_limit_category = rate_limit_category
         self.backoff = backoff or ExponentialBackoff(
             base_delay_ms=100,
-            max_delay_ms=config.max_retry_delay_ms if config else 30000,
+            max_delay_ms=config.max_retry_delay_ms if config else MAX_RETRY_DELAY_MS,
         )
         self._on_retry = on_retry
         self._on_failure = on_failure

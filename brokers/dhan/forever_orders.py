@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from decimal import Decimal
 
+from brokers.common.core.models import OrderResponse
 from brokers.dhan.domain import ForeverOrder, ForeverOrderRequest
 from brokers.dhan.exceptions import ForeverOrderError
 from brokers.dhan.http_client import DhanHttpClient
@@ -154,29 +155,55 @@ class ForeverOrdersAdapter:
 
         return order
 
-    def cancel_forever_order(self, order_id: str) -> bool:
+    def cancel_forever_order(self, order_id: str) -> OrderResponse:
         """Cancel a forever order.
 
-        Args:
-            order_id: Order ID to cancel
-
         Returns:
-            True if cancellation successful
+            :class:`OrderResponse` indicating success or carrying the
+            broker's error code in :attr:`OrderResponse.error_code`.
 
         Raises:
-            ForeverOrderError: If API call fails
+            ForeverOrderError: only on network/transport errors.
         """
         try:
             data = self._client.delete(f"/forever/orders/{order_id}")
         except Exception as exc:
             raise ForeverOrderError(f"Forever order cancellation failed: {exc}") from exc
 
-        success = isinstance(data, dict) and data.get("status") == "success"
-        logger.info("forever_order_cancelled", extra={
-            "order_id": order_id,
-            "success": success,
-        })
-        return success
+        if not isinstance(data, dict):
+            return OrderResponse.fail(
+                message="malformed broker response (not a dict)",
+                raw_payload={"raw": repr(data)},
+            )
+        broker_status = str(data.get("status", "")).lower()
+        success = broker_status in {"success", "ok"}
+        if success:
+            logger.info(
+                "forever_order_cancelled",
+                extra={"order_id": order_id, "success": True},
+            )
+            return OrderResponse.ok(
+                order_id=order_id,
+                message=str(data.get("message", "Forever order cancelled")),
+                raw_payload=data,
+            )
+        logger.warning(
+            "forever_order_cancel_failed",
+            extra={
+                "order_id": order_id,
+                "error_code": data.get("errorCode"),
+                "error_message": data.get("errorMessage"),
+            },
+        )
+        return OrderResponse.fail(
+            message=str(
+                data.get("errorMessage")
+                or data.get("message")
+                or "Forever order cancel failed"
+            ),
+            error_code=str(data.get("errorCode", "")),
+            raw_payload=data,
+        )
 
     def get_all_forever_orders(self) -> list[ForeverOrder]:
         """Get all forever orders.

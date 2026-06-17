@@ -33,6 +33,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from brokers.common.core.constants import (
+    DEFAULT_STOP_TIMEOUT_SECONDS,
+    PROCESSED_TRADE_CLEANUP_INTERVAL_SECONDS,
+    PROCESSED_TRADE_RETENTION_SECONDS,
+)
+from brokers.common.lifecycle.lifecycle import HealthState, HealthStatus
+
 logger = logging.getLogger(__name__)
 
 
@@ -126,7 +133,7 @@ class ProcessedTradeRepository:
         self,
         persistence_path: str | Path | None = None,
         on_duplicate=None,
-        max_age_seconds: int = 86400,
+        max_age_seconds: int = PROCESSED_TRADE_RETENTION_SECONDS,
     ) -> None:
         self._lock = threading.RLock()
         self._seen: set[TradeIdKey] = set()
@@ -137,9 +144,101 @@ class ProcessedTradeRepository:
         self._duplicates_observed = 0
         self._total_processed = 0
         self._evicted = 0
+        # Auto-cleanup state — wired by attach_auto_cleanup().
+        self._auto_cleanup_thread: threading.Thread | None = None
+        self._auto_cleanup_stop = threading.Event()
+        self._auto_cleanup_interval = PROCESSED_TRADE_CLEANUP_INTERVAL_SECONDS
         if self._path is not None:
             self._path.parent.mkdir(parents=True, exist_ok=True)
             self._load_from_disk()
+
+    def attach_auto_cleanup(
+        self,
+        interval_seconds: int = PROCESSED_TRADE_CLEANUP_INTERVAL_SECONDS,
+    ) -> None:
+        """Start a daemon thread that periodically evicts expired entries.
+
+        The thread is named ``processed-trade-cleanup`` and is stopped
+        automatically when the process exits (it is a daemon). Callers
+        that need deterministic shutdown should call
+        :meth:`stop_auto_cleanup` from their lifecycle manager's stop
+        path. Idempotent — calling twice is a no-op.
+        """
+        if self._auto_cleanup_thread and self._auto_cleanup_thread.is_alive():
+            return
+        if self._max_age_seconds <= 0:
+            logger.debug(
+                "ProcessedTradeRepository: auto-cleanup disabled "
+                "(max_age_seconds<=0)"
+            )
+            return
+        self._auto_cleanup_interval = max(1, int(interval_seconds))
+        self._auto_cleanup_stop.clear()
+        self._auto_cleanup_thread = threading.Thread(
+            target=self._auto_cleanup_loop,
+            name="processed-trade-cleanup",
+            daemon=True,
+        )
+        self._auto_cleanup_thread.start()
+        logger.info(
+            "ProcessedTradeRepository: auto-cleanup started "
+            "(interval=%ds, retention=%ds)",
+            self._auto_cleanup_interval,
+            self._max_age_seconds,
+        )
+
+    def stop_auto_cleanup(
+        self, timeout_seconds: float = DEFAULT_STOP_TIMEOUT_SECONDS
+    ) -> None:
+        """Stop the auto-cleanup thread. Idempotent."""
+        if not self._auto_cleanup_thread:
+            return
+        self._auto_cleanup_stop.set()
+        self._auto_cleanup_thread.join(timeout=timeout_seconds)
+        if self._auto_cleanup_thread.is_alive():
+            logger.warning(
+                "ProcessedTradeRepository: auto-cleanup did not stop within %.1fs",
+                timeout_seconds,
+            )
+        else:
+            logger.info("ProcessedTradeRepository: auto-cleanup stopped")
+        self._auto_cleanup_thread = None
+
+    def health(self) -> HealthStatus:
+        """Health snapshot for SRE. Reports the repository's size and
+        whether auto-cleanup is running."""
+        with self._lock:
+            size = len(self._seen)
+            detail = f"size={size} max_age={self._max_age_seconds}s"
+        if self._auto_cleanup_thread and self._auto_cleanup_thread.is_alive():
+            return HealthStatus(
+                state=HealthState.HEALTHY,
+                service="processed-trade-repository",
+                detail=detail + " auto-cleanup=running",
+            )
+        return HealthStatus(
+            state=HealthState.HEALTHY,
+            service="processed-trade-repository",
+            detail=detail + " auto-cleanup=off",
+        )
+
+    def _auto_cleanup_loop(self) -> None:
+        """Periodic eviction loop. Uses Event.wait so stop is responsive."""
+        try:
+            while not self._auto_cleanup_stop.is_set():
+                try:
+                    self.cleanup()
+                except Exception as exc:  # pragma: no cover - defensive
+                    logger.exception(
+                        "ProcessedTradeRepository: auto-cleanup iteration failed: %s",
+                        exc,
+                    )
+                if self._auto_cleanup_stop.wait(
+                    timeout=self._auto_cleanup_interval
+                ):
+                    break
+        finally:
+            logger.debug("ProcessedTradeRepository: auto-cleanup thread exiting")
 
     # ── Public API ────────────────────────────────────────────────────────
 

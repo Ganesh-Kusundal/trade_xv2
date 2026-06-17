@@ -34,11 +34,11 @@ import pandas as pd
 from analytics.pipeline.pipeline import FeaturePipeline
 from analytics.replay.models import (
     Bar,
-    Position,
     ReplayConfig,
     ReplayResult,
     ReplaySession,
-    Trade,
+    SimulatedPosition,
+    SimulatedTrade,
 )
 from analytics.scanner.models import Candidate
 from analytics.strategy.models import Signal
@@ -244,7 +244,7 @@ class ReplayEngine:
                 cost = qty * price + config.commission_flat
                 if cost <= session.capital:
                     session.capital -= cost
-                    session.position = Position(
+                    session.position = SimulatedPosition(
                         symbol=bar.symbol,
                         side="BUY",
                         entry_price=price,
@@ -270,7 +270,7 @@ class ReplayEngine:
         pnl_pct = ((exit_price / pos.entry_price) - 1) * 100 if pos.entry_price > 0 else 0.0
 
         session.capital += pos.quantity * exit_price - self._config.commission_flat
-        session.trades.append(Trade(
+        session.trades.append(SimulatedTrade(
             symbol=pos.symbol,
             side=pos.side,
             entry_price=pos.entry_price,

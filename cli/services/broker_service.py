@@ -277,19 +277,26 @@ class BrokerService:
                 # so /healthz, /readyz, and /metrics are live in production.
                 # Registered with the lifecycle so close() drains it.
                 self._start_http_observability_server(oms_risk_manager)
-                # M-7: production readiness gate. Runs after the
-                # lifecycle has started so health() snapshots are real.
-                # Failures are logged but do NOT abort init — callers
-                # inspect ``self.readiness_report()`` and may
-                # SystemExit on a failed gate.
+                # M-7: production readiness gate. REF-17: this gate
+                # now FAILS CLOSED — a failed check raises
+                # ProductionReadinessError, which is caught above and
+                # recorded as ``_dhan_load_error``. The CLI must
+                # refuse to enter the live trading path when the gate
+                # fails (see BrokerService.live_actionable). Calling
+                # ``run()`` directly (without ``run_or_raise``) is the
+                # legacy log-only path retained only for diagnostic
+                # inspection of the report.
                 try:
                     from brokers.common.services.production_readiness import (
                         ProductionReadinessChecker,
                     )
                     self._readiness_report = ProductionReadinessChecker(
                         self
-                    ).run()
+                    ).run_or_raise()
                     if not self._readiness_report.passed:
+                        # Defensive — run_or_raise() should already have
+                        # raised, but keep a structured error in case
+                        # a future override disables it.
                         logger.error(
                             "production_readiness_failed: %s",
                             self._readiness_report.summary(),

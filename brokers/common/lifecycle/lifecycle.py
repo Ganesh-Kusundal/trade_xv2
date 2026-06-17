@@ -24,6 +24,8 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Protocol, runtime_checkable
 
+from brokers.common.core.constants import DEFAULT_STOP_TIMEOUT_SECONDS
+
 logger = logging.getLogger(__name__)
 
 
@@ -85,7 +87,7 @@ class ManagedService(Protocol):
         """Start the service. Idempotent. Returns when the service is up."""
         ...
 
-    def stop(self, timeout_seconds: float = 5.0) -> None:
+    def stop(self, timeout_seconds: float = DEFAULT_STOP_TIMEOUT_SECONDS) -> None:
         """Stop the service. Idempotent. Returns when the service is down."""
         ...
 
@@ -123,7 +125,7 @@ class LifecycleManager:
 
     def __init__(
         self,
-        default_stop_timeout: float = 5.0,
+        default_stop_timeout: float = DEFAULT_STOP_TIMEOUT_SECONDS,
     ) -> None:
         self._lock = threading.RLock()
         self._services: dict[str, ManagedService] = {}

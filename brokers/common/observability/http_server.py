@@ -30,11 +30,17 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 from datetime import datetime, timezone
 from typing import Any
 
 from aiohttp import web
 
+from brokers.common.core.constants import (
+    DEFAULT_STOP_TIMEOUT_SECONDS,
+    OBSERVABILITY_DEFAULT_HOST,
+    OBSERVABILITY_DEFAULT_PORT,
+)
 from brokers.common.lifecycle.lifecycle import (
     HealthState,
     LifecycleManager,
@@ -151,8 +157,8 @@ class HttpObservabilityServer(ManagedService):
 
     def __init__(
         self,
-        host: str = "127.0.0.1",
-        port: int = 8765,
+        host: str = OBSERVABILITY_DEFAULT_HOST,
+        port: int = OBSERVABILITY_DEFAULT_PORT,
         lifecycle: LifecycleManager | None = None,
         event_metrics: Any | None = None,
         extra_gauges_fn: Any | None = None,
@@ -358,7 +364,7 @@ class HttpObservabilityServer(ManagedService):
             extra={"host": self._host, "port": actual_port},
         )
 
-    def stop(self, timeout_seconds: float = 5.0) -> None:
+    def stop(self, timeout_seconds: float = DEFAULT_STOP_TIMEOUT_SECONDS) -> None:
         """Stop the HTTP server. Bounded by ``timeout_seconds``.
 
         The aiohttp event loop is daemon-bound; the thread will be
@@ -408,7 +414,3 @@ class HttpObservabilityServer(ManagedService):
                 "port": self._port,
             },
         )
-
-
-# We need `threading` for the background thread in start().
-import threading

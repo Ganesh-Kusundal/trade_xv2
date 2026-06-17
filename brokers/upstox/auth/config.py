@@ -4,7 +4,7 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from brokers.common.env_loader import load_env_file
+from brokers.common.settings import BrokerSettings, SettingsLoaderBase
 
 UPSTOX_PREFIX = "UPSTOX"
 
@@ -13,19 +13,22 @@ VALID_AUTH_MODES = ("STATIC", "OAUTH", "INTERACTIVE", "EXTENDED", "WEBHOOK")
 
 
 @dataclass(frozen=True)
-class UpstoxConnectionSettings:
+class UpstoxConnectionSettings(BrokerSettings):
     """Resolved Upstox connection settings.
 
     Mirrors Trade_J ``UpstoxConnectionSettings`` (Java record).
+
+    Inherits common fields from :class:`BrokerSettings`:
+    ``client_id``, ``access_token``, ``http_timeout``, ``enable_retry``,
+    ``pool_connections``, ``pool_maxsize``.
     """
 
-    client_id: str
+    # Upstox-specific fields
     client_secret: str = ""
     redirect_uri: str = "http://localhost:18080"
     auth_mode: str = "STATIC"
     environment: str = "LIVE"
     rest_base_url: str = ""
-    access_token: str = ""
     refresh_token: str = ""
     extended_token: str = ""
     analytics_token: str = ""
@@ -37,8 +40,6 @@ class UpstoxConnectionSettings:
     algo_name: str = ""
     static_ip: str = ""
     allow_live_orders: bool = True
-    pool_connections: int = 50
-    pool_maxsize: int = 100
     market_protection_default: int = -1
     slice_default: bool = False
     ws_plus_plan: bool = False
@@ -115,10 +116,14 @@ class UpstoxConnectionSettings:
         return "https://api-hft.upstox.com"
 
 
-class UpstoxSettingsLoader:
+class UpstoxSettingsLoader(SettingsLoaderBase):
     """Load :class:`UpstoxConnectionSettings` from env / dotenv / .properties.
 
     Mirrors Trade_J ``UpstoxConnectionSettings`` env conventions.
+
+    Inherits env var accessors and value parsers from :class:`SettingsLoaderBase`.
+    Overrides :meth:`_get` to support multiple candidate env-var keys and
+    legacy aliases for backward compatibility.
     """
 
     PREFIX = UPSTOX_PREFIX
@@ -131,13 +136,7 @@ class UpstoxSettingsLoader:
         env_path: Path | None = None,
         prefix: str = PREFIX,
     ) -> UpstoxConnectionSettings:
-        if env_path:
-            load_env_file(env_path)
-        else:
-            for candidate in cls.DEFAULT_ENV_PATHS:
-                if candidate.exists():
-                    load_env_file(candidate)
-                    break
+        cls._load_default_env(env_path)
 
         environment = cls._get(prefix, "ENVIRONMENT", default="LIVE").upper()
         if environment not in VALID_ENVIRONMENTS:
@@ -300,36 +299,27 @@ class UpstoxSettingsLoader:
         return default
 
     @staticmethod
-    def _get_int(prefix: str, name: str, default: int) -> int:
-        raw = UpstoxSettingsLoader._get(prefix, name)
-        if not raw:
-            return default
-        try:
-            return int(raw)
-        except ValueError:
-            return default
-
-    @staticmethod
-    def _get_bool(prefix: str, name: str, default: bool) -> bool:
-        raw = UpstoxSettingsLoader._get(prefix, name).lower()
-        if not raw:
-            return default
-        return raw in ("1", "true", "yes", "y", "on")
-
-    @staticmethod
-    def _parse_int(value: str | None, default: int) -> int:
-        if value is None or value == "":
-            return default
-        try:
-            return int(value)
-        except ValueError:
-            return default
-
-    @staticmethod
-    def _parse_bool(value: str | None, default: bool) -> bool:
-        if value is None or value == "":
-            return default
-        return str(value).lower() in ("1", "true", "yes", "y", "on")
+    def _get(prefix: str, name: str, default: str = "") -> str:
+        upper_name = name.upper()
+        normalized = upper_name.replace(".", "_")
+        candidates = [
+            f"{prefix.upper()}_{normalized}",
+            f"{prefix.upper()}.{name}",
+            f"{prefix.lower()}.{name}",
+        ]
+        # Backward-compat fallbacks for legacy env var names.
+        name_lower = name.lower()
+        if name_lower == "client_id":
+            candidates.insert(0, f"{prefix.upper()}_API_KEY")
+        elif name_lower == "client_secret":
+            candidates.insert(0, f"{prefix.upper()}_API_SECRET")
+        elif name_lower == "access_token":
+            candidates.insert(0, f"{prefix.upper()}_API_ACCESS_TOKEN")
+        for candidate in candidates:
+            value = os.environ.get(candidate)
+            if value:
+                return value
+        return default
 
     @staticmethod
     def _path_from_env(value: str | None, default: Path | None = None) -> Path | None:

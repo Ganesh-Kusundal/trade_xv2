@@ -18,6 +18,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from brokers.common.core.models import OrderResponse
+
 if TYPE_CHECKING:
     from brokers.dhan.connection import DhanConnection
 
@@ -56,7 +58,7 @@ class DhanExtendedCapabilities:
         """Modify a super order."""
         return self._conn.super_orders.modify_super_order(order_id, **kwargs)
 
-    def cancel_super_order_leg(self, order_id: str, leg_name: str) -> bool:
+    def cancel_super_order_leg(self, order_id: str, leg_name: str) -> OrderResponse:
         """Cancel a specific leg of a super order."""
         return self._conn.super_orders.cancel_super_order_leg(order_id, leg_name)
 
@@ -74,7 +76,7 @@ class DhanExtendedCapabilities:
         """Modify a forever order."""
         return self._conn.forever_orders.modify_forever_order(order_id, request)
 
-    def cancel_forever_order(self, order_id: str) -> bool:
+    def cancel_forever_order(self, order_id: str) -> OrderResponse:
         """Cancel a forever order."""
         return self._conn.forever_orders.cancel_forever_order(order_id)
 

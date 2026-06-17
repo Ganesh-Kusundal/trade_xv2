@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from decimal import Decimal
 
+from brokers.common.core.models import OrderResponse
 from brokers.dhan.domain import SuperOrder, SuperOrderLeg
 from brokers.dhan.exceptions import SuperOrderError
 from brokers.dhan.http_client import DhanHttpClient
@@ -165,31 +166,57 @@ class SuperOrdersAdapter:
 
         return order
 
-    def cancel_super_order_leg(self, order_id: str, leg_name: str) -> bool:
+    def cancel_super_order_leg(self, order_id: str, leg_name: str) -> OrderResponse:
         """Cancel a specific leg of a super order.
 
-        Args:
-            order_id: Super order ID
-            leg_name: Leg to cancel (ENTRY_LEG, TARGET_LEG, STOP_LOSS_LEG)
-
         Returns:
-            True if cancellation successful
+            :class:`OrderResponse` carrying the broker's structured
+            success/failure. The boolean equivalent is
+            ``bool(response)`` / ``response.is_success``.
 
         Raises:
-            SuperOrderError: If API call fails
+            SuperOrderError: only on network/transport errors.
         """
         try:
             data = self._client.delete(f"/super/orders/{order_id}/{leg_name}")
         except Exception as exc:
             raise SuperOrderError(f"Super order leg cancellation failed: {exc}") from exc
 
-        success = isinstance(data, dict) and data.get("status") == "success"
-        logger.info("super_order_leg_cancelled", extra={
-            "order_id": order_id,
-            "leg_name": leg_name,
-            "success": success,
-        })
-        return success
+        if not isinstance(data, dict):
+            return OrderResponse.fail(
+                message="malformed broker response (not a dict)",
+                raw_payload={"raw": repr(data)},
+            )
+        broker_status = str(data.get("status", "")).lower()
+        success = broker_status in {"success", "ok"}
+        if success:
+            logger.info(
+                "super_order_leg_cancelled",
+                extra={"order_id": order_id, "leg_name": leg_name, "success": True},
+            )
+            return OrderResponse.ok(
+                order_id=order_id,
+                message=str(data.get("message", f"Leg {leg_name} cancelled")),
+                raw_payload=data,
+            )
+        logger.warning(
+            "super_order_leg_cancel_failed",
+            extra={
+                "order_id": order_id,
+                "leg_name": leg_name,
+                "error_code": data.get("errorCode"),
+                "error_message": data.get("errorMessage"),
+            },
+        )
+        return OrderResponse.fail(
+            message=str(
+                data.get("errorMessage")
+                or data.get("message")
+                or "Super order leg cancel failed"
+            ),
+            error_code=str(data.get("errorCode", "")),
+            raw_payload=data,
+        )
 
     def get_super_orders(self) -> list[SuperOrder]:
         """Get all super orders.

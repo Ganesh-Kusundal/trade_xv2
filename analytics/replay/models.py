@@ -124,8 +124,12 @@ class ReplayConfig:
 
 
 @dataclass(frozen=True)
-class Trade:
-    """A simulated trade executed during replay."""
+class SimulatedTrade:
+    """A simulated trade executed during replay.
+
+    Named ``SimulatedTrade`` to avoid collision with the canonical
+    ``Trade`` dataclass in :mod:`brokers.common.core.domain`.
+    """
 
     symbol: str
     side: str                     # "BUY" or "SELL"
@@ -146,8 +150,12 @@ class Trade:
 
 
 @dataclass
-class Position:
-    """An open position during replay."""
+class SimulatedPosition:
+    """An open position during replay.
+
+    Named ``SimulatedPosition`` to avoid collision with the canonical
+    ``Position`` dataclass in :mod:`brokers.common.core.domain`.
+    """
 
     symbol: str
     side: str
@@ -176,8 +184,8 @@ class ReplaySession:
     """
 
     capital: float = 0.0
-    position: Position | None = None
-    trades: list[Trade] = field(default_factory=list)
+    position: SimulatedPosition | None = None
+    trades: list[SimulatedTrade] = field(default_factory=list)
     signals: list[Signal] = field(default_factory=list)
     equity_curve: list[tuple[datetime, float]] = field(default_factory=list)
     bar_count: int = 0

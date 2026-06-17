@@ -14,19 +14,16 @@ entry is dropped and ``dropped`` counter is incremented.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Callable
-
-logger = logging.getLogger(__name__)
-
 import threading
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Callable
 
+from brokers.common.core.constants import DEAD_LETTER_QUEUE_MAX_SIZE
 from brokers.common.event_bus.event_bus import DomainEvent
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -67,7 +64,7 @@ class DeadLetterQueue:
         exceeded. Useful for shipping to a metrics pipeline.
     """
 
-    def __init__(self, max_size: int = 10_000, on_drop=None) -> None:
+    def __init__(self, max_size: int = DEAD_LETTER_QUEUE_MAX_SIZE, on_drop=None) -> None:
         self._max_size = max_size
         self._lock = threading.RLock()
         self._items: deque[DeadLetter] = deque(maxlen=max_size)

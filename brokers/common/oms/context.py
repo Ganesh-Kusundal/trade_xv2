@@ -7,6 +7,7 @@ from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
 
+from brokers.common.core.constants import PHANTOM_CAPITAL_INR, RECONCILIATION_INTERVAL_SECONDS
 from brokers.common.event_bus import (
     DeadLetterQueue,
     EventBus,
@@ -62,7 +63,7 @@ class TradingContext:
         capital_fn: Callable[[], Decimal] | None = None,
         replay_events: bool = True,
         reconciliation_service: Any = None,
-        reconciliation_interval_seconds: float = 300.0,
+        reconciliation_interval_seconds: float = RECONCILIATION_INTERVAL_SECONDS,
         processed_trade_repository: ProcessedTradeRepository | None = None,
         metrics: EventMetrics | None = None,
         dead_letter_queue: DeadLetterQueue | None = None,
@@ -86,6 +87,11 @@ class TradingContext:
         self._processed_trades = (
             processed_trade_repository or ProcessedTradeRepository()
         )
+        # REF-19: enable the self-cleaning thread. It runs as a daemon
+        # so it does not block process exit; callers that own a
+        # LifecycleManager can stop it deterministically via
+        # attach_lifecycle() below.
+        self._processed_trades.attach_auto_cleanup()
         self._position_manager = position_manager or PositionManager(
             event_bus=self._event_bus,
             processed_trade_repository=self._processed_trades,
@@ -94,7 +100,7 @@ class TradingContext:
         self._risk_manager = risk_manager or RiskManager(
             self._position_manager,
             risk_config or RiskConfig(),
-            capital_fn or (lambda: Decimal("1000000")),
+            capital_fn or (lambda: PHANTOM_CAPITAL_INR),
         )
         self._order_manager = order_manager or OrderManager(
             event_bus=self._event_bus,
@@ -144,6 +150,9 @@ class TradingContext:
         """
         if self._reconciliation_service is not None:
             lifecycle.register(self._reconciliation_service)
+        # REF-19: ensure the trade-id ledger's cleanup thread is
+        # stopped deterministically when the lifecycle drains.
+        self._processed_trades.stop_auto_cleanup()
 
     @property
     def event_bus(self) -> EventBus:

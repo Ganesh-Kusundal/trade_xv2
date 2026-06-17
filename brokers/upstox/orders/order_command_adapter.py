@@ -98,22 +98,63 @@ class UpstoxOrderCommandAdapter(OrderCommand):
         payload = UpstoxDomainMapper.to_modify_payload(order_id, instrument_key, **changes)
         return self._order_client.modify_order_v3(payload)
 
-    def cancel_order(self, order_id: str) -> bool:
+    def cancel_order(self, order_id: str) -> OrderResponse:
+        """Cancel an order via the Upstox v3 cancel endpoint.
+
+        Returns:
+            :class:`OrderResponse` indicating success or carrying the
+            broker's error code/message on failure.
+        """
+        from brokers.common.core.models import OrderResponse
+
         try:
             result = self._order_client.cancel_order_v3(order_id)
-            if isinstance(result, dict):
-                if result.get("status") == "success":
-                    return True
-                data = result.get("data")
-                if isinstance(data, dict) and data.get("order_id") == order_id:
-                    return True
-                if isinstance(data, list) and any(
-                    isinstance(d, dict) and d.get("order_id") == order_id for d in data
-                ):
-                    return True
-            return False
-        except Exception:
-            return False
+        except Exception as exc:
+            return OrderResponse.fail(
+                message=f"network error: {exc}",
+                error_code="BRO_ERR_CONNECTION_FAILED",
+            )
+        if not isinstance(result, dict):
+            return OrderResponse.fail(
+                message="malformed broker response (not a dict)",
+                raw_payload={"raw": repr(result)},
+            )
+        # Upstox v3 returns a top-level {"status":"success"} OR
+        # {"data":{"order_id":...}}. Either indicates success.
+        if str(result.get("status", "")).lower() in {"success", "ok"}:
+            return OrderResponse.ok(
+                order_id=order_id,
+                message=str(result.get("message", "Order cancelled")),
+                raw_payload=result,
+            )
+        data = result.get("data")
+        if isinstance(data, dict) and data.get("order_id") == order_id:
+            return OrderResponse.ok(
+                order_id=order_id,
+                message="Order cancelled",
+                raw_payload=result,
+            )
+        if isinstance(data, list) and any(
+            isinstance(d, dict) and d.get("order_id") == order_id for d in data
+        ):
+            return OrderResponse.ok(
+                order_id=order_id,
+                message="Order cancelled",
+                raw_payload=result,
+            )
+        return OrderResponse.fail(
+            message=str(
+                result.get("errors", [{}])[0].get("message")
+                if isinstance(result.get("errors"), list) and result.get("errors")
+                else result.get("message", "Cancel failed")
+            ),
+            error_code=str(
+                result.get("errors", [{}])[0].get("errorCode")
+                if isinstance(result.get("errors"), list) and result.get("errors")
+                else ""
+            ),
+            raw_payload=result,
+        )
 
     def preview_order(self, request: OrderRequest) -> OrderPreview:
         errors: list[str] = []

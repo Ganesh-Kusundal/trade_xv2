@@ -7,6 +7,7 @@ from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
 
+from brokers.common.core.constants import RECONCILIATION_INTERVAL_SECONDS
 from brokers.common.event_bus import EventBus
 from brokers.common.event_log import EventLog
 from brokers.common.oms.context import TradingContext
@@ -20,7 +21,7 @@ logger = logging.getLogger(__name__)
 def create_trading_context(
     event_log: EventLog | None = None,
     reconciliation_service: Any = None,
-    reconciliation_interval_seconds: float = 300.0,
+    reconciliation_interval_seconds: float = RECONCILIATION_INTERVAL_SECONDS,
     risk_config: RiskConfig | None = None,
     capital_fn: Callable[[], Decimal] | None = None,
     event_bus: EventBus | None = None,

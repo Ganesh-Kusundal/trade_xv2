@@ -98,7 +98,7 @@ class BrokerGateway(MarketDataGateway):
             correlation_id=correlation_id,
         )
 
-    def cancel_order(self, order_id: str) -> bool:
+    def cancel_order(self, order_id: str) -> OrderResponse:
         return self._conn.orders.cancel_order(order_id)
 
     def get_orderbook(self) -> list[Order]:

@@ -33,6 +33,12 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from decimal import Decimal
 
+from brokers.common.core.constants import (
+    PHANTOM_CAPITAL_INR,
+    RISK_DAILY_LOSS_PERCENT,
+    RISK_GROSS_PERCENT,
+    RISK_POSITION_PERCENT,
+)
 from brokers.common.core.domain import Order
 from brokers.common.oms.position_manager import PositionManager
 
@@ -41,9 +47,9 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class RiskConfig:
-    max_daily_loss_pct: Decimal = Decimal("5")  # of capital
-    max_position_pct: Decimal = Decimal("20")   # of capital per symbol
-    max_gross_exposure_pct: Decimal = Decimal("100")  # of capital
+    max_daily_loss_pct: Decimal = Decimal(str(RISK_DAILY_LOSS_PERCENT))  # of capital
+    max_position_pct: Decimal = Decimal(str(RISK_POSITION_PERCENT))   # of capital per symbol
+    max_gross_exposure_pct: Decimal = Decimal(str(RISK_GROSS_PERCENT))  # of capital
     kill_switch: bool = False
 
 

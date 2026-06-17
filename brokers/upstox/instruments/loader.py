@@ -135,19 +135,50 @@ class UpstoxInstrumentLoader:
         return defs
 
     def _migrate_pickle_to_json(self, pkl_path: Path, json_gz_path: Path) -> None:
-        """Migrate old pickle cache to safe JSON+gzip format."""
+        """Quarantine a legacy pickle cache and rebuild the JSON cache.
+
+        SECURITY: This method deliberately does NOT call ``pickle.load``
+        on the legacy cache. The pickle format permits arbitrary code
+        execution on load and is a known attack surface (CWE-502). A
+        maliciously crafted ``.pkl`` file written to the cache directory
+        by an attacker would achieve code execution with the privileges
+        of the trading process. That is unacceptable for a system that
+        handles real money.
+
+        The migration strategy is therefore:
+
+        1. Rename the pickle file to a ``.quarantine`` suffix so an
+           operator can inspect it offline if needed, but it is no
+           longer picked up by the loader.
+        2. Build the JSON cache from the authoritative JSON source
+           (already done by the caller's "parse from JSON" path below).
+
+        If the quarantine rename itself fails, the file is left in
+        place but the loader continues to operate against the JSON
+        source, so the system never invokes ``pickle.load``.
+        """
+        logger.warning(
+            "legacy_pickle_cache_quarantined",
+            extra={
+                "pkl_path": str(pkl_path),
+                "reason": "CWE-502 — pickle.load is unsafe; "
+                          "rebuild from JSON source instead",
+            },
+        )
+        quarantine = pkl_path.with_suffix(pkl_path.suffix + ".quarantine")
         try:
-            logger.info("Migrating pickle cache to JSON+gzip format...")
-            import pickle
-            with open(pkl_path, 'rb') as f:
-                defs = pickle.load(f)
-            self._save_json_cache(defs, json_gz_path)
-            # Remove old pickle file after successful migration
-            pkl_path.unlink()
-            logger.info(f"Migration complete: {pkl_path.name} → {json_gz_path.name}")
-        except Exception as e:
-            logger.warning(f"Pickle migration failed: {e}")
-            # Don't fail - will rebuild from JSON source
+            pkl_path.rename(quarantine)
+            logger.info(
+                "pickle_quarantined",
+                extra={"from": str(pkl_path), "to": str(quarantine)},
+            )
+        except Exception as exc:
+            logger.error(
+                "pickle_quarantine_failed",
+                extra={"pkl_path": str(pkl_path), "error": str(exc)},
+            )
+        # The caller will fall through to the JSON source path and
+        # rebuild the JSON cache from authoritative data.
 
     def _load_json_cache(self, json_gz_path: Path) -> list[UpstoxInstrumentDefinition]:
         """Load instrument definitions from JSON+gzip cache."""

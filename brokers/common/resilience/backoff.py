@@ -8,6 +8,13 @@ from __future__ import annotations
 import random
 from abc import ABC, abstractmethod
 
+from brokers.common.core.constants import (
+    BACKOFF_JITTER,
+    BACKOFF_MULTIPLIER,
+    MAX_RETRY_DELAY_MS,
+    RETRY_BASE_DELAY_MS,
+)
+
 
 class BackoffStrategy(ABC):
     """Abstract strategy for computing retry delays."""
@@ -47,10 +54,10 @@ class ExponentialBackoff(BackoffStrategy):
 
     def __init__(
         self,
-        base_delay_ms: float = 1000,
-        max_delay_ms: float = 30000,
-        multiplier: float = 2.0,
-        jitter_factor: float = 0.2,
+        base_delay_ms: float = RETRY_BASE_DELAY_MS,
+        max_delay_ms: float = MAX_RETRY_DELAY_MS,
+        multiplier: float = BACKOFF_MULTIPLIER,
+        jitter_factor: float = BACKOFF_JITTER,
     ):
         self._base_delay_ms = base_delay_ms
         self._max_delay_ms = max_delay_ms

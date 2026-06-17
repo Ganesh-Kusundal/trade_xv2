@@ -281,11 +281,61 @@ class OrdersAdapter:
             status=OrderStatus.OPEN,
         )
 
-    def cancel_order(self, order_id: str) -> bool:
-        data = self._client.delete(f"/orders/{order_id}")
-        success = isinstance(data, dict)
-        logger.info("order_cancelled", extra={"order_id": order_id, "success": success})
-        return success
+    def cancel_order(self, order_id: str) -> OrderResponse:
+        """Cancel an order via DELETE /orders/{order_id}.
+
+        The Dhan cancel endpoint returns a body whose ``status`` field
+        is ``"success"`` on cancellation, or an error payload with a
+        non-empty ``errorCode`` / ``errorMessage`` on failure. The
+        previous implementation treated *any* dict response as success
+        — that was a P0 bug because the broker also returns dicts on
+        authentication errors and on unknown-order errors.
+
+        Returns:
+            :class:`OrderResponse` with ``success`` set from the
+            broker's ``status`` field (or inferred from
+            ``errorCode`` being absent).
+        """
+        from brokers.common.core.models import OrderResponse
+
+        try:
+            data = self._client.delete(f"/orders/{order_id}")
+        except Exception as exc:  # pragma: no cover - network path
+            logger.warning(
+                "order_cancel_network_error",
+                extra={"order_id": order_id, "error": str(exc)},
+            )
+            return OrderResponse.fail(
+                message=f"network error: {exc}",
+                error_code="BRO_ERR_CONNECTION_FAILED",
+            )
+
+        if not isinstance(data, dict):
+            return OrderResponse.fail(
+                message="malformed broker response (not a dict)",
+                raw_payload={"raw": repr(data)},
+            )
+
+        broker_status = str(data.get("status", "")).lower()
+        # Dhan uses both "success" and "ok"; both mean "cancelled".
+        success = broker_status in {"success", "ok"}
+        if success:
+            return OrderResponse.ok(
+                order_id=order_id,
+                message=str(data.get("message", "Order cancelled")),
+                status=OrderStatus.CANCELLED,
+                raw_payload=data,
+            )
+        # Failure path
+        return OrderResponse.fail(
+            message=str(
+                data.get("errorMessage")
+                or data.get("message")
+                or "Cancel failed"
+            ),
+            error_code=str(data.get("errorCode", "")),
+            raw_payload=data,
+        )
 
     def cancel_all_orders(self) -> list[tuple[str, bool]]:
         data = self._client.delete("/orders")

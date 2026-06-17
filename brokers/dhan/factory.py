@@ -192,14 +192,26 @@ class BrokerFactory(BrokerProviderFactory):
 
         # ── Token refresh scheduler ────────────────────────────────
         def _on_token_refresh(new_token: str) -> None:
-            """Push fresh token to HTTP client and WebSocket."""
+            """Push fresh token to HTTP client and every receiver.
+
+            REF-13: the previous design only updated the HTTP client
+            and the market feed. The order stream and depth feeds
+            silently kept using the stale token until their next
+            reconnect. Now every receiver registered with the
+            connection is notified, and the receivers are auto-
+            registered when the corresponding service is created.
+            """
             client.update_token(new_token)
             if env_file.exists():
                 _update_env_token(env_file, new_token)
-            # Update WebSocket if connected
-            feed = connection._market_feed
-            if feed is not None:
-                feed.update_token(new_token)
+            delivered = connection.broadcast_token(new_token)
+            logger.info(
+                "dhan_token_refreshed",
+                extra={
+                    "token_suffix": new_token[-6:] if new_token else "",
+                    "receivers": delivered,
+                },
+            )
 
         scheduler = TokenRefreshScheduler(
             auth=auth,

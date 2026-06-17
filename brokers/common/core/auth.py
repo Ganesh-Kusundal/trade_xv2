@@ -25,6 +25,12 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from brokers.common.core.constants import (
+    DHAN_TOKEN_LIFETIME_SECONDS,
+    TOKEN_CLOCK_SKEW_SECONDS,
+    TOKEN_REFRESH_RECOMMENDED_BUFFER_SECONDS,
+)
+
 
 class TokenSource(str, Enum):
     """Origin/category of an authentication token.
@@ -51,8 +57,8 @@ class TokenState:
     expires_at: datetime | None = None
     source: TokenSource = TokenSource.STATIC
 
-    # 30-second clock skew tolerance (same as Trade_J)
-    _CLOCK_SKEW_SECONDS: float = 30.0
+    # Clock-skew tolerance (see core.constants.TOKEN_CLOCK_SKEW_SECONDS)
+    _CLOCK_SKEW_SECONDS: float = TOKEN_CLOCK_SKEW_SECONDS
 
     def is_valid(self) -> bool:
         """Check if the token is currently valid (with clock skew).
@@ -76,7 +82,7 @@ class TokenState:
         now = datetime.now()
         return (self.expires_at - now).total_seconds()
 
-    def refresh_recommended(self, buffer_seconds: float = 300.0) -> bool:
+    def refresh_recommended(self, buffer_seconds: float = TOKEN_REFRESH_RECOMMENDED_BUFFER_SECONDS) -> bool:
         """Check if token should be refreshed within the given buffer.
 
         Args:
@@ -355,7 +361,7 @@ class AuthManager:
 
         return None
 
-    def ensure_valid(self, buffer_seconds: float = 300.0) -> bool:
+    def ensure_valid(self, buffer_seconds: float = TOKEN_REFRESH_RECOMMENDED_BUFFER_SECONDS) -> bool:
         """Ensure the current token is valid, refreshing if needed.
 
         Maps to TokenLifecycleService.ensureValid().

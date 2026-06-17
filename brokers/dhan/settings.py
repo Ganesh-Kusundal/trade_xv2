@@ -19,12 +19,11 @@ Usage::
 from __future__ import annotations
 
 import logging
-import os
 from dataclasses import dataclass
 from pathlib import Path
 
 from config.endpoints import Dhan
-from brokers.common.env_loader import load_env_file
+from brokers.common.settings import BrokerSettings, SettingsLoaderBase
 
 logger = logging.getLogger(__name__)
 
@@ -41,26 +40,25 @@ _REFRESH_BUFFER_SECONDS: int = 600  # 10 minutes
 
 
 @dataclass(frozen=True)
-class DhanConnectionSettings:
+class DhanConnectionSettings(BrokerSettings):
     """Resolved Dhan connection settings.
 
     Centralised configuration for Dhan broker connections, loaded from
     environment variables (or a .properties file).  All fields have
     sensible defaults so only ``client_id`` is truly required.
+
+    Inherits common fields from :class:`BrokerSettings`:
+    ``client_id``, ``access_token``, ``http_timeout``, ``enable_retry``,
+    ``pool_connections``, ``pool_maxsize``.
     """
 
-    client_id: str
-    access_token: str = ""
+    # Dhan-specific fields
     base_url: str = _BASE_URL
-    http_timeout: float = 15.0
-    enable_retry: bool = True
     pin: str = ""
     totp_secret: str = ""
     token_lifetime_seconds: int = _TOKEN_LIFETIME_SECONDS
     scheduler_interval_seconds: int = _SCHEDULER_INTERVAL_SECONDS
     refresh_buffer_seconds: int = _REFRESH_BUFFER_SECONDS
-    pool_connections: int = 50
-    pool_maxsize: int = 100
 
     # ── Derived properties ────────────────────────────────────────────
 
@@ -77,11 +75,15 @@ class DhanConnectionSettings:
         return _GENERATE_TOKEN_URL
 
 
-class DhanSettingsLoader:
+class DhanSettingsLoader(SettingsLoaderBase):
     """Load :class:`DhanConnectionSettings` from env vars or .properties files.
 
     Mirrors the :class:`brokers.upstox.auth.config.UpstoxSettingsLoader` pattern
     so that every broker factory follows the same configuration lifecycle.
+
+    Inherits env var accessors (``_get``, ``_get_int``, ``_get_float``,
+    ``_get_bool``) and value parsers (``_parse_int``, ``_parse_float``,
+    ``_parse_bool``) from :class:`SettingsLoaderBase` instead of duplicating them.
     """
 
     PREFIX = DHAN_PREFIX
@@ -105,13 +107,7 @@ class DhanSettingsLoader:
         Returns:
             A frozen :class:`DhanConnectionSettings` instance.
         """
-        if env_path:
-            load_env_file(env_path)
-        else:
-            for candidate in (Path(".env.local"), Path(".env")):
-                if candidate.exists():
-                    load_env_file(candidate)
-                    break
+        cls._load_default_env(env_path)
 
         client_id = cls._get(prefix, "CLIENT_ID")
         if not client_id:
@@ -123,6 +119,8 @@ class DhanSettingsLoader:
             base_url=cls._get(prefix, "BASE_URL", default=_BASE_URL),
             http_timeout=cls._get_float(prefix, "HTTP_TIMEOUT", default=15.0),
             enable_retry=cls._get_bool(prefix, "ENABLE_RETRY", default=True),
+            pool_connections=cls._get_int(prefix, "POOL_CONNECTIONS", default=50),
+            pool_maxsize=cls._get_int(prefix, "POOL_MAXSIZE", default=100),
             pin=cls._get(prefix, "PIN", default=""),
             totp_secret=cls._get(prefix, "TOTP_SECRET", default=""),
             token_lifetime_seconds=cls._get_int(
@@ -150,69 +148,17 @@ class DhanSettingsLoader:
             base_url=_val("baseUrl") or _val("base_url") or _BASE_URL,
             http_timeout=cls._parse_float(_val("httpTimeout"), 15.0),
             enable_retry=cls._parse_bool(_val("enableRetry"), True),
+            pool_connections=cls._parse_int(_val("poolConnections"), 50),
+            pool_maxsize=cls._parse_int(_val("poolMaxsize"), 100),
             pin=_val("pin"),
             totp_secret=_val("totpSecret") or _val("totp_secret"),
-            token_lifetime_seconds=cls._parse_int(_val("tokenLifetimeSeconds"), _TOKEN_LIFETIME_SECONDS),
-            scheduler_interval_seconds=cls._parse_int(_val("schedulerIntervalSeconds"), _SCHEDULER_INTERVAL_SECONDS),
-            refresh_buffer_seconds=cls._parse_int(_val("refreshBufferSeconds"), _REFRESH_BUFFER_SECONDS),
+            token_lifetime_seconds=cls._parse_int(
+                _val("tokenLifetimeSeconds"), _TOKEN_LIFETIME_SECONDS
+            ),
+            scheduler_interval_seconds=cls._parse_int(
+                _val("schedulerIntervalSeconds"), _SCHEDULER_INTERVAL_SECONDS
+            ),
+            refresh_buffer_seconds=cls._parse_int(
+                _val("refreshBufferSeconds"), _REFRESH_BUFFER_SECONDS
+            ),
         )
-
-    # ── Internal helpers ──────────────────────────────────────────────
-
-    @staticmethod
-    def _get(prefix: str, name: str, default: str = "") -> str:
-        raw = os.environ.get(f"{prefix.upper()}_{name.upper()}", "")
-        if not raw:
-            return default
-        return raw
-
-    @staticmethod
-    def _get_int(prefix: str, name: str, default: int) -> int:
-        raw = os.environ.get(f"{prefix.upper()}_{name.upper()}", "")
-        if not raw:
-            return default
-        try:
-            return int(raw)
-        except ValueError:
-            return default
-
-    @staticmethod
-    def _get_float(prefix: str, name: str, default: float) -> float:
-        raw = os.environ.get(f"{prefix.upper()}_{name.upper()}", "")
-        if not raw:
-            return default
-        try:
-            return float(raw)
-        except ValueError:
-            return default
-
-    @staticmethod
-    def _get_bool(prefix: str, name: str, default: bool) -> bool:
-        raw = os.environ.get(f"{prefix.upper()}_{name.upper()}", "").lower()
-        if not raw:
-            return default
-        return raw in ("1", "true", "yes", "y", "on")
-
-    @staticmethod
-    def _parse_int(value: str, default: int) -> int:
-        if not value:
-            return default
-        try:
-            return int(value)
-        except ValueError:
-            return default
-
-    @staticmethod
-    def _parse_float(value: str, default: float) -> float:
-        if not value:
-            return default
-        try:
-            return float(value)
-        except ValueError:
-            return default
-
-    @staticmethod
-    def _parse_bool(value: str, default: bool) -> bool:
-        if not value:
-            return default
-        return value.lower() in ("1", "true", "yes", "y", "on")
