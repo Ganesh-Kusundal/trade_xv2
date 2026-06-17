@@ -64,6 +64,7 @@ class UpstoxMarketDataV3Multiplexer:
         self._socket: Any = None
         self._listeners: list[TickListener] = []
         self._listener_lock = threading.RLock()
+        self._send_lock = threading.Lock()
         self._subscribed: set[str] = set()
         self._task: asyncio.Task[Any] | None = None
         self._stopped = False
@@ -179,11 +180,12 @@ class UpstoxMarketDataV3Multiplexer:
         send = getattr(self._socket, "send", None)
         if send is None:
             return
-        try:
-            send(encode_subscribe_payload(payload))
-        except Exception as exc:
-            logger.warning("Upstox V3 send failed: %s", exc)
-            self._reconnect.record_failure()
+        with self._send_lock:
+            try:
+                send(encode_subscribe_payload(payload))
+            except Exception as exc:
+                logger.warning("Upstox V3 send failed: %s", exc)
+                self._reconnect.record_failure()
 
     async def _read_loop(self) -> None:
         recv = getattr(self._socket, "recv", None)

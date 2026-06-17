@@ -40,7 +40,7 @@ class SymbolResolver:
         self._by_security_id: dict[str, Instrument] = {}
         self._by_underlying: dict[tuple[str, Exchange], list[Instrument]] = {}
         self._loaded = False
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
 
     def resolve(self, symbol: str, exchange: str) -> Instrument:
         exch = self._normalise_exchange(exchange)

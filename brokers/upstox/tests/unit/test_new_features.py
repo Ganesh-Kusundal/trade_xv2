@@ -203,7 +203,8 @@ class TestUpstoxGatewayNewFeatures:
         mock_broker.ipo = MagicMock()
 
         gateway = UpstoxBrokerGateway(mock_broker)
-        assert gateway.ipo is not None
+        assert gateway.extended is not None
+        assert hasattr(gateway.extended, 'get_ipos')
 
     def test_gateway_payments_property(self):
         from brokers.upstox.gateway import UpstoxBrokerGateway
@@ -214,7 +215,8 @@ class TestUpstoxGatewayNewFeatures:
         mock_broker.payments = MagicMock()
 
         gateway = UpstoxBrokerGateway(mock_broker)
-        assert gateway.payments is not None
+        assert gateway.extended is not None
+        assert hasattr(gateway.extended, 'initiate_payout')
 
     def test_gateway_mutual_funds_property(self):
         from brokers.upstox.gateway import UpstoxBrokerGateway
@@ -225,7 +227,8 @@ class TestUpstoxGatewayNewFeatures:
         mock_broker.mutual_funds = MagicMock()
 
         gateway = UpstoxBrokerGateway(mock_broker)
-        assert gateway.mutual_funds is not None
+        assert gateway.extended is not None
+        assert hasattr(gateway.extended, 'get_mutual_fund_holdings')
 
     def test_gateway_fundamentals_property(self):
         from brokers.upstox.gateway import UpstoxBrokerGateway
@@ -236,7 +239,8 @@ class TestUpstoxGatewayNewFeatures:
         mock_broker.fundamentals = MagicMock()
 
         gateway = UpstoxBrokerGateway(mock_broker)
-        assert gateway.fundamentals is not None
+        assert gateway.extended is not None
+        assert hasattr(gateway.extended, 'get_pnl')
 
     def test_gateway_capabilities_includes_new_features(self):
         from brokers.upstox.gateway import UpstoxBrokerGateway

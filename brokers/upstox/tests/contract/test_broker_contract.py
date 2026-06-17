@@ -32,8 +32,15 @@ if ENV_PATH.exists() and ENV_PATH.stat().st_size > 0:
     )
 
 def _should_skip_live() -> bool:
-    """Skip live tests if credentials missing OR market is closed."""
+    """Skip live tests if credentials missing, token expired, or market is closed."""
     if not _live_env_loaded:
+        return True
+    # Validate token is not expired by checking JWT exp claim
+    token = os.environ.get("UPSTOX_ACCESS_TOKEN", "")
+    from brokers.upstox.auth.jwt_expiry import UpstoxJwtExpiry
+    import time as _time
+    exp_ms = UpstoxJwtExpiry.parse_expiry_epoch_ms(token)
+    if exp_ms > 0 and exp_ms < _time.time() * 1000:
         return True
     from tests.market_hours import is_market_open
     return not is_market_open()
@@ -47,7 +54,7 @@ skip_live = pytest.mark.skipif(
 @pytest.fixture(scope="module")
 def live_gateway() -> UpstoxBrokerGateway:
     from brokers.upstox.factory import UpstoxBrokerFactory
-    gw = UpstoxBrokerFactory.create(env_path=ENV_PATH, load_instruments=True)
+    gw = UpstoxBrokerFactory().create(env_path=ENV_PATH, load_instruments=True)
     yield gw
     gw.close()
 

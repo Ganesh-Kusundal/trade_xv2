@@ -173,6 +173,36 @@ class DhanConnection:
         """Reconciliation service wired into the trading context."""
         return self._reconciliation_service
 
+    # ── Public accessors (avoid private _client access from gateway) ──
+
+    @property
+    def access_token(self) -> str:
+        """Current API access token (delegates to HTTP client)."""
+        return self._client.access_token
+
+    @property
+    def client_id(self) -> str:
+        """Broker client ID (delegates to HTTP client)."""
+        return self._client.client_id
+
+    @property
+    def depth_20_feed(self) -> DhanDepth20Feed | None:
+        """Active 20-level depth feed, if created."""
+        return self._depth_20_feed
+
+    @depth_20_feed.setter
+    def depth_20_feed(self, value: DhanDepth20Feed) -> None:
+        self._depth_20_feed = value
+
+    @property
+    def depth_200_feed(self) -> DhanDepth200Feed | None:
+        """Active 200-level depth feed, if created."""
+        return self._depth_200_feed
+
+    @depth_200_feed.setter
+    def depth_200_feed(self, value: DhanDepth200Feed) -> None:
+        self._depth_200_feed = value
+
     @property
     def market_feed(self) -> DhanMarketFeed | None:
         """Real-time market data feed (lazy — None until explicitly created)."""

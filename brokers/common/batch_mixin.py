@@ -18,11 +18,6 @@ from typing import Any
 import pandas as pd
 
 logger = logging.getLogger(__name__)
-from typing import Any
-
-import pandas as pd
-
-logger = logging.getLogger(__name__)
 
 
 class BatchFetchMixin:

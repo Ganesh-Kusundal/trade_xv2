@@ -142,6 +142,7 @@ class Position:
     unrealized_pnl: Decimal = Decimal("0")
     realized_pnl: Decimal = Decimal("0")
     product_type: ProductType = ProductType.INTRADAY
+    correlation_id: str | None = None
 
     @property
     def pnl(self) -> Decimal:
@@ -210,6 +211,7 @@ class Holding:
     avg_price: Decimal = Decimal("0")
     ltp: Decimal = Decimal("0")
     pnl: Decimal = Decimal("0")
+    correlation_id: str | None = None
 
 
 @dataclass(slots=True, frozen=True)
@@ -226,6 +228,7 @@ class Trade:
     trade_value: Decimal = Decimal("0")
     timestamp: datetime | None = None
     product_type: ProductType = ProductType.INTRADAY
+    correlation_id: str | None = None
 
     @property
     def value(self) -> Decimal:

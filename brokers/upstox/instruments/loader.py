@@ -6,9 +6,10 @@ memory.
 
 Cache Strategy:
 - Raw cache: .cache/upstox/complete.json.gz (downloaded from Upstox)
-- Parsed cache: .cache/upstox/instruments.pkl (parsed Python objects)
+- Parsed cache: .cache/upstox/instruments.json.gz (parsed Python objects as JSON)
 - Only downloads if raw cache is older than 24h
 - Only parses if parsed cache is newer than raw cache
+- Migration: Old .pkl files are auto-migrated to .json.gz on first load
 """
 
 from __future__ import annotations
@@ -16,7 +17,6 @@ from __future__ import annotations
 import gzip
 import json
 import logging
-import pickle
 import time
 from collections.abc import Iterator
 from pathlib import Path
@@ -91,23 +91,27 @@ class UpstoxInstrumentLoader:
             return False
 
     def load(self, path: Path) -> list[UpstoxInstrumentDefinition]:
-        """Load instruments with pickle caching for fast subsequent loads."""
+        """Load instruments with JSON+gzip caching for fast subsequent loads."""
         path = Path(path)
+        json_gz_path = path.with_name(path.stem + '.parsed.json.gz')
         pkl_path = path.with_suffix('.pkl')
 
-        # Try to load from pickle cache first
-        if self._is_pickle_cache_valid(path, pkl_path):
+        # Migration: If old .pkl cache exists, migrate to .json.gz
+        if pkl_path.exists() and not json_gz_path.exists():
+            self._migrate_pickle_to_json(pkl_path, json_gz_path)
+
+        # Try to load from JSON+gzip cache first
+        if self._is_json_cache_valid(path, json_gz_path):
             try:
                 start = time.time()
-                with open(pkl_path, 'rb') as f:
-                    defs = pickle.load(f)
+                defs = self._load_json_cache(json_gz_path)
                 elapsed = time.time() - start
                 logger.info(
-                    f"Loaded {len(defs)} instruments from pickle cache in {elapsed:.2f}s"
+                    f"Loaded {len(defs)} instruments from JSON cache in {elapsed:.2f}s"
                 )
                 return defs
             except Exception as e:
-                logger.warning(f"Pickle cache load failed: {e}")
+                logger.warning(f"JSON cache load failed: {e}")
 
         # Parse from JSON/gz (slow)
         logger.info("Parsing instrument catalog from JSON...")
@@ -117,31 +121,58 @@ class UpstoxInstrumentLoader:
             defs.append(d)
         elapsed = time.time() - start
 
-        # Save to pickle cache
+        # Save to JSON+gzip cache
         try:
-            with open(pkl_path, 'wb') as f:
-                pickle.dump(defs, f, protocol=pickle.HIGHEST_PROTOCOL)
-            pkl_size_mb = pkl_path.stat().st_size / (1024*1024)
+            self._save_json_cache(defs, json_gz_path)
+            cache_size_mb = json_gz_path.stat().st_size / (1024*1024)
             logger.info(
                 f"Parsed {len(defs)} instruments in {elapsed:.2f}s "
-                f"(pickle cache: {pkl_size_mb:.1f}MB)"
+                f"(JSON cache: {cache_size_mb:.1f}MB)"
             )
         except Exception as e:
-            logger.warning(f"Failed to save pickle cache: {e}")
+            logger.warning(f"Failed to save JSON cache: {e}")
 
         return defs
 
-    def _is_pickle_cache_valid(self, json_path: Path, pkl_path: Path) -> bool:
-        """Check if pickle cache exists and is newer than JSON cache."""
-        if not pkl_path.exists():
+    def _migrate_pickle_to_json(self, pkl_path: Path, json_gz_path: Path) -> None:
+        """Migrate old pickle cache to safe JSON+gzip format."""
+        try:
+            logger.info("Migrating pickle cache to JSON+gzip format...")
+            import pickle
+            with open(pkl_path, 'rb') as f:
+                defs = pickle.load(f)
+            self._save_json_cache(defs, json_gz_path)
+            # Remove old pickle file after successful migration
+            pkl_path.unlink()
+            logger.info(f"Migration complete: {pkl_path.name} → {json_gz_path.name}")
+        except Exception as e:
+            logger.warning(f"Pickle migration failed: {e}")
+            # Don't fail - will rebuild from JSON source
+
+    def _load_json_cache(self, json_gz_path: Path) -> list[UpstoxInstrumentDefinition]:
+        """Load instrument definitions from JSON+gzip cache."""
+        with gzip.open(json_gz_path, 'rt', encoding='utf-8') as f:
+            data = json.load(f)
+        return [UpstoxInstrumentDefinition(**item) for item in data]
+
+    def _save_json_cache(self, defs: list[UpstoxInstrumentDefinition], json_gz_path: Path) -> None:
+        """Save instrument definitions to JSON+gzip cache."""
+        # Convert dataclasses to dicts
+        data = [d.to_dict() if hasattr(d, 'to_dict') else d.__dict__ for d in defs]
+        with gzip.open(json_gz_path, 'wt', encoding='utf-8') as f:
+            json.dump(data, f, separators=(',', ':'))  # Compact format
+
+    def _is_json_cache_valid(self, json_path: Path, json_gz_path: Path) -> bool:
+        """Check if JSON cache exists and is newer than source JSON."""
+        if not json_gz_path.exists():
             return False
         if not json_path.exists():
             return False
 
         try:
-            pkl_mtime = pkl_path.stat().st_mtime
-            json_mtime = json_path.stat().st_mtime
-            return pkl_mtime >= json_mtime
+            cache_mtime = json_gz_path.stat().st_mtime
+            source_mtime = json_path.stat().st_mtime
+            return cache_mtime >= source_mtime
         except Exception:
             return False
 

@@ -1,8 +1,10 @@
 """Upstox broker facade — instantiates every adapter from the resolved
-``UpstoxConnectionSettings`` + ``UpstoxTokenManager`` and registers the
-combined capability set on the ``BrokerConnection``.
+``UpstoxConnectionSettings`` + ``UpstoxTokenManager`` and exposes them
+as direct attributes.
 
-Mirrors Trade_J ``UpstoxBrokerConnection`` + ``UpstoxBrokerConnectionFactory``.
+This is a plain class (no ABC base). The ``UpstoxBrokerGateway`` wrapper
+implements the ``MarketDataGateway`` contract; this class provides the
+adapter wiring.
 """
 
 from __future__ import annotations
@@ -10,7 +12,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from brokers.common.core.domain import BrokerConnection, Capability, ConnectionStatus
+from brokers.common.core.domain import Capability, ConnectionStatus
 from brokers.common.event_bus import EventBus
 from brokers.common.oms.risk_manager import RiskManager
 from brokers.common.services.historical_data import HistoricalDataService
@@ -73,7 +75,7 @@ from brokers.upstox.websocket.v3_subscription_manager import UpstoxV3Subscriptio
 logger = logging.getLogger(__name__)
 
 
-class UpstoxBroker(BrokerConnection):
+class UpstoxBroker:
     def __init__(
         self,
         settings: UpstoxConnectionSettings | None = None,
@@ -87,7 +89,11 @@ class UpstoxBroker(BrokerConnection):
     ) -> None:
         if settings is None:
             settings = UpstoxConnectionSettings(client_id="placeholder")
-        super().__init__(name="upstox", broker_id=settings.client_id)
+        self._name = "upstox"
+        self._broker_id = settings.client_id
+        self._capabilities: set[Capability] = set()
+        self._capability_map: dict[Capability, Any] = {}
+        self._status: ConnectionStatus = ConnectionStatus.DISCONNECTED
         self.settings = settings
         self._token_manager = token_manager or UpstoxTokenManager(settings=settings)
         self.context = UpstoxAdapterContext(
@@ -164,7 +170,6 @@ class UpstoxBroker(BrokerConnection):
         self.market_data = UpstoxMarketDataAdapter(
             self.market_data_v2, self.market_data_v3, self.historical_v2
         )
-        self.market_data_v3_adapter = self.market_data  # alias
         self.options = UpstoxOptionsAdapter(self.options_client)
         self.portfolio = UpstoxPortfolioAdapter(self.portfolio_client)
         self.margin = UpstoxMarginAdapter(self.margin_client)
@@ -274,6 +279,20 @@ class UpstoxBroker(BrokerConnection):
         self._register_capability(Capability.WEBHOOKS, self.feed_authorizer)
         self._register_capability(Capability.OPTION_GREEKS, self.intelligence)
 
+    # ── Connection lifecycle ──
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def broker_id(self) -> str:
+        return self._broker_id
+
+    @property
+    def status(self) -> ConnectionStatus:
+        return self._status
+
     def connect(self) -> bool:
         try:
             self._token_manager.bootstrap()
@@ -290,3 +309,25 @@ class UpstoxBroker(BrokerConnection):
 
     def reconnect(self) -> bool:
         return self.connect()
+
+    # ── Capability registry ──
+
+    def _register_capability(self, capability: Capability, provider: Any) -> None:
+        self._capabilities.add(capability)
+        self._capability_map[capability] = provider
+
+    def has_capability(self, capability: Capability) -> bool:
+        return capability in self._capabilities
+
+    def get_capability(self, capability: Capability) -> Any:
+        return self._capability_map.get(capability)
+
+    def _set_status(self, status: ConnectionStatus) -> None:
+        self._status = status
+
+    def __enter__(self) -> UpstoxBroker:
+        self.connect()
+        return self
+
+    def __exit__(self, *args: Any) -> None:
+        self.disconnect()

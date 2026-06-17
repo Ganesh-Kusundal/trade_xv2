@@ -1,4 +1,7 @@
-"""BrokerFactory — creates configured BrokerGateway instances with AuthManager."""
+"""BrokerFactory — creates configured BrokerGateway instances with AuthManager.
+
+Implements BrokerProviderFactory for polymorphic factory pattern.
+"""
 
 from __future__ import annotations
 
@@ -8,54 +11,37 @@ import threading
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlencode
 
 from brokers.common.core.auth import AuthManager, JsonTokenStateStore, TokenSource, TokenState
 from brokers.common.env_loader import load_env_file
-from brokers.common.event_bus import EventBus
-from brokers.common.lifecycle import LifecycleManager
+from brokers.common.factory import BrokerProviderFactory
+from brokers.common.gateway import MarketDataGateway
 from brokers.dhan.connection import DhanConnection
 from brokers.dhan.gateway import BrokerGateway
 from brokers.dhan.http_client import DhanHttpClient
+from brokers.dhan.settings import DhanConnectionSettings, DhanSettingsLoader
 from brokers.dhan.token_scheduler import TokenRefreshScheduler
 
 logger = logging.getLogger(__name__)
 
-_GENERATE_TOKEN_URL = "https://auth.dhan.co/app/generateAccessToken"
 
-# Dhan JWT lifetime: ~24 hours. We refresh at 20h to be safe.
-_TOKEN_LIFETIME_SECONDS = 86400  # 24 hours
-
-# Scheduler interval: 20 minutes
-_SCHEDULER_INTERVAL_SECONDS = 20 * 60
-
-# Buffer: refresh when 10 minutes remain
-_REFRESH_BUFFER_SECONDS = 600
-
-
-class BrokerFactory:
-    @staticmethod
+class BrokerFactory(BrokerProviderFactory):
     def create(
-        client_id: str | None = None,
-        access_token: str | None = None,
+        self,
+        *,
         env_path: Path | None = None,
         load_instruments: bool = True,
-        event_bus: EventBus | None = None,
-        risk_manager=None,
+        event_bus: Any | None = None,
+        risk_manager: Any | None = None,
+        lifecycle: Any | None = None,
         backfill_callback: Callable[[str, datetime, datetime], list[dict]] | None = None,
         reconciliation_service: object | None = None,
-        lifecycle: LifecycleManager | None = None,
-    ) -> BrokerGateway:
-        # Load env file first
-        env_file = env_path or Path(".env.local")
-        if env_file.exists():
-            load_env_file(env_file)
-
-        cid = client_id or os.environ.get("DHAN_CLIENT_ID", "")
-
-        if not cid:
-            from brokers.dhan.exceptions import ConfigurationError
-            raise ConfigurationError("DHAN_CLIENT_ID not configured")
+    ) -> MarketDataGateway:
+        # ── Load settings ──────────────────────────────────────────
+        settings = DhanSettingsLoader.from_env(env_path=env_path)
+        cid = settings.client_id
 
         # ── AuthManager setup ──────────────────────────────────────
         token_state_dir = Path("runtime")
@@ -64,7 +50,7 @@ class BrokerFactory:
 
         # Build the TOTP token generator closure
         def _generate_token() -> str | None:
-            return _generate_totp_token(cid)
+            return _generate_totp_token(settings)
 
         auth = AuthManager(
             client_id=cid,
@@ -72,38 +58,41 @@ class BrokerFactory:
             token_source=TokenSource.TOTP,
             on_acquire=_generate_token,
             on_refresh=_generate_token,
-            token_lifetime_seconds=_TOKEN_LIFETIME_SECONDS,
+            token_lifetime_seconds=settings.token_lifetime_seconds,
         )
 
         # ── Token acquisition ──────────────────────────────────────
-        # Try store first, then generate fresh token
-        state = auth.acquire()
-        if not state or not state.is_valid():
-            # Store was empty/expired — generate fresh token directly
-            fresh = _generate_totp_token(cid)
-            if fresh:
-                from datetime import datetime, timedelta
-                state = TokenState(
-                    access_token=fresh,
-                    source=TokenSource.TOTP,
-                    issued_at=datetime.now(),
-                    expires_at=datetime.now() + timedelta(seconds=_TOKEN_LIFETIME_SECONDS),
-                )
-                auth._state = state
-                if auth._store:
-                    auth._store.save(state)
-            else:
-                state = None
+        env_file = env_path or Path(".env.local")
+        token = settings.access_token
+        if not token:
+            # Try store first, then generate fresh token
+            state = auth.acquire()
+            if not state or not state.is_valid():
+                # Store was empty/expired — generate fresh token directly
+                fresh = _generate_totp_token(settings)
+                if fresh:
+                    from datetime import datetime, timedelta
+                    state = TokenState(
+                        access_token=fresh,
+                        source=TokenSource.TOTP,
+                        issued_at=datetime.now(),
+                        expires_at=datetime.now() + timedelta(seconds=settings.token_lifetime_seconds),
+                    )
+                    auth._state = state
+                    if auth._store:
+                        auth._store.save(state)
+                else:
+                    state = None
 
-        if not state or not state.access_token:
-            from brokers.dhan.exceptions import ConfigurationError
-            raise ConfigurationError("DHAN_ACCESS_TOKEN not configured and TOTP refresh failed")
+            if not state or not state.access_token:
+                from brokers.dhan.exceptions import ConfigurationError
+                raise ConfigurationError("DHAN_ACCESS_TOKEN not configured and TOTP refresh failed")
 
-        token = state.access_token
+            token = state.access_token
 
-        # Also update .env.local for backward compatibility
-        if env_file.exists():
-            _update_env_token(env_file, token)
+            # Also update .env.local for backward compatibility
+            if env_file.exists():
+                _update_env_token(env_file, token)
 
         # ── HTTP client ────────────────────────────────────────────
         from brokers.common.resilience.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
@@ -138,8 +127,10 @@ class BrokerFactory:
         client = DhanHttpClient(
             client_id=cid,
             access_token=token,
+            base_url=settings.base_url,
+            timeout=settings.http_timeout,
+            enable_retry=settings.enable_retry,
             token_refresh_fn=lambda: _refresh_via_auth(auth, env_file, refresh_lock),
-            enable_retry=True,
             read_circuit_breaker=cb_read,
             write_circuit_breaker=cb_write,
             admin_circuit_breaker=cb_admin,
@@ -212,8 +203,8 @@ class BrokerFactory:
 
         scheduler = TokenRefreshScheduler(
             auth=auth,
-            interval_seconds=_SCHEDULER_INTERVAL_SECONDS,
-            buffer_seconds=_REFRESH_BUFFER_SECONDS,
+            interval_seconds=settings.scheduler_interval_seconds,
+            buffer_seconds=settings.refresh_buffer_seconds,
             refresh_lock=refresh_lock,
             on_refresh=_on_token_refresh,
         )
@@ -258,18 +249,30 @@ def _refresh_via_auth(
         refresh_lock.release()
 
 
-def _generate_totp_token(client_id: str) -> str | None:
-    """Generate a fresh access token via TOTP. Returns None on failure."""
-    pin = _read_secret("DHAN_PIN", "DHAN_PIN_FILE")
-    totp_secret = _read_secret("DHAN_TOTP_SECRET", "DHAN_TOTP_SECRET_FILE")
+def _generate_totp_token(settings: DhanConnectionSettings | None = None) -> str | None:
+    """Generate a fresh access token via TOTP. Returns None on failure.
+
+    Uses secrets from *settings* if provided, otherwise falls back to
+    environment variables ``DHAN_PIN`` / ``DHAN_TOTP_SECRET``.
+    """
+    if settings and settings.has_totp:
+        pin = settings.pin
+        totp_secret = settings.totp_secret
+        token_url = settings.generate_token_url
+    else:
+        pin = _read_secret("DHAN_PIN", "DHAN_PIN_FILE")
+        totp_secret = _read_secret("DHAN_TOTP_SECRET", "DHAN_TOTP_SECRET_FILE")
+        from brokers.dhan.settings import _GENERATE_TOKEN_URL
+        token_url = _GENERATE_TOKEN_URL
     if not pin or not totp_secret:
         return None
     try:
         import pyotp
         import requests as _requests
         totp_code = pyotp.TOTP(totp_secret).now()
+        client_id = settings.client_id if settings else os.environ.get("DHAN_CLIENT_ID", "")
         params = {"dhanClientId": client_id, "pin": pin, "totp": totp_code}
-        url = f"{_GENERATE_TOKEN_URL}?{urlencode(params)}"
+        url = f"{token_url}?{urlencode(params)}"
         resp = _requests.post(url, timeout=15)
         if resp.status_code != 200:
             logger.warning("TOTP token generation failed: HTTP %d", resp.status_code)

@@ -16,10 +16,8 @@ from brokers.common.event_bus import EventBus
 from brokers.common.lifecycle import LifecycleManager
 from brokers.dhan.factory import BrokerFactory
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
+from brokers.common.logging_config import setup_logging
+setup_logging()
 logger = logging.getLogger(__name__)
 
 
@@ -32,7 +30,7 @@ def test_depth_20_websocket():
     lifecycle = LifecycleManager()
     event_bus = EventBus()
 
-    gateway = BrokerFactory.create(
+    gateway = BrokerFactory().create(
         lifecycle=lifecycle,
         event_bus=event_bus,
     )
@@ -90,7 +88,7 @@ def test_depth_200_websocket():
     lifecycle = LifecycleManager()
     event_bus = EventBus()
 
-    gateway = BrokerFactory.create(
+    gateway = BrokerFactory().create(
         lifecycle=lifecycle,
         event_bus=event_bus,
     )

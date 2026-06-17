@@ -24,10 +24,8 @@ from brokers.common.event_bus import EventBus
 from brokers.common.lifecycle import LifecycleManager
 from brokers.dhan.factory import BrokerFactory
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
+from brokers.common.logging_config import setup_logging
+setup_logging()
 logger = logging.getLogger(__name__)
 
 
@@ -42,7 +40,7 @@ def test_depth_20_live():
     event_bus = EventBus()
 
     # Create gateway from factory
-    gateway = BrokerFactory.create(
+    gateway = BrokerFactory().create(
         lifecycle=lifecycle,
         event_bus=event_bus,
     )
@@ -90,7 +88,7 @@ def test_depth_200_live():
     event_bus = EventBus()
 
     # Create gateway from factory
-    gateway = BrokerFactory.create(
+    gateway = BrokerFactory().create(
         lifecycle=lifecycle,
         event_bus=event_bus,
     )
@@ -133,7 +131,7 @@ def test_basic_connection():
     logger.info("TESTING BASIC DHAN CONNECTION")
     logger.info("=" * 60)
 
-    gateway = BrokerFactory.create()
+    gateway = BrokerFactory().create()
 
     try:
         # Test LTP
@@ -153,7 +151,7 @@ def test_basic_connection():
 
         # Test balance
         logger.info("Fetching account balance...")
-        balance = gateway.portfolio.get_balance()
+        balance = gateway.funds()
         logger.info(f"Available balance: ₹{balance.available_balance}")
 
         logger.info("✅ Basic connection test PASSED")

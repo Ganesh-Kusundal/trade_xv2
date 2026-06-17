@@ -8,7 +8,10 @@ from rich.console import Console
 
 from datalake.sync_options import sync_options
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+# Initialize logging if not already configured
+if not logging.getLogger().handlers:
+    from brokers.common.logging_config import setup_logging
+    setup_logging()
 logger = logging.getLogger(__name__)
 
 

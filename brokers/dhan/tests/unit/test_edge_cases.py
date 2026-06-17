@@ -75,26 +75,26 @@ class TestSymbolResolver:
 
     def test_empty_symbol_raises(self, offline_gateway):
         with pytest.raises(InstrumentNotFoundError):
-            offline_gateway.instruments.resolve("", "NSE")
+            offline_gateway.extended.instruments.resolve("", "NSE")
 
     def test_none_like_symbol_raises(self, offline_gateway):
         with pytest.raises(InstrumentNotFoundError):
-            offline_gateway.instruments.resolve("   ", "NSE")
+            offline_gateway.extended.instruments.resolve("   ", "NSE")
 
     def test_case_insensitive(self, offline_gateway):
-        inst = offline_gateway.instruments.resolve("reliance", "nse")
+        inst = offline_gateway.extended.instruments.resolve("reliance", "nse")
         assert inst.symbol == "RELIANCE"
 
     def test_unknown_exchange_raises(self, offline_gateway):
         with pytest.raises(InstrumentNotFoundError):
-            offline_gateway.instruments.resolve("RELIANCE", "INVALID_EXCHANGE")
+            offline_gateway.extended.instruments.resolve("RELIANCE", "INVALID_EXCHANGE")
 
 
 class TestOrderValidation:
     """Edge cases for order validation."""
 
     def test_zero_quantity(self, offline_gateway):
-        errors = offline_gateway.orders.validate_order(
+        errors = offline_gateway.extended.validate_order(
             symbol="RELIANCE", exchange="NSE", quantity=0,
             order_type="MARKET", product_type="INTRADAY",
         )
@@ -102,14 +102,14 @@ class TestOrderValidation:
         assert any("quantity" in e.lower() for e in errors)
 
     def test_negative_quantity(self, offline_gateway):
-        errors = offline_gateway.orders.validate_order(
+        errors = offline_gateway.extended.validate_order(
             symbol="RELIANCE", exchange="NSE", quantity=-10,
             order_type="MARKET", product_type="INTRADAY",
         )
         assert len(errors) > 0
 
     def test_limit_order_without_price(self, offline_gateway):
-        errors = offline_gateway.orders.validate_order(
+        errors = offline_gateway.extended.validate_order(
             symbol="RELIANCE", exchange="NSE", quantity=10,
             order_type="LIMIT", product_type="INTRADAY",
         )
@@ -117,7 +117,7 @@ class TestOrderValidation:
         assert any("price" in e.lower() for e in errors)
 
     def test_cnc_on_fno_rejected(self, offline_gateway):
-        errors = offline_gateway.orders.validate_order(
+        errors = offline_gateway.extended.validate_order(
             symbol="NIFTY 26 JUN FUT", exchange="NFO", quantity=75,
             order_type="MARKET", product_type="CNC",
         )
@@ -157,7 +157,7 @@ class TestGatewayShortcuts:
 
     def test_depth_20_validation_index(self, offline_gateway):
         # We need NIFTY to be resolved to verify the fallback or rest API call.
-        offline_gateway.instruments.load_from_rows([
+        offline_gateway.extended.instruments.load_from_rows([
             {
                 "SEM_TRADING_SYMBOL": "NIFTY",
                 "SEM_SMST_SECURITY_ID": "13",
@@ -174,7 +174,7 @@ class TestGatewayShortcuts:
             mock_get_depth.assert_called_once_with("NIFTY", "IDX_I")
 
     def test_depth_200_validation_index(self, offline_gateway):
-        offline_gateway.instruments.load_from_rows([
+        offline_gateway.extended.instruments.load_from_rows([
             {
                 "SEM_TRADING_SYMBOL": "NIFTY",
                 "SEM_SMST_SECURITY_ID": "13",

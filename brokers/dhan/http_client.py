@@ -10,12 +10,14 @@ from typing import Any
 
 import requests
 
+from config.endpoints import Dhan
 from brokers.common.resilience.circuit_breaker import CircuitBreaker, CircuitState
 from brokers.dhan.exceptions import AuthenticationError, DhanError, RateLimitError
 
 logger = logging.getLogger(__name__)
 
-_BASE_URL = "https://api.dhan.co/v2"
+# Default base URL — imported from central endpoint registry.
+_DEFAULT_BASE_URL = Dhan.REST_BASE
 
 # Per-endpoint minimum interval (seconds) — matches Dhan documented rate limits
 # Non-Trading APIs: Up to 20 requests per second
@@ -102,7 +104,7 @@ class DhanHttpClient:
         self,
         client_id: str,
         access_token: str,
-        base_url: str = _BASE_URL,
+        base_url: str = _DEFAULT_BASE_URL,
         timeout: float = 15.0,
         token_refresh_fn: Callable[[], str] | None = None,
         enable_retry: bool = True,

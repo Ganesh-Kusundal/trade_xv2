@@ -289,10 +289,10 @@ def _make_offline_gateway():
 
     conn = mock.MagicMock()
     conn.instruments = resolver
-    conn._client.client_id = "testclient"
-    conn._client.access_token = "testtoken"
-    conn._depth_20_feed = None
-    conn._depth_200_feed = None
+    conn.client_id = "testclient"
+    conn.access_token = "testtoken"
+    conn.depth_20_feed = None
+    conn.depth_200_feed = None
     conn.market_data.get_depth.return_value = MarketDepth(
         bids=[DepthLevel(Decimal("1330"), 50, 2)],
         asks=[DepthLevel(Decimal("1331"), 30, 1)],
@@ -310,7 +310,7 @@ class TestGatewayDepth20:
         from brokers.dhan.depth_20 import DhanDepth20Feed
         f = mock.MagicMock(spec=DhanDepth20Feed)
         f._subscriptions = []
-        f._thread = None
+        f.is_running = False
         f.latest_depth.return_value = None
         return f
 
@@ -349,9 +349,8 @@ class TestGatewayDepth20:
         gw = _make_offline_gateway()
         f = self._mock_feed20()
         f._subscriptions = [("NSE_EQ", "500325")]
-        f._thread = mock.MagicMock()
-        f._thread.is_alive.return_value = True
-        gw._conn._depth_20_feed = f
+        f.is_running = True
+        gw._conn.depth_20_feed = f
         gw.depth_20("RELIANCE")
         gw._conn.create_depth_20_feed.assert_not_called()
         f.start.assert_not_called()
@@ -360,9 +359,8 @@ class TestGatewayDepth20:
         gw = _make_offline_gateway()
         f = self._mock_feed20()
         f._subscriptions = [("NSE_EQ", "999999")]
-        f._thread = mock.MagicMock()
-        f._thread.is_alive.return_value = True
-        gw._conn._depth_20_feed = f
+        f.is_running = True
+        gw._conn.depth_20_feed = f
         gw.depth_20("RELIANCE")
         f.subscribe.assert_called_once_with([("NSE_EQ", "500325")])
 
@@ -381,7 +379,7 @@ class TestGatewayDepth200:
         from brokers.dhan.depth_200 import DhanDepth200Feed
         f = mock.MagicMock(spec=DhanDepth200Feed)
         f._subscriptions = []
-        f._thread = None
+        f.is_running = False
         f.latest_depth.return_value = None
         return f
 
@@ -419,8 +417,7 @@ class TestGatewayDepth200:
         gw = _make_offline_gateway()
         f = self._mock_feed200()
         f._subscriptions = [("NSE_EQ", "888888")]
-        f._thread = mock.MagicMock()
-        f._thread.is_alive.return_value = True
-        gw._conn._depth_200_feed = f
+        f.is_running = True
+        gw._conn.depth_200_feed = f
         with pytest.raises(ValueError, match="already subscribed"):
             gw.depth_200("RELIANCE")

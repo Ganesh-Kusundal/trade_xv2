@@ -20,23 +20,12 @@ from brokers.common.api.ports import (
     SliceOrderCommand,
 )
 from brokers.common.api.spi import (
-    BrokerDescriptor,
-    BrokerProvider,
-    BrokerRegistry,
     BrokerSource,
-    CapabilityMetadata,
-    CapabilityMetadataEntry,
-    descriptor_from_capabilities,
 )
 
 __all__ = [
     "BracketOrderProvider",
-    "BrokerDescriptor",
-    "BrokerProvider",
-    "BrokerRegistry",
     "BrokerSource",
-    "CapabilityMetadata",
-    "CapabilityMetadataEntry",
     "ConditionalAlertProvider",
     "CoverOrderProvider",
     "FuturesProvider",
@@ -51,5 +40,4 @@ __all__ = [
     "OrderQuery",
     "PortfolioProvider",
     "SliceOrderCommand",
-    "descriptor_from_capabilities",
 ]

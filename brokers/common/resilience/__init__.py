@@ -14,11 +14,19 @@ from brokers.common.resilience.circuit_breaker import (
     CircuitState,
 )
 from brokers.common.resilience.errors import (
+    AuthenticationError,
     BrokerError,
     CircuitBreakerOpenError,
+    ConfigError,
+    DataError,
+    InstrumentNotFoundError,
     NonRetryableError,
+    NotSupportedError,
+    OrderError,
     RateLimitError,
     RetryableError,
+    TradeXV2Error,
+    ValidationError,
 )
 from brokers.common.resilience.rate_limiter import (
     MultiBucketRateLimiter,
@@ -28,21 +36,29 @@ from brokers.common.resilience.rate_limiter import (
 from brokers.common.resilience.retry import RetryConfig, RetryExecutor
 
 __all__ = [
+    "AuthenticationError",
     "BackoffStrategy",
     "BrokerError",
     "CircuitBreaker",
     "CircuitBreakerConfig",
     "CircuitBreakerOpenError",
     "CircuitState",
+    "ConfigError",
+    "DataError",
     "ExponentialBackoff",
     "FixedBackoff",
+    "InstrumentNotFoundError",
     "MultiBucketRateLimiter",
     "NoBackoff",
     "NonRetryableError",
+    "NotSupportedError",
+    "OrderError",
     "RateLimitConfig",
     "RateLimitError",
     "RetryConfig",
     "RetryExecutor",
     "RetryableError",
     "TokenBucketRateLimiter",
+    "TradeXV2Error",
+    "ValidationError",
 ]

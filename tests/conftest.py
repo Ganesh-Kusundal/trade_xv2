@@ -5,12 +5,62 @@ Provides market-hours-aware fixtures and skip logic for live tests.
 
 from __future__ import annotations
 
+import logging
 import os
+import time
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from tests.market_hours import is_market_open, now_ist
+
+logger = logging.getLogger(__name__)
+
+
+def is_token_expired(token: str) -> bool:
+    """Check if a JWT token is expired.
+
+    Decodes the token without signature verification to check the 'exp' claim.
+    Returns True if the token is expired or cannot be decoded.
+    Returns False if the token is valid or has no expiry claim.
+
+    Args:
+        token: JWT token string
+
+    Returns:
+        True if token is expired, False otherwise
+    """
+    if not token:
+        return True
+
+    try:
+        # Try to decode JWT payload without signature verification
+        parts = token.split(".")
+        if len(parts) != 3:
+            return True  # Not a valid JWT format
+
+        import base64
+        import json
+
+        # Decode payload (second part)
+        payload = parts[1]
+        # Add padding if needed
+        padding = 4 - len(payload) % 4
+        if padding != 4:
+            payload += "=" * padding
+
+        decoded_bytes = base64.urlsafe_b64decode(payload)
+        decoded: dict[str, Any] = json.loads(decoded_bytes)
+
+        exp = decoded.get("exp")
+        if exp is None:
+            return False  # No expiry claim — let test run
+
+        return time.time() > exp
+    except Exception as exc:
+        logger.debug("token_decode_failed: %s", exc)
+        return False  # Can't decode — let test run and fail naturally
 
 
 @pytest.fixture(autouse=False)
@@ -36,7 +86,7 @@ def live_credentials():
     """Fixture that provides Dhan credentials or skips.
 
     Returns tuple of (client_id, access_token).
-    Skips if .env.local is missing or credentials are invalid.
+    Skips if .env.local is missing, credentials are invalid, or token is expired.
     """
     env_path = Path(".env.local")
     if not env_path.exists():
@@ -51,6 +101,9 @@ def live_credentials():
     if not client_id or not access_token:
         pytest.skip("DHAN_CLIENT_ID or DHAN_ACCESS_TOKEN not set")
 
+    if is_token_expired(access_token):
+        pytest.skip("DHAN_ACCESS_TOKEN is expired")
+
     return client_id, access_token
 
 
@@ -59,7 +112,7 @@ def upstox_credentials():
     """Fixture that provides Upstox credentials or skips.
 
     Returns tuple of (api_key, access_token).
-    Skips if .env.upstox is missing or credentials are invalid.
+    Skips if .env.upstox is missing, credentials are invalid, or token is expired.
     """
     env_path = Path(".env.upstox")
     if not env_path.exists():
@@ -73,6 +126,9 @@ def upstox_credentials():
 
     if not api_key or not access_token:
         pytest.skip("UPSTOX_API_KEY or UPSTOX_ACCESS_TOKEN not set")
+
+    if is_token_expired(access_token):
+        pytest.skip("UPSTOX_ACCESS_TOKEN is expired")
 
     return api_key, access_token
 

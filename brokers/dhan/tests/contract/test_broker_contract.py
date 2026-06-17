@@ -52,8 +52,15 @@ if ENV_PATH.exists() and ENV_PATH.stat().st_size > 0:
     _live_env_loaded = bool(os.environ.get("DHAN_CLIENT_ID"))
 
 def _should_skip_live() -> bool:
-    """Skip live tests if credentials missing OR market is closed."""
+    """Skip live tests if credentials missing, token expired, or market is closed."""
     if not _live_env_loaded:
+        return True
+    # Validate token is not expired by checking JWT exp claim
+    token = os.environ.get("DHAN_ACCESS_TOKEN", "")
+    from brokers.upstox.auth.jwt_expiry import UpstoxJwtExpiry
+    import time as _time
+    exp_ms = UpstoxJwtExpiry.parse_expiry_epoch_ms(token)
+    if exp_ms > 0 and exp_ms < _time.time() * 1000:
         return True
     from tests.market_hours import is_market_open
     return not is_market_open()
@@ -81,7 +88,7 @@ def offline_gateway() -> BrokerGateway:
 @pytest.fixture(scope="module")
 def live_gateway() -> BrokerGateway:
     """BrokerGateway backed by the real Dhan API — requires .env.local."""
-    gw = BrokerFactory.create(env_path=ENV_PATH, load_instruments=True)
+    gw = BrokerFactory().create(env_path=ENV_PATH, load_instruments=True)
     yield gw
     gw.close()
 
@@ -107,40 +114,40 @@ class DhanBrokerContractSuite:
 
     def test_resolver_loaded(self, offline_gateway: BrokerGateway) -> None:
         """After loading, instruments.stats()['loaded'] must be True."""
-        stats = offline_gateway.instruments.stats()
+        stats = offline_gateway.extended.instruments.stats()
         assert stats["loaded"] is True
 
     def test_resolve_equity(self, offline_gateway: BrokerGateway) -> None:
         """resolve('RELIANCE', 'NSE') must return an Instrument with a security_id."""
-        inst = offline_gateway.instruments.resolve("RELIANCE", "NSE")
+        inst = offline_gateway.extended.instruments.resolve("RELIANCE", "NSE")
         assert inst.security_id, "security_id must be non-empty"
         assert inst.exchange == Exchange.NSE
 
     def test_resolve_index(self, offline_gateway: BrokerGateway) -> None:
         """resolve('NIFTY', 'INDEX') must return an Instrument."""
-        inst = offline_gateway.instruments.resolve("NIFTY", "INDEX")
+        inst = offline_gateway.extended.instruments.resolve("NIFTY", "INDEX")
         assert inst.security_id, "security_id must be non-empty"
         assert inst.exchange == Exchange.INDEX
 
     def test_resolve_unknown_raises(self, offline_gateway: BrokerGateway) -> None:
         """resolve('DOESNOTEXIST', 'NSE') must raise InstrumentNotFoundError."""
         with pytest.raises(InstrumentNotFoundError):
-            offline_gateway.instruments.resolve("DOESNOTEXIST", "NSE")
+            offline_gateway.extended.instruments.resolve("DOESNOTEXIST", "NSE")
 
     # ── 2. Market Data Contract (live) ─────────────────────────────────
 
     @skip_live
     def test_quote_returns_quote_type(self, live_gateway: BrokerGateway) -> None:
-        """market_data.get_quote must return a Quote-like object with ltp > 0."""
-        quote = live_gateway.market_data.get_quote("RELIANCE", "NSE")
+        """Gateway.quote() must return a Quote-like object with ltp > 0."""
+        quote = live_gateway.quote("RELIANCE", "NSE")
         assert isinstance(quote, Quote)
         assert quote.ltp > 0
         time.sleep(1.5)
 
     @skip_live
     def test_depth_returns_bids_asks(self, live_gateway: BrokerGateway) -> None:
-        """market_data.get_depth must return an object with bids and asks."""
-        depth = live_gateway.market_data.get_depth("RELIANCE", "NSE")
+        """Gateway.depth() must return an object with bids and asks."""
+        depth = live_gateway.depth("RELIANCE", "NSE")
         assert isinstance(depth, MarketDepth)
         assert hasattr(depth, "bids")
         assert hasattr(depth, "asks")
@@ -150,8 +157,8 @@ class DhanBrokerContractSuite:
 
     @skip_live
     def test_ltp_returns_decimal(self, live_gateway: BrokerGateway) -> None:
-        """market_data.get_ltp must return a Decimal > 0."""
-        ltp = live_gateway.market_data.get_ltp("RELIANCE", "NSE")
+        """Gateway.ltp() must return a Decimal > 0."""
+        ltp = live_gateway.ltp("RELIANCE", "NSE")
         assert isinstance(ltp, Decimal)
         assert ltp > 0
         time.sleep(1.5)
@@ -177,7 +184,7 @@ class DhanBrokerContractSuite:
 
         NIFTY 26 JUN FUT has lot_size=75; quantity=10 is not a valid multiple.
         """
-        errors = offline_gateway.orders.validate_order(
+        errors = offline_gateway.extended.validate_order(
             symbol="NIFTY 26 JUN FUT",
             exchange="NFO",
             quantity=10,
@@ -194,7 +201,7 @@ class DhanBrokerContractSuite:
 
         CNC is an equity-only product type and is not valid for derivatives (NSE_FNO).
         """
-        errors = offline_gateway.orders.validate_order(
+        errors = offline_gateway.extended.validate_order(
             symbol="NIFTY 26 JUN FUT",
             exchange="NFO",
             quantity=75,
@@ -205,29 +212,29 @@ class DhanBrokerContractSuite:
         assert any("CNC" in e or "product" in e.lower() for e in errors)
 
     def test_idempotency_cache_exists(self, offline_gateway: BrokerGateway) -> None:
-        """The orders adapter must expose an idempotency cache to prevent duplicate orders."""
-        assert hasattr(offline_gateway.orders, "_idempotency")
-        cache = offline_gateway.orders._idempotency
+        """The extended orders adapter must expose an idempotency cache to prevent duplicate orders."""
+        assert hasattr(offline_gateway.extended.orders, "_idempotency")
+        cache = offline_gateway.extended.orders._idempotency
         assert isinstance(cache, IdempotencyCache)
 
     # ── 4. Portfolio Contract (live) ───────────────────────────────────
 
     @skip_live
     def test_positions_returns_list(self, live_gateway: BrokerGateway) -> None:
-        """portfolio.get_positions() must return a list."""
-        positions = live_gateway.portfolio.get_positions()
+        """extended.get_positions() must return a list."""
+        positions = live_gateway.extended.get_positions()
         assert isinstance(positions, list)
 
     @skip_live
     def test_holdings_returns_list(self, live_gateway: BrokerGateway) -> None:
-        """portfolio.get_holdings() must return a list."""
-        holdings = live_gateway.portfolio.get_holdings()
+        """extended.get_holdings() must return a list."""
+        holdings = live_gateway.extended.get_holdings()
         assert isinstance(holdings, list)
 
     @skip_live
     def test_balance_returns_balance(self, live_gateway: BrokerGateway) -> None:
-        """portfolio.get_balance() must return a Balance-like object with available_balance."""
-        balance = live_gateway.portfolio.get_balance()
+        """extended.get_balance() must return a Balance-like object with available_balance."""
+        balance = live_gateway.extended.get_balance()
         # Accept either the Dhan-specific Balance or the canonical Balance
         assert hasattr(balance, "available_balance")
         assert isinstance(balance.available_balance, Decimal)
@@ -236,20 +243,20 @@ class DhanBrokerContractSuite:
 
     @skip_live
     def test_expiries_returns_list(self, live_gateway: BrokerGateway) -> None:
-        """options.get_expiries('NIFTY', 'INDEX') must return a non-empty list."""
-        expiries = live_gateway.options.get_expiries("NIFTY", "INDEX")
+        """extended.get_expiries('NIFTY', 'INDEX') must return a non-empty list."""
+        expiries = live_gateway.extended.get_expiries("NIFTY", "INDEX")
         assert isinstance(expiries, list)
         assert len(expiries) > 0, "NIFTY must have at least one expiry"
 
     @skip_live
     def test_option_chain_has_strikes(self, live_gateway: BrokerGateway) -> None:
         """Option chain must have strikes, each with 'call' and 'put' dicts."""
-        expiries = live_gateway.options.get_expiries("NIFTY", "INDEX")
+        expiries = live_gateway.extended.get_expiries("NIFTY", "INDEX")
         assert len(expiries) > 0
 
         time.sleep(3.5)
 
-        chain = live_gateway.options.get_option_chain("NIFTY", "INDEX", expiries[0])
+        chain = live_gateway.extended.get_option_chain("NIFTY", "INDEX", expiries[0])
         assert "strikes" in chain
         assert len(chain["strikes"]) > 0
 
@@ -263,7 +270,7 @@ class DhanBrokerContractSuite:
 
     def test_futures_returns_contracts(self, offline_gateway: BrokerGateway) -> None:
         """futures.get_contracts('GOLD', 'MCX') must return a list of contract dicts."""
-        contracts = offline_gateway.futures.get_contracts("GOLD", "MCX")
+        contracts = offline_gateway.extended.get_futures_contracts("GOLD", "MCX")
         assert isinstance(contracts, list)
         assert len(contracts) > 0, "GOLD must have at least one futures contract in cache"
         # Each contract must expose the standard keys
@@ -274,11 +281,11 @@ class DhanBrokerContractSuite:
 
     def test_is_commodity(self, offline_gateway: BrokerGateway) -> None:
         """futures.is_commodity('GOLD') must be True; is_commodity('RELIANCE') must be False."""
-        assert offline_gateway.futures.is_commodity("GOLD") is True
-        assert offline_gateway.futures.is_commodity("SILVER") is True
-        assert offline_gateway.futures.is_commodity("CRUDEOIL") is True
-        assert offline_gateway.futures.is_commodity("RELIANCE") is False
-        assert offline_gateway.futures.is_commodity("NIFTY") is False
+        assert offline_gateway.extended.is_commodity("GOLD") is True
+        assert offline_gateway.extended.is_commodity("SILVER") is True
+        assert offline_gateway.extended.is_commodity("CRUDEOIL") is True
+        assert offline_gateway.extended.is_commodity("RELIANCE") is False
+        assert offline_gateway.extended.is_commodity("NIFTY") is False
 
 
 # ---------------------------------------------------------------------------

@@ -45,6 +45,8 @@ class JsonTokenStateStore:
                 dir=str(self._path.parent), prefix=self._path.name + ".", suffix=".tmp"
             )
             try:
+                # Set secure file permissions before writing
+                os.fchmod(tmp_fd, 0o600)
                 with os.fdopen(tmp_fd, "w") as fp:
                     json.dump(state, fp, indent=2)
                 os.replace(tmp_path, self._path)

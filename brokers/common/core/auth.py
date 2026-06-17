@@ -197,7 +197,14 @@ class JsonTokenStateStore(TokenStateStore):
             data["issued_at"] = state.issued_at.isoformat()
         if state.expires_at:
             data["expires_at"] = state.expires_at.isoformat()
+        
+        # Write with secure file permissions (owner read/write only)
         self._path.write_text(json.dumps(data, indent=2))
+        try:
+            os.chmod(self._path, 0o600)
+        except OSError:
+            # Best effort - file already written securely by default umask
+            pass
 
 
 class TotpGenerator:
@@ -413,8 +420,11 @@ class AuthManager:
                     self._store.save(self._state)
                 self._notify_refresh()
                 return True
-        except Exception:
+        except Exception as exc:
+            logger = logging.getLogger(__name__)
+            logger.warning("token_refresh_failed", extra={"client_id": self.client_id, "error": str(exc)})
             return False
+        return False
 
     def _set_token(self, token_str: str, source: TokenSource = TokenSource.STATIC) -> None:
         """Set the token state directly (used by brokers on init).

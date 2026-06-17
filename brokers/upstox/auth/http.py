@@ -2,10 +2,13 @@
 
 Mirrors Trade_J ``UpstoxHttpClient``: Bearer + optional ``X-Algo-Name`` header
 injection. Stateless w.r.t. the algo name — supplied per call.
+
+Now includes circuit breaker and retry patterns for resilience (RES-03, RES-04).
 """
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from collections.abc import Callable
@@ -13,7 +16,10 @@ from typing import Any
 
 import requests
 
+from brokers.common.resilience.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
 from .exceptions import UpstoxApiError, UpstoxAuthError
+
+logger = logging.getLogger(__name__)
 
 
 class UpstoxRateLimiter:
@@ -47,6 +53,7 @@ class UpstoxHttpClient:
         timeout_seconds: int = 15,
         session: requests.Session | None = None,
         rate_limiter: UpstoxRateLimiter | None = None,
+        enable_circuit_breaker: bool = True,
     ) -> None:
         self._token_provider = token_provider
         self._settings = settings
@@ -64,6 +71,23 @@ class UpstoxHttpClient:
             )
             self._session.mount("https://", adapter)
             self._session.mount("http://", adapter)
+
+        # Resilience patterns (RES-03, RES-04)
+        # Note: Retry is handled at the adapter/context level via RetryExecutor,
+        # not in the HTTP client itself. See brokers.upstox.auth.context.
+        self._enable_circuit_breaker = enable_circuit_breaker
+
+        if enable_circuit_breaker:
+            self._circuit_breaker = CircuitBreaker(
+                name="upstox_api",
+                config=CircuitBreakerConfig(
+                    failure_threshold=5,
+                    success_threshold=3,
+                    open_duration_ms=30_000,  # 30 seconds
+                )
+            )
+        else:
+            self._circuit_breaker = None
 
     @property
     def settings(self) -> Any:
@@ -122,6 +146,41 @@ class UpstoxHttpClient:
         )
 
     def _request(
+        self,
+        *,
+        method: str,
+        url: str,
+        json: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
+        algo_name: str | None = None,
+    ) -> dict[str, Any]:
+        # Circuit breaker: fail fast if circuit is open
+        if self._circuit_breaker is not None:
+            from brokers.common.resilience.circuit_breaker import CircuitState
+            from brokers.common.resilience.errors import CircuitBreakerOpenError
+            if self._circuit_breaker.state == CircuitState.OPEN:
+                logger.warning("Upstox API circuit breaker is open, failing fast")
+                raise CircuitBreakerOpenError("upstox_api")
+
+        try:
+            result = self._execute_request(
+                method=method,
+                url=url,
+                json=json,
+                params=params,
+                algo_name=algo_name,
+            )
+            # Record success
+            if self._circuit_breaker is not None:
+                self._circuit_breaker.on_success()
+            return result
+        except Exception as e:
+            # Record failure
+            if self._circuit_breaker is not None:
+                self._circuit_breaker.on_failure()
+            raise
+
+    def _execute_request(
         self,
         *,
         method: str,

@@ -172,7 +172,8 @@ class TestUpstoxGatewayStream:
         async def _inner() -> None:
             gateway, ws, _broker = _make_gateway(connected=False)
             gateway.stream("INFY", exchange="NSE", mode="LTP")
-            await asyncio.sleep(0)
+            # Give the scheduled coroutine time to execute
+            await asyncio.sleep(0.05)
             assert ws.connect_called
 
         asyncio.run(_inner())

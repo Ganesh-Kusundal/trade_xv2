@@ -10,22 +10,13 @@ from typing import Any
 import pandas as pd
 
 from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
-from brokers.common.core.domain import Balance, MarketDepth, Quote
+from brokers.common.core.domain import Balance, MarketDepth, OrderResponse, Quote
 from brokers.dhan.connection import DhanConnection
 from brokers.dhan.domain import (
-    ConditionalTrigger,
-    ConditionalTriggerRequest,
-    ExitAllResponse,
-    ForeverOrder,
-    ForeverOrderRequest,
     Holding,
-    IPConfig,
-    LedgerEntry,
     Order,
     Position,
-    SuperOrder,
     Trade,
-    UserProfile,
 )
 from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
 from brokers.dhan.websocket import DhanMarketFeed
@@ -40,77 +31,72 @@ class BrokerGateway(MarketDataGateway):
         self._conn = connection
 
     @property
-    def instruments(self) -> Any:
-        return self._conn.instruments
+    def extended(self) -> Any:
+        """Access Dhan-specific capabilities beyond MarketDataGateway ABC.
 
-    @property
-    def market_data(self) -> Any:
-        return self._conn.market_data
-
-    @property
-    def orders(self) -> Any:
-        return self._conn.orders
-
-    @property
-    def portfolio(self) -> Any:
-        return self._conn.portfolio
-
-    @property
-    def options(self) -> Any:
-        return self._conn.options
-
-    @property
-    def futures(self) -> Any:
-        return self._conn.futures
-
-    @property
-    def historical(self) -> Any:
-        return self._conn.historical
-
-    @property
-    def margin(self) -> Any:
-        return self._conn.margin
-
-    @property
-    def alerts(self) -> Any:
-        return self._conn.alerts
-
-    @property
-    def super_orders(self) -> Any:
-        return self._conn.super_orders
-
-    @property
-    def forever_orders(self) -> Any:
-        return self._conn.forever_orders
-
-    @property
-    def conditional_triggers(self) -> Any:
-        return self._conn.conditional_triggers
-
-    @property
-    def ledger(self) -> Any:
-        return self._conn.ledger
-
-    @property
-    def user_profile(self) -> Any:
-        return self._conn.user_profile
-
-    @property
-    def ip_management(self) -> Any:
-        return self._conn.ip_management
-
-    @property
-    def edis(self) -> Any:
-        return self._conn.edis
-
-    @property
-    def exit_all(self) -> Any:
-        return self._conn.exit_all
+        Returns a :class:`~brokers.dhan.extended.DhanExtendedCapabilities`
+        instance with broker-specific methods (super orders, forever orders,
+        conditional triggers, ledger, user profile, IP management, EDIS,
+        option/futures listing, order validation).
+        """
+        from brokers.dhan.extended import DhanExtendedCapabilities
+        return DhanExtendedCapabilities(self._conn)
 
     # ── Order shortcuts ──
 
-    def place_order(self, *args, **kwargs) -> Order:
-        return self._conn.orders.place_order(*args, **kwargs)
+    def place_order(
+        self,
+        symbol: str,
+        exchange: str = "NSE",
+        side: str = "BUY",
+        quantity: int = 1,
+        price: Decimal = Decimal("0"),
+        order_type: str = "MARKET",
+        product_type: str = "INTRADAY",
+        validity: str = "DAY",
+        trigger_price: Decimal = Decimal("0"),
+        correlation_id: str | None = None,
+    ) -> OrderResponse:
+        """Place an order with explicit parameters matching MarketDataGateway ABC.
+
+        If *correlation_id* is not provided, the current thread's active
+        correlation ID (set via :func:`brokers.common.correlation.with_correlation`)
+        is used.  This enables automatic end-to-end tracing from CLI
+        commands through to the broker API.
+
+        Args:
+            symbol: Trading symbol
+            exchange: Exchange segment (NSE, BSE, NFO, etc.)
+            side: BUY or SELL
+            quantity: Order quantity
+            price: Limit price (ignored for MARKET orders)
+            order_type: MARKET, LIMIT, STOP_LOSS, STOP_LOSS_MARKET
+            product_type: INTRADAY, DELIVERY, MARGIN, etc.
+            validity: DAY or IOC
+            trigger_price: Trigger price for SL orders
+            correlation_id: Optional correlation ID for tracing
+
+        Returns:
+            OrderResponse with success status and order ID
+        """
+        if correlation_id is None:
+            try:
+                from brokers.common.correlation import get_current_correlation_id
+                correlation_id = get_current_correlation_id()
+            except ImportError:
+                pass
+        return self._conn.orders.place_order(
+            symbol=symbol,
+            exchange=exchange,
+            side=side,
+            quantity=quantity,
+            price=price if price > Decimal("0") else None,
+            order_type=order_type,
+            trigger_price=trigger_price if trigger_price > Decimal("0") else None,
+            product_type=product_type,
+            validity=validity,
+            correlation_id=correlation_id,
+        )
 
     def cancel_order(self, order_id: str) -> bool:
         return self._conn.orders.cancel_order(order_id)
@@ -178,15 +164,15 @@ class BrokerGateway(MarketDataGateway):
         sid_str = inst.security_id
         sid_int = int(sid_str)
 
-        feed = self._conn._depth_20_feed
+        feed = self._conn.depth_20_feed
         if feed is None:
             feed = self._conn.create_depth_20_feed(
-                access_token=self._conn._client.access_token,
+                access_token=self._conn.access_token,
                 instrument=(segment, sid_str),
             )
         else:
             # Add this instrument if not already subscribed.
-            already = any(s[1] == sid_str for s in feed._subscriptions)
+            already = any(s[1] == sid_str for s in feed.subscriptions)
             if not already:
                 feed.subscribe([(segment, sid_str)])
 
@@ -195,7 +181,7 @@ class BrokerGateway(MarketDataGateway):
             feed.on_depth(on_depth)
 
         # Start the WebSocket if it’s not running yet.
-        if not (feed._thread and feed._thread.is_alive()):
+        if not feed.is_running:
             feed.start()
 
         # Return the cached depth, falling back to 5-level REST if empty.
@@ -236,15 +222,15 @@ class BrokerGateway(MarketDataGateway):
         segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, DEFAULT_SEGMENT)
         sid_str = inst.security_id
 
-        feed = self._conn._depth_200_feed
+        feed = self._conn.depth_200_feed
         if feed is None:
             feed = self._conn.create_depth_200_feed(
-                access_token=self._conn._client.access_token,
+                access_token=self._conn.access_token,
                 instrument=(segment, sid_str),
             )
         else:
             # Already has a subscription — validate it’s the same instrument.
-            existing = feed._subscriptions[0][1] if feed._subscriptions else None
+            existing = feed.subscriptions[0][1] if feed.subscriptions else None
             if existing and existing != sid_str:
                 raise ValueError(
                     f"Depth 200 feed already subscribed to security_id {existing}. "
@@ -256,7 +242,7 @@ class BrokerGateway(MarketDataGateway):
             feed.on_depth(on_depth)
 
         # Start the WebSocket if it’s not running yet.
-        if not (feed._thread and feed._thread.is_alive()):
+        if not feed.is_running:
             feed.start()
 
         # Return the cached depth, falling back to 5-level REST if empty.
@@ -297,41 +283,8 @@ class BrokerGateway(MarketDataGateway):
         exchange: str = "NFO",
         expiry: str | None = None,
     ) -> dict:
-        mcx_underlyings = {"CRUDEOIL", "CRUDEOILM", "GOLD", "SILVER", "COPPER", "ZINC", "NATURALGAS", "ALUMINIUM", "LEAD", "NIKKEI"}
-        sec_id = None
-        seg = None
-        if underlying.upper() in mcx_underlyings and exchange.upper() == "MCX":
-            seg = EXCHANGE_TO_SEGMENT.get("MCX", "MCX_COMM")
-            futures = [
-                i for i in self._conn.instruments.all_instruments()
-                if i.symbol.upper().startswith(underlying.upper() + "-")
-                and i.exchange.value == "MCX"
-                and i.is_future
-            ]
-            futures.sort(key=lambda x: x.expiry or "")
-            if futures:
-                sec_id = int(futures[0].security_id)
-        if expiry is None:
-            if sec_id and seg:
-                response = self._conn._client.post("/optionchain/expirylist", json={
-                    "UnderlyingScrip": sec_id,
-                    "UnderlyingSeg": seg,
-                })
-                raw = response.get("data", response)
-                if isinstance(raw, dict):
-                    expiries = raw.get("expiryList") or raw.get("expiries") or []
-                elif isinstance(raw, list):
-                    expiries = raw
-                else:
-                    expiries = []
-            else:
-                expiries = self.options.get_expiries(underlying, exchange)
-            if not expiries:
-                raise ValueError(f"No expiries found for {underlying}")
-            expiry = expiries[0]
-        if sec_id and seg:
-            return self._conn.options.get_option_chain(underlying, exchange, expiry, security_id=sec_id)
-        return self._conn.options.get_option_chain(underlying, exchange, expiry)
+        """Get option chain. Delegates MCX-specific expiry lookup to extended."""
+        return self.extended.get_option_chain(underlying, exchange, expiry)
 
     def future_chain(
         self,
@@ -364,79 +317,14 @@ class BrokerGateway(MarketDataGateway):
     def trades(self) -> list[Trade]:
         return self.get_trade_book()
 
-    # ── Advanced Order Methods ──
 
-    def place_super_order(self, **kwargs) -> SuperOrder:
-        return self._conn.super_orders.place_super_order(**kwargs)
-
-    def modify_super_order(self, order_id: str, **kwargs) -> SuperOrder:
-        return self._conn.super_orders.modify_super_order(order_id, **kwargs)
-
-    def cancel_super_order_leg(self, order_id: str, leg_name: str) -> bool:
-        return self._conn.super_orders.cancel_super_order_leg(order_id, leg_name)
-
-    def get_super_orders(self) -> list[SuperOrder]:
-        return self._conn.super_orders.get_super_orders()
-
-    def place_forever_order(self, request: ForeverOrderRequest) -> ForeverOrder:
-        return self._conn.forever_orders.place_forever_order(request)
-
-    def modify_forever_order(self, order_id: str, request: ForeverOrderRequest) -> ForeverOrder:
-        return self._conn.forever_orders.modify_forever_order(order_id, request)
-
-    def cancel_forever_order(self, order_id: str) -> bool:
-        return self._conn.forever_orders.cancel_forever_order(order_id)
-
-    def get_all_forever_orders(self) -> list[ForeverOrder]:
-        return self._conn.forever_orders.get_all_forever_orders()
-
-    def place_conditional_trigger(self, request: ConditionalTriggerRequest) -> ConditionalTrigger:
-        return self._conn.conditional_triggers.place_trigger(request)
-
-    def modify_conditional_trigger(self, alert_id: str, request: ConditionalTriggerRequest) -> ConditionalTrigger:
-        return self._conn.conditional_triggers.modify_trigger(alert_id, request)
-
-    def delete_conditional_trigger(self, alert_id: str) -> bool:
-        return self._conn.conditional_triggers.delete_trigger(alert_id)
-
-    def get_conditional_trigger(self, alert_id: str) -> ConditionalTrigger:
-        return self._conn.conditional_triggers.get_trigger(alert_id)
-
-    def get_all_conditional_triggers(self) -> list[ConditionalTrigger]:
-        return self._conn.conditional_triggers.get_all_triggers()
-
-    def get_ledger(self, from_date: str, to_date: str) -> list[LedgerEntry]:
-        return self._conn.ledger.get_ledger(from_date, to_date)
-
-    def get_user_profile(self) -> UserProfile:
-        return self._conn.user_profile.get_profile()
-
-    def set_ip(self, ip_address: str, ip_type: str) -> dict:
-        return self._conn.ip_management.set_ip(ip_address, ip_type)
-
-    def modify_ip(self, ip_address: str, ip_type: str) -> dict:
-        return self._conn.ip_management.modify_ip(ip_address, ip_type)
-
-    def get_ip(self) -> list[IPConfig]:
-        return self._conn.ip_management.get_ip()
-
-    def generate_tpin(self) -> dict:
-        return self._conn.edis.generate_tpin()
-
-    def authorize_edis(self, isin: str, quantity: int, exchange: str) -> dict:
-        return self._conn.edis.authorize_edis(isin, quantity, exchange)
-
-    def check_edis_status(self, isin: str) -> dict:
-        return self._conn.edis.check_status(isin)
-
-    def exit_all(self) -> ExitAllResponse:
-        return self._conn.exit_all.exit_all()
 
     def describe(self) -> dict:
+        instruments = self._conn.instruments
         return {
             "broker": "Dhan",
-            "instruments_loaded": self.instruments._loaded,
-            "instrument_count": self.instruments.stats().get("total", 0),
+            "instruments_loaded": instruments._loaded,
+            "instrument_count": instruments.stats().get("total", 0),
             "market_data": "available",
             "historical": "available",
             "options": "available",
@@ -481,7 +369,7 @@ class BrokerGateway(MarketDataGateway):
     def search(self, query: str) -> list[dict]:
         results = []
         q = query.upper().strip()
-        for inst in self.instruments.all_instruments():
+        for inst in self._conn.instruments.all_instruments():
             if q in inst.symbol.upper() or q in (inst.canonical_symbol or "").upper():
                 results.append({
                     "symbol": inst.symbol,
@@ -521,11 +409,11 @@ class BrokerGateway(MarketDataGateway):
         if feed is None:
             # Use token provider callable for fresh tokens
             feed = DhanMarketFeed(
-                client_id=self._conn._client.client_id,
-                access_token=self._conn._client.access_token,
+                client_id=self._conn.client_id,
+                access_token=self._conn.access_token,
                 instruments=[(segment, sid, mode)],
                 resolver=self._conn.instruments,
-                access_token_fn=lambda: self._conn._client.access_token,
+                access_token_fn=lambda: self._conn.access_token,
                 event_bus=self._conn.event_bus,
             )
             self._conn.market_feed = feed

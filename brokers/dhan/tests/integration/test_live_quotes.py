@@ -33,7 +33,7 @@ if ENV_PATH.exists() and ENV_PATH.stat().st_size > 0:
 @pytest.fixture(scope="module")
 def gateway() -> BrokerGateway:
     """Create a live BrokerGateway with instruments loaded."""
-    gw = BrokerFactory.create(env_path=ENV_PATH, load_instruments=True)
+    gw = BrokerFactory().create(env_path=ENV_PATH, load_instruments=True)
     yield gw
     gw.close()
 
@@ -56,17 +56,17 @@ class TestLiveQuotes:
 
     def test_mcx_futures_exist(self, gateway: BrokerGateway):
         """GOLD on MCX should have at least 3 futures contracts."""
-        contracts = gateway.futures.get_contracts("GOLD", "MCX")
+        contracts = gateway.extended.get_futures_contracts("GOLD", "MCX")
         assert len(contracts) >= 3
 
     def test_mcx_crudeoil_futures(self, gateway: BrokerGateway):
         """CRUDEOIL on MCX should have at least 3 futures contracts."""
-        contracts = gateway.futures.get_contracts("CRUDEOIL", "MCX")
+        contracts = gateway.extended.get_futures_contracts("CRUDEOIL", "MCX")
         assert len(contracts) >= 3
 
     def test_mcx_quote_via_nearest(self, gateway: BrokerGateway):
         """Fetch nearest GOLD future and quote it — ltp must be > 0."""
-        nearest = gateway.futures.get_nearest("GOLD", "MCX")
+        nearest = gateway.extended.get_futures_contracts("GOLD", "MCX")[0] if gateway.extended.get_futures_contracts("GOLD", "MCX") else None
         assert nearest is not None, "No GOLD futures found in resolver"
 
         time.sleep(1.5)

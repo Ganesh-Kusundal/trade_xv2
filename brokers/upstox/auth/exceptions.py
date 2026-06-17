@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from brokers.common.resilience.errors import BrokerError
 
-class UpstoxApiError(RuntimeError):
+
+class UpstoxApiError(BrokerError):
     """Raised when the Upstox REST API returns a 4xx/5xx or error status."""
 
     def __init__(

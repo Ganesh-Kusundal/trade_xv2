@@ -6,23 +6,19 @@ import logging
 import os
 from pathlib import Path
 
-from dotenv import load_dotenv
-
 from brokers.common.gateway import MarketDataGateway
 from brokers.common.lifecycle import LifecycleManager
 from brokers.common.oms.context import TradingContext
-from brokers.dhan import BrokerFactory
 from brokers.paper import PaperGateway
+
+from cli.services.broker_registry import create_gateway, list_available_brokers
 
 logger = logging.getLogger(__name__)
 
+
+# Legacy — kept for backward compatibility; new code should use
+# ``broker_registry.resolve_env_path()``.
 _ENV_PATH = Path(__file__).resolve().parent.parent.parent / ".env.local"
-
-
-def _load_broker_env() -> None:
-    """Ensure .env.local credentials are loaded into the environment."""
-    if _ENV_PATH.exists() and _ENV_PATH.stat().st_size > 0:
-        load_dotenv(_ENV_PATH, override=True)
 
 
 # ---------------------------------------------------------------------------
@@ -46,7 +42,7 @@ class BrokerService:
     cleanly on ``close()``.
 
     Previously the ``TokenRefreshScheduler`` was started as a bare daemon
-    thread by ``BrokerFactory.create()``'s backwards-compat path and never
+    thread by    ``BrokerFactory().create()``'s daemon-thread path and never
     stopped; the CLI's ``close()`` only called
     ``TradingContext.stop_reconciliation()`` and ``gateway.close()``. This
     left the scheduler thread to be reaped at process exit. See
@@ -239,7 +235,6 @@ class BrokerService:
         if self._initialized:
             return
         self._initialized = True
-        _load_broker_env()
         if _ENV_PATH.exists():
             try:
                 # B7: construct the OMS first so we can pass its
@@ -252,7 +247,8 @@ class BrokerService:
                 # TokenRefreshScheduler with it (instead of starting
                 # a bare daemon thread). The factory's backward-compat
                 # path is intentionally bypassed here.
-                self._gateway = BrokerFactory.create(
+                self._gateway = create_gateway(
+                    "dhan",
                     env_path=_ENV_PATH,
                     load_instruments=True,
                     lifecycle=self._lifecycle,
@@ -308,19 +304,20 @@ class BrokerService:
         if self._gateway is None:
             self._mock = create_seeded_mock_broker("dhan")
 
-        # Try to create Upstox gateway
+        # Try to create Upstox gateway using the unified registry.
         upstox_env_path = Path(".env.upstox")
         if upstox_env_path.exists():
-            try:
-                from brokers.upstox.factory import UpstoxBrokerFactory
-                self._upstox_gateway = UpstoxBrokerFactory.create(
-                    env_path=upstox_env_path,
-                    load_instruments=True,
-                )
+            self._upstox_gateway = create_gateway(
+                "upstox",
+                env_path=upstox_env_path,
+                load_instruments=True,
+                lifecycle=self._lifecycle,
+            )
+            if self._upstox_gateway is not None:
                 logger.info("Upstox BrokerGateway created")
-            except Exception as exc:
-                self._upstox_load_error = str(exc)
-                logger.warning("Failed to create Upstox gateway: %s", exc)
+            else:
+                self._upstox_load_error = "create_gateway returned None"
+                logger.warning("Failed to create Upstox gateway")
 
     def _start_websocket_services(self) -> None:
         """B-4: lazily create the market feed and order stream services

@@ -93,6 +93,12 @@ class TestBrokerGateway:
             exchange="NSE",
             side="BUY",
             quantity=10,
+            price=None,
+            order_type="MARKET",
+            trigger_price=None,
+            product_type="INTRADAY",
+            validity="DAY",
+            correlation_id=None,
         )
         assert result is expected
 

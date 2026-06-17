@@ -65,3 +65,17 @@ def test_http_client_does_not_send_algo_header_when_blank():
     client.get_json("https://api.upstox.com/v2/user/profile")
     headers = session.request.call_args.kwargs["headers"]
     assert "X-Algo-Name" not in headers
+
+
+def test_enable_retry_removed():
+    """enable_retry parameter was removed (no callers, pre-v1.0)."""
+    session = MagicMock()
+    settings = UpstoxConnectionSettings(client_id="CID")
+    # Passing enable_retry should raise TypeError — parameter is gone.
+    with pytest.raises(TypeError):
+        UpstoxHttpClient(
+            token_provider=lambda: "TOK",
+            settings=settings,
+            session=session,
+            enable_retry=True,
+        )

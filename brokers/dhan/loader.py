@@ -10,12 +10,13 @@ from pathlib import Path
 
 import pandas as pd
 
+from config.endpoints import Dhan
 from brokers.dhan.segments import _COMPACT_SEGMENT_MAP
 
 logger = logging.getLogger(__name__)
 
-_COMPACT_CSV_URL = "https://images.dhan.co/api-data/api-scrip-master.csv"
-_DETAILED_MCX_URL = "https://api.dhan.co/v2/instrument/MCX_COMM"
+_COMPACT_CSV_URL = Dhan.INSTRUMENT_CSV
+_DETAILED_MCX_URL = Dhan.INSTRUMENT_MCX_DETAILED
 
 
 class InstrumentLoader:
@@ -38,7 +39,15 @@ class InstrumentLoader:
 
     @staticmethod
     def load_cached(force_refresh: bool = False) -> list[dict]:
-        cache_dir = Path(os.environ.get("DHAN_CACHE_DIR", "runtime-dev/instruments"))
+        # Use environment variable if set, otherwise compute default from project root
+        env_cache = os.environ.get("DHAN_CACHE_DIR")
+        if env_cache:
+            cache_dir = Path(env_cache)
+        else:
+            # Default to project-root/runtime-dev/instruments
+            # loader.py is in brokers/dhan/loader.py, so parents[2] is project root
+            cache_dir = Path(__file__).resolve().parents[2] / "runtime-dev" / "instruments"
+
         cache_dir.mkdir(parents=True, exist_ok=True)
 
         # Clean up old caches (older than 7 days)

@@ -9,7 +9,7 @@ Mirrors Trade_J ``UpstoxOAuthTokenIntegrationTest`` flow:
 5. Capture code from the callback.
 6. Exchange code for access+refresh tokens.
 7. Persist to UPSTOX_TOKEN_STATE_FILE (default ``.upstox-token.json``).
-8. Print the resulting state (so the user can copy tokens into .env).
+8. Print completion message (tokens NEVER printed to stdout for security).
 
 Usage::
 
@@ -58,11 +58,7 @@ def _parse_args(argv: list | None = None) -> argparse.Namespace:
         action="store_true",
         help="Don't auto-open the browser; print the URL only.",
     )
-    parser.add_argument(
-        "--print-tokens",
-        action="store_true",
-        help="Print the resolved access/refresh tokens to stdout (for .env authoring).",
-    )
+    # --print-tokens removed for security: tokens should never be printed to stdout
     parser.add_argument(
         "--timeout",
         type=float,
@@ -168,16 +164,23 @@ def _persist_state(settings: UpstoxConnectionSettings, result: dict) -> None:
         "source": "OAUTH",
     }
     settings.token_state_file.write_text(json.dumps(state, indent=2))
-    print(f"Token state persisted to: {settings.token_state_file}")
+    # Set file permissions to owner-only read/write (0o600)
+    try:
+        os.chmod(settings.token_state_file, 0o600)
+    except OSError as exc:
+        logger.warning("token_file_permissions_failed", extra={"file": str(settings.token_state_file), "error": str(exc)})
+    logger.info("token_state_persisted", extra={"file": str(settings.token_state_file)})
 
 
 def main(argv: list | None = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
     args = _parse_args(argv)
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s — %(message)s"
-    )
+    # Logging already initialized by cli/main.py setup_logging()
+    # If run standalone, initialize here
+    if not logging.getLogger().handlers:
+        from brokers.common.logging_config import setup_logging
+        setup_logging()
 
     try:
         settings = UpstoxSettingsLoader.from_env(env_path=args.env_file)
@@ -221,16 +224,12 @@ def main(argv: list | None = None) -> int:
 
     _persist_state(settings, result)
 
-    if args.print_tokens:
-        print()
-        print("Paste into your .env:")
-        print(f"UPSTOX_ACCESS_TOKEN={result.get('access_token')}")
-        if result.get("refresh_token"):
-            print(f"UPSTOX_REFRESH_TOKEN={result['refresh_token']}")
-        print(f"UPSTOX_TOKEN_STATE_FILE={settings.token_state_file or ''}")
-    else:
-        print()
-        print("Authorization complete. Re-running this broker is now token-less.")
+    # Tokens are written to file only - never printed to stdout for security
+    logger.info("authorization_complete", extra={"token_file": str(settings.token_state_file)})
+    print()
+    print("Authorization complete. Tokens persisted to secure file.")
+    print(f"Token file: {settings.token_state_file}")
+    print("Re-running this broker is now token-less.")
     return 0
 
 

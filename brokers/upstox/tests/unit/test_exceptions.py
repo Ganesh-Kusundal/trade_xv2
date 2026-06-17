@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from brokers.upstox.auth.exceptions import UpstoxApiError, UpstoxAuthError
+from brokers.common.resilience.errors import BrokerError
 
 
 class TestUpstoxApiError:
@@ -13,7 +14,7 @@ class TestUpstoxApiError:
         assert e.status_code == 500
         assert e.body == {"errors": ["oops"]}
         assert "boom" in str(e)
-        assert isinstance(e, RuntimeError)
+        assert isinstance(e, BrokerError)  # UpstoxApiError extends BrokerError
 
     def test_default_status_code(self):
         e = UpstoxApiError("x")

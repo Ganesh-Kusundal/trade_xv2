@@ -27,7 +27,7 @@ class TestFactoryWebSocketWiring:
         event_bus = EventBus()
 
         with patch("brokers.dhan.factory._generate_totp_token", return_value="test_token"):
-            gateway = BrokerFactory.create(
+            gateway = BrokerFactory().create(
                 env_path=env_file,
                 load_instruments=False,
                 event_bus=event_bus,
@@ -55,7 +55,7 @@ class TestFactoryWebSocketWiring:
         event_bus = EventBus()
 
         with patch("brokers.dhan.factory._generate_totp_token", return_value="test_token"):
-            gateway = BrokerFactory.create(
+            gateway = BrokerFactory().create(
                 env_path=env_file,
                 load_instruments=False,
                 event_bus=event_bus,
@@ -80,7 +80,7 @@ class TestFactoryWebSocketWiring:
         )
 
         with patch("brokers.dhan.factory._generate_totp_token", return_value="test_token"):
-            gateway = BrokerFactory.create(
+            gateway = BrokerFactory().create(
                 env_path=env_file,
                 load_instruments=False,
                 # No lifecycle, no event_bus
@@ -103,7 +103,7 @@ class TestFactoryWebSocketWiring:
         lifecycle = LifecycleManager()
 
         with patch("brokers.dhan.factory._generate_totp_token", return_value="test_token"):
-            gateway = BrokerFactory.create(
+            gateway = BrokerFactory().create(
                 env_path=env_file,
                 load_instruments=False,
                 lifecycle=lifecycle,
@@ -128,7 +128,7 @@ class TestFactoryWebSocketWiring:
         event_bus = EventBus()
 
         with patch("brokers.dhan.factory._generate_totp_token", return_value="test_token"):
-            gateway = BrokerFactory.create(
+            gateway = BrokerFactory().create(
                 env_path=env_file,
                 load_instruments=False,
                 event_bus=event_bus,

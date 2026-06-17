@@ -35,6 +35,13 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Optional correlation ID support — always available but guarded so the
+# event bus is usable even if brokers/common/correlation.py is removed.
+try:
+    from brokers.common.correlation import get_current_correlation_id
+except ImportError:  # pragma: no cover
+    get_current_correlation_id = lambda: None
+
 
 @dataclass(frozen=True)
 class DomainEvent:
@@ -46,6 +53,7 @@ class DomainEvent:
     symbol: str | None = None
     source: str | None = None
     event_id: str = field(default_factory=lambda: uuid.uuid4().hex[:16])
+    correlation_id: str | None = None
 
     def __post_init__(self) -> None:
         # Ensure timestamps are timezone-aware for deterministic ordering.
@@ -61,14 +69,33 @@ class DomainEvent:
         payload: dict,
         symbol: str | None = None,
         source: str | None = None,
+        correlation_id: str | None = None,
     ) -> DomainEvent:
-        """Factory using UTC now."""
+        """Factory using UTC now.
+
+        If *correlation_id* is not provided, the current thread's active
+        correlation ID (set via :func:`brokers.common.correlation.with_correlation`)
+        is used.  This enables automatic end-to-end tracing without
+        passing ``correlation_id=`` at every call site.
+
+        Args:
+            event_type: Type of the event
+            payload: Event payload dictionary
+            symbol: Optional symbol associated with the event
+            source: Optional source identifier
+            correlation_id: Optional correlation ID for tracing
+        """
+        if correlation_id is None:
+            cid = get_current_correlation_id()
+            if cid is not None:
+                correlation_id = cid
         return cls(
             event_type=event_type,
             timestamp=datetime.now(timezone.utc),
             payload=payload,
             symbol=symbol,
             source=source,
+            correlation_id=correlation_id,
         )
 
 
@@ -159,9 +186,23 @@ class EventBus:
     def publish(self, event: DomainEvent) -> None:
         """Publish an event to all subscribers of ``event.event_type``.
 
+        If the event has no ``correlation_id``, the current thread's
+        active correlation ID (set via
+        :func:`brokers.common.correlation.with_correlation`) is injected
+        before dispatch.  This ensures every published event carries a
+        traceable ID without requiring explicit propagation at every
+        call site.
+
         Handler failures are logged, counted, and dead-lettered — they
         never disappear silently.
         """
+        # Auto-inject correlation_id from thread-local context if missing.
+        if event.correlation_id is None:
+            cid = get_current_correlation_id()
+            if cid is not None:
+                # DomainEvent is frozen, so use object.__setattr__
+                object.__setattr__(event, "correlation_id", cid)
+
         if self._metrics is not None:
             self._metrics.inc(event.event_type, "published")
 

@@ -209,10 +209,8 @@ def main() -> int:
     parser.add_argument("-v", "--verbose", action="count", default=0)
     args = parser.parse_args()
 
-    logging.basicConfig(
-        level=logging.DEBUG if args.verbose else logging.INFO,
-        format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
-    )
+    from brokers.common.logging_config import setup_logging
+    setup_logging(log_level="DEBUG" if args.verbose else "INFO")
 
     if args.record_snapshot:
         ctx, _ = _build_context(args.events)

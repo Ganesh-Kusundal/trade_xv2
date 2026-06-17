@@ -10,7 +10,6 @@ from brokers.common.core.auth import (
     TokenState,
     TokenStateStore,
 )
-from brokers.common.core.domain import BrokerConnection
 from brokers.common.core.instruments import Instrument, InstrumentRegistry
 from brokers.common.core.domain import (
     Balance,
@@ -58,7 +57,6 @@ from brokers.common.core.types import (
 __all__ = [
     "AuthManager",
     "Balance",
-    "BrokerConnection",
     "Capability",
     "ConditionalAlert",
     "ConditionalAlertRequest",

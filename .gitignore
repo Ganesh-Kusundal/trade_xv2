@@ -65,3 +65,4 @@ datalake/catalog.duckdb.wal
 *.parquet
 *.duckdb
 *.duckdb.wal
+ZCode-3.1.1-mac-arm64.dmg

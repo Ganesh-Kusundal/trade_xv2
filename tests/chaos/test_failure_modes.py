@@ -97,7 +97,7 @@ def test_token_expiry_triggers_401_handler_refresh() -> None:
 
     client = DhanHttpClient(
         client_id="X", access_token="TOK-V1",
-        token_refresh_fn=refresh, enable_retry=True,
+        token_refresh_fn=refresh,
     )
 
     # Two responses: first a 401, then a 200.

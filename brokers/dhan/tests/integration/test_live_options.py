@@ -33,7 +33,7 @@ if ENV_PATH.exists() and ENV_PATH.stat().st_size > 0:
 @pytest.fixture(scope="module")
 def gateway() -> BrokerGateway:
     """Create a live BrokerGateway with instruments loaded."""
-    gw = BrokerFactory.create(env_path=ENV_PATH, load_instruments=True)
+    gw = BrokerFactory().create(env_path=ENV_PATH, load_instruments=True)
     yield gw
     gw.close()
 
@@ -44,17 +44,17 @@ class TestLiveOptions:
 
     def test_nifty_expiries(self, gateway: BrokerGateway):
         """get_expiries for NIFTY INDEX should return a non-empty list."""
-        expiries = gateway.options.get_expiries("NIFTY", "INDEX")
+        expiries = gateway.extended.get_option_expiries("NIFTY", "INDEX")
         assert len(expiries) > 0
 
     def test_nifty_option_chain(self, gateway: BrokerGateway):
         """get_option_chain should return a dict with spot > 0 and strikes > 0."""
-        expiries = gateway.options.get_expiries("NIFTY", "INDEX")
+        expiries = gateway.extended.get_option_expiries("NIFTY", "INDEX")
         assert len(expiries) > 0
 
         time.sleep(3.5)
 
-        chain = gateway.options.get_option_chain("NIFTY", "INDEX", expiries[0])
+        chain = gateway.extended.get_option_chain("NIFTY", "INDEX", expiries[0])
 
         assert "spot" in chain
         assert chain["spot"] > 0
@@ -64,12 +64,12 @@ class TestLiveOptions:
 
     def test_option_chain_has_greeks(self, gateway: BrokerGateway):
         """First strike's call dict must contain delta, theta, gamma, vega keys."""
-        expiries = gateway.options.get_expiries("NIFTY", "INDEX")
+        expiries = gateway.extended.get_option_expiries("NIFTY", "INDEX")
         assert len(expiries) > 0
 
         time.sleep(3.5)
 
-        chain = gateway.options.get_option_chain("NIFTY", "INDEX", expiries[0])
+        chain = gateway.extended.get_option_chain("NIFTY", "INDEX", expiries[0])
         assert len(chain["strikes"]) > 0
 
         first_strike = chain["strikes"][0]

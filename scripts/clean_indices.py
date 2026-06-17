@@ -115,7 +115,8 @@ def main():
     )
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+    from brokers.common.logging_config import setup_logging
+    setup_logging()
 
     # Identify indices
     print("Identifying index symbols...")

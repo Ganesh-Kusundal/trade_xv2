@@ -1,0 +1,218 @@
+"""Dhan connection settings — dataclass + loader, mirroring UpstoxConnectionSettings pattern.
+
+Centralizes all Dhan broker configuration into a single frozen dataclass,
+loaded from environment variables or .env files via :class:`DhanSettingsLoader`.
+
+Usage::
+
+    from brokers.dhan.settings import DhanSettingsLoader
+
+    settings = DhanSettingsLoader.from_env(env_path=Path(".env.local"))
+    client = DhanHttpClient(
+        client_id=settings.client_id,
+        access_token=settings.access_token,
+        base_url=settings.base_url,
+        timeout=settings.http_timeout,
+    )
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+from dataclasses import dataclass
+from pathlib import Path
+
+from config.endpoints import Dhan
+from brokers.common.env_loader import load_env_file
+
+logger = logging.getLogger(__name__)
+
+DHAN_PREFIX = "DHAN"
+
+# Canonical Dhan endpoints — imported from central registry.
+_BASE_URL = Dhan.REST_BASE
+_GENERATE_TOKEN_URL = Dhan.GENERATE_TOKEN_URL
+
+# Default lifetimes
+_TOKEN_LIFETIME_SECONDS: int = 86400  # 24 hours
+_SCHEDULER_INTERVAL_SECONDS: int = 20 * 60  # 20 minutes
+_REFRESH_BUFFER_SECONDS: int = 600  # 10 minutes
+
+
+@dataclass(frozen=True)
+class DhanConnectionSettings:
+    """Resolved Dhan connection settings.
+
+    Centralised configuration for Dhan broker connections, loaded from
+    environment variables (or a .properties file).  All fields have
+    sensible defaults so only ``client_id`` is truly required.
+    """
+
+    client_id: str
+    access_token: str = ""
+    base_url: str = _BASE_URL
+    http_timeout: float = 15.0
+    enable_retry: bool = True
+    pin: str = ""
+    totp_secret: str = ""
+    token_lifetime_seconds: int = _TOKEN_LIFETIME_SECONDS
+    scheduler_interval_seconds: int = _SCHEDULER_INTERVAL_SECONDS
+    refresh_buffer_seconds: int = _REFRESH_BUFFER_SECONDS
+    pool_connections: int = 50
+    pool_maxsize: int = 100
+
+    # ── Derived properties ────────────────────────────────────────────
+
+    @property
+    def has_access_token(self) -> bool:
+        return bool(self.access_token)
+
+    @property
+    def has_totp(self) -> bool:
+        return bool(self.pin) and bool(self.totp_secret)
+
+    @property
+    def generate_token_url(self) -> str:
+        return _GENERATE_TOKEN_URL
+
+
+class DhanSettingsLoader:
+    """Load :class:`DhanConnectionSettings` from env vars or .properties files.
+
+    Mirrors the :class:`brokers.upstox.auth.config.UpstoxSettingsLoader` pattern
+    so that every broker factory follows the same configuration lifecycle.
+    """
+
+    PREFIX = DHAN_PREFIX
+
+    @classmethod
+    def from_env(
+        cls,
+        *,
+        env_path: Path | None = None,
+        prefix: str = PREFIX,
+    ) -> DhanConnectionSettings:
+        """Load settings from environment variables, optionally seeding from *env_path*.
+
+        Args:
+            env_path: Optional path to a ``.env`` file.  If provided it is
+                      loaded before reading env vars so the env file acts as
+                      a fallback or override (whichever takes precedence in
+                      :func:`os.environ`).
+            prefix:   Environment variable prefix (default ``DHAN``).
+
+        Returns:
+            A frozen :class:`DhanConnectionSettings` instance.
+        """
+        if env_path:
+            load_env_file(env_path)
+        else:
+            for candidate in (Path(".env.local"), Path(".env")):
+                if candidate.exists():
+                    load_env_file(candidate)
+                    break
+
+        client_id = cls._get(prefix, "CLIENT_ID")
+        if not client_id:
+            raise ValueError("DHAN_CLIENT_ID is required")
+
+        return DhanConnectionSettings(
+            client_id=client_id,
+            access_token=cls._get(prefix, "ACCESS_TOKEN", default=""),
+            base_url=cls._get(prefix, "BASE_URL", default=_BASE_URL),
+            http_timeout=cls._get_float(prefix, "HTTP_TIMEOUT", default=15.0),
+            enable_retry=cls._get_bool(prefix, "ENABLE_RETRY", default=True),
+            pin=cls._get(prefix, "PIN", default=""),
+            totp_secret=cls._get(prefix, "TOTP_SECRET", default=""),
+            token_lifetime_seconds=cls._get_int(
+                prefix, "TOKEN_LIFETIME_SECONDS", default=_TOKEN_LIFETIME_SECONDS
+            ),
+            scheduler_interval_seconds=cls._get_int(
+                prefix, "SCHEDULER_INTERVAL_SECONDS", default=_SCHEDULER_INTERVAL_SECONDS
+            ),
+            refresh_buffer_seconds=cls._get_int(
+                prefix, "REFRESH_BUFFER_SECONDS", default=_REFRESH_BUFFER_SECONDS
+            ),
+        )
+
+    @classmethod
+    def from_dict(cls, values: dict[str, str], *, prefix: str = PREFIX) -> DhanConnectionSettings:
+        """Load settings from a flat dictionary (used for testing / .properties)."""
+        def _val(key: str) -> str:
+            return values.get(f"{prefix}.{key}", "")
+        client_id = _val("clientId") or _val("client_id")
+        if not client_id:
+            raise ValueError("dhan.clientId is required")
+        return DhanConnectionSettings(
+            client_id=client_id,
+            access_token=_val("accessToken") or _val("access_token"),
+            base_url=_val("baseUrl") or _val("base_url") or _BASE_URL,
+            http_timeout=cls._parse_float(_val("httpTimeout"), 15.0),
+            enable_retry=cls._parse_bool(_val("enableRetry"), True),
+            pin=_val("pin"),
+            totp_secret=_val("totpSecret") or _val("totp_secret"),
+            token_lifetime_seconds=cls._parse_int(_val("tokenLifetimeSeconds"), _TOKEN_LIFETIME_SECONDS),
+            scheduler_interval_seconds=cls._parse_int(_val("schedulerIntervalSeconds"), _SCHEDULER_INTERVAL_SECONDS),
+            refresh_buffer_seconds=cls._parse_int(_val("refreshBufferSeconds"), _REFRESH_BUFFER_SECONDS),
+        )
+
+    # ── Internal helpers ──────────────────────────────────────────────
+
+    @staticmethod
+    def _get(prefix: str, name: str, default: str = "") -> str:
+        raw = os.environ.get(f"{prefix.upper()}_{name.upper()}", "")
+        if not raw:
+            return default
+        return raw
+
+    @staticmethod
+    def _get_int(prefix: str, name: str, default: int) -> int:
+        raw = os.environ.get(f"{prefix.upper()}_{name.upper()}", "")
+        if not raw:
+            return default
+        try:
+            return int(raw)
+        except ValueError:
+            return default
+
+    @staticmethod
+    def _get_float(prefix: str, name: str, default: float) -> float:
+        raw = os.environ.get(f"{prefix.upper()}_{name.upper()}", "")
+        if not raw:
+            return default
+        try:
+            return float(raw)
+        except ValueError:
+            return default
+
+    @staticmethod
+    def _get_bool(prefix: str, name: str, default: bool) -> bool:
+        raw = os.environ.get(f"{prefix.upper()}_{name.upper()}", "").lower()
+        if not raw:
+            return default
+        return raw in ("1", "true", "yes", "y", "on")
+
+    @staticmethod
+    def _parse_int(value: str, default: int) -> int:
+        if not value:
+            return default
+        try:
+            return int(value)
+        except ValueError:
+            return default
+
+    @staticmethod
+    def _parse_float(value: str, default: float) -> float:
+        if not value:
+            return default
+        try:
+            return float(value)
+        except ValueError:
+            return default
+
+    @staticmethod
+    def _parse_bool(value: str, default: bool) -> bool:
+        if not value:
+            return default
+        return value.lower() in ("1", "true", "yes", "y", "on")

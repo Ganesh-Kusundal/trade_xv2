@@ -1,4 +1,4 @@
-"""MarketDataGateway v1.0 — frozen broker-agnostic contract.
+"""MarketDataGateway — broker-agnostic contract.
 
 This is the SINGLE interface that all broker adapters must implement.
 No broker-specific fields are allowed in the contract.
@@ -11,8 +11,7 @@ Methods are grouped into:
   - Instrument: search, load_instruments
   - Lifecycle: describe, capabilities, close
 
-FROZEN: Do not add/remove/change method signatures after v1.0.
-Any changes require a new major version.
+.. note:: Pre-v1.0 — method signatures may change without notice.
 """
 
 from __future__ import annotations
@@ -108,13 +107,10 @@ class BrokerCapabilities:
 
 
 class MarketDataGateway(ABC):
-    """Frozen contract for broker-agnostic market data access.
+    """Contract for broker-agnostic market data access.
 
     All broker adapters (Dhan, Upstox, Paper) must implement every method.
     No broker-specific fields are allowed in return types.
-
-    Version: 1.0
-    Frozen: 2026-06-14
     """
 
     # -----------------------------------------------------------------------

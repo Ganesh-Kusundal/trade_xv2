@@ -33,7 +33,10 @@ from analytics.scanner.scanners import MomentumScanner
 from analytics.strategy import BreakoutStrategy, MomentumStrategy, StrategyPipeline
 from datalake.gateway import DataLakeGateway
 
-logging.basicConfig(level=logging.WARNING, format='%(asctime)s %(name)s %(levelname)s %(message)s')
+# Initialize logging if not already configured
+if not logging.getLogger().handlers:
+    from brokers.common.logging_config import setup_logging
+    setup_logging(log_level="WARNING")
 logger = logging.getLogger(__name__)
 
 

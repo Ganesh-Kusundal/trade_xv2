@@ -3,7 +3,8 @@
 Validates:
 - Local imports hoisted (no `from brokers.dhan.segments import` inside methods)
 - Hardcoded `"NSE_EQ"` replaced with `DEFAULT_SEGMENT` constant
-- Upstox `option_chain` / `future_chain` / `get_trade_book` raise NotImplementedError
+- Upstox `option_chain` / `future_chain` raise NotImplementedError (genuinely unsupported)
+- Upstox `get_trade_book` returns [] (no endpoint, but ABC contract returns list)
 - `MarketDataGateway` contract is honored by both brokers
 """
 
@@ -115,9 +116,14 @@ class TestUpstoxNotImplementedErrors:
         with pytest.raises(NotImplementedError, match="future chain"):
             upstox_gateway.future_chain("NIFTY", exchange="NFO")
 
-    def test_upstox_get_trade_book_raises(self, upstox_gateway):
-        with pytest.raises(NotImplementedError, match="trade book"):
-            upstox_gateway.get_trade_book()
+    def test_upstox_get_trade_book_returns_empty_list(self, upstox_gateway):
+        """Upstox has no trade-book endpoint — must return [] (ABC contract).
+
+        Returning [] lets IntelligentGateway.trades() fall back gracefully
+        instead of propagating NotImplementedError.
+        """
+        result = upstox_gateway.get_trade_book()
+        assert result == []
 
 
 class TestMarketDataGatewayContract:

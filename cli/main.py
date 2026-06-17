@@ -10,6 +10,10 @@ from typing import Any
 from dotenv import load_dotenv
 from rich.console import Console
 
+# Initialize centralized logging BEFORE any other imports that log
+from brokers.common.logging_config import setup_logging
+setup_logging()
+
 logger = logging.getLogger(__name__)
 
 # Load environment variables once at startup so every subcommand sees them.
@@ -17,82 +21,34 @@ _ENV_PATH = Path(".env.local")
 if _ENV_PATH.exists() and _ENV_PATH.stat().st_size > 0:
     load_dotenv(_ENV_PATH, override=True)
 
-from brokers.dhan import BrokerFactory
 from cli.commands import (
     account as cmd_account,
-)
-from cli.commands import (
     analytics as cmd_analytics,
-)
-from cli.commands import (
     benchmark as cmd_benchmark,
-)
-
-# CLI Commands Imports
-from cli.commands import (
     broker as cmd_broker,
-)
-from cli.commands import (
     compare as cmd_compare,
-)
-from cli.commands import (
     dashboard as cmd_dashboard,
-)
-from cli.commands import (
     doctor as cmd_doctor,
-)
-from cli.commands import (
     events as cmd_events,
-)
-from cli.commands import (
     instrument_info as cmd_instrument_info,
-)
-from cli.commands import (
     instruments as cmd_instruments,
-)
-from cli.commands import (
     journal as cmd_journal,
-)
-from cli.commands import (
     load_test as cmd_load_test,
-)
-from cli.commands import (
     market as cmd_market,
-)
-from cli.commands import (
     news as cmd_news,
-)
-from cli.commands import (
     oms as cmd_oms,
-)
-from cli.commands import (
     portfolio as cmd_portfolio,
-)
-from cli.commands import (
     quality_report as cmd_quality_report,
-)
-from cli.commands import (
     search as cmd_search,
-)
-from cli.commands import (
     validate as cmd_validate,
-)
-from cli.commands import (
     validate_history as cmd_validate_history,
-)
-from cli.commands import (
     validate_option_chain as cmd_validate_option_chain,
-)
-from cli.commands import (
     options_sync as cmd_options_sync,
-)
-from cli.commands import (
     views as cmd_views,
-)
-from cli.commands import (
     websocket as cmd_websocket,
 )
 from cli.commands.registry import register as _register_cmd
+from cli.services.broker_registry import create_gateway
 from cli.services.broker_service import BrokerService
 from cli.services.event_bus_service import EventBusService
 from cli.services.oms_service import OmsService
@@ -134,25 +90,25 @@ _register_cmd("analytics", "cli.commands.analytics")
 _register_cmd("views", "cli.commands.views")
 
 
-def _try_create_gateway(broker: str = "dhan", load_instruments: bool = True) -> Any:
-    """Attempt to create a BrokerGateway; return None on failure."""
-    if broker == "upstox":
-        env_path = Path(".env.upstox")
-        if not env_path.exists():
-            return None
-        try:
-            from brokers.upstox.factory import UpstoxBrokerFactory
-            return UpstoxBrokerFactory.create(env_path=env_path, load_instruments=load_instruments)
-        except Exception:
-            return None
-    else:
-        env_path = Path(".env.local")
-        if not env_path.exists():
-            return None
-        try:
-            return BrokerFactory.create(env_path=env_path, load_instruments=True)
-        except Exception:
-            return None
+def _try_create_gateway(
+    broker: str = "dhan",
+    load_instruments: bool = True,
+    event_bus: Any | None = None,
+    lifecycle: Any | None = None,
+) -> Any:
+    """Attempt to create a BrokerGateway; return None on failure.
+
+    Delegates to the unified :func:`cli.services.broker_registry.create_gateway`.
+    """
+    try:
+        return create_gateway(
+            broker=broker,
+            load_instruments=load_instruments,
+            event_bus=event_bus,
+            lifecycle=lifecycle,
+        )
+    except Exception:
+        return None
 
 
 def main() -> None:
@@ -237,7 +193,12 @@ def main() -> None:
     if subcommand not in _NO_GATEWAY_CMDS:
         # Only load instruments for commands that need them
         load_inst = subcommand in _NEEDS_INSTRUMENTS
-        gateway = _try_create_gateway(broker_name, load_instruments=load_inst)
+        gateway = _try_create_gateway(
+            broker_name,
+            load_instruments=load_inst,
+            event_bus=event_bus_service.event_bus,
+            lifecycle=broker_service.lifecycle,
+        )
         _gw = gateway
 
     # Wire TradingContext into OmsService when available (only for live gateway commands)
@@ -303,6 +264,9 @@ def main() -> None:
             symbol = cmd_args[0]
             try:
                 gw = _get_gateway()
+                if gw is None:
+                    console.print(f"[red]No {broker_name} gateway available. Check credentials.[/red]")
+                    return
                 quote = gw.quote(symbol)
                 if quote is not None:
                     from rich.table import Table
@@ -330,6 +294,9 @@ def main() -> None:
             symbol = cmd_args[0]
             try:
                 gw = _get_gateway()
+                if gw is None:
+                    console.print(f"[red]No {broker_name} gateway available. Check credentials.[/red]")
+                    return
                 depth = gw.depth(symbol)
                 if depth is not None and (depth.bids or depth.asks):
                     from rich.table import Table
@@ -389,6 +356,9 @@ def main() -> None:
                 from datetime import date, timedelta
 
                 gw = _get_gateway()
+                if gw is None:
+                    console.print(f"[red]No {broker_name} gateway available. Check credentials.[/red]")
+                    return
                 to_date = date.today()
                 from_date = to_date - timedelta(days=10)
                 df = gw.historical.history(

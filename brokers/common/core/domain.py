@@ -1,19 +1,16 @@
 """Canonical domain — public re-export facade.
 
 This module is the canonical import path for all domain types that cross
-adapter, OMS, CLI, analytics, and test boundaries. It preserves backward
-compatibility for existing ``from brokers.common.core.domain import ...``
-statements while keeping the concrete dataclass definitions in focused
-sub-modules:
+adapter, OMS, CLI, analytics, and test boundaries. Concrete dataclass
+definitions live in focused sub-modules:
 
 * :mod:`brokers.common.core.types` — enums (``Side``, ``OrderStatus``, etc.)
-* :mod:`brokers.common.core.models` — compatibility home for canonical dataclasses
+* :mod:`brokers.common.core.models` — canonical dataclasses
 * :mod:`brokers.common.core.requests` — input shapes (``OrderRequest``, etc.)
 * :mod:`brokers.common.core.reconciliation` — drift/reconciliation types
 
-New code SHOULD import from this module. Existing code that imports from the
-focused sub-modules continues to work, but new public call sites should prefer
-``brokers.common.core.domain`` to make the adapter boundary explicit.
+All new code should import from this module to keep the adapter boundary
+explicit.
 """
 
 from __future__ import annotations
@@ -67,6 +64,3 @@ from brokers.common.core.reconciliation import (  # noqa: F401
     ReconciliationReport,
 )
 
-
-# ── BrokerConnection (re-exported from spi.py for backward compatibility) ──
-from brokers.common.api.spi import BrokerConnection  # noqa: F401

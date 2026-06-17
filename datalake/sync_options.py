@@ -51,7 +51,10 @@ from datalake.option_format import (
 from datalake.symbols import normalize_symbol
 from datalake.validation import validate_candles
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+# Initialize logging if not already configured
+if not logging.getLogger().handlers:
+    from brokers.common.logging_config import setup_logging
+    setup_logging()
 logger = logging.getLogger(__name__)
 
 TRADE_J_DUCKDB = "/Users/apple/Downloads/Trade_J/runtime-dev/historical.duckdb"

@@ -178,7 +178,7 @@ def test_dhan_token_refresh_during_in_flight_trade_event() -> None:
 
     client = DhanHttpClient(
         client_id="X", access_token="TOK-V1",
-        token_refresh_fn=refresh, enable_retry=True,
+        token_refresh_fn=refresh,
     )
     # Bypass the throttle (default 0.04s for /orders) by patching it.
     client._throttle = lambda *a, **kw: None  # type: ignore[assignment]
@@ -259,7 +259,7 @@ def test_dhan_token_refresh_does_not_replay_under_cooldown() -> None:
 
     client = DhanHttpClient(
         client_id="X", access_token="TOK-V1",
-        token_refresh_fn=refresh, enable_retry=True,
+        token_refresh_fn=refresh,
     )
     client._throttle = lambda *a, **kw: None  # type: ignore[assignment]
 

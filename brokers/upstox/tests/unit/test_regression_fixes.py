@@ -96,19 +96,19 @@ class TestDepthResponseParsing:
 
 
 class TestHistoricalProperty:
-    """Verify historical property returns gateway itself for facade access."""
+    """Verify historical access works via extended or direct history() method."""
 
-    def test_historical_returns_gateway(self):
+    def test_history_method_exists(self):
         from brokers.upstox.gateway import UpstoxBrokerGateway
         broker = MagicMock()
         gw = UpstoxBrokerGateway(broker)
-        assert gw.historical is gw
+        assert hasattr(gw, "history")
 
-    def test_historical_has_history_method(self):
+    def test_history_callable(self):
         from brokers.upstox.gateway import UpstoxBrokerGateway
         broker = MagicMock()
         gw = UpstoxBrokerGateway(broker)
-        assert hasattr(gw.historical, "history")
+        assert callable(gw.history)
 
 
 class TestNewsAdapterFilters:

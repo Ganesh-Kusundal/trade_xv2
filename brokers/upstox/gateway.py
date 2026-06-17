@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import logging
-from datetime import date, timedelta
+import time
+from datetime import datetime, date, timedelta, timezone
 from decimal import Decimal
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -19,9 +21,13 @@ from brokers.common.core.domain import (
     Position,
     Quote,
     Trade,
+    DepthLevel,
 )
+from brokers.common.event_bus import EventBus
 from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
 from brokers.upstox.broker import UpstoxBroker
+from brokers.upstox.extended import UpstoxExtendedCapabilities
+from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 
 logger = logging.getLogger(__name__)
 
@@ -32,69 +38,13 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
     def __init__(self, broker: UpstoxBroker):
         self._broker = broker
 
-    @property
-    def instruments(self) -> Any:
-        return self._broker.instrument_resolver
-
-    @property
-    def market_data(self) -> Any:
-        return self._broker.market_data
-
-    @property
-    def orders(self) -> Any:
-        return self._broker.order_command
-
-    @property
-    def portfolio(self) -> Any:
-        return self._broker.portfolio
-
-    @property
-    def options(self) -> Any:
-        return self._broker.options
-
-    @property
-    def futures(self) -> Any:
-        return self._broker.futures
-
-    @property
-    def historical(self) -> Any:
-        return self
-
-    @property
-    def margin(self) -> Any:
-        return self._broker.margin
-
-    @property
-    def news(self) -> Any:
-        return self._broker.news
-
-    @property
-    def websocket(self) -> Any:
-        return self._broker.market_data_websocket
-
-    @property
-    def ipo(self) -> Any:
-        return self._broker.ipo
-
-    @property
-    def payments(self) -> Any:
-        return self._broker.payments
-
-    @property
-    def mutual_funds(self) -> Any:
-        return self._broker.mutual_funds
-
-    @property
-    def fundamentals(self) -> Any:
-        return self._broker.fundamentals
-
     # ── Market Data (ABC-aligned) ─────────────────────────────────────
 
     def ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:
         key = self._resolve_instrument_key(symbol, exchange)
         body = self._broker.market_data_v2.get_ltp([key])
         data = body.get("data", {})
-        for k, v in data.items():
+        for _, v in data.items():
             if isinstance(v, dict) and "last_price" in v:
                 return Decimal(str(v["last_price"]))
         return Decimal("0")
@@ -103,7 +53,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         key = self._resolve_instrument_key(symbol, exchange)
         body = self._broker.market_data_v2.get_quote([key])
         data = body.get("data", {})
-        for k, v in data.items():
+        for _, v in data.items():
             if isinstance(v, dict) and "last_price" in v:
                 ltp = v.get("last_price", 0)
                 ohlc = v.get("ohlc", {})
@@ -121,7 +71,6 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         return Quote(symbol=symbol)
 
     def depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
-        from brokers.common.core.domain import DepthLevel
         key = self._resolve_instrument_key(symbol, exchange)
         body = self._broker.market_data_v2.get_order_book(key)
         data = body.get("data", {})
@@ -133,68 +82,44 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
                     break
         buy = depth.get("buy", []) if isinstance(depth, dict) else []
         sell = depth.get("sell", []) if isinstance(depth, dict) else []
-        bids = [DepthLevel(price=Decimal(str(l.get("price", 0))), quantity=int(l.get("quantity", 0)), orders=int(l.get("orders", 0))) for l in buy[:5]]
-        asks = [DepthLevel(price=Decimal(str(l.get("price", 0))), quantity=int(l.get("quantity", 0)), orders=int(l.get("orders", 0))) for l in sell[:5]]
+        bids = [DepthLevel(price=Decimal(str(level.get("price", 0))), quantity=int(level.get("quantity", 0)), orders=int(level.get("orders", 0))) for level in buy[:5]]
+        asks = [DepthLevel(price=Decimal(str(level.get("price", 0))), quantity=int(level.get("quantity", 0)), orders=int(level.get("orders", 0))) for level in sell[:5]]
         return MarketDepth(bids=bids, asks=asks)
 
     def get_orderbook(self) -> list[Order]:
         return self._broker.order_query.get_order_list()
 
     def get_trade_book(self) -> list[Trade]:
-        raise NotImplementedError(
-            "Upstox trade book endpoint is not available. Use orders/get_trades() instead."
+        # Upstox has no dedicated trade-book endpoint. Return an empty list
+        # (honoring the MarketDataGateway ABC contract) so callers such as
+        # IntelligentGateway.trades() can fall back gracefully instead of
+        # propagating NotImplementedError. Use get_orderbook() / order_query
+        # to reconstruct trade-level detail.
+        logger.debug(
+            "upstox_trade_book_unavailable",
+            extra={"hint": "Use gateway.get_orderbook() or broker.order_query.get_trades()"},
         )
+        return []
 
-    # ── IPO ────────────────────────────────────────────────────────────
+    # ── Extended Capabilities ─────────────────────────────────────────
 
-    def get_ipos(self, status: str = "open") -> list[dict[str, Any]]:
-        return self._broker.ipo.get_ipos(status=status)
+    @property
+    def extended(self) -> Any:
+        """Access Upstox-specific capabilities beyond MarketDataGateway ABC.
 
-    # ── Payments ───────────────────────────────────────────────────────
+        Returns:
+            UpstoxExtendedCapabilities instance with broker-specific methods
 
-    def initiate_payout(self, payload: dict[str, Any]) -> dict[str, Any]:
-        return self._broker.payments.initiate_payout(payload)
+        Example::
 
-    def get_payouts(self) -> list[dict[str, Any]]:
-        return self._broker.payments.get_payouts()
-
-    def modify_payout(self, payout_id: str, payload: dict[str, Any]) -> dict[str, Any]:
-        return self._broker.payments.modify_payout(payout_id, payload)
-
-    def cancel_payout(self, payout_id: str) -> dict[str, Any]:
-        return self._broker.payments.cancel_payout(payout_id)
-
-    # ── Mutual Funds ───────────────────────────────────────────────────
-
-    def get_mutual_fund_holdings(self) -> list[dict[str, Any]]:
-        return self._broker.mutual_funds.get_holdings()
-
-    def place_mutual_fund_order(self, payload: dict[str, Any]) -> dict[str, Any]:
-        return self._broker.mutual_funds.place_order(payload)
-
-    # ── Fundamentals ───────────────────────────────────────────────────
-
-    def get_pnl(self, isin: str) -> dict[str, Any]:
-        return self._broker.fundamentals.get_pnl(isin)
-
-    def get_balance_sheet(self, isin: str) -> dict[str, Any]:
-        return self._broker.fundamentals.get_balance_sheet(isin)
-
-    def get_cash_flow(self, isin: str) -> dict[str, Any]:
-        return self._broker.fundamentals.get_cash_flow(isin)
-
-    def get_ratios(self, isin: str) -> dict[str, Any]:
-        return self._broker.fundamentals.get_ratios(isin)
+            ipos = gateway.extended.get_ipos()
+            pnl = gateway.extended.get_pnl("INE002A01018")
+        """
+        return UpstoxExtendedCapabilities(self._broker)
 
     # ── Lifecycle ──
 
     def load_instruments(self, source: str | None = None) -> None:
-        import logging
-        import time
-        from pathlib import Path
-
-        logger = logging.getLogger(__name__)
-
         cache_path = Path(".cache/upstox/complete.json.gz")
         if source:
             path = Path(source)
@@ -262,7 +187,6 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
 
     def _fetch_history(self, symbol: str, exchange: str, from_date: str, to_date: str, unit: str, interval: str) -> pd.DataFrame:
         key = self._resolve_instrument_key(symbol, exchange)
-        from datetime import datetime
         to_dt = datetime.strptime(to_date, "%Y-%m-%d").date()
         from_dt = datetime.strptime(from_date, "%Y-%m-%d").date()
 
@@ -333,28 +257,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
     def holdings(self) -> list[Holding]:
         return self._broker.portfolio.get_holdings()
 
-    def get_user_profile(self) -> dict[str, Any]:
-        return self._broker.portfolio.get_profile()
 
-    def convert_position(self, payload: dict[str, Any]) -> dict[str, Any]:
-        return self._broker.portfolio_client.convert_position(payload)
-
-    def get_trade_pnl(self) -> list[dict[str, Any]]:
-        pnl_results = self._broker.trade_pnl_calculator.calculate_all_pnl()
-        return [
-            {
-                "symbol": p.symbol,
-                "exchange": p.exchange,
-                "quantity": p.quantity,
-                "average_price": str(p.average_price),
-                "current_price": str(p.current_price),
-                "realized_pnl": str(p.realized_pnl),
-                "unrealized_pnl": str(p.unrealized_pnl),
-                "total_pnl": str(p.total_pnl),
-                "pnl_percentage": str(p.pnl_percentage),
-            }
-            for p in pnl_results
-        ]
 
     def trades(self) -> list[Trade]:
         return self.get_trade_book()
@@ -431,7 +334,6 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
             on_tick:  Callable receiving a :class:`Quote` (or raw dict on
                       resolution failure)
         """
-        from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
         segment = UpstoxDomainMapper.segment_to_wire(exchange)
         key = f"{segment}|{symbol}"
         ws = self._broker.market_data_websocket
@@ -443,37 +345,27 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
                 quote = self._translate_tick_to_quote(raw)
                 on_tick(quote)
 
-        # WebSocket connect is async — schedule it if not connected.
+        # WebSocket connect is async — schedule connect+subscribe atomically.
+        # run_async_compat_with_subscribe guarantees ordering: subscribe
+        # only runs after connect completes, even in async context.
         if not ws.is_connected:
-            import asyncio
-            try:
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    # We're in an async context — schedule connect & subscribe.
-                    async def _connect_and_subscribe() -> None:
-                        await ws.connect()
-                        ws.subscribe([key], mode.lower())
-                        if wrapped_listener:
-                            ws.add_listener(wrapped_listener)
-                    asyncio.ensure_future(_connect_and_subscribe())
-                    return ws
-                else:
-                    loop.run_until_complete(ws.connect())
-            except RuntimeError:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                loop.run_until_complete(ws.connect())
-
-        ws.subscribe([key], mode.lower())
-        if wrapped_listener:
-            ws.add_listener(wrapped_listener)
+            def _on_connected() -> None:
+                ws.subscribe([key], mode.lower())
+                if wrapped_listener:
+                    ws.add_listener(wrapped_listener)
+            from brokers.common.async_compat import connect_async_then
+            connect_async_then(ws.connect(), _on_connected)
+        else:
+            # Already connected — subscribe and register listener directly.
+            ws.subscribe([key], mode.lower())
+            if wrapped_listener:
+                ws.add_listener(wrapped_listener)
         return ws
 
     # ── Internal ──
 
     def _resolve_instrument_key(self, symbol: str, exchange: str) -> str:
         """Return the Upstox instrument_key for a canonical symbol."""
-        from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 
         segment = UpstoxDomainMapper.segment_to_wire(exchange)
         if segment == 'NSE':
@@ -508,7 +400,6 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         If the key cannot be resolved the raw dict is returned unchanged so
         no data is silently dropped.
         """
-        from brokers.common.core.domain import Quote
         try:
             payload = raw.get("payload") if isinstance(raw, dict) else raw
             if payload is None:
@@ -580,7 +471,6 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
             # Timestamp
             ts = None
             try:
-                from datetime import datetime, timezone
                 ts_raw = (
                     payload.get("exchange_timestamp") if isinstance(payload, dict)
                     else getattr(payload, "exchange_timestamp", None)
@@ -609,7 +499,6 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
                 timestamp=ts,
             )
         except Exception:
-            import logging
             logging.getLogger(__name__).debug(
                 "Upstox tick translation failed; forwarding raw payload",
                 exc_info=True,
@@ -659,9 +548,27 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         trigger_price: Decimal = Decimal("0"),
         correlation_id: str | None = None,
     ) -> OrderResponse:
-        """Place an order via Upstox."""
+        """Place an order via Upstox.
+
+        If *correlation_id* is not provided, the current thread's active
+        correlation ID (set via :func:`brokers.common.correlation.with_correlation`)
+        is used for tracing.
+        """
+        if correlation_id is None:
+            try:
+                from brokers.common.correlation import get_current_correlation_id
+                correlation_id = get_current_correlation_id()
+            except ImportError:
+                pass
+
+        # Security guard: prevent live orders if disabled
+        if not self._broker.settings.allow_live_orders:
+            return OrderResponse(
+                success=False,
+                order_id="",
+                message="Live orders are disabled. Set allow_live_orders=True in configuration.",
+            )
         try:
-            from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
             UpstoxDomainMapper.segment_to_wire(exchange)
             key = self._resolve_instrument_key(symbol, exchange)
 
@@ -690,22 +597,37 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
             data = body.get("data", {}) if isinstance(body, dict) else {}
             order_id = data.get("order_id", "") if isinstance(data, dict) else ""
 
+            if correlation_id:
+                logger.info("order_placed", extra={
+                    "correlation_id": correlation_id,
+                    "order_id": order_id,
+                    "symbol": symbol,
+                    "side": side,
+                })
+
             return OrderResponse(
                 success=True,
                 order_id=str(order_id),
                 message="Order placed",
-                correlation_id=correlation_id,
             )
         except Exception as e:
+            logger.warning("order_placement_failed", extra={
+                "correlation_id": correlation_id,
+                "symbol": symbol,
+                "side": side,
+                "error": str(e),
+            })
             return OrderResponse(
                 success=False,
                 order_id="",
                 message=str(e),
-                correlation_id=correlation_id,
             )
 
     def cancel_order(self, order_id: str) -> bool:
         """Cancel an order via Upstox."""
+        # Security guard: prevent live order cancellation if disabled
+        if not self._broker.settings.allow_live_orders:
+            raise RuntimeError("Live order cancellation is disabled. Set allow_live_orders=True in configuration.")
         try:
             body = self._broker.order_client.cancel_order(order_id)
             return body.get("status") == "success" if isinstance(body, dict) else False

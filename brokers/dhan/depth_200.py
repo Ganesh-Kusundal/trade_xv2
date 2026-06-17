@@ -1,7 +1,7 @@
 """200-level market depth WebSocket feed for Dhan.
 
 Implements ManagedService protocol for lifecycle management.
-Endpoint: wss://full-depth-api.dhan.co/twohundreddepth
+Endpoint: wss://full-depth-api.dhan.co/twohundreddepth (see ``config.endpoints.Dhan.WS_DEPTH_200``)
 Max instruments: 1 per connection (Dhan API limitation)
 """
 
@@ -15,6 +15,8 @@ import time
 from collections.abc import Callable
 from datetime import datetime, timezone
 from decimal import Decimal
+
+from config.endpoints import Dhan as _DhanEndpoints
 
 from brokers.common.core.domain import DepthLevel, MarketDepth
 from brokers.common.event_bus import DomainEvent, EventBus
@@ -40,7 +42,7 @@ class DhanDepth200Feed(ManagedService):
 
     name = "dhan.depth_200"
 
-    ENDPOINT = "wss://full-depth-api.dhan.co/twohundreddepth"
+    ENDPOINT = _DhanEndpoints.WS_DEPTH_200
     MAX_INSTRUMENTS = 1
     REQUEST_CODE = 23  # Full Market Depth
 
@@ -72,6 +74,7 @@ class DhanDepth200Feed(ManagedService):
 
         self._subscriptions: list[tuple[str, str]] = [instrument] if instrument else []
         self._depth_callbacks: list[Callable[[MarketDepth], None]] = []
+        self._callback_lock = threading.Lock()
 
         self._ws = None
         self._thread: threading.Thread | None = None
@@ -97,13 +100,24 @@ class DhanDepth200Feed(ManagedService):
         """Maximum number of instruments allowed per connection."""
         return self.MAX_INSTRUMENTS
 
+    @property
+    def subscriptions(self) -> list[tuple[str, str]]:
+        """Return a copy of the current subscription list."""
+        return list(self._subscriptions)
+
+    @property
+    def is_running(self) -> bool:
+        """Whether the feed thread is alive (started and not stopped)."""
+        return bool(self._thread and self._thread.is_alive())
+
     def on_depth(self, callback: Callable[[MarketDepth], None]) -> None:
         """Register a callback for depth updates.
 
         The callback receives a :class:`~brokers.common.core.domain.MarketDepth`
         with up to 200 bid and 200 ask levels.
         """
-        self._depth_callbacks.append(callback)
+        with self._callback_lock:
+            self._depth_callbacks.append(callback)
 
     def latest_depth(self) -> MarketDepth | None:
         """Return the most-recent cached :class:`MarketDepth`.
@@ -419,7 +433,9 @@ class DhanDepth200Feed(ManagedService):
             )
 
         # Fire registered callbacks with the canonical MarketDepth.
-        for callback in self._depth_callbacks:
+        with self._callback_lock:
+            callbacks = list(self._depth_callbacks)
+        for callback in callbacks:
             try:
                 callback(merged)
             except Exception as exc:

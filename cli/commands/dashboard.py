@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from datetime import datetime
 
 from rich.console import Console
 from rich.table import Table
+
+logger = logging.getLogger(__name__)
 
 
 def run(args: list[str], broker_service, console: Console) -> None:
@@ -42,7 +45,8 @@ def run(args: list[str], broker_service, console: Console) -> None:
     try:
         gw.ltp('TCS')
         checks['Login Status'] = ('Connected', 'green')
-    except:
+    except Exception as exc:
+        logger.debug("dashboard_check_failed", extra={"check": "Login Status", "error": str(exc)})
         checks['Login Status'] = ('Disconnected', 'red')
 
     # Historical Status
@@ -51,7 +55,8 @@ def run(args: list[str], broker_service, console: Console) -> None:
         gw.history('TCS', timeframe='1D', lookback_days=5)
         latency = (time.time() - t0) * 1000
         checks['Historical Status'] = (f'Healthy ({latency:.0f}ms)', 'green')
-    except:
+    except Exception as exc:
+        logger.debug("dashboard_check_failed", extra={"check": "Historical Status", "error": str(exc)})
         checks['Historical Status'] = ('Error', 'red')
 
     # Quote Status
@@ -60,7 +65,8 @@ def run(args: list[str], broker_service, console: Console) -> None:
         gw.quote('TCS')
         latency = (time.time() - t0) * 1000
         checks['Quote Status'] = (f'Healthy ({latency:.0f}ms)', 'green')
-    except:
+    except Exception as exc:
+        logger.debug("dashboard_check_failed", extra={"check": "Quote Status", "error": str(exc)})
         checks['Quote Status'] = ('Error', 'red')
 
     # Option Chain Status
@@ -70,7 +76,8 @@ def run(args: list[str], broker_service, console: Console) -> None:
         latency = (time.time() - t0) * 1000
         strikes = len(chain.get('strikes', []))
         checks['Option Chain'] = (f'Healthy ({strikes} strikes, {latency:.0f}ms)', 'green')
-    except:
+    except Exception as exc:
+        logger.debug("dashboard_check_failed", extra={"check": "Option Chain", "error": str(exc)})
         checks['Option Chain'] = ('Error', 'red')
 
     # Future Chain Status
@@ -80,7 +87,8 @@ def run(args: list[str], broker_service, console: Console) -> None:
         latency = (time.time() - t0) * 1000
         contracts = len(futures.get('contracts', []))
         checks['Future Chain'] = (f'Healthy ({contracts} contracts, {latency:.0f}ms)', 'green')
-    except:
+    except Exception as exc:
+        logger.debug("dashboard_check_failed", extra={"check": "Future Chain", "error": str(exc)})
         checks['Future Chain'] = ('Error', 'red')
 
     # Last Validation
