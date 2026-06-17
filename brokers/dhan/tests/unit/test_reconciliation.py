@@ -46,7 +46,7 @@ def test_reconcile_detects_missing_order():
     report = recon.reconcile(local_orders=local_orders)
     assert report.has_drift
     assert report.high_severity_count == 1
-    assert report.drift_items[0].kind == "missing_order"
+    assert report.drift_items[0].kind == "missing_broker_order"
     assert report.drift_items[0].symbol == "RELIANCE"
 
 
@@ -87,7 +87,7 @@ def test_reconcile_detects_position_quantity_mismatch():
     ]
     report = recon.reconcile(local_positions=local_positions)
     assert report.has_drift
-    assert any(d.kind == "quantity_mismatch" for d in report.drift_items)
+    assert any(d.kind == "position_quantity_mismatch" for d in report.drift_items)
 
 
 def test_reconcile_detects_missing_position():
@@ -101,7 +101,7 @@ def test_reconcile_detects_missing_position():
     ]
     report = recon.reconcile(local_positions=local_positions)
     assert report.has_drift
-    assert any(d.kind == "missing_position" for d in report.drift_items)
+    assert any(d.kind == "missing_broker_position" for d in report.drift_items)
 
 
 def test_reconcile_handles_fetch_error():

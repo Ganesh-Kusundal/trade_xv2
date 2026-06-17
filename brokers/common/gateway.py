@@ -56,7 +56,7 @@ class BrokerCapabilities:
     # Historical data limits
     max_intraday_days: int = 90
     max_daily_days: int = 365 * 10  # 10 years typical
-    supported_timeframes: tuple[str, ...] = ("1m", "5m", "15m", "30m", "1h", "1D")
+    supported_timeframes: tuple[str, ...] = ("1m", "5m", "15m", "30m", "1h", "1D", "1d")
 
     # Batch capabilities
     parallel_history: bool = False
@@ -76,6 +76,12 @@ class BrokerCapabilities:
     forever_orders: bool = False
     conditional_triggers: bool = False
     slice_orders: bool = False
+
+    # Order life-cycle
+    amo: bool = False
+
+    # Risk management
+    market_protection: bool = False
 
     # Account management
     ledger: bool = False

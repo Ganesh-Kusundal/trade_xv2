@@ -5,10 +5,12 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
+from typing import Any, cast
 
 from brokers.common.gateway import MarketDataGateway
 from brokers.common.lifecycle import LifecycleManager
 from brokers.common.oms.context import TradingContext
+from brokers.common.observability.http_server import HttpObservabilityServer
 from brokers.paper import PaperGateway
 
 from cli.services.broker_registry import create_gateway
@@ -49,7 +51,12 @@ class BrokerService:
     PRODUCTION_CERTIFICATION_REPORT §B4.
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        load_instruments: bool = True,
+        event_bus: Any | None = None,
+    ) -> None:
         self._gateway: MarketDataGateway | None = None
         self._upstox_gateway: MarketDataGateway | None = None
         self._paper: PaperGateway | None = None
@@ -59,7 +66,7 @@ class BrokerService:
         self._upstox_load_error: str | None = None
         self._initialized = False
         self._trading_context: TradingContext | None = None
-        self._http_observability = None  # B8+B9 followup
+        self._http_observability: HttpObservabilityServer | None = None  # B8+B9 followup
         # B-3 / M-7: explicit fail-open override; default = FAIL CLOSED.
         # Set RISK_FAIL_OPEN=1 to authorise the legacy 1,000,000 placeholder.
         self._risk_fail_open = os.environ.get("RISK_FAIL_OPEN") == "1"
@@ -71,6 +78,10 @@ class BrokerService:
         # LifecycleManager. Created eagerly so close() can stop_all()
         # even if _ensure_initialized() failed midway.
         self._lifecycle = LifecycleManager()
+        # I-14: accept load_instruments + event_bus from main() so the
+        # CLI can control instrument loading and share the event bus.
+        self._load_instruments = load_instruments
+        self._event_bus = event_bus
 
     @property
     def lifecycle(self) -> LifecycleManager:
@@ -84,7 +95,7 @@ class BrokerService:
         return self._lifecycle
 
     @property
-    def http_observability(self):
+    def http_observability(self) -> HttpObservabilityServer | None:
         """The HTTP observability server (Phase B / B8+B9).
 
         Returns ``None`` before init or if the server failed to start.
@@ -93,7 +104,7 @@ class BrokerService:
         """
         return self._http_observability
 
-    def _start_http_observability_server(self, risk_manager) -> None:
+    def _start_http_observability_server(self, risk_manager: Any) -> None:
         """B8+B9 followup: spin up the HTTP observability server.
 
         Constructs an :class:`HttpObservabilityServer` with the OMS's
@@ -106,10 +117,6 @@ class BrokerService:
         is left as None and a warning is logged. Production
         observability must not block init.
         """
-        from brokers.common.observability.http_server import (
-            HttpObservabilityServer,
-        )
-
         # Share the OMS's EventMetrics so /metrics shows the same
         # counters the OMS increments. If the TradingContext is
         # None (init failed), fall back to a fresh EventMetrics.
@@ -200,11 +207,11 @@ class BrokerService:
                 ):
                     if cb is not None:
                         try:
-                            gauges[name] = float(
-                                getattr(cb, "state", 0).value
-                                if hasattr(getattr(cb, "state", 0), "value")
-                                else 0
-                            )
+                            state_obj: Any = getattr(cb, "state", None)
+                            if state_obj is not None and hasattr(state_obj, "value"):
+                                gauges[name] = float(state_obj.value)
+                            else:
+                                gauges[name] = 0.0
                         except Exception as exc:
                             logger.debug("circuit_breaker_gauge_failed: %s", exc)
             return gauges
@@ -250,7 +257,8 @@ class BrokerService:
                 self._gateway = create_gateway(
                     "dhan",
                     env_path=_ENV_PATH,
-                    load_instruments=True,
+                    load_instruments=self._load_instruments,
+                    event_bus=self._event_bus,
                     lifecycle=self._lifecycle,
                     # B7: OMS risk_manager → OrdersAdapter risk gate.
                     risk_manager=oms_risk_manager,
@@ -318,7 +326,8 @@ class BrokerService:
                 self._upstox_gateway = create_gateway(
                     "upstox",
                     env_path=upstox_env_path,
-                    load_instruments=True,
+                    load_instruments=self._load_instruments,
+                    event_bus=self._event_bus,
                     lifecycle=self._lifecycle,
                 )
                 if self._upstox_gateway is not None:
@@ -349,8 +358,8 @@ class BrokerService:
         try:
             from brokers.dhan.websocket import DhanOrderStream
 
-            def access_token_fn():
-                return conn._client.access_token
+            def access_token_fn() -> str:
+                return conn._client.access_token  # type: ignore[no-any-return]  # noqa: E501
             # Order stream: always start — used by the OMS for fill
             # detection on every place_order call.
             if conn.order_stream is None:
@@ -372,7 +381,7 @@ class BrokerService:
         except Exception as exc:
             logger.warning("websocket_services_wiring_failed: %s", exc)
 
-    def _build_oms_risk_manager(self):
+    def _build_oms_risk_manager(self) -> Any:
         """B7: build a RiskManager for the OMS that the live path
         will consult.
 
@@ -466,7 +475,7 @@ class BrokerService:
                 )
                 return Decimal("0")
 
-            balance_value = getattr(balance, "available_balance", None)
+            balance_value: Any = getattr(balance, "available_balance", None)
             if balance_value is None or balance_value <= 0:
                 # B-3: zero/negative balance is a hard stop, even with
                 # RISK_FAIL_OPEN. A phantom capital would defeat the risk
@@ -480,7 +489,7 @@ class BrokerService:
                     },
                 )
                 return Decimal("0")
-            return balance_value
+            return Decimal(str(balance_value))
 
         return RiskManager(
             position_manager=PositionManager(),
@@ -488,7 +497,7 @@ class BrokerService:
             capital_fn=_capital_fn,
         )
 
-    def _build_and_register_oms_services(self, risk_manager) -> None:
+    def _build_and_register_oms_services(self, risk_manager: Any) -> None:
         """B7: construct the OMS-side services (DailyPnlResetScheduler,
         OMS TradingContext) and register them with the lifecycle so
         they are drained on close().

@@ -61,14 +61,14 @@ class BacktestEngine:
 
     def __init__(
         self,
-        pipeline: FeaturePipeline,
+        pipeline: FeaturePipeline | None = None,
         strategy_pipeline: StrategyPipeline | None = None,
         config: BacktestConfig | None = None,
     ) -> None:
-        self._pipeline = pipeline
+        self._pipeline = pipeline or FeaturePipeline()
         self._strategy = strategy_pipeline or StrategyPipeline()
         self._config = config or BacktestConfig()
-        self._replay_engine = ReplayEngine(pipeline, strategy_pipeline, self._config)
+        self._replay_engine = ReplayEngine(self._pipeline, self._strategy, self._config)
 
     def run(
         self,
@@ -236,13 +236,14 @@ class BacktestEngine:
         analysis.max_consecutive_wins = max_wins
         analysis.max_consecutive_losses = max_losses
 
-        # Holding period
-        holding_bars = []
+        # Holding period — use total_seconds for intraday accuracy.
+        # delta.days returns 0 for same-day trades, understating duration.
+        holding_days = []
         for t in trades:
             if t.entry_time and t.exit_time:
                 delta = t.exit_time - t.entry_time
-                holding_bars.append(delta.days)
-        analysis.avg_holding_bars = float(np.mean(holding_bars)) if holding_bars else 0.0
+                holding_days.append(delta.total_seconds() / 86400.0)
+        analysis.avg_holding_bars = float(np.mean(holding_days)) if holding_days else 0.0
 
         # Trades by strategy
         strategy_counts: dict[str, int] = {}

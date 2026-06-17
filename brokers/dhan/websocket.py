@@ -463,7 +463,7 @@ class DhanMarketFeed(ManagedService):
                     cb(quote)
                 except Exception as exc:
                     logger.error("Quote callback error: %s", exc)
-            self._publish_tick(quote)
+            self._publish_tick(quote, correlation_id=self._gen_ws_correlation_id())
         elif data_type in ("Market Depth", "Full Data"):
             depth = self._transform_depth(data)
             with self._lock:
@@ -473,7 +473,7 @@ class DhanMarketFeed(ManagedService):
                     cb(depth)
                 except Exception as exc:
                     logger.error("Depth callback error: %s", exc)
-            self._publish_depth(depth)
+            self._publish_depth(depth, correlation_id=self._gen_ws_correlation_id())
         else:
             # Unknown type — still try to extract as quote
             quote = self._transform_quote(data)
@@ -488,7 +488,18 @@ class DhanMarketFeed(ManagedService):
                         "dhan_ws_quote_callback_failed",
                         extra={"exception_type": type(exc).__name__, "exception_message": str(exc)},
                     )
-            self._publish_tick(quote)
+            self._publish_tick(quote, correlation_id=self._gen_ws_correlation_id())
+
+    @staticmethod
+    def _gen_ws_correlation_id() -> str:
+        """Generate a traceable correlation_id for websocket message dispatch.
+
+        Websocket threads run outside ``with_correlation()`` context,
+        so we generate an explicit ID so TICK/DEPTH/ORDER_UPDATED/TRADE
+        events published from this thread carry traceable identifiers.
+        """
+        import uuid as _uuid
+        return f"dhan:ws:{_uuid.uuid4().hex[:12]}"
 
     def _track_tick_time(self, quote: dict) -> None:
         """Record the latest tick time per symbol for gap detection."""
@@ -546,7 +557,7 @@ class DhanMarketFeed(ManagedService):
             "depth": data.get("depth", []),
         }
 
-    def _publish_tick(self, quote: dict) -> None:
+    def _publish_tick(self, quote: dict, correlation_id: str | None = None) -> None:
         if self._event_bus is None:
             return
         try:
@@ -561,12 +572,12 @@ class DhanMarketFeed(ManagedService):
                 change=quote.get("change", Decimal("0")),
             )
             self._event_bus.publish(
-                DomainEvent.now("TICK", {"quote": q}, symbol=q.symbol, source="DhanMarketFeed")
+                DomainEvent.now("TICK", {"quote": q}, symbol=q.symbol, source="DhanMarketFeed", correlation_id=correlation_id)
             )
         except Exception as exc:
             logger.error("EventBus TICK publish error: %s", exc)
 
-    def _publish_depth(self, depth: dict) -> None:
+    def _publish_depth(self, depth: dict, correlation_id: str | None = None) -> None:
         if self._event_bus is None:
             return
         try:
@@ -581,7 +592,7 @@ class DhanMarketFeed(ManagedService):
             ]
             md = MarketDepth(bids=bids, asks=asks)
             self._event_bus.publish(
-                DomainEvent.now("DEPTH", {"depth": md}, symbol=depth.get("symbol", ""), source="DhanMarketFeed")
+                DomainEvent.now("DEPTH", {"depth": md}, symbol=depth.get("symbol", ""), source="DhanMarketFeed", correlation_id=correlation_id)
             )
         except Exception as exc:
             logger.error("EventBus DEPTH publish error: %s", exc)
@@ -761,6 +772,12 @@ class DhanOrderStream(ManagedService):
         with self._lock:
             return self._is_connected
 
+    @staticmethod
+    def _gen_ws_correlation_id() -> str:
+        """Generate a traceable correlation_id for websocket message dispatch."""
+        import uuid as _uuid
+        return f"dhan:ws:{_uuid.uuid4().hex[:12]}"
+
     def _on_order_update(self, data: dict) -> None:
         if not data or data.get("Type") != "order_alert":
             return
@@ -776,7 +793,7 @@ class DhanOrderStream(ManagedService):
                 cb(transformed)
             except Exception as exc:
                 logger.error("Order callback error: %s", exc)
-        self._publish_order_update(transformed)
+        self._publish_order_update(transformed, correlation_id=self._gen_ws_correlation_id())
 
     @staticmethod
     def _transform_order(data: dict) -> dict:
@@ -796,7 +813,7 @@ class DhanOrderStream(ManagedService):
             "validity": data.get("validity", "DAY"),
         }
 
-    def _publish_order_update(self, data: dict) -> None:
+    def _publish_order_update(self, data: dict, correlation_id: str | None = None) -> None:
         if self._event_bus is None:
             return
         try:
@@ -822,7 +839,7 @@ class DhanOrderStream(ManagedService):
                 timestamp=datetime.now(timezone.utc),
             )
             self._event_bus.publish(
-                DomainEvent.now("ORDER_UPDATED", {"order": order}, symbol=order.symbol, source="DhanOrderStream")
+                DomainEvent.now("ORDER_UPDATED", {"order": order}, symbol=order.symbol, source="DhanOrderStream", correlation_id=correlation_id)
             )
             # If the update indicates a fill, also publish a TRADE event so the
             # PositionManager can update. Trade id is derived deterministically.
@@ -841,7 +858,7 @@ class DhanOrderStream(ManagedService):
                     product_type=product_type,
                 )
                 self._event_bus.publish(
-                    DomainEvent.now("TRADE", {"trade": trade}, symbol=trade.symbol, source="DhanOrderStream")
+                    DomainEvent.now("TRADE", {"trade": trade}, symbol=trade.symbol, source="DhanOrderStream", correlation_id=correlation_id)
                 )
         except Exception as exc:
             logger.error("EventBus ORDER_UPDATED publish error: %s", exc)

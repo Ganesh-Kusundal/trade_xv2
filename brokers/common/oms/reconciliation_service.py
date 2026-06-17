@@ -180,13 +180,25 @@ class ReconciliationService(ManagedService):
             if self._event_bus is not None:
                 try:
                     from brokers.common.event_bus import DomainEvent
+                    # Publish the canonical RECONCILIATION_COMPLETED with
+                    # a sub-type indicator so operators watching the bus
+                    # see drift/ok without needing a second event type.
+                    if self._last_drift_count > 0:
+                        payload = {
+                            "drift_count": self._last_drift_count,
+                            "run_count": self._run_count,
+                            "status": "drift",
+                        }
+                    else:
+                        payload = {
+                            "drift_count": 0,
+                            "run_count": self._run_count,
+                            "status": "ok",
+                        }
                     self._event_bus.publish(
                         DomainEvent.now(
                             "RECONCILIATION_COMPLETED",
-                            {
-                                "drift_count": self._last_drift_count,
-                                "run_count": self._run_count,
-                            },
+                            payload,
                         )
                     )
                 except Exception:

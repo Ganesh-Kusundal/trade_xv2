@@ -5,6 +5,7 @@ from decimal import Decimal
 import pytest
 
 from brokers.common.event_bus import EventBus
+from brokers.common.core.domain import OrderRequest
 from brokers.dhan.domain import Exchange, OrderSide, OrderStatus
 from brokers.dhan.orders import OrdersAdapter
 
@@ -14,14 +15,14 @@ def test_place_order_payload(fake_client, resolver):
         "data": {"orderId": "ORD123456"}
     })
     adapter = OrdersAdapter(fake_client, resolver)
-    adapter.place_order(
+    adapter.place_order(OrderRequest(
         symbol="RELIANCE",
         exchange="NSE",
-        side="BUY",
+        transaction_type="BUY",
         quantity=10,
         order_type="MARKET",
         product_type="INTRADAY",
-    )
+    ))
     payloads = fake_client.calls_for("POST", "/orders")
     assert len(payloads) == 1
     payload = payloads[0]
@@ -40,12 +41,12 @@ def test_place_order_returns_order(fake_client, resolver):
         "data": {"orderId": "ORD789012"}
     })
     adapter = OrdersAdapter(fake_client, resolver)
-    order = adapter.place_order(
+    order = adapter.place_order(OrderRequest(
         symbol="RELIANCE",
         exchange="NSE",
-        side="BUY",
+        transaction_type="BUY",
         quantity=5,
-    )
+    ))
     assert order.order_id == "ORD789012"
     assert order.symbol == "RELIANCE"
     assert order.status == OrderStatus.OPEN
@@ -185,7 +186,7 @@ def test_place_order_publishes_event(fake_client, resolver):
     received = []
     bus.subscribe("ORDER_PLACED", lambda e: received.append(e))
     adapter = OrdersAdapter(fake_client, resolver, event_bus=bus)
-    adapter.place_order("RELIANCE", "NSE", "BUY", 1)
+    adapter.place_order(OrderRequest(symbol="RELIANCE", exchange="NSE", transaction_type="BUY", quantity=1))
     assert len(received) == 1
     assert received[0].payload["order"].order_id == "ORD123"
 
@@ -196,8 +197,8 @@ def test_place_order_idempotency_does_not_publish_duplicate(fake_client, resolve
     received = []
     bus.subscribe("ORDER_PLACED", lambda e: received.append(e))
     adapter = OrdersAdapter(fake_client, resolver, event_bus=bus)
-    adapter.place_order("RELIANCE", "NSE", "BUY", 1, correlation_id="abc")
-    adapter.place_order("RELIANCE", "NSE", "BUY", 1, correlation_id="abc")
+    adapter.place_order(OrderRequest(symbol="RELIANCE", exchange="NSE", transaction_type="BUY", quantity=1, correlation_id="abc"))
+    adapter.place_order(OrderRequest(symbol="RELIANCE", exchange="NSE", transaction_type="BUY", quantity=1, correlation_id="abc"))
     assert len(received) == 1
     assert len(fake_client.calls_for("POST", "/orders")) == 1
 
@@ -214,7 +215,7 @@ def test_place_order_risk_check_blocks_order(fake_client, resolver):
     adapter = OrdersAdapter(fake_client, resolver, risk_manager=risk)
 
     with pytest.raises(Exception) as exc_info:
-        adapter.place_order("RELIANCE", "NSE", "BUY", 1000, price=Decimal("100"), order_type="LIMIT")
+        adapter.place_order(OrderRequest(symbol="RELIANCE", exchange="NSE", transaction_type="BUY", quantity=1000, price=Decimal("100"), order_type="LIMIT"))
     assert "Risk check failed" in str(exc_info.value)
     assert len(fake_client.calls_for("POST", "/orders")) == 0
 

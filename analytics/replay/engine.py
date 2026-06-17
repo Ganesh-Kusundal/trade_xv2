@@ -67,12 +67,12 @@ class ReplayEngine:
 
     def __init__(
         self,
-        pipeline: FeaturePipeline,
+        pipeline: FeaturePipeline | None = None,
         strategy_pipeline: StrategyPipeline | None = None,
         config: ReplayConfig | None = None,
         event_bus=None,
     ) -> None:
-        self._pipeline = pipeline
+        self._pipeline = pipeline or FeaturePipeline()
         self._strategy = strategy_pipeline or StrategyPipeline()
         self._config = config or ReplayConfig()
         self._event_bus = event_bus
@@ -286,20 +286,29 @@ class ReplayEngine:
         session.position = None
 
     def _publish_signal(self, signal: Signal) -> None:
-        """Publish a signal to the EventBus."""
+        """Publish a signal to the EventBus.
+
+        Builds a canonical :class:`brokers.common.event_bus.DomainEvent`
+        with the ``SIGNAL_GENERATED`` event type so consumers on the bus
+        (metrics, audit, strategies) can react.  Errors are swallowed
+        because signal publishing is best-effort; a failed publish must
+        never abort the replay bar loop.
+        """
         try:
-            from dataclasses import dataclass, field
-            from datetime import datetime, timezone
+            from brokers.common.event_bus import DomainEvent
 
-            @dataclass(frozen=True)
-            class DomainEvent:
-                timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-                source: str = ""
-
-            event = DomainEvent(
-                timestamp=signal.timestamp,
+            event = DomainEvent.now(
+                event_type="SIGNAL_GENERATED",
+                payload={
+                    "symbol": signal.symbol,
+                    "strategy": signal.strategy,
+                    "signal_type": signal.signal_type.value if hasattr(signal.signal_type, "value") else str(signal.signal_type),
+                    "score": getattr(signal, "score", None),
+                    "confidence": getattr(signal, "confidence", None),
+                },
+                symbol=signal.symbol,
                 source=f"replay:{signal.strategy}",
             )
             self._event_bus.publish(event)
         except Exception as exc:
-            logger.debug("Failed to publish event: %s", exc)
+            logger.debug("Failed to publish signal event: %s", exc)

@@ -15,20 +15,26 @@ from config.indices import index_upstox_key
 from brokers.common.batch_mixin import BatchFetchMixin
 from brokers.common.core.domain import (
     Balance,
+    ExchangeSegment,
     Holding,
     MarketDepth,
     Order,
+    OrderRequest,
     OrderResponse,
+    OrderType,
     Position,
+    ProductType,
     Quote,
+    Side,
     Trade,
-    DepthLevel,
+    Validity,
 )
 from brokers.common.event_bus import EventBus
 from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
 from brokers.upstox.broker import UpstoxBroker
 from brokers.upstox.extended import UpstoxExtendedCapabilities
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
+from brokers.upstox.mappers.price_parser import UpstoxPriceParser
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +53,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         data = body.get("data", {})
         for _, v in data.items():
             if isinstance(v, dict) and "last_price" in v:
-                return Decimal(str(v["last_price"]))
+                return UpstoxPriceParser.parse(v["last_price"])
         return Decimal("0")
 
     def quote(self, symbol: str, exchange: str = "NSE") -> Quote:
@@ -56,17 +62,16 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         data = body.get("data", {})
         for _, v in data.items():
             if isinstance(v, dict) and "last_price" in v:
-                ltp = v.get("last_price", 0)
                 ohlc = v.get("ohlc", {})
                 return Quote(
                     symbol=symbol,
-                    ltp=Decimal(str(ltp)),
-                    open=Decimal(str(ohlc.get("open", 0))),
-                    high=Decimal(str(ohlc.get("high", 0))),
-                    low=Decimal(str(ohlc.get("low", 0))),
-                    close=Decimal(str(ohlc.get("close", 0))),
+                    ltp=UpstoxPriceParser.parse(v.get("last_price", 0)),
+                    open=UpstoxPriceParser.parse(ohlc.get("open", 0)),
+                    high=UpstoxPriceParser.parse(ohlc.get("high", 0)),
+                    low=UpstoxPriceParser.parse(ohlc.get("low", 0)),
+                    close=UpstoxPriceParser.parse(ohlc.get("close", 0)),
                     volume=int(v.get("volume", 0)),
-                    change=Decimal(str(v.get("net_change", 0))),
+                    change=UpstoxPriceParser.parse(v.get("net_change", 0)),
                 )
         logger.warning("quote_not_found", extra={"symbol": symbol, "exchange": exchange})
         return Quote(symbol=symbol)
@@ -75,17 +80,11 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         key = self._resolve_instrument_key(symbol, exchange)
         body = self._broker.market_data_v2.get_order_book(key)
         data = body.get("data", {})
-        depth = None
         if isinstance(data, dict):
             for v in data.values():
                 if isinstance(v, dict) and "depth" in v:
-                    depth = v["depth"]
-                    break
-        buy = depth.get("buy", []) if isinstance(depth, dict) else []
-        sell = depth.get("sell", []) if isinstance(depth, dict) else []
-        bids = [DepthLevel(price=Decimal(str(level.get("price", 0))), quantity=int(level.get("quantity", 0)), orders=int(level.get("orders", 0))) for level in buy[:5]]
-        asks = [DepthLevel(price=Decimal(str(level.get("price", 0))), quantity=int(level.get("quantity", 0)), orders=int(level.get("orders", 0))) for level in sell[:5]]
-        return MarketDepth(bids=bids, asks=asks)
+                    return UpstoxDomainMapper.to_market_depth(v)
+        return MarketDepth()
 
     def get_orderbook(self) -> list[Order]:
         return self._broker.order_query.get_order_list()
@@ -295,6 +294,13 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
             search=True,
             rate_limit_per_second=10,
             rate_limit_per_minute=200,
+            # Order life-cycle
+            amo=True,
+            # Advanced order types
+            slice_orders=True,
+            conditional_triggers=True,
+            # Risk management
+            market_protection=True,
             # Investment capabilities
             ipo=True,
             mutual_funds=True,
@@ -304,6 +310,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
             user_profile=True,
             convert_position=True,
             trade_pnl=True,
+            exit_all=True,
         )
 
     def search(self, query: str) -> list[dict]:
@@ -564,8 +571,13 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         validity: str = "DAY",
         trigger_price: Decimal = Decimal("0"),
         correlation_id: str | None = None,
+        is_amo: bool = False,
     ) -> OrderResponse:
         """Place an order via Upstox.
+
+        Builds a canonical :class:`OrderRequest` and delegates to the
+        order-command adapter, which handles instrument resolution,
+        risk checks, idempotency, and payload construction.
 
         If *correlation_id* is not provided, the current thread's active
         correlation ID (set via :func:`brokers.common.correlation.with_correlation`)
@@ -580,53 +592,31 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
 
         # Security guard: prevent live orders if disabled
         if not self._broker.settings.allow_live_orders:
-            return OrderResponse(
-                success=False,
-                order_id="",
-                message="Live orders are disabled. Set allow_live_orders=True in configuration.",
+            return OrderResponse.fail(
+                "Live orders are disabled. Set allow_live_orders=True in configuration."
             )
+
+        # Validate the exchange string early (raises on unrecognised)
+        UpstoxDomainMapper.segment_to_wire(exchange)
+
+        exchange_segment = self._resolve_exchange_segment(exchange, symbol)
+        request = OrderRequest(
+            symbol=symbol,
+            exchange=exchange,
+            exchange_segment=exchange_segment,
+            transaction_type=Side(side.upper()),
+            quantity=quantity,
+            price=price,
+            trigger_price=trigger_price if trigger_price > Decimal("0") else None,
+            order_type=OrderType(order_type.upper()),
+            product_type=ProductType(product_type.upper()),
+            validity=Validity(validity.upper()),
+            correlation_id=correlation_id,
+            is_amo=is_amo,
+        )
+
         try:
-            UpstoxDomainMapper.segment_to_wire(exchange)
-            key = self._resolve_instrument_key(symbol, exchange)
-
-            # Map order type
-            ot_map = {"MARKET": "MKT", "LIMIT": "L", "STOP_LOSS": "SL", "STOP_LOSS_MARKET": "SL-M"}
-            ot = ot_map.get(order_type, "MKT")
-
-            # Map product type
-            pt_map = {"INTRADAY": "I", "MARGIN": "I", "CNC": "C"}
-            pt = pt_map.get(product_type, "I")
-
-            # Map side
-            side_val = 1 if side.upper() == "BUY" else 2
-
-            body = self._broker.order_command.place_order(
-                instrument_key=key,
-                quantity=quantity,
-                side=side_val,
-                order_type=ot,
-                product=pt,
-                price=float(price),
-                trigger_price=float(trigger_price),
-                validity=validity,
-            )
-
-            data = body.get("data", {}) if isinstance(body, dict) else {}
-            order_id = data.get("order_id", "") if isinstance(data, dict) else ""
-
-            if correlation_id:
-                logger.info("order_placed", extra={
-                    "correlation_id": correlation_id,
-                    "order_id": order_id,
-                    "symbol": symbol,
-                    "side": side,
-                })
-
-            return OrderResponse(
-                success=True,
-                order_id=str(order_id),
-                message="Order placed",
-            )
+            response = self._broker.order_command.place_order(request)
         except Exception as e:
             logger.warning("order_placement_failed", extra={
                 "correlation_id": correlation_id,
@@ -634,11 +624,47 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
                 "side": side,
                 "error": str(e),
             })
-            return OrderResponse(
-                success=False,
-                order_id="",
-                message=str(e),
-            )
+            return OrderResponse.fail(str(e))
+
+        if response.success and correlation_id:
+            logger.info("order_placed", extra={
+                "correlation_id": correlation_id,
+                "order_id": response.order_id,
+                "symbol": symbol,
+                "side": side,
+            })
+
+        return response
+
+    # ── Exchange segment helpers ──
+
+    @staticmethod
+    def _resolve_exchange_segment(exchange: str, symbol: str = "") -> ExchangeSegment:
+        """Map a user-facing exchange string to the canonical :class:`ExchangeSegment`.
+
+        For recognised index symbols (NIFTY, BANKNIFTY, etc.) the segment is
+        set to ``IDX_I`` regardless of the *exchange* string, matching the
+        behaviour of :meth:`_resolve_instrument_key`.
+        """
+        # Index symbols use a dedicated segment
+        if symbol:
+            from config.indices import index_upstox_key
+            if index_upstox_key(symbol) is not None:
+                return ExchangeSegment.IDX_I
+
+        mapping: dict[str, ExchangeSegment] = {
+            "NSE": ExchangeSegment.NSE,
+            "BSE": ExchangeSegment.BSE,
+            "NFO": ExchangeSegment.NSE_FNO,
+            "NSE_FNO": ExchangeSegment.NSE_FNO,
+            "BFO": ExchangeSegment.BSE_FNO,
+            "BSE_FNO": ExchangeSegment.BSE_FNO,
+            "MCX": ExchangeSegment.MCX,
+            "NSE_CURRENCY": ExchangeSegment.NSE_CURRENCY,
+            "BSE_CURRENCY": ExchangeSegment.BSE_CURRENCY,
+            "IDX_I": ExchangeSegment.IDX_I,
+        }
+        return mapping.get(exchange.upper(), ExchangeSegment.NSE)
 
     def cancel_order(self, order_id: str) -> OrderResponse:
         """Cancel an order via Upstox.

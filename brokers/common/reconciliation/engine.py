@@ -62,7 +62,7 @@ class ReconciliationEngine:
                 ):
                     drift.append(DriftItem(
                         kind="missing_broker_order",
-                        severity="MEDIUM",
+                        severity="HIGH",
                         symbol=local_order.symbol,
                         details=f"Local order {oid} ({local_order.status.value}) not on broker",
                         payload={"order_id": oid, "symbol": local_order.symbol},
@@ -142,7 +142,7 @@ class ReconciliationEngine:
             if key not in broker_by_key and local_pos.quantity != 0:
                 drift.append(DriftItem(
                     kind="missing_broker_position",
-                    severity="MEDIUM",
+                    severity="HIGH",
                     symbol=local_pos.symbol,
                     details=(
                         f"Local has position {key} qty={local_pos.quantity}, "

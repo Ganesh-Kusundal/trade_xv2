@@ -1,4 +1,9 @@
-"""Dhan reconciliation — drift detection between local OMS and Dhan broker state."""
+"""Dhan reconciliation — drift detection between local OMS and Dhan broker state.
+
+Delegates order/position comparison to the shared
+:class:`~brokers.common.reconciliation.engine.ReconciliationEngine`
+so broker-specific services only handle fetch + repair logic.
+"""
 
 from __future__ import annotations
 
@@ -7,6 +12,7 @@ import time
 from typing import Any
 
 from brokers.common.core.domain import DriftItem, ReconciliationReport
+from brokers.common.reconciliation.engine import ReconciliationEngine
 from brokers.dhan.orders import OrdersAdapter
 from brokers.dhan.portfolio import PortfolioAdapter
 
@@ -74,6 +80,10 @@ class DhanReconciliationService:
     ) -> ReconciliationReport:
         """Run reconciliation and return a drift report.
 
+        Order/position comparison is delegated to the shared
+        :class:`ReconciliationEngine`. This method handles broker-specific
+        fetch + repair logic.
+
         Args:
             local_orders: Optional list of local OMS orders to compare against broker.
             local_positions: Optional list of local positions to compare against broker.
@@ -106,65 +116,16 @@ class DhanReconciliationService:
                 details=f"Failed to fetch broker positions: {exc}",
             ))
 
-        # 2. Compare orders if local state provided
+        # 2. Compare using shared engine
+        engine = ReconciliationEngine()
         if local_orders is not None:
-            broker_order_map = {o.order_id: o for o in broker_orders if o.order_id}
-            for local in local_orders:
-                local_id = getattr(local, "order_id", None)
-                if not local_id:
-                    continue
-                broker_order = broker_order_map.get(local_id)
-                if broker_order is None:
-                    # Local order not found on broker
-                    local_status = getattr(local, "status", None)
-                    if local_status and not getattr(local_status, "is_terminal", False):
-                        drift.append(DriftItem(
-                            kind="missing_order",
-                            severity="HIGH",
-                            symbol=getattr(local, "symbol", ""),
-                            details=f"Local order {local_id} not found on broker",
-                        ))
-                else:
-                    # Compare statuses
-                    local_status = getattr(local, "status", None)
-                    broker_status = broker_order.status
-                    if local_status and str(local_status) != str(broker_status):
-                        drift.append(DriftItem(
-                            kind="order_status_mismatch",
-                            severity="MEDIUM",
-                            symbol=getattr(local, "symbol", ""),
-                            details=f"Local={local_status}, Broker={broker_status} for {local_id}",
-                        ))
-
-        # 3. Compare positions if local state provided
+            drift += engine.compare_orders(local_orders, broker_orders)
         if local_positions is not None:
-            broker_pos_map = {p.symbol: p for p in broker_positions}
-            for local in local_positions:
-                sym = getattr(local, "symbol", "")
-                if not sym:
-                    continue
-                broker_pos = broker_pos_map.get(sym)
-                local_qty = getattr(local, "quantity", 0)
-                if broker_pos is None and local_qty != 0:
-                    drift.append(DriftItem(
-                        kind="missing_position",
-                        severity="HIGH",
-                        symbol=sym,
-                        details=f"Local has qty={local_qty}, broker has no position",
-                    ))
-                elif broker_pos is not None:
-                    broker_qty = broker_pos.quantity
-                    if local_qty != broker_qty:
-                        drift.append(DriftItem(
-                            kind="quantity_mismatch",
-                            severity="HIGH",
-                            symbol=sym,
-                            details=f"Local qty={local_qty}, Broker qty={broker_qty}",
-                        ))
+            drift += engine.compare_positions(local_positions, broker_positions)
 
         report.drift_items = drift
 
-        # 4. Repair local OMS if auto_repair is enabled
+        # 3. Repair local OMS if auto_repair is enabled
         if self._auto_repair and self._oms is not None:
             self._repair_local_oms(broker_orders, broker_positions, drift)
 

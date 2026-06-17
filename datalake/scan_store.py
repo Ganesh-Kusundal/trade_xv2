@@ -180,20 +180,22 @@ def compare_scans(
                 SELECT symbol, score FROM scan_results WHERE scan_id = ?
             ),
             added AS (
-                SELECT s2.symbol, s2.score, 'added' as change_type
+                SELECT s2.symbol, NULL::DOUBLE as old_score, s2.score as new_score,
+                       NULL::DOUBLE as delta, 'added' as change_type
                 FROM s2 LEFT JOIN s1 ON s2.symbol = s1.symbol
                 WHERE s1.symbol IS NULL
             ),
             removed AS (
-                SELECT s1.symbol, s1.score, 'removed' as change_type
+                SELECT s1.symbol, s1.score as old_score, NULL::DOUBLE as new_score,
+                       NULL::DOUBLE as delta, 'removed' as change_type
                 FROM s1 LEFT JOIN s2 ON s1.symbol = s2.symbol
                 WHERE s2.symbol IS NULL
             ),
             changed AS (
                 SELECT
                     s2.symbol,
-                    s2.score as new_score,
                     s1.score as old_score,
+                    s2.score as new_score,
                     s2.score - s1.score as delta,
                     'changed' as change_type
                 FROM s2 INNER JOIN s1 ON s2.symbol = s1.symbol
@@ -203,14 +205,14 @@ def compare_scans(
             UNION ALL
             SELECT * FROM removed
             UNION ALL
-            SELECT symbol, delta, change_type FROM changed
+            SELECT * FROM changed
         """, [scan_id_1, scan_id_2]).fetchall()
 
-        added = [r[0] for r in result if r[2] == 'added']
-        removed = [r[0] for r in result if r[2] == 'removed']
+        added = [r[0] for r in result if r[4] == 'added']
+        removed = [r[0] for r in result if r[4] == 'removed']
         changed = [
-            {"symbol": r[0], "old_score": r[1], "new_score": r[0], "delta": r[1]}
-            for r in result if r[2] == 'changed'
+            {"symbol": r[0], "old_score": r[1], "new_score": r[2], "delta": r[3]}
+            for r in result if r[4] == 'changed'
         ]
 
         return {

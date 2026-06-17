@@ -240,9 +240,9 @@ class Analytics:
         If called with data, runs replay and returns ReplayResult.
         """
         if data is None:
-            return ReplayEngine(pipeline=None, config=config)
+            return ReplayEngine(config=config)
         logger.info("Running replay on %d bars for %s", len(data), symbol)
-        engine = ReplayEngine(pipeline=None, config=config)
+        engine = ReplayEngine(config=config)
         return engine.run(data, symbol=symbol)
 
     def backtest(
@@ -259,9 +259,9 @@ class Analytics:
         If called with data, runs backtest and returns BacktestResult.
         """
         if data is None:
-            return BacktestEngine(pipeline=None, config=config)
+            return BacktestEngine(config=config)
         logger.info("Running backtest on %d bars for %s", len(data), symbol)
-        engine = BacktestEngine(pipeline=None, config=config)
+        engine = BacktestEngine(config=config)
         return engine.run(data, symbol=symbol, benchmark=benchmark)
 
     def paper(
@@ -277,9 +277,9 @@ class Analytics:
         If called with data, runs paper trading and returns PaperResult.
         """
         if data is None:
-            return PaperTradingEngine(pipeline=None, config=config)
+            return PaperTradingEngine(config=config)
         logger.info("Running paper trading on %d bars for %s", len(data), symbol)
-        engine = PaperTradingEngine(pipeline=None, config=config)
+        engine = PaperTradingEngine(config=config)
         return engine.run(data, symbol=symbol)
 
 

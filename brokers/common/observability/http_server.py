@@ -170,7 +170,8 @@ class HttpObservabilityServer(ManagedService):
         self._extra_gauges_fn = extra_gauges_fn
         self._runner: web.AppRunner | None = None
         self._site: web.TCPSite | None = None
-        self._runner_thread: asyncio.AbstractEventLoop | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
+        self._serve_thread: threading.Thread | None = None
         # Metrics
         self._request_count = 0
         self._started_at: datetime | None = None
@@ -317,6 +318,7 @@ class HttpObservabilityServer(ManagedService):
         def _serve() -> None:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
+            self._loop = loop  # stored for stop() to call loop.stop()
             try:
                 loop.run_until_complete(runner.setup())
                 # Construct the TCPSite AFTER setup — aiohttp 3.14+
@@ -347,6 +349,7 @@ class HttpObservabilityServer(ManagedService):
             name="http.observability",
             daemon=True,
         )
+        self._serve_thread = t
         t.start()
         # Wait for the server to be ready (or fail). Bounded wait so
         # a failing bind (port in use) surfaces immediately.
@@ -367,26 +370,33 @@ class HttpObservabilityServer(ManagedService):
     def stop(self, timeout_seconds: float = DEFAULT_STOP_TIMEOUT_SECONDS) -> None:
         """Stop the HTTP server. Bounded by ``timeout_seconds``.
 
-        The aiohttp event loop is daemon-bound; the thread will be
-        reaped at GC. We tear down the site reference and the runner
-        so the next ``start()`` is a clean run.
+        Schedules ``loop.stop()`` on the event-loop thread, then waits
+        for the thread to finish. The daemon thread will otherwise be
+        reaped at GC, but we explicitly stop it for clean lifecycle
+        management and to avoid stale port bindings on restart.
         """
         runner = self._runner
+        loop = self._loop
+        thread = self._serve_thread
         self._site = None
         self._runner = None
-        if runner is None:
+        self._loop = None
+        self._serve_thread = None
+        if runner is None or loop is None:
             return
         try:
-            # Schedule a clean shutdown on the runner's loop. We don't
-            # have a handle to the loop, but the next time the OS
-            # reclaims the daemon thread, the runner's finally block
-            # will run. For a synchronous best-effort, we explicitly
-            # call cleanup() if accessible.
+            # Close the underlying server socket first so no new
+            # connections are accepted.
             if hasattr(runner, "_server") and runner._server is not None:
                 try:
                     runner._server.close()
                 except Exception as exc:
                     logger.debug("http_server_close_failed: %s", exc)
+            # Stop the event loop from the calling thread.
+            loop.call_soon_threadsafe(loop.stop)
+            # Wait for the serve thread to finish (bounded).
+            if thread is not None and thread.is_alive():
+                thread.join(timeout=timeout_seconds)
         except Exception as exc:
             logger.warning("http_observability_stop: %s", exc)
         logger.info("http_observability_stopped")

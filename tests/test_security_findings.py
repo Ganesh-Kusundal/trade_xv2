@@ -117,11 +117,9 @@ class TestAllowLiveOrdersGuards:
 
         gateway = UpstoxBrokerGateway(mock_broker)
         
-        try:
-            gateway.cancel_order('ORD123')
-            assert False, "Should have raised RuntimeError"
-        except RuntimeError as e:
-            assert 'disabled' in str(e).lower()
+        result = gateway.cancel_order('ORD123')
+        assert result.success is False, f"cancel_order should be blocked: {result.message}"
+        assert 'disabled' in str(result.message).lower()
 
     def test_initiate_payout_has_guard(self):
         """initiate_payout must check allow_live_orders."""

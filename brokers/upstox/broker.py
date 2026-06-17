@@ -54,6 +54,7 @@ from brokers.upstox.news.adapter import UpstoxNewsAdapter
 from brokers.upstox.news.client import UpstoxNewsClient
 from brokers.upstox.orders.alert_adapter import UpstoxAlertAdapter
 from brokers.upstox.orders.cover_order_adapter import UpstoxCoverOrderAdapter
+from brokers.upstox.orders.exit_all_adapter import UpstoxExitAllAdapter
 from brokers.upstox.orders.gtt_adapter import UpstoxGttAdapter
 from brokers.upstox.orders.gtt_client import UpstoxGttClient
 from brokers.upstox.orders.idempotency import InMemoryIdempotencyCache
@@ -73,6 +74,26 @@ from brokers.upstox.websocket.v3_decoder import UpstoxV3Decoder
 from brokers.upstox.websocket.v3_subscription_manager import UpstoxV3SubscriptionLimits
 
 logger = logging.getLogger(__name__)
+
+# ── Adapter registry: (attr_name, client_class, adapter_class, capability) ──
+# Each entry constructs a client from (http_client, url_resolver) and an
+# adapter from the client. The capability is auto-registered.
+_ADAPTER_REGISTRY: list[tuple[str, type, type, Capability | None]] = [
+    ("ipo",              UpstoxIpoClient,              UpstoxIpoAdapter,              Capability.IPO),
+    ("payments",         UpstoxPaymentsClient,         UpstoxPaymentsAdapter,         Capability.PAYMENTS),
+    ("mutual_funds",     UpstoxMutualFundsClient,     UpstoxMutualFundsAdapter,     Capability.MUTUAL_FUNDS),
+    ("fundamentals",     UpstoxFundamentalsClient,     UpstoxFundamentalsAdapter,     Capability.FUNDAMENTALS),
+    ("portfolio",        UpstoxPortfolioClient,        UpstoxPortfolioAdapter,        Capability.PORTFOLIO),
+    ("margin",           UpstoxMarginClient,           UpstoxMarginAdapter,           Capability.MARGIN),
+    ("options",          UpstoxOptionsClient,          UpstoxOptionsAdapter,          Capability.OPTIONS_CHAIN),
+    ("futures",          UpstoxFuturesClient,          UpstoxFuturesAdapter,          Capability.FUTURES),
+    ("market_status",    UpstoxMarketStatusClient,    UpstoxMarketStatusAdapter,    Capability.MARKET_STATUS),
+    ("news",             UpstoxNewsClient,             UpstoxNewsAdapter,             Capability.NEWS),
+    ("intelligence",     UpstoxMarketIntelligenceClient, UpstoxMarketIntelligenceAdapter, Capability.MARKET_INTELLIGENCE),
+    ("kill_switch",      UpstoxKillSwitchClient,      UpstoxKillSwitchAdapter,      Capability.KILL_SWITCH),
+    ("static_ip",        UpstoxStaticIpClient,        UpstoxStaticIpAdapter,        Capability.STATIC_IP),
+    ("gtt",              UpstoxGttClient,              UpstoxGttAdapter,              Capability.GTT_ORDER),
+]
 
 
 class UpstoxBroker:
@@ -111,81 +132,31 @@ class UpstoxBroker:
         self.instrument_loader = UpstoxInstrumentLoader()
         self.instrument_search = UpstoxInstrumentSearch(self.context.http_client)
 
-        self.market_data_v2 = UpstoxMarketDataV2Client(
-            self.context.http_client, self.context.url_resolver
-        )
-        self.market_data_v3 = UpstoxMarketDataV3Client(
-            self.context.http_client, self.context.url_resolver
-        )
-        self.historical_v2 = UpstoxHistoricalV2Client(
-            self.context.http_client, self.context.url_resolver
-        )
-        self.historical_v3 = UpstoxHistoricalV3Client(
-            self.context.http_client
-        )
-        self.options_client = UpstoxOptionsClient(
-            self.context.http_client, self.context.url_resolver
-        )
-        self.portfolio_client = UpstoxPortfolioClient(
-            self.context.http_client, self.context.url_resolver
-        )
-        self.margin_client = UpstoxMarginClient(self.context.http_client, self.context.url_resolver)
-        self.market_status_client = UpstoxMarketStatusClient(
-            self.context.http_client, self.context.url_resolver
-        )
-        self.futures_client = UpstoxFuturesClient(
-            self.context.http_client, self.context.url_resolver
-        )
-        self.expired_instruments_client = UpstoxExpiredInstrumentsClient(
-            self.context.http_client, self.context.url_resolver
-        )
-        self.gtt_client = UpstoxGttClient(self.context.http_client, self.context.url_resolver)
-        self.news_client = UpstoxNewsClient(self.context.http_client, self.context.url_resolver)
-        self.intelligence_client = UpstoxMarketIntelligenceClient(
-            self.context.http_client, self.context.url_resolver
-        )
-        self.kill_switch_client = UpstoxKillSwitchClient(
-            self.context.http_client, self.context.url_resolver
-        )
-        self.static_ip_client = UpstoxStaticIpClient(
-            self.context.http_client, self.context.url_resolver
-        )
-        self.order_client = UpstoxRestOrderClient(
-            self.context.http_client, self.context.url_resolver
-        )
-        self.ipo_client = UpstoxIpoClient(
-            self.context.http_client, self.context.url_resolver
-        )
-        self.payments_client = UpstoxPaymentsClient(
-            self.context.http_client, self.context.url_resolver
-        )
-        self.mutual_funds_client = UpstoxMutualFundsClient(
-            self.context.http_client, self.context.url_resolver
-        )
-        self.fundamentals_client = UpstoxFundamentalsClient(
-            self.context.http_client, self.context.url_resolver
-        )
+        # ── Standalone clients (no corresponding adapter from registry) ──
+        self.market_data_v2 = UpstoxMarketDataV2Client(self.context.http_client, self.context.url_resolver)
+        self.market_data_v3 = UpstoxMarketDataV3Client(self.context.http_client, self.context.url_resolver)
+        self.historical_v2 = UpstoxHistoricalV2Client(self.context.http_client, self.context.url_resolver)
+        self.historical_v3 = UpstoxHistoricalV3Client(self.context.http_client)
+        self.order_client = UpstoxRestOrderClient(self.context.http_client, self.context.url_resolver)
+        self.expired_instruments_client = UpstoxExpiredInstrumentsClient(self.context.http_client, self.context.url_resolver)
 
-        # Adapters
+        # ── Registry-driven client + adapter pairs ──
+        # Each entry in _ADAPTER_REGISTRY constructs client→adapter and registers capability.
+        for name, client_cls, adapter_cls, capability in _ADAPTER_REGISTRY:
+            client = client_cls(self.context.http_client, self.context.url_resolver)
+            setattr(self, f"{name}_client", client)
+            adapter = adapter_cls(client)
+            setattr(self, name, adapter)
+            if capability is not None:
+                self._register_capability(capability, adapter)
+
+        # ── Adapters with non-standard constructors ──
         self.market_data = UpstoxMarketDataAdapter(
             self.market_data_v2, self.market_data_v3, self.historical_v2
         )
-        self.options = UpstoxOptionsAdapter(self.options_client)
-        self.portfolio = UpstoxPortfolioAdapter(self.portfolio_client)
-        self.margin = UpstoxMarginAdapter(self.margin_client)
-        self.market_status = UpstoxMarketStatusAdapter(self.market_status_client)
-        self.futures = UpstoxFuturesAdapter(self.futures_client)
-        self.news = UpstoxNewsAdapter(self.news_client)
-        self.intelligence = UpstoxMarketIntelligenceAdapter(self.intelligence_client)
         self.intelligence_snapshot = UpstoxMarketIntelligenceSnapshotBuilder(
             self.intelligence_client
         )
-        self.kill_switch = UpstoxKillSwitchAdapter(self.kill_switch_client)
-        self.static_ip = UpstoxStaticIpAdapter(self.static_ip_client)
-        self.ipo = UpstoxIpoAdapter(self.ipo_client)
-        self.payments = UpstoxPaymentsAdapter(self.payments_client)
-        self.mutual_funds = UpstoxMutualFundsAdapter(self.mutual_funds_client)
-        self.fundamentals = UpstoxFundamentalsAdapter(self.fundamentals_client)
 
         # Orders
         self.idempotency_cache = InMemoryIdempotencyCache()
@@ -200,10 +171,11 @@ class UpstoxBroker:
             risk_manager=self._risk_manager,
         )
         self.order_query = UpstoxOrderQueryAdapter(self.order_client, self.instrument_resolver)
-        self.gtt = UpstoxGttAdapter(self.gtt_client)
+        # self.gtt created by _ADAPTER_REGISTRY loop above
         self.slice = UpstoxSliceAdapter(self.order_client, self.instrument_resolver)
         self.cover = UpstoxCoverOrderAdapter(self.order_client)
         self.alert = UpstoxAlertAdapter(self.gtt)
+        self.exit_all = UpstoxExitAllAdapter(self.kill_switch_client)
 
         # WebSocket
         self.feed_authorizer = UpstoxFeedAuthorizer(
@@ -249,35 +221,35 @@ class UpstoxBroker:
         self._register_all_capabilities()
 
     def _register_all_capabilities(self) -> None:
+        # Capabilities registered by the _ADAPTER_REGISTRY loop in __init__:
+        #   IPO, PAYMENTS, MUTUAL_FUNDS, FUNDAMENTALS, PORTFOLIO, MARGIN,
+        #   OPTIONS_CHAIN, FUTURES, MARKET_STATUS, NEWS, MARKET_INTELLIGENCE,
+        #   KILL_SWITCH, STATIC_IP, GTT_ORDER
+        #
+        # Remaining capabilities with non-standard adapters:
         self._register_capability(Capability.MARKET_DATA, self.market_data)
         self._register_capability(Capability.DEPTH, self.market_data)
+        self._register_capability(Capability.HISTORICAL_DATA, self.market_data)
         self._register_capability(Capability.ORDER_COMMAND, self.order_command)
         self._register_capability(Capability.ORDER_QUERY, self.order_query)
-        self._register_capability(Capability.PORTFOLIO, self.portfolio)
-        self._register_capability(Capability.OPTIONS_CHAIN, self.options)
-        self._register_capability(Capability.FUTURES, self.futures)
-        self._register_capability(Capability.HISTORICAL_DATA, self.market_data)
-        self._register_capability(Capability.MARGIN, self.margin)
         self._register_capability(Capability.INSTRUMENTS, self.instrument_resolver)
-        self._register_capability(Capability.MARKET_STATUS, self.market_status)
-        self._register_capability(Capability.GTT_ORDER, self.gtt)
         self._register_capability(Capability.SLICE_ORDER, self.slice)
         self._register_capability(Capability.ORDER_SLICING, self.slice)
         self._register_capability(Capability.COVER_ORDER, self.cover)
         self._register_capability(Capability.ALERTS, self.alert)
         self._register_capability(Capability.WEBSOCKET, self.market_data_websocket)
-        self._register_capability(Capability.IDEMPOTENCY, self.idempotency_cache)
-        self._register_capability(Capability.NEWS, self.news)
-        self._register_capability(Capability.MARKET_INTELLIGENCE, self.intelligence)
-        self._register_capability(Capability.KILL_SWITCH, self.kill_switch)
-        self._register_capability(Capability.STATIC_IP, self.static_ip)
-        self._register_capability(Capability.IPO, self.ipo)
-        self._register_capability(Capability.PAYMENTS, self.payments)
-        self._register_capability(Capability.MUTUAL_FUNDS, self.mutual_funds)
-        self._register_capability(Capability.FUNDAMENTALS, self.fundamentals)
         self._register_capability(Capability.PORTFOLIO_STREAM, self.market_data_websocket)
+        self._register_capability(Capability.IDEMPOTENCY, self.idempotency_cache)
         self._register_capability(Capability.WEBHOOKS, self.feed_authorizer)
         self._register_capability(Capability.OPTION_GREEKS, self.intelligence)
+        self._register_capability(Capability.OI_PCR_MAXPAIN, self.intelligence)
+        self._register_capability(Capability.SMARTLIST, self.intelligence)
+        self._register_capability(Capability.FII_DII, self.intelligence)
+        self._register_capability(Capability.MULTI_ORDER, self.order_client)
+        self._register_capability(Capability.AMO_ORDER, self.order_command)
+        self._register_capability(Capability.EXIT_ALL, self.exit_all)
+        if self._risk_manager is not None:
+            self._register_capability(Capability.SESSION_RISK, self._risk_manager)
 
     # ── Connection lifecycle ──
 

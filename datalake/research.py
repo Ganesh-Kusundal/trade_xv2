@@ -122,24 +122,9 @@ class ResearchAPI:
         return df.tail(n).reset_index(drop=True)
 
     def _load_universe_list(self, universe: str) -> list[str]:
-        """Load symbol list from universe CSV."""
-        from datalake.schema import UNIVERSE_FILES
-        path = UNIVERSE_FILES.get(universe)
-        if path is None:
-            logger.warning("Unknown universe: %s", universe)
-            return []
-
-        p = Path(path)
-        if not p.exists():
-            # Try relative to datalake root
-            p = self._root.parent / path
-            if not p.exists():
-                logger.warning("Universe file not found: %s", path)
-                return []
-
-        df = pd.read_csv(p)
-        col = "symbol" if "symbol" in df.columns else df.columns[0]
-        return df[col].str.upper().tolist()
+        """Load symbol list — DuckDB first, CSV fallback (I-17)."""
+        from datalake.schema import load_universe
+        return load_universe(universe, catalog=self._catalog)
 
     def list_available_symbols(self, timeframe: str = "1m") -> list[str]:
         """List all symbols that have Parquet data."""

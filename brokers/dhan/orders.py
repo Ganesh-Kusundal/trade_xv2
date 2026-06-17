@@ -17,6 +17,7 @@ from decimal import Decimal
 from typing import Any
 
 from brokers.common.event_bus import DomainEvent, EventBus
+from brokers.common.core.domain import OrderRequest
 from brokers.common.oms.risk_manager import RiskManager
 from brokers.dhan.domain import (
     Exchange,
@@ -162,19 +163,40 @@ class OrdersAdapter:
 
     # ── Order lifecycle ───────────────────────────────────────────────
 
-    def place_order(
-        self,
-        symbol: str,
-        exchange: str = "NSE",
-        side: str | OrderSide = "BUY",
-        quantity: int = 0,
-        order_type: str | OrderType = "MARKET",
-        price: Decimal | None = None,
-        trigger_price: Decimal | None = None,
-        product_type: str | ProductType = "INTRADAY",
-        validity: str | Validity = "DAY",
-        correlation_id: str | None = None,
-    ) -> Order:
+    def place_order(self, request: OrderRequest) -> Order:
+        """Place an order via the Dhan API.
+
+        Args:
+            request: Canonical :class:`OrderRequest` with symbol, exchange,
+                     quantity, side, order_type, product_type, validity, price,
+                     trigger_price, and correlation_id.
+
+        Returns:
+            The placed :class:`Order` domain object.
+
+        Raises:
+            OrderError: On validation failure or risk check denial.
+
+        .. note::
+            **Exception policy divergence** (F-20, P1): this adapter raises
+            ``OrderError`` on validation/risk failures, while
+            :class:`~brokers.upstox.orders.order_command_adapter.UpstoxOrderCommandAdapter`
+            returns :class:`~brokers.common.core.domain.OrderResponse.fail`.
+            The gateway layer (:class:`~brokers.dhan.gateway.DhanGateway`)
+            catches ``OrderError`` and converts it to ``OrderResponse.fail()``,
+            so callers using the gateway see consistent error handling.
+        """
+        correlation_id = request.correlation_id
+        symbol = request.symbol or ""
+        exchange = request.exchange or "NSE"
+        side = request.transaction_type
+        quantity = request.quantity
+        order_type = request.order_type
+        price = request.price
+        trigger_price = request.trigger_price
+        product_type = request.product_type
+        validity = request.validity
+
         # Always generate a correlation id so every placement is idempotent.
         if not correlation_id:
             correlation_id = str(uuid.uuid4())
@@ -200,10 +222,9 @@ class OrdersAdapter:
             # Resolve instrument and canonicalise enums once for risk + payload.
             inst = self._resolver.resolve(symbol, exchange)
             segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, "NSE_EQ")
-            side_val = side.value if isinstance(side, OrderSide) else str(side).upper()
-            ot_val = order_type.value if isinstance(order_type, OrderType) else str(order_type).upper()
-            pt_val = product_type.value if isinstance(product_type, ProductType) else str(product_type).upper()
-            v_val = validity.value if isinstance(validity, Validity) else str(validity).upper()
+            side_val, ot_val, pt_val, v_val = self._canonicalize_order_enums(
+                side, order_type, product_type, validity,
+            )
 
             # Pre-trade risk check
             if self._risk_manager is not None:
@@ -223,42 +244,21 @@ class OrdersAdapter:
                 if not risk_result.allowed:
                     raise OrderError(f"Risk check failed: {risk_result.reason}")
 
-            payload: dict[str, Any] = {
-                "dhanClientId": self._client.client_id,
-                "securityId": inst.security_id,
-                "exchangeSegment": segment,
-                "transactionType": side_val,
-                "orderType": ot_val,
-                "productType": pt_val,
-                "validity": v_val,
-                "quantity": quantity,
-                "correlationId": correlation_id,
-            }
-            if price and price > 0:
-                payload["price"] = float(price)
-            if trigger_price and trigger_price > 0:
-                payload["triggerPrice"] = float(trigger_price)
+            payload = self._build_order_payload(
+                inst, segment, side_val, ot_val, pt_val, v_val,
+                quantity, price, trigger_price, correlation_id,
+            )
 
             data = self._client.post("/orders", json=payload)
-            order_id = str(data.get("data", {}).get("orderId") or data.get("orderId") or "")
 
-            order = Order(
-                order_id=order_id,
-                symbol=symbol,
-                exchange=inst.exchange,
-                side=OrderSide(side_val),
-                order_type=OrderType(ot_val),
-                quantity=quantity,
-                status=OrderStatus.OPEN,
-                price=price if price and price > 0 else Decimal("0"),
-                trigger_price=trigger_price if trigger_price and trigger_price > 0 else Decimal("0"),
-                product_type=ProductType(pt_val),
-                validity=Validity(v_val),
-                correlation_id=correlation_id,
+            order = self._build_placed_order(
+                data, symbol, inst.exchange,
+                side_val, ot_val, pt_val, v_val, quantity,
+                price, trigger_price, correlation_id,
             )
 
             logger.info("order_placed", extra={
-                "order_id": order_id, "symbol": symbol, "side": side_val,
+                "order_id": order.order_id, "symbol": symbol, "side": side_val,
                 "quantity": quantity, "order_type": ot_val, "price": str(price or 0),
                 "product_type": pt_val, "exchange": inst.exchange.value,
             })
@@ -359,17 +359,7 @@ class OrdersAdapter:
     def get_trade_book(self) -> list[Trade]:
         data = self._client.get("/trades")
         items = data.get("data", []) if isinstance(data, dict) else []
-        trades = []
-        for item in (items if isinstance(items, list) else []):
-            trades.append(Trade(
-                trade_id=str(item.get("tradeId", "")),
-                order_id=str(item.get("orderId", "")),
-                symbol=str(item.get("tradingSymbol", "")),
-                exchange=_parse_exchange(item.get("exchangeSegment", "NSE_EQ")),
-                side=OrderSide.BUY if item.get("transactionType") == "BUY" else OrderSide.SELL,
-                quantity=int(item.get("tradedQty", 0)),
-                price=Decimal(str(item.get("tradedPrice", 0))),
-            ))
+        trades = [self._parse_trade(item) for item in (items if isinstance(items, list) else [])]
         logger.info("tradebook_fetched", extra={"count": len(trades)})
         return trades
 
@@ -396,6 +386,85 @@ class OrdersAdapter:
             )
         )
 
+    # ── Shared order-placement helpers ────────────────────────────────
+
+    @staticmethod
+    def _canonicalize_order_enums(
+        side: str | OrderSide,
+        order_type: str | OrderType,
+        product_type: str | ProductType,
+        validity: str | Validity,
+    ) -> tuple[str, str, str, str]:
+        """Canonicalize order enum/mixed values to uppercase strings."""
+        sv = side.value if isinstance(side, OrderSide) else str(side).upper()
+        ot = order_type.value if isinstance(order_type, OrderType) else str(order_type).upper()
+        pt = product_type.value if isinstance(product_type, ProductType) else str(product_type).upper()
+        vl = validity.value if isinstance(validity, Validity) else str(validity).upper()
+        return sv, ot, pt, vl
+
+    def _build_order_payload(
+        self,
+        inst: Any,
+        segment: str,
+        side_val: str,
+        ot_val: str,
+        pt_val: str,
+        v_val: str,
+        quantity: int,
+        price: Decimal | None = None,
+        trigger_price: Decimal | None = None,
+        correlation_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Build the Dhan order placement payload dict."""
+        payload: dict[str, Any] = {
+            "dhanClientId": self._client.client_id,
+            "securityId": inst.security_id,
+            "exchangeSegment": segment,
+            "transactionType": side_val,
+            "orderType": ot_val,
+            "productType": pt_val,
+            "validity": v_val,
+            "quantity": quantity,
+        }
+        if price and price > 0:
+            payload["price"] = float(price)
+        if trigger_price and trigger_price > 0:
+            payload["triggerPrice"] = float(trigger_price)
+        if correlation_id:
+            payload["correlationId"] = correlation_id
+        return payload
+
+    @staticmethod
+    def _build_placed_order(
+        data: dict,
+        symbol: str,
+        exchange: Any,
+        side_val: str,
+        ot_val: str,
+        pt_val: str,
+        v_val: str,
+        quantity: int,
+        price: Decimal | None,
+        trigger_price: Decimal | None,
+        correlation_id: str,
+    ) -> Order:
+        """Build an Order domain object from a place-order API response."""
+        order_id = str(data.get("data", {}).get("orderId") or data.get("orderId") or "")
+        return Order(
+            order_id=order_id,
+            symbol=symbol,
+            exchange=exchange,
+            side=OrderSide(side_val),
+            order_type=OrderType(ot_val),
+            quantity=quantity,
+            status=OrderStatus.OPEN,
+            price=price if price and price > 0 else Decimal("0"),
+            trigger_price=trigger_price if trigger_price and trigger_price > 0 else Decimal("0"),
+            product_type=ProductType(pt_val),
+            validity=Validity(v_val),
+            correlation_id=correlation_id,
+        )
+
     @staticmethod
     def _parse_order(raw: dict) -> Order:
         return Order.from_broker_dict(raw, exchange_resolver=_parse_exchange)
@@ -403,83 +472,47 @@ class OrdersAdapter:
     def place_slice_order(self, symbol: str, exchange: str, **kwargs) -> Order:
         """Place a slice order (automatically splits large orders).
 
-        Args:
-            symbol: Trading symbol
-            exchange: Exchange (NSE, NFO, etc.)
-            **kwargs: Same as place_order (side, quantity, price, etc.)
-
-        Returns:
-            Order with placed order information
-
-        Note:
-            Uses POST /orders/slicing endpoint instead of POST /orders.
-            Same payload structure as regular place_order.
+        Uses POST /orders/slicing endpoint instead of POST /orders.
+        Same payload structure as regular place_order.
         """
-        # Reuse place_order logic but with different endpoint
-        # Build payload using same logic as place_order
-        inst = self._resolver.resolve(symbol, exchange)
-        segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, "NSE_EQ")
-
         side = kwargs.get("side", "BUY")
-        quantity = kwargs["quantity"]
+        quantity: int = kwargs["quantity"]
         order_type = kwargs.get("order_type", "MARKET")
         product_type = kwargs.get("product_type", "INTRADAY")
-        price = kwargs.get("price", Decimal("0"))
-        trigger_price = kwargs.get("trigger_price", Decimal("0"))
+        price: Decimal = kwargs.get("price", Decimal("0"))
+        trigger_price: Decimal = kwargs.get("trigger_price", Decimal("0"))
         validity = kwargs.get("validity", "DAY")
-        correlation_id = kwargs.get("correlation_id")
+        correlation_id: str | None = kwargs.get("correlation_id")
 
-        # Pre-trade validation
+        # Resolve instrument and canonicalise enums.
+        inst = self._resolver.resolve(symbol, exchange)
+        segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, "NSE_EQ")
+        side_val, ot_val, pt_val, v_val = self._canonicalize_order_enums(
+            side, order_type, product_type, validity,
+        )
+
+        # Pre-trade validation (no idempotency/risk — slice orders are broker-managed).
         self.validate_order(
-            symbol=symbol,
-            exchange=exchange,
-            quantity=quantity,
-            order_type=order_type,
-            product_type=product_type,
+            symbol=symbol, exchange=exchange, quantity=quantity,
+            order_type=ot_val, product_type=pt_val,
             price=price if price > 0 else None,
         )
 
-        payload = {
-            "dhanClientId": self._client.client_id,
-            "exchangeSegment": segment,
-            "securityId": inst.security_id,
-            "transactionType": side.upper(),
-            "orderType": order_type,
-            "productType": product_type,
-            "validity": validity,
-            "quantity": quantity,
-        }
+        payload = self._build_order_payload(
+            inst, segment, side_val, ot_val, pt_val, v_val,
+            quantity, price, trigger_price, correlation_id,
+        )
 
-        if price and price > 0:
-            payload["price"] = float(price)
-        if trigger_price and trigger_price > 0:
-            payload["triggerPrice"] = float(trigger_price)
-        if correlation_id:
-            payload["correlationId"] = correlation_id
-
-        # Call slice order endpoint
         data = self._client.post("/orders/slicing", json=payload)
         order_data = data.get("data", data)
         order = self._parse_order(order_data)
 
         logger.info("slice_order_placed", extra={
-            "order_id": order.order_id,
-            "symbol": symbol,
-            "exchange": exchange,
-            "side": side,
-            "quantity": quantity,
+            "order_id": order.order_id, "symbol": symbol, "exchange": exchange,
+            "side": side_val, "quantity": quantity,
         })
 
-        if self._event_bus:
-            self._event_bus.publish(
-                DomainEvent.now(
-                    "ORDER_PLACED",
-                    {"order": order},
-                    symbol=order.symbol,
-                    source="DhanOrdersAdapter",
-                )
-            )
-
+        self._publish("ORDER_PLACED", order)
         return order
 
     def get_trade_history(self, from_date: str, to_date: str, page: int = 0) -> list[Trade]:
@@ -518,8 +551,6 @@ class OrdersAdapter:
     @staticmethod
     def _parse_trade(raw: dict) -> Trade:
         """Parse trade from API response."""
-        from brokers.dhan.domain import IST
-
         return Trade(
             trade_id=str(raw.get("tradeId", raw.get("id", ""))),
             order_id=str(raw.get("orderId", "")),

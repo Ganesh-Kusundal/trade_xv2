@@ -146,7 +146,7 @@ class Capability(str, Enum):
     FUTURES = "futures"
     HISTORICAL_DATA = "historical_data"
     WEBSOCKET = "websocket"
-    BRACKET_ORDER = "bracket_order"
+    # BRACKET_ORDER removed — not supported in Upstox v3 API (as of 2024)
     COVER_ORDER = "cover_order"
     GTT_ORDER = "gtt_order"
     SLICE_ORDER = "slice_order"
@@ -174,6 +174,8 @@ class Capability(str, Enum):
     TSL = "trailing_stop_loss"
     MTF = "mtf"
     WEBHOOKS = "webhooks"
+    AMO_ORDER = "amo_order"
+    EXIT_ALL = "exit_all"
     PORTFOLIO_STREAM = "portfolio_stream"
     ORDER_SLICING = "order_slicing"
     DEPTH_30 = "depth_30"

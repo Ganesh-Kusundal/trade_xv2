@@ -10,7 +10,18 @@ from typing import Any
 import pandas as pd
 
 from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
-from brokers.common.core.domain import Balance, MarketDepth, OrderResponse, Quote
+from brokers.common.core.domain import (
+    Balance,
+    ExchangeSegment,
+    MarketDepth,
+    OrderRequest,
+    OrderResponse,
+    OrderType,
+    ProductType,
+    Quote,
+    Side,
+    Validity,
+)
 from brokers.dhan.connection import DhanConnection
 from brokers.dhan.domain import (
     Holding,
@@ -85,18 +96,21 @@ class BrokerGateway(MarketDataGateway):
                 correlation_id = get_current_correlation_id()
             except ImportError:
                 pass
-        return self._conn.orders.place_order(
+
+        request = OrderRequest(
             symbol=symbol,
             exchange=exchange,
-            side=side,
+            exchange_segment=ExchangeSegment.NSE,
+            transaction_type=Side(side.upper()),
             quantity=quantity,
-            price=price if price > Decimal("0") else None,
-            order_type=order_type,
+            price=price,
             trigger_price=trigger_price if trigger_price > Decimal("0") else None,
-            product_type=product_type,
-            validity=validity,
+            order_type=OrderType(order_type.upper()),
+            product_type=ProductType(product_type.upper()),
+            validity=Validity(validity.upper()),
             correlation_id=correlation_id,
         )
+        return self._conn.orders.place_order(request)
 
     def cancel_order(self, order_id: str) -> OrderResponse:
         return self._conn.orders.cancel_order(order_id)

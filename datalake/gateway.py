@@ -41,6 +41,10 @@ class DataLakeGateway(MarketDataGateway):
     def __init__(self, root: str = "market_data") -> None:
         self._root = Path(root)
         self._candles_dir = self._root / "equities" / "candles"
+        # I-18: resample cache keyed by (symbol, timeframe). Avoids
+        # re-aggregating the same 1m→5m/15m/etc. every call.
+        self._resample_cache: dict[tuple[str, str], pd.DataFrame] = {}
+        self._resample_cache_max = 100
 
     def _parquet_path(self, symbol: str, timeframe: str) -> Path:
         return self._candles_dir / f"timeframe={timeframe}" / symbol_to_path(symbol) / "data.parquet"
@@ -64,9 +68,15 @@ class DataLakeGateway(MarketDataGateway):
         return None
 
     def _resample(self, df: pd.DataFrame, timeframe: str) -> pd.DataFrame:
-        """Resample 1m data to larger timeframe."""
+        """Resample 1m data to larger timeframe (with in-memory cache)."""
         if df.empty:
             return df
+
+        # Check cache — keyed by symbol + timeframe
+        symbol = df["symbol"].iloc[0] if "symbol" in df.columns else ""
+        cache_key = (symbol, timeframe)
+        if cache_key in self._resample_cache:
+            return self._resample_cache[cache_key].copy()
 
         df = df.copy()
         df["timestamp"] = pd.to_datetime(df["timestamp"])
@@ -97,6 +107,12 @@ class DataLakeGateway(MarketDataGateway):
         resampled["symbol"] = df["symbol"].iloc[0] if "symbol" in df.columns else ""
         resampled["exchange"] = df["exchange"].iloc[0] if "exchange" in df.columns else "NSE"
         resampled["timeframe"] = timeframe
+
+        # Cache the result (evict oldest if at capacity)
+        if len(self._resample_cache) >= self._resample_cache_max:
+            oldest = next(iter(self._resample_cache))
+            del self._resample_cache[oldest]
+        self._resample_cache[cache_key] = resampled.copy()
         return resampled
 
     def _filter_by_date(

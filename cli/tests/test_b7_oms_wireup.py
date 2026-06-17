@@ -162,11 +162,12 @@ def test_end_to_end_kill_switch_via_oms_blocks_dhan_place_order() -> None:
     rm.set_kill_switch(True)
 
     # Try to place an order — must raise OrderError due to risk gate
+    from brokers.common.core.domain import OrderRequest
     with pytest.raises(OrderError, match="Risk check failed"):
-        adapter.place_order(
+        adapter.place_order(OrderRequest(
             symbol="RELIANCE", exchange="NSE",
-            side="BUY", quantity=10, order_type="MARKET",
-        )
+            transaction_type="BUY", quantity=10, order_type="MARKET",
+        ))
 
     # HTTP was never called
     assert client.post.call_count == 0
