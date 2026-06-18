@@ -20,6 +20,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from brokers.common.connection_pool import get_connection_pool
 from .config import UpstoxConnectionSettings
 from .http import UpstoxHttpClient
 from .oauth_client import UpstoxOAuthClient
@@ -41,6 +42,12 @@ class UpstoxAdapterContext:
         self._settings = settings
         self._token_provider = token_provider
         self._url_resolver = UpstoxApiUrlResolver(settings)
+        
+        # Use provided session or get from connection pool
+        if http_session is None:
+            pool = get_connection_pool()
+            http_session = pool.get_session("upstox")
+        
         self._http_client = UpstoxHttpClient(
             token_provider=token_provider,
             settings=settings,

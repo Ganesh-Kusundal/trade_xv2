@@ -29,6 +29,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
+from brokers.common.event_bus.models import EventType
+
 if TYPE_CHECKING:
     from brokers.common.event_bus.dead_letter_queue import DeadLetterQueue
     from brokers.common.observability.event_metrics import EventMetrics
@@ -45,7 +47,12 @@ except ImportError:  # pragma: no cover
 
 @dataclass(frozen=True)
 class DomainEvent:
-    """An immutable domain event published on the bus."""
+    """An immutable domain event published on the bus.
+    
+    P4-Phase 4: Added sequence_number for deterministic replay ordering.
+    When two events share the same timestamp, sequence_number provides
+    a total order guarantee for replay determinism.
+    """
 
     event_type: str
     timestamp: datetime
@@ -54,6 +61,7 @@ class DomainEvent:
     source: str | None = None
     event_id: str = field(default_factory=lambda: uuid.uuid4().hex[:16])
     correlation_id: str | None = None
+    sequence_number: int = 0  # P4: Monotonic counter for deterministic ordering
 
     def __post_init__(self) -> None:
         # Ensure timestamps are timezone-aware for deterministic ordering.
@@ -70,6 +78,7 @@ class DomainEvent:
         symbol: str | None = None,
         source: str | None = None,
         correlation_id: str | None = None,
+        sequence_number: int = 0,
     ) -> DomainEvent:
         """Factory using UTC now.
 
@@ -84,6 +93,7 @@ class DomainEvent:
             symbol: Optional symbol associated with the event
             source: Optional source identifier
             correlation_id: Optional correlation ID for tracing
+            sequence_number: Optional sequence number for replay ordering (P4)
         """
         if correlation_id is None:
             cid = get_current_correlation_id()
@@ -96,6 +106,7 @@ class DomainEvent:
             symbol=symbol,
             source=source,
             correlation_id=correlation_id,
+            sequence_number=sequence_number,
         )
 
 
@@ -104,6 +115,12 @@ EventHandler = Callable[[DomainEvent], None]
 
 class EventBus:
     """Thread-safe in-memory event bus with mandatory failure observability.
+
+    P4-Phase 4: Added replay_mode for deterministic replay.
+    When replay_mode=True:
+    - Auto-persistence is disabled (no recursive writes to EventLog)
+    - Events use original timestamps instead of datetime.now()
+    - Sequence numbers are preserved for total ordering
 
     Example::
 
@@ -133,6 +150,9 @@ class EventBus:
         If True, the bus re-raises handler exceptions after capturing them.
         Defaults to False (the bus never stops the dispatch loop on a bad
         handler) but tests use True to assert on failures.
+    replay_mode:
+        P4: If True, disables auto-persistence and preserves original
+        event timestamps for deterministic replay.
     """
 
     def __init__(
@@ -142,6 +162,7 @@ class EventBus:
         metrics: EventMetrics | None = None,
         logging_enabled: bool = True,
         fail_fast: bool = False,
+        replay_mode: bool = False,  # P4
     ) -> None:
         self._lock = threading.RLock()
         self._subscribers: dict[str, dict[str, EventHandler]] = {}
@@ -150,6 +171,13 @@ class EventBus:
         self._metrics = metrics
         self._logging_enabled = logging_enabled
         self._fail_fast = fail_fast
+        self._replay_mode = replay_mode  # P4
+        self._sequence_counter = 0  # P4
+
+    @property
+    def replay_mode(self) -> bool:
+        """True if bus is in replay mode (P4)."""
+        return self._replay_mode
 
     # ── Subscription management ────────────────────────────────────────────
 
@@ -193,6 +221,9 @@ class EventBus:
         traceable ID without requiring explicit propagation at every
         call site.
 
+        P4-Phase 4: In replay_mode, auto-persistence is disabled and
+        sequence numbers are preserved for deterministic ordering.
+
         Handler failures are logged, counted, and dead-lettered — they
         never disappear silently.
         """
@@ -202,12 +233,24 @@ class EventBus:
             if cid is not None:
                 # DomainEvent is frozen, so use object.__setattr__
                 object.__setattr__(event, "correlation_id", cid)
+        
+        # P4: Assign sequence number for deterministic ordering
+        if not self._replay_mode:
+            # Live mode: assign monotonically increasing sequence number
+            with self._lock:
+                self._sequence_counter += 1
+                seq_num = self._sequence_counter
+            # Patch the event with sequence number (frozen dataclass workaround)
+            if event.sequence_number == 0:
+                object.__setattr__(event, "sequence_number", seq_num)
+        # Replay mode: preserve original sequence_number (no assignment)
 
         if self._metrics is not None:
             self._metrics.inc(event.event_type, "published")
 
         # 1. Persist first (so a crash mid-dispatch can be recovered).
-        if self._event_log is not None and self._logging_enabled:
+        # P4: Skip persistence in replay mode (no recursive writes)
+        if self._event_log is not None and self._logging_enabled and not self._replay_mode:
             try:
                 self._event_log.append(event)
             except Exception as exc:

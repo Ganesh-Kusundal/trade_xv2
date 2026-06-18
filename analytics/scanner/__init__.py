@@ -7,14 +7,18 @@ from analytics.scanner.scanners import (
     RSScanner,
     VolumeScanner,
 )
+from analytics.scanner.scorer import LinearScorer, Scorer, SigmoidScorer
 
 __all__ = [
     "BaseScanner",
     "BreakoutScanner",
     "Candidate",
+    "LinearScorer",
     "MomentumScanner",
     "RSScanner",
     "ScanResult",
     "Scanner",
+    "Scorer",
+    "SigmoidScorer",
     "VolumeScanner",
 ]

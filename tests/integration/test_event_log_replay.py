@@ -16,7 +16,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
-from brokers.common.event_bus import DomainEvent
+from brokers.common.event_bus import DomainEvent, EventType
 from brokers.common.event_log import EventLog
 
 
@@ -84,12 +84,12 @@ def test_event_log_replay_filters_by_event_type(tmp_path: Path) -> None:
     try:
         day1 = datetime(2026, 6, 15, 10, 0, tzinfo=timezone.utc)
         log.append(_event("ORDER_PLACED", day1))
-        log.append(_event("TRADE", day1))
-        log.append(_event("ORDER_UPDATED", day1))
+        log.append(_event(EventType.TRADE.value, day1))  # P1-3: Migrated to EventType enum
+        log.append(_event(EventType.ORDER_UPDATED.value, day1))  # P1-3: Migrated to EventType enum
     finally:
         log.close()
 
-    events = EventLog(events_dir=tmp_path / "events").replay(event_types={"TRADE"})
+    events = EventLog(events_dir=tmp_path / "events").replay(event_types={EventType.TRADE.value})  # P1-3: Migrated to EventType enum
     assert [e.event_type for e in events] == ["TRADE"]
 
 

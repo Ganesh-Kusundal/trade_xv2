@@ -23,6 +23,9 @@ class OrderStatus(str, Enum):
 
     Broker-specific variants (TRANSIT, TRIGGER PENDING, COMPLETE, etc.)
     must be normalized to these values at the adapter boundary.
+    
+    P2-Phase 2: Removed normalize() method to fix Clean Architecture violation.
+    Use StatusMapperRegistry.normalize() from infrastructure layer instead.
     """
 
     OPEN = "OPEN"
@@ -31,45 +34,6 @@ class OrderStatus(str, Enum):
     CANCELLED = "CANCELLED"
     REJECTED = "REJECTED"
     EXPIRED = "EXPIRED"
-
-    @classmethod
-    def normalize(cls, broker_status: str) -> OrderStatus:
-        """Map broker-specific status strings to canonical status."""
-        normalized = broker_status.upper().strip().replace(" ", "_")
-
-        _MAP: dict[str, OrderStatus] = {
-            "OPEN": cls.OPEN,
-            "PARTIALLY_FILLED": cls.PARTIALLY_FILLED,
-            "FILLED": cls.FILLED,
-            "CANCELLED": cls.CANCELLED,
-            "REJECTED": cls.REJECTED,
-            "EXPIRED": cls.EXPIRED,
-            "EXECUTED": cls.FILLED,
-            "COMPLETE": cls.FILLED,
-            "TRADED": cls.FILLED,
-            "TRIGGER_PENDING": cls.OPEN,
-            "TRANSIT": cls.OPEN,
-            "PENDING": cls.OPEN,
-            "PLACED": cls.OPEN,
-            "TRIGGERED": cls.OPEN,
-            "OPEN_PENDING": cls.OPEN,
-            "PUT_ORDER_REQ_RECEIVED": cls.OPEN,
-            "PARTIAL": cls.PARTIALLY_FILLED,
-            "PARTIALLY_EXECUTED": cls.PARTIALLY_FILLED,
-            "PARTIALLY_CANCELLED": cls.PARTIALLY_FILLED,
-            "OPEN_ORDER": cls.OPEN,
-            "TRIGGER_ORDER": cls.OPEN,
-            "CANCEL_PENDING": cls.CANCELLED,
-            "REJECTED_BY_BROKER": cls.REJECTED,
-            "REJECTED_BY_EXCHANGE": cls.REJECTED,
-            "MODIFIED": cls.OPEN,
-            "MODIFIED_PENDING": cls.OPEN,
-            "AFTER_MARKET_ORDER_REQ_RECEIVED": cls.OPEN,
-            "AMO": cls.OPEN,
-            "MARGIN_TRADED": cls.PARTIALLY_FILLED,
-        }
-
-        return _MAP.get(normalized, cls.OPEN)
 
     @property
     def is_terminal(self) -> bool:
@@ -195,3 +159,101 @@ class ConnectionStatus(str, Enum):
 
     def is_connected(self) -> bool:
         return self == ConnectionStatus.CONNECTED
+
+
+# ---------------------------------------------------------------------------
+# Position State (P2-Phase 2)
+# ---------------------------------------------------------------------------
+
+
+class PositionState(str, Enum):
+    """Position lifecycle states.
+    
+    Tracks the lifecycle of a position from flat through open, reducing,
+    closed, or reversed states. Used by PositionManager to enforce valid
+    state transitions and prevent illegal position updates.
+    
+    Transitions:
+    - FLAT → OPEN (buy/sell creates position)
+    - FLAT → REVERSED (sell after buy or vice versa in same session)
+    - OPEN → REDUCING (partial exit)
+    - OPEN → REVERSED (full exit + reverse)
+    - OPEN → CLOSED (full exit)
+    - REDUCING → FLAT (complete exit)
+    - REDUCING → OPEN (add to position)
+    - REDUCING → REVERSED (full exit + reverse)
+    - REVERSED → FLAT (complete exit)
+    - REVERSED → OPEN (reverse back)
+    - REVERSED → REDUCING (reduce reversed position)
+    - CLOSED → FLAT (reset for new session)
+    """
+    
+    FLAT = "FLAT"
+    OPEN = "OPEN"
+    REDUCING = "REDUCING"
+    CLOSED = "CLOSED"
+    REVERSED = "REVERSED"
+    
+    @property
+    def is_active(self) -> bool:
+        """True if position has non-zero quantity."""
+        return self in (PositionState.OPEN, PositionState.REDUCING, PositionState.REVERSED)
+    
+    @property
+    def is_terminal(self) -> bool:
+        """True if position is closed or flat (no active exposure)."""
+        return self in (PositionState.FLAT, PositionState.CLOSED)
+
+
+# ---------------------------------------------------------------------------
+# Order Status Transitions (P2-Phase 2)
+# ---------------------------------------------------------------------------
+
+# Order state machine transition table
+# Used by OrderManager to validate status updates
+ORDER_STATUS_TRANSITIONS: dict[OrderStatus, frozenset[OrderStatus]] = {
+    OrderStatus.OPEN: frozenset({
+        OrderStatus.PARTIALLY_FILLED,
+        OrderStatus.CANCELLED,
+        OrderStatus.REJECTED,
+        OrderStatus.EXPIRED,
+    }),
+    OrderStatus.PARTIALLY_FILLED: frozenset({
+        OrderStatus.FILLED,
+        OrderStatus.CANCELLED,
+        OrderStatus.REJECTED,
+    }),
+    OrderStatus.FILLED: frozenset(),  # Terminal
+    OrderStatus.CANCELLED: frozenset(),  # Terminal
+    OrderStatus.REJECTED: frozenset(),  # Terminal
+    OrderStatus.EXPIRED: frozenset(),  # Terminal
+}
+
+# Position state machine transition table
+# Used by PositionManager to validate position updates
+POSITION_STATE_TRANSITIONS: dict[PositionState, frozenset[PositionState]] = {
+    PositionState.FLAT: frozenset({
+        PositionState.OPEN,
+        PositionState.REVERSED,
+    }),
+    PositionState.OPEN: frozenset({
+        PositionState.OPEN,  # Add to position
+        PositionState.REDUCING,
+        PositionState.CLOSED,
+        PositionState.REVERSED,
+    }),
+    PositionState.REDUCING: frozenset({
+        PositionState.FLAT,
+        PositionState.OPEN,
+        PositionState.REVERSED,
+    }),
+    PositionState.CLOSED: frozenset({
+        PositionState.FLAT,  # Reset for new session
+    }),
+    PositionState.REVERSED: frozenset({
+        PositionState.FLAT,
+        PositionState.OPEN,
+        PositionState.REDUCING,
+        PositionState.CLOSED,
+    }),
+}

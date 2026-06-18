@@ -9,7 +9,7 @@ from typing import Any
 
 import pandas as pd
 
-from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
+from brokers.common.gateway import BrokerCapabilities, MarketDataGateway, ObservabilityProvider
 from brokers.common.core.domain import (
     Balance,
     ExchangeSegment,
@@ -29,14 +29,20 @@ from brokers.dhan.domain import (
     Position,
     Trade,
 )
+from brokers.common.resilience.circuit_breaker import CircuitState
 from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
+
 from brokers.dhan.websocket import DhanMarketFeed
 
 logger = logging.getLogger(__name__)
 
 
-class BrokerGateway(MarketDataGateway):
-    """Unified broker API. All calls delegate to connection adapters."""
+class BrokerGateway(MarketDataGateway, ObservabilityProvider):
+    """Unified broker API. All calls delegate to connection adapters.
+    
+    Implements both MarketDataGateway (broker-agnostic contract) and
+    ObservabilityProvider (canonical observability data exposure).
+    """
 
     def __init__(self, connection: DhanConnection):
         self._conn = connection
@@ -495,4 +501,71 @@ class BrokerGateway(MarketDataGateway):
                 except Exception as exc:
                     logger.debug("history_batch_future_failed: %s", exc)
         return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+
+    # -----------------------------------------------------------------------
+    # ObservabilityProvider Implementation
+    # -----------------------------------------------------------------------
+
+    def get_connection_status(self) -> dict[str, bool]:
+        """Return connection status for Dhan WebSocket streams.
+        
+        Implements ObservabilityProvider protocol to expose connection
+        status without exposing private attributes to CLI layer.
+        """
+        status = {}
+        mf = getattr(self._conn, "market_feed", None)
+        if mf is not None:
+            status["market_feed"] = mf.is_connected
+        
+        os_ = getattr(self._conn, "order_stream", None)
+        if os_ is not None:
+            status["order_stream"] = os_.is_connected
+        
+        return status
+    
+    def get_circuit_breaker_states(self) -> dict[str, int]:
+        """Return Dhan client circuit breaker states.
+        
+        Maps CircuitState enum to int: 0=CLOSED, 1=OPEN, 2=HALF_OPEN.
+        Implements ObservabilityProvider protocol.
+        """
+        client = getattr(self._conn, "_client", None)
+        if client is None:
+            return {}
+        
+        state_map = {
+            CircuitState.CLOSED: 0,
+            CircuitState.OPEN: 1,
+            CircuitState.HALF_OPEN: 2,
+        }
+        
+        states = {}
+        for name in ["_read_circuit_breaker", "_write_circuit_breaker", "_admin_circuit_breaker"]:
+            cb = getattr(client, name, None)
+            if cb is not None:
+                try:
+                    short_name = name.replace("_circuit_breaker", "_cb").lstrip("_")
+                    states[short_name] = state_map.get(cb.state, 0)
+                except Exception as exc:
+                    logger.debug("circuit_breaker_state_failed: %s", exc)
+        
+        return states
+    
+    def get_token_refresh_metrics(self) -> dict[str, int]:
+        """Return token refresh metrics from Dhan connection.
+        
+        Implements ObservabilityProvider protocol.
+        """
+        scheduler = getattr(self._conn, "_token_scheduler", None)
+        if scheduler is None:
+            return {"refresh_count": 0, "error_count": 0}
+        
+        try:
+            return {
+                "refresh_count": getattr(scheduler, "refresh_count", 0),
+                "error_count": 1 if getattr(scheduler, "_last_error", None) else 0,
+            }
+        except Exception as exc:
+            logger.debug("token_refresh_metrics_failed: %s", exc)
+            return {"refresh_count": 0, "error_count": 0}
 

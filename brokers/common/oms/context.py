@@ -12,7 +12,14 @@ from brokers.common.core.constants import PHANTOM_CAPITAL_INR, RECONCILIATION_IN
 from brokers.common.event_bus import (
     DeadLetterQueue,
     EventBus,
+    EventType,
     ProcessedTradeRepository,
+)
+from brokers.common.event_bus.async_event_bus import AsyncEventBus
+from brokers.common.event_bus.factory import (
+    AsyncEventBusFactory,
+    AsyncPublishAdapter,
+    async_publish_wrapper,
 )
 from brokers.common.event_log import EventLog
 from brokers.common.lifecycle import LifecycleManager
@@ -21,6 +28,15 @@ from brokers.common.oms.order_manager import OrderManager
 from brokers.common.oms.position_manager import PositionManager
 from brokers.common.oms.reconciliation_service import ReconciliationService
 from brokers.common.oms.risk_manager import RiskConfig, RiskManager
+
+# P1-Phase 1: Optional import for TradingOrchestrator
+# Import only when needed to avoid circular dependency
+try:
+    from brokers.common.orchestrator import TradingOrchestrator
+    _HAS_ORCHESTRATOR = True
+except ImportError:
+    _HAS_ORCHESTRATOR = False
+    TradingOrchestrator = None  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +84,8 @@ class TradingContext:
         processed_trade_repository: ProcessedTradeRepository | None = None,
         metrics: EventMetrics | None = None,
         dead_letter_queue: DeadLetterQueue | None = None,
+        orchestrator: Any | None = None,  # P1-Phase 1: Optional TradingOrchestrator
+        async_bus: AsyncEventBus | None = None,  # AsyncEventBus integration
     ) -> None:
         self._event_log = event_log
         self._metrics = metrics or EventMetrics()
@@ -84,6 +102,24 @@ class TradingContext:
             )
         else:
             self._event_bus = event_bus
+
+        # AsyncEventBus integration (Phase 1: opt-in via async_bus parameter)
+        # Migration Guide:
+        #   Phase 1: Pass async_bus explicitly for async event processing
+        #   Phase 2: Factory creates async bus based on USE_ASYNC_EVENT_BUS env var
+        #   Phase 3: Async becomes default, sync available via force_sync=True
+        self._async_bus = async_bus
+        self._is_async_bus = async_bus is not None
+        
+        # Create async publish wrapper if async bus is available
+        # This provides a uniform async publish() API for gradual migration
+        if self._is_async_bus:
+            self._async_publisher = async_publish_wrapper(
+                self._async_bus, is_async=True
+            )
+            logger.info("TradingContext: AsyncEventBus enabled")
+        else:
+            self._async_publisher = None
 
         self._processed_trades = (
             processed_trade_repository or ProcessedTradeRepository()
@@ -111,14 +147,14 @@ class TradingContext:
         )
 
         # Wire managers to the event bus.
-        self._event_bus.subscribe("ORDER_UPDATED", self._order_manager.on_order_update)
+        self._event_bus.subscribe(EventType.ORDER_UPDATED.value, self._order_manager.on_order_update)  # P1-3: Migrated to EventType enum
         # The OMS is the sole gatekeeper for trade idempotency. The
         # position manager subscribes to TRADE_APPLIED (a downstream
         # event the OMS publishes only after a trade has been accepted)
         # rather than to raw TRADE events. This guarantees that
         # duplicate websocket fills cannot double-count positions.
-        self._event_bus.subscribe("TRADE", self._order_manager.on_trade)
-        self._event_bus.subscribe("TRADE_APPLIED", self._position_manager.on_trade_applied)
+        self._event_bus.subscribe(EventType.TRADE.value, self._order_manager.on_trade)  # P1-3: Migrated to EventType enum
+        self._event_bus.subscribe(EventType.TRADE_APPLIED.value, self._position_manager.on_trade_applied)  # P1-3: Migrated to EventType enum
 
         # Reconciliation: an externally-owned ReconciliationService
         # (a ManagedService) is created here so it can be registered
@@ -140,6 +176,9 @@ class TradingContext:
 
         if replay_events and self._event_log is not None:
             self._replay_log_into_oms()
+        
+        # P1-Phase 1: Store orchestrator for lifecycle management
+        self._orchestrator: Any = orchestrator
 
     def attach_lifecycle(self, lifecycle: LifecycleManager) -> None:
         """Register the context's managed services with a lifecycle.
@@ -164,6 +203,11 @@ class TradingContext:
         # TradingContext directly (tests, scripts, custom entry points)
         # would silently accumulate PnL across days.
         self._register_daily_pnl_reset(lifecycle)
+        
+        # P1-Phase 1: Register orchestrator for start/stop
+        if self._orchestrator is not None:
+            lifecycle.register(self._orchestrator)
+            logger.info("TradingOrchestrator registered with lifecycle")
 
     @property
     def event_bus(self) -> EventBus:
@@ -196,6 +240,38 @@ class TradingContext:
     @property
     def processed_trade_repository(self) -> ProcessedTradeRepository:
         return self._processed_trades
+    
+    @property
+    def orchestrator(self) -> Any | None:  # P1-Phase 1: TradingOrchestrator accessor
+        """Access the TradingOrchestrator if configured."""
+        return self._orchestrator
+
+    @property
+    def async_bus(self) -> AsyncEventBus | None:
+        """Access the AsyncEventBus if configured.
+        
+        Returns None if sync EventBus is being used.
+        Check is_async_bus before using this property.
+        """
+        return self._async_bus
+
+    @property
+    def is_async_bus(self) -> bool:
+        """True if AsyncEventBus is configured, False if using sync EventBus."""
+        return self._is_async_bus
+
+    @property
+    def async_publisher(self) -> AsyncPublishAdapter | None:
+        """Access the async publish adapter if async bus is configured.
+        
+        This provides a uniform async publish() API that works with both
+        sync and async buses. Returns None if only sync bus is available.
+        
+        Usage:
+            if ctx.async_publisher:
+                await ctx.async_publisher.publish("ORDER_PLACED", payload)
+        """
+        return self._async_publisher
 
     def health(self) -> dict[str, Any]:
         """Snapshot of observability state for the SRE / alerting layer."""
@@ -227,14 +303,76 @@ class TradingContext:
             return
         self._reconciliation_service.stop()
 
+    async def start_async_bus(self) -> None:
+        """Start the AsyncEventBus dispatch worker.
+        
+        This must be called before publishing events to the async bus.
+        Typically called during application startup after all handlers
+        are subscribed.
+        
+        No-op if async bus is not configured.
+        
+        Usage:
+            ctx = TradingContext(async_bus=async_bus)
+            # ... subscribe handlers ...
+            await ctx.start_async_bus()
+        """
+        if self._async_bus is not None:
+            await self._async_bus.start()
+            logger.info("TradingContext: AsyncEventBus started")
+
+    async def stop_async_bus(self, timeout_seconds: float = 10.0) -> None:
+        """Stop the AsyncEventBus dispatch worker.
+        
+        Waits for pending events to be processed before returning.
+        Call this during graceful shutdown.
+        
+        No-op if async bus is not configured.
+        
+        Parameters
+        ----------
+        timeout_seconds:
+            Maximum time to wait for worker to stop (default 10s).
+        """
+        if self._async_bus is not None:
+            await self._async_bus.stop()
+            logger.info("TradingContext: AsyncEventBus stopped")
+
+    async def wait_async_bus_completion(
+        self, timeout_seconds: float | None = None
+    ) -> bool:
+        """Wait for all queued async events to be processed.
+        
+        Parameters
+        ----------
+        timeout_seconds:
+            Maximum time to wait (seconds). None = wait forever.
+        
+        Returns
+        -------
+        bool:
+            True if all events processed, False if timeout.
+        """
+        if self._async_bus is not None:
+            return await self._async_bus.wait_for_completion(
+                timeout=timeout_seconds
+            )
+        return True
+
+    def get_async_bus_stats(self) -> dict | None:
+        """Get AsyncEventBus statistics.
+        
+        Returns None if async bus is not configured.
+        """
+        if self._async_bus is not None:
+            return self._async_bus.get_stats()
+        return None
+
     def _register_daily_pnl_reset(self, lifecycle: LifecycleManager) -> None:
         """Auto-wire a DailyPnlResetScheduler so daily PnL is always reset.
-
-        NOTE: BrokerService._ensure_initialized ALSO registers its own
-        scheduler on the same RiskManager. This is safe (reset is
-        idempotent) but results in two daemon threads. TODO: remove
-        the duplicate registration from BrokerService once this method
-        is proven in production.
+        
+        This is the SINGLE registration point for the scheduler.
+        BrokerService no longer registers a duplicate (fixed P2-1).
         """
         from brokers.common.oms.daily_pnl_reset_scheduler import DailyPnlResetScheduler
         scheduler = DailyPnlResetScheduler(risk_manager=self._risk_manager)
@@ -328,10 +466,10 @@ class TradingContext:
         logging_was_enabled = self._event_bus._logging_enabled
         self._event_bus._logging_enabled = False
         try:
-            for event in self._event_log.replay(event_types={"ORDER_UPDATED", "TRADE"}):
-                if event.event_type == "ORDER_UPDATED":
+            for event in self._event_log.replay(event_types={EventType.ORDER_UPDATED.value, EventType.TRADE.value}):  # P1-3: Migrated to EventType enum
+                if event.event_type == EventType.ORDER_UPDATED.value:  # P1-3: Migrated to EventType enum
                     self._order_manager.on_order_update(event)
-                elif event.event_type == "TRADE":
+                elif event.event_type == EventType.TRADE.value:  # P1-3: Migrated to EventType enum
                     self._order_manager.on_trade(event)
                 count += 1
         finally:

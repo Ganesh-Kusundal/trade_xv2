@@ -12,7 +12,9 @@ from decimal import Decimal
 from typing import Any
 
 from brokers.common.core.domain import Position, Trade
-from brokers.common.event_bus import DomainEvent, EventBus
+from brokers.common.core.state_machine import IllegalTransitionError, StateMachine
+from brokers.common.core.types import POSITION_STATE_TRANSITIONS, PositionState
+from brokers.common.event_bus import DomainEvent, EventBus, EventType
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +35,7 @@ class PositionManager:
         event_bus: EventBus | None = None,
         processed_trade_repository: Any | None = None,
         metrics: Any | None = None,
+        enforce_state_transitions: bool = False,  # P2-Phase 2: Audit-only by default
     ) -> None:
         self._lock = threading.RLock()
         self._positions: dict[str, Position] = {}
@@ -42,6 +45,10 @@ class PositionManager:
         self._processed_trades = processed_trade_repository
         self._metrics = metrics
         self._trades_applied = 0
+        
+        # P2-Phase 2: State machine enforcement (audit-only mode first)
+        self._enforce_state_transitions = enforce_state_transitions
+        self._position_states: dict[str, StateMachine[PositionState]] = {}  # symbol_key -> StateMachine
 
     # ── Public API ──────────────────────────────────────────────────────────
 
@@ -50,19 +57,96 @@ class PositionManager:
 
         Idempotency is the OMS's responsibility: this method should only
         be called with trades that the OMS has already accepted.
+        
+        P2-Phase 2: Validates position state transitions using state machine.
+        P1-Phase 1: Publishes POSITION_OPENED and POSITION_CLOSED lifecycle
+        events in addition to existing POSITION_UPDATED.
         """
         symbol_key = self._key(trade.symbol, trade.exchange)
         with self._lock:
             current = self._positions.get(
                 symbol_key, Position(symbol=trade.symbol, exchange=trade.exchange)
             )
+            
+            # P2-Phase 2: Determine current position state
+            position_state = self._position_states.get(symbol_key)
+            if position_state is None:
+                # New position: starts at FLAT
+                position_state = StateMachine(
+                    transitions=POSITION_STATE_TRANSITIONS,
+                    initial=PositionState.FLAT,
+                )
+                self._position_states[symbol_key] = position_state
+            
+            old_state = position_state.state
+            was_flat = current.quantity == 0
             delta = trade.quantity if trade.side.value == "BUY" else -trade.quantity
+            new_quantity = current.quantity + delta
+            will_be_flat = new_quantity == 0
+            
+            # P2-Phase 2: Determine target state
+            if was_flat and not will_be_flat:
+                new_state = PositionState.OPEN
+            elif not was_flat and will_be_flat:
+                new_state = PositionState.CLOSED
+            elif not was_flat and not will_be_flat:
+                if abs(new_quantity) < abs(current.quantity):
+                    new_state = PositionState.REDUCING
+                elif (current.quantity > 0 and new_quantity < 0) or \
+                     (current.quantity < 0 and new_quantity > 0):
+                    new_state = PositionState.REVERSED
+                else:
+                    new_state = PositionState.OPEN  # Adding to position
+            else:
+                new_state = old_state  # No change
+            
+            # P2-Phase 2: Validate state transition
+            if old_state != new_state:
+                if not position_state.can_transition_to(new_state):
+                    if self._enforce_state_transitions:
+                        raise IllegalTransitionError(old_state, new_state)
+                    else:
+                        # Audit-only mode: log violation but accept
+                        logger.warning(
+                            "PositionManager: illegal position state transition "
+                            "%s → %s for %s (audit mode: accepting)",
+                            old_state.value,
+                            new_state.value,
+                            symbol_key,
+                        )
+                else:
+                    # Valid transition: update state machine
+                    position_state.transition_to(new_state)
+            
             updated = current.with_fill(delta, trade.price)
             self._positions[symbol_key] = updated
             self._trades_applied += 1
             if self._metrics is not None:
-                self._metrics.inc("TRADE_APPLIED", "position_updated")
-            self._publish("POSITION_UPDATED", updated)
+                self._metrics.inc(EventType.TRADE_APPLIED.value, "position_updated")  # P1-3: Migrated to EventType enum
+            
+            # P1-Phase 1: Publish position lifecycle events
+            if was_flat and not will_be_flat:
+                # Flat → Open: POSITION_OPENED
+                self._publish(
+                    EventType.POSITION_OPENED.value,
+                    payload={
+                        "symbol": updated.symbol,
+                        "quantity": updated.quantity,
+                        "avg_price": float(updated.avg_price),
+                    },
+                )
+            elif not was_flat and will_be_flat:
+                # Open → Flat: POSITION_CLOSED
+                self._publish(
+                    EventType.POSITION_CLOSED.value,
+                    payload={
+                        "symbol": updated.symbol,
+                        "realized_pnl": float(updated.realized_pnl) if hasattr(updated, 'realized_pnl') else 0.0,
+                    },
+                )
+            
+            # Always publish POSITION_UPDATED
+            self._publish(EventType.POSITION_UPDATED.value, updated)  # P1-3: Migrated to EventType enum
             return updated
 
     def update_ltp(self, symbol: str, exchange: str, ltp: Decimal | float) -> Position | None:
@@ -123,7 +207,7 @@ class PositionManager:
                 if ltp:
                     pos = pos.with_ltp(ltp)
                 self._positions[key] = pos
-                self._publish("POSITION_UPDATED", pos)
+                self._publish(EventType.POSITION_UPDATED.value, pos)  # P1-3: Migrated to EventType enum
                 return pos
             # Update existing position
             delta = quantity - current.quantity
@@ -131,7 +215,7 @@ class PositionManager:
             if ltp:
                 updated = updated.with_ltp(ltp)
             self._positions[key] = updated
-            self._publish("POSITION_UPDATED", updated)
+            self._publish(EventType.POSITION_UPDATED.value, updated)  # P1-3: Migrated to EventType enum
             return updated
 
     def reset(self) -> None:

@@ -1,13 +1,62 @@
-"""Canonical status mapper — shared status string → OrderStatus mapping.
+"""Canonical status mapper registry — centralized status string → OrderStatus mapping.
 
-All broker-specific status mappers extend :data:`COMMON_STATUS_MAP`.
-Entries that appear in both Upstox and Dhan status maps live here;
-broker-specific status strings are added in each broker's own module.
+All broker-specific status mappers register their mappings at import time.
+``OrderStatus.normalize()`` delegates to this registry, ensuring a single
+source of truth for status normalization across the entire codebase.
 """
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from brokers.common.core.domain import OrderStatus
+
+
+class StatusMapperRegistry:
+    """Global registry for broker-specific status mappings.
+    
+    Broker adapters register their mappings at module import time by calling
+    ``register(broker_name, mapping_dict)``. The registry merges all mappings
+    and provides a single ``normalize()`` method that tries all registered
+    mappings in order, falling back to OPEN for unknown statuses.
+    """
+    
+    _mappings: ClassVar[dict[str, dict[str, OrderStatus]]] = {}
+    _merged: ClassVar[dict[str, OrderStatus] | None] = None
+    
+    @classmethod
+    def register(cls, broker_name: str, mapping: dict[str, OrderStatus]) -> None:
+        """Register a broker-specific status mapping.
+        
+        Args:
+            broker_name: Unique identifier for the broker (e.g., 'dhan', 'upstox')
+            mapping: Dict mapping status strings to OrderStatus enums
+        """
+        cls._mappings[broker_name] = mapping
+        cls._merged = None  # Invalidate cache
+    
+    @classmethod
+    def normalize(cls, broker_status: str) -> OrderStatus:
+        """Normalize a broker-specific status string to canonical OrderStatus.
+        
+        Tries all registered mappings in order. Returns OPEN for unknown statuses.
+        
+        Args:
+            broker_status: Raw status string from broker API
+            
+        Returns:
+            Canonical OrderStatus enum value
+        """
+        if cls._merged is None:
+            cls._merged = {}
+            for mapping in cls._mappings.values():
+                cls._merged.update(mapping)
+        
+        normalized = broker_status.upper().strip().replace(" ", "_")
+        return cls._merged.get(normalized, OrderStatus.OPEN)
+
+
+# ── Common status map (backward compatibility) ────────────────────────────
 
 COMMON_STATUS_MAP: dict[str, OrderStatus] = {
     # ── Terminal / filled ──
@@ -16,6 +65,7 @@ COMMON_STATUS_MAP: dict[str, OrderStatus] = {
     "TRADED": OrderStatus.FILLED,
     # ── Partial fills ──
     "PARTIAL": OrderStatus.PARTIALLY_FILLED,
+    "PARTIALLY_FILLED": OrderStatus.PARTIALLY_FILLED,  # Identity mapping
     "PARTIALLY_EXECUTED": OrderStatus.PARTIALLY_FILLED,
     "MARGIN_TRADED": OrderStatus.PARTIALLY_FILLED,
     # ── Open / pending ──
@@ -25,3 +75,6 @@ COMMON_STATUS_MAP: dict[str, OrderStatus] = {
     "CANCELLED": OrderStatus.CANCELLED,
     "REJECTED": OrderStatus.REJECTED,
 }
+
+# Register common mappings at module load
+StatusMapperRegistry.register("common", COMMON_STATUS_MAP)

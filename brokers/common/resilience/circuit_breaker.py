@@ -1,10 +1,12 @@
 """Circuit breaker — failure threshold-based with half-open recovery.
 
 Maps 1:1 to Trade_J's CircuitBreaker pattern.
+Thread-safe with RLock for concurrent access from multiple threads.
 """
 
 from __future__ import annotations
 
+import threading
 import time
 from dataclasses import dataclass
 from enum import Enum
@@ -67,6 +69,7 @@ class CircuitBreaker:
     def __init__(self, name: str, config: CircuitBreakerConfig | None = None):
         self.name = name
         self.config = config or CircuitBreakerConfig()
+        self._lock = threading.RLock()  # Thread-safe: protects all mutable state
         self._state: CircuitState = CircuitState.CLOSED
         self._failure_count: int = 0
         self._success_count: int = 0
@@ -76,58 +79,88 @@ class CircuitBreaker:
 
     @property
     def state(self) -> CircuitState:
-        """Current state, potentially transitioning from OPEN -> HALF_OPEN."""
-        if self._state == CircuitState.OPEN:
-            if time.monotonic_ns() - self._opened_at_ns >= self.config.open_duration_ms * 1_000_000:
-                self._transition_to(CircuitState.HALF_OPEN)
-        return self._state
+        """Current state, potentially transitioning from OPEN -> HALF_OPEN.
+        
+        Thread-safe: acquires lock to prevent concurrent state transitions.
+        """
+        with self._lock:
+            if self._state == CircuitState.OPEN:
+                if time.monotonic_ns() - self._opened_at_ns >= self.config.open_duration_ms * 1_000_000:
+                    self._transition_to(CircuitState.HALF_OPEN)
+            return self._state
 
     @property
     def metrics(self) -> CircuitBreakerMetrics:
-        return CircuitBreakerMetrics(
-            failure_count=self._failure_count,
-            success_count=self._success_count,
-            state_change_count=self._state_change_count,
-            total_calls=self._total_calls,
-        )
+        """Return a snapshot of current metrics.
+        
+        Thread-safe: acquires lock to prevent torn reads.
+        """
+        with self._lock:
+            return CircuitBreakerMetrics(
+                failure_count=self._failure_count,
+                success_count=self._success_count,
+                state_change_count=self._state_change_count,
+                total_calls=self._total_calls,
+            )
 
     def allow_request(self) -> bool:
-        """Check if a request is allowed through the circuit breaker."""
+        """Check if a request is allowed through the circuit breaker.
+        
+        Thread-safe: acquires lock via state property.
+        """
         return self.state != CircuitState.OPEN
 
     def on_success(self) -> None:
-        """Record a successful execution."""
-        self._total_calls += 1
+        """Record a successful execution.
+        
+        Thread-safe: acquires lock to prevent concurrent state corruption.
+        """
+        with self._lock:
+            self._total_calls += 1
 
-        if self._state == CircuitState.HALF_OPEN:
-            self._success_count += 1
-            if self._success_count >= self.config.success_threshold:
-                self._transition_to(CircuitState.CLOSED)
-        elif self._state == CircuitState.CLOSED:
-            self._success_count += 1
-            # Reset failure count on consecutive success
-            self._failure_count = 0
+            if self._state == CircuitState.HALF_OPEN:
+                self._success_count += 1
+                if self._success_count >= self.config.success_threshold:
+                    self._transition_to(CircuitState.CLOSED)
+            elif self._state == CircuitState.CLOSED:
+                self._success_count += 1
+                # Reset failure count on consecutive success
+                self._failure_count = 0
 
     def on_failure(self) -> None:
-        """Record a failed execution."""
-        self._total_calls += 1
-        self._failure_count += 1
+        """Record a failed execution.
+        
+        Thread-safe: acquires lock to prevent concurrent state corruption.
+        """
+        with self._lock:
+            self._total_calls += 1
+            self._failure_count += 1
 
-        if self._state == CircuitState.HALF_OPEN:
-            # Any failure in half-open immediately re-opens
-            self._transition_to(CircuitState.OPEN)
-        elif self._state == CircuitState.CLOSED:
-            if self._failure_count >= self.config.failure_threshold:
+            if self._state == CircuitState.HALF_OPEN:
+                # Any failure in half-open immediately re-opens
                 self._transition_to(CircuitState.OPEN)
+            elif self._state == CircuitState.CLOSED:
+                if self._failure_count >= self.config.failure_threshold:
+                    self._transition_to(CircuitState.OPEN)
 
     def reset(self) -> None:
-        """Force reset to CLOSED state."""
-        self._transition_to(CircuitState.CLOSED)
-        self._failure_count = 0
-        self._success_count = 0
-        self._total_calls = 0
+        """Force reset to CLOSED state.
+        
+        Thread-safe: acquires lock to prevent concurrent modifications.
+        """
+        with self._lock:
+            self._transition_to(CircuitState.CLOSED)
+            self._failure_count = 0
+            self._success_count = 0
+            self._total_calls = 0
 
     def _transition_to(self, new_state: CircuitState) -> None:
+        """Transition to a new state.
+        
+        NOTE: Caller must hold self._lock. This is an internal method
+        called only from locked contexts (state property, on_success,
+        on_failure, reset).
+        """
         if self._state != new_state:
             self._state = new_state
             self._state_change_count += 1

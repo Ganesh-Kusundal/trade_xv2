@@ -19,6 +19,7 @@ from brokers.common.core.domain import (
     Trade,
 )
 from brokers.common.event_bus import DomainEvent, ProcessedTradeRepository
+from brokers.common.event_bus.models import EventType  # P1-3: EventType enum
 from brokers.common.event_log import EventLog
 from brokers.common.observability.event_metrics import EventMetrics
 from brokers.common.oms.context import TradingContext
@@ -64,8 +65,8 @@ def _bootstrap_context(
 
 def _order_event(o: Order) -> DomainEvent:
     return DomainEvent(
-        event_type="ORDER_UPDATED",
-        timestamp=o.timestamp or DomainEvent.now("ORDER_UPDATED", {}).timestamp,
+        event_type=EventType.ORDER_UPDATED.value,  # P1-3: Migrated to EventType enum
+        timestamp=o.timestamp or DomainEvent.now(EventType.ORDER_UPDATED.value, {}).timestamp,
         payload={"order": o},
         symbol=o.symbol,
         source="synthetic",
@@ -74,8 +75,8 @@ def _order_event(o: Order) -> DomainEvent:
 
 def _trade_event(t: Trade) -> DomainEvent:
     return DomainEvent(
-        event_type="TRADE",
-        timestamp=t.timestamp or DomainEvent.now("TRADE", {}).timestamp,
+        event_type=EventType.TRADE.value,  # P1-3: Migrated to EventType enum
+        timestamp=t.timestamp or DomainEvent.now(EventType.TRADE.value, {}).timestamp,
         payload={"trade": t},
         symbol=t.symbol,
         source="synthetic",
@@ -166,7 +167,7 @@ def test_synthetic_session_replays_deterministically(tmp_path: Path) -> None:
         replay_events=False,
     )
 
-    replayed = bus2._event_log.replay(event_types={"ORDER_UPDATED", "TRADE"})
+    replayed = bus2._event_log.replay(event_types={EventType.ORDER_UPDATED.value, EventType.TRADE.value})  # P1-3: Migrated to EventType enum
     for event in replayed:
         ctx2.event_bus.publish(event)
 
@@ -246,7 +247,7 @@ def test_duplicate_trade_does_not_double_position(tmp_path: Path) -> None:
         dead_letter_queue=dlq2,
         replay_events=False,
     )
-    for event in bus2._event_log.replay(event_types={"ORDER_UPDATED", "TRADE"}):
+    for event in bus2._event_log.replay(event_types={EventType.ORDER_UPDATED.value, EventType.TRADE.value}):  # P1-3: Migrated to EventType enum
         ctx2.event_bus.publish(event)
 
     o = ctx2.order_manager.get_order("O1")
@@ -257,8 +258,8 @@ def test_duplicate_trade_does_not_double_position(tmp_path: Path) -> None:
     assert pos.quantity == 10  # NOT 20
 
     # The metrics should reflect: 1 trade processed, 1 trade duplicated.
-    assert metrics2.get("TRADE", "trade_processed") == 1
-    assert metrics2.get("TRADE", "trade_duplicated") == 1
+    assert metrics2.get(EventType.TRADE.value, "trade_processed") == 1  # P1-3: Migrated to EventType enum
+    assert metrics2.get(EventType.TRADE.value, "trade_duplicated") == 1  # P1-3: Migrated to EventType enum
 
 
 def test_verify_event_replay_script_runs(tmp_path: Path) -> None:

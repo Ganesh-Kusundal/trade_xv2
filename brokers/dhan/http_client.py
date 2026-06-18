@@ -112,6 +112,7 @@ class DhanHttpClient:
         read_circuit_breaker: CircuitBreaker | None = None,
         write_circuit_breaker: CircuitBreaker | None = None,
         admin_circuit_breaker: CircuitBreaker | None = None,
+        session: requests.Session | None = None,
     ) -> None:
         self.client_id = client_id
         self.access_token = access_token
@@ -126,10 +127,18 @@ class DhanHttpClient:
         self._read_circuit_breaker = read_circuit_breaker or circuit_breaker
         self._write_circuit_breaker = write_circuit_breaker or circuit_breaker
         self._admin_circuit_breaker = admin_circuit_breaker or circuit_breaker
-        self._session = requests.Session()
+        
+        # Use provided session (from connection pool) or create own
+        if session is not None:
+            self._session = session
+        else:
+            self._session = requests.Session()
+            self._session.headers.update({
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            })
+        
         self._session.headers.update({
-            "Accept": "application/json",
-            "Content-Type": "application/json",
             "client-id": client_id,
             "access-token": access_token,
         })

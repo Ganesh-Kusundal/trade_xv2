@@ -47,6 +47,10 @@ class NotSupportedError(BrokerError):
     """Feature not supported by broker (replaces NotImplementedError at boundaries)."""
 
 
+class ExitAllError(NotSupportedError):
+    """Exit-all (kill switch) operation failed."""
+
+
 class DataError(TradeXV2Error):
     """Base exception for datalake and data processing errors."""
 

@@ -184,13 +184,12 @@ def _run_broker_validation(args: list[str], broker_service, console: Console) ->
     try:
         from pathlib import Path
 
-        from dotenv import load_dotenv
-
+        from brokers.common.env_loader import load_env_file
         from cli.services.broker_registry import create_gateway
 
         env_path = Path('.env.local')
         if env_path.exists():
-            load_dotenv(env_path, override=True)
+            load_env_file(env_path)
         gw = create_gateway("dhan", env_path=env_path, load_instruments=True)
         if not gw:
             console.print("[red]No broker gateway available[/red]")

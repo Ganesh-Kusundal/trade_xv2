@@ -13,6 +13,12 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
+from brokers.common.core.parsing import (
+    parse_decimal,
+    parse_int,
+    parse_optional_str,
+    parse_timestamp,
+)
 from brokers.common.core.domain import (
     DepthLevel,
     ExchangeSegment,
@@ -34,6 +40,7 @@ from brokers.common.core.domain import (
     Trade,
     Validity,
 )
+from brokers.upstox.order_mapping import UpstoxFieldMapping
 
 from .price_parser import UpstoxPriceParser
 
@@ -75,45 +82,12 @@ def _wire_status_to_domain_status(raw: str) -> OrderStatus:
     return normalize_upstox_status(raw)
 
 
-def _str_or_none(value: Any) -> str | None:
-    if value is None:
-        return None
-    s = str(value)
-    return s if s else None
+# ── Parsing helpers (delegated to shared utilities) ─────────────────────
 
-
-def _to_decimal(value: Any, default: Decimal = Decimal("0")) -> Decimal:
-    if value is None or value == "":
-        return default
-    try:
-        return Decimal(str(value))
-    except Exception:
-        return default
-
-
-def _to_int(value: Any, default: int = 0) -> int:
-    if value is None or value == "":
-        return default
-    try:
-        return int(value)
-    except Exception:
-        return default
-
-
-def _parse_iso(value: Any) -> datetime | None:
-    if not value:
-        return None
-    if isinstance(value, int | float):
-        try:
-            return datetime.fromtimestamp(float(value))
-        except (ValueError, OSError):
-            return None
-    if isinstance(value, str):
-        try:
-            return datetime.fromisoformat(value.replace("Z", "+00:00"))
-        except ValueError:
-            return None
-    return None
+_str_or_none = parse_optional_str
+_to_decimal = parse_decimal
+_to_int = parse_int
+_parse_iso = parse_timestamp
 
 
 class UpstoxDomainMapper:

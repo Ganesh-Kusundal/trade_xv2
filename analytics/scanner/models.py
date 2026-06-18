@@ -10,11 +10,44 @@ Usage:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Protocol, runtime_checkable
 
 import pandas as pd
 
 from analytics.pipeline.pipeline import FeaturePipeline
+
+# ---------------------------------------------------------------------------
+# Scanner State (P2-Phase 2)
+# ---------------------------------------------------------------------------
+
+
+class ScannerState(str, Enum):
+    """Scanner lifecycle states.
+    
+    Transitions:
+    - IDLE → RUNNING (start scan)
+    - RUNNING → COMPLETED (scan finished successfully)
+    - RUNNING → FAILED (scan failed with error)
+    - COMPLETED → IDLE (ready for next scan)
+    - FAILED → IDLE (retry after failure)
+    """
+    
+    IDLE = "IDLE"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    
+    @property
+    def is_active(self) -> bool:
+        """True if scanner is currently running."""
+        return self == ScannerState.RUNNING
+    
+    @property
+    def is_terminal(self) -> bool:
+        """True if scanner has completed or failed."""
+        return self in (ScannerState.COMPLETED, ScannerState.FAILED)
+
 
 # ---------------------------------------------------------------------------
 # Models
@@ -91,14 +124,33 @@ class Scanner(Protocol):
 
 @dataclass
 class BaseScanner:
-    """Base class for scanners that use FeaturePipeline."""
+    """Base class for scanners that use FeaturePipeline.
+    
+    P1-Phase 1: Added optional event_bus parameter for publishing
+    SCAN_STARTED, CANDIDATE_GENERATED, and SCAN_COMPLETED events.
+    """
 
     pipeline: FeaturePipeline
     name: str = "base"
     top_n: int = 10
+    event_bus: Any | None = None  # P1-Phase 1: Optional EventBus for event publishing
 
     def scan(self, universe: pd.DataFrame) -> ScanResult:
-        """Default scan: compute features, score, rank. Override for custom logic."""
+        """Default scan: compute features, score, rank. Override for custom logic.
+        
+        P1-Phase 1: Publishes SCAN_STARTED and SCAN_COMPLETED events.
+        """
+        # P1-Phase 1: Publish SCAN_STARTED
+        if self.event_bus is not None:
+            from brokers.common.event_bus import EventType
+            self.event_bus.publish(
+                EventType.SCAN_STARTED.value,
+                payload={
+                    "profile": self.name,
+                    "universe": len(universe),
+                },
+            )
+        
         raise NotImplementedError("Subclasses must implement scan()")
 
     def _compute_features(self, universe: pd.DataFrame) -> pd.DataFrame:
@@ -121,7 +173,10 @@ class BaseScanner:
         return self.pipeline.run(df)
 
     def _score_candidates(self, scored: pd.DataFrame) -> ScanResult:
-        """Convert scored DataFrame into ScanResult."""
+        """Convert scored DataFrame into ScanResult.
+        
+        P1-Phase 1: Publishes CANDIDATE_GENERATED events for each candidate.
+        """
         candidates = []
         for _, row in scored.iterrows():
             reasons = []
@@ -131,16 +186,41 @@ class BaseScanner:
             score_val = row.get("composite_score", 50.0)
             if pd.isna(score_val):
                 score_val = 50.0
-            candidates.append(
-                Candidate(
-                    symbol=str(row.get("symbol", "UNKNOWN")),
-                    score=float(score_val),
-                    reasons=reasons,
-                    metrics={col: float(row[col]) for col in scored.columns if col.startswith("score_") and not pd.isna(row[col])},
-                )
+            candidate = Candidate(
+                symbol=str(row.get("symbol", "UNKNOWN")),
+                score=float(score_val),
+                reasons=reasons,
+                metrics={col: float(row[col]) for col in scored.columns if col.startswith("score_") and not pd.isna(row[col])},
             )
-        return ScanResult(
+            candidates.append(candidate)
+            
+            # P1-Phase 1: Publish CANDIDATE_GENERATED event
+            if self.event_bus is not None:
+                from brokers.common.event_bus import EventType
+                self.event_bus.publish(
+                    EventType.CANDIDATE_GENERATED.value,
+                    payload={
+                        "symbol": candidate.symbol,
+                        "score": candidate.score,
+                        "reason": ", ".join(candidate.reasons),
+                    },
+                )
+        
+        result = ScanResult(
             scanner=self.name,
             candidates=candidates,
             universe_size=len(scored),
         )
+        
+        # P1-Phase 1: Publish SCAN_COMPLETED
+        if self.event_bus is not None:
+            from brokers.common.event_bus import EventType
+            self.event_bus.publish(
+                EventType.SCAN_COMPLETED.value,
+                payload={
+                    "candidate_count": len(candidates),
+                    "universe": len(scored),
+                },
+            )
+        
+        return result

@@ -26,7 +26,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Protocol
 
 from brokers.common.core.constants import DEFAULT_TICK_SIZE
 from brokers.common.core.types import (
@@ -36,6 +36,34 @@ from brokers.common.core.types import (
     Side,
     Validity,
 )
+from brokers.common.status_mapper import StatusMapperRegistry  # P2-Phase 2: Import for status normalization
+
+
+class FieldMapping(Protocol):
+    """Broker-specific field name mapping for Order parsing.
+    
+    Implement this protocol to define how broker-specific API responses
+    map to canonical Order fields. Each broker adapter should provide
+    its own implementation.
+    
+    Example::
+    
+        class DhanFieldMapping:
+            def map_order_id(self, data: dict) -> str:
+                return str(data.get("orderId", ""))
+    """
+    
+    def map_order_id(self, data: dict) -> str: ...
+    def map_symbol(self, data: dict) -> str: ...
+    def map_exchange(self, data: dict) -> str: ...
+    def map_side(self, data: dict) -> str: ...
+    def map_order_type(self, data: dict) -> str: ...
+    def map_status(self, data: dict) -> str: ...
+    def map_quantity(self, data: dict) -> int: ...
+    def map_filled_quantity(self, data: dict) -> int: ...
+    def map_price(self, data: dict) -> str | None: ...
+    def map_avg_price(self, data: dict) -> str | None: ...
+    def map_reject_reason(self, data: dict) -> str: ...
 
 
 @dataclass(slots=True, frozen=True)
@@ -84,50 +112,57 @@ class Order:
     def from_broker_dict(
         cls,
         d: dict,
+        field_mapping: FieldMapping | None = None,
         exchange_resolver: Callable[[str], Any] | None = None,
     ) -> Order:
-        """Construct a canonical Order from a broker-specific dict."""
-        order_id = str(d.get("orderId", d.get("order_id", "")))
-        symbol = str(d.get("tradingSymbol", d.get("symbol", "")))
-        raw_exchange = d.get("exchangeSegment", d.get("exchange", "NSE"))
+        """Construct a canonical Order from a broker-specific dict.
+        
+        Args:
+            d: Broker-specific order dict
+            field_mapping: Broker-specific field name mapping (optional)
+            exchange_resolver: Optional function to convert exchange string to Exchange enum
+        
+        If field_mapping is None, uses default Dhan-compatible mapping for backward compatibility.
+        """
+        from brokers.common.core.field_mapping import DefaultFieldMapping
+        
+        mapping = field_mapping or DefaultFieldMapping()
+        
+        order_id = mapping.map_order_id(d)
+        symbol = mapping.map_symbol(d)
+        raw_exchange = mapping.map_exchange(d)
         exchange = exchange_resolver(raw_exchange) if exchange_resolver else raw_exchange
-        side_str = str(d.get("transactionType", d.get("side", "BUY"))).upper()
+        
+        side_str = mapping.map_side(d)
         side = Side.BUY if side_str == "BUY" else Side.SELL
-
-        ot_str = str(d.get("orderType", d.get("order_type", "MARKET"))).upper()
-        _OT_ALIAS = {
-            "STOPLOSS_LIMIT": "STOP_LOSS",
-            "STOPLOSS_MARKET": "STOP_LOSS_MARKET",
-            "STOPLOSS-MARKET": "STOP_LOSS_MARKET",
-            "SL": "STOP_LOSS",
-            "SLM": "STOP_LOSS_MARKET",
-        }
-        ot_str = _OT_ALIAS.get(ot_str, ot_str)
+        
+        ot_str = mapping.map_order_type(d)
         try:
             order_type = OrderType(ot_str)
         except ValueError:
             order_type = OrderType.MARKET
-
-        status_str = str(d.get("orderStatus", d.get("status", "OPEN"))).upper()
-        status = OrderStatus.normalize(status_str)
-
-        def _opt_dec(v: Any) -> Decimal | None:
+        
+        status_str = mapping.map_status(d)
+        # P2-Phase 2: Use StatusMapperRegistry directly (fixed Clean Architecture violation)
+        status = StatusMapperRegistry.normalize(status_str)
+        
+        def _opt_dec(v: str | None) -> Decimal | None:
             if v in (None, ""):
                 return None
-            return Decimal(str(v))
-
+            return Decimal(v)
+        
         return cls(
             order_id=order_id,
             symbol=symbol,
             exchange=exchange,
             side=side,
             order_type=order_type,
-            quantity=int(d.get("quantity", 0)),
-            filled_quantity=int(d.get("filledQty", d.get("filled_quantity", 0))),
-            price=_opt_dec(d.get("price")) or Decimal("0"),
-            avg_price=_opt_dec(d.get("averagePrice", d.get("avg_price", d.get("average_price")))) or Decimal("0"),
+            quantity=mapping.map_quantity(d),
+            filled_quantity=mapping.map_filled_quantity(d),
+            price=_opt_dec(mapping.map_price(d)) or Decimal("0"),
+            avg_price=_opt_dec(mapping.map_avg_price(d)) or Decimal("0"),
             status=status,
-            reject_reason=str(d.get("rejectReason", d.get("reject_reason", ""))),
+            reject_reason=mapping.map_reject_reason(d),
         )
 
 

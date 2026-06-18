@@ -61,6 +61,7 @@ class EventType(str, Enum):
 
     # ── Orders / OMS ───────────────────────────────────────────────────
     ORDER_PLACED = "ORDER_PLACED"
+    ORDER_SUBMITTED = "ORDER_SUBMITTED"
     ORDER_UPDATED = "ORDER_UPDATED"
     ORDER_CANCELLED = "ORDER_CANCELLED"
     ORDER_REJECTED = "ORDER_REJECTED"
@@ -86,10 +87,56 @@ class EventType(str, Enum):
     SERVICE_STOPPED = "SERVICE_STOPPED"
     SERVICE_FAILED = "SERVICE_FAILED"
 
-    # ── Legacy aliases (still published by existing callers) ─────────
+    # ── Legacy (still published by existing callers) ──────────────────
     POSITION_UPDATED = "POSITION_UPDATED"
     SIGNAL_GENERATED = "SIGNAL_GENERATED"
     RECONCILIATION_COMPLETED = "RECONCILIATION_COMPLETED"
+
+    # ── Additional Risk Events ───────────────────────────────────────
+    RISK_VIOLATED = "RISK_VIOLATED"
+    KILL_SWITCH_TOGGLED = "KILL_SWITCH_TOGGLED"
+    DAILY_PNL_RESET = "DAILY_PNL_RESET"
+    DRAWDOWN_LIMIT_HIT = "DRAWDOWN_LIMIT_HIT"
+
+    # ── Broker Connectivity Events ───────────────────────────────────
+    BROKER_CONNECTED = "BROKER_CONNECTED"
+    BROKER_DISCONNECTED = "BROKER_DISCONNECTED"
+    TOKEN_REFRESHED = "TOKEN_REFRESHED"
+    TOKEN_EXPIRED = "TOKEN_EXPIRED"
+    CIRCUIT_BREAKER_OPENED = "CIRCUIT_BREAKER_OPENED"
+    CIRCUIT_BREAKER_CLOSED = "CIRCUIT_BREAKER_CLOSED"
+
+    # ── Scanner Events ───────────────────────────────────────────────
+    SCAN_STARTED = "SCAN_STARTED"
+    CANDIDATE_GENERATED = "CANDIDATE_GENERATED"
+    SCAN_COMPLETED = "SCAN_COMPLETED"
+
+    # ── Strategy Events ──────────────────────────────────────────────
+    SIGNAL_EXECUTED = "SIGNAL_EXECUTED"
+
+    # ── Position Lifecycle Events ────────────────────────────────────
+    POSITION_OPENED = "POSITION_OPENED"
+    POSITION_CLOSED = "POSITION_CLOSED"
+
+    # ── Health / System Events ───────────────────────────────────────
+    SYSTEM_STARTED = "SYSTEM_STARTED"
+    SYSTEM_SHUTDOWN = "SYSTEM_SHUTDOWN"
+    HEALTH_CHECK_PASSED = "HEALTH_CHECK_PASSED"
+    HEALTH_CHECK_FAILED = "HEALTH_CHECK_FAILED"
+
+    # ── Risk Decision Events (P1-Phase 1) ────────────────────────────
+    RISK_APPROVED = "RISK_APPROVED"
+    RISK_REJECTED = "RISK_REJECTED"
+
+    # ── Portfolio & Metrics Events (P1-Phase 1) ─────────────────────
+    PORTFOLIO_UPDATED = "PORTFOLIO_UPDATED"
+    METRICS_UPDATED = "METRICS_UPDATED"
+
+    # ── Scanner/Strategy Lifecycle Events (P1-Phase 1) ──────────────
+    SCANNER_STATE_CHANGED = "SCANNER_STATE_CHANGED"
+    STRATEGY_ACTIVATED = "STRATEGY_ACTIVATED"
+    STRATEGY_PAUSED = "STRATEGY_PAUSED"
+    STRATEGY_DISABLED = "STRATEGY_DISABLED"
 
 
 @dataclass(frozen=True)
@@ -114,17 +161,15 @@ class EventPayload:
     recorded with older schemas.
     """
 
-    event_type: EventType
     required_keys: tuple[str, ...] = ()
     optional_keys: tuple[str, ...] = ()
     notes: str = ""
 
 
-# Catalogue — append-only. Adding a new entry does not require
-# touching the enum; the linter / test will catch mismatches.
+# Catalogue — append-only. The dict key is the canonical EventType;
+# the linter / test will catch mismatches.
 EVENT_PAYLOADS: dict[EventType, EventPayload] = {
     EventType.TICK: EventPayload(
-        event_type=EventType.TICK,
         required_keys=(),
         optional_keys=("ltp", "open", "high", "low", "close", "volume"),
         notes=(
@@ -134,7 +179,6 @@ EVENT_PAYLOADS: dict[EventType, EventPayload] = {
         ),
     ),
     EventType.DEPTH: EventPayload(
-        event_type=EventType.DEPTH,
         required_keys=("bids", "asks"),
         optional_keys=("ltp", "timestamp"),
         notes=(
@@ -143,37 +187,31 @@ EVENT_PAYLOADS: dict[EventType, EventPayload] = {
         ),
     ),
     EventType.ORDER_PLACED: EventPayload(
-        event_type=EventType.ORDER_PLACED,
         required_keys=("order",),
-        optional_keys=(),
         notes="ORDER_PLACED is published after a successful place_order().",
     ),
-    EventType.ORDER_UPDATED: EventPayload(
-        event_type=EventType.ORDER_UPDATED,
+    EventType.ORDER_SUBMITTED: EventPayload(
         required_keys=("order",),
-        optional_keys=(),
+        notes="ORDER_SUBMITTED is published when an order is submitted to the broker.",
+    ),
+    EventType.ORDER_UPDATED: EventPayload(
+        required_keys=("order",),
         notes="ORDER_UPDATED is published on every order status transition.",
     ),
     EventType.ORDER_CANCELLED: EventPayload(
-        event_type=EventType.ORDER_CANCELLED,
         required_keys=("order_id",),
         optional_keys=("order",),
     ),
     EventType.ORDER_REJECTED: EventPayload(
-        event_type=EventType.ORDER_REJECTED,
         required_keys=("order_id", "reason"),
         optional_keys=("error_code",),
     ),
     EventType.TRADE: EventPayload(
-        event_type=EventType.TRADE,
         required_keys=("trade",),
-        optional_keys=(),
         notes="TRADE is published when a fill is received.",
     ),
     EventType.TRADE_APPLIED: EventPayload(
-        event_type=EventType.TRADE_APPLIED,
         required_keys=("trade",),
-        optional_keys=(),
         notes=(
             "TRADE_APPLIED is the OMS-private downstream of TRADE. "
             "Published only after the OMS has accepted the trade "
@@ -182,57 +220,162 @@ EVENT_PAYLOADS: dict[EventType, EventPayload] = {
         ),
     ),
     EventType.POSITION_CHANGED: EventPayload(
-        event_type=EventType.POSITION_CHANGED,
         required_keys=("symbol", "quantity"),
         optional_keys=("avg_price", "realized_pnl"),
     ),
     EventType.RISK_BREACH: EventPayload(
-        event_type=EventType.RISK_BREACH,
         required_keys=("rule", "value", "limit"),
         optional_keys=("symbol",),
     ),
     EventType.KILL_SWITCH_FLIPPED: EventPayload(
-        event_type=EventType.KILL_SWITCH_FLIPPED,
         required_keys=("active",),
         optional_keys=("actor", "reason"),
     ),
     EventType.RECONCILIATION_DRIFT: EventPayload(
-        event_type=EventType.RECONCILIATION_DRIFT,
         required_keys=("symbol", "internal", "broker"),
         optional_keys=("side", "quantity_diff"),
     ),
     EventType.RECONCILIATION_OK: EventPayload(
-        event_type=EventType.RECONCILIATION_OK,
-        required_keys=(),
         optional_keys=("checked_at", "symbols"),
         notes="Heartbeat-style: published after each successful reconcile cycle.",
     ),
     EventType.SERVICE_STARTED: EventPayload(
-        event_type=EventType.SERVICE_STARTED,
         required_keys=("service_name",),
         optional_keys=("detail",),
     ),
     EventType.SERVICE_STOPPED: EventPayload(
-        event_type=EventType.SERVICE_STOPPED,
         required_keys=("service_name",),
         optional_keys=("detail",),
     ),
     EventType.SERVICE_FAILED: EventPayload(
-        event_type=EventType.SERVICE_FAILED,
         required_keys=("service_name", "error"),
         optional_keys=("traceback",),
     ),
     EventType.INDEX_QUOTE: EventPayload(
-        event_type=EventType.INDEX_QUOTE,
         required_keys=("index",),
         optional_keys=("ltp", "change", "change_pct"),
     ),
     EventType.OPTION_CHAIN: EventPayload(
-        event_type=EventType.OPTION_CHAIN,
         required_keys=("underlying", "expiry"),
         optional_keys=("calls", "puts", "timestamp"),
     ),
+    EventType.POSITION_UPDATED: EventPayload(
+        required_keys=("symbol", "quantity"),
+        optional_keys=("avg_price",),
+    ),
+    EventType.SIGNAL_GENERATED: EventPayload(
+        required_keys=("signal",),
+    ),
+    EventType.RECONCILIATION_COMPLETED: EventPayload(
+        optional_keys=("checked_at", "symbols", "drift_count"),
+    ),
+    EventType.RISK_VIOLATED: EventPayload(
+        required_keys=("rule", "value", "limit"),
+        optional_keys=("symbol",),
+    ),
+    EventType.KILL_SWITCH_TOGGLED: EventPayload(
+        required_keys=("active",),
+        optional_keys=("actor", "reason"),
+    ),
+    EventType.DAILY_PNL_RESET: EventPayload(
+        optional_keys=("reset_at",),
+    ),
+    EventType.DRAWDOWN_LIMIT_HIT: EventPayload(
+        required_keys=("drawdown", "limit"),
+    ),
+    EventType.BROKER_CONNECTED: EventPayload(
+        required_keys=("broker_name",),
+        optional_keys=("environment",),
+    ),
+    EventType.BROKER_DISCONNECTED: EventPayload(
+        required_keys=("broker_name", "reason"),
+    ),
+    EventType.TOKEN_REFRESHED: EventPayload(
+        required_keys=("broker_name",),
+        optional_keys=("expires_at",),
+    ),
+    EventType.TOKEN_EXPIRED: EventPayload(
+        required_keys=("broker_name",),
+    ),
+    EventType.CIRCUIT_BREAKER_OPENED: EventPayload(
+        required_keys=("reason",),
+        optional_keys=("duration",),
+    ),
+    EventType.CIRCUIT_BREAKER_CLOSED: EventPayload(
+        optional_keys=("down_time",),
+    ),
+    EventType.SCAN_STARTED: EventPayload(
+        required_keys=("profile",),
+        optional_keys=("universe",),
+    ),
+    EventType.CANDIDATE_GENERATED: EventPayload(
+        required_keys=("symbol", "score"),
+        optional_keys=("reason",),
+    ),
+    EventType.SCAN_COMPLETED: EventPayload(
+        required_keys=("candidate_count",),
+        optional_keys=("duration", "universe"),
+    ),
+    EventType.SIGNAL_EXECUTED: EventPayload(
+        required_keys=("signal", "order_id"),
+    ),
+    EventType.POSITION_OPENED: EventPayload(
+        required_keys=("symbol", "quantity", "avg_price"),
+    ),
+    EventType.POSITION_CLOSED: EventPayload(
+        required_keys=("symbol", "realized_pnl"),
+    ),
+    EventType.SYSTEM_STARTED: EventPayload(
+        required_keys=("service_name",),
+        optional_keys=("version",),
+    ),
+    EventType.SYSTEM_SHUTDOWN: EventPayload(
+        required_keys=("service_name",),
+        optional_keys=("reason",),
+    ),
+    EventType.HEALTH_CHECK_PASSED: EventPayload(
+        optional_keys=("component",),
+    ),
+    EventType.HEALTH_CHECK_FAILED: EventPayload(
+        required_keys=("component", "error"),
+    ),
+    EventType.RISK_APPROVED: EventPayload(
+        required_keys=("order_id",),
+        notes="RISK_APPROVED is published when risk check passes for an order.",
+    ),
+    EventType.RISK_REJECTED: EventPayload(
+        required_keys=("order_id", "rule", "value", "limit"),
+        notes="RISK_REJECTED is published when risk check fails for an order.",
+    ),
+    EventType.PORTFOLIO_UPDATED: EventPayload(
+        required_keys=("total_pnl", "capital", "positions_count"),
+        optional_keys=("drawdown", "sharpe"),
+        notes="PORTFOLIO_UPDATED is published when portfolio state changes.",
+    ),
+    EventType.METRICS_UPDATED: EventPayload(
+        required_keys=("metric_name", "value"),
+        optional_keys=("symbol", "strategy"),
+        notes="METRICS_UPDATED is published when a metric value changes.",
+    ),
+    EventType.SCANNER_STATE_CHANGED: EventPayload(
+        required_keys=("scanner_name", "state"),
+        optional_keys=("reason",),
+        notes="SCANNER_STATE_CHANGED is published when scanner state changes.",
+    ),
+    EventType.STRATEGY_ACTIVATED: EventPayload(
+        required_keys=("strategy_name",),
+        optional_keys=("activated_by",),
+    ),
+    EventType.STRATEGY_PAUSED: EventPayload(
+        required_keys=("strategy_name",),
+        optional_keys=("reason",),
+    ),
+    EventType.STRATEGY_DISABLED: EventPayload(
+        required_keys=("strategy_name", "reason"),
+    ),
 }
+
+_CANONICAL: frozenset[str] = frozenset(t.value for t in EventType)
 
 
 def canonical_event_types() -> frozenset[str]:
@@ -242,7 +385,7 @@ def canonical_event_types() -> frozenset[str]:
     are being published". Tests can diff the live set returned by
     the bus against this canonical set to catch typos.
     """
-    return frozenset(t.value for t in EventType)
+    return _CANONICAL
 
 
 def make_payload(
@@ -266,7 +409,6 @@ def make_payload(
         return payload
     contract = EVENT_PAYLOADS.get(event_type)
     if contract is None:
-        # Unknown event type — allowed but flagged.
         return payload
     missing = [k for k in contract.required_keys if k not in payload]
     if missing:

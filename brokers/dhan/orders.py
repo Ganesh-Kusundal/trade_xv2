@@ -31,10 +31,14 @@ from brokers.dhan.domain import (
 )
 from brokers.dhan.exceptions import OrderError
 from brokers.dhan.http_client import DhanHttpClient
+from brokers.dhan.order_mapping import DhanFieldMapping
 from brokers.dhan.resolver import SymbolResolver
 from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
 
 logger = logging.getLogger(__name__)
+
+# Module-level Dhan field mapping instance (reused for all order parsing)
+_DHAN_MAPPING = DhanFieldMapping()
 
 # Segments where only INTRADAY and MARGIN product types are allowed
 _DERIVATIVE_SEGMENTS = frozenset({
@@ -467,7 +471,7 @@ class OrdersAdapter:
 
     @staticmethod
     def _parse_order(raw: dict) -> Order:
-        return Order.from_broker_dict(raw, exchange_resolver=_parse_exchange)
+        return Order.from_broker_dict(raw, field_mapping=_DHAN_MAPPING, exchange_resolver=_parse_exchange)
 
     def place_slice_order(self, symbol: str, exchange: str, **kwargs) -> Order:
         """Place a slice order (automatically splits large orders).

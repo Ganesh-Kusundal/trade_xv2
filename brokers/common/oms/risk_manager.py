@@ -1,6 +1,6 @@
 """Pre-trade risk management.
 
-Risk checks run inside the OMS lock before an order is submitted. All checks
+Pre-trade risk checks run inside the OMS lock before an order is submitted. All checks
 are deterministic and read-only on the provided state.
 
 Concurrency contract (Phase A / A2 + A3)
@@ -23,6 +23,13 @@ called by an external scheduler at the configured rollover hour (default
 is the canonical implementation. Without that scheduler, the running
 total will accumulate across the IST 00:00 boundary and the daily-loss
 check will block orders the next morning.
+
+CapitalProvider support (P2-2)
+-------------------------------
+RiskManager now accepts either ``capital_fn`` (legacy) or ``capital_provider``
+(new protocol-based approach). The CapitalProvider protocol solves the
+initialization ordering problem by deferring capital retrieval until
+funds() is actually needed.
 """
 
 from __future__ import annotations
@@ -40,6 +47,7 @@ from brokers.common.core.constants import (
     RISK_POSITION_PERCENT,
 )
 from brokers.common.core.domain import Order
+from brokers.common.oms.capital_provider import CapitalProvider, FixedCapitalProvider
 from brokers.common.oms.position_manager import PositionManager
 
 logger = logging.getLogger(__name__)
@@ -80,10 +88,26 @@ class RiskManager:
         position_manager: PositionManager,
         config: RiskConfig,
         capital_fn: Callable[[], Decimal] | None = None,
+        capital_provider: CapitalProvider | None = None,
     ) -> None:
         self._position_manager = position_manager
         self._config = config
-        self._capital_fn = capital_fn or (lambda: Decimal("0"))
+        
+        # Support both old capital_fn and new capital_provider (P2-2)
+        if capital_provider is not None:
+            self._capital_provider = capital_provider
+        elif capital_fn is not None:
+            # Wrap legacy capital_fn in adapter
+            class LegacyCapitalAdapter(CapitalProvider):
+                def __init__(self, fn):
+                    self._fn = fn
+                def get_available_balance(self) -> Decimal:
+                    return self._fn()
+            self._capital_provider = LegacyCapitalAdapter(capital_fn)
+        else:
+            # Default to fixed capital
+            self._capital_provider = FixedCapitalProvider(Decimal("100000"))
+        
         self._daily_pnl: Decimal = Decimal("0")
         # A2: lock that protects _config, _daily_pnl, and the derived
         # reads in check_order. RLock (not Lock) so the OMS may
@@ -109,7 +133,7 @@ class RiskManager:
             if self._config.kill_switch:
                 return RiskResult(False, "Kill switch is active")
 
-            capital = self._capital_fn()
+            capital = self._capital_provider.get_available_balance()
             if capital <= 0:
                 return RiskResult(False, "Insufficient capital")
 

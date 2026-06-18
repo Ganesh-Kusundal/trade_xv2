@@ -14,12 +14,12 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
-from dotenv import load_dotenv
 from rich.console import Console
 from rich.table import Table
 
 # Initialize centralized logging BEFORE any other imports that log
 from brokers.common.logging_config import setup_logging
+from brokers.common.env_loader import load_env_file
 from brokers.common.core.domain import DepthLevel, MarketDepth
 setup_logging()
 
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 # Load environment variables once at startup so every subcommand sees them.
 _ENV_PATH = Path(".env.local")
 if _ENV_PATH.exists() and _ENV_PATH.stat().st_size > 0:
-    load_dotenv(_ENV_PATH, override=True)
+    load_env_file(_ENV_PATH)
 
 from cli.commands import (
     account as cmd_account,

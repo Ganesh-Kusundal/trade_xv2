@@ -71,9 +71,11 @@ def test_history_batch_concatenates_per_symbol(tmp_path: Path):
         timeframe="1m",
         lookback_days=30,
     )
-    assert set(results.keys()) == {"RELIANCE", "TCS"}
-    assert len(results["RELIANCE"]) == 10
-    assert len(results["TCS"]) == 10
+    # history_batch returns a DataFrame per ABC contract
+    assert isinstance(results, pd.DataFrame)
+    assert set(results["symbol"].unique()) == {"RELIANCE", "TCS"}
+    assert len(results[results["symbol"] == "RELIANCE"]) == 10
+    assert len(results[results["symbol"] == "TCS"]) == 10
 
 
 def test_quote_batch_skips_missing_symbols(tmp_path: Path):
@@ -143,8 +145,10 @@ def test_history_batch_skips_symbols_with_empty_dataframe(tmp_path: Path):
         timeframe="1m",
         lookback_days=30,
     )
-    assert "RELIANCE" in results
-    assert "TCS" not in results  # empty df omitted
+    # history_batch returns a DataFrame per ABC contract
+    assert isinstance(results, pd.DataFrame)
+    assert "RELIANCE" in results["symbol"].values
+    assert "TCS" not in results["symbol"].values  # empty df omitted
 
 
 def test_batch_execute_is_reusable():

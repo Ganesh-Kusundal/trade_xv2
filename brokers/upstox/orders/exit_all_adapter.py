@@ -5,13 +5,10 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from brokers.common.resilience.errors import ExitAllError
 from brokers.upstox.kill_switch.client import UpstoxKillSwitchClient
 
 logger = logging.getLogger(__name__)
-
-
-class ExitAllError(Exception):
-    """Raised when the exit-all operation fails."""
 
 
 class UpstoxExitAllAdapter:

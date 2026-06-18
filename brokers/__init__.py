@@ -1,7 +1,22 @@
-"""Trade_XV2 Broker — clean broker module.
+"""TradeXV2 Brokers Package — broker-agnostic core.
 
-Canonical domain types are imported from ``brokers.common.core.domain``.
-Dhan-specific types and infrastructure come from ``brokers.dhan``.
+This package provides the canonical domain types and abstract interfaces
+used across all broker adapters. Broker-specific implementations (Dhan,
+Upstox, Paper) are in their own subpackages and should be imported directly:
+
+    from brokers.dhan.gateway import BrokerGateway
+    from brokers.upstox.gateway import UpstoxGateway
+    from brokers.paper import PaperGateway
+
+Import Direction Rule
+---------------------
+    brokers.common → broker-agnostic core (this package)
+    brokers.dhan → Dhan-specific adapter
+    brokers.upstox → Upstox-specific adapter
+    brokers.paper → Paper/mock trading adapter
+
+Never import broker-specific types from ``brokers`` top-level. This
+prevents shotgun surgery when adding new brokers.
 """
 
 from brokers.common.core.domain import (
@@ -16,53 +31,28 @@ from brokers.common.core.domain import (
     Trade,
     Validity,
 )
-from brokers.dhan import (
-    Balance,
-    BrokerFactory,
-    BrokerGateway,
-    DhanConnection,
-    DhanHttpClient,
-    Exchange,
-    Instrument,
-    InstrumentLoader,
-    InstrumentNotFoundError,
-    InstrumentType,
-    MarketDepth,
-    OptionType,
-    Quote,
-    SymbolResolver,
-)
+
+# Canonical interfaces (not broker-specific)
+from brokers.common.gateway import MarketDataGateway
+from brokers.common.factory import BrokerProviderFactory
 
 # Backward-compatibility alias — some code uses OrderSide instead of Side.
 OrderSide = Side
 
 __all__ = [
-    # Dhan-specific types (from brokers.dhan)
-    "Balance",
-    # Infrastructure (from brokers.dhan)
-    "BrokerFactory",
-    "BrokerGateway",
-    "DhanConnection",
-    "DhanHttpClient",
-    "Exchange",
-    # Canonical domain types (from brokers.common.core.domain)
+    # Broker-agnostic domain types
     "Holding",
-    "Instrument",
-    "InstrumentLoader",
-    "InstrumentNotFoundError",
-    "InstrumentType",
-    "MarketDepth",
-    "OptionType",
     "Order",
     "OrderResponse",
-    "OrderSide",
     "OrderStatus",
     "OrderType",
+    "OrderSide",  # Backward-compat alias for Side
     "Position",
     "ProductType",
-    "Quote",
     "Side",
-    "SymbolResolver",
     "Trade",
     "Validity",
+    # Abstract interfaces
+    "MarketDataGateway",
+    "BrokerProviderFactory",
 ]

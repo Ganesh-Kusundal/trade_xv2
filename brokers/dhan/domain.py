@@ -11,7 +11,6 @@ Usage::
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import timedelta, timezone
 from decimal import Decimal
 from enum import Enum
 from typing import Any
@@ -31,9 +30,7 @@ from brokers.common.core.domain import (
     Validity,
 )
 
-# ── IST helper ─────────────────────────────────────────────────────────────
-
-IST = timezone(timedelta(hours=5, minutes=30))
+from brokers.common.core.constants import IST_OFFSET as IST
 
 # ── Dhan-specific enums ────────────────────────────────────────────────────
 

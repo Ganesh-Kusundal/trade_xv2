@@ -13,7 +13,7 @@ import logging
 import os
 import threading
 from collections.abc import Callable
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -167,6 +167,7 @@ class EventLog:
             "source": event.source,
             "symbol": event.symbol,
             "payload": self._serialize_payload(event.payload),
+            "sequence_number": event.sequence_number,  # P4
         }
         line = json.dumps(record, separators=(",", ":"), default=str)
         with self._lock:
@@ -240,6 +241,7 @@ class EventLog:
                     payload=_deserialize_payload(record.get("payload", {})),
                     symbol=record.get("symbol"),
                     source=record.get("source", ""),
+                    sequence_number=record.get("sequence_number", 0),  # P4
                 )
                 events.append(event)
                 if handler is not None:
@@ -263,3 +265,166 @@ class EventLog:
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         self.close()
+
+
+# ---------------------------------------------------------------------------
+# BufferedEventLog (P3-Phase 3)
+# ---------------------------------------------------------------------------
+
+
+class BufferedEventLog(EventLog):
+    """EventLog with buffered writes for improved performance.
+    
+    Instead of fsync on every append, this class buffers events and flushes:
+    - When buffer size >= flush_threshold (default 100 events)
+    - When flush_interval seconds have passed (default 1 second)
+    - On explicit flush() call
+    - On close() or process exit
+    
+    Critical events (TRADE, ORDER_*) can use sync_mode=True for immediate fsync.
+    
+    Usage:
+        log = BufferedEventLog(
+            events_dir=Path("market_data/events"),
+            flush_threshold=100,
+            flush_interval=1.0,
+        )
+        log.append(event)  # Buffered
+        log.append(event)  # Buffered
+        log.flush()  # Explicit flush
+        
+        # Critical event: immediate fsync
+        log.append(critical_event, sync_mode=True)
+    
+    Parameters
+    ----------
+    events_dir:
+        Directory to store event log files.
+    flush_threshold:
+        Number of events to buffer before auto-flush (default 100).
+    flush_interval:
+        Maximum time between flushes in seconds (default 1.0).
+    """
+    
+    def __init__(
+        self,
+        events_dir: Path = DEFAULT_EVENTS_DIR,
+        flush_threshold: int = 100,
+        flush_interval: float = 1.0,
+    ) -> None:
+        super().__init__(events_dir=events_dir)
+        self._flush_threshold = flush_threshold
+        self._flush_interval = flush_interval
+        self._buffer: list[tuple[str, DomainEvent]] = []
+        self._last_flush: datetime = datetime.now(timezone.utc)
+        self._flush_count = 0
+        
+        # Register atexit handler for flush on process exit
+        import atexit
+        atexit.register(self._flush_on_exit)
+    
+    def append(self, event: DomainEvent, sync_mode: bool = False) -> None:
+        """Append an event to the log (buffered).
+        
+        Parameters
+        ----------
+        event:
+            DomainEvent to append.
+        sync_mode:
+            If True, flush immediately (for critical events like TRADE, ORDER).
+        """
+        with self._lock:
+            # Serialize event
+            record = {
+                "event_type": event.event_type,
+                "timestamp": event.timestamp.isoformat(),
+                "payload": _serialize_value(event.payload),
+                "symbol": event.symbol,
+                "source": event.source,
+            }
+            line = json.dumps(record, ensure_ascii=False) + "\n"
+            
+            # Add to buffer
+            self._buffer.append((line, event))
+            
+            # Check if we should flush
+            should_flush = (
+                sync_mode or
+                len(self._buffer) >= self._flush_threshold or
+                (datetime.now(timezone.utc) - self._last_flush).total_seconds() >= self._flush_interval
+            )
+            
+            if should_flush:
+                self._flush_locked()
+    
+    def _flush_locked(self) -> None:
+        """Flush buffer to disk. Must be called with lock held."""
+        if not self._buffer:
+            return
+        
+        try:
+            # Open file if not already open
+            if self._current_handle is None:
+                # Use timestamp from first buffered event to determine file
+                first_event = self._buffer[0][1]
+                self._ensure_handle(first_event.timestamp)
+            
+            # Write all buffered events
+            for line, _ in self._buffer:
+                self._current_handle.write(line)
+            
+            # Flush and fsync
+            self._current_handle.flush()
+            if hasattr(self._current_handle, 'fileno'):
+                try:
+                    os.fsync(self._current_handle.fileno())
+                except OSError:
+                    pass  # Some file-like objects don't support fileno
+            
+            self._flush_count += 1
+            self._last_flush = datetime.now(timezone.utc)
+            self._buffer.clear()
+        
+        except Exception as exc:
+            logger.error("BufferedEventLog flush failed: %s", exc, exc_info=True)
+            # Don't clear buffer on failure, retry next time
+    
+    def flush(self) -> None:
+        """Explicitly flush the buffer to disk."""
+        with self._lock:
+            self._flush_locked()
+    
+    def _flush_on_exit(self) -> None:
+        """Flush buffer on process exit."""
+        try:
+            self.flush()
+            logger.info("BufferedEventLog flushed on exit (flushes=%d)", self._flush_count)
+        except Exception as exc:
+            logger.error("BufferedEventLog exit flush failed: %s", exc)
+    
+    def close(self) -> None:
+        """Flush buffer and close the log."""
+        with self._lock:
+            self._flush_locked()
+            super().close()
+            logger.info(
+                "BufferedEventLog closed (flushes=%d, buffer_size=%d)",
+                self._flush_count,
+                len(self._buffer),
+            )
+    
+    def get_stats(self) -> dict[str, Any]:
+        """Get buffer statistics.
+        
+        Returns
+        -------
+        dict:
+            Statistics including buffer size, flush count, etc.
+        """
+        return {
+            "buffer_size": len(self._buffer),
+            "flush_count": self._flush_count,
+            "flush_threshold": self._flush_threshold,
+            "flush_interval": self._flush_interval,
+            "last_flush": self._last_flush.isoformat(),
+        }

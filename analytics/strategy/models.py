@@ -40,6 +40,39 @@ class SignalType(str, Enum):
 
 
 # ---------------------------------------------------------------------------
+# Strategy State (P2-Phase 2)
+# ---------------------------------------------------------------------------
+
+
+class StrategyState(str, Enum):
+    """Strategy lifecycle states.
+    
+    Transitions:
+    - INACTIVE → ACTIVE (activate strategy)
+    - ACTIVE → PAUSED (temporarily disable)
+    - ACTIVE → DISABLED (permanently disable)
+    - PAUSED → ACTIVE (resume strategy)
+    - PAUSED → DISABLED (disable from paused state)
+    - DISABLED → {} (terminal state)
+    """
+    
+    INACTIVE = "INACTIVE"
+    ACTIVE = "ACTIVE"
+    PAUSED = "PAUSED"
+    DISABLED = "DISABLED"
+    
+    @property
+    def is_active(self) -> bool:
+        """True if strategy is active and can generate signals."""
+        return self == StrategyState.ACTIVE
+    
+    @property
+    def is_terminal(self) -> bool:
+        """True if strategy is disabled (cannot transition further)."""
+        return self == StrategyState.DISABLED
+
+
+# ---------------------------------------------------------------------------
 # Signal
 # ---------------------------------------------------------------------------
 

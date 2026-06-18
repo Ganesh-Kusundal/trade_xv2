@@ -259,8 +259,8 @@ def test_trading_context_replays_event_log(tmp_path) -> None:
         quantity=10,
         price=Decimal("100"),
     )
-    bus.publish(DomainEvent.now("ORDER_UPDATED", {"order": order}, symbol="RELIANCE"))
-    bus.publish(DomainEvent.now("TRADE", {"trade": trade}, symbol="RELIANCE"))
+    bus.publish(DomainEvent.now(EventType.ORDER_UPDATED.value, {"order": order}, symbol="RELIANCE"))  # P1-3: Migrated to EventType enum
+    bus.publish(DomainEvent.now(EventType.TRADE.value, {"trade": trade}, symbol="RELIANCE"))  # P1-3: Migrated to EventType enum
     log.close()
 
     # New context replays the log.

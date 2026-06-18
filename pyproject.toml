@@ -140,13 +140,24 @@ ignore = [
 "tests/**/*.py" = ["S", "B011"]
 "scripts/**/*.py" = ["S", "E", "F"]
 
-[tool.ruff.lint.flake8-tidy-imports.banned-api]
-"brokers.dhan.domain.Quote" = {msg = "Import Quote from brokers.common.core.domain or brokers.common.core.models, not from brokers.dhan.domain"}
-"brokers.dhan.domain.Balance" = {msg = "Import Balance from brokers.common.core.domain or brokers.common.core.models, not from brokers.dhan.domain"}
-"brokers.dhan.domain.DepthLevel" = {msg = "Import DepthLevel from brokers.common.core.domain or brokers.common.core.models, not from brokers.dhan.domain"}
-"brokers.dhan.domain.MarketDepth" = {msg = "Import MarketDepth from brokers.common.core.domain or brokers.common.core.models, not from brokers.dhan.domain"}
-
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
 line-ending = "lf"
+skip-magic-trailing-comma = false
+
+# ─── Coding Standards ─────────────────────────────────────
+# These rules enforce architectural invariants and team conventions.
+# See docs/CODING_STANDARDS.md for the full guide.
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+# Domain types must come from brokers.common, not broker-specific packages
+"brokers.dhan.domain.Quote" = {msg = "Import Quote from brokers.common.core.domain, not from brokers.dhan.domain"}
+"brokers.dhan.domain.Balance" = {msg = "Import Balance from brokers.common.core.domain, not from brokers.dhan.domain"}
+"brokers.dhan.domain.DepthLevel" = {msg = "Import DepthLevel from brokers.common.core.domain, not from brokers.dhan.domain"}
+"brokers.dhan.domain.MarketDepth" = {msg = "Import MarketDepth from brokers.common.core.domain, not from brokers.dhan.domain"}
+# Lower layers cannot import from CLI
+"cli" = {msg = "Lower layers (datalake, analytics, brokers) cannot import from cli. Use entry points or events instead."}
+# Cross-broker imports are forbidden
+"brokers.dhan" = {msg = "Cannot import from brokers.dhan in brokers.common or other broker packages"}
+"brokers.upstox" = {msg = "Cannot import from brokers.upstox in brokers.common or other broker packages"}

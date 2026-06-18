@@ -362,3 +362,71 @@ class MarketDataGateway(ABC):
     def close(self) -> None:
         """Close all connections and clean up resources."""
         ...
+
+
+# ---------------------------------------------------------------------------
+# Observability Provider Protocol
+# ---------------------------------------------------------------------------
+
+
+class ObservabilityProvider:
+    """Protocol for exposing broker-specific observability data.
+    
+    This protocol decouples the CLI observability layer from broker
+    internals. Instead of using getattr() chains to probe private
+    attributes like _conn, _client, _token_scheduler, brokers implement
+    this protocol to expose canonical observability data.
+    
+    All methods have default implementations returning empty/no-op data,
+    so brokers that don't support certain features (e.g., no WebSocket)
+    don't need to implement anything.
+    
+    Usage:
+        # In broker adapter (e.g., DhanGateway):
+        def get_connection_status(self) -> dict[str, bool]:
+            return {
+                "market_feed": self.market_feed.is_connected if self.market_feed else False,
+                "order_stream": self.order_stream.is_connected if self.order_stream else False,
+            }
+        
+        # In CLI observability builder:
+        status = gateway.get_connection_status()
+        gauges["market_stream_connected"] = 1.0 if status.get("market_feed", False) else 0.0
+    """
+    
+    def get_connection_status(self) -> dict[str, bool]:
+        """Return connection status for all streams.
+        
+        Returns:
+            Dict mapping stream name to connection status.
+            Example: {"market_feed": True, "order_stream": False}
+        """
+        return {}  # Default: no streams
+    
+    def get_circuit_breaker_states(self) -> dict[str, int]:
+        """Return circuit breaker states.
+        
+        Returns:
+            Dict mapping circuit breaker name to state value.
+            State values: 0=CLOSED, 1=OPEN, 2=HALF_OPEN
+            Example: {"read_cb": 0, "write_cb": 1, "admin_cb": 0}
+        """
+        return {}  # Default: no circuit breakers
+    
+    def get_token_refresh_metrics(self) -> dict[str, int]:
+        """Return token refresh metrics.
+        
+        Returns:
+            Dict with token refresh statistics.
+            Example: {"refresh_count": 42, "error_count": 0}
+        """
+        return {"refresh_count": 0, "error_count": 0}  # Default: no token refresh
+    
+    def get_rate_limiter_metrics(self) -> dict[str, int]:
+        """Return rate limiter metrics.
+        
+        Returns:
+            Dict with rate limiter statistics.
+            Example: {"tokens_available": 10, "requests_throttled": 5}
+        """
+        return {"tokens_available": 0, "requests_throttled": 0}  # Default: no rate limiter

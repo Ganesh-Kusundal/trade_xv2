@@ -4,14 +4,25 @@ The engine processes OHLCV data one bar at a time, running the same
 FeaturePipeline and StrategyPipeline used in live trading. This ensures
 complete parity: if a strategy works in replay, it will work in live.
 
+P0-2 OMS Integration: When a ``TradingContext`` is provided, the engine routes
+all order execution through :class:`OmsBacktestAdapter`, ensuring backtest-live
+parity for risk gates, idempotency, and event publishing. Without a
+TradingContext, the engine falls back to legacy simulated position management
+for backward compatibility.
+
+P2-3 Intra-Bar Checks: The engine checks open positions against stop-loss and
+target levels on every bar using intra-bar high/low, not just on explicit
+signals. This prevents unrealistic fills and improves backtest fidelity.
+
 Flow per bar:
     1. Receive Bar (OHLCV)
     2. Append to growing DataFrame (sliding window)
     3. Run FeaturePipeline on the window
     4. Construct Candidate from latest bar
     5. Run StrategyPipeline.evaluate_single(candidate, features)
-    6. Process Signals (update positions, record trades)
-    7. Update equity curve
+    6. P2-3: Check intra-bar stop-loss/target for open positions
+    7. Process Signals (route through OMS if available, else simulated)
+    8. Update equity curve
 
 Usage:
     from analytics.pipeline import FeaturePipeline, RSI, ATR, SMA
@@ -20,14 +31,24 @@ Usage:
     pipeline = FeaturePipeline().add(RSI(14)).add(ATR(14)).add(SMA(20))
     strategy = StrategyPipeline(strategies=[MomentumStrategy()])
 
+    # Basic usage (legacy simulated positions)
     engine = ReplayEngine(pipeline, strategy)
     result = engine.run(dataframe)
     print(result.summary)
+
+    # P0-2: With OMS integration for backtest-live parity
+    from cli.services.compose import build_runtime
+    runtime = build_runtime("dhan")
+    engine = ReplayEngine(
+        pipeline, strategy, trading_context=runtime.trading_context
+    )
+    result = engine.run(dataframe)
 """
 
 from __future__ import annotations
 
 import logging
+from decimal import Decimal
 
 import pandas as pd
 
@@ -53,6 +74,13 @@ class ReplayEngine:
     Processes OHLCV data through the same FeaturePipeline + StrategyPipeline
     used in live trading, ensuring complete parity.
 
+    P0-2: When ``trading_context`` is provided, all order execution is routed
+    through :class:`OmsBacktestAdapter` for backtest-live parity. Without it,
+    the engine falls back to legacy simulated position management.
+
+    P2-3: Open positions are checked against stop-loss and target levels on
+    every bar using intra-bar high/low data.
+
     Parameters
     ----------
     pipeline:
@@ -63,6 +91,10 @@ class ReplayEngine:
         Replay configuration (capital, slippage, warmup, etc.).
     event_bus:
         Optional EventBus for publishing signals.
+    trading_context:
+        Optional OMS TradingContext. When provided, enables P0-2 OMS
+        integration for backtest-live parity. If None, uses legacy
+        simulated position management (backward compatible).
     """
 
     def __init__(
@@ -71,11 +103,25 @@ class ReplayEngine:
         strategy_pipeline: StrategyPipeline | None = None,
         config: ReplayConfig | None = None,
         event_bus=None,
+        trading_context=None,
     ) -> None:
         self._pipeline = pipeline or FeaturePipeline()
         self._strategy = strategy_pipeline or StrategyPipeline()
         self._config = config or ReplayConfig()
         self._event_bus = event_bus
+        self._trading_context = trading_context
+
+        # P0-2: Initialize OMS adapter if trading_context is provided
+        if trading_context is not None:
+            from analytics.replay.oms_bridge import OmsBacktestAdapter
+            cfg = self._config
+            self._oms_adapter = OmsBacktestAdapter(
+                trading_context=trading_context,
+                slippage_pct=cfg.slippage_pct,
+                commission_flat=Decimal(str(cfg.commission_flat)),
+            )
+        else:
+            self._oms_adapter = None
 
     def run(self, data: pd.DataFrame, *, symbol: str = "SYMBOL") -> ReplayResult:
         """Run replay on OHLCV DataFrame.
@@ -155,10 +201,28 @@ class ReplayEngine:
             # Construct Candidate
             candidate = Candidate(symbol=symbol, score=50.0, reasons=["replay"])
 
+            # P2-3: Check intra-bar stop-loss/target BEFORE processing signals
+            if session.position is not None:
+                pos = session.position
+                hit_stop = pos.stop_loss is not None and bar.low <= pos.stop_loss
+                hit_target = pos.target is not None and bar.high >= pos.target
+
+                if hit_stop or hit_target:
+                    reason = "Stop-loss hit" if hit_stop else "Target hit"
+                    exit_price = pos.stop_loss if hit_stop else pos.target
+                    self._close_position_at_price(session, bar, exit_price, reason)
+                    # Skip signal processing for this bar - position already closed
+                    # Update equity and continue to next bar
+                    equity = session.current_equity
+                    session.equity_curve.append((bar_ts, equity))
+                    if equity > session.peak_equity:
+                        session.peak_equity = equity
+                    continue
+
             # Run StrategyPipeline
             signals = self._strategy.evaluate_single(candidate, features)
 
-            # Process signals
+            # Process signals (P0-2: routes through OMS if available)
             for signal in signals:
                 session.signals.append(signal)
                 self._process_signal(signal, bar, session, config)
@@ -231,10 +295,95 @@ class ReplayEngine:
         session: ReplaySession,
         config: ReplayConfig,
     ) -> None:
-        """Process a signal: open/close positions, record trades."""
+        """Process a signal: route through OMS if available, else use simulated positions.
+
+        P0-2: When ``trading_context`` was provided at initialization, signals
+        are routed through :class:`OmsBacktestAdapter` to ensure backtest-live
+        parity. Otherwise, falls back to legacy simulated position management.
+        """
         if not signal.is_actionable:
             return
 
+        # P0-2: If OMS adapter is available, route through OMS for parity
+        if self._oms_adapter is not None:
+            self._process_signal_via_oms(signal, bar, session, config)
+        else:
+            # Fallback: legacy simulated position management (deprecated)
+            self._process_signal_simulated(signal, bar, session, config)
+
+    def _process_signal_via_oms(
+        self,
+        signal: Signal,
+        bar: Bar,
+        session: ReplaySession,
+        config: ReplayConfig,
+    ) -> None:
+        """Route signal through OMS for backtest-live parity (P0-2).
+
+        Opens/closes positions via :class:`OmsBacktestAdapter`, which consults
+        the same risk gates, idempotency ledger, and event bus as live trading.
+        """
+        if signal.is_buy and session.position is None:
+            # Open long via OMS
+            price = Decimal(str(bar.close * (1 + config.slippage_pct / 100)))
+            max_notional = session.capital * (config.max_position_pct / 100)
+            qty = int(max_notional / float(price)) if float(price) > 0 else 0
+
+            if qty > 0:
+                order_id = self._oms_adapter.open_long(
+                    symbol=bar.symbol,
+                    exchange="NSE",
+                    quantity=qty,
+                    price=price,
+                    timestamp=bar.timestamp,
+                    strategy=signal.strategy,
+                    reasons=["replay_signal"],
+                )
+                if order_id:
+                    # Update session state to track position
+                    cost = float(price) * qty + config.commission_flat
+                    session.capital -= cost
+                    session.position = SimulatedPosition(
+                        symbol=bar.symbol,
+                        side="BUY",
+                        entry_price=float(price),
+                        quantity=qty,
+                        entry_time=bar.timestamp,
+                        stop_loss=signal.stop_loss,
+                        target=signal.target,
+                        strategy=signal.strategy,
+                    )
+
+        elif signal.is_sell and session.position is not None:
+            # Close long via OMS
+            price = Decimal(str(bar.close * (1 - config.slippage_pct / 100)))
+            order_id = self._oms_adapter.close_long(
+                symbol=bar.symbol,
+                exchange="NSE",
+                quantity=session.position.quantity,
+                price=price,
+                timestamp=bar.timestamp,
+                strategy=signal.strategy,
+                reasons=["replay_signal"],
+            )
+            if order_id:
+                # Update session state
+                proceeds = float(price) * session.position.quantity - config.commission_flat
+                session.capital += proceeds
+                session.position = None
+
+    def _process_signal_simulated(
+        self,
+        signal: Signal,
+        bar: Bar,
+        session: ReplaySession,
+        config: ReplayConfig,
+    ) -> None:
+        """Legacy simulated position management (deprecated, backward compatible).
+
+        This method is only used when no ``trading_context`` is provided.
+        New code should always use TradingContext for backtest-live parity.
+        """
         if signal.is_buy and session.position is None:
             # Open long position
             price = bar.close * (1 + config.slippage_pct / 100)
@@ -269,7 +418,80 @@ class ReplayEngine:
         pnl = (exit_price - pos.entry_price) * pos.quantity - self._config.commission_flat
         pnl_pct = ((exit_price / pos.entry_price) - 1) * 100 if pos.entry_price > 0 else 0.0
 
+        # Route through OMS if available (P0-2)
+        if self._oms_adapter is not None:
+            price = Decimal(str(exit_price))
+            self._oms_adapter.close_long(
+                symbol=pos.symbol,
+                exchange="NSE",
+                quantity=pos.quantity,
+                price=price,
+                timestamp=bar.timestamp,
+                strategy=pos.strategy,
+                reasons=[reason],
+            )
+
         session.capital += pos.quantity * exit_price - self._config.commission_flat
+        session.trades.append(SimulatedTrade(
+            symbol=pos.symbol,
+            side=pos.side,
+            entry_price=pos.entry_price,
+            exit_price=exit_price,
+            quantity=pos.quantity,
+            entry_time=pos.entry_time,
+            exit_time=bar.timestamp,
+            pnl=pnl,
+            pnl_pct=pnl_pct,
+            strategy=pos.strategy,
+            reasons=[reason],
+        ))
+        session.position = None
+
+    def _close_position_at_price(
+        self,
+        session: ReplaySession,
+        bar: Bar,
+        exit_price: float,
+        reason: str,
+    ) -> None:
+        """Close position at specific price (for stop-loss/target triggers).
+
+        P2-3: This method is called when intra-bar price action hits a position's
+        stop-loss or target level. Routes through OMS if available (P0-2).
+
+        Parameters
+        ----------
+        session:
+            Current replay session state.
+        bar:
+            The bar where stop/target was hit.
+        exit_price:
+            The price at which to exit (stop_loss or target level).
+        reason:
+            Human-readable reason for the exit (e.g., "Stop-loss hit").
+        """
+        pos = session.position
+        if pos is None:
+            return
+
+        # Route through OMS if available (P0-2)
+        if self._oms_adapter is not None:
+            price = Decimal(str(exit_price))
+            self._oms_adapter.close_long(
+                symbol=pos.symbol,
+                exchange="NSE",
+                quantity=pos.quantity,
+                price=price,
+                timestamp=bar.timestamp,
+                strategy=pos.strategy,
+                reasons=[reason],
+            )
+
+        # Update session state
+        pnl = (exit_price - pos.entry_price) * pos.quantity - self._config.commission_flat
+        pnl_pct = ((exit_price / pos.entry_price) - 1) * 100 if pos.entry_price > 0 else 0.0
+
+        session.capital += exit_price * pos.quantity - self._config.commission_flat
         session.trades.append(SimulatedTrade(
             symbol=pos.symbol,
             side=pos.side,

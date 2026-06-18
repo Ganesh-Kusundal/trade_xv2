@@ -38,7 +38,7 @@ from brokers.common.core.domain import (
     Side,
     Trade,
 )
-from brokers.common.event_bus import DomainEvent, EventBus
+from brokers.common.event_bus import DomainEvent, EventType, EventBus
 from brokers.common.lifecycle import LifecycleManager
 from brokers.common.lifecycle.lifecycle import (
     HealthState,
@@ -208,7 +208,7 @@ def test_dhan_token_refresh_during_in_flight_trade_event() -> None:
     # construction — that wiring is done by TradingContext. The
     # caller (the websocket adapter in production) is responsible
     # for hooking on_trade onto the bus. We do the same here.
-    bus.subscribe("TRADE", om.on_trade)
+    bus.subscribe(EventType.TRADE.value, om.on_trade)  # P1-3: Migrated to EventType enum
     order = om.place_order(
         OrderRequest("RELIANCE", "NSE", Side.BUY, 10, price=Decimal("100"))
     )
@@ -223,8 +223,8 @@ def test_dhan_token_refresh_during_in_flight_trade_event() -> None:
         quantity=10,
         price=Decimal("100"),
     )
-    bus.publish(DomainEvent.now("TRADE", {"trade": trade}, symbol="RELIANCE"))
-    bus.publish(DomainEvent.now("TRADE", {"trade": trade}, symbol="RELIANCE"))
+    bus.publish(DomainEvent.now(EventType.TRADE.value, {"trade": trade}, symbol="RELIANCE"))  # P1-3: Migrated to EventType enum
+    bus.publish(DomainEvent.now(EventType.TRADE.value, {"trade": trade}, symbol="RELIANCE"))  # P1-3: Migrated to EventType enum
 
     # The OMS processed the trade exactly once.
     fresh = om.get_order(order.order.order_id)

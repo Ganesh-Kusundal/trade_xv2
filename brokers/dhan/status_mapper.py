@@ -7,7 +7,7 @@ Dhan-specific status strings that have no Upstox equivalent.
 from __future__ import annotations
 
 from brokers.common.core.domain import OrderStatus
-from brokers.common.status_mapper import COMMON_STATUS_MAP
+from brokers.common.status_mapper import COMMON_STATUS_MAP, StatusMapperRegistry
 
 DHAN_STATUS_MAP: dict[str, OrderStatus] = {
     **COMMON_STATUS_MAP,
@@ -21,6 +21,9 @@ DHAN_STATUS_MAP: dict[str, OrderStatus] = {
     "PUT_ORDER_REQ_RECEIVED": OrderStatus.OPEN,
     "PARTIALLY_CANCELLED": OrderStatus.PARTIALLY_FILLED,
 }
+
+# Register Dhan mappings at module load
+StatusMapperRegistry.register("dhan", DHAN_STATUS_MAP)
 
 
 def normalize_dhan_status(broker_status: str) -> OrderStatus:

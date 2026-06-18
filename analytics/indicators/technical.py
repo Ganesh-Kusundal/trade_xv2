@@ -1,13 +1,37 @@
-"""Reusable technical indicators used by analytics engines."""
+"""Technical indicator functions (DEPRECATED).
+
+.. deprecated:: 2.0
+    Use analytics.pipeline.features.Feature classes instead.
+    This module will be removed in version 3.0.
+    
+    Migration guide:
+        # OLD (deprecated):
+        from analytics.indicators.technical import rsi
+        rsi_values = rsi(prices, period=14)
+        
+        # NEW (canonical):
+        from analytics.pipeline.features import RSI
+        features = RSI(period=14).compute(df)
+"""
 
 from __future__ import annotations
 
 import math
+import warnings
 
 import pandas as pd
 
+# Emit deprecation warning when module is imported
+warnings.warn(
+    "analytics.indicators.technical is deprecated. "
+    "Use analytics.pipeline.features instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 
 def rsi(prices: pd.Series, period: int = 14) -> pd.Series:
+    """Calculate Relative Strength Index (RSI)."""
     delta = prices.diff()
     gain = delta.clip(lower=0)
     loss = -delta.clip(upper=0)
@@ -18,18 +42,22 @@ def rsi(prices: pd.Series, period: int = 14) -> pd.Series:
 
 
 def roc(prices: pd.Series, periods: int = 1) -> pd.Series:
+    """Calculate Rate of Change (ROC) as percentage."""
     return prices.pct_change(periods=periods).fillna(0) * 100
 
 
 def momentum(prices: pd.Series, periods: int = 1) -> pd.Series:
+    """Calculate price momentum (absolute difference)."""
     return prices.diff(periods=periods).fillna(0)
 
 
 def acceleration(prices: pd.Series, periods: int = 1) -> pd.Series:
+    """Calculate price acceleration (second derivative)."""
     return prices.pct_change(periods=periods).diff().fillna(0)
 
 
 def atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
+    """Calculate Average True Range (ATR)."""
     previous_close = close.shift(1)
     true_range = pd.concat(
         [
@@ -47,11 +75,13 @@ def historical_volatility(
     periods: int = 20,
     annualization: int = 252,
 ) -> pd.Series:
+    """Calculate historical volatility (annualized)."""
     returns = prices.apply(math.log).diff()
     return returns.rolling(window=periods, min_periods=periods).std() * math.sqrt(annualization) * 100
 
 
 def realized_volatility(returns: pd.Series, annualization: int = 252) -> float:
+    """Calculate realized volatility from returns series."""
     clean = returns.dropna()
     if clean.empty:
         return 0.0
@@ -59,12 +89,14 @@ def realized_volatility(returns: pd.Series, annualization: int = 252) -> float:
 
 
 def iv_rank(current_iv: float, iv_low: float, iv_high: float) -> float:
+    """Calculate IV Rank (position of current IV in historical range)."""
     if iv_high <= iv_low:
         return 50.0
     return max(0.0, min(100.0, (current_iv - iv_low) / (iv_high - iv_low) * 100))
 
 
 def iv_percentile(current_iv: float, history: list[float] | pd.Series) -> float:
+    """Calculate IV Percentile (percentage of historical values below current)."""
     values = pd.Series(history, dtype="float64").dropna()
     if values.empty:
         return 50.0
@@ -72,16 +104,19 @@ def iv_percentile(current_iv: float, history: list[float] | pd.Series) -> float:
 
 
 def normalize_score(value: float, low: float, high: float) -> float:
+    """Normalize a value to 0-100 range based on historical bounds."""
     if high <= low:
         return 50.0
     return max(0.0, min(100.0, (value - low) / (high - low) * 100))
 
 
 def sma(prices: pd.Series, period: int = 20) -> pd.Series:
+    """Calculate Simple Moving Average (SMA)."""
     return prices.rolling(window=period, min_periods=1).mean()
 
 
 def ema(prices: pd.Series, period: int = 20) -> pd.Series:
+    """Calculate Exponential Moving Average (EMA)."""
     return prices.ewm(span=period, adjust=False).mean()
 
 
@@ -91,6 +126,7 @@ def macd(
     slow: int = 26,
     signal: int = 9,
 ) -> pd.DataFrame:
+    """Calculate MACD (Moving Average Convergence Divergence)."""
     ema_fast = ema(prices, fast)
     ema_slow = ema(prices, slow)
     macd_line = ema_fast - ema_slow
@@ -108,6 +144,7 @@ def bollinger_bands(
     period: int = 20,
     num_std: float = 2.0,
 ) -> pd.DataFrame:
+    """Calculate Bollinger Bands."""
     middle = sma(prices, period)
     std = prices.rolling(window=period, min_periods=1).std()
     upper = middle + num_std * std
@@ -123,6 +160,7 @@ def bollinger_bands(
 
 
 def vwap(high: pd.Series, low: pd.Series, close: pd.Series, volume: pd.Series) -> pd.Series:
+    """Calculate Volume Weighted Average Price (VWAP)."""
     typical_price = (high + low + close) / 3
     cumulative_tp_vol = (typical_price * volume).cumsum()
     cumulative_vol = volume.cumsum().replace(0, math.inf)

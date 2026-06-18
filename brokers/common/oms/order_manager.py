@@ -17,9 +17,12 @@ from decimal import Decimal
 from typing import Any
 
 from brokers.common.core.domain import Order, OrderStatus, OrderType, ProductType, Side, Trade
+from brokers.common.core.state_machine import IllegalTransitionError, StateMachine
+from brokers.common.core.types import ORDER_STATUS_TRANSITIONS
 from brokers.common.event_bus import (
     DomainEvent,
     EventBus,
+    EventType,
     ProcessedTradeRepository,
     TradeIdKey,
 )
@@ -92,6 +95,7 @@ class OrderManager:
         risk_manager: RiskManager | None = None,
         processed_trade_repository: ProcessedTradeRepository | None = None,
         metrics: Any | None = None,
+        enforce_state_transitions: bool = False,  # P2-Phase 2: Audit-only by default
     ) -> None:
         self._lock = threading.RLock()
         self._orders: dict[str, Order] = {}
@@ -108,6 +112,10 @@ class OrderManager:
         # recurse forever. Set true at the entry of every event handler
         # and reset on the way out.
         self._handler_depth: int = 0
+        
+        # P2-Phase 2: State machine enforcement (audit-only mode first)
+        self._enforce_state_transitions = enforce_state_transitions
+        self._state_machines: dict[str, StateMachine[OrderStatus]] = {}  # order_id -> StateMachine
 
     @property
     def risk_manager(self) -> RiskManager | None:
@@ -159,34 +167,108 @@ class OrderManager:
             if self._risk_manager is not None:
                 risk_result = self._risk_manager.check_order(order)
                 if not risk_result.allowed:
+                    # P1-Phase 1: Publish RISK_REJECTED alongside ORDER_REJECTED
+                    if self._event_bus is not None:
+                        self._event_bus.publish(
+                            DomainEvent.now(
+                                EventType.RISK_REJECTED.value,
+                                payload={
+                                    "order_id": order.order_id,
+                                    "rule": risk_result.reason,
+                                    "value": "0",
+                                    "limit": "0",
+                                },
+                                symbol=order.symbol,
+                                source="OrderManager",
+                                correlation_id=order.correlation_id,
+                            )
+                        )
                     self._publish(
-                        "ORDER_REJECTED", order,
+                        EventType.ORDER_REJECTED.value, order,  # P1-3: Migrated to EventType enum
                         reason=risk_result.reason,
                     )
                     return OrderResult(success=False, error=risk_result.reason)
+                else:
+                    # P1-Phase 1: Publish RISK_APPROVED when risk check passes
+                    if self._event_bus is not None:
+                        self._event_bus.publish(
+                            DomainEvent.now(
+                                EventType.RISK_APPROVED.value,
+                                payload={"order_id": order.order_id},
+                                symbol=order.symbol,
+                                source="OrderManager",
+                                correlation_id=order.correlation_id,
+                            )
+                        )
 
             if submit_fn is not None:
                 try:
                     order = submit_fn(request)
                 except Exception as exc:
                     self._publish(
-                        "ORDER_REJECTED", order,
+                        EventType.ORDER_REJECTED.value, order,  # P1-3: Migrated to EventType enum
                         reason=str(exc),
                     )
                     return OrderResult(success=False, error=str(exc))
 
             self._orders[order.order_id] = order
             self._orders_by_correlation[request.correlation_id] = order
-            self._publish("ORDER_PLACED", order)
+            self._publish(EventType.ORDER_PLACED.value, order)  # P1-3: Migrated to EventType enum
             return OrderResult(success=True, order=order)
 
     def upsert_order(self, order: Order) -> None:
-        """Update or insert an order (used by broker event handlers)."""
+        """Update or insert an order (used by broker event handlers).
+        
+        P2-Phase 2: Validates order status transitions using state machine.
+        In audit-only mode (default), logs violations but accepts the update.
+        In enforcement mode, raises IllegalTransitionError on invalid transitions.
+        """
         with self._lock:
+            # P2-Phase 2: Validate state transition
+            existing = self._orders.get(order.order_id)
+            if existing is not None:
+                # Order exists: validate transition
+                old_status = existing.status
+                new_status = order.status
+                
+                if old_status != new_status:
+                    # Status changed: validate transition
+                    state_machine = self._state_machines.get(order.order_id)
+                    if state_machine is None:
+                        # Create state machine from current status
+                        state_machine = StateMachine(
+                            transitions=ORDER_STATUS_TRANSITIONS,
+                            initial=old_status,
+                        )
+                        self._state_machines[order.order_id] = state_machine
+                    
+                    if not state_machine.can_transition_to(new_status):
+                        if self._enforce_state_transitions:
+                            raise IllegalTransitionError(old_status, new_status)
+                        else:
+                            # Audit-only mode: log violation but accept
+                            logger.warning(
+                                "OrderManager: illegal order status transition "
+                                "%s → %s for order %s (audit mode: accepting)",
+                                old_status.value,
+                                new_status.value,
+                                order.order_id,
+                            )
+                    else:
+                        # Valid transition: update state machine
+                        state_machine.transition_to(new_status)
+            else:
+                # New order: create state machine
+                state_machine = StateMachine(
+                    transitions=ORDER_STATUS_TRANSITIONS,
+                    initial=order.status,
+                )
+                self._state_machines[order.order_id] = state_machine
+            
             self._orders[order.order_id] = order
             if order.correlation_id:
                 self._orders_by_correlation[order.correlation_id] = order
-            self._publish("ORDER_UPDATED", order)
+            self._publish(EventType.ORDER_UPDATED.value, order)  # P1-3: Migrated to EventType enum
 
     def record_trade(self, trade: Trade) -> bool:
         """Record a trade and update the parent order.
@@ -221,7 +303,7 @@ class OrderManager:
             if self._processed_trades.is_processed(key):
                 self._trades_duplicated += 1
                 if self._metrics is not None:
-                    self._metrics.inc("TRADE", "trade_duplicated")
+                    self._metrics.inc(EventType.TRADE.value, "trade_duplicated")  # P1-3: Migrated to EventType enum
                 logger.info(
                     "OrderManager: trade %s for order %s is a duplicate; skipping",
                     trade.trade_id,
@@ -260,8 +342,8 @@ class OrderManager:
                 self._orders_by_correlation[order.correlation_id] = updated
             self._trades_processed += 1
             if self._metrics is not None:
-                self._metrics.inc("TRADE", "trade_processed")
-            self._publish("ORDER_UPDATED", updated)
+                self._metrics.inc(EventType.TRADE.value, "trade_processed")  # P1-3: Migrated to EventType enum
+            self._publish(EventType.ORDER_UPDATED.value, updated)  # P1-3: Migrated to EventType enum
             # Downstream event consumed by PositionManager. The OMS is the
             # sole gatekeeper for trade idempotency; downstream consumers
             # must subscribe here, NOT to raw TRADE events, to avoid
@@ -276,7 +358,7 @@ class OrderManager:
         correlation_id: str | None = getattr(trade, "correlation_id", None)
         self._event_bus.publish(
             DomainEvent.now(
-                "TRADE_APPLIED",
+                EventType.TRADE_APPLIED.value,  # P1-3: Migrated to EventType enum
                 {"trade": trade},
                 symbol=trade.symbol,
                 source="OrderManager",
@@ -355,7 +437,7 @@ class OrderManager:
             self._orders[order_id] = updated
             if order.correlation_id:
                 self._orders_by_correlation[order.correlation_id] = updated
-            self._publish("ORDER_CANCELLED", updated)
+            self._publish(EventType.ORDER_CANCELLED.value, updated)  # P1-3: Migrated to EventType enum
             return OrderResult(success=True, order=updated)
 
     # ── Event handlers ──────────────────────────────────────────────────────
