@@ -468,12 +468,13 @@ def show_stream(
         except KeyboardInterrupt:
             pass
 
-    # Clean up: unsubscribe if the websocket supports it
+    # P0 Fix: Clean up via gateway.unstream() instead of direct SDK unsubscribe
+    # This ensures _stream_registry, _last_tick_time, and callbacks are properly cleaned
     if ws_handle is not None:
         try:
-            ws_handle.unsubscribe([f"{exchange}|{symbol}"])
+            gw.unstream(symbol, exchange=exchange, on_tick=on_tick)
         except Exception as exc:
-            logger.debug("websocket_unsubscribe_failed: %s", exc)
+            logger.debug("unstream_cleanup_failed: %s", exc)
 
     console.print("[yellow]Tick Stream Monitor stopped.[/yellow]")
 

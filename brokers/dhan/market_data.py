@@ -27,7 +27,15 @@ class MarketDataAdapter:
         inst, segment = self._resolve_and_segment(symbol, exchange)
         sid = int(inst.security_id)
         data = self._client.post("/marketfeed/ltp", json={segment: [sid]})
-        ltp = Decimal(str(data["data"][segment][str(sid)]["last_price"]))
+        segment_data = data.get("data", {}).get(segment, {})
+        entry = segment_data.get(str(sid))
+        if entry is None:
+            logger.warning("ltp_missing_for_security_id", extra={
+                "symbol": symbol, "security_id": sid, "segment": segment,
+                "available_keys": list(segment_data.keys())[:5],
+            })
+            raise ValueError(f"No LTP data for {symbol} on {exchange} (security_id={sid}, segment={segment})")
+        ltp = Decimal(str(entry["last_price"]))
         logger.debug("ltp_fetched", extra={"symbol": symbol, "ltp": str(ltp)})
         return ltp
 

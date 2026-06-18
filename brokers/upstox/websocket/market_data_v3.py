@@ -29,6 +29,31 @@ from brokers.upstox.websocket.v3_subscription_manager import (
 
 logger = logging.getLogger(__name__)
 
+# NSE market hours in UTC: 03:45–10:00 (09:15–15:30 IST), weekdays only.
+_MARKET_OPEN_UTC_HOUR = 3
+_MARKET_OPEN_UTC_MIN = 45
+_MARKET_CLOSE_UTC_HOUR = 10
+_MARKET_CLOSE_UTC_MIN = 0
+
+
+def _overlaps_market_hours(start: Any, end: Any) -> bool:
+    """Return True if [start, end] overlaps NSE market hours on a weekday."""
+    from datetime import time as dt_time
+
+    if start.weekday() >= 5 and end.weekday() >= 5:
+        return False
+    market_open = dt_time(_MARKET_OPEN_UTC_HOUR, _MARKET_OPEN_UTC_MIN)
+    market_close = dt_time(_MARKET_CLOSE_UTC_HOUR, _MARKET_CLOSE_UTC_MIN)
+    for dt in (start, end):
+        t = dt.time()
+        if market_open <= t <= market_close and dt.weekday() < 5:
+            return True
+    # Also detect ranges that span across market hours (start before, end after)
+    if start < end and start.weekday() < 5:
+        if start.time() <= market_open and end.time() >= market_close:
+            return True
+    return False
+
 TickListener = Callable[[str, dict[str, Any]], None]
 
 
@@ -126,6 +151,7 @@ class UpstoxMarketDataV3Multiplexer:
             self._send_raw("unsub", payload)
         for k in instrument_keys:
             self._subscribed.discard(k)
+            self._last_tick_time.pop(k, None)
 
     def feed_authorize_url(self) -> str:
         return self._authorizer.authorize_market_data_v3()
@@ -272,6 +298,14 @@ class UpstoxMarketDataV3Multiplexer:
         now = datetime.now(timezone.utc)
         self._disconnect_time = None
         if disconnect_time >= now:
+            return
+        # Skip backfill if the entire gap falls outside market hours
+        # (NSE: 03:45–10:00 UTC / 09:15–15:30 IST, weekdays only).
+        if not _overlaps_market_hours(disconnect_time, now):
+            logger.debug(
+                "backfill_skipped_outside_market_hours",
+                extra={"disconnect": disconnect_time.isoformat(), "now": now.isoformat()},
+            )
             return
         instrument_keys = list(self._last_tick_time.keys())
         if not instrument_keys:

@@ -299,29 +299,6 @@ class UpstoxSettingsLoader(SettingsLoaderBase):
         return default
 
     @staticmethod
-    def _get(prefix: str, name: str, default: str = "") -> str:
-        upper_name = name.upper()
-        normalized = upper_name.replace(".", "_")
-        candidates = [
-            f"{prefix.upper()}_{normalized}",
-            f"{prefix.upper()}.{name}",
-            f"{prefix.lower()}.{name}",
-        ]
-        # Backward-compat fallbacks for legacy env var names.
-        name_lower = name.lower()
-        if name_lower == "client_id":
-            candidates.insert(0, f"{prefix.upper()}_API_KEY")
-        elif name_lower == "client_secret":
-            candidates.insert(0, f"{prefix.upper()}_API_SECRET")
-        elif name_lower == "access_token":
-            candidates.insert(0, f"{prefix.upper()}_API_ACCESS_TOKEN")
-        for candidate in candidates:
-            value = os.environ.get(candidate)
-            if value:
-                return value
-        return default
-
-    @staticmethod
     def _path_from_env(value: str | None, default: Path | None = None) -> Path | None:
         if not value:
             return default

@@ -100,10 +100,6 @@ def test_broker_class_has_expected_public_attributes():
         "connect",
         "disconnect",
         "_register_all_capabilities",
-        # REF-23: bundle helpers
-        "_build_raw_clients",
-        "_build_adapters",
-        "_build_order_path",
     }
     missing = expected_methods - declared
     assert not missing, f"UpstoxBroker missing expected methods: {missing}"

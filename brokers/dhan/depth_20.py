@@ -140,28 +140,58 @@ class DhanDepth20Feed(ManagedService):
     def subscribe(self, instruments: list[tuple[str, str]]) -> None:
         """Subscribe to additional instruments.
 
+        Skips duplicates — instruments already subscribed are ignored.
+
         Args:
             instruments: List of (exchange_segment, security_id) tuples
 
         Raises:
             ValueError: If total subscriptions exceed MAX_INSTRUMENTS
         """
-        total = len(self._subscriptions) + len(instruments)
+        new_instruments = [i for i in instruments if i not in self._subscriptions]
+        if not new_instruments:
+            return
+        total = len(self._subscriptions) + len(new_instruments)
         if total > self.MAX_INSTRUMENTS:
             raise ValueError(
                 f"Maximum {self.MAX_INSTRUMENTS} instruments allowed for 20-level depth, "
                 f"would have {total}"
             )
 
-        self._subscriptions.extend(instruments)
+        self._subscriptions.extend(new_instruments)
         logger.info("depth_20_subscribe", extra={
-            "count": len(instruments),
+            "count": len(new_instruments),
             "total": len(self._subscriptions),
         })
 
         # Send subscription message if connected
         if self._is_connected and self._ws:
-            self._send_subscription(instruments)
+            self._send_subscription(new_instruments)
+
+    def unsubscribe(self, instruments: list[tuple[str, str]]) -> None:
+        """Unsubscribe from instruments and evict their depth cache entries.
+
+        Args:
+            instruments: List of (exchange_segment, security_id) tuples
+        """
+        removed = []
+        for inst in instruments:
+            if inst in self._subscriptions:
+                self._subscriptions.remove(inst)
+                removed.append(inst)
+                # Evict depth cache entry for this instrument
+                try:
+                    sec_id = int(inst[1])
+                    with self._depth_cache_lock:
+                        self._depth_cache.pop(sec_id, None)
+                except (ValueError, IndexError):
+                    pass
+
+        if removed:
+            logger.info("depth_20_unsubscribe", extra={
+                "count": len(removed),
+                "total": len(self._subscriptions),
+            })
 
     def connect(self) -> None:
         """Deprecated alias for :meth:`start`."""

@@ -51,12 +51,14 @@ _EXCHANGE_MAP: dict[str, int] = {
 }
 
 # SDK subscription type constants
+# v2 SDK supports: Ticker (15), Quote (17), Full (21).
+# Depth (19) is NOT supported in v2 — falls back to Quote.
 _MODE_MAP: dict[str, int] = {
     "LTP": SDKMarketFeed.Ticker,
     "TICKER": SDKMarketFeed.Ticker,
     "QUOTE": SDKMarketFeed.Quote,
-    "FULL": SDKMarketFeed.Quote,  # v2 uses Quote for full data
-    "DEPTH": SDKMarketFeed.Quote,
+    "FULL": SDKMarketFeed.Full,
+    "DEPTH": SDKMarketFeed.Quote,  # v2 does not support Depth (19)
 }
 
 
@@ -152,6 +154,7 @@ class DhanMarketFeed(ManagedService):
     """
 
     name = "dhan.market_feed"
+    MAX_INSTRUMENTS = 1000  # Dhan WebSocket limit per connection
 
     def __init__(
         self,
@@ -188,6 +191,8 @@ class DhanMarketFeed(ManagedService):
         )
         self._raw_instruments = instruments or []
         self._instruments = _to_sdk_instruments(instruments or [])
+        # P0 Fix: Track subscribed instruments to prevent duplicates
+        self._subscribed_instruments: set[tuple] = set(self._instruments)
         self._resolver = resolver
         self._event_bus = event_bus
         self._backfill_callback = backfill_callback
@@ -204,6 +209,8 @@ class DhanMarketFeed(ManagedService):
         # B-4 / M-4: operator visibility into the live connection.
         self._reconnect_count: int = 0
         self._last_message_at: datetime | None = None
+        # P3 Fix: Message counter for periodic cache cleanup
+        self._message_count: int = 0
 
     def update_token(self, access_token: str) -> None:
         """Push a fresh token to the context (called by scheduler)."""
@@ -369,12 +376,35 @@ class DhanMarketFeed(ManagedService):
         )
 
     def subscribe(self, instruments: list[tuple]) -> None:
-        """Add instruments to the subscription."""
+        """Add instruments to the subscription.
+
+        Deduplicates instruments — instruments already subscribed are ignored.
+
+        Raises:
+            ValueError: If total subscriptions would exceed MAX_INSTRUMENTS (1000).
+        """
         with self._lock:
-            if not self._feed:
-                raise RuntimeError("Not connected — call connect() first")
             sdk_instruments = _to_sdk_instruments(instruments)
-            self._feed.subscribe_symbols(sdk_instruments)
+            # P0 Fix: Dedup — only subscribe new instruments
+            new_instruments = [i for i in sdk_instruments if i not in self._subscribed_instruments]
+            if not new_instruments:
+                return  # Already subscribed, no-op
+            total = len(self._subscribed_instruments) + len(new_instruments)
+            if total > self.MAX_INSTRUMENTS:
+                raise ValueError(
+                    f"Dhan WebSocket limit is {self.MAX_INSTRUMENTS} instruments, "
+                    f"would have {total}. Unsubscribe some first."
+                )
+            self._instruments.extend(new_instruments)
+            self._subscribed_instruments.update(new_instruments)
+            if self._feed:
+                self._feed.subscribe_samples(new_instruments)
+            # P3 Fix: Warn when approaching instrument limit (80% threshold)
+            if total > self.MAX_INSTRUMENTS * 0.8:
+                logger.warning("dhan_ws_instrument_limit_approaching", extra={
+                    "current": total,
+                    "max": self.MAX_INSTRUMENTS,
+                })
 
     def unsubscribe(self, instruments: list[tuple]) -> None:
         """Remove instruments from the subscription."""
@@ -393,6 +423,28 @@ class DhanMarketFeed(ManagedService):
         """Register callback for depth updates."""
         with self._lock:
             self._depth_callbacks.append(callback)
+
+    def off_quote(self, callback: Callable[[dict], None]) -> None:
+        """Remove a previously registered quote callback.
+
+        P1 Fix: Enables proper cleanup to prevent callback leaks.
+        """
+        with self._lock:
+            try:
+                self._quote_callbacks.remove(callback)
+            except ValueError:
+                pass  # Callback not found, already removed
+
+    def off_depth(self, callback: Callable[[dict], None]) -> None:
+        """Remove a previously registered depth callback.
+
+        P1 Fix: Enables proper cleanup to prevent callback leaks.
+        """
+        with self._lock:
+            try:
+                self._depth_callbacks.remove(callback)
+            except ValueError:
+                pass  # Callback not found, already removed
 
     @property
     def is_connected(self) -> bool:
@@ -452,6 +504,10 @@ class DhanMarketFeed(ManagedService):
         # can see "no ticks in N seconds" via /metrics.
         with self._lock:
             self._last_message_at = datetime.now(timezone.utc)
+            # P3 Fix: Periodic cleanup of stale tick tracking (every 100 messages)
+            self._message_count += 1
+            if self._message_count % 100 == 0:
+                self._cleanup_stale_tick_tracking()
         data_type = data.get("type", "")
         if data_type in ("Ticker Data", "Quote Data"):
             quote = self._transform_quote(data)
@@ -512,6 +568,22 @@ class DhanMarketFeed(ManagedService):
             if prev is None or now > prev:
                 self._last_tick_time[symbol] = now
 
+    def _cleanup_stale_tick_tracking(self, max_age_seconds: float = 1800) -> None:
+        """Remove entries for symbols that haven't received ticks recently.
+
+        P3 Fix: Prevents unbounded growth of _last_tick_time cache.
+        Default max_age is 30 minutes — conservative to avoid removing
+        symbols that are still active but receive infrequent ticks.
+        """
+        now = datetime.now(timezone.utc)
+        with self._lock:
+            stale = [
+                sym for sym, ts in self._last_tick_time.items()
+                if (now - ts).total_seconds() > max_age_seconds
+            ]
+            for sym in stale:
+                del self._last_tick_time[sym]
+
     def _transform_quote(self, data: dict) -> dict:
         security_id = str(data.get("security_id", ""))
         symbol = security_id
@@ -529,10 +601,10 @@ class DhanMarketFeed(ManagedService):
             "symbol": symbol,
             "security_id": security_id,
             "ltp": Decimal(str(data.get("last_price", data.get("LTP", "0")))),
-            "open": Decimal(str(data.get("open", "0"))),
-            "high": Decimal(str(data.get("high", "0"))),
-            "low": Decimal(str(data.get("low", "0"))),
-            "close": Decimal(str(data.get("close", "0"))),
+            "open": Decimal(str(data["open"])) if data.get("open") else None,
+            "high": Decimal(str(data["high"])) if data.get("high") else None,
+            "low": Decimal(str(data["low"])) if data.get("low") else None,
+            "close": Decimal(str(data["close"])) if data.get("close") else None,
             "volume": int(data.get("volume", 0)),
             "change": Decimal("0"),
         }

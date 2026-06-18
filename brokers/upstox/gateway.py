@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from datetime import datetime, date, timedelta, timezone
 from decimal import Decimal
@@ -44,6 +45,9 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
 
     def __init__(self, broker: UpstoxBroker):
         self._broker = broker
+        self._stream_lock = threading.Lock()
+        # Maps instrument_key → (on_tick, wrapped_listener) for dedup and unstream
+        self._stream_registry: dict[str, list[tuple[Any, Any]]] = {}
 
     # ── Market Data (ABC-aligned) ─────────────────────────────────────
 
@@ -336,6 +340,10 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         key the raw payload dict is forwarded instead so nothing is silently
         dropped.
 
+        Thread-safe: uses ``_stream_lock`` to prevent race conditions during
+        connect + subscribe. Callbacks are deduplicated via ``_stream_registry``
+        so the same *on_tick* is not registered twice for the same instrument.
+
         Args:
             symbol:   Canonical trading symbol (e.g. ``"RELIANCE"``)
             exchange: Exchange string (e.g. ``"NSE"``)
@@ -344,32 +352,78 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
                       resolution failure)
         """
         segment = UpstoxDomainMapper.segment_to_wire(exchange)
-        key = f"{segment}|{symbol}"
+        inst_key = f"{segment}|{symbol}"
         ws = self._broker.market_data_websocket
 
-        # Wrap the caller's on_tick so it receives a Quote, not raw broker data.
-        wrapped_listener = None
-        if on_tick:
-            def wrapped_listener(_event_type: str, raw: dict[str, Any]) -> None:
-                quote = self._translate_tick_to_quote(raw)
-                on_tick(quote)
+        with self._stream_lock:
+            # Dedup: check if this exact on_tick is already registered
+            existing_pairs = self._stream_registry.get(inst_key, [])
+            if on_tick is not None and any(cb is on_tick for cb, _ in existing_pairs):
+                logger.debug("stream_callback_dedup", extra={"symbol": symbol, "exchange": exchange})
+                return ws
 
-        # WebSocket connect is async — schedule connect+subscribe atomically.
-        # run_async_compat_with_subscribe guarantees ordering: subscribe
-        # only runs after connect completes, even in async context.
-        if not ws.is_connected:
-            def _on_connected() -> None:
-                ws.subscribe([key], mode.lower())
-                if wrapped_listener:
-                    ws.add_listener(wrapped_listener)
-            from brokers.common.async_compat import connect_async_then
-            connect_async_then(ws.connect(), _on_connected)
-        else:
-            # Already connected — subscribe and register listener directly.
-            ws.subscribe([key], mode.lower())
-            if wrapped_listener:
+            wrapped_listener = None
+            if on_tick:
+                def wrapped_listener(_event_type: str, raw: dict[str, Any], _cb: Any = on_tick) -> None:
+                    quote = self._translate_tick_to_quote(raw)
+                    _cb(quote)
+
                 ws.add_listener(wrapped_listener)
+                self._stream_registry.setdefault(inst_key, []).append((on_tick, wrapped_listener))
+
+            if not ws.is_connected:
+                def _on_connected() -> None:
+                    ws.subscribe([inst_key], mode.lower())
+                from brokers.common.async_compat import connect_async_then
+                connect_async_then(ws.connect(), _on_connected)
+            else:
+                ws.subscribe([inst_key], mode.lower())
+
         return ws
+
+    def unstream(
+        self,
+        symbol: str,
+        exchange: str = "NSE",
+        on_tick: Any | None = None,
+    ) -> None:
+        """Unsubscribe from a live tick stream.
+
+        Removes the *on_tick* listener and SDK subscription. If *on_tick*
+        is ``None``, removes ALL listeners for the instrument.
+
+        Args:
+            symbol:   Symbol to unsubscribe from.
+            exchange: Exchange string.
+            on_tick:  The callback to remove. ``None`` removes all.
+        """
+        segment = UpstoxDomainMapper.segment_to_wire(exchange)
+        inst_key = f"{segment}|{symbol}"
+        ws = self._broker.market_data_websocket
+
+        with self._stream_lock:
+            pairs = self._stream_registry.get(inst_key, [])
+            if on_tick is not None:
+                # Remove specific callback
+                to_remove = [(cb, wl) for cb, wl in pairs if cb is on_tick]
+                for cb, wl in to_remove:
+                    pairs.remove((cb, wl))
+                    if wl is not None:
+                        ws.remove_listener(wl)
+            else:
+                # Remove ALL callbacks for this instrument
+                for cb, wl in pairs:
+                    if wl is not None:
+                        ws.remove_listener(wl)
+                pairs.clear()
+
+            if not pairs:
+                self._stream_registry.pop(inst_key, None)
+                # Unsubscribe from the SDK WebSocket
+                try:
+                    ws.unsubscribe([inst_key])
+                except Exception as exc:
+                    logger.debug("unstream_unsubscribe_failed: %s", exc)
 
     # ── Internal ──
 

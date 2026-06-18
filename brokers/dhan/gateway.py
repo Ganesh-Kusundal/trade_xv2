@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any
@@ -46,6 +47,11 @@ class BrokerGateway(MarketDataGateway, ObservabilityProvider):
 
     def __init__(self, connection: DhanConnection):
         self._conn = connection
+        self._stream_lock = threading.Lock()
+        # Tracks (symbol, exchange) → callback wrapper for dedup
+        self._stream_registry: dict[tuple[str, str], list[Any]] = {}
+        # P1 Fix: Track subscription mode per instrument for correct unsubscribe
+        self._subscription_modes: dict[tuple[str, str], str] = {}
 
     @property
     def extended(self) -> Any:
@@ -416,58 +422,120 @@ class BrokerGateway(MarketDataGateway, ObservabilityProvider):
         :class:`brokers.common.core.domain.Quote` object.  Broker-specific
         ``security_id`` values are never exposed to the caller.
 
+        Thread-safe: uses ``_stream_lock`` to prevent race conditions
+        during lazy feed creation. Callbacks are deduplicated via
+        ``_stream_registry`` so the same *on_tick* is not registered
+        twice for the same instrument.
+
         Args:
             symbol:   Canonical trading symbol (e.g. ``"NIFTY"``).
             exchange: Exchange string (``"NSE"`` | ``"MCX"`` | ``"INDEX"`` …).
-            mode:     Subscription mode — ``"LTP"`` | ``"QUOTE"`` | ``"DEPTH"``.
+            mode:     Subscription mode — ``"LTP"`` | ``"QUOTE"`` | ``"FULL"``.
             on_tick:  Callable receiving a :class:`Quote`.
         """
         from brokers.common.core.domain import Quote
         inst = self._conn.instruments.resolve(symbol, exchange)
         segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, DEFAULT_SEGMENT)
         sid = int(inst.security_id)
-        feed = self._conn.market_feed
-        if feed is None:
-            # Use token provider callable for fresh tokens
-            feed = DhanMarketFeed(
-                client_id=self._conn.client_id,
-                access_token=self._conn.access_token,
-                instruments=[(segment, sid, mode)],
-                resolver=self._conn.instruments,
-                access_token_fn=lambda: self._conn.access_token,
-                event_bus=self._conn.event_bus,
-            )
-            self._conn.market_feed = feed
-        else:
-            feed.subscribe([(segment, sid, mode)])
-        if on_tick:
-            # Wrap the raw dict from _transform_quote into a canonical Quote.
-            # The dict has keys: symbol, security_id, ltp, open, high, low,
-            # close, volume, change.  security_id is never forwarded.
-            def _wrap(data: dict) -> None:
-                try:
-                    q = Quote(
-                        symbol=data.get("symbol", symbol),
-                        ltp=data.get("ltp", Decimal("0")),
-                        open=data.get("open", Decimal("0")),
-                        high=data.get("high", Decimal("0")),
-                        low=data.get("low", Decimal("0")),
-                        close=data.get("close", Decimal("0")),
-                        volume=int(data.get("volume", 0)),
-                        change=data.get("change", Decimal("0")),
-                    )
-                    on_tick(q)
-                except Exception:
-                    import logging as _log
-                    _log.getLogger(__name__).debug(
-                        "Dhan tick→Quote wrap failed; forwarding raw",
-                        exc_info=True,
-                    )
-                    on_tick(data)
-            feed.on_quote(_wrap)
-        if not feed.is_connected:
-            feed.connect()
+        key = (symbol.upper(), exchange.upper())
+
+        with self._stream_lock:
+            feed = self._conn.market_feed
+            if feed is None:
+                # P2 Fix: Use connection.create_market_feed() for proper lifecycle registration
+                # This prevents race condition where direct construction bypasses lifecycle
+                feed = self._conn.create_market_feed(
+                    access_token=self._conn.access_token,
+                    instruments=[],  # Empty — subscribe on-demand below
+                    access_token_fn=lambda: self._conn.access_token,
+                )
+            else:
+                feed.subscribe([(segment, sid, mode)])
+
+            # P1 Fix: Track subscription mode for correct unsubscribe
+            self._subscription_modes[key] = mode
+
+            if on_tick:
+                # Dedup: skip if this exact on_tick is already registered
+                existing = self._stream_registry.get(key, [])
+                if on_tick in existing:
+                    logger.debug("stream_callback_dedup", extra={"symbol": symbol, "exchange": exchange})
+                else:
+                    def _wrap(data: dict, _sym: str = symbol, _cb: Any = on_tick) -> None:
+                        try:
+                            q = Quote(
+                                symbol=data.get("symbol", _sym),
+                                ltp=data.get("ltp", Decimal("0")),
+                                open=data.get("open", Decimal("0")),
+                                high=data.get("high", Decimal("0")),
+                                low=data.get("low", Decimal("0")),
+                                close=data.get("close", Decimal("0")),
+                                volume=int(data.get("volume", 0)),
+                                change=data.get("change", Decimal("0")),
+                            )
+                            _cb(q)
+                        except Exception:
+                            logger.debug("tick_quote_wrap_failed", exc_info=True)
+                            _cb(data)
+
+                    feed.on_quote(_wrap)
+                    self._stream_registry.setdefault(key, []).append(on_tick)
+
+            if not feed.is_connected:
+                feed.connect()
+
         return feed
+
+    def unstream(
+        self,
+        symbol: str,
+        exchange: str = "NSE",
+        on_tick: Any | None = None,
+    ) -> None:
+        """Unsubscribe from a live tick stream.
+
+        Removes the *on_tick* callback from the registry. If no callbacks
+        remain for the instrument, the SDK subscription is also removed.
+
+        Args:
+            symbol:   Symbol to unsubscribe from.
+            exchange: Exchange string.
+            on_tick:  The callback to remove. If ``None``, removes ALL
+                      callbacks for the instrument.
+        """
+        key = (symbol.upper(), exchange.upper())
+
+        with self._stream_lock:
+            callbacks = self._stream_registry.get(key, [])
+            if on_tick is not None:
+                try:
+                    callbacks.remove(on_tick)
+                except ValueError:
+                    pass
+            else:
+                callbacks.clear()
+
+            if not callbacks:
+                self._stream_registry.pop(key, None)
+
+                # Unsubscribe from the SDK feed if no consumers remain
+                feed = self._conn.market_feed
+                if feed is not None:
+                    try:
+                        inst = self._conn.instruments.resolve(symbol, exchange)
+                        segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, DEFAULT_SEGMENT)
+                        sid = int(inst.security_id)
+                        # P1 Fix: Use tracked mode instead of hardcoded "LTP"
+                        mode = self._subscription_modes.get(key, "LTP")
+                        feed.unsubscribe([(segment, sid, mode)])
+                        self._subscription_modes.pop(key, None)
+                    except Exception as exc:
+                        logger.debug("unstream_unsubscribe_failed: %s", exc)
+
+                    # Clean up tick tracking cache
+                    sym_name = symbol.upper()
+                    with feed._lock:
+                        feed._last_tick_time.pop(sym_name, None)
 
     # ── Parallel Data Fetching ──────────────────────────────────────
 

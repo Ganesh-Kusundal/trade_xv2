@@ -119,9 +119,29 @@ class SymbolResolver:
                 sm_symbol_name=inst.sm_symbol_name,
             )
 
-            # Register all alternate keys
+            # Register all alternate keys, preferring EQUITY/FUTURE over OPTION
+            # so that "USDINR" on CDS resolves to the continuous future, not
+            # an expired currency option.
             for k in alt_keys:
-                new_by_symbol[(k, inst.exchange)] = inst
+                existing = new_by_symbol.get((k, inst.exchange))
+                if existing is None:
+                    new_by_symbol[(k, inst.exchange)] = inst
+                elif existing.is_option and not inst.is_option:
+                    new_by_symbol[(k, inst.exchange)] = inst
+                elif existing.is_future and inst.is_future:
+                    # Prefer the nearest active future (closest expiry >= today)
+                    from datetime import date
+                    today = str(date.today())
+                    e_exp = existing.expiry or ""
+                    i_exp = inst.expiry or ""
+                    e_active = e_exp >= today
+                    i_active = i_exp >= today
+                    if i_active and not e_active:
+                        new_by_symbol[(k, inst.exchange)] = inst
+                    elif i_active and e_active and i_exp < e_exp:
+                        new_by_symbol[(k, inst.exchange)] = inst
+                    elif not i_active and not e_active and i_exp > e_exp:
+                        new_by_symbol[(k, inst.exchange)] = inst
 
             new_by_sid[inst.security_id] = inst
 

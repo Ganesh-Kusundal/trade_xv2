@@ -72,11 +72,12 @@ class BrokerFactory(BrokerProviderFactory):
                 fresh = _generate_totp_token(settings)
                 if fresh:
                     from datetime import datetime, timedelta
+                    now = datetime.now()
                     state = TokenState(
                         access_token=fresh,
                         source=TokenSource.TOTP,
-                        issued_at=datetime.now(),
-                        expires_at=datetime.now() + timedelta(seconds=settings.token_lifetime_seconds),
+                        issued_at=now,
+                        expires_at=_next_token_expiry(now, settings.token_lifetime_seconds),
                     )
                     auth._state = state
                     if auth._store:
@@ -246,10 +247,13 @@ def _refresh_via_auth(
 
     Uses the lock shared with the scheduler to prevent concurrent
     refresh from the HTTP 401 handler and the background scheduler.
+    If a refresh is already in progress, waits up to 5 seconds for it
+    to complete rather than silently skipping — the in-flight refresh
+    may produce a valid token.
     """
-    if not refresh_lock.acquire(blocking=False):
-        # Another refresh is already in progress
-        logger.debug("Token refresh already in progress, skipping")
+    acquired = refresh_lock.acquire(timeout=5.0)
+    if not acquired:
+        logger.debug("Token refresh timed out waiting for in-flight refresh")
         return None
     try:
         state = auth.acquire()
@@ -259,6 +263,28 @@ def _refresh_via_auth(
         return None
     finally:
         refresh_lock.release()
+
+
+def _next_token_expiry(now: Any, lifetime_seconds: int) -> Any:
+    """Compute token expiry aligned to the next trading session end.
+
+    Dhan tokens expire at the start of the next trading day (~06:00 IST /
+    00:30 UTC).  If the current time is before today's 00:30 UTC, the
+    expiry is today's 00:30; otherwise tomorrow's.  Falls back to a
+    simple timedelta if the calculation fails.
+    """
+    from datetime import datetime, timedelta, timezone
+    try:
+        if now.tzinfo is None:
+            utc_now = datetime.now(timezone.utc)
+        else:
+            utc_now = now.astimezone(timezone.utc)
+        session_end_today = utc_now.replace(hour=0, minute=30, second=0, microsecond=0)
+        if utc_now < session_end_today:
+            return session_end_today
+        return session_end_today + timedelta(days=1)
+    except Exception:
+        return now + timedelta(seconds=lifetime_seconds)
 
 
 def _generate_totp_token(settings: DhanConnectionSettings | None = None) -> str | None:

@@ -143,6 +143,7 @@ class DhanHttpClient:
             "access-token": access_token,
         })
         self._last_request_time: dict[str, float] = {}
+        self._adaptive_intervals: dict[str, float] = {}
         self._rate_lock = threading.Lock()
         self._last_refresh_time: float = 0.0
 
@@ -177,8 +178,10 @@ class DhanHttpClient:
         return self._request("DELETE", endpoint)
 
     def _throttle(self, endpoint: str) -> None:
-        min_interval = _RATE_LIMITS.get(endpoint)
-        if min_interval is None:
+        static_interval = self._match_rate_limit(endpoint, _RATE_LIMITS)
+        adaptive_interval = self._match_rate_limit(endpoint, self._adaptive_intervals)
+        min_interval = max(static_interval, adaptive_interval)
+        if min_interval <= 0:
             return
         with self._rate_lock:
             last = self._last_request_time.get(endpoint, 0.0)
@@ -186,6 +189,37 @@ class DhanHttpClient:
             if elapsed < min_interval:
                 time.sleep(min_interval - elapsed)
             self._last_request_time[endpoint] = time.time()
+
+    @staticmethod
+    def _match_rate_limit(endpoint: str, limits: dict[str, float]) -> float:
+        """Match endpoint against rate limit keys using prefix matching."""
+        if endpoint in limits:
+            return limits[endpoint]
+        for prefix, interval in limits.items():
+            if endpoint.startswith(prefix):
+                return interval
+        return 0
+
+    @staticmethod
+    def _match_prefix(endpoint: str, limits: dict[str, float]) -> str | None:
+        """Return the matching prefix key for endpoint, or None."""
+        if endpoint in limits:
+            return endpoint
+        for prefix in limits:
+            if endpoint.startswith(prefix):
+                return prefix
+        return None
+
+    @staticmethod
+    def _parse_retry_after(resp: Any) -> float | None:
+        """Parse Retry-After header into seconds. Returns None if absent."""
+        raw = resp.headers.get("Retry-After")
+        if raw is None:
+            return None
+        try:
+            return max(0.01, float(raw))
+        except (ValueError, TypeError):
+            return None
 
     def _try_refresh_token(self) -> bool:
         """Attempt token refresh. Returns True if successful."""
@@ -252,7 +286,17 @@ class DhanHttpClient:
             # 429 — rate limited, back off and retry
             if resp.status_code == 429:
                 if attempt < max_attempts:
-                    delay = self._backoff_delay(attempt)
+                    retry_after = self._parse_retry_after(resp)
+                    if retry_after is not None:
+                        delay = retry_after
+                        prefix = self._match_prefix(endpoint, _RATE_LIMITS)
+                        key = prefix or endpoint
+                        self._adaptive_intervals[key] = max(delay, self._adaptive_intervals.get(key, 0))
+                        logger.info("http_adaptive_rate_adjust", extra={
+                            "endpoint": key, "retry_after_s": round(delay, 3),
+                        })
+                    else:
+                        delay = self._backoff_delay(attempt)
                     logger.warning("http_rate_limited_retry", extra={
                         "method": method, "endpoint": endpoint, "attempt": attempt, "delay_ms": int(delay * 1000),
                     })

@@ -24,6 +24,7 @@ from brokers.common.event_bus import (
     DomainEvent,
     EventBus,
     EventType,
+    EventType,
     ProcessedTradeRepository,
 )
 from brokers.common.observability.event_metrics import EventMetrics

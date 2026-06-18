@@ -90,19 +90,17 @@ class TestDhanMarketFeed:
 
         assert len(feed._quote_callbacks) == 3
 
-    def test_subscribe_before_connect_raises(self):
-        """subscribe() must raise RuntimeError if not connected."""
+    def test_subscribe_before_connect_stores_instruments(self):
+        """subscribe() before connect stores instruments for deferred SDK subscription."""
         feed = DhanMarketFeed(
             client_id="CLIENT",
             access_token="TOKEN",
             instruments=[],
         )
 
-        try:
-            feed.subscribe([(1, "2885", 15)])
-            raise AssertionError("Expected RuntimeError")
-        except RuntimeError as e:
-            assert "connect()" in str(e)
+        feed.subscribe([(1, "2885", 15)])
+        assert len(feed._instruments) == 1
+        assert feed._instruments[0] == (1, 2885, 15)
 
     def test_unsubscribe_before_connect_raises(self):
         """unsubscribe() must raise RuntimeError if not connected."""

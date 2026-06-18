@@ -288,7 +288,17 @@ class DhanConnection:
         If a :class:`LifecycleManager` was supplied to the connection,
         the new feed is registered with it. The feed's start() / stop()
         / health() are then driven by the lifecycle.
+
+        If an existing market feed is running, it is stopped first to
+        prevent orphaned WebSocket threads and duplicate tick processing.
         """
+        # Stop existing feed to prevent dual WebSocket connections
+        if self._market_feed is not None:
+            try:
+                self._market_feed.stop(timeout_seconds=5.0)
+            except Exception as exc:
+                logger.debug("old_market_feed_stop_failed: %s", exc)
+
         feed = DhanMarketFeed(
             client_id=self._client.client_id,
             access_token=access_token,

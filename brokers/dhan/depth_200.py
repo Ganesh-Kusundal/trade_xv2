@@ -154,6 +154,34 @@ class DhanDepth200Feed(ManagedService):
         if self._is_connected and self._ws:
             self._send_subscription(instrument)
 
+    def unsubscribe(self, instrument: tuple[str, str] | None = None) -> None:
+        """Unsubscribe from instrument and evict depth cache.
+
+        P2 Fix: Enables proper cleanup for depth 200 feed.
+
+        Args:
+            instrument: (exchange_segment, security_id) tuple or None to clear all
+        """
+        if instrument is not None:
+            if instrument in self._subscriptions:
+                self._subscriptions.remove(instrument)
+                self._instrument = None
+                # Evict depth cache
+                try:
+                    sec_id = int(instrument[1])
+                    with self._depth_cache_lock:
+                        self._depth_cache.pop(sec_id, None)
+                except (ValueError, IndexError):
+                    pass
+                logger.info("depth_200_unsubscribe", extra={"instrument": instrument})
+        else:
+            # Clear all subscriptions
+            self._subscriptions.clear()
+            self._instrument = None
+            with self._depth_cache_lock:
+                self._depth_cache.clear()
+            logger.info("depth_200_unsubscribe_all")
+
     def connect(self) -> None:
         """Deprecated alias for :meth:`start`."""
         self.start()
