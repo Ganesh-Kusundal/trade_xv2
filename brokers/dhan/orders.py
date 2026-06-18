@@ -17,7 +17,7 @@ from decimal import Decimal
 from typing import Any
 
 from brokers.common.event_bus import DomainEvent, EventBus
-from brokers.common.core.domain import OrderRequest
+from brokers.common.core.domain import OrderRequest, OrderResponse
 from brokers.common.oms.risk_manager import RiskManager
 from brokers.dhan.domain import (
     Exchange,
@@ -272,18 +272,54 @@ class OrdersAdapter:
             return order
 
     def modify_order(self, order_id: str, **changes: Any) -> Order:
+        """Modify an existing order via PUT /orders/{order_id}.
+
+        The Dhan API returns a dict with updated order fields on success,
+        or an error dict with ``errorCode``/``errorMessage`` on failure.
+
+        Returns:
+            Updated :class:`Order` parsed from the API response.
+
+        Raises:
+            OrderError: If the API returns an error or response cannot be parsed.
+        """
         payload = {k: v for k, v in changes.items() if v is not None}
-        self._client.put(f"/orders/{order_id}", json=payload)
+        result = self._client.put(f"/orders/{order_id}", json=payload)
+
+        if not isinstance(result, dict):
+            raise OrderError(f"Unexpected modify response: {result}")
+
+        error_code = result.get("errorCode")
+        if error_code:
+            error_msg = result.get("errorMessage", "modify_order_failed")
+            raise OrderError(f"Modify order failed [{error_code}]: {error_msg}")
+
         logger.info("order_modified", extra={"order_id": order_id, "changes": list(changes.keys())})
-        return Order(
-            order_id=order_id,
-            symbol="",
-            exchange="NSE",
-            side=OrderSide.BUY,
-            order_type=OrderType.MARKET,
-            quantity=0,
-            status=OrderStatus.OPEN,
-        )
+
+        # Parse the API response into a canonical Order.
+        # The Dhan modify endpoint returns the updated order details.
+        try:
+            return Order.from_broker_dict(result, field_mapping=_DHAN_MAPPING)
+        except Exception:
+            # Fallback: if the response doesn't have full order details,
+            # construct from the payload + order_id
+            return Order(
+                order_id=order_id,
+                symbol=str(result.get("tradingSymbol", changes.get("symbol", ""))),
+                exchange=str(result.get("exchangeSegment", changes.get("exchange", "NSE"))),
+                side=OrderSide(str(result.get("transactionType", changes.get("side", "BUY"))).upper()),
+                order_type=OrderType(
+                    _DHAN_MAPPING.map_order_type(result) if result.get("orderType")
+                    else str(changes.get("order_type", "MARKET")).upper()
+                ),
+                quantity=int(result.get("quantity", changes.get("quantity", 0))),
+                price=Decimal(str(result.get("price", changes.get("price", 0)))),
+                trigger_price=Decimal(str(result.get("triggerPrice", changes.get("trigger_price", 0)))),
+                status=OrderStatus(
+                    _DHAN_MAPPING.map_status(result) if result.get("orderStatus")
+                    else str(changes.get("status", "OPEN")).upper()
+                ),
+            )
 
     def cancel_order(self, order_id: str) -> OrderResponse:
         """Cancel an order via DELETE /orders/{order_id}.

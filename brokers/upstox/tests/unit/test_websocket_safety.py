@@ -51,7 +51,7 @@ class TestUpstoxMarketDataV3MultiplexerSafety:
     def test_is_connected_reflects_socket_state(self):
         mux = UpstoxMarketDataV3Multiplexer(authorizer=_fake_authorizer())
         assert not mux.is_connected
-        mux._socket = object()
+        mux._connected = True
         mux._stopped = False
         assert mux.is_connected
         mux._stopped = True
@@ -193,7 +193,7 @@ class TestUpstoxPortfolioStreamSafety:
     def test_is_connected_reflects_socket_state(self):
         stream = UpstoxPortfolioStream(authorizer=_fake_authorizer())
         assert not stream.is_connected
-        stream._socket = object()
+        stream._connected = True
         stream._stopped = False
         assert stream.is_connected
         stream._stopped = True

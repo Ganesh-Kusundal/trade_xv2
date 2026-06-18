@@ -473,7 +473,8 @@ class DhanConnection:
                 logger.warning("token_scheduler_stop_failed: %s", exc)
         # Stop the WebSocket services via their ManagedService.stop()
         # method which joins the thread within timeout.
-        for svc in (self._market_feed, self._order_stream, self._polling_feed):
+        for svc in (self._market_feed, self._order_stream, self._polling_feed,
+                     self._depth_20_feed, self._depth_200_feed):
             if svc is None:
                 continue
             try:

@@ -274,14 +274,16 @@ class PositionManager:
     def _key(symbol: str, exchange: str) -> str:
         return f"{symbol.upper()}:{exchange.upper()}"
 
-    def _publish(self, event_type: str, position: Position) -> None:
+    def _publish(self, event_type: str, position: Position | None = None, *, payload: dict | None = None) -> None:
         if self._event_bus is None:
             return
+        data = payload if payload is not None else {"position": position}
+        symbol = position.symbol if position else payload.get("symbol", "") if payload else ""
         self._event_bus.publish(
             DomainEvent.now(
                 event_type,
-                {"position": position},
-                symbol=position.symbol,
+                data,
+                symbol=symbol,
                 source="PositionManager",
             )
         )

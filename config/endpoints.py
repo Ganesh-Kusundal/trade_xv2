@@ -205,7 +205,9 @@ class _UpstoxUrls:
         return f"{self._hft()}/order/history"
 
     def trades_for_day_url(self) -> str:
-        return f"{self._hft()}/order/trades/get-trades-for-day"
+        # Upstox V2 trades endpoint requires order_id per-call.
+        # Use order list endpoint and extract filled orders as trades.
+        return f"{self._v2()}/order/retrieve-all"
 
     # ── Orders (v2 legacy) ──────────────────────────────────────────────
     def place_order_v2_url(self) -> str:

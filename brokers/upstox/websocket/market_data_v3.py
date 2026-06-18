@@ -68,6 +68,7 @@ class UpstoxMarketDataV3Multiplexer:
         self._subscribed: set[str] = set()
         self._task: asyncio.Task[Any] | None = None
         self._stopped = False
+        self._connected = False
         # Reconnect backfill state
         self._last_tick_time: dict[str, Any] = {}
         self._disconnect_time: Any = None
@@ -79,7 +80,7 @@ class UpstoxMarketDataV3Multiplexer:
 
     @property
     def is_connected(self) -> bool:
-        return self._socket is not None and not self._stopped
+        return self._connected and not self._stopped
 
     def add_listener(self, listener: TickListener) -> None:
         with self._listener_lock:
@@ -137,10 +138,12 @@ class UpstoxMarketDataV3Multiplexer:
         self._socket = self._socket_factory(url)
         await self._maybe_send_initial_subscriptions()
         self._stopped = False
+        self._connected = True
         self._task = asyncio.create_task(self._read_loop())
 
     async def disconnect(self) -> None:
         self._stopped = True
+        self._connected = False
         from datetime import datetime, timezone
         self._disconnect_time = datetime.now(timezone.utc)
         if self._task is not None:
@@ -202,6 +205,7 @@ class UpstoxMarketDataV3Multiplexer:
                     from datetime import datetime, timezone
                     self._disconnect_time = datetime.now(timezone.utc)
                 if not self._reconnect.should_retry():
+                    self._connected = False
                     break
                 delay = self._reconnect.next_delay()
                 self._reconnect.record_failure()

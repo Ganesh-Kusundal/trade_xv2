@@ -108,20 +108,21 @@ class TestUpstoxNotImplementedErrors:
         gw._broker = MagicMock()
         return gw
 
-    def test_upstox_option_chain_raises(self, upstox_gateway):
-        with pytest.raises(NotImplementedError, match="option chain"):
-            upstox_gateway.option_chain("NIFTY", exchange="NFO")
+    def test_upstox_option_chain_delegates_to_broker(self, upstox_gateway):
+        """Upstox option_chain now delegates to the broker's options adapter."""
+        upstox_gateway._broker.options.get_expiries.return_value = ["2026-06-25"]
+        upstox_gateway._broker.options.get_option_chain.return_value = []
+        result = upstox_gateway.option_chain("NIFTY", exchange="NFO")
+        assert isinstance(result, dict)
+        assert result["underlying"] == "NIFTY"
 
     def test_upstox_future_chain_raises(self, upstox_gateway):
         with pytest.raises(NotImplementedError, match="future chain"):
             upstox_gateway.future_chain("NIFTY", exchange="NFO")
 
-    def test_upstox_get_trade_book_returns_empty_list(self, upstox_gateway):
-        """Upstox has no trade-book endpoint — must return [] (ABC contract).
-
-        Returning [] lets IntelligentGateway.trades() fall back gracefully
-        instead of propagating NotImplementedError.
-        """
+    def test_upstox_get_trade_book_delegates_to_order_query(self, upstox_gateway):
+        """Upstox get_trade_book now delegates to order_query.get_trades()."""
+        upstox_gateway._broker.order_query.get_trades.return_value = []
         result = upstox_gateway.get_trade_book()
         assert result == []
 

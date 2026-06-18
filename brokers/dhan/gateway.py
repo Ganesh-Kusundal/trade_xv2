@@ -378,6 +378,7 @@ class BrokerGateway(MarketDataGateway, ObservabilityProvider):
             forever_orders=True,
             conditional_triggers=True,
             slice_orders=True,
+            amo=True,
             # Account management
             ledger=True,
             user_profile=True,

@@ -90,16 +90,8 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         return self._broker.order_query.get_order_list()
 
     def get_trade_book(self) -> list[Trade]:
-        # Upstox has no dedicated trade-book endpoint. Return an empty list
-        # (honoring the MarketDataGateway ABC contract) so callers such as
-        # IntelligentGateway.trades() can fall back gracefully instead of
-        # propagating NotImplementedError. Use get_orderbook() / order_query
-        # to reconstruct trade-level detail.
-        logger.debug(
-            "upstox_trade_book_unavailable",
-            extra={"hint": "Use gateway.get_orderbook() or broker.order_query.get_trades()"},
-        )
-        return []
+        """Get today's trade book from the Upstox V2 trades-for-day endpoint."""
+        return self._broker.order_query.get_trades()
 
     # ── Extended Capabilities ─────────────────────────────────────────
 
@@ -235,9 +227,18 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         exchange: str = "NFO",
         expiry: str | None = None,
     ) -> dict:
-        raise NotImplementedError(
-            "Upstox option chain endpoint is deprecated. Use Dhan for option chains."
-        )
+        """Get the option chain for an underlying.
+
+        Delegates to the broker's UpstoxOptionsAdapter which calls the
+        V2 option-chain endpoint.
+        """
+        if expiry is None:
+            expiries = self._broker.options.get_expiries(underlying, exchange)
+            if not expiries:
+                return {}
+            expiry = expiries[0]
+        contracts = self._broker.options.get_option_chain(underlying, exchange, expiry)
+        return {"data": contracts, "underlying": underlying, "expiry": expiry}
 
     def future_chain(
         self,

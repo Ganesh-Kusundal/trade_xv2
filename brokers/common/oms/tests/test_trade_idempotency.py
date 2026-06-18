@@ -23,6 +23,7 @@ from brokers.common.event_bus import (
     DeadLetterQueue,
     DomainEvent,
     EventBus,
+    EventType,
     ProcessedTradeRepository,
 )
 from brokers.common.observability.event_metrics import EventMetrics

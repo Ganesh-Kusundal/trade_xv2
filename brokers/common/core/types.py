@@ -23,9 +23,6 @@ class OrderStatus(str, Enum):
 
     Broker-specific variants (TRANSIT, TRIGGER PENDING, COMPLETE, etc.)
     must be normalized to these values at the adapter boundary.
-    
-    P2-Phase 2: Removed normalize() method to fix Clean Architecture violation.
-    Use StatusMapperRegistry.normalize() from infrastructure layer instead.
     """
 
     OPEN = "OPEN"
@@ -34,6 +31,12 @@ class OrderStatus(str, Enum):
     CANCELLED = "CANCELLED"
     REJECTED = "REJECTED"
     EXPIRED = "EXPIRED"
+
+    @classmethod
+    def normalize(cls, raw: str) -> OrderStatus:
+        """Normalize a broker-specific status string to canonical OrderStatus."""
+        from brokers.common.status_mapper import StatusMapperRegistry
+        return StatusMapperRegistry.normalize(raw)
 
     @property
     def is_terminal(self) -> bool:

@@ -8,7 +8,7 @@ from decimal import Decimal
 import pytest
 
 from brokers.common.core.domain import Order, OrderStatus, OrderType, ProductType, Side, Trade
-from brokers.common.event_bus import DomainEvent, EventBus
+from brokers.common.event_bus import DomainEvent, EventBus, EventType
 from brokers.common.oms import (
     OrderManager,
     OrderRequest,

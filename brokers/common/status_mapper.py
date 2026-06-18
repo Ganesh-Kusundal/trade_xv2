@@ -59,21 +59,28 @@ class StatusMapperRegistry:
 # ── Common status map (backward compatibility) ────────────────────────────
 
 COMMON_STATUS_MAP: dict[str, OrderStatus] = {
+    # ── Canonical identity mappings (so normalize("FILLED") returns FILLED) ──
+    "OPEN": OrderStatus.OPEN,
+    "PARTIALLY_FILLED": OrderStatus.PARTIALLY_FILLED,
+    "FILLED": OrderStatus.FILLED,
+    "CANCELLED": OrderStatus.CANCELLED,
+    "REJECTED": OrderStatus.REJECTED,
+    "EXPIRED": OrderStatus.EXPIRED,
     # ── Terminal / filled ──
     "EXECUTED": OrderStatus.FILLED,
     "COMPLETE": OrderStatus.FILLED,
     "TRADED": OrderStatus.FILLED,
     # ── Partial fills ──
     "PARTIAL": OrderStatus.PARTIALLY_FILLED,
-    "PARTIALLY_FILLED": OrderStatus.PARTIALLY_FILLED,  # Identity mapping
     "PARTIALLY_EXECUTED": OrderStatus.PARTIALLY_FILLED,
     "MARGIN_TRADED": OrderStatus.PARTIALLY_FILLED,
     # ── Open / pending ──
     "AFTER_MARKET_ORDER_REQ_RECEIVED": OrderStatus.OPEN,
     "AMO": OrderStatus.OPEN,
-    # ── Terminal (non-fill) ──
-    "CANCELLED": OrderStatus.CANCELLED,
-    "REJECTED": OrderStatus.REJECTED,
+    "TRANSIT": OrderStatus.OPEN,
+    "TRIGGER_PENDING": OrderStatus.OPEN,
+    "PENDING": OrderStatus.OPEN,
+    "QUEUED": OrderStatus.OPEN,
 }
 
 # Register common mappings at module load

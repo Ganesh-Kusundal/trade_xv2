@@ -37,11 +37,12 @@ class UpstoxPortfolioStream:
         self._listener_lock = threading.RLock()
         self._task: asyncio.Task[Any] | None = None
         self._stopped = False
+        self._connected = False
         self._event_bus = event_bus
 
     @property
     def is_connected(self) -> bool:
-        return self._socket is not None and not self._stopped
+        return self._connected and not self._stopped
 
     def add_listener(self, listener: PortfolioListener) -> None:
         with self._listener_lock:
@@ -58,10 +59,12 @@ class UpstoxPortfolioStream:
             raise RuntimeError("Upstox portfolio stream authorize did not return a URL")
         self._socket = self._socket_factory(url)
         self._stopped = False
+        self._connected = True
         self._task = asyncio.create_task(self._read_loop())
 
     async def disconnect(self) -> None:
         self._stopped = True
+        self._connected = False
         if self._task is not None:
             self._task.cancel()
             with contextlib.suppress(asyncio.CancelledError, Exception):

@@ -96,8 +96,30 @@ class UpstoxOrderCommandAdapter(OrderCommand):
         return response
 
     def modify_order(self, order_id: str, **changes: Any) -> dict[str, Any]:
-        # Best-effort: caller must supply instrument_key in changes if needed.
-        instrument_key = changes.pop("instrument_key", None) or order_id
+        """Modify an existing order via the Upstox V3 modify endpoint.
+
+        The Upstox V3 modify API requires both ``order_id`` and
+        ``instrument_token``.  If the caller does not supply
+        ``instrument_key`` in ``changes``, we look up the existing order
+        to resolve it automatically.
+        """
+        instrument_key = changes.pop("instrument_key", None)
+        if not instrument_key:
+            # Look up the existing order to resolve the instrument_key.
+            try:
+                body = self._order_client.get_order(order_id)
+                if isinstance(body, dict):
+                    data = body.get("data")
+                    if isinstance(data, list) and data:
+                        instrument_key = data[0].get("instrument_token", "")
+            except Exception:
+                pass
+        if not instrument_key:
+            logger.warning(
+                "modify_order_missing_instrument_key",
+                extra={"order_id": order_id},
+            )
+            instrument_key = order_id
         payload = UpstoxDomainMapper.to_modify_payload(order_id, instrument_key, **changes)
         return self._order_client.modify_order_v3(payload)
 
