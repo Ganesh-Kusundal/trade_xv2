@@ -3,15 +3,6 @@
 Single owner for order state. All order placement, updates, and queries go
 through this manager. It is protected by one ``threading.RLock`` and uses
 immutable ``Order`` / ``Trade`` value objects.
-
-Collaborator Pattern (P4-3)
-----------------------------
-OrderManager now delegates to three specialized collaborators:
-- OrderStateValidator: State machine validation
-- OrderAuditLogger: Audit trail logging  
-- OrderPositionUpdater: Position updates on fill
-
-This reduces OrderManager from 541 lines to ~200 lines and follows SRP.
 """
 
 from __future__ import annotations
@@ -26,7 +17,7 @@ from decimal import Decimal
 from typing import Any
 
 from brokers.common.core.domain import Order, OrderStatus, OrderType, ProductType, Side, Trade
-from brokers.common.core.state_machine import IllegalTransitionError
+from brokers.common.core.state_machine import IllegalTransitionError, StateMachine
 from brokers.common.core.types import ORDER_STATUS_TRANSITIONS
 from brokers.common.event_bus import (
     DomainEvent,
@@ -35,9 +26,6 @@ from brokers.common.event_bus import (
     ProcessedTradeRepository,
     TradeIdKey,
 )
-from brokers.common.oms.order_audit_logger import OrderAuditLogger
-from brokers.common.oms.order_position_updater import OrderPositionUpdater
-from brokers.common.oms.order_state_validator import OrderStateValidator
 from brokers.common.oms.risk_manager import RiskManager
 
 logger = logging.getLogger(__name__)
@@ -119,15 +107,6 @@ class OrderManager:
         When True (default), invalid order status transitions raise
         :class:`IllegalTransitionError`. When False, violations are logged
         but accepted (audit mode). Enabled by default for safety (P0.5).
-    state_validator:
-        Optional OrderStateValidator instance. If not provided, one is
-        created internally.
-    audit_logger:
-        Optional OrderAuditLogger instance. If not provided, one is
-        created internally.
-    position_updater:
-        Optional OrderPositionUpdater instance. If not provided, one is
-        created internally.
     """
 
     def __init__(
@@ -136,10 +115,7 @@ class OrderManager:
         risk_manager: RiskManager | None = None,
         processed_trade_repository: ProcessedTradeRepository | None = None,
         metrics: Any | None = None,
-        enforce_state_transitions: bool = True,
-        state_validator: OrderStateValidator | None = None,
-        audit_logger: OrderAuditLogger | None = None,
-        position_updater: OrderPositionUpdater | None = None,
+        enforce_state_transitions: bool = True,  # Phase 3: Enforcement mode enabled after audit period
     ) -> None:
         self._lock = threading.RLock()
         self._orders: dict[str, Order] = {}
@@ -157,13 +133,9 @@ class OrderManager:
         # and reset on the way out.
         self._handler_depth: int = 0
         
-        # P4-3: Extracted collaborators
-        self._state_validator = state_validator or OrderStateValidator(
-            transitions=ORDER_STATUS_TRANSITIONS,
-            enforce=enforce_state_transitions,
-        )
-        self._audit_logger = audit_logger or OrderAuditLogger()
-        self._position_updater = position_updater or OrderPositionUpdater()
+        # P2-Phase 2: State machine enforcement (audit-only mode first)
+        self._enforce_state_transitions = enforce_state_transitions
+        self._state_machines: dict[str, StateMachine[OrderStatus]] = {}  # order_id -> StateMachine
 
     @property
     def risk_manager(self) -> RiskManager | None:
@@ -232,7 +204,7 @@ class OrderManager:
                             )
                         )
                     self._publish(
-                        EventType.ORDER_REJECTED.value, order,
+                        EventType.ORDER_REJECTED.value, order,  # P1-3: Migrated to EventType enum
                         reason=risk_result.reason,
                     )
                     return OrderResult(success=False, error=risk_result.reason)
@@ -254,56 +226,69 @@ class OrderManager:
                     order = submit_fn(request)
                 except Exception as exc:
                     self._publish(
-                        EventType.ORDER_REJECTED.value, order,
+                        EventType.ORDER_REJECTED.value, order,  # P1-3: Migrated to EventType enum
                         reason=str(exc),
                     )
                     return OrderResult(success=False, error=str(exc))
 
             self._orders[order.order_id] = order
             self._orders_by_correlation[request.correlation_id] = order
-            
-            # P4-3: Delegate to audit logger
-            self._audit_logger.log_new_order(
-                order.order_id,
-                OrderStatus.OPEN,
-                details={
-                    "symbol": order.symbol,
-                    "side": order.side.value,
-                    "quantity": order.quantity,
-                },
-            )
-            
-            self._publish(EventType.ORDER_PLACED.value, order)
+            self._publish(EventType.ORDER_PLACED.value, order)  # P1-3: Migrated to EventType enum
             return OrderResult(success=True, order=order)
 
     def upsert_order(self, order: Order) -> None:
         """Update or insert an order (used by broker event handlers).
         
-        P4-3: Delegates state validation to OrderStateValidator.
+        P2-Phase 2: Validates order status transitions using state machine.
+        In audit-only mode (default), logs violations but accepts the update.
+        In enforcement mode, raises IllegalTransitionError on invalid transitions.
         """
         with self._lock:
+            # P2-Phase 2: Validate state transition
             existing = self._orders.get(order.order_id)
             if existing is not None:
-                # P4-3: Delegate to state validator
-                self._state_validator.validate_transition(
-                    order.order_id,
-                    existing.status,
-                    order.status,
+                # Order exists: validate transition
+                old_status = existing.status
+                new_status = order.status
+                
+                if old_status != new_status:
+                    # Status changed: validate transition
+                    state_machine = self._state_machines.get(order.order_id)
+                    if state_machine is None:
+                        # Create state machine from current status
+                        state_machine = StateMachine(
+                            transitions=ORDER_STATUS_TRANSITIONS,
+                            initial=old_status,
+                        )
+                        self._state_machines[order.order_id] = state_machine
+                    
+                    if not state_machine.can_transition_to(new_status):
+                        if self._enforce_state_transitions:
+                            raise IllegalTransitionError(old_status, new_status)
+                        else:
+                            # Audit-only mode: log violation but accept
+                            logger.warning(
+                                "OrderManager: illegal order status transition "
+                                "%s → %s for order %s (audit mode: accepting)",
+                                old_status.value,
+                                new_status.value,
+                                order.order_id,
+                            )
+                    else:
+                        # Valid transition: update state machine
+                        state_machine.transition_to(new_status)
+            else:
+                # New order: create state machine
+                state_machine = StateMachine(
+                    transitions=ORDER_STATUS_TRANSITIONS,
+                    initial=order.status,
                 )
+                self._state_machines[order.order_id] = state_machine
             
             self._orders[order.order_id] = order
             if order.correlation_id:
                 self._orders_by_correlation[order.correlation_id] = order
-            
-            # P4-3: Log state change if order existed
-            if existing is not None and existing.status != order.status:
-                self._audit_logger.log_state_change(
-                    order.order_id,
-                    existing.status,
-                    order.status,
-                )
-            
-            self._publish(EventType.ORDER_UPDATED.value, order)
+            self._publish(EventType.ORDER_UPDATED.value, order)  # P1-3: Migrated to EventType enum
 
     def record_trade(self, trade: Trade) -> bool:
         """Record a trade and update the parent order.
@@ -322,6 +307,12 @@ class OrderManager:
             True if the trade was accepted and applied.
             False if the trade was a duplicate (already processed) or
             referenced an unknown order.
+
+        Notes
+        -----
+        A trade for an unknown order is **not** marked in the ledger:
+        a later delivery of the order event should be allowed to retry
+        processing the trade.
         """
         if trade.trade_id is None or not str(trade.trade_id).strip():
             raise ValueError(
@@ -332,7 +323,7 @@ class OrderManager:
             if self._processed_trades.is_processed(key):
                 self._trades_duplicated += 1
                 if self._metrics is not None:
-                    self._metrics.inc(EventType.TRADE.value, "trade_duplicated")
+                    self._metrics.inc(EventType.TRADE.value, "trade_duplicated")  # P1-3: Migrated to EventType enum
                 logger.info(
                     "OrderManager: trade %s for order %s is a duplicate; skipping",
                     trade.trade_id,
@@ -342,6 +333,9 @@ class OrderManager:
 
             order = self._orders.get(trade.order_id)
             if order is None:
+                # Trade arrived before (or without) its order. Do NOT mark
+                # the ledger, so that once the order surfaces we can
+                # retry the trade by re-publishing the event.
                 logger.warning(
                     "OrderManager: trade %s references unknown order %s; "
                     "ledger will not be marked, retry on order delivery",
@@ -350,32 +344,30 @@ class OrderManager:
                 )
                 return False
 
+            # Mark the ledger only after we have a known order — this
+            # guarantees a transient order-event race does not silently
+            # swallow a real trade.
             self._processed_trades.mark_processed(key)
 
-            # P4-3: Delegate to position updater
-            updated = self._position_updater.apply_trade(order, trade)
-            
+            new_filled = order.filled_quantity + trade.quantity
+            new_avg = self._compute_avg_price(order, trade)
+            new_status = (
+                OrderStatus.FILLED
+                if new_filled >= order.quantity
+                else OrderStatus.PARTIALLY_FILLED
+            )
+            updated = order.with_fill(new_filled, new_avg).with_status(new_status)
             self._orders[order.order_id] = updated
             if order.correlation_id:
                 self._orders_by_correlation[order.correlation_id] = updated
-            
             self._trades_processed += 1
             if self._metrics is not None:
-                self._metrics.inc(EventType.TRADE.value, "trade_processed")
-            
-            # P4-3: Log audit trail
-            self._audit_logger.log_trade_applied(
-                order.order_id,
-                trade.trade_id,
-                updated.filled_quantity,
-                str(updated.avg_price),
-                details={
-                    "symbol": order.symbol,
-                    "status": updated.status.value,
-                },
-            )
-            
-            self._publish(EventType.ORDER_UPDATED.value, updated)
+                self._metrics.inc(EventType.TRADE.value, "trade_processed")  # P1-3: Migrated to EventType enum
+            self._publish(EventType.ORDER_UPDATED.value, updated)  # P1-3: Migrated to EventType enum
+            # Downstream event consumed by PositionManager. The OMS is the
+            # sole gatekeeper for trade idempotency; downstream consumers
+            # must subscribe here, NOT to raw TRADE events, to avoid
+            # double-counting duplicates.
             self._publish_trade_applied(trade)
             return True
 
@@ -386,7 +378,7 @@ class OrderManager:
         correlation_id: str | None = getattr(trade, "correlation_id", None)
         self._event_bus.publish(
             DomainEvent.now(
-                EventType.TRADE_APPLIED.value,
+                EventType.TRADE_APPLIED.value,  # P1-3: Migrated to EventType enum
                 {"trade": trade},
                 symbol=trade.symbol,
                 source="OrderManager",
@@ -461,27 +453,28 @@ class OrderManager:
                 except Exception as exc:
                     return OrderResult(success=False, error=str(exc))
 
-            old_status = order.status
             updated = order.with_status(OrderStatus.CANCELLED)
             self._orders[order_id] = updated
             if order.correlation_id:
                 self._orders_by_correlation[order.correlation_id] = updated
-            
-            # P4-3: Log audit trail
-            self._audit_logger.log_state_change(
-                order_id,
-                old_status,
-                OrderStatus.CANCELLED,
-                details={"reason": "User requested"},
-            )
-            
-            self._publish(EventType.ORDER_CANCELLED.value, updated)
+            self._publish(EventType.ORDER_CANCELLED.value, updated)  # P1-3: Migrated to EventType enum
             return OrderResult(success=True, order=updated)
 
     # ── Event handlers ──────────────────────────────────────────────────────
 
     def on_order_update(self, event: DomainEvent) -> None:
-        """Handle broker order-update events from the bus."""
+        """Handle broker order-update events from the bus.
+
+        Re-entrancy: if we are already inside an OMS handler, the
+        ORDER_UPDATED events that the OMS itself publishes (e.g. via
+        :meth:`upsert_order` or :meth:`record_trade`) must NOT re-enter
+        this handler. Otherwise a single external ORDER_UPDATED triggers
+        an infinite publish→handle→publish loop.
+
+        Thread-safe: the depth check/increment is inside ``_lock`` so
+        concurrent threads cannot race on ``_handler_depth`` and
+        permanently disable the handler.
+        """
         with self._lock:
             if self._handler_depth > 0:
                 return
@@ -496,7 +489,14 @@ class OrderManager:
                 self._handler_depth -= 1
 
     def on_trade(self, event: DomainEvent) -> None:
-        """Handle broker trade events from the bus."""
+        """Handle broker trade events from the bus.
+
+        Idempotent: duplicates are dropped silently (counted in metrics
+        and the ledger) before any state mutation.
+
+        Thread-safe: the depth guard is inside ``_lock`` (see
+        :meth:`on_order_update`).
+        """
         with self._lock:
             if self._handler_depth > 0:
                 return
@@ -531,3 +531,11 @@ class OrderManager:
                 correlation_id=correlation_id,
             )
         )
+
+    @staticmethod
+    def _compute_avg_price(order: Order, trade: Trade) -> Decimal:
+        if order.filled_quantity == 0:
+            return trade.price
+        total_value = order.avg_price * Decimal(order.filled_quantity) + trade.price * Decimal(trade.quantity)
+        total_qty = order.filled_quantity + trade.quantity
+        return total_value / Decimal(total_qty) if total_qty else Decimal("0")

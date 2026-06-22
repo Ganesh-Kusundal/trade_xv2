@@ -1,56 +1,215 @@
-"""Unit tests for WebSocket token provider support."""
+"""Tests for DhanTokenManager — token refresh and validation."""
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+import sys
+import os
 
-from brokers.dhan.websocket import _DhanContext
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
+
+import pytest
+
+from brokers.dhan.ws_token_manager import DhanTokenManager
 
 
-class TestDhanContextTokenProvider:
-    def test_static_token(self):
-        ctx = _DhanContext("client123", access_token="static_token")
-        assert ctx.get_access_token() == "static_token"
+class TestTokenManagerInit:
+    """Verify token manager initialization."""
 
-    def test_token_provider_callable(self):
-        provider = MagicMock(return_value="fresh_token")
-        ctx = _DhanContext("client123", access_token_fn=provider)
-        token = ctx.get_access_token()
-        assert token == "fresh_token"
-        provider.assert_called_once()
+    def test_init_static_token(self):
+        """Must store static token."""
+        mgr = DhanTokenManager(client_id="TEST_CLIENT", access_token="TEST_TOKEN")
+        assert mgr.client_id == "TEST_CLIENT"
+        assert mgr.get_token() == "TEST_TOKEN"
 
-    def test_provider_fallback_to_static(self):
-        provider = MagicMock(side_effect=RuntimeError("provider failed"))
-        ctx = _DhanContext("client123", access_token="fallback_token", access_token_fn=provider)
-        token = ctx.get_access_token()
-        assert token == "fallback_token"
+    def test_init_with_token_fn(self):
+        """Must prefer token_fn over static token."""
+        mgr = DhanTokenManager(
+            client_id="TEST_CLIENT",
+            access_token="STATIC_TOKEN",
+            access_token_fn=lambda: "DYNAMIC_TOKEN",
+        )
+        assert mgr.get_token() == "DYNAMIC_TOKEN"
 
-    def test_update_token(self):
-        ctx = _DhanContext("client123", access_token="old_token")
-        ctx.update_token("new_token")
-        assert ctx.get_access_token() == "new_token"
+    def test_init_no_token(self):
+        """Must handle missing token gracefully."""
+        mgr = DhanTokenManager(client_id="TEST_CLIENT")
+        assert mgr.get_token() == ""
 
-    def test_provider_called_on_each_access(self):
-        call_count = 0
 
-        def counting_provider():
-            nonlocal call_count
-            call_count += 1
-            return f"token_{call_count}"
+class TestGetToken:
+    """Verify token retrieval behavior."""
 
-        ctx = _DhanContext("client123", access_token_fn=counting_provider)
-        assert ctx.get_access_token() == "token_1"
-        assert ctx.get_access_token() == "token_2"
-        assert ctx.get_access_token() == "token_3"
+    def test_get_token_static(self):
+        """Must return static token when no fn provided."""
+        mgr = DhanTokenManager(client_id="C", access_token="TOKEN123")
+        assert mgr.get_token() == "TOKEN123"
 
-    def test_client_id(self):
-        ctx = _DhanContext("my_client")
-        assert ctx.get_client_id() == "my_client"
+    def test_get_token_from_fn(self):
+        """Must call fn and return result."""
+        call_count = [0]
+        def token_fn():
+            call_count[0] += 1
+            return "FRESH_TOKEN"
 
-    def test_get_dhan_http_returns_none(self):
-        ctx = _DhanContext("client123", access_token="token")
-        assert ctx.get_dhan_http() is None
+        mgr = DhanTokenManager(client_id="C", access_token_fn=token_fn)
+        assert mgr.get_token() == "FRESH_TOKEN"
+        assert call_count[0] == 1
 
-    def test_no_token_no_provider(self):
-        ctx = _DhanContext("client123")
-        assert ctx.get_access_token() == ""
+    def test_get_token_fn_exception_fallback(self, caplog):
+        """Must fall back to static token when fn raises."""
+        def bad_fn():
+            raise RuntimeError("token service unavailable")
+
+        mgr = DhanTokenManager(
+            client_id="C",
+            access_token="FALLBACK_TOKEN",
+            access_token_fn=bad_fn,
+        )
+        token = mgr.get_token()
+        assert token == "FALLBACK_TOKEN"
+
+    def test_get_token_fn_exception_no_static(self, caplog):
+        """Must return empty string when fn raises and no static token."""
+        def bad_fn():
+            raise RuntimeError("token service unavailable")
+
+        mgr = DhanTokenManager(client_id="C", access_token_fn=bad_fn)
+        assert mgr.get_token() == ""
+
+
+class TestUpdateToken:
+    """Verify token update behavior."""
+
+    def test_update_static_token(self):
+        """Must update static token."""
+        mgr = DhanTokenManager(client_id="C", access_token="OLD_TOKEN")
+        mgr.update_token("NEW_TOKEN")
+        assert mgr.get_token() == "NEW_TOKEN"
+
+    def test_update_does_not_affect_fn(self):
+        """Must not affect token_fn behavior."""
+        mgr = DhanTokenManager(
+            client_id="C",
+            access_token="STATIC",
+            access_token_fn=lambda: "DYNAMIC",
+        )
+        mgr.update_token("UPDATED_STATIC")
+        assert mgr.get_token() == "DYNAMIC"
+
+    def test_update_then_disable_fn(self):
+        """After fn removed, updated static token is used."""
+        mgr = DhanTokenManager(
+            client_id="C",
+            access_token="OLD_STATIC",
+            access_token_fn=lambda: "DYNAMIC",
+        )
+        mgr.update_token("NEW_STATIC")
+        assert mgr.get_token() == "DYNAMIC"
+        mgr._access_token_fn = None
+        assert mgr.get_token() == "NEW_STATIC"
+
+
+class TestTokenValidation:
+    """Verify token validation logic."""
+
+    def test_valid_token(self):
+        """Non-empty token is valid."""
+        mgr = DhanTokenManager(client_id="C", access_token="VALID_TOKEN")
+        assert mgr.is_token_valid() is True
+
+    def test_empty_token_invalid(self):
+        """Empty token is invalid."""
+        mgr = DhanTokenManager(client_id="C")
+        assert mgr.is_token_valid() is False
+
+    def test_whitespace_token_invalid(self):
+        """Whitespace-only token is invalid."""
+        mgr = DhanTokenManager(client_id="C", access_token="   ")
+        assert mgr.is_token_valid() is False
+
+    def test_none_token_invalid(self):
+        """None token is invalid."""
+        mgr = DhanTokenManager(client_id="C", access_token=None)
+        assert mgr.is_token_valid() is False
+
+
+class TestClientID:
+    """Verify client_id handling."""
+
+    def test_client_id_stored(self):
+        """Must store and return client_id."""
+        mgr = DhanTokenManager(client_id="CLIENT_123")
+        assert mgr.client_id == "CLIENT_123"
+
+    def test_client_id_immutable(self):
+        """client_id should not change after init."""
+        mgr = DhanTokenManager(client_id="CLIENT_123")
+        mgr.update_token("NEW_TOKEN")
+        assert mgr.client_id == "CLIENT_123"
+
+
+class TestTokenManagerThreadSafety:
+    """Verify thread safety of token manager."""
+
+    def test_concurrent_get_token(self):
+        """Concurrent get_token calls must not deadlock or corrupt state."""
+        import threading
+
+        mgr = DhanTokenManager(client_id="C", access_token="TOKEN")
+        results = []
+        errors = []
+
+        def get_token_thread():
+            try:
+                for _ in range(100):
+                    token = mgr.get_token()
+                    results.append(token == "TOKEN")
+            except Exception as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=get_token_thread) for _ in range(10)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=5.0)
+
+        assert len(errors) == 0
+        assert all(results)
+
+    def test_concurrent_update_and_get(self):
+        """Concurrent update and get must be consistent."""
+        import threading
+
+        mgr = DhanTokenManager(client_id="C", access_token="INITIAL")
+        final_tokens = set()
+        errors = []
+
+        def updater(n):
+            try:
+                for i in range(10):
+                    mgr.update_token(f"TOKEN_{n}_{i}")
+            except Exception as e:
+                errors.append(e)
+
+        def getter():
+            try:
+                for _ in range(50):
+                    token = mgr.get_token()
+                    if token:
+                        final_tokens.add(token)
+            except Exception as e:
+                errors.append(e)
+
+        threads = []
+        for i in range(3):
+            threads.append(threading.Thread(target=updater, args=(i,)))
+        for _ in range(5):
+            threads.append(threading.Thread(target=getter))
+
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=5.0)
+
+        assert len(errors) == 0
+        assert len(final_tokens) >= 1  # At least saw some token values

@@ -201,6 +201,7 @@ class TestUpstoxGatewayNewFeatures:
 
         mock_broker = MagicMock(spec=UpstoxBroker)
         mock_broker.ipo = MagicMock()
+        mock_broker.instrument_resolver = MagicMock()
 
         gateway = UpstoxBrokerGateway(mock_broker)
         assert gateway.extended is not None
@@ -213,6 +214,7 @@ class TestUpstoxGatewayNewFeatures:
 
         mock_broker = MagicMock(spec=UpstoxBroker)
         mock_broker.payments = MagicMock()
+        mock_broker.instrument_resolver = MagicMock()
 
         gateway = UpstoxBrokerGateway(mock_broker)
         assert gateway.extended is not None
@@ -225,6 +227,7 @@ class TestUpstoxGatewayNewFeatures:
 
         mock_broker = MagicMock(spec=UpstoxBroker)
         mock_broker.mutual_funds = MagicMock()
+        mock_broker.instrument_resolver = MagicMock()
 
         gateway = UpstoxBrokerGateway(mock_broker)
         assert gateway.extended is not None
@@ -237,6 +240,7 @@ class TestUpstoxGatewayNewFeatures:
 
         mock_broker = MagicMock(spec=UpstoxBroker)
         mock_broker.fundamentals = MagicMock()
+        mock_broker.instrument_resolver = MagicMock()
 
         gateway = UpstoxBrokerGateway(mock_broker)
         assert gateway.extended is not None
@@ -252,6 +256,7 @@ class TestUpstoxGatewayNewFeatures:
         mock_broker.portfolio.get_fund_limits.return_value = MagicMock()
         mock_broker.portfolio.get_positions.return_value = []
         mock_broker.portfolio.get_holdings.return_value = []
+        mock_broker.instrument_resolver = MagicMock()
 
         gateway = UpstoxBrokerGateway(mock_broker)
         caps = gateway.capabilities()

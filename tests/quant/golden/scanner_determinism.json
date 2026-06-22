@@ -1,7 +1,78 @@
 {
-  "all_values_match": true,
-  "is_deterministic": true,
-  "last_rsi_value": 33.32143990320951,
-  "runs": 5,
+  "all_deterministic": true,
+  "scanners": {
+    "breakout": {
+      "candidate_count": 3,
+      "candidates": [
+        {
+          "score": 67.76174902414695,
+          "symbol": "SYM04"
+        },
+        {
+          "score": 52.0328640872232,
+          "symbol": "SYM00"
+        },
+        {
+          "score": 50.254578145792465,
+          "symbol": "SYM01"
+        }
+      ],
+      "is_deterministic": true
+    },
+    "momentum": {
+      "candidate_count": 3,
+      "candidates": [
+        {
+          "score": 66.96653401350056,
+          "symbol": "SYM04"
+        },
+        {
+          "score": 54.673357803274435,
+          "symbol": "SYM03"
+        },
+        {
+          "score": 54.54569000072881,
+          "symbol": "SYM00"
+        }
+      ],
+      "is_deterministic": true
+    },
+    "rs": {
+      "candidate_count": 3,
+      "candidates": [
+        {
+          "score": 67.52772298134323,
+          "symbol": "SYM04"
+        },
+        {
+          "score": 61.59297570055399,
+          "symbol": "SYM03"
+        },
+        {
+          "score": 59.570086685230095,
+          "symbol": "SYM00"
+        }
+      ],
+      "is_deterministic": true
+    },
+    "volume": {
+      "candidate_count": 3,
+      "candidates": [
+        {
+          "score": 66.30746953246013,
+          "symbol": "SYM04"
+        },
+        {
+          "score": 56.2918976950687,
+          "symbol": "SYM00"
+        },
+        {
+          "score": 56.03345091604172,
+          "symbol": "SYM01"
+        }
+      ],
+      "is_deterministic": true
+    }
+  },
   "test": "scanner_determinism"
 }

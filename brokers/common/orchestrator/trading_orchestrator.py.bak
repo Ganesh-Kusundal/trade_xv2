@@ -88,7 +88,6 @@ class OrchestratorConfig:
     default_order_type: OrderType = OrderType.MARKET
     max_position_size_pct: float = 0.0
     feature_timeout_seconds: float | None = None
-    default_exchange: str = "NSE"  # P4-5: Configurable exchange
 
 
 class TradingOrchestrator:
@@ -238,11 +237,9 @@ class TradingOrchestrator:
         """
         try:
             if self._config.feature_timeout_seconds is not None:
-                # P4-5: Use concurrent.futures timeout wrapper for feature fetching
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                    future = executor.submit(self._feature_fetcher.fetch, symbol)
-                    return future.result(timeout=self._config.feature_timeout_seconds)
+                # TODO: Implement timeout wrapper for feature fetching
+                # For now, synchronous fetch
+                return self._feature_fetcher.fetch(symbol)
             else:
                 return self._feature_fetcher.fetch(symbol)
         except Exception as exc:
@@ -379,7 +376,7 @@ class TradingOrchestrator:
         # Create order command
         return OmsOrderCommand(
             symbol=signal.symbol,
-            exchange=self._config.default_exchange,
+            exchange="NSE",  # TODO: Make configurable
             side=side,
             quantity=quantity,
             price=price,
@@ -402,12 +399,10 @@ class TradingOrchestrator:
             Order quantity (minimum 1).
         """
         if signal.position_size_pct > 0:
-            # TODO(#1235): Integrate with CapitalProvider for position sizing
-            # Complex feature requiring:
-            # - Real-time capital query from broker
-            # - Portfolio risk integration
-            # - Dynamic position sizing based on volatility
+            # TODO: Integrate with portfolio/capital provider
             # For now, use a placeholder calculation
+            # In production, this should query current capital
+            # and calculate position size accordingly
             return max(1, int(signal.position_size_pct))
         
         # Default to 1 share/lot
@@ -525,18 +520,13 @@ class TradingOrchestrator:
     def _is_kill_switch_active(self) -> bool:
         """Check if kill switch is active.
         
-        P4-5: Delegates to OrderManager risk manager for kill switch status.
-        If no risk manager is configured, returns False (safe default).
-        
         Returns
         -------
         bool:
             True if kill switch prevents order execution.
         """
-        risk_manager = self._order_manager.risk_manager
-        if risk_manager is None:
-            return False
-        return risk_manager.is_kill_switch_active()
+        # TODO: Integrate with OMS kill switch
+        # For now, always return False (kill switch not implemented)
         return False
     
     def start(self) -> None:

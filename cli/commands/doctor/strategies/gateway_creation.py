@@ -1,0 +1,66 @@
+"""Gateway creation smoke test strategy.
+
+Tests that ``create_gateway()`` can instantiate a gateway for each
+registered broker.
+"""
+
+from __future__ import annotations
+
+from cli.commands.doctor.checks import CheckResult, CheckStrategy
+from cli.services.broker_registry import create_gateway, list_available_brokers
+from cli.services.broker_service import BrokerService
+
+
+class GatewayCreationCheck(CheckStrategy):
+    """Smoke-test gateway creation via ``create_gateway()`` for each broker.
+    
+    This is a lightweight check — it validates the factory can create
+    a gateway without full initialization (load_instruments=False).
+    """
+
+    def execute(self, broker_service: BrokerService | None) -> list[CheckResult]:
+        """Attempt gateway creation for each registered broker."""
+        results: list[CheckResult] = []
+        brokers = list_available_brokers()
+
+        for b in brokers:
+            name = b["name"]
+
+            if b["env_file"] is None:
+                results.append(
+                    CheckResult(
+                        f"  {name.title()}",
+                        "INFO",
+                        "No gateway creation needed (paper broker)",
+                    )
+                )
+                continue
+
+            try:
+                gw = create_gateway(name, load_instruments=False)
+                if gw is not None:
+                    results.append(
+                        CheckResult(
+                            f"  {name.title()}",
+                            "PASS",
+                            f"Gateway created via create_gateway('{name}')",
+                        )
+                    )
+                else:
+                    results.append(
+                        CheckResult(
+                            f"  {name.title()}",
+                            "FAIL",
+                            f"create_gateway('{name}') returned None",
+                        )
+                    )
+            except Exception as exc:
+                results.append(
+                    CheckResult(
+                        f"  {name.title()}",
+                        "FAIL",
+                        f"create_gateway('{name}') raised: {exc}",
+                    )
+                )
+
+        return results

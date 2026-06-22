@@ -2,6 +2,9 @@
 
 Tests cover all 10 diagnostic check categories in the doctor command.
 All broker API calls are mocked — no live API dependency.
+
+Phase P4-2 (2026-06-22): Updated to work with Strategy pattern refactoring.
+Tests now patch the strategy modules instead of the doctor module directly.
 """
 
 from __future__ import annotations
@@ -163,7 +166,7 @@ class TestDoctorCommand:
         output = console.export_text()
         assert "Diagnostics" in output or "Doctor" in output
         # Should show multiple check categories
-        assert "PASS" in output or "FAIL" in output or "WARN" in output
+        assert "passed" in output or "failed" in output or "warnings" in output
 
     def test_doctor_no_gateway(self, console, mock_broker_service):
         mock_broker_service.active_broker = None
@@ -177,7 +180,7 @@ class TestDoctorCommand:
     def test_doctor_with_exceptions(self, console, mock_broker_service):
         # Gateway that raises on most calls
         mock_gateway = MagicMock()
-        mock_gateway.market_data.get_quote.side_effect = Exception("API down")
+        mock_gateway.quote.side_effect = Exception("API down")
         mock_gateway.funds.side_effect = Exception("API down")
         mock_broker_service.active_broker = mock_gateway
         
@@ -196,13 +199,17 @@ class TestBrokerRegistryCheck:
     """Tests for broker registry diagnostic checks."""
 
     def test_check_broker_registry_with_brokers(self):
-        with patch("cli.commands.doctor.list_available_brokers", return_value=["dhan", "upstox"]):
+        with patch("cli.commands.doctor.strategies.broker_registry.list_available_brokers") as mock_list:
+            mock_list.return_value = [
+                {"name": "dhan", "env_file": ".env.local", "available": True},
+                {"name": "paper", "env_file": None, "available": True},
+            ]
             results = cmd_doctor._check_broker_registry()
             assert len(results) > 0
             assert any(r.name == "Registered Brokers" for r in results)
 
     def test_check_broker_registry_empty(self):
-        with patch("cli.commands.doctor.list_available_brokers", return_value=[]):
+        with patch("cli.commands.doctor.strategies.broker_registry.list_available_brokers", return_value=[]):
             results = cmd_doctor._check_broker_registry()
             assert any(r.status == "FAIL" for r in results)
 
@@ -211,14 +218,22 @@ class TestGatewayCreationCheck:
     """Tests for gateway creation smoke test."""
 
     def test_gateway_creation_success(self):
-        with patch("cli.commands.doctor.create_gateway") as mock_create:
+        with patch("cli.commands.doctor.strategies.gateway_creation.list_available_brokers") as mock_list, \
+             patch("cli.commands.doctor.strategies.gateway_creation.create_gateway") as mock_create:
+            mock_list.return_value = [
+                {"name": "dhan", "env_file": ".env.local", "available": True},
+            ]
             mock_create.return_value = MagicMock()
-            results = cmd_doctor._check_gateway_creation(["dhan"])
+            results = cmd_doctor._check_gateway_creation()
             assert any(r.status == "PASS" for r in results)
 
     def test_gateway_creation_failure(self):
-        with patch("cli.commands.doctor.create_gateway", side_effect=Exception("Config error")):
-            results = cmd_doctor._check_gateway_creation(["dhan"])
+        with patch("cli.commands.doctor.strategies.gateway_creation.list_available_brokers") as mock_list, \
+             patch("cli.commands.doctor.strategies.gateway_creation.create_gateway", side_effect=Exception("Config error")):
+            mock_list.return_value = [
+                {"name": "dhan", "env_file": ".env.local", "available": True},
+            ]
+            results = cmd_doctor._check_gateway_creation()
             assert any(r.status in ("FAIL", "ERROR") for r in results)
 
 
@@ -226,15 +241,21 @@ class TestMarketDataChecks:
     """Tests for market data diagnostic checks."""
 
     def test_quote_check_success(self, mock_gateway):
-        results = cmd_doctor._check_market_data(mock_gateway)
+        mock_broker_service = MagicMock()
+        mock_broker_service.active_broker = mock_gateway
+        results = cmd_doctor._check_market_data(mock_broker_service)
         assert any("quote" in r.name.lower() for r in results)
 
     def test_depth_check_success(self, mock_gateway):
-        results = cmd_doctor._check_market_data(mock_gateway)
+        mock_broker_service = MagicMock()
+        mock_broker_service.active_broker = mock_gateway
+        results = cmd_doctor._check_market_data(mock_broker_service)
         assert any("depth" in r.name.lower() for r in results)
 
     def test_historical_check_success(self, mock_gateway):
-        results = cmd_doctor._check_market_data(mock_gateway)
+        mock_broker_service = MagicMock()
+        mock_broker_service.active_broker = mock_gateway
+        results = cmd_doctor._check_market_data(mock_broker_service)
         assert any("historical" in r.name.lower() for r in results)
 
 
@@ -242,11 +263,15 @@ class TestOrderTradeChecks:
     """Tests for order & trade diagnostic checks."""
 
     def test_orderbook_check(self, mock_gateway):
-        results = cmd_doctor._check_orders_trades(mock_gateway)
+        mock_broker_service = MagicMock()
+        mock_broker_service.active_broker = mock_gateway
+        results = cmd_doctor._check_order_api(mock_broker_service)
         assert any("order" in r.name.lower() for r in results)
 
     def test_tradebook_check(self, mock_gateway):
-        results = cmd_doctor._check_orders_trades(mock_gateway)
+        mock_broker_service = MagicMock()
+        mock_broker_service.active_broker = mock_gateway
+        results = cmd_doctor._check_order_api(mock_broker_service)
         assert any("trade" in r.name.lower() for r in results)
 
 
@@ -254,15 +279,21 @@ class TestPortfolioChecks:
     """Tests for portfolio diagnostic checks."""
 
     def test_holdings_check(self, mock_gateway):
-        results = cmd_doctor._check_portfolio(mock_gateway)
+        mock_broker_service = MagicMock()
+        mock_broker_service.active_broker = mock_gateway
+        results = cmd_doctor._check_portfolio(mock_broker_service)
         assert any("holding" in r.name.lower() for r in results)
 
     def test_positions_check(self, mock_gateway):
-        results = cmd_doctor._check_portfolio(mock_gateway)
+        mock_broker_service = MagicMock()
+        mock_broker_service.active_broker = mock_gateway
+        results = cmd_doctor._check_portfolio(mock_broker_service)
         assert any("position" in r.name.lower() for r in results)
 
     def test_balance_check(self, mock_gateway):
-        results = cmd_doctor._check_portfolio(mock_gateway)
+        mock_broker_service = MagicMock()
+        mock_broker_service.active_broker = mock_gateway
+        results = cmd_doctor._check_portfolio(mock_broker_service)
         assert any("balance" in r.name.lower() or "fund" in r.name.lower() for r in results)
 
 
@@ -275,7 +306,7 @@ class TestLifecycleCheck:
         assert any("lifecycle" in r.name.lower() for r in results)
 
     def test_lifecycle_no_service(self, mock_broker_service):
-        mock_broker_service.lifecycle.service_names.return_value = []
+        mock_broker_service.lifecycle.health_snapshot.return_value = {}
         results = cmd_doctor._check_lifecycle(mock_broker_service)
         # Should still pass with empty lifecycle
         assert len(results) > 0
@@ -292,8 +323,8 @@ class TestDoctorEdgeCases:
     def test_doctor_partial_gateway_failure(self, console, mock_broker_service):
         """Some API calls work, others fail."""
         mock_gateway = MagicMock()
-        mock_gateway.market_data.get_quote.return_value = MagicMock(ltp=100, volume=1000)
-        mock_gateway.market_data.get_depth.side_effect = Exception("Depth API down")
+        mock_gateway.quote.return_value = MagicMock(ltp=100, volume=1000)
+        mock_gateway.depth.side_effect = Exception("Depth API down")
         mock_gateway.funds.return_value = MagicMock(available_balance=50000)
         mock_broker_service.active_broker = mock_gateway
         
@@ -311,7 +342,7 @@ class TestDoctorEdgeCases:
             time.sleep(0.1)  # Simulate slow call
             return MagicMock()
         
-        mock_gateway.market_data.get_quote.side_effect = slow_call
+        mock_gateway.quote.side_effect = slow_call
         mock_gateway.funds.side_effect = slow_call
         mock_broker_service.active_broker = mock_gateway
         

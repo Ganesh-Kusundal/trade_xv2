@@ -1,0 +1,59 @@
+{
+  "all_deterministic": true,
+  "features": {
+    "atr_14": {
+      "is_deterministic": true,
+      "last_values": {
+        "atr": 6.269430918282524,
+        "close": 2483.0750045712525,
+        "high": 2485.2451832239317,
+        "low": 2478.223063606331,
+        "open": 2485.024157314982,
+        "symbol": "RELIANCE",
+        "timestamp": "2024-01-01 08:19:00",
+        "volume": 63265
+      }
+    },
+    "combined": {
+      "is_deterministic": true,
+      "last_values": {
+        "14": 6.269430918282524,
+        "20": 2492.0947983325036,
+        "close": 2483.0750045712525,
+        "high": 2485.2451832239317,
+        "low": 2478.223063606331,
+        "open": 2485.024157314982,
+        "symbol": "RELIANCE",
+        "timestamp": "2024-01-01 08:19:00",
+        "volume": 63265
+      }
+    },
+    "rsi_14": {
+      "is_deterministic": true,
+      "last_values": {
+        "close": 2483.0750045712525,
+        "high": 2485.2451832239317,
+        "low": 2478.223063606331,
+        "open": 2485.024157314982,
+        "rsi": 33.32143990320951,
+        "symbol": "RELIANCE",
+        "timestamp": "2024-01-01 08:19:00",
+        "volume": 63265
+      }
+    },
+    "sma_20": {
+      "is_deterministic": true,
+      "last_values": {
+        "close": 2483.0750045712525,
+        "high": 2485.2451832239317,
+        "low": 2478.223063606331,
+        "open": 2485.024157314982,
+        "sma": 2492.0947983325036,
+        "symbol": "RELIANCE",
+        "timestamp": "2024-01-01 08:19:00",
+        "volume": 63265
+      }
+    }
+  },
+  "test": "feature_parity"
+}

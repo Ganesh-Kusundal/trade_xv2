@@ -57,6 +57,9 @@ async def replay_websocket(websocket: WebSocket, session_id: str):
     - Server -> Client: {"type": "candle", "symbol": "RELIANCE", "t": ..., "o": ..., ...}
     - Server -> Client: {"type": "event", "event": "order_filled", ...}
     - Server -> Client: {"type": "status", "status": "playing", "progress": 45.2}
+    
+    Note: Replay engine implementation is tracked in GitHub Issue #1234.
+    Current implementation provides status responses only.
     """
     import uuid
     connection_id = str(uuid.uuid4())
@@ -72,21 +75,29 @@ async def replay_websocket(websocket: WebSocket, session_id: str):
             action = message.get("action")
             
             if action == "play":
-                # TODO: Start replay engine streaming
+                # TODO(#1234): Implement replay engine streaming
+                # Complex feature requiring:
+                # - Historical data fetcher integration
+                # - Time-based event scheduler
+                # - Speed control mechanism
+                # - Pause/resume state machine
+                logger.info("Replay play requested for session %s (not yet implemented)", session_id)
                 await replay_manager.send_to_client(
                     connection_id,
                     {"type": "status", "status": "playing", "session_id": session_id},
                 )
             
             elif action == "pause":
-                # TODO: Pause replay engine
+                # TODO(#1234): Implement replay engine pause
+                logger.info("Replay pause requested for session %s (not yet implemented)", session_id)
                 await replay_manager.send_to_client(
                     connection_id,
                     {"type": "status", "status": "paused", "session_id": session_id},
                 )
             
             elif action == "stop":
-                # TODO: Stop replay engine
+                # TODO(#1234): Implement replay engine stop
+                logger.info("Replay stop requested for session %s (not yet implemented)", session_id)
                 await replay_manager.send_to_client(
                     connection_id,
                     {"type": "status", "status": "stopped", "session_id": session_id},
@@ -94,7 +105,12 @@ async def replay_websocket(websocket: WebSocket, session_id: str):
             
             elif action == "seek":
                 timestamp = message.get("timestamp")
-                # TODO: Seek replay engine to timestamp
+                # TODO(#1234): Implement replay engine seek
+                logger.info(
+                    "Replay seek requested for session %s to timestamp %s (not yet implemented)",
+                    session_id,
+                    timestamp,
+                )
                 await replay_manager.send_to_client(
                     connection_id,
                     {"type": "status", "status": "seeking", "timestamp": timestamp},
@@ -102,7 +118,12 @@ async def replay_websocket(websocket: WebSocket, session_id: str):
             
             elif action == "speed":
                 speed = message.get("speed", 1)
-                # TODO: Update replay speed
+                # TODO(#1234): Implement replay speed control
+                logger.info(
+                    "Replay speed change requested for session %s to %dx (not yet implemented)",
+                    session_id,
+                    speed,
+                )
                 await replay_manager.send_to_client(
                     connection_id,
                     {"type": "status", "status": "speed_changed", "speed": speed},

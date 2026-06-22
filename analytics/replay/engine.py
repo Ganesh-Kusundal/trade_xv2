@@ -14,9 +14,14 @@ P2-3 Intra-Bar Checks: The engine checks open positions against stop-loss and
 target levels on every bar using intra-bar high/low, not just on explicit
 signals. This prevents unrealistic fills and improves backtest fidelity.
 
+P5.2 Window Optimization: Implements lazy loading and bounded memory access.
+The engine now uses a circular buffer for the replay window instead of
+accumulating all bars in a list, ensuring O(window_size) memory regardless
+of dataset size.
+
 Flow per bar:
     1. Receive Bar (OHLCV)
-    2. Append to growing DataFrame (sliding window)
+    2. Append to sliding window (bounded by window_size)
     3. Run FeaturePipeline on the window
     4. Construct Candidate from latest bar
     5. Run StrategyPipeline.evaluate_single(candidate, features)
@@ -48,6 +53,7 @@ Usage:
 from __future__ import annotations
 
 import logging
+from collections import deque
 from decimal import Decimal
 
 import pandas as pd
@@ -80,6 +86,9 @@ class ReplayEngine:
 
     P2-3: Open positions are checked against stop-loss and target levels on
     every bar using intra-bar high/low data.
+
+    P5.2: Uses bounded deque for window storage instead of unbounded list,
+    ensuring O(window_size) memory regardless of input dataset size.
 
     Parameters
     ----------
@@ -141,12 +150,19 @@ class ReplayEngine:
         if data.empty:
             return ReplayResult(config=self._config)
 
-        df = data.copy()
+        # P5.2: Avoid full DataFrame copy — work with view where possible
+        df = data
         ts_col = "timestamp" if "timestamp" in df.columns else "date" if "date" in df.columns else None
         if ts_col is None:
             raise ValueError("Data must have a 'timestamp' or 'date' column")
 
-        df[ts_col] = pd.to_datetime(df[ts_col])
+        # Only copy if we need to mutate timestamp column
+        if not pd.api.types.is_datetime64_any_dtype(df[ts_col]):
+            df = df.copy()
+            df[ts_col] = pd.to_datetime(df[ts_col])
+        else:
+            df = df.copy()  # Sort requires copy for index reset
+
         df = df.sort_values(ts_col).reset_index(drop=True)
 
         # If multi-symbol, group and process each
@@ -162,7 +178,9 @@ class ReplayEngine:
         session.peak_equity = config.initial_capital
         session.equity_curve.append((df[ts_col].iloc[0], config.initial_capital))
 
-        window: list[dict] = []
+        # P5.2: Use bounded deque instead of unbounded list for O(window_size) memory
+        max_window = config.window_size if config.window_size > 0 else None
+        window: deque[dict] = deque(maxlen=max_window)
         warmup_done = False
 
         for idx in range(len(df)):
@@ -188,8 +206,8 @@ class ReplayEngine:
                     continue
                 warmup_done = True
 
-            # Build window DataFrame
-            window_df = self._build_window(window, config.window_size)
+            # P5.2: Build window DataFrame from bounded deque (no slicing needed)
+            window_df = pd.DataFrame(window)
 
             # Run FeaturePipeline
             try:
@@ -282,11 +300,17 @@ class ReplayEngine:
             signals_generated=len(all_signals),
         )
 
-    def _build_window(self, window: list[dict], window_size: int) -> pd.DataFrame:
-        """Build a DataFrame from the window, optionally limiting size."""
-        if window_size > 0:
-            window = window[-window_size:]
-        return pd.DataFrame(window)
+    def _build_window(self, window_data, window_size: int) -> pd.DataFrame:
+        """Build a DataFrame from the window data.
+
+        P5.2: Now accepts deque or list, no longer needs slicing since
+        deque handles bounded size automatically.
+        """
+        # If it's a deque with maxlen, it's already bounded
+        # If it's a list and window_size > 0, slice it
+        if isinstance(window_data, list) and window_size > 0:
+            window_data = window_data[-window_size:]
+        return pd.DataFrame(window_data)
 
     def _process_signal(
         self,

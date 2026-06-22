@@ -189,6 +189,20 @@ class RiskManager:
                     extra={"new_state": active, "previous": previous},
                 )
 
+
+    def is_kill_switch_active(self) -> bool:
+        """Check if kill switch is currently active.
+        
+        P4-5: Thread-safe read of kill switch status.
+        
+        Returns
+        -------
+        bool:
+            True if kill switch prevents order execution.
+        """
+        with self._lock:
+            return self._config.kill_switch
+
     def reset_daily_pnl(self) -> None:
         """Reset the daily PnL to zero.
 

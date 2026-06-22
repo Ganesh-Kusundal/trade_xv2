@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 import pandas as pd
 
@@ -32,17 +32,17 @@ class ScannerState(str, Enum):
     - COMPLETED → IDLE (ready for next scan)
     - FAILED → IDLE (retry after failure)
     """
-    
+
     IDLE = "IDLE"
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
-    
+
     @property
     def is_active(self) -> bool:
         """True if scanner is currently running."""
         return self == ScannerState.RUNNING
-    
+
     @property
     def is_terminal(self) -> bool:
         """True if scanner has completed or failed."""
@@ -128,6 +128,9 @@ class BaseScanner:
     
     P1-Phase 1: Added optional event_bus parameter for publishing
     SCAN_STARTED, CANDIDATE_GENERATED, and SCAN_COMPLETED events.
+    
+    P5.1: Optimized _compute_features to avoid unnecessary DataFrame copy
+    when pipeline already returns an isolated DataFrame.
     """
 
     pipeline: FeaturePipeline
@@ -150,25 +153,32 @@ class BaseScanner:
                     "universe": len(universe),
                 },
             )
-        
+
         raise NotImplementedError("Subclasses must implement scan()")
 
     def _compute_features(self, universe: pd.DataFrame) -> pd.DataFrame:
-        """Run the pipeline on the entire universe."""
+        """Run the pipeline on the entire universe.
+        
+        P5.1: Avoid unnecessary .copy() — pipeline.run() already returns
+        a new DataFrame, so we can safely mutate it in-place downstream.
+        """
+        df = universe
         # Ensure symbol column exists — use index as symbol if missing
-        df = universe.copy()
         if "symbol" not in df.columns:
+            df = df.copy()  # Must copy before adding column
             df["symbol"] = df.index.astype(str)
         # Ensure required OHLCV columns have defaults
         for col in ("open", "high", "low", "close", "volume"):
             if col not in df.columns:
                 if col == "volume":
+                    df = df.copy() if df is universe else df
                     df[col] = 0
                 else:
+                    df = df.copy() if df is universe else df
                     df[col] = df.get("close", 0.0)
         # Ensure timestamp column exists
         if "timestamp" not in df.columns:
-            import pandas as pd
+            df = df.copy() if df is universe else df
             df["timestamp"] = pd.Timestamp.now()
         return self.pipeline.run(df)
 
@@ -193,7 +203,7 @@ class BaseScanner:
                 metrics={col: float(row[col]) for col in scored.columns if col.startswith("score_") and not pd.isna(row[col])},
             )
             candidates.append(candidate)
-            
+
             # P1-Phase 1: Publish CANDIDATE_GENERATED event
             if self.event_bus is not None:
                 from brokers.common.event_bus import EventType
@@ -205,13 +215,13 @@ class BaseScanner:
                         "reason": ", ".join(candidate.reasons),
                     },
                 )
-        
+
         result = ScanResult(
             scanner=self.name,
             candidates=candidates,
             universe_size=len(scored),
         )
-        
+
         # P1-Phase 1: Publish SCAN_COMPLETED
         if self.event_bus is not None:
             from brokers.common.event_bus import EventType
@@ -222,5 +232,5 @@ class BaseScanner:
                     "universe": len(scored),
                 },
             )
-        
+
         return result
