@@ -318,6 +318,46 @@ class BrokerService:
         statuses.append({"broker": "Paper", "status": "Available"})
         return statuses
 
+    def submit_order(self, command: Any) -> Any:
+        """Submit an order to the active broker gateway.
+        
+        Delegates to the active gateway's place_order method with the
+        correct signature expected by OrderManager.place_order().
+        
+        Parameters
+        ----------
+        command:
+            OmsOrderCommand with order details.
+            
+        Returns
+        -------
+        Order
+            The placed order with broker_id and status.
+            
+        Raises
+        ------
+        RuntimeError
+            If no broker gateway is configured.
+        """
+        self._ensure_initialized()
+        gateway = self.active_broker
+        if gateway is None:
+            raise RuntimeError("No broker gateway configured")
+        
+        # Delegate to gateway's place_order with individual parameters
+        # This adapts OmsOrderCommand to the gateway's expected signature
+        return gateway.place_order(
+            symbol=command.symbol,
+            exchange=command.exchange,
+            side=command.side.value if hasattr(command.side, 'value') else str(command.side),
+            quantity=command.quantity,
+            price=float(command.price) if command.price else 0.0,
+            order_type=command.order_type.value if hasattr(command.order_type, 'value') else str(command.order_type),
+            product_type=command.product_type.value if hasattr(command.product_type, 'value') else "INTRADAY",
+            trigger_price=float(command.trigger_price) if hasattr(command, 'trigger_price') and command.trigger_price else None,
+            correlation_id=command.correlation_id,
+        )
+
     def close(self) -> None:
         """Clean up the live gateway connection and stop every managed service.
 

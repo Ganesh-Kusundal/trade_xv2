@@ -39,6 +39,7 @@ is created. Tests inject a fresh instance to assert counters.
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from decimal import Decimal
 from typing import Any
@@ -128,7 +129,9 @@ class IntelligentGateway:
         self._metrics = metrics or EventMetrics()
         self._health_monitor = health_monitor
         # In-memory cache: (operation, symbol) -> _CacheEntry
+        # Thread-safe: protected by _cache_lock
         self._cache: dict[tuple[str, str], _CacheEntry] = {}
+        self._cache_lock = threading.Lock()
 
     @property
     def dhan(self):
@@ -175,18 +178,26 @@ class IntelligentGateway:
         value: Any,
         ttl: float,
     ) -> None:
-        """Store *value* in the cache with the given TTL."""
+        """Store *value* in the cache with the given TTL.
+        
+        Thread-safe: acquires _cache_lock before mutating _cache.
+        """
         key = self._cache_key(operation, symbol)
-        self._cache[key] = _CacheEntry(value, ttl, operation, symbol)
+        with self._cache_lock:
+            self._cache[key] = _CacheEntry(value, ttl, operation, symbol)
 
     def _cache_get(
         self,
         operation: str,
         symbol: str,
     ) -> Any | None:
-        """Return cached value if present and not expired, else None."""
+        """Return cached value if present and not expired, else None.
+        
+        Thread-safe: acquires _cache_lock before reading _cache.
+        """
         key = self._cache_key(operation, symbol)
-        entry = self._cache.get(key)
+        with self._cache_lock:
+            entry = self._cache.get(key)
         if entry is None or entry.is_expired:
             return None
         return entry.value

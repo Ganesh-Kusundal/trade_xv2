@@ -204,6 +204,42 @@ class ProcessedTradeRepository:
                 )
             return cls._instances[key]
 
+    @classmethod
+    def clear_instances(cls) -> None:
+        """Clear all singleton instances from the registry.
+        
+        This method is primarily intended for test isolation and long-running
+        process health. In production, instances should persist for the
+        lifetime of the process.
+        
+        Thread Safety
+        -------------
+        This method is thread-safe. It acquires _singleton_lock before
+        clearing the registry.
+        
+        Examples
+        --------
+        >>> # Clear all instances (e.g., between tests)
+        >>> ProcessedTradeRepository.clear_instances()
+        >>> ProcessedTradeRepository.get_instance() is ProcessedTradeRepository.get_instance()
+        True  # New instance created
+        """
+        with cls._singleton_lock:
+            cls._instances.clear()
+
+    @classmethod
+    def get_instance_count(cls) -> int:
+        """Return the number of singleton instances currently registered.
+        
+        Useful for monitoring and debugging memory leaks.
+        
+        Returns
+        -------
+        int
+            Number of instances in the registry.
+        """
+        return len(cls._instances)
+
 
     def __init__(
         self,

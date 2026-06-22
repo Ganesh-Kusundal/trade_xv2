@@ -244,16 +244,16 @@ def get_last_candle_fast(
             LIMIT 1
         """
         
-        result = conn.execute(query, [str(path)]).fetchone()
+        result_row = conn.execute(query, [str(path)])
+        description = result_row.description
+        if description is None:
+            return None
+        
+        result = result_row.fetchone()
         if result is None:
             return None
         
-        # Convert to dict
-        # Get column names from query description
-        description = conn.execute(query, [str(path)]).description
-        if description is None:
-            return None
-            
+        # Convert to dict using column names from description
         columns = [desc[0] for desc in description]
         return dict(zip(columns, result))
         

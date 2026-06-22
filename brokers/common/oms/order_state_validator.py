@@ -21,6 +21,8 @@ import logging
 import threading
 from typing import TYPE_CHECKING
 
+from cachetools import TTLCache
+
 from brokers.common.core.state_machine import IllegalTransitionError, StateMachine
 from brokers.common.core.types import ORDER_STATUS_TRANSITIONS, OrderStatus
 
@@ -52,10 +54,34 @@ class OrderStateValidator:
         self,
         transitions: dict[OrderStatus, frozenset[OrderStatus]] | None = None,
         enforce: bool = True,
+        max_orders: int = 10000,
+        ttl_seconds: int = 86400,
     ) -> None:
+        """Initialize the state validator.
+        
+        Parameters
+        ----------
+        transitions:
+            Dictionary mapping each state to allowed next states.
+            Defaults to ORDER_STATUS_TRANSITIONS.
+        enforce:
+            When True, invalid transitions raise IllegalTransitionError.
+            When False, violations are logged but accepted (audit mode).
+        max_orders:
+            Maximum number of order state machines to track.
+            Oldest entries are evicted when limit is reached.
+        ttl_seconds:
+            Time-to-live for order state machines (default: 24 hours).
+            Expired entries are automatically evicted.
+        """
         self._transitions = transitions or ORDER_STATUS_TRANSITIONS
         self._enforce = enforce
-        self._state_machines: dict[str, StateMachine[OrderStatus]] = {}
+        # Bounded cache with TTL eviction to prevent memory leaks
+        # Thread-safe: caller must hold lock when accessing
+        self._state_machines: TTLCache = TTLCache(
+            maxsize=max_orders,
+            ttl=ttl_seconds,
+        )
 
     @property
     def enforce(self) -> bool:
