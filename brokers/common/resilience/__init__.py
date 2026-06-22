@@ -8,6 +8,10 @@ from brokers.common.resilience.backoff import (
     FixedBackoff,
     NoBackoff,
 )
+from brokers.common.resilience.broker_health_monitor import (
+    BrokerHealthMonitor,
+    BrokerHealthStatus,
+)
 from brokers.common.resilience.circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerConfig,
@@ -15,6 +19,7 @@ from brokers.common.resilience.circuit_breaker import (
 )
 from brokers.common.resilience.errors import (
     AuthenticationError,
+    BrokerDegradedError,
     BrokerError,
     CircuitBreakerOpenError,
     ConfigError,
@@ -38,7 +43,10 @@ from brokers.common.resilience.retry import RetryConfig, RetryExecutor
 __all__ = [
     "AuthenticationError",
     "BackoffStrategy",
+    "BrokerDegradedError",
     "BrokerError",
+    "BrokerHealthMonitor",
+    "BrokerHealthStatus",
     "CircuitBreaker",
     "CircuitBreakerConfig",
     "CircuitBreakerOpenError",

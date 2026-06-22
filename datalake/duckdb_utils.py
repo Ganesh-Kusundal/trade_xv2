@@ -54,6 +54,79 @@ def connect_with_retry(
     raise RuntimeError("unreachable")
 
 
+class DuckDBReadPool:
+    """Read-only DuckDB pool — allows multiple concurrent read connections.
+
+    Unlike DuckDBPool (which has one connection per file), this pool creates
+    a NEW read-only connection for each acquire() call. This enables true
+    concurrent reads from multiple FastAPI request handlers.
+
+    Connections are short-lived: callers should release() immediately after
+    reading to allow cleanup.
+
+    Usage:
+        pool = DuckDBReadPool()
+        conn = pool.acquire("market_data/catalog.duckdb")
+        try:
+            result = conn.execute("SELECT ...").fetchdf()
+        finally:
+            pool.release("market_data/catalog.duckdb")
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.RLock()
+        self._active_connections: dict[str, list[duckdb.DuckDBPyConnection]] = {}
+
+    def acquire(self, db_path: str | Path) -> duckdb.DuckDBPyConnection:
+        """Create a new read-only connection for concurrent reads."""
+        key = str(Path(db_path).resolve())
+        conn = connect_with_retry(key, read_only=True)
+        with self._lock:
+            if key not in self._active_connections:
+                self._active_connections[key] = []
+            self._active_connections[key].append(conn)
+        logger.debug("DuckDBReadPool: created read-only connection to %s", key)
+        return conn
+
+    def release(self, db_path: str | Path, conn: duckdb.DuckDBPyConnection | None = None) -> None:
+        """Close a read-only connection.
+
+        Parameters
+        ----------
+        db_path:
+            Path to DuckDB file.
+        conn:
+            Connection to close. If None, closes most recent connection.
+        """
+        key = str(Path(db_path).resolve())
+        with self._lock:
+            if key in self._active_connections and self._active_connections[key]:
+                if conn:
+                    if conn in self._active_connections[key]:
+                        self._active_connections[key].remove(conn)
+                else:
+                    conn = self._active_connections[key].pop()
+                try:
+                    conn.close()
+                except Exception as exc:
+                    logger.debug("DuckDBReadPool: close failed for %s: %s", key, exc)
+                logger.debug("DuckDBReadPool: closed read-only connection to %s", key)
+
+    def close_all(self) -> None:
+        """Close all active read-only connections."""
+        with self._lock:
+            count = 0
+            for key, conns in self._active_connections.items():
+                for conn in conns:
+                    try:
+                        conn.close()
+                        count += 1
+                    except Exception as exc:
+                        logger.debug("DuckDBReadPool: close failed for %s: %s", key, exc)
+            self._active_connections.clear()
+            logger.info("DuckDBReadPool: closed %d read-only connections", count)
+
+
 class DuckDBPool:
     """Process-wide DuckDB connection pool — one connection per file path.
 
@@ -72,12 +145,16 @@ class DuckDBPool:
         self._connections: dict[str, duckdb.DuckDBPyConnection] = {}
         self._ref_counts: dict[str, int] = {}
 
-    def acquire(self, db_path: str | Path) -> duckdb.DuckDBPyConnection:
+    def acquire(self, db_path: str | Path, read_only: bool = False) -> duckdb.DuckDBPyConnection:
         """Acquire (or reuse) a connection for *db_path*.
 
-        The connection is always opened in read-write mode.  The first caller
-        for a given path creates the connection; subsequent callers get the
-        same handle.
+        Parameters
+        ----------
+        db_path:
+            Path to DuckDB file.
+        read_only:
+            If True, open read-only connection (allows concurrent readers).
+            If False, open read-write connection (exclusive lock).
         """
         key = str(Path(db_path).resolve())
         with self._lock:
@@ -85,10 +162,10 @@ class DuckDBPool:
                 self._ref_counts[key] += 1
                 return self._connections[key]
 
-            conn = connect_with_retry(key, read_only=False)
+            conn = connect_with_retry(key, read_only=read_only)
             self._connections[key] = conn
             self._ref_counts[key] = 1
-            logger.info("DuckDBPool: opened connection to %s", key)
+            logger.info("DuckDBPool: opened connection to %s (read_only=%s)", key, read_only)
             return conn
 
     def release(self, db_path: str | Path) -> None:

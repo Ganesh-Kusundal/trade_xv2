@@ -19,12 +19,14 @@ from __future__ import annotations
 
 import duckdb
 import logging
+import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from cachetools import TTLCache
 
 from brokers.common.core.domain import Balance, MarketDepth, Quote
 from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
@@ -44,12 +46,24 @@ class DataLakeGateway(MarketDataGateway):
     def __init__(self, root: str = "market_data") -> None:
         self._root = Path(root)
         self._candles_dir = self._root / "equities" / "candles"
-        # I-18: resample cache keyed by (symbol, timeframe). Avoids
-        # re-aggregating the same 1m→5m/15m/etc. every call.
-        self._resample_cache: dict[tuple[str, str], pd.DataFrame] = {}
-        self._resample_cache_max = 100
+        # I-18: resample cache keyed by (symbol, timeframe) with TTL and memory bounds
+        # Using cachetools.TTLCache with:
+        # - maxsize=100 entries
+        # - ttl=300 seconds (5 minutes)
+        # - getsizeof to track memory usage
+        self._resample_cache: TTLCache = TTLCache(
+            maxsize=100,
+            ttl=300,
+            getsizeof=self._df_size,
+        )
+        self._resample_cache_lock = threading.Lock()
         # Thread pool for parallel downloads
         self._download_pool_max_workers = 4
+
+    @staticmethod
+    def _df_size(df: pd.DataFrame) -> int:
+        """Calculate memory size of a DataFrame in bytes."""
+        return int(df.memory_usage(deep=True).sum())
 
     def _parquet_path(self, symbol: str, timeframe: str) -> Path:
         return self._candles_dir / f"timeframe={timeframe}" / symbol_to_path(symbol) / "data.parquet"
@@ -73,17 +87,18 @@ class DataLakeGateway(MarketDataGateway):
         return None
 
     def _resample(self, df: pd.DataFrame, timeframe: str) -> pd.DataFrame:
-        """Resample 1m data to larger timeframe (with in-memory cache)."""
+        """Resample 1m data to larger timeframe (with TTL-bounded cache)."""
         if df.empty:
             return df
 
-        # Check cache — keyed by symbol + timeframe using efficient hash
+        # Check cache — keyed by symbol + timeframe
         symbol = df["symbol"].iloc[0] if "symbol" in df.columns else ""
         cache_key = generate_cache_key(symbol, timeframe)
         
-        if cache_key in self._resample_cache:
-            # Return cached copy without creating another copy
-            return self._resample_cache[cache_key]
+        with self._resample_cache_lock:
+            if cache_key in self._resample_cache:
+                # Return cached copy — defensive copy to prevent mutation
+                return self._resample_cache[cache_key].copy()
 
         # Work on a copy only once
         df = df.copy()
@@ -116,12 +131,10 @@ class DataLakeGateway(MarketDataGateway):
         resampled["exchange"] = df["exchange"].iloc[0] if "exchange" in df.columns else "NSE"
         resampled["timeframe"] = timeframe
 
-        # Cache the result (evict oldest if at capacity)
-        if len(self._resample_cache) >= self._resample_cache_max:
-            oldest = next(iter(self._resample_cache))
-            del self._resample_cache[oldest]
-        # Store directly without copy (already a new DataFrame from resample)
-        self._resample_cache[cache_key] = resampled
+        # Cache the result with TTL and memory bounds
+        with self._resample_cache_lock:
+            self._resample_cache[cache_key] = resampled
+        
         return resampled
 
     def _filter_by_date(
@@ -173,6 +186,26 @@ class DataLakeGateway(MarketDataGateway):
         return df
 
     def quote(self, symbol: str, exchange: str = "NSE") -> Quote:
+        """Get latest quote snapshot for a symbol from OHLCV parquet data.
+
+        Returns a Quote with OHLCV fields populated from the most recent 1-minute
+        candle. Bid/ask are always None because order book depth is not available
+        from historical OHLCV parquet files — only live broker market feeds provide
+        bid/ask quotations.
+
+        Args:
+            symbol: Trading symbol (e.g., "RELIANCE", "TCS").
+            exchange: Exchange name (default: "NSE").
+
+        Returns:
+            Quote with ltp, open, high, low, close, volume, change populated.
+            bid and ask are always None for historical data.
+
+        Note:
+            bid/ask require live market depth (Level 2 data) from broker WebSocket
+            feeds. OHLCV parquet files only contain aggregated candle data, not
+            the order book snapshots needed to derive bid/ask prices.
+        """
         from brokers.common.core.domain import Quote as _Quote
         symbol = normalize_symbol(symbol)
         df = self._load_parquet(symbol, "1m")
@@ -189,8 +222,10 @@ class DataLakeGateway(MarketDataGateway):
             close=Decimal(str(last["close"])),
             volume=int(last["volume"]),
             change=Decimal(str(last["close"] - prev_close)),
-            bid=Decimal(str(last["low"])),
-            ask=Decimal(str(last["high"])),
+            # Note: bid/ask are not available from OHLCV parquet data.
+            # These would require live market depth from the broker feed.
+            bid=None,
+            ask=None,
         )
 
     def ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:
@@ -251,16 +286,17 @@ class DataLakeGateway(MarketDataGateway):
 
             if parquet_paths:
                 # Read last row of each file using window function
-                query = f"""
+                # Parameterized DuckDB query — DuckDB accepts Python lists as bound parameters
+                query = """
                     SELECT symbol, close
                     FROM (
                         SELECT symbol, close,
                                ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY timestamp DESC) as rn
-                        FROM read_parquet({parquet_paths})
+                        FROM read_parquet(?)
                     )
                     WHERE rn = 1
                 """
-                df = duckdb.query(query).to_df()
+                df = duckdb.execute(query, [parquet_paths]).fetchdf()
                 return {row["symbol"]: Decimal(str(row["close"])) for _, row in df.iterrows()}
         except Exception as exc:
             logger.debug("DuckDB ltp_batch failed, using fallback: %s", exc)
@@ -315,12 +351,12 @@ class DataLakeGateway(MarketDataGateway):
 
         # Use DuckDB to read all files in one query
         try:
-            query = f"""
+            query = """
                 SELECT *
-                FROM read_parquet({parquet_paths})
+                FROM read_parquet(?)
             """
 
-            df = duckdb.query(query).to_df()
+            df = duckdb.execute(query, [parquet_paths]).fetchdf()
 
             # Filter by date range
             if not df.empty:

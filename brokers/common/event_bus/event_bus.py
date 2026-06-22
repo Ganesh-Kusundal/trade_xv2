@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 import traceback
 import uuid
 from collections.abc import Callable
@@ -34,6 +35,7 @@ from brokers.common.event_bus.models import EventType
 if TYPE_CHECKING:
     from brokers.common.event_bus.dead_letter_queue import DeadLetterQueue
     from brokers.common.observability.event_metrics import EventMetrics
+    from brokers.common.observability.alerting import AlertingEngine
 
 logger = logging.getLogger(__name__)
 
@@ -122,14 +124,23 @@ class EventBus:
     - Events use original timestamps instead of datetime.now()
     - Sequence numbers are preserved for total ordering
 
+    Alerting Integration
+    --------------------
+    When an ``alerting_engine`` is provided, the bus starts a background
+    thread that periodically evaluates alert rules (default every 10 seconds).
+    All metrics increments use timestamped counters to enable rate-based
+    alerting.
+
     Example::
 
         metrics = EventMetrics()
         dlq = DeadLetterQueue()
-        bus = EventBus(metrics=metrics, dead_letter_queue=dlq)
+        engine = AlertingEngine(metrics)
+        bus = EventBus(metrics=metrics, dead_letter_queue=dlq, alerting_engine=engine)
         token = bus.subscribe("TICK", lambda e: print(e.payload))
         bus.publish(DomainEvent.now("TICK", {"ltp": 100.0}, symbol="RELIANCE"))
         bus.unsubscribe(token)
+        bus.stop_alerting()  # Clean shutdown
 
     Parameters
     ----------
@@ -153,6 +164,12 @@ class EventBus:
     replay_mode:
         P4: If True, disables auto-persistence and preserves original
         event timestamps for deterministic replay.
+    alerting_engine:
+        Optional :class:`AlertingEngine` for threshold-based alerting.
+        When provided, a background thread evaluates alert rules every
+        ``alerting_interval_seconds`` seconds.
+    alerting_interval_seconds:
+        Interval between alert evaluations (default 10 seconds).
     """
 
     def __init__(
@@ -163,6 +180,8 @@ class EventBus:
         logging_enabled: bool = True,
         fail_fast: bool = False,
         replay_mode: bool = False,  # P4
+        alerting_engine: AlertingEngine | None = None,
+        alerting_interval_seconds: float = 10.0,
     ) -> None:
         self._lock = threading.RLock()
         self._subscribers: dict[str, dict[str, EventHandler]] = {}
@@ -173,11 +192,76 @@ class EventBus:
         self._fail_fast = fail_fast
         self._replay_mode = replay_mode  # P4
         self._sequence_counter = 0  # P4
+        self._alerting_engine = alerting_engine
+        self._alerting_interval = alerting_interval_seconds
+        self._alerting_thread: threading.Thread | None = None
+        self._alerting_stop = threading.Event()
+
+        # Start background alerting thread if engine is provided.
+        if self._alerting_engine is not None:
+            self._start_alerting()
 
     @property
     def replay_mode(self) -> bool:
         """True if bus is in replay mode (P4)."""
         return self._replay_mode
+
+    @property
+    def alerting_engine(self) -> AlertingEngine | None:
+        """The alerting engine instance, if configured."""
+        return self._alerting_engine
+
+    def _start_alerting(self) -> None:
+        """Start the background alerting evaluation thread."""
+        if self._alerting_engine is None:
+            return
+
+        self._alerting_stop.clear()
+        self._alerting_thread = threading.Thread(
+            target=self._alerting_loop,
+            name="EventBus-Alerting",
+            daemon=True,
+        )
+        self._alerting_thread.start()
+        logger.info(
+            "EventBus alerting started (interval=%.1fs)",
+            self._alerting_interval,
+        )
+
+    def _alerting_loop(self) -> None:
+        """Background loop that periodically evaluates alert rules."""
+        while not self._alerting_stop.is_set():
+            try:
+                if self._alerting_engine is not None:
+                    alerts = self._alerting_engine.evaluate_all()
+                    if alerts:
+                        logger.info(
+                            "EventBus alerting: %d alert(s) fired",
+                            len(alerts),
+                        )
+            except Exception as exc:
+                logger.error(
+                    "EventBus alerting evaluation failed: %s",
+                    exc,
+                    exc_info=True,
+                )
+            # Sleep in small increments to allow fast shutdown.
+            self._alerting_stop.wait(self._alerting_interval)
+
+    def stop_alerting(self) -> None:
+        """Stop the background alerting thread.
+
+        Call this during graceful shutdown to ensure the thread exits cleanly.
+        """
+        if self._alerting_thread is None:
+            return
+
+        self._alerting_stop.set()
+        self._alerting_thread.join(timeout=5.0)
+        if self._alerting_thread.is_alive():
+            logger.warning("EventBus alerting thread did not stop within timeout")
+        else:
+            logger.info("EventBus alerting stopped")
 
     # ── Subscription management ────────────────────────────────────────────
 
@@ -246,7 +330,7 @@ class EventBus:
         # Replay mode: preserve original sequence_number (no assignment)
 
         if self._metrics is not None:
-            self._metrics.inc(event.event_type, "published")
+            self._metrics.add_timestamped_counter(event.event_type, "published")
 
         # 1. Persist first (so a crash mid-dispatch can be recovered).
         # P4: Skip persistence in replay mode (no recursive writes)
@@ -256,7 +340,7 @@ class EventBus:
             except Exception as exc:
                 # Surface, never swallow.
                 if self._metrics is not None:
-                    self._metrics.inc(
+                    self._metrics.add_timestamped_counter(
                         event.event_type, f"log_error:{type(exc).__name__}"
                     )
                 logger.error(
@@ -281,7 +365,7 @@ class EventBus:
 
         for handler_id, handler in handlers:
             if self._metrics is not None:
-                self._metrics.inc(event.event_type, "dispatched")
+                self._metrics.add_timestamped_counter(event.event_type, "dispatched")
             try:
                 handler(event)
             except Exception as exc:
@@ -302,8 +386,10 @@ class EventBus:
         error_type = type(exc).__name__
 
         if self._metrics is not None:
-            self._metrics.inc(event.event_type, f"handler_error:{error_type}")
-            self._metrics.inc(event.event_type, "dead_letter")
+            self._metrics.add_timestamped_counter(
+                event.event_type, f"handler_error:{error_type}"
+            )
+            self._metrics.add_timestamped_counter(event.event_type, "dead_letter")
 
         logger.warning(
             "EventBus: handler %s failed on %s (event_id=%s, symbol=%s): %s: %s",

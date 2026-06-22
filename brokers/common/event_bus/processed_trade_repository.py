@@ -114,6 +114,12 @@ class TradeIdKey:
 class ProcessedTradeRepository:
     """Idempotency ledger for trade events.
 
+    Singleton Pattern (P0.6)
+    ------------------------
+    This class enforces a singleton pattern per persistence path to prevent
+    duplicate trade processing and idempotency failures. Use :meth:`get_instance`
+    to obtain the canonical instance for a given persistence path.
+
     Parameters
     ----------
     persistence_path:
@@ -128,6 +134,76 @@ class ProcessedTradeRepository:
         this are evicted during cleanup. Default: 86400 (24 hours).
         Set to 0 to disable eviction.
     """
+
+    # P0.6: Singleton registry - one instance per persistence path
+    _instances: dict[str, ProcessedTradeRepository] = {}
+    _singleton_lock = threading.Lock()  # Thread-safe singleton creation
+
+    @classmethod
+    def get_instance(
+        cls,
+        persistence_path: str | Path | None = None,
+        on_duplicate=None,
+        max_age_seconds: int = PROCESSED_TRADE_RETENTION_SECONDS,
+    ) -> ProcessedTradeRepository:
+        """Get or create the canonical singleton instance for a persistence path.
+
+        This method enforces that only ONE instance exists per persistence path,
+        preventing duplicate trade processing and idempotency failures.
+
+        Parameters
+        ----------
+        persistence_path:
+            Optional path to a JSONL file. Different paths create different
+            instances. When omitted, uses the 'default' instance.
+        on_duplicate:
+            Optional callback for duplicate detection (only used when creating
+            a new instance).
+        max_age_seconds:
+            Maximum age for in-memory entries (only used when creating a new
+            instance).
+
+        Returns
+        -------
+        ProcessedTradeRepository
+            The canonical instance for the given persistence path.
+
+        Thread Safety
+        -------------
+        This method is thread-safe. Multiple threads calling get_instance()
+        concurrently will receive the same instance for the same path.
+
+        Examples
+        --------
+        >>> # Get the default instance
+        >>> repo1 = ProcessedTradeRepository.get_instance()
+        >>> repo2 = ProcessedTradeRepository.get_instance()
+        >>> repo1 is repo2  # Same instance
+        True
+
+        >>> # Different paths create different instances
+        >>> repo_a = ProcessedTradeRepository.get_instance(persistence_path="/tmp/a.jsonl")
+        >>> repo_b = ProcessedTradeRepository.get_instance(persistence_path="/tmp/b.jsonl")
+        >>> repo_a is repo_b  # Different instances
+        False
+        """
+        key = str(persistence_path) if persistence_path else "default"
+        
+        # Fast path: check without lock (common case)
+        if key in cls._instances:
+            return cls._instances[key]
+        
+        # Slow path: create with lock (thread-safe)
+        with cls._singleton_lock:
+            # Double-check after acquiring lock
+            if key not in cls._instances:
+                cls._instances[key] = cls(
+                    persistence_path=persistence_path,
+                    on_duplicate=on_duplicate,
+                    max_age_seconds=max_age_seconds,
+                )
+            return cls._instances[key]
+
 
     def __init__(
         self,

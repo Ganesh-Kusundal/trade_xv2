@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any, Generic, List, Optional, TypeVar
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 # ── Generic Response Wrapper ─────────────────────────────────────────────────
 
@@ -281,14 +281,19 @@ class IVSurfaceResponse(BaseModel):
 
 
 class OptionContract(BaseModel):
-    """Single option contract with Greeks."""
+    """Single option contract with Greeks.
+    
+    Note: bid/ask are only available from live market data feeds, not from
+    historical OHLCV parquet files. They will be None for historical data.
+    iv/delta/gamma/theta/vega require Option Greeks pricing from broker API.
+    """
     symbol: str
     expiry: str
     strike: float
     option_type: str  # CE or PE
     ltp: float
-    bid: float
-    ask: float
+    bid: Optional[float] = None  # Requires live market depth; None for historical data
+    ask: Optional[float] = None  # Requires live market depth; None for historical data
     volume: float
     oi: float
     iv: Optional[float] = None
@@ -393,22 +398,76 @@ class PositionListResponse(BaseModel):
 
 
 class OrderRequest(BaseModel):
-    """Place order request."""
-    symbol: str
-    exchange: str
+    """Place order request with comprehensive validation."""
+    symbol: str = Field(..., min_length=1, max_length=50, description="Trading symbol (e.g., RELIANCE, RELIANCE-EQ)")
+    exchange: str = Field(..., description="Exchange: NSE, BSE, NFO, CDS, MCX")
     transaction_type: str = Field(..., description="BUY or SELL")
     order_type: str = Field(..., description="MARKET, LIMIT, SL, SL-M")
-    quantity: int = Field(..., ge=1, description="Order quantity (must be > 0)")
-    price: Optional[float] = None
-    trigger_price: Optional[float] = None
-    product_type: str = Field("INTRADAY", description="INTRADAY, DELIVERY, MARGIN")
-    
+    quantity: int = Field(..., ge=1, le=1000000, description="Order quantity (must be > 0 and <= 1M)")
+    price: Optional[float] = Field(None, ge=0.01, le=1000000, description="Price for LIMIT/SL orders")
+    trigger_price: Optional[float] = Field(None, ge=0.01, le=1000000, description="Trigger price for SL/SL-M orders")
+    product_type: str = Field("INTRADAY", description="INTRADAY, DELIVERY, MARGIN, CO, BO")
+
     @field_validator('transaction_type')
     @classmethod
-    def validate_transaction_type(cls, v):
-        if v not in ['BUY', 'SELL']:
+    def validate_transaction_type(cls, v: str) -> str:
+        """Validate transaction type is BUY or SELL."""
+        if v.upper() not in ('BUY', 'SELL'):
             raise ValueError('transaction_type must be BUY or SELL')
-        return v
+        return v.upper()
+
+    @field_validator('exchange')
+    @classmethod
+    def validate_exchange(cls, v: str) -> str:
+        """Validate exchange is a supported Indian exchange."""
+        valid_exchanges = {'NSE', 'BSE', 'NFO', 'CDS', 'MCX', 'BCD'}
+        if v.upper() not in valid_exchanges:
+            raise ValueError(f'exchange must be one of: {valid_exchanges}')
+        return v.upper()
+
+    @field_validator('order_type')
+    @classmethod
+    def validate_order_type(cls, v: str) -> str:
+        """Validate order type is supported."""
+        valid_types = {'MARKET', 'LIMIT', 'SL', 'SL-M'}
+        if v.upper() not in valid_types:
+            raise ValueError(f'order_type must be one of: {valid_types}')
+        return v.upper()
+
+    @field_validator('product_type')
+    @classmethod
+    def validate_product_type(cls, v: str) -> str:
+        """Validate product type is supported."""
+        valid_products = {'INTRADAY', 'DELIVERY', 'MARGIN', 'CO', 'BO'}
+        if v.upper() not in valid_products:
+            raise ValueError(f'product_type must be one of: {valid_products}')
+        return v.upper()
+
+    @model_validator(mode='after')
+    def validate_order_constraints(self) -> 'OrderRequest':
+        """Validate cross-field constraints for order types."""
+        order_type = self.order_type.upper()
+
+        # LIMIT and SL orders require price
+        if order_type in ('LIMIT', 'SL'):
+            if self.price is None or self.price <= 0:
+                raise ValueError('price is required and must be > 0 for LIMIT/SL orders')
+
+        # SL and SL-M orders require trigger_price
+        if order_type in ('SL', 'SL-M'):
+            if self.trigger_price is None or self.trigger_price <= 0:
+                raise ValueError('trigger_price is required and must be > 0 for SL/SL-M orders')
+
+        # For SL orders, validate price vs trigger_price relationship
+        if order_type == 'SL' and self.price and self.trigger_price:
+            if self.transaction_type.upper() == 'BUY':
+                if self.price < self.trigger_price:
+                    raise ValueError('for SL BUY orders, price must be >= trigger_price')
+            else:  # SELL
+                if self.price > self.trigger_price:
+                    raise ValueError('for SL SELL orders, price must be <= trigger_price')
+
+        return self
 
 
 class OrderResponse(BaseModel):

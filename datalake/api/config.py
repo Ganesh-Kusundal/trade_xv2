@@ -53,6 +53,8 @@ class APIConfig:
     default_page_size: int = 100
     rate_limit_per_minute: int = 0  # 0 = disabled
     api_prefix: str = "/api/v1"
+    auth_mode: str = "none"  # "none" or "api_key"
+    api_key: str = ""  # API key (generated if empty and auth_mode=api_key)
     
     @property
     def docs_url(self) -> str:

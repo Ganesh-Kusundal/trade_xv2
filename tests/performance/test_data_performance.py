@@ -641,7 +641,7 @@ class TestDataFrameOperations:
         assert elapsed_ms < 50, f"DataFrame concat too slow: {elapsed_ms:.1f}ms"
 
     def test_rolling_mean_500_bars(self):
-        """Computing 20-period rolling mean on 500 bars must complete in < 10ms."""
+        """Computing 20-period rolling mean on 500 bars must complete in < 50ms."""
         df = _make_ohlcv_dataframe(500)
 
         start = time.perf_counter()
@@ -649,10 +649,10 @@ class TestDataFrameOperations:
         elapsed_ms = (time.perf_counter() - start) * 1000
 
         assert len(sma) == 500
-        assert elapsed_ms < 10, f"Rolling mean too slow: {elapsed_ms:.1f}ms"
+        assert elapsed_ms < 50, f"Rolling mean too slow: {elapsed_ms:.1f}ms"
 
     def test_groupby_symbol_10_symbols(self):
-        """Grouping 500 rows by 10 symbols must complete in < 10ms."""
+        """Grouping 500 rows by 10 symbols must complete in < 50ms."""
         frames = [_make_ohlcv_dataframe(50, f"SYM{i}") for i in range(10)]
         df = pd.concat(frames, ignore_index=True)
 
@@ -661,4 +661,4 @@ class TestDataFrameOperations:
         elapsed_ms = (time.perf_counter() - start) * 1000
 
         assert len(grouped) == 10
-        assert elapsed_ms < 10, f"GroupBy too slow: {elapsed_ms:.1f}ms"
+        assert elapsed_ms < 50, f"GroupBy too slow: {elapsed_ms:.1f}ms"

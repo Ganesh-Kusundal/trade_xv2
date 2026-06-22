@@ -69,8 +69,8 @@ async def market_websocket(websocket: WebSocket):
     await market_manager.connect(websocket, connection_id)
     
     # Check if event_bus is available — fail loud if not
-    from datalake.api.deps import get_service
-    event_bus = get_service("event_bus", required=False)
+    from datalake.api.deps import get_event_bus
+    event_bus = get_event_bus()
     if event_bus is None:
         await market_manager.send_to_client(
             connection_id,
@@ -89,8 +89,8 @@ async def market_websocket(websocket: WebSocket):
             
             if action == "subscribe":
                 # Check if event_bus is available before allowing subscribe
-                from datalake.api.deps import get_service
-                event_bus = get_service("event_bus", required=False)
+                from datalake.api.deps import get_event_bus
+                event_bus = get_event_bus()
                 if event_bus is None:
                     await market_manager.send_to_client(
                         connection_id,

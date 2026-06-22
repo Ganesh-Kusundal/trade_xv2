@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from datalake.api.deps import get_trading_context
 from datalake.api.schemas import HealthResponse, ReadinessResponse
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -30,16 +33,40 @@ async def readiness_check():
     """Check if the API server is ready to serve traffic.
     
     Verifies that all required services are initialized.
+    Returns 503 if any critical service is unavailable.
     """
-    from datalake.api.deps import get_service
+    from datalake.api.deps import get_container
     
-    checks = {
-        "datalake_gateway": get_service("datalake_gateway", required=False) is not None,
-        "view_manager": get_service("view_manager", required=False) is not None,
-        "data_catalog": get_service("data_catalog", required=False) is not None,
-    }
+    checks = {}
+    all_ready = False
     
-    all_ready = all(checks.values())
+    try:
+        container = get_container()
+        checks["datalake_gateway"] = container.datalake_gateway is not None
+        checks["view_manager"] = container.view_manager is not None
+        checks["data_catalog"] = container.data_catalog is not None
+        checks["event_bus"] = container.event_bus is not None
+        all_ready = all(checks.values())
+        
+        if not all_ready:
+            failed = [k for k, v in checks.items() if not v]
+            logger.warning("Readiness check failed: services not ready: %s", failed)
+            
+    except Exception as exc:
+        logger.exception("Readiness check failed with exception")
+        checks["error"] = str(exc)
+        checks["container_initialized"] = False
+        all_ready = False
+    
+    if not all_ready:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "ready": False,
+                "checks": checks,
+                "message": "Service not ready for traffic",
+            },
+        )
     
     return ReadinessResponse(
         ready=all_ready,
@@ -53,9 +80,17 @@ async def get_metrics(ctx=Depends(get_trading_context)):
     """Get OMS observability metrics.
     
     Returns event metrics, dead-letter queue stats, and processed trade repository stats.
+    Returns 503 if metrics collection fails.
     """
-    return {
-        "event_metrics": ctx.metrics.snapshot(),
-        "dead_letter_queue": ctx.dead_letter_queue.stats(),
-        "processed_trades": ctx.processed_trade_repository.stats(),
-    }
+    try:
+        return {
+            "event_metrics": ctx.metrics.snapshot(),
+            "dead_letter_queue": ctx.dead_letter_queue.stats(),
+            "processed_trades": ctx.processed_trade_repository.stats(),
+        }
+    except Exception as exc:
+        logger.exception("Metrics collection failed")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Metrics unavailable: {exc}",
+        )

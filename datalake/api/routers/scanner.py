@@ -3,17 +3,20 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from datalake.api.deps import get_view_manager
+from datalake.api.deps import get_view_manager, get_trading_context
+from datalake.api.auth import require_auth
 from datalake.api.schemas import ScannerCandidatesResponse, ScannerSnapshot
+from datalake.scan_store import get_recent_scans, save_scan_result
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_auth)])
 
 
 @router.get("/results", response_model=dict)
@@ -25,9 +28,38 @@ async def get_scan_results(
     """Get historical scanner results from scan store.
     
     Returns completed scan results with candidates and metrics.
+    Uses real DuckDB scan_store for persistence.
     """
-    # TODO: Implement with scan_store.get_recent_scans()
-    return {"scans": [], "count": 0}
+    try:
+        scans = get_recent_scans(scanner=scanner_name, limit=limit)
+        
+        # Filter by date if provided
+        if date:
+            from datetime import date as date_type
+            target_date = date_type.fromisoformat(date)
+            scans = [
+                s for s in scans
+                if hasattr(s.get('scanned_at'), 'date') and s['scanned_at'].date() == target_date
+            ]
+        
+        return {
+            "scans": [
+                {
+                    "scan_id": s["scan_id"],
+                    "scanner": s["scanner"],
+                    "scanned_at": s["scanned_at"].isoformat() if hasattr(s["scanned_at"], 'isoformat') else str(s["scanned_at"]),
+                    "universe_size": s["universe_size"],
+                }
+                for s in scans
+            ],
+            "count": len(scans),
+        }
+    except Exception as exc:
+        logger.error("Scan results fetch failed: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Scan results fetch failed: {str(exc)}",
+        )
 
 
 @router.get("/top-candidates", response_model=ScannerCandidatesResponse)
@@ -140,12 +172,82 @@ async def run_scan(
     
     Executes ScannerRunner.run_all() for the specified scanner
     and universe. Returns scan ID for result retrieval.
+    Uses real ScannerRunner with scanner implementations.
     """
-    # TODO: Implement with ScannerRunner
-    return {
-        "scan_id": "scan_001",
-        "status": "queued",
-        "scanner": scanner_name,
-        "universe": universe,
-        "timestamp": datetime.now().isoformat(),
-    }
+    try:
+        # Get TradingContext for event bus and scanner infrastructure
+        ctx = get_trading_context()
+        event_bus = ctx.event_bus if ctx else None
+        
+        # Build scanner list based on scanner_name
+        from analytics.scanner import MomentumScanner, VolumeScanner, BreakoutScanner
+        from analytics.pipeline.pipeline import FeaturePipeline
+        
+        pipeline = FeaturePipeline()
+        
+        scanner_map = {
+            "momentum": lambda: MomentumScanner(pipeline, event_bus=event_bus),
+            "volume": lambda: VolumeScanner(pipeline, event_bus=event_bus),
+            "breakout": lambda: BreakoutScanner(pipeline, event_bus=event_bus),
+        }
+        
+        if scanner_name.lower() not in scanner_map:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unknown scanner '{scanner_name}'. Available: {', '.join(scanner_map.keys())}",
+            )
+        
+        scanners = [scanner_map[scanner_name.lower()]()]
+        
+        # Load universe data (simplified - in production would fetch from datalake)
+        import pandas as pd
+        universe_df = pd.DataFrame()  # Universe loading requires datalake integration
+        
+        if universe_df.empty:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Universe data not available for '{universe}'. Scanner cannot run.",
+                headers={"Retry-After": "60"},
+            )
+        
+        # Run scanners using ScannerRunner
+        from analytics.scanner.runner import ScannerRunner
+        runner = ScannerRunner(max_workers=4, timeout_seconds=30.0)
+        results = runner.run_all(scanners, universe_df)
+        
+        # Save results to scan store
+        scan_ids = []
+        for result in results:
+            if result.success and result.scan_result:
+                scan_id = save_scan_result(
+                    scanner=result.scanner_name,
+                    candidates=result.scan_result.candidates,
+                    universe_size=result.scan_result.universe_size,
+                    metadata={"universe": universe},
+                )
+                scan_ids.append(scan_id)
+        
+        if not scan_ids:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Scanner execution failed to produce results",
+            )
+        
+        return {
+            "scan_id": scan_ids[0],
+            "scan_ids": scan_ids,
+            "status": "completed",
+            "scanner": scanner_name,
+            "universe": universe,
+            "timestamp": datetime.now().isoformat(),
+            "candidate_count": sum(r.candidate_count for r in results if r.success),
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Scanner run failed: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Scanner run failed: {str(exc)}",
+        )

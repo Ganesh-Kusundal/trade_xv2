@@ -61,6 +61,7 @@ markers = [
     "upstox_live_readonly: live tests that must only read from real endpoints",
     "upstox_sdk_compat: SDK compatibility tests",
     "stress: long-running concurrency stress tests",
+    "pre_prod: tests required on pre-prod gate (run only when PRE_PROD_GATE=1)",
 ]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"

@@ -29,6 +29,7 @@ from brokers.common.lifecycle.lifecycle import (
     HealthStatus,
     ManagedService,
 )
+from brokers.dhan.reconnecting_service import ReconnectingServiceMixin
 
 logger = logging.getLogger(__name__)
 
@@ -139,7 +140,7 @@ class _DhanContext:
         self._access_token = token
 
 
-class DhanMarketFeed(ManagedService):
+class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
     """Wraps the SDK's MarketFeed for real-time market data.
 
     Supports reconnect backfill: on reconnection, if a ``backfill_callback``
@@ -199,19 +200,21 @@ class DhanMarketFeed(ManagedService):
         self._backfill_callback = backfill_callback
         self._feed: SDKMarketFeed | None = None
         self._thread: threading.Thread | None = None
-        self._is_connected = False
         self._lock = threading.RLock()
-        self._stop_event = threading.Event()
         self._quote_callbacks: list[Callable[[dict], None]] = []
         self._depth_callbacks: list[Callable[[dict], None]] = []
         # Reconnect backfill state
         self._last_tick_time: dict[str, datetime] = {}
         self._disconnect_time: datetime | None = None
-        # B-4 / M-4: operator visibility into the live connection.
-        self._reconnect_count: int = 0
-        self._last_message_at: datetime | None = None
-        # P3 Fix: Message counter for periodic cache cleanup
-        self._message_count: int = 0
+        # Plan §7.2: shared reconnect / message-tracking state.
+        self._init_reconnect_state()
+        # Plan §7.7: strict-mode tick publish counters (visible via health()).
+        self._published_ticks = 0
+        self._dropped_ticks = 0
+        # Strict-mode depth counters — same discipline as ticks; a zero
+        # bid/ask or empty book must not be published as a real signal.
+        self._published_depths = 0
+        self._dropped_depths = 0
 
     def update_token(self, access_token: str) -> None:
         """Push a fresh token to the context (called by scheduler)."""
@@ -370,6 +373,10 @@ class DhanMarketFeed(ManagedService):
                 "connected": is_connected,
                 "thread_alive": thread_alive,
                 "reconnect_count": reconnect_count,
+                "published_ticks": self._published_ticks,
+                "dropped_ticks": self._dropped_ticks,
+                "published_depths": self._published_depths,
+                "dropped_depths": self._dropped_depths,
                 "last_message_age_seconds": (
                     last_message_age if last_message_age is not None else -1
                 ),
@@ -417,13 +424,12 @@ class DhanMarketFeed(ManagedService):
 
     def on_quote(self, callback: Callable[[dict], None]) -> None:
         """Register callback for quote updates."""
-        with self._lock:
-            self._quote_callbacks.append(callback)
+        # Plan §7.2: delegate to the mixin for the lock/snapshot discipline.
+        self._register_callback(self._quote_callbacks, callback)
 
     def on_depth(self, callback: Callable[[dict], None]) -> None:
         """Register callback for depth updates."""
-        with self._lock:
-            self._depth_callbacks.append(callback)
+        self._register_callback(self._depth_callbacks, callback)
 
     def off_quote(self, callback: Callable[[dict], None]) -> None:
         """Remove a previously registered quote callback.
@@ -501,12 +507,12 @@ class DhanMarketFeed(ManagedService):
     def _on_message(self, feed, data: dict) -> None:
         if not data:
             return
-        # B-4 / M-4: stamp the last-message timestamp so the operator
-        # can see "no ticks in N seconds" via /metrics.
+        # Plan §7.2: shared message tracking through the mixin. Keeps the
+        # health snapshot honest and unifies the contract with the depth
+        # feeds and the polling feed.
+        self._note_message_received()
         with self._lock:
-            self._last_message_at = datetime.now(timezone.utc)
-            # P3 Fix: Periodic cleanup of stale tick tracking (every 100 messages)
-            self._message_count += 1
+            # P3 Fix: Periodic cleanup of stale tick tracking (every 100 messages).
             if self._message_count % 100 == 0:
                 self._cleanup_stale_tick_tracking()
         data_type = data.get("type", "")
@@ -631,30 +637,84 @@ class DhanMarketFeed(ManagedService):
         }
 
     def _publish_tick(self, quote: dict, correlation_id: str | None = None) -> None:
+        """Publish a tick to the event bus under strict mode (Plan §7.7).
+
+        Strict-mode rules (any violation drops the event and increments
+        a counter visible via :meth:`health`):
+
+        - ``ltp`` must be present and non-zero (a zero-LTP quote is a
+          dangerous false signal for downstream strategies).
+        - ``symbol`` must be present.
+        - ``open`` / ``high`` / ``low`` / ``close`` must be present
+          (zero is acceptable for a freshly-listed symbol).
+
+        The legacy behaviour silently substituted ``Decimal("0")`` for
+        any missing field. That masked malformed packets as zero-LTP
+        ticks, which downstream subscribers treated as real signals.
+        The strict-mode drop is the bug-fix called out in §5.2.
+        """
         if self._event_bus is None:
             return
         try:
+            ltp_raw = quote.get("ltp")
+            symbol = quote.get("symbol", "")
+            if ltp_raw is None or Decimal(str(ltp_raw)) == Decimal("0"):
+                self._dropped_ticks += 1
+                logger.warning(
+                    "tick_dropped_missing_or_zero_ltp: symbol=%s", symbol or "<unknown>"
+                )
+                return
+            if not symbol:
+                self._dropped_ticks += 1
+                logger.warning("tick_dropped_missing_symbol")
+                return
+
+            # All critical fields present — build the Quote and publish.
             q = Quote(
-                symbol=quote.get("symbol", ""),
-                ltp=quote.get("ltp", Decimal("0")),
-                open=quote.get("open", Decimal("0")),
-                high=quote.get("high", Decimal("0")),
-                low=quote.get("low", Decimal("0")),
-                close=quote.get("close", Decimal("0")),
+                symbol=symbol,
+                ltp=Decimal(str(ltp_raw)),
+                open=Decimal(str(quote.get("open", Decimal("0")))),
+                high=Decimal(str(quote.get("high", Decimal("0")))),
+                low=Decimal(str(quote.get("low", Decimal("0")))),
+                close=Decimal(str(quote.get("close", Decimal("0")))),
                 volume=quote.get("volume", 0),
-                change=quote.get("change", Decimal("0")),
+                change=Decimal(str(quote.get("change", Decimal("0")))),
             )
             self._event_bus.publish(
-                DomainEvent.now("TICK", {"quote": q}, symbol=q.symbol, source="DhanMarketFeed", correlation_id=correlation_id)
+                DomainEvent.now(
+                    "TICK",
+                    {"quote": q},
+                    symbol=q.symbol,
+                    source="DhanMarketFeed",
+                    correlation_id=correlation_id,
+                )
             )
+            self._published_ticks += 1
         except Exception as exc:
+            self._dropped_ticks += 1
             logger.error("EventBus TICK publish error: %s", exc)
 
     def _publish_depth(self, depth: dict, correlation_id: str | None = None) -> None:
+        """Publish a depth snapshot under strict mode (matches _publish_tick).
+
+        Strict-mode rules (any violation drops the event and increments
+        a counter visible via :meth:`health`):
+
+        - ``symbol`` must be present (no empty/unknown symbol).
+        - At least one of bids/asks must be non-empty (a packet with
+          both sides empty is a malformed frame, not a snapshot).
+        - The top-of-book price on each present side must be > 0
+          (a zero-price level is a corrupted frame, not a real quote).
+        """
         if self._event_bus is None:
             return
+        symbol = depth.get("symbol", "")
+        if not symbol:
+            self._dropped_depths += 1
+            logger.warning("depth_dropped_missing_symbol")
+            return
         try:
-            d = depth.get("depth", {})
+            d = depth.get("depth", {}) or {}
             bids = [
                 DepthLevel(price=Decimal(str(b.get("price", 0))), quantity=int(b.get("quantity", 0)), orders=int(b.get("orders", 0)))
                 for b in d.get("bids", [])
@@ -663,11 +723,33 @@ class DhanMarketFeed(ManagedService):
                 DepthLevel(price=Decimal(str(a.get("price", 0))), quantity=int(a.get("quantity", 0)), orders=int(a.get("orders", 0)))
                 for a in d.get("asks", [])
             ]
+            if not bids and not asks:
+                self._dropped_depths += 1
+                logger.warning("depth_dropped_both_sides_empty: symbol=%s", symbol)
+                return
+            # Top-of-book must be positive on each present side. A zero
+            # top-of-book is a corrupted frame masquerading as a snapshot.
+            if bids and bids[0].price <= 0:
+                self._dropped_depths += 1
+                logger.warning(
+                    "depth_dropped_invalid_bid_top: symbol=%s bid0=%s",
+                    symbol, bids[0].price,
+                )
+                return
+            if asks and asks[0].price <= 0:
+                self._dropped_depths += 1
+                logger.warning(
+                    "depth_dropped_invalid_ask_top: symbol=%s ask0=%s",
+                    symbol, asks[0].price,
+                )
+                return
             md = MarketDepth(bids=bids, asks=asks)
             self._event_bus.publish(
-                DomainEvent.now("DEPTH", {"depth": md}, symbol=depth.get("symbol", ""), source="DhanMarketFeed", correlation_id=correlation_id)
+                DomainEvent.now("DEPTH", {"depth": md}, symbol=symbol, source="DhanMarketFeed", correlation_id=correlation_id)
             )
+            self._published_depths += 1
         except Exception as exc:
+            self._dropped_depths += 1
             logger.error("EventBus DEPTH publish error: %s", exc)
 
     def _on_close(self, feed) -> None:
@@ -680,7 +762,7 @@ class DhanMarketFeed(ManagedService):
         logger.error("Market feed error: %s", error)
 
 
-class DhanOrderStream(ManagedService):
+class DhanOrderStream(ReconnectingServiceMixin, ManagedService):
     """Wraps the SDK's OrderUpdate for real-time order status updates.
 
     Implements :class:`ManagedService` (Phase B / B5) so the broker's
@@ -689,6 +771,13 @@ class DhanOrderStream(ManagedService):
     within the timeout; the previous ``disconnect()`` only set
     ``_stop_event`` and never joined, leaking the daemon thread on
     process exit.
+
+    Reconnect/message-tracking state is owned by
+    :class:`ReconnectingServiceMixin` — the same single source of truth
+    used by ``DhanMarketFeed`` and ``BinaryDepthFeed``. The previous
+    implementation duplicated ``_stop_event`` / ``_is_connected`` /
+    ``_reconnect_count`` / ``_last_message_at`` and never bumped a
+    message counter, so ``health()`` reported stale freshness values.
     """
 
     name = "dhan.order_stream"
@@ -707,14 +796,13 @@ class DhanOrderStream(ManagedService):
         )
         self._order_update: SDKOrderUpdate | None = None
         self._thread: threading.Thread | None = None
-        self._is_connected = False
         self._lock = threading.RLock()
-        self._stop_event = threading.Event()
         self._order_callbacks: list[Callable[[dict], None]] = []
         self._event_bus = event_bus
-        # B-4 / M-4: operator visibility into the live connection.
-        self._reconnect_count: int = 0
-        self._last_message_at: datetime | None = None
+        # Initialise the shared reconnect / message-tracking state
+        # owned by the mixin (single source of truth across all
+        # Dhan WS services).
+        self._init_reconnect_state()
 
     def update_token(self, access_token: str) -> None:
         """Push a fresh token to the context (called by scheduler)."""
@@ -747,15 +835,13 @@ class DhanOrderStream(ManagedService):
     def _run(self) -> None:
         """Run the order-stream event loop with reconnection backoff.
 
-        B-4: this used to be a single ``connect_to_dhan_websocket_sync()``
-        call with no reconnect. After one SDK failure the stream was
-        silently dead for the rest of the process lifetime. The loop
-        now mirrors the market feed: 1s→30s backoff, reset on
-        successful return, with ``reconnect_count`` and
-        ``last_message_at`` exposed via ``health()``.
+        Uses :meth:`ReconnectingServiceMixin._backoff_sleep` so a
+        ``stop()`` interrupts the backoff immediately. The
+        :meth:`_on_clean_disconnect` / :meth:`_on_reconnect_failure`
+        helpers own the ``_reconnect_count`` increment and backoff
+        reset so the behaviour is uniform across all Dhan WS services.
         """
-        backoff = 1.0
-        max_backoff = 30.0
+        backoff = self.INITIAL_BACKOFF
         while not self._stop_event.is_set():
             try:
                 with self._lock:
@@ -763,18 +849,15 @@ class DhanOrderStream(ManagedService):
                 if ou is None:
                     return
                 ou.connect_to_dhan_websocket_sync()
-                # Successful return = clean disconnect; reset backoff.
-                backoff = 1.0
+                backoff = self._on_clean_disconnect()
             except Exception as exc:
                 logger.error("Order stream error: %s", exc)
                 with self._lock:
                     self._is_connected = False
-                    self._reconnect_count += 1
+                backoff = self._on_reconnect_failure(backoff)
             if self._stop_event.is_set():
                 break
-            if self._stop_event.wait(timeout=backoff):
-                break
-            backoff = min(backoff * 2, max_backoff)
+            backoff = self._backoff_sleep(backoff)
 
     def disconnect(self, timeout_seconds: float = 5.0) -> None:
         """Deprecated alias for :meth:`stop`."""
@@ -807,6 +890,7 @@ class DhanOrderStream(ManagedService):
             thread_alive = bool(self._thread and self._thread.is_alive())
             is_connected = self._is_connected
             reconnect_count = self._reconnect_count
+            message_count = self._message_count
             last_message_age = (
                 (datetime.now(timezone.utc) - self._last_message_at).total_seconds()
                 if self._last_message_at is not None
@@ -830,6 +914,7 @@ class DhanOrderStream(ManagedService):
                 "connected": is_connected,
                 "thread_alive": thread_alive,
                 "reconnect_count": reconnect_count,
+                "message_count": message_count,
                 "last_message_age_seconds": (
                     last_message_age if last_message_age is not None else -1
                 ),
@@ -837,36 +922,37 @@ class DhanOrderStream(ManagedService):
         )
 
     def on_order_update(self, callback: Callable[[dict], None]) -> None:
-        with self._lock:
-            self._order_callbacks.append(callback)
+        """Register a callback for order updates (mixin-managed lock)."""
+        self._register_callback(self._order_callbacks, callback)
 
     @property
     def is_connected(self) -> bool:
         with self._lock:
             return self._is_connected
 
-    @staticmethod
-    def _gen_ws_correlation_id() -> str:
-        """Generate a traceable correlation_id for websocket message dispatch."""
-        import uuid as _uuid
-        return f"dhan:ws:{_uuid.uuid4().hex[:12]}"
-
     def _on_order_update(self, data: dict) -> None:
         if not data or data.get("Type") != "order_alert":
             return
-        # B-4 / M-4: stamp the last-message timestamp.
-        with self._lock:
-            self._last_message_at = datetime.now(timezone.utc)
+        # Plan §7.2: stamp the freshness signal through the mixin so
+        # health() reports the same value as every other Dhan WS
+        # service. Previous implementation set _last_message_at
+        # manually and never incremented a message counter — the
+        # freshness signal was correct but the count was permanently
+        # stuck at zero and a future health check would never see
+        # message traffic.
+        self._note_message_received()
         order_data = data.get("Data", {})
         transformed = self._transform_order(order_data)
-        with self._lock:
-            callbacks = list(self._order_callbacks)
+        callbacks = self._snapshot_callbacks(self._order_callbacks)
         for cb in callbacks:
             try:
                 cb(transformed)
             except Exception as exc:
                 logger.error("Order callback error: %s", exc)
-        self._publish_order_update(transformed, correlation_id=self._gen_ws_correlation_id())
+        self._publish_order_update(
+            transformed,
+            correlation_id=self.next_correlation_id(prefix="dhan.order_stream"),
+        )
 
     @staticmethod
     def _transform_order(data: dict) -> dict:
@@ -937,7 +1023,7 @@ class DhanOrderStream(ManagedService):
             logger.error("EventBus ORDER_UPDATED publish error: %s", exc)
 
 
-class PollingMarketFeed(ManagedService):
+class PollingMarketFeed(ReconnectingServiceMixin, ManagedService):
     """REST polling fallback for market data when WebSocket is unavailable.
 
     Polls /marketfeed/ltp at regular intervals and dispatches quote callbacks.
@@ -973,8 +1059,8 @@ class PollingMarketFeed(ManagedService):
         self._interval = interval_seconds
         self._quote_callbacks: list[Callable[[dict], None]] = []
         self._thread: threading.Thread | None = None
-        self._stop_event = threading.Event()
-        self._is_connected = False
+        # Plan §7.2: shared reconnect / message-tracking state.
+        self._init_reconnect_state()
 
     def connect(self) -> None:
         """Deprecated alias for :meth:`start`."""
@@ -1044,7 +1130,7 @@ class PollingMarketFeed(ManagedService):
 
     def on_quote(self, callback: Callable[[dict], None]) -> None:
         """Register callback for quote updates."""
-        self._quote_callbacks.append(callback)
+        self._register_callback(self._quote_callbacks, callback)
 
     @property
     def is_connected(self) -> bool:
@@ -1081,11 +1167,13 @@ class PollingMarketFeed(ManagedService):
                         "volume": 0,
                         "change": Decimal("0"),
                     }
-                    for cb in self._quote_callbacks:
+                    for cb in self._snapshot_callbacks(self._quote_callbacks):
                         try:
                             cb(quote)
                         except Exception as exc:
                             logger.error("Polling callback error: %s", exc)
+                    # Plan §7.2: shared message-tracking through the mixin.
+                    self._note_message_received()
                 except Exception as exc:
                     logger.warning("Polling error for %s: %s", security_id, exc)
 

@@ -4,11 +4,33 @@ from __future__ import annotations
 
 import struct
 from decimal import Decimal
+from pathlib import Path
 from unittest import mock
 
 import pytest
 
 from brokers.common.core.domain import DepthLevel, MarketDepth
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Golden-file fixtures
+# ──────────────────────────────────────────────────────────────────────────────
+#
+# Plan §5.1: previous harness packets used the same layout for depth-20 and
+# depth-200 tests, hiding a header-layout mismatch (depth-20 reads
+# security_id at offset 4; depth-200 reads num_rows at offset 8).
+# These fixtures encode each layout exactly once, so a regression that
+# flips the offset is caught immediately.
+
+FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures"
+
+
+def _load_golden(name: str) -> bytes:
+    """Load a golden-file binary packet from the fixtures directory."""
+    path = FIXTURES_DIR / name
+    if not path.exists():
+        pytest.skip(f"golden fixture missing: {path}")
+    return path.read_bytes()
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Helpers
@@ -96,7 +118,8 @@ class TestDhanDepth20Feed:
         packet = _make_depth_packet(41, 123456, levels)
         result = feed._parse_depth_packet(packet, 41, 123456)
         assert result["side"] == "bids"
-        assert result["security_id"] == 123456
+        # depth-20 layout: header_value IS the security_id.
+        assert result["header_value"] == 123456
         assert len(result["levels"]) == 2
         assert result["levels"][0].price == Decimal("24500.5")
         assert result["levels"][0].quantity == 100
@@ -107,7 +130,7 @@ class TestDhanDepth20Feed:
         packet = _make_depth_packet(51, 777, levels)
         result = feed._parse_depth_packet(packet, 51, 777)
         assert result["side"] == "asks"
-        assert result["security_id"] == 777
+        assert result["header_value"] == 777
 
     def test_zero_qty_levels_skipped(self):
         feed = _make_feed20()
@@ -124,7 +147,7 @@ class TestDhanDepth20Feed:
     def test_bid_cache_updated(self):
         feed = _make_feed20()
         bids = [DepthLevel(Decimal("100"), 10, 1)]
-        feed._dispatch_depth({"side": "bids", "levels": bids, "security_id": 42})
+        feed._dispatch_depth({"side": "bids", "levels": bids, "header_value": 42})
         with feed._depth_cache_lock:
             assert feed._depth_cache[42]["bids"] == bids
             assert feed._depth_cache[42]["asks"] == []
@@ -133,8 +156,8 @@ class TestDhanDepth20Feed:
         feed = _make_feed20()
         bids = [DepthLevel(Decimal("100"), 10, 1)]
         asks = [DepthLevel(Decimal("101"), 5, 2)]
-        feed._dispatch_depth({"side": "bids", "levels": bids, "security_id": 42})
-        feed._dispatch_depth({"side": "asks", "levels": asks, "security_id": 42})
+        feed._dispatch_depth({"side": "bids", "levels": bids, "header_value": 42})
+        feed._dispatch_depth({"side": "asks", "levels": asks, "header_value": 42})
         with feed._depth_cache_lock:
             assert feed._depth_cache[42]["bids"] == bids
             assert feed._depth_cache[42]["asks"] == asks
@@ -146,8 +169,8 @@ class TestDhanDepth20Feed:
         feed = _make_feed20()
         bid = [DepthLevel(Decimal("200"), 20, 2)]
         ask = [DepthLevel(Decimal("201"), 10, 1)]
-        feed._dispatch_depth({"side": "bids", "levels": bid, "security_id": 55})
-        feed._dispatch_depth({"side": "asks", "levels": ask, "security_id": 55})
+        feed._dispatch_depth({"side": "bids", "levels": bid, "header_value": 55})
+        feed._dispatch_depth({"side": "asks", "levels": ask, "header_value": 55})
         depth = feed.latest_depth(55)
         assert isinstance(depth, MarketDepth)
         assert depth.depth_type == "DEPTH_20"
@@ -158,7 +181,7 @@ class TestDhanDepth20Feed:
         feed = _make_feed20()
         received = []
         feed.on_depth(received.append)
-        feed._dispatch_depth({"side": "bids", "levels": [], "security_id": 7})
+        feed._dispatch_depth({"side": "bids", "levels": [], "header_value": 7})
         assert len(received) == 1
         assert isinstance(received[0], MarketDepth)
         assert received[0].depth_type == "DEPTH_20"
@@ -166,14 +189,14 @@ class TestDhanDepth20Feed:
     def test_callback_exception_does_not_propagate(self):
         feed = _make_feed20()
         feed.on_depth(lambda d: (_ for _ in ()).throw(RuntimeError("boom")))
-        feed._dispatch_depth({"side": "bids", "levels": [], "security_id": 1})
+        feed._dispatch_depth({"side": "bids", "levels": [], "header_value": 1})
 
     def test_multiple_callbacks_all_fired(self):
         feed = _make_feed20()
         a, b = [], []
         feed.on_depth(a.append)
         feed.on_depth(b.append)
-        feed._dispatch_depth({"side": "asks", "levels": [], "security_id": 2})
+        feed._dispatch_depth({"side": "asks", "levels": [], "header_value": 2})
         assert len(a) == len(b) == 1
 
     def test_full_binary_roundtrip(self):
@@ -187,10 +210,16 @@ class TestDhanDepth20Feed:
         assert received[0].depth_type == "DEPTH_20"
         assert len(received[0].bids) == 2
 
-    def test_send_subscription_no_running_loop_no_crash(self):
+    def test_send_subscription_no_running_loop_drops_with_counter(self):
+        # When called outside the WebSocket's event loop (test context),
+        # the send is dropped rather than silently swallowed. The
+        # dropped_depths counter must increment so operators can see
+        # this in health() and the gap is never silent.
         feed = _make_feed20()
         feed._ws = mock.MagicMock()
+        assert feed._dropped_depths == 0
         feed._send_subscription([("NSE_EQ", "500325")])
+        assert feed._dropped_depths == 1
 
     def test_health_stopped(self):
         from brokers.common.lifecycle.lifecycle import HealthState
@@ -204,6 +233,14 @@ class TestDhanDepth20Feed:
         feed._is_connected = False
         assert feed.health().state == HealthState.DEGRADED
 
+    def test_health_metrics_contain_depth_counters(self):
+        feed = _make_feed20()
+        feed._published_depths = 11
+        feed._dropped_depths = 5
+        h = feed.health()
+        assert h.metrics["published_depths"] == 11
+        assert h.metrics["dropped_depths"] == 5
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # DhanDepth200Feed
@@ -214,7 +251,8 @@ class TestDhanDepth200Feed:
     def test_init_no_instrument(self):
         feed = _make_feed200()
         assert feed._subscriptions == []
-        assert feed._depth_cache == {"bids": [], "asks": []}
+        # Unified cache is per-security-id; empty until a packet arrives.
+        assert feed._depth_cache == {}
 
     def test_init_with_instrument(self):
         feed = _make_feed200(("NSE_EQ", "500325"))
@@ -224,7 +262,7 @@ class TestDhanDepth200Feed:
         assert _make_feed200().latest_depth() is None
 
     def test_dispatch_merges_sides(self):
-        feed = _make_feed200()
+        feed = _make_feed200(("NSE_EQ", "500325"))
         bid = [DepthLevel(Decimal("1000"), 5, 1)]
         ask = [DepthLevel(Decimal("1001"), 3, 1)]
         feed._dispatch_depth({"side": "bids", "levels": bid})
@@ -235,18 +273,39 @@ class TestDhanDepth200Feed:
         assert depth.asks[0].price == Decimal("1001")
 
     def test_ask_does_not_wipe_bids(self):
-        feed = _make_feed200()
+        feed = _make_feed200(("NSE_EQ", "500325"))
         bid = [DepthLevel(Decimal("500"), 10, 2)]
         feed._dispatch_depth({"side": "bids", "levels": bid})
         feed._dispatch_depth({"side": "asks", "levels": []})
         assert len(feed.latest_depth().bids) == 1
 
     def test_on_depth_callback_receives_market_depth(self):
-        feed = _make_feed200()
+        feed = _make_feed200(("NSE_EQ", "500325"))
         received = []
         feed.on_depth(received.append)
         feed._dispatch_depth({"side": "bids", "levels": []})
         assert isinstance(received[0], MarketDepth)
+
+    def test_dispatch_drops_packet_when_no_subscription_and_empty_cache(self):
+        """Plan §7.2: packets arriving before subscribe() must NOT be cached
+        under a placeholder key. They are dropped and counted."""
+        feed = _make_feed200()
+        assert feed._subscriptions == []
+        assert feed._depth_cache == {}
+        assert feed._dropped_depths == 0
+        feed._dispatch_depth({"side": "bids", "levels": [DepthLevel(Decimal("100"), 1, 1)]})
+        # No subscription, no cache: dispatcher must drop the packet.
+        assert feed._dropped_depths == 1
+        assert feed._depth_cache == {}
+        assert feed.latest_depth() is None
+
+    def test_health_metrics_contain_depth_counters(self):
+        feed = _make_feed200(("NSE_EQ", "500325"))
+        feed._published_depths = 9
+        feed._dropped_depths = 2
+        h = feed.health()
+        assert h.metrics["published_depths"] == 9
+        assert h.metrics["dropped_depths"] == 2
 
     def test_parse_bid_packet_200(self):
         feed = _make_feed200()
@@ -262,10 +321,15 @@ class TestDhanDepth200Feed:
         result = feed._parse_depth_packet(packet, 51, 1)
         assert result["side"] == "asks"
 
-    def test_send_subscription_no_running_loop_no_crash(self):
+    def test_send_subscription_no_running_loop_drops_with_counter(self):
         feed = _make_feed200(("NSE_EQ", "500325"))
         feed._ws = mock.MagicMock()
-        feed._send_subscription(("NSE_EQ", "500325"))
+        # BinaryDepthFeed._send_subscription expects a list; depth-200 always
+        # has exactly one element when called. Without a running loop the
+        # send must be dropped (and counted) rather than swallowed.
+        assert feed._dropped_depths == 0
+        feed._send_subscription([("NSE_EQ", "500325")])
+        assert feed._dropped_depths == 1
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -421,3 +485,193 @@ class TestGatewayDepth200:
         gw._conn.depth_200_feed = f
         with pytest.raises(ValueError, match="already subscribed"):
             gw.depth_200("RELIANCE")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Golden-file packet regression tests
+# ──────────────────────────────────────────────────────────────────────────────
+#
+# These tests parse the on-disk golden binary packets through the production
+# parsers. They guard against the §5.1 silent correctness drift: a regression
+# that flips an offset in the header parse would parse the real-world bytes
+# into nonsense values, and these tests would catch it.
+
+class TestGoldenDepthPackets:
+    """End-to-end parsing of the on-disk golden packets via the production
+    parsers (depth_20._parse_depth_packet, depth_200._parse_depth_packet)."""
+
+    def test_depth20_bid_packet_parses_via_production_parser(self):
+        feed = _make_feed20()
+        data = _load_golden("depth_20_packet.bin")
+
+        # Header sanity (matches build_depth20_packet in the generator):
+        #   security_id at offset 4 (uint32 LE) == 2885
+        #   response_code at byte 2 == 41 (BID)
+        assert data[2] == 41
+        sid = struct.unpack_from("<I", data, 4)[0]
+        assert sid == 2885
+
+        result = feed._parse_depth_packet(data, 41, sid)
+        assert result["side"] == "bids"
+        # depth-20 layout: header_value IS the security_id (offset 4).
+        assert result["header_value"] == 2885
+        # 5 bid levels encoded by the generator.
+        assert len(result["levels"]) == 5
+        assert result["levels"][0].price == Decimal("2450.55")
+        assert result["levels"][0].quantity == 100
+        assert result["levels"][0].orders == 5
+
+    def test_depth20_ask_packet_parses_via_production_parser(self):
+        feed = _make_feed20()
+        data = _load_golden("depth_20_ask_packet.bin")
+
+        assert data[2] == 51
+        sid = struct.unpack_from("<I", data, 4)[0]
+        assert sid == 2885
+
+        result = feed._parse_depth_packet(data, 51, sid)
+        assert result["side"] == "asks"
+        assert result["header_value"] == 2885
+        assert len(result["levels"]) == 5
+        assert result["levels"][0].price == Decimal("2450.65")
+        assert result["levels"][0].quantity == 80
+
+    def test_depth20_packet_header_layout_does_not_collide_with_num_rows(self):
+        """The depth-20 header puts security_id at offset 4, NOT num_rows.
+
+        This guards against §5.1: a regression that read num_rows at offset 4
+        here would misread security_id 2885 (= 0xB45) as a num_rows count,
+        causing the loop to skip most levels.
+        """
+        feed = _make_feed20()
+        data = _load_golden("depth_20_packet.bin")
+
+        # Simulate the buggy reader: treat offset 4 as num_rows. With
+        # security_id=2885 and a body of 20 levels, the buggy reader would
+        # parse only the first 2885/16 = 180 levels into something else, but
+        # because the body is exactly 20 levels, it would NOT skip levels
+        # silently — it would over-read past the buffer. Production parser
+        # bounds by HEADER_SIZE + LEVEL_SIZE; this test confirms 5 levels
+        # come out regardless of the value at offset 4.
+        sid_under_test = struct.unpack_from("<I", data, 4)[0]
+        assert sid_under_test == 2885
+        result = feed._parse_depth_packet(data, 41, sid_under_test)
+        # Bounded by data length, not by an attacker-controlled num_rows:
+        assert len(result["levels"]) == 5
+
+    def test_depth20_feed_dispatch_populates_cache(self):
+        """Whole-pipeline test: feed._process_binary_message → cache.
+
+        Verifies that the real-bytes packet, when fed into the production
+        _process_binary_message, populates _depth_cache with the right
+        MarketDepth entry.
+        """
+        feed = _make_feed20([("NSE_EQ", "2885")])
+        bid_data = _load_golden("depth_20_packet.bin")
+        ask_data = _load_golden("depth_20_ask_packet.bin")
+
+        feed._process_binary_message(bid_data)
+        feed._process_binary_message(ask_data)
+
+        cached = feed.latest_depth(2885)
+        assert cached is not None
+        assert cached.depth_type == "DEPTH_20"
+        assert len(cached.bids) == 5
+        assert len(cached.asks) == 5
+        assert cached.bids[0].price == Decimal("2450.55")
+        assert cached.asks[0].price == Decimal("2450.65")
+
+    def test_depth200_bid_packet_parses_via_production_parser(self):
+        feed = _make_feed200(("NSE_EQ", "2885"))
+        data = _load_golden("depth_200_packet.bin")
+
+        # Header sanity: num_rows at offset 8 (uint32 LE) == 25
+        assert data[2] == 41
+        num_rows = struct.unpack_from("<I", data, 8)[0]
+        assert num_rows == 25
+
+        result = feed._parse_depth_packet(data, 41, num_rows)
+        assert result["side"] == "bids"
+        assert len(result["levels"]) == 25
+        # Top of book must be the highest bid; descending.
+        prices = [float(lvl.price) for lvl in result["levels"]]
+        assert prices == sorted(prices, reverse=True)
+
+    def test_depth200_ask_packet_parses_via_production_parser(self):
+        feed = _make_feed200(("NSE_EQ", "2885"))
+        data = _load_golden("depth_200_ask_packet.bin")
+
+        assert data[2] == 51
+        num_rows = struct.unpack_from("<I", data, 8)[0]
+        assert num_rows == 25
+
+        result = feed._parse_depth_packet(data, 51, num_rows)
+        assert result["side"] == "asks"
+        assert len(result["levels"]) == 25
+        prices = [float(lvl.price) for lvl in result["levels"]]
+        assert prices == sorted(prices)
+
+    def test_depth200_header_layout_uses_num_rows_not_security_id(self):
+        """Depth-200 header layout has num_rows at offset 8, NOT security_id.
+
+        Symmetric guard to depth-20: a regression that read security_id at
+        offset 8 here would parse the field as 0 (it's reserved/zero in the
+        generator output), causing the loop to read 0 levels.
+        """
+        feed = _make_feed200(("NSE_EQ", "2885"))
+        data = _load_golden("depth_200_packet.bin")
+
+        # Read offset 4 as if it were num_rows — must yield 0 because the
+        # generator leaves offset 4..8 zero. Production parser uses offset 8.
+        bogus_num_rows = struct.unpack_from("<I", data, 4)[0]
+        correct_num_rows = struct.unpack_from("<I", data, 8)[0]
+
+        assert bogus_num_rows == 0, (
+            "depth-200 offset 4 must be reserved (zero); "
+            "if it is not, header layout has changed"
+        )
+        assert correct_num_rows == 25
+
+        # Production parser must use correct_num_rows, returning 25 levels.
+        result = feed._parse_depth_packet(data, 41, correct_num_rows)
+        assert len(result["levels"]) == 25
+
+    def test_depth200_feed_dispatch_populates_cache(self):
+        feed = _make_feed200(("NSE_EQ", "2885"))
+        bid_data = _load_golden("depth_200_packet.bin")
+        ask_data = _load_golden("depth_200_ask_packet.bin")
+
+        feed._process_binary_message(bid_data)
+        feed._process_binary_message(ask_data)
+
+        cached = feed.latest_depth()
+        assert cached is not None
+        assert cached.depth_type == "DEPTH_200"
+        assert len(cached.bids) == 25
+        assert len(cached.asks) == 25
+
+    def test_golden_packets_have_distinct_header_layouts(self):
+        """Final invariant from §5.1: depth-20 and depth-200 MUST disagree on
+        the meaning of offset 4 vs offset 8 in the header.
+
+        This test reads both golden files and asserts that depth-20 puts the
+        meaningful value at offset 4 while depth-200 leaves it zero and puts
+        the meaningful value at offset 8. If the two feeds ever drift toward
+        a shared layout, this test fails immediately.
+        """
+        depth20 = _load_golden("depth_20_packet.bin")
+        depth200 = _load_golden("depth_200_packet.bin")
+
+        d20_off4 = struct.unpack_from("<I", depth20, 4)[0]
+        d20_off8 = struct.unpack_from("<I", depth20, 8)[0]
+        d200_off4 = struct.unpack_from("<I", depth200, 4)[0]
+        d200_off8 = struct.unpack_from("<I", depth200, 8)[0]
+
+        # Depth-20 carries security_id at offset 4 (== 2885).
+        assert d20_off4 == 2885
+        # Depth-20 does NOT carry num_rows at offset 8 (== 0 in fixture).
+        assert d20_off8 == 0
+        # Depth-200 does NOT carry security_id at offset 4 (== 0).
+        assert d200_off4 == 0
+        # Depth-200 carries num_rows at offset 8 (== 25).
+        assert d200_off8 == 25

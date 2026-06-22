@@ -4,14 +4,15 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from datalake.api.deps import get_view_manager
+from datalake.api.auth import require_auth
 from datalake.api.schemas import StrategySignalsResponse, StrategySignal
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_auth)])
 
 
 @router.get("/signals", response_model=StrategySignalsResponse)

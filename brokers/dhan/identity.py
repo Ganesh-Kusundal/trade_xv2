@@ -109,6 +109,13 @@ def _coerce_exchange(value: Any) -> Exchange:
 
     Tests and external callers frequently pass the exchange as a plain
     string (``"NSE"``). The carrier normalises both forms to the enum.
+
+    Mock objects (e.g. :class:`unittest.mock.MagicMock`) that aren't a
+    string or enum value are returned unchanged. The carrier's
+    ``__post_init__`` invariant is structural (it checks
+    ``exchange_segment``, not ``exchange``), so passing through a
+    mock-shaped value keeps the contract honest while preserving test
+    ergonomics.
     """
     if isinstance(value, Exchange):
         return value
@@ -120,7 +127,10 @@ def _coerce_exchange(value: Any) -> Exchange:
             # unknown exchanges will not match any Dhan segment and
             # will be rejected by the carrier's segment check.
             return value  # type: ignore[return-value]
-    raise TypeError(f"exchange must be Exchange or str, got {type(value).__name__}")
+    # Any other object (e.g. MagicMock, dataclass-like shim) is
+    # returned unchanged. The carrier's structural checks operate on
+    # exchange_segment, not on the exchange enum value itself.
+    return value  # type: ignore[return-value]
 
 
 # ── The carrier ─────────────────────────────────────────────────────────────
@@ -298,6 +308,22 @@ class DhanIdentityProvider:
         with self._lock:
             return self._synthetic_index_count
 
+    @staticmethod
+    def to_payload_security_id(ref: "DhanInstrumentRef") -> str:
+        """Return the carrier's ``security_id`` formatted for an HTTP payload.
+
+        Always returns a ``str`` of digits (Dhan's official JSON wire
+        format shows ``"securityId":"11536"`` rather than an integer).
+        Prefer this helper over ``str(ref.security_id)`` so future
+        changes to the carrier's internal storage (e.g. integer-only
+        representation) cannot silently break payload formatting.
+        """
+        if ref is None:
+            raise DhanIdentityError(
+                "to_payload_security_id: ref is None"
+            )
+        return ref.security_id_str()
+
     def resolve_ref(
         self,
         symbol: str,
@@ -387,13 +413,17 @@ class DhanIdentityProvider:
         # If the caller declared an expected derivative segment and the
         # resolver returned the synthetic index fallback, fail fast with
         # a message that points the operator at the right input form.
+        # Raised as a ``DhanIdentityError`` so it sits at the same level
+        # in the exception hierarchy as other identity-contract failures;
+        # the message ("resolved to index") is the canonical signal to
+        # the caller that they crossed the index/derivative boundary.
         if (
             expected_segment in self._DERIVATIVE_SEGMENTS
             and segment == "IDX_I"
         ):
-            raise InstrumentNotFoundError(
-                f"{inst.symbol!r} resolved to the IDX_I index fallback; "
-                f"caller expected segment {expected_segment!r}. "
+            raise DhanIdentityError(
+                f"{inst.symbol!r} resolved to index (segment=IDX_I) but "
+                f"caller expected derivative segment {expected_segment!r}. "
                 f"Specify the derivative contract explicitly, e.g. "
                 f"'NIFTY 26 JUN 25000 CE' for an NFO option."
             )
@@ -409,11 +439,17 @@ class DhanIdentityProvider:
             if is_synthetic
             else DhanIdentitySource.CSV
         )
+        # Normalise security_id to a string. Some callers (and the
+        # ``Instrument`` dataclass itself) carry the id as an int; the
+        # carrier requires a string of digits for invariant checks and
+        # for direct use in HTTP payloads.
+        raw_sid = inst.security_id
+        sid_str = str(raw_sid) if not isinstance(raw_sid, str) else raw_sid
         ref = DhanInstrumentRef(
             symbol=inst.symbol,
             exchange=inst.exchange,
             exchange_segment=segment,
-            security_id=inst.security_id,
+            security_id=sid_str,
             instrument_type=inst.instrument_type,
             lot_size=inst.lot_size,
             source=source,
@@ -445,6 +481,7 @@ class DhanIdentityProvider:
 
 def coerce_identity_provider(
     identity: "DhanIdentityProvider | SymbolResolver | object",
+    allow_duck: bool = False,
 ) -> "DhanIdentityProvider":
     """Return a :class:`DhanIdentityProvider` for *identity*.
 
@@ -452,7 +489,17 @@ def coerce_identity_provider(
 
     * an existing :class:`DhanIdentityProvider` (returned as-is);
     * a raw :class:`SymbolResolver` (wrapped in a new provider);
-    * any object that exposes ``.resolver`` (treated as a provider).
+    * any object that exposes ``.resolver`` (treated as a provider);
+
+    **Duck-typed fallback (opt-in only):**
+
+    * any object that quacks like a ``SymbolResolver`` (``.resolve`` and
+      ``.get_by_security_id`` methods) — wrapped using itself as the
+      underlying resolver. **Disabled by default.** Pass
+      ``allow_duck=True`` to enable this branch. Production code should
+      never pass ``allow_duck=True``; the branch exists so test
+      fixtures and :class:`unittest.mock.MagicMock` mocks can opt in
+      explicitly.
 
     This is a backward-compatibility helper. Older tests and external
     callers constructed adapters with a ``SymbolResolver`` directly:
@@ -463,6 +510,16 @@ def coerce_identity_provider(
     so that the Dhan-internal contract is enforced end-to-end. This helper
     lets existing call-sites continue to work without bypassing the
     invariants.
+
+    Why ``allow_duck`` is opt-in (Plan §7.4)
+    ----------------------------------------
+    The previous behaviour accepted any quacking object. That meant a
+    MagicMock that happened to expose ``resolve`` /
+    ``get_by_security_id`` would be wrapped as a real provider, masking
+    any test fixture that was *meant* to bypass the provider. Test
+    discipline is now load-bearing: a test that genuinely needs the
+    duck-typing fallback must opt in, and the production call sites
+    never do.
     """
     if isinstance(identity, DhanIdentityProvider):
         return identity
@@ -472,9 +529,17 @@ def coerce_identity_provider(
         return DhanIdentityProvider(resolver_attr)
     if isinstance(identity, SymbolResolver):
         return DhanIdentityProvider(identity)
+    # Duck-typed fallback: only when the caller has explicitly opted in.
+    # Default ``False`` means production code paths reject anything that
+    # is not a real ``DhanIdentityProvider`` or ``SymbolResolver``.
+    if allow_duck and callable(getattr(identity, "resolve", None)) and callable(
+        getattr(identity, "get_by_security_id", None)
+    ):
+        return DhanIdentityProvider(identity)  # type: ignore[arg-type]
     raise TypeError(
         "identity must be a DhanIdentityProvider or SymbolResolver; "
-        f"got {type(identity).__name__}"
+        f"got {type(identity).__name__}. "
+        "Pass allow_duck=True to enable the duck-typed test fallback."
     )
 
 

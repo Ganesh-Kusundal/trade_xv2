@@ -14,6 +14,7 @@ Key Features
   (uses asyncio.to_thread() for sync handlers).
 - **DLQ Integration**: Reuses existing DeadLetterQueue for failed handlers.
 - **Metrics Integration**: Reuses existing EventMetrics for observability.
+- **Alerting Integration**: Optional AlertingEngine for threshold-based alerts.
 
 Usage
 -----
@@ -23,6 +24,7 @@ Usage
         event_log=event_log,
         metrics=metrics,
         dead_letter_queue=dlq,
+        alerting_engine=alerting_engine,
     )
     
     # Subscribe handlers (sync or async)
@@ -61,6 +63,7 @@ from brokers.common.event_bus.event_bus import DomainEvent
 if TYPE_CHECKING:
     from brokers.common.event_bus.dead_letter_queue import DeadLetterQueue
     from brokers.common.observability.event_metrics import EventMetrics
+    from brokers.common.observability.alerting import AlertingEngine
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +116,11 @@ class AsyncEventBus:
         Optional metrics for observability.
     dead_letter_queue:
         Optional DLQ for failed handler invocations.
+    alerting_engine:
+        Optional AlertingEngine for threshold-based alerting.
+        When provided, an asyncio task evaluates alert rules periodically.
+    alerting_interval_seconds:
+        Interval between alert evaluations (default 10 seconds).
     
     Event Processing
     ----------------
@@ -135,6 +143,12 @@ class AsyncEventBus:
     - DROP: publish() returns immediately, event is lost
     - ERROR: publish() raises asyncio.QueueFull immediately
     
+    Alerting
+    --------
+    When an alerting_engine is provided, a background asyncio task
+    periodically evaluates alert rules. All metrics use timestamped
+    counters to enable rate-based alerting.
+    
     Usage
     -----
         bus = AsyncEventBus(maxsize=1000)
@@ -151,6 +165,8 @@ class AsyncEventBus:
         event_log: Any | None = None,
         metrics: EventMetrics | None = None,
         dead_letter_queue: DeadLetterQueue | None = None,
+        alerting_engine: AlertingEngine | None = None,
+        alerting_interval_seconds: float = 10.0,
     ) -> None:
         self._queue: asyncio.Queue[tuple[str, dict[str, Any]] | None] = asyncio.Queue(
             maxsize=maxsize
@@ -166,8 +182,11 @@ class AsyncEventBus:
         self._event_log = event_log
         self._metrics = metrics
         self._dead_letter_queue = dead_letter_queue
+        self._alerting_engine = alerting_engine
+        self._alerting_interval = alerting_interval_seconds
         
         self._worker_task: asyncio.Task | None = None
+        self._alerting_task: asyncio.Task | None = None
         self._running = False
         self._event_count = 0
         self._error_count = 0
@@ -188,8 +207,13 @@ class AsyncEventBus:
         """True if dispatch worker is running."""
         return self._running
     
+    @property
+    def alerting_engine(self) -> AlertingEngine | None:
+        """The alerting engine instance, if configured."""
+        return self._alerting_engine
+    
     async def start(self) -> None:
-        """Start the dispatch worker.
+        """Start the dispatch worker and alerting task.
         
         Must be called before publish(). Creates a background task that
         continuously processes events from the queue.
@@ -203,6 +227,14 @@ class AsyncEventBus:
             self._dispatch_worker(),
             name=self._config.worker_name,
         )
+        
+        # Start alerting task if engine is provided.
+        if self._alerting_engine is not None:
+            self._alerting_task = asyncio.create_task(
+                self._alerting_loop(),
+                name="AsyncEventBus-Alerting",
+            )
+        
         logger.info(
             "AsyncEventBus started (maxsize=%d, policy=%s)",
             self._config.maxsize,
@@ -210,7 +242,7 @@ class AsyncEventBus:
         )
     
     async def stop(self) -> None:
-        """Stop the dispatch worker.
+        """Stop the dispatch worker and alerting task.
         
         Waits for all pending events to be processed before returning.
         Call this during graceful shutdown.
@@ -231,12 +263,43 @@ class AsyncEventBus:
                 logger.error("AsyncEventBus worker did not stop within timeout")
                 self._worker_task.cancel()
         
+        # Wait for alerting task to finish
+        if self._alerting_task is not None:
+            self._alerting_task.cancel()
+            try:
+                await asyncio.wait_for(self._alerting_task, timeout=5.0)
+            except (asyncio.TimeoutError, asyncio.CancelledError):
+                pass
+        
         logger.info(
             "AsyncEventBus stopped: events=%d, errors=%d, dropped=%d",
             self._event_count,
             self._error_count,
             self._dropped_count,
         )
+    
+    async def _alerting_loop(self) -> None:
+        """Background loop that periodically evaluates alert rules."""
+        try:
+            while self._running:
+                try:
+                    if self._alerting_engine is not None:
+                        alerts = self._alerting_engine.evaluate_all()
+                        if alerts:
+                            logger.info(
+                                "AsyncEventBus alerting: %d alert(s) fired",
+                                len(alerts),
+                            )
+                except Exception as exc:
+                    logger.error(
+                        "AsyncEventBus alerting evaluation failed: %s",
+                        exc,
+                        exc_info=True,
+                    )
+                await asyncio.sleep(self._alerting_interval)
+        except asyncio.CancelledError:
+            logger.info("AsyncEventBus alerting task cancelled")
+            raise
     
     def subscribe(self, event_type: str, handler: Callable) -> None:
         """Subscribe a handler to an event type.
@@ -465,9 +528,9 @@ class AsyncEventBus:
             exc_info=True,
         )
         
-        # Metrics (if available)
+        # Metrics (if available) - use timestamped counter for rate-based alerting
         if self._metrics is not None:
-            self._metrics.inc(
+            self._metrics.add_timestamped_counter(
                 event.event_type,
                 f"handler_error:{type(exc).__name__}",
             )

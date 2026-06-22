@@ -7,11 +7,12 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from datalake.api.deps import get_risk_manager
+from datalake.api.auth import require_auth
 from brokers.common.oms.risk_manager import RiskManager
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_auth)])
 
 
 @router.get("/state", response_model=dict)

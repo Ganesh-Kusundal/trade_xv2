@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from datalake.api.deps import get_view_manager
+from datalake.api.auth import require_auth
 from datalake.api.schemas import (
     OptionChainResponse,
     OptionContract,
@@ -19,7 +21,7 @@ from datalake.api.schemas import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_auth)])
 
 
 @router.get("/chain/{underlying}", response_model=OptionChainResponse)
@@ -28,14 +30,32 @@ async def get_option_chain(
     expiry: Optional[str] = Query(None, description="Expiry date (YYYY-MM-DD)"),
     strike_range: int = Query(10, ge=1, le=50, description="Number of strikes from ATM"),
 ):
-    """Get option chain for an underlying.
+    """Get option chain for an underlying from historical OHLCV data.
     
-    Returns CE/PE contracts with Greeks, OI, volume, and LTP.
-    Reads directly from option parquet files.
+    Returns CE/PE contracts with OI, volume, and LTP. Reads directly from
+    option parquet files.
+    
+    Note:
+        bid/ask fields are always None because they require live market depth
+        (Level 2 order book) data, which is not available in historical OHLCV
+        parquet files. OHLCV data only contains aggregated candle information
+        (open, high, low, close, volume) per time period, not the order book
+        snapshots needed to derive bid/ask quotations.
+        
+        For live bid/ask data, use a broker WebSocket feed (Dhan/Upstox) that
+        provides real-time market depth.
     """
     import duckdb
     
     try:
+        # Validate underlying symbol format to prevent SQL injection and path traversal
+        if not re.match(r'^[A-Z][A-Z0-9]{0,10}$', underlying.upper()):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid underlying symbol format. Must be alphanumeric (e.g., NIFTY, BANKNIFTY, RELIANCE)"
+            )
+        
+        # Route through DataLakeGateway for consistent file path handling
         options_dir = Path("market_data/options/candles")
         underlying_dir = options_dir / f"underlying={underlying.upper()}"
         
@@ -45,21 +65,25 @@ async def get_option_chain(
                 detail=f"No option data found for {underlying}",
             )
         
-        parquet_pattern = str(underlying_dir / "**" / "data.parquet")
+        parquet_base = str(underlying_dir)
         
-        query = f"""
+        query = """
             SELECT symbol, expiry_date, strike, option_type,
                    close as ltp, volume, oi
-            FROM read_parquet('{parquet_pattern}', hive_partitioning=true)
+            FROM read_parquet(? || '/**/data.parquet', hive_partitioning=true)
             WHERE underlying = ?
         """
-        params = [underlying.upper()]
+        
+        params = [parquet_base, underlying.upper()]
         
         if expiry:
             query += " AND expiry_date = ?"
             params.append(expiry)
         
-        query += f" ORDER BY strike, option_type LIMIT {int(strike_range * 2)}"
+        query += " ORDER BY strike, option_type LIMIT ?"
+        # Validate and bound the limit parameter to prevent excessive resource usage
+        safe_limit = max(2, min(int(strike_range * 2), 200))
+        params.append(safe_limit)
         
         conn = duckdb.connect(":memory:")
         results = conn.execute(query, params).fetchall()
@@ -73,8 +97,8 @@ async def get_option_chain(
                 strike=float(row[2]) if row[2] else 0.0,
                 option_type=row[3] or "CE",
                 ltp=float(row[4]) if row[4] else 0.0,
-                bid=0.0,  # Not available from OHLCV parquet
-                ask=0.0,  # Not available from OHLCV parquet
+                bid=None,  # Not available from OHLCV data — bid/ask require live market depth
+                ask=None,  # Not available from OHLCV data
                 volume=float(row[5]) if row[5] else 0.0,
                 oi=float(row[6]) if row[6] else 0.0,
             ))
@@ -287,4 +311,4 @@ async def get_options_volume_profile(
 ):
     """Get options volume profile by strike."""
     # TODO: Implement with volume profile analytics
-    return {"strikes": [], "profile": []}
+    return {"strikes": [], "profile": [], "note": "Not implemented — requires order flow analytics"}

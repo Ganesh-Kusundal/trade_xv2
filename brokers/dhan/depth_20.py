@@ -1,56 +1,44 @@
 """20-level market depth WebSocket feed for Dhan.
 
-Implements ManagedService protocol for lifecycle management.
-Endpoint: wss://depth-api-feed.dhan.co/twentydepth (see ``config.endpoints.Dhan.WS_DEPTH_20``)
+Plan §7.1 refactor: the binary-packet / reconnect / lifecycle machinery is
+shared with ``DhanDepth200Feed`` via :class:`BinaryDepthFeed` (in
+``brokers.dhan.depth_feed_base``). This module keeps ``DhanDepth20Feed``
+as a thin subclass so callers and tests that import
+``brokers.dhan.depth_20.DhanDepth20Feed`` keep working unchanged.
+
+Endpoint: wss://depth-api-feed.dhan.co/twentydepth
 Max instruments: 50 per connection
+Header layout: security_id at offset 4 (see ``BinaryDepthFeed.header_carries_security_id``)
 """
 
 from __future__ import annotations
 
-import asyncio
-import logging
-import struct
-import threading
-import time
-from collections.abc import Callable
-from datetime import datetime, timezone
-from decimal import Decimal
+from brokers.common.core.domain import MarketDepth
+from brokers.common.event_bus import EventBus
 
-from config.endpoints import Dhan as _DhanEndpoints
+from brokers.dhan.depth_feed_base import BinaryDepthFeed
 
-from brokers.common.core.domain import DepthLevel, MarketDepth
-from brokers.common.event_bus import DomainEvent, EventBus
-from brokers.common.lifecycle.lifecycle import (
-    HealthState,
-    HealthStatus,
-    ManagedService,
-)
-
-logger = logging.getLogger(__name__)
+__all__ = ["DhanDepth20Feed"]
 
 
-class DhanDepth20Feed(ManagedService):
+class DhanDepth20Feed(BinaryDepthFeed):
     """20-level market depth via WebSocket.
 
-    Dhan API provides 20-level depth on a separate WebSocket endpoint.
-    This feed manages subscriptions (max 50 instruments) and parses
-    binary depth packets.
-
-    Endpoint: wss://depth-api-feed.dhan.co/twentydepth
-    Max instruments: 50 per connection
-    Request code: 23
+    The class attributes ``MAX_INSTRUMENTS``, ``TOTAL_DEPTH_PACKETS``,
+    ``ENDPOINT``, ``REQUEST_CODE``, ``HEADER_SIZE``, ``DEPTH_LEVEL_SIZE``,
+    ``BID_RESPONSE_CODE``, ``ASK_RESPONSE_CODE`` are inherited from
+    :class:`BinaryDepthFeed` and remain accessible for backward compat.
     """
 
+    # Class-level constants (also set by BinaryDepthFeed.__init__; redefined
+    # here so legacy code that introspects them on the class itself still works).
     name = "dhan.depth_20"
-
-    ENDPOINT = _DhanEndpoints.WS_DEPTH_20
+    ENDPOINT = ""
     MAX_INSTRUMENTS = 50
-    REQUEST_CODE = 23  # Full Market Depth
-
-    # Binary packet constants
-    HEADER_SIZE = 12
-    DEPTH_LEVEL_SIZE = 16  # 8 bytes price + 4 bytes quantity + 4 bytes orders
     TOTAL_DEPTH_PACKETS = 20
+    REQUEST_CODE = 23  # Full Market Depth
+    HEADER_SIZE = 12
+    DEPTH_LEVEL_SIZE = 16
     BID_RESPONSE_CODE = 41
     ASK_RESPONSE_CODE = 51
 
@@ -61,72 +49,34 @@ class DhanDepth20Feed(ManagedService):
         instruments: list[tuple[str, str]] | None = None,
         event_bus: EventBus | None = None,
     ):
-        """
-        Args:
-            client_id: Dhan client ID
-            access_token: Dhan access token
-            instruments: List of (exchange_segment, security_id) tuples
-            event_bus: Optional event bus for publishing depth events
-        """
-        self._client_id = client_id
-        self._access_token = access_token
-        self._instruments = instruments or []
-        self._event_bus = event_bus
+        from config.endpoints import Dhan as _DhanEndpoints
 
-        self._subscriptions: list[tuple[str, str]] = list(self._instruments)
-        self._depth_callbacks: list[Callable[[MarketDepth], None]] = []
-        self._callback_lock = threading.Lock()
+        super().__init__(
+            client_id=client_id,
+            access_token=access_token,
+            endpoint=_DhanEndpoints.WS_DEPTH_20,
+            request_code=self.REQUEST_CODE,
+            total_slots=20,
+            subs_per_connection=50,
+            depth_type="DEPTH_20",
+            name=self.name,
+            event_name="DEPTH_20",
+            header_carries_security_id=True,
+            event_bus=event_bus,
+        )
 
-        self._ws = None
-        self._thread: threading.Thread | None = None
-        self._stop_event = threading.Event()
-        self._is_connected = False
-        self._reconnect_count = 0
-        self._last_message_at: datetime | None = None
-        self._lock = threading.Lock()
+        # Preserve class-level ENDPOINT for introspection by callers that
+        # read it off the class rather than the instance.
+        if not self.ENDPOINT:
+            self.ENDPOINT = _DhanEndpoints.WS_DEPTH_20
+        DhanDepth20Feed.ENDPOINT = _DhanEndpoints.WS_DEPTH_20
 
-        # Per-security_id depth cache.  Each entry holds the last-seen bids
-        # and asks independently so that a one-sided packet never zeros out
-        # the other side.
-        self._depth_cache: dict[int, dict[str, list[DepthLevel]]] = {}
-        self._depth_cache_lock = threading.Lock()
+        if instruments:
+            self.subscribe(instruments)
 
-        # Validate instrument count
-        if len(self._subscriptions) > self.MAX_INSTRUMENTS:
-            raise ValueError(
-                f"Maximum {self.MAX_INSTRUMENTS} instruments allowed for 20-level depth, "
-                f"got {len(self._subscriptions)}"
-            )
-
-    @property
-    def max_instruments(self) -> int:
-        """Maximum number of instruments allowed per connection."""
-        return self.MAX_INSTRUMENTS
-
-    @property
-    def subscriptions(self) -> list[tuple[str, str]]:
-        """Return a copy of the current subscription list."""
-        return list(self._subscriptions)
-
-    @property
-    def is_running(self) -> bool:
-        """Whether the feed thread is alive (started and not stopped)."""
-        return bool(self._thread and self._thread.is_alive())
-
-    def on_depth(self, callback: Callable[[MarketDepth], None]) -> None:
-        """Register a callback for depth updates.
-
-        The callback receives a :class:`~brokers.common.core.domain.MarketDepth`
-        with up to 20 bid and 20 ask levels.
-        """
-        with self._callback_lock:
-            self._depth_callbacks.append(callback)
-
+    # ── Depth-20 specific lookup: security_id-keyed cache ─────────────────
     def latest_depth(self, security_id: int) -> MarketDepth | None:
-        """Return the most-recent cached :class:`MarketDepth` for *security_id*.
-
-        Returns ``None`` if no packet has been received yet for that security.
-        """
+        """Return the most-recent cached :class:`MarketDepth` for *security_id*."""
         with self._depth_cache_lock:
             entry = self._depth_cache.get(security_id)
         if entry is None:
@@ -136,365 +86,3 @@ class DhanDepth20Feed(ManagedService):
             asks=list(entry.get("asks", [])),
             depth_type="DEPTH_20",
         )
-
-    def subscribe(self, instruments: list[tuple[str, str]]) -> None:
-        """Subscribe to additional instruments.
-
-        Skips duplicates — instruments already subscribed are ignored.
-
-        Args:
-            instruments: List of (exchange_segment, security_id) tuples
-
-        Raises:
-            ValueError: If total subscriptions exceed MAX_INSTRUMENTS
-        """
-        new_instruments = [i for i in instruments if i not in self._subscriptions]
-        if not new_instruments:
-            return
-        total = len(self._subscriptions) + len(new_instruments)
-        if total > self.MAX_INSTRUMENTS:
-            raise ValueError(
-                f"Maximum {self.MAX_INSTRUMENTS} instruments allowed for 20-level depth, "
-                f"would have {total}"
-            )
-
-        self._subscriptions.extend(new_instruments)
-        logger.info("depth_20_subscribe", extra={
-            "count": len(new_instruments),
-            "total": len(self._subscriptions),
-        })
-
-        # Send subscription message if connected
-        if self._is_connected and self._ws:
-            self._send_subscription(new_instruments)
-
-    def unsubscribe(self, instruments: list[tuple[str, str]]) -> None:
-        """Unsubscribe from instruments and evict their depth cache entries.
-
-        Args:
-            instruments: List of (exchange_segment, security_id) tuples
-        """
-        removed = []
-        for inst in instruments:
-            if inst in self._subscriptions:
-                self._subscriptions.remove(inst)
-                removed.append(inst)
-                # Evict depth cache entry for this instrument
-                try:
-                    sec_id = int(inst[1])
-                    with self._depth_cache_lock:
-                        self._depth_cache.pop(sec_id, None)
-                except (ValueError, IndexError):
-                    pass
-
-        if removed:
-            logger.info("depth_20_unsubscribe", extra={
-                "count": len(removed),
-                "total": len(self._subscriptions),
-            })
-
-    def connect(self) -> None:
-        """Deprecated alias for :meth:`start`."""
-        self.start()
-
-    def start(self) -> None:
-        """ManagedService protocol: start the WebSocket connection.
-
-        Idempotent — re-calling while the thread is alive is a no-op.
-        """
-        if self._thread and self._thread.is_alive():
-            return
-
-        self._stop_event.clear()
-        self._thread = threading.Thread(
-            target=self._websocket_loop,
-            name=self.name,
-            daemon=True,
-        )
-        self._thread.start()
-        logger.info("depth_20_started")
-
-    def disconnect(self, timeout_seconds: float = 5.0) -> None:
-        """Deprecated alias for :meth:`stop`."""
-        self.stop(timeout_seconds)
-
-    def stop(self, timeout_seconds: float = 5.0) -> None:
-        """ManagedService protocol: stop the WebSocket connection."""
-        self._stop_event.set()
-
-        with self._lock:
-            ws = self._ws
-            thread = self._thread
-
-        if ws:
-            try:
-                ws.close()
-            except Exception as exc:
-                logger.warning("Error closing depth_20 WebSocket: %s", exc)
-
-        if thread and thread.is_alive():
-            thread.join(timeout=timeout_seconds)
-            if thread.is_alive():
-                logger.warning(
-                    "dhan.depth_20 thread did not stop within %ss", timeout_seconds
-                )
-
-        logger.info("depth_20_stopped")
-
-    def health(self) -> HealthStatus:
-        """ManagedService protocol: return a point-in-time health snapshot."""
-        with self._lock:
-            thread_alive = bool(self._thread and self._thread.is_alive())
-            is_connected = self._is_connected
-            reconnect_count = self._reconnect_count
-            last_message_age = (
-                (datetime.now(timezone.utc) - self._last_message_at).total_seconds()
-                if self._last_message_at is not None
-                else None
-            )
-
-        if thread_alive and is_connected:
-            state = HealthState.HEALTHY
-            detail = "running and connected"
-        elif thread_alive and not is_connected:
-            state = HealthState.DEGRADED
-            detail = "thread running but not connected (reconnecting?)"
-        else:
-            state = HealthState.STOPPED
-            detail = "not started"
-
-        return HealthStatus(
-            state=state,
-            service=self.name,
-            last_check=datetime.now(timezone.utc),
-            detail=detail,
-            metrics={
-                "reconnect_count": reconnect_count,
-                "subscriptions": len(self._subscriptions),
-                "last_message_age_seconds": last_message_age if last_message_age is not None else -1,
-            },
-        )
-
-    def _websocket_loop(self) -> None:
-        """Main WebSocket loop with auto-reconnect."""
-        while not self._stop_event.is_set():
-            try:
-                self._connect_and_run()
-            except Exception as exc:
-                logger.error("depth_20_error: %s", exc)
-
-            if not self._stop_event.is_set():
-                self._reconnect_count += 1
-                time.sleep(min(2 ** min(self._reconnect_count, 5), 30))
-
-    def _connect_and_run(self) -> None:
-        """Establish WebSocket connection and process messages."""
-        import importlib.util
-
-        if importlib.util.find_spec("websockets") is None:
-            logger.error("websockets package not installed: pip install websockets")
-            return
-        import asyncio
-
-        url = f"{self.ENDPOINT}?token={self._access_token}&clientId={self._client_id}&authType=2"
-
-        logger.info("depth_20_connecting", extra={"endpoint": self.ENDPOINT})
-
-        # Run async WebSocket in a new event loop
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
-        try:
-            loop.run_until_complete(self._websocket_handler(url))
-        finally:
-            loop.close()
-            with self._lock:
-                self._is_connected = False
-
-    async def _websocket_handler(self, url: str) -> None:
-        """Async WebSocket handler with auto-reconnect."""
-        import websockets
-
-        backoff = 1.0
-        max_backoff = 30.0
-
-        while not self._stop_event.is_set():
-            try:
-                async with websockets.connect(url) as ws:
-                    with self._lock:
-                        self._ws = ws
-                        self._is_connected = True
-                        self._reconnect_count = 0
-
-                    logger.info("depth_20_connected")
-
-                    # Send initial subscriptions
-                    if self._subscriptions:
-                        self._send_subscription(self._subscriptions)
-
-                    # Process messages
-                    while not self._stop_event.is_set():
-                        try:
-                            message = await asyncio.wait_for(
-                                ws.recv(), timeout=30.0
-                            )
-
-                            if isinstance(message, bytes):
-                                self._process_binary_message(message)
-
-                            # Reset backoff on successful message
-                            backoff = 1.0
-
-                        except asyncio.TimeoutError:
-                            # Heartbeat timeout, connection still alive
-                            continue
-
-                        except websockets.ConnectionClosed:
-                            logger.warning("depth_20_connection_closed")
-                            break
-
-            except Exception as exc:
-                logger.error("depth_20_connection_error: %s", exc)
-                with self._lock:
-                    self._is_connected = False
-                    self._ws = None
-                    self._reconnect_count += 1
-
-            # Backoff before reconnect
-            if not self._stop_event.is_set():
-                wait_time = min(backoff, max_backoff)
-                logger.info("depth_20_reconnecting in %.1fs", wait_time)
-                await asyncio.sleep(wait_time)
-                backoff = min(backoff * 2, max_backoff)
-
-    def _send_subscription(self, instruments: list[tuple[str, str]]) -> None:
-        """Send subscription JSON message over the live WebSocket.
-
-        Always called from inside ``_websocket_handler`` (an async coroutine),
-        so ``asyncio.get_running_loop()`` is always safe here.
-        """
-        import asyncio
-        import json
-
-        subscription_msg = {
-            "RequestCode": self.REQUEST_CODE,
-            "InstrumentCount": len(instruments),
-            "InstrumentList": [
-                {
-                    "ExchangeSegment": exchange,
-                    "SecurityId": security_id,
-                }
-                for exchange, security_id in instruments
-            ],
-        }
-
-        logger.debug("depth_20_subscription_sent", extra={"count": len(instruments)})
-
-        if self._ws:
-            try:
-                loop = asyncio.get_running_loop()
-                loop.create_task(self._ws.send(json.dumps(subscription_msg)))
-            except RuntimeError:
-                # No running loop (test context) — skip silently
-                pass
-
-    def _process_binary_message(self, data: bytes) -> None:
-        """Parse binary depth packet and dispatch callbacks."""
-        try:
-            if len(data) < self.HEADER_SIZE:
-                logger.warning("depth_20_packet_too_short: %d bytes", len(data))
-                return
-
-            # Parse header
-            response_code = data[2]
-            security_id   = struct.unpack_from('<I', data, 4)[0]
-
-            self._last_message_at = datetime.now(timezone.utc)
-
-            # Only process bid/ask depth packets
-            if response_code in (self.BID_RESPONSE_CODE, self.ASK_RESPONSE_CODE):
-                depth_data = self._parse_depth_packet(data, response_code, security_id)
-                self._dispatch_depth(depth_data)
-
-        except Exception as exc:
-            logger.error("depth_20_parse_error: %s", exc, exc_info=True)
-
-    def _parse_depth_packet(self, data: bytes, response_code: int, security_id: int) -> dict:
-        """Parse 20-level depth binary packet.
-
-        Packet structure:
-        - 12 bytes header
-        - 320 bytes depth data (20 levels × 16 bytes each)
-
-        Each level (16 bytes):
-        - 8 bytes: price (float64 little-endian)
-        - 4 bytes: quantity (uint32 little-endian)
-        - 4 bytes: orders  (uint32 little-endian)
-        """
-        depth_levels = []
-
-        for i in range(self.TOTAL_DEPTH_PACKETS):
-            offset = self.HEADER_SIZE + (i * self.DEPTH_LEVEL_SIZE)
-            if offset + self.DEPTH_LEVEL_SIZE > len(data):
-                break
-            price    = struct.unpack_from('<d', data, offset)[0]
-            quantity = struct.unpack_from('<I', data, offset + 8)[0]
-            orders   = struct.unpack_from('<I', data, offset + 12)[0]
-            if quantity > 0:  # skip empty levels
-                depth_levels.append(
-                    DepthLevel(
-                        price=Decimal(str(round(price, 2))),
-                        quantity=quantity,
-                        orders=orders,
-                    )
-                )
-
-        return {
-            "levels": depth_levels,
-            "side": "bids" if response_code == self.BID_RESPONSE_CODE else "asks",
-            "security_id": security_id,
-        }
-
-    def _dispatch_depth(self, depth_data: dict) -> None:
-        """Update the depth cache and dispatch to callbacks / event bus.
-
-        Dhan sends bid and ask packets *separately* (response_code 41 vs 51).
-        We merge both sides in ``_depth_cache`` keyed by the binary security_id
-        so callers always see a complete picture.
-        """
-        side   = depth_data["side"]    # "bids" or "asks"
-        levels = depth_data["levels"]  # list[DepthLevel]
-        sec_id = depth_data.get("security_id", 0)
-
-        # Update the cache for this side only — leave the other side intact.
-        with self._depth_cache_lock:
-            entry = self._depth_cache.setdefault(sec_id, {"bids": [], "asks": []})
-            entry[side] = levels
-            merged = MarketDepth(
-                bids=list(entry["bids"]),
-                asks=list(entry["asks"]),
-                depth_type="DEPTH_20",
-                timestamp=datetime.now(timezone.utc),
-            )
-
-        # Fire registered callbacks with the canonical MarketDepth.
-        with self._callback_lock:
-            callbacks = list(self._depth_callbacks)
-        for callback in callbacks:
-            try:
-                callback(merged)
-            except Exception as exc:
-                logger.error("depth_20_callback_error: %s", exc)
-
-        # Publish to event bus.
-        if self._event_bus:
-            try:
-                self._event_bus.publish(
-                    DomainEvent.now(
-                        "DEPTH_20",
-                        {"depth": merged, "depth_type": "DEPTH_20"},
-                        source="DhanDepth20Feed",
-                    )
-                )
-            except Exception as exc:
-                logger.error("depth_20_event_bus_error: %s", exc)

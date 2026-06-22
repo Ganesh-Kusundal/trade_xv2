@@ -7,120 +7,230 @@ Provides FastAPI dependencies for:
 - DataCatalog (symbol metadata)
 - EventBus (real-time events)
 - BrokerService (live broker connections)
+
+Uses a module-level ServiceContainer dataclass instead of a raw dict
+so that services are discoverable and type-safe. The container is
+populated once during FastAPI lifespan startup and is immutable
+(no new services can be added mid-request).
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable
+from dataclasses import dataclass, field
+from typing import Any, Optional
 
 from fastapi import Depends, HTTPException, status
 
 logger = logging.getLogger(__name__)
 
-# Global service instances (populated during app startup)
-_service_registry: dict[str, Any] = {}
 
-# TradingContext holder (single owner of OMS state)
-_trading_context: Any = None
-
-
-def register_service(name: str, instance: Any) -> None:
-    """Register a service instance in the global registry.
+@dataclass(frozen=True)
+class ServiceContainer:
+    """Immutable container for all registered API services.
     
-    Parameters
-    ----------
-    name:
-        Service identifier (e.g., "datalake_gateway", "view_manager").
-    instance:
-        The service instance to register.
+    Populated once at application startup during the lifespan event.
+    After creation, the container is frozen — no services can be
+    added or removed at runtime. This prevents the race conditions
+    that were possible with the previous mutable global dict.
     """
-    _service_registry[name] = instance
-    logger.info("Service registered: %s", name)
+    datalake_gateway: Any = None
+    view_manager: Any = None
+    data_catalog: Any = None
+    event_bus: Any = None
+    broker_service: Any = None
+    trading_context: Any = None
+    risk_manager: Any = None
+    order_manager: Any = None
+    position_manager: Any = None
+    extra: dict[str, Any] = field(default_factory=dict)
+    
+    def is_oms_ready(self) -> bool:
+        """Check if all OMS components are available.
+        
+        Returns True only if TradingContext and all OMS managers
+        (OrderManager, PositionManager, RiskManager) are initialized.
+        """
+        return (
+            self.trading_context is not None
+            and self.order_manager is not None
+            and self.position_manager is not None
+            and self.risk_manager is not None
+        )
+    
+    def get_missing_services(self) -> list[str]:
+        """Get list of services that are not initialized."""
+        missing = []
+        for attr_name in [
+            "datalake_gateway", "view_manager", "data_catalog",
+            "event_bus", "broker_service", "trading_context",
+            "risk_manager", "order_manager", "position_manager",
+        ]:
+            if getattr(self, attr_name) is None:
+                missing.append(attr_name)
+        return missing
 
 
-def get_service(name: str, required: bool = True) -> Any:
-    """Get a service instance by name.
-    
-    Parameters
-    ----------
-    name:
-        Service identifier.
-    required:
-        If True, raises HTTPException when service is missing.
-    
-    Returns
-    -------
-    The service instance, or None if not found and required=False.
-    """
-    instance = _service_registry.get(name)
-    if instance is None and required:
+# Single immutable container instance — set once during startup
+_container: Optional[ServiceContainer] = None
+
+
+def get_container() -> ServiceContainer:
+    """Get the service container. Raises 503 if not initialized."""
+    if _container is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Service '{name}' not initialized",
+            detail=(
+                "Service container not initialized. "
+                "The server is still starting up or failed to initialize. "
+                "Check server logs for initialization errors."
+            ),
         )
-    return instance
+    return _container
+
+
+def set_container(container: ServiceContainer) -> None:
+    """Set the service container during app startup. Idempotent."""
+    global _container
+    if _container is not None:
+        logger.warning("Service container already initialized — ignoring duplicate")
+        return
+    _container = container
+    initialized = [
+        k for k, v in vars(container).items() 
+        if v is not None and k != "extra"
+    ] + list(container.extra.keys())
+    logger.info("Service container initialized with: %s", initialized)
+
+
+def reset_container() -> None:
+    """Reset the service container. FOR TESTING ONLY.
+
+    This bypasses the idempotent guard in set_container to allow
+    tests to isolate their service state. Never call in production.
+    """
+    global _container
+    _container = None
 
 
 # ── FastAPI Dependencies ─────────────────────────────────────────────────────
 
 def get_datalake_gateway() -> Any:
     """Get DataLakeGateway instance for historical data queries."""
-    return get_service("datalake_gateway")
+    return get_container().datalake_gateway
 
 
 def get_view_manager() -> Any:
     """Get ViewManager instance for DuckDB analytics queries."""
-    return get_service("view_manager")
+    return get_container().view_manager
 
 
 def get_data_catalog() -> Any:
     """Get DataCatalog instance for symbol metadata."""
-    return get_service("data_catalog")
+    return get_container().data_catalog
 
 
 def get_event_bus() -> Any:
     """Get EventBus instance for real-time events."""
-    return get_service("event_bus", required=False)
-
-
-# ── TradingContext Dependencies ─────────────────────────────────────────────
-
-def set_trading_context(ctx: Any) -> None:
-    """Set the TradingContext during app startup."""
-    global _trading_context
-    _trading_context = ctx
-    logger.info("TradingContext registered")
+    return get_container().event_bus
 
 
 def get_trading_context() -> Any:
     """Get the TradingContext. Raises 503 if not initialized."""
-    if _trading_context is None:
+    ctx = get_container().trading_context
+    if ctx is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="TradingContext not initialized. OMS is not available.",
+            detail=(
+                "TradingContext not initialized. OMS is not available. "
+                "To enable OMS, provide event_bus or trading_context "
+                "when creating the FastAPI app."
+            ),
         )
-    return _trading_context
+    return ctx
 
 
 def get_order_manager() -> Any:
-    """Get OrderManager from TradingContext."""
-    return get_trading_context().order_manager
+    """Get OrderManager from TradingContext.
+    
+    Raises 503 if TradingContext or OrderManager is not available.
+    """
+    container = get_container()
+    
+    # Check direct registration first (higher priority)
+    if container.order_manager is not None:
+        return container.order_manager
+    
+    # Fall back to TradingContext
+    ctx = container.trading_context
+    if ctx is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "TradingContext not initialized. OrderManager is unavailable. "
+                "To enable order management, provide event_bus or trading_context "
+                "when creating the FastAPI app."
+            ),
+        )
+    
+    return ctx.order_manager
 
 
 def get_position_manager() -> Any:
-    """Get PositionManager from TradingContext."""
-    return get_trading_context().position_manager
+    """Get PositionManager from TradingContext.
+    
+    Raises 503 if TradingContext or PositionManager is not available.
+    """
+    container = get_container()
+    
+    # Check direct registration first (higher priority)
+    if container.position_manager is not None:
+        return container.position_manager
+    
+    # Fall back to TradingContext
+    ctx = container.trading_context
+    if ctx is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "TradingContext not initialized. PositionManager is unavailable. "
+                "To enable position management, provide event_bus or trading_context "
+                "when creating the FastAPI app."
+            ),
+        )
+    
+    return ctx.position_manager
 
 
 def get_risk_manager() -> Any:
-    """Get RiskManager from TradingContext."""
-    return get_trading_context().risk_manager
+    """Get RiskManager from TradingContext.
+    
+    Raises 503 if TradingContext or RiskManager is not available.
+    """
+    container = get_container()
+    
+    # Check direct registration first (higher priority)
+    if container.risk_manager is not None:
+        return container.risk_manager
+    
+    # Fall back to TradingContext
+    ctx = container.trading_context
+    if ctx is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=(
+                "TradingContext not initialized. RiskManager is unavailable. "
+                "To enable risk management, provide event_bus or trading_context "
+                "when creating the FastAPI app."
+            ),
+        )
+    
+    return ctx.risk_manager
 
 
 def get_broker_service() -> Any:
     """Get BrokerService instance for live broker connections."""
-    return get_service("broker_service", required=False)
+    return get_container().broker_service
 
 
 # ── Initialization Helper ────────────────────────────────────────────────────
@@ -134,9 +244,10 @@ def initialize_all_services(
     trading_context: Any = None,
     **additional_services: Any,
 ) -> None:
-    """Initialize all services at once.
+    """Initialize all services and create the immutable container.
     
-    Called during FastAPI app startup to wire up existing TradeXV2 services.
+    Called once during FastAPI app startup to wire up existing TradeXV2 services.
+    Must be called before any request is processed.
     
     Parameters
     ----------
@@ -155,26 +266,37 @@ def initialize_all_services(
     **additional_services:
         Additional services to register (key=name, value=instance).
     """
-    # Register TradingContext if provided
+    # Extract OMS components from trading_context if provided
+    order_manager = None
+    position_manager = None
+    risk_manager = None
     if trading_context is not None:
-        set_trading_context(trading_context)
+        order_manager = getattr(trading_context, "order_manager", None)
+        position_manager = getattr(trading_context, "position_manager", None)
+        risk_manager = getattr(trading_context, "risk_manager", None)
     
-    # Register other services
-    if datalake_gateway is not None:
-        register_service("datalake_gateway", datalake_gateway)
-    if view_manager is not None:
-        register_service("view_manager", view_manager)
-    if data_catalog is not None:
-        register_service("data_catalog", data_catalog)
-    if event_bus is not None:
-        register_service("event_bus", event_bus)
-    if broker_service is not None:
-        register_service("broker_service", broker_service)
-    
-    for name, instance in additional_services.items():
-        register_service(name, instance)
-    
-    logger.info(
-        "All services initialized: %s",
-        list(_service_registry.keys()),
+    container = ServiceContainer(
+        datalake_gateway=datalake_gateway,
+        view_manager=view_manager,
+        data_catalog=data_catalog,
+        event_bus=event_bus,
+        broker_service=broker_service,
+        trading_context=trading_context,
+        order_manager=order_manager,
+        position_manager=position_manager,
+        risk_manager=risk_manager,
+        extra=additional_services,
     )
+    
+    set_container(container)
+    
+    # Log initialization status
+    missing = container.get_missing_services()
+    if missing:
+        logger.warning(
+            "Services initialized with missing components: %s. "
+            "Related endpoints will return 503.",
+            missing,
+        )
+    else:
+        logger.info("All services initialized successfully")

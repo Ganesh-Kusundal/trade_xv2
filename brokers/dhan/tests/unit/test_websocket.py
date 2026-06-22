@@ -369,6 +369,42 @@ class TestDhanOrderStream:
         assert received[0].payload["order"].order_id == "999"
         assert received[1].event_type == "TRADE"
 
+    def test_on_order_update_increments_mix_message_count(self):
+        """Plan §7.2: DhanOrderStream must use the mixin _note_message_received
+        so health() reports the same freshness as every other Dhan WS
+        service. Previous implementation set _last_message_at manually
+        and never bumped a message counter, so message_count was always 0.
+        """
+        stream = DhanOrderStream(
+            client_id="CLIENT",
+            access_token="TOKEN",
+        )
+        assert stream._message_count == 0
+        assert stream._last_message_at is None
+        stream._on_order_update({
+            "Type": "order_alert",
+            "Data": {
+                "orderNo": "1",
+                "status": "COMPLETE",
+                "tradingSymbol": "INFY",
+                "quantity": 1,
+                "filledQty": 1,
+                "price": "1500.00",
+                "averagePrice": "1500.00",
+            },
+        })
+        assert stream._message_count == 1
+        assert stream._last_message_at is not None
+
+    def test_health_metrics_include_message_count(self):
+        stream = DhanOrderStream(
+            client_id="CLIENT",
+            access_token="TOKEN",
+        )
+        h = stream.health()
+        assert "message_count" in h.metrics
+        assert h.metrics["message_count"] == 0
+
 
 class TestConnectionWiring:
     """Verify DhanConnection exposes market_feed and order_stream."""

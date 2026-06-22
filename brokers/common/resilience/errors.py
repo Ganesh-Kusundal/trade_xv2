@@ -61,3 +61,21 @@ class ConfigError(TradeXV2Error):
 
 class ValidationError(TradeXV2Error):
     """Input validation error."""
+
+
+class BrokerDegradedError(BrokerError):
+    """All brokers are unavailable and the system is in degraded mode.
+
+    Raised when a write operation (e.g. order placement) is attempted
+    while every configured broker is unhealthy. Read operations may
+    return stale cached data instead of raising, depending on the
+    caller's tolerance for stale data.
+    """
+
+    def __init__(
+        self,
+        message: str = "All brokers are unavailable; system is in degraded mode",
+        health_status: dict[str, dict] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.health_status = health_status or {}

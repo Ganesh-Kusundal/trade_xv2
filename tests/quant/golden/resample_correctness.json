@@ -1,0 +1,7 @@
+{
+  "first_close_5m": 2497.504988025089,
+  "input_bars": 1000,
+  "last_close_5m": 2427.6165551298936,
+  "output_bars_5m": 200,
+  "test": "resample_correctness"
+}

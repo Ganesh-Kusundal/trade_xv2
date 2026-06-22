@@ -1,0 +1,7 @@
+{
+  "all_values_match": true,
+  "is_deterministic": true,
+  "last_rsi_value": 33.32143990320951,
+  "runs": 5,
+  "test": "scanner_determinism"
+}

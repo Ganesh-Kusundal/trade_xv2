@@ -30,9 +30,21 @@ jobs:
         run: ruff check .
       - name: Ruff format check
         run: ruff format --check .
-      - name: MyPy
-        run: mypy brokers/ || true  # warnings only at Phase 0
-        continue-on-error: true
+      - name: MyPy (check + track)
+        # Phase 0: Run MyPy on all brokers/ code, track error count
+        # Errors are logged but don't block CI yet (499 errors exist)
+        # Target: Reduce to 0 errors by Phase 4, then remove allow_failure
+        run: |
+          set +e
+          mypy brokers/ 2>&1 | tee /tmp/mypy-output.txt
+          EXIT_CODE=$?
+          set -e
+          ERROR_COUNT=$(grep -oP 'Found \K\d+(?= errors)' /tmp/mypy-output.txt || echo "0")
+          if [ "$EXIT_CODE" -ne 0 ]; then
+            echo "::warning title=MyPy::Found $ERROR_COUNT type errors. Fix incrementally. Target: 0 by Phase 4."
+          else
+            echo "::notice title=MyPy::All type checks passed!"
+          fi
       - name: Bandit security scan
         run: |
           bandit -r brokers/ cli/ datalake/ analytics/ -ll -f txt -o bandit-report.txt || true

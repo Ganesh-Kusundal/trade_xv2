@@ -237,19 +237,20 @@ def get_last_candle_fast(
         conn = get_connection()
         
         # Efficient last-row query (doesn't load entire file)
-        query = f"""
-            SELECT * FROM read_parquet('{path}')
+        # P0.3: Parameterized query to prevent SQL injection
+        query = """
+            SELECT * FROM read_parquet(?)
             ORDER BY timestamp DESC
             LIMIT 1
         """
         
-        result = conn.execute(query).fetchone()
+        result = conn.execute(query, [str(path)]).fetchone()
         if result is None:
             return None
         
         # Convert to dict
         # Get column names from query description
-        description = conn.execute(query).description
+        description = conn.execute(query, [str(path)]).description
         if description is None:
             return None
             

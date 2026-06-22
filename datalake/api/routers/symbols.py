@@ -6,9 +6,10 @@ import logging
 from pathlib import Path
 from typing import List
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from datalake.api.deps import get_data_catalog
+from datalake.api.auth import require_auth
 from datalake.api.schemas import (
     SymbolSearchResponse,
     SymbolInfo,
@@ -17,7 +18,7 @@ from datalake.api.schemas import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_auth)])
 
 
 @router.get("/search", response_model=SymbolSearchResponse)

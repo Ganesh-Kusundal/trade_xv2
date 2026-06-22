@@ -9,6 +9,7 @@ from typing import Any
 
 from brokers.common.core.constants import RECONCILIATION_INTERVAL_SECONDS
 from brokers.common.event_bus import EventBus
+from brokers.common.event_bus.async_event_bus import AsyncEventBus
 from brokers.common.event_log import EventLog
 from brokers.common.oms.context import TradingContext
 from brokers.common.oms.order_manager import OrderManager
@@ -24,7 +25,7 @@ def create_trading_context(
     reconciliation_interval_seconds: float = RECONCILIATION_INTERVAL_SECONDS,
     risk_config: RiskConfig | None = None,
     capital_fn: Callable[[], Decimal] | None = None,
-    event_bus: EventBus | None = None,
+    event_bus: EventBus | AsyncEventBus | None = None,
     order_manager: OrderManager | None = None,
     position_manager: PositionManager | None = None,
     risk_manager: RiskManager | None = None,
@@ -51,7 +52,8 @@ def create_trading_context(
     """
     ctx = TradingContext(
         event_log=event_log,
-        event_bus=event_bus,
+        event_bus=event_bus if isinstance(event_bus, EventBus) and not isinstance(event_bus, AsyncEventBus) else None,
+        async_bus=event_bus if isinstance(event_bus, AsyncEventBus) else None,
         order_manager=order_manager,
         position_manager=position_manager,
         risk_manager=risk_manager,

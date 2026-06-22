@@ -1,0 +1,10 @@
+{
+  "is_deterministic": true,
+  "note": "Full replay blocked by Decimal/float type bug - fix in Phase 5",
+  "rsi_values": [
+    77.66794414145943,
+    77.66794414145943,
+    77.66794414145943
+  ],
+  "test": "replay_pipeline_determinism"
+}

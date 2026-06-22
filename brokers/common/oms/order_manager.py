@@ -54,6 +54,22 @@ class OmsOrderCommand:
         object.__setattr__(self, "exchange", self.exchange.upper())
         object.__setattr__(self, "price", Decimal(str(self.price)))
         if not self.correlation_id:
+            # Real-money risk: callers that forget to pass correlation_id
+            # get a fresh UUID per call, which silently disables OMS
+            # idempotency. The Plan §7 review called this out as a
+            # "the lock works but the key never matches" failure mode.
+            # We keep the auto-UUID for backward compatibility with the
+            # 6+ existing test call sites, but emit a WARNING so the gap
+            # is visible in any test or production log.
+            import warnings
+            warnings.warn(
+                "OmsOrderCommand.correlation_id is None; auto-generating a "
+                "UUID disables place-order idempotency. Pass an explicit "
+                "correlation_id (e.g. f'ord:{uuid.uuid4().hex[:12]}') at the "
+                "call site. Silent auto-UUID will be removed in a future release.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
             object.__setattr__(self, "correlation_id", f"ord:{uuid.uuid4().hex[:12]}")
 
 
@@ -87,6 +103,10 @@ class OrderManager:
         Optional :class:`EventMetrics` instance. Increments
         ``(TRADE, trade_processed)`` and ``(TRADE, trade_duplicated)``
         for every accepted / rejected trade.
+    enforce_state_transitions:
+        When True (default), invalid order status transitions raise
+        :class:`IllegalTransitionError`. When False, violations are logged
+        but accepted (audit mode). Enabled by default for safety (P0.5).
     """
 
     def __init__(
@@ -95,7 +115,7 @@ class OrderManager:
         risk_manager: RiskManager | None = None,
         processed_trade_repository: ProcessedTradeRepository | None = None,
         metrics: Any | None = None,
-        enforce_state_transitions: bool = False,  # P2-Phase 2: Audit-only by default
+        enforce_state_transitions: bool = True,  # Phase 3: Enforcement mode enabled after audit period
     ) -> None:
         self._lock = threading.RLock()
         self._orders: dict[str, Order] = {}

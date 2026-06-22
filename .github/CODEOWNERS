@@ -1,0 +1,40 @@
+# CODEOWNERS
+# Module owners who must approve changes to their areas
+# Format: path_pattern @owner1 @owner2
+
+# Core broker infrastructure
+brokers/common/ @lead-engineer
+brokers/common/event_bus/ @lead-engineer @sre
+brokers/common/oms/ @lead-engineer @quant-lead
+
+# Broker adapters
+brokers/dhan/ @lead-engineer
+brokers/upstox/ @lead-engineer
+brokers/paper/ @lead-engineer @qa-lead
+
+# Analytics layer
+analytics/ @quant-lead
+analytics/scanner/ @quant-lead
+analytics/replay/ @quant-lead @lead-engineer
+analytics/backtest/ @quant-lead
+analytics/strategy/ @quant-lead
+
+# Data lake
+datalake/ @lead-engineer
+datalake/api/ @lead-engineer @sre
+datalake/gateway.py @lead-engineer
+
+# CLI
+cli/ @lead-engineer
+
+# Frontend
+frontend/ @frontend-lead
+
+# CI/CD and infrastructure
+.github/workflows/ @lead-engineer @sre
+pyproject.toml @lead-engineer
+
+# Security-critical
+**/auth.py @lead-engineer @security
+**/risk* @lead-engineer @quant-lead
+**/order* @lead-engineer @quant-lead

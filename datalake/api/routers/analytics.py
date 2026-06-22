@@ -5,9 +5,10 @@ from __future__ import annotations
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from datalake.api.deps import get_view_manager
+from datalake.api.deps import get_view_manager, get_data_catalog
+from datalake.api.auth import require_auth
 from datalake.api.schemas import (
     IndicatorsResponse,
     IndicatorValue,
@@ -19,7 +20,7 @@ from datalake.api.schemas import (
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(require_auth)])
 
 
 @router.get("/indicators", response_model=IndicatorsResponse)
@@ -205,16 +206,148 @@ async def get_top_candidates(
 async def get_relative_strength(
     limit: int = Query(20, ge=1, le=100, description="Max symbols"),
 ):
-    """Get relative strength rankings."""
-    # TODO: Implement with ranking engine
-    return RelativeStrengthResponse(rankings=[], count=0)
+    """Get relative strength rankings.
+    
+    Uses real RankingEngine to compute composite scores
+    and rank symbols by relative strength.
+    """
+    try:
+        from analytics.ranking import RankingEngine
+        
+        # Get snapshot data from DuckDB
+        vm = get_view_manager()
+        query = """
+            SELECT symbol, ltp, intraday_score, roc_5, relative_volume
+            FROM v_intraday_snapshot
+            ORDER BY intraday_score DESC
+            LIMIT ?
+        """
+        results = vm.query(query, [limit]).fetchall()
+        
+        if not results:
+            return RelativeStrengthResponse(rankings=[], count=0)
+        
+        # Build DataFrame for ranking engine
+        import pandas as pd
+        data = pd.DataFrame([
+            {
+                "symbol": row[0],
+                "ltp": float(row[1]) if row[1] else 0.0,
+                "composite_score": float(row[2]) if row[2] else 50.0,
+                "roc": float(row[3]) if row[3] else 0.0,
+                "relative_volume": float(row[4]) if row[4] else 1.0,
+            }
+            for row in results
+        ])
+        
+        # Run ranking engine
+        engine = RankingEngine()
+        rankings = engine.top_relative_strength(data, limit=limit)
+        
+        return RelativeStrengthResponse(
+            rankings=rankings,
+            count=len(rankings),
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Relative strength fetch failed: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Relative strength fetch failed: {str(exc)}",
+        )
 
 
 @router.get("/market-breadth", response_model=MarketBreadthResponse)
 async def get_market_breadth():
-    """Get market breadth indicators (advances/declines, TRIN, McClellan)."""
-    # TODO: Implement with BreadthAnalytics
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Market breadth not implemented yet",
-    )
+    """Get market breadth indicators (advances/declines, TRIN, McClellan).
+    
+    Uses real BreadthAnalytics to compute market breadth from
+    intraday snapshot data.
+    """
+    try:
+        from analytics.market_breadth import BreadthAnalytics
+        import pandas as pd
+        
+        # Get snapshot data from DuckDB
+        vm = get_view_manager()
+        query = """
+            SELECT 
+                COUNT(*) FILTER (WHERE intraday_score > 60) as advances,
+                COUNT(*) FILTER (WHERE intraday_score < 40) as declines,
+                COUNT(*) FILTER (WHERE intraday_score BETWEEN 40 AND 60) as unchanged,
+                COUNT(*) FILTER (WHERE intraday_score > 80) as new_highs,
+                COUNT(*) FILTER (WHERE intraday_score < 20) as new_lows,
+                SUM(CASE WHEN intraday_score > 50 THEN day_volume ELSE 0 END) as up_volume,
+                SUM(CASE WHEN intraday_score < 50 THEN day_volume ELSE 0 END) as down_volume
+            FROM v_intraday_snapshot
+        """
+        results = vm.query(query).fetchone()
+        
+        if not results:
+            # Return neutral breadth when no data
+            return MarketBreadthResponse(
+                advances=0.0,
+                declines=0.0,
+                unchanged=0.0,
+                advance_decline_ratio=0.0,
+                new_highs=0.0,
+                new_lows=0.0,
+                trin=None,
+                mcclellan_oscillator=None,
+                breadth_score=50.0,
+                regime="Neutral",
+            )
+        
+        # Build snapshot for BreadthAnalytics
+        snapshot = {
+            "advances": float(results[0]) if results[0] else 0.0,
+            "declines": float(results[1]) if results[1] else 0.0,
+            "unchanged": float(results[2]) if results[2] else 0.0,
+            "new_highs": float(results[3]) if results[3] else 0.0,
+            "new_lows": float(results[4]) if results[4] else 0.0,
+            "up_volume": float(results[5]) if results[5] else 0.0,
+            "down_volume": float(results[6]) if results[6] else 0.0,
+        }
+        
+        # Run BreadthAnalytics
+        analytics = BreadthAnalytics()
+        result = analytics.analyze(snapshot)
+        
+        # Extract metrics from AnalysisResult
+        metrics = result.metrics or {}
+        scores = result.scores or {}
+        signals = result.signals or []
+        
+        # Determine regime from signals or default
+        regime = "Neutral"
+        for signal in signals:
+            if "Positive" in signal or "bullish" in signal.lower():
+                regime = "Positive"
+                break
+            elif "Negative" in signal or "bearish" in signal.lower():
+                regime = "Negative"
+                break
+        
+        return MarketBreadthResponse(
+            advances=metrics.get("advances", 0.0),
+            declines=metrics.get("declines", 0.0),
+            unchanged=metrics.get("unchanged", 0.0),
+            advance_decline_ratio=metrics.get("advance_decline_ratio", 0.0),
+            new_highs=metrics.get("new_highs", 0.0),
+            new_lows=metrics.get("new_lows", 0.0),
+            trin=metrics.get("trin"),
+            mcclellan_oscillator=metrics.get("mcclellan_oscillator"),
+            breadth_score=scores.get("breadth", 50.0),
+            regime=regime,
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Market breadth fetch failed: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Market breadth fetch failed: {str(exc)}",
+        )

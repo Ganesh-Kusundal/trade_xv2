@@ -30,7 +30,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from datalake.api.config import APIConfig
-from datalake.api.deps import initialize_all_services, set_trading_context, get_trading_context
+from datalake.api.deps import initialize_all_services, get_container
 
 logger = logging.getLogger(__name__)
 
@@ -47,12 +47,38 @@ async def lifespan(app: FastAPI):
     from datalake.api.ws.market import market_manager
     from datalake.api.ws.bridge import MarketBridge
     
-    lifecycle = LifecycleManager()
-    market_bridge = None
+    lifecycle: LifecycleManager | None = None
+    market_bridge: MarketBridge | None = None
+    lifecycle_started = False
+    
     try:
-        ctx = get_trading_context()
+        container = get_container()
+    except Exception as exc:
+        logger.error(
+            "Service container not available during startup: %s. "
+            "OMS endpoints will return 503 until server fully initializes.",
+            exc,
+        )
+        yield
+        await _shutdown_cleanup(market_bridge, lifecycle, lifecycle_started)
+        return
+    
+    ctx = container.trading_context
+    if ctx is None:
+        logger.warning(
+            "No TradingContext in container — OMS endpoints disabled. "
+            "To enable OMS, provide event_bus or trading_context to create_app()."
+        )
+        yield
+        await _shutdown_cleanup(market_bridge, lifecycle, lifecycle_started)
+        return
+    
+    # Build and start lifecycle
+    lifecycle = LifecycleManager()
+    try:
         ctx.attach_lifecycle(lifecycle)
         lifecycle.start_all()
+        lifecycle_started = True
         logger.info("TradingContext lifecycle started")
         
         # Start MarketBridge for WebSocket market data
@@ -62,24 +88,59 @@ async def lifespan(app: FastAPI):
         )
         await market_bridge.start()
         logger.info("MarketBridge started")
-    except HTTPException:
-        logger.warning("No TradingContext available — OMS endpoints disabled")
+    except Exception as exc:
+        logger.error(
+            "TradingContext lifecycle setup failed: %s: %s. "
+            "OMS may be partially functional. Check logs for details.",
+            type(exc).__name__,
+            exc,
+            exc_info=True,
+        )
+        # Don't yield yet — let the server start with degraded OMS
     
     yield
     
     # Shutdown
-    try:
-        if market_bridge:
-            await market_bridge.stop()
-            logger.info("MarketBridge stopped")
-        lifecycle.stop_all()
-        logger.info("TradingContext lifecycle stopped")
-    except Exception:
-        pass  # Lifecycle may not be started if no TradingContext
+    await _shutdown_cleanup(market_bridge, lifecycle, lifecycle_started)
     
     from datalake.duckdb_utils import close_all_connections
     close_all_connections()
     logger.info("TradeXV2 API server shutting down...")
+
+
+async def _shutdown_cleanup(
+    market_bridge: Any | None,
+    lifecycle: Any | None,
+    lifecycle_started: bool,
+) -> None:
+    """Clean shutdown of MarketBridge and LifecycleManager.
+    
+    Parameters
+    ----------
+    market_bridge:
+        MarketBridge instance to stop (async).
+    lifecycle:
+        LifecycleManager instance to stop (sync).
+    lifecycle_started:
+        True if lifecycle.start_all() was called successfully.
+    """
+    # Stop async MarketBridge
+    if market_bridge:
+        try:
+            await market_bridge.stop()
+            logger.info("MarketBridge stopped")
+        except Exception as exc:
+            logger.warning("MarketBridge shutdown failed: %s", exc)
+    
+    # Stop sync lifecycle services
+    if lifecycle_started and lifecycle:
+        try:
+            lifecycle.stop_all()
+            logger.info("TradingContext lifecycle stopped")
+        except Exception as exc:
+            logger.warning("Lifecycle shutdown failed: %s", exc)
+    elif lifecycle and not lifecycle_started:
+        logger.debug("Lifecycle was not started, skipping stop")
 
 
 def create_app(
