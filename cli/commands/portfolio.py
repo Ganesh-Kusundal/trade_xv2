@@ -1,18 +1,25 @@
-"""CLI command handler for portfolio (holdings and positions) operations."""
+"""CLI command handler for portfolio (holdings and positions) operations.
+
+Phase 5.2: Standardized to return CommandResult for --json mode.
+"""
 
 from __future__ import annotations
 
+import logging
 from decimal import Decimal
 
 from rich.console import Console
 from rich.table import Table
 
 from brokers.common.core.domain import Position
+from cli.commands.registry import CommandResult
 from cli.services.broker_service import BrokerService
 
+logger = logging.getLogger(__name__)
 
-def show_holdings(broker_service: BrokerService, console: Console) -> None:
-    """Print the holdings table."""
+
+def show_holdings(broker_service: BrokerService, console: Console) -> CommandResult:
+    """Print the holdings table and return CommandResult."""
     gw = broker_service.active_broker
     try:
         holdings = gw.portfolio.get_holdings()
@@ -27,6 +34,7 @@ def show_holdings(broker_service: BrokerService, console: Console) -> None:
         table.add_column("PnL", justify="right")
 
         total_pnl = Decimal("0.00")
+        holdings_data = []
         for h in holdings:
             pnl_val = h.pnl
             total_pnl += pnl_val
@@ -38,14 +46,28 @@ def show_holdings(broker_service: BrokerService, console: Console) -> None:
                 f"{h.ltp:,.2f}",
                 f"[{pnl_style}]Rs. {pnl_val:,.2f}[/{pnl_style}]",
             )
+            holdings_data.append({
+                "symbol": h.symbol,
+                "quantity": h.quantity,
+                "avg_price": str(h.avg_price),
+                "ltp": str(h.ltp),
+                "pnl": str(pnl_val),
+            })
 
         pnl_style = "green" if total_pnl > 0 else ("red" if total_pnl < 0 else "white")
         table.add_section()
         table.add_row("Total", "", "", "", f"[{pnl_style}]Rs. {total_pnl:,.2f}[/{pnl_style}]")
 
         console.print(table)
+        return CommandResult(success=True, data={
+            "holdings": holdings_data,
+            "total_pnl": str(total_pnl),
+            "count": len(holdings),
+        })
     except Exception as exc:
+        logger.exception("holdings_fetch_failed")
         console.print(f"[red]Error fetching holdings: {exc}[/red]")
+        return CommandResult(success=False, error=str(exc))
 
 
 def show_positions(broker_service: BrokerService, console: Console) -> None:

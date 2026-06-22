@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException
 
+from datalake.api.deps import get_trading_context
 from datalake.api.schemas import HealthResponse, ReadinessResponse
 
 router = APIRouter()
@@ -45,3 +46,16 @@ async def readiness_check():
         checks=checks,
         timestamp=datetime.now(),
     )
+
+
+@router.get("/metrics", response_model=dict)
+async def get_metrics(ctx=Depends(get_trading_context)):
+    """Get OMS observability metrics.
+    
+    Returns event metrics, dead-letter queue stats, and processed trade repository stats.
+    """
+    return {
+        "event_metrics": ctx.metrics.snapshot(),
+        "dead_letter_queue": ctx.dead_letter_queue.stats(),
+        "processed_trades": ctx.processed_trade_repository.stats(),
+    }

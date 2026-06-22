@@ -47,8 +47,11 @@ from cli.commands import (
     news as cmd_news,
     oms as cmd_oms,
     options_sync as cmd_options_sync,
+    order_composition as cmd_order_composition,
+    order_placement as cmd_order_placement,
     portfolio as cmd_portfolio,
     quality_report as cmd_quality_report,
+    risk_controls as cmd_risk_controls,
     search as cmd_search,
     validate as cmd_validate,
     validate_history as cmd_validate_history,
@@ -101,13 +104,22 @@ _register_cmd("load-test", "cli.commands.load_test")
 _register_cmd("news", "cli.commands.news")
 _register_cmd("analytics", "cli.commands.analytics")
 _register_cmd("views", "cli.commands.views")
+_register_cmd("place-order", "cli.commands.order_placement")
+_register_cmd("cancel-order", "cli.commands.order_placement")
+_register_cmd("modify-order", "cli.commands.order_placement")
+_register_cmd("place-orders", "cli.commands.order_placement")
+_register_cmd("bracket-order", "cli.commands.order_composition")
+_register_cmd("oco-order", "cli.commands.order_composition")
+_register_cmd("basket-order", "cli.commands.order_composition")
+_register_cmd("risk", "cli.commands.risk_controls")
+_register_cmd("cache", "cli.commands.cache_management")
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
 
 def _print_help(console: Console) -> None:
     console.print("[bold]TradeXV2 CLI[/bold]\n")
-    console.print("[yellow]Usage: tradex <command> [args] [--broker dhan|upstox] [--json][/yellow]\n")
+    console.print("[yellow]Usage: tradex <command> [args] [--broker dhan|upstox] [--json] [--verbose] [--timing][/yellow]\n")
     console.print("[bold]Commands:[/bold]")
     cmds = [
         ("broker", "Show broker connection info"),
@@ -137,13 +149,30 @@ def _print_help(console: Console) -> None:
         ("journal", "Trade journal (record, close, list, summary)"),
         ("views", "DuckDB analytics view management"),
         ("options-sync", "Sync option data from Trade_J DuckDB (daily cron)"),
+        ("place-order", "Place a new order"),
+        ("cancel-order", "Cancel an existing order"),
+        ("modify-order", "Modify order price/quantity"),
+        ("place-orders", "Batch order placement from CSV"),
+        ("bracket-order", "Bracket order (entry + target + SL)"),
+        ("oco-order", "One-Cancels-Other order"),
+        ("basket-order", "Multi-symbol basket order"),
+        ("risk", "Risk management controls"),
+        ("cache", "Instrument cache management"),
     ]
     for cmd, desc in cmds:
         console.print(f"  [cyan]{cmd:<25}[/cyan] {desc}")
+    console.print("\n[bold]Flags:[/bold]")
+    console.print("  [cyan]--broker NAME[/cyan]       Use specific broker (default: dhan)")
+    console.print("  [cyan]--json[/cyan]              Output results as JSON")
+    console.print("  [cyan]--verbose[/cyan]           Enable debug logging")
+    console.print("  [cyan]--timing[/cyan]            Show command execution time")
     console.print("\n[dim]Examples:[/dim]")
     console.print("  tradex analytics scan-momentum --file universe.csv --limit 5")
     console.print("  tradex analytics backtest --file ohlcv.csv --capital 100000")
     console.print("  tradex validate data nifty500.csv --timeframe 1d")
+    console.print("  tradex place-order RELIANCE BUY 10 --type MARKET")
+    console.print("  tradex doctor --parallel --timing")
+    console.print("  tradex quote RELIANCE --verbose --timing")
 
 
 # ── Inline / wrapped command handlers ──────────────────────────────────────
@@ -350,6 +379,19 @@ _DISPATCH: list[tuple[str, Any]] = [
     ("websocket",         cmd_websocket.run),
     ("validate-history",  cmd_validate_history.run),
     ("validate-option-chain", cmd_validate_option_chain.run),
+    # Order lifecycle commands (Agent 1)
+    ("place-order",       lambda a, bs, c: cmd_order_placement.place_order(a, bs, c)),
+    ("cancel-order",      lambda a, bs, c: cmd_order_placement.cancel_order(a, bs, c)),
+    ("modify-order",      lambda a, bs, c: cmd_order_placement.modify_order(a, bs, c)),
+    ("place-orders",      lambda a, bs, c: cmd_order_placement.place_orders_batch(a, bs, c)),
+    # Order composition patterns (Agent 3)
+    ("bracket-order",     lambda a, bs, c: cmd_order_composition.place_bracket_order(a, bs, c)),
+    ("oco-order",         lambda a, bs, c: cmd_order_composition.place_oco_order(a, bs, c)),
+    ("basket-order",      lambda a, bs, c: cmd_order_composition.place_basket_order(a, bs, c)),
+    # Risk management commands (Agent 2)
+    ("risk",              lambda a, bs, c: cmd_risk_controls.run(a, bs, c)),
+    # Cache management (Agent 4)
+    ("cache",             lambda a, bs, c: cmd_cache_management.run(a, bs, c)),
     # Signature-adapted wrappers (routed through _wrap helper)
     ("holdings",          lambda a, bs, c: _wrap(cmd_portfolio.show_holdings, bs, c)),
     ("positions",         lambda a, bs, c: _wrap(cmd_portfolio.show_positions, bs, c)),
@@ -382,10 +424,25 @@ for _name, _fn in _DISPATCH:
 _NO_GATEWAY_CMDS = frozenset({"help", "journal", "views", "options-sync"})
 
 
-def _parse_flags(argv: list[str]) -> tuple[str, list[str], bool]:
-    """Extract --broker, --json and return (broker_name, remaining_args, json_mode)."""
+def _parse_flags(argv: list[str]) -> tuple[str, list[str], bool, bool, bool]:
+    """Extract --broker, --json, --verbose, --timing and return (broker_name, remaining_args, json_mode, verbose, show_timing).
+    
+    Returns
+    -------
+    tuple[str, list[str], bool, bool, bool]
+        (broker_name, remaining_args, json_mode, verbose, show_timing)
+    
+    Examples
+    --------
+    >>> _parse_flags(['--broker', 'upstox', '--verbose', 'doctor'])
+    ('upstox', ['doctor'], False, True, False)
+    >>> _parse_flags(['--timing', '--json', 'quote', 'RELIANCE'])
+    ('dhan', ['quote', 'RELIANCE'], True, False, True)
+    """
     broker_name = "dhan"
     json_mode = False
+    verbose = False
+    show_timing = False
     remaining: list[str] = []
     i = 0
     while i < len(argv):
@@ -396,10 +453,17 @@ def _parse_flags(argv: list[str]) -> tuple[str, list[str], bool]:
         elif a == "--json":
             json_mode = True
             i += 1
+        elif a == "--verbose":
+            verbose = True
+            logging.getLogger().setLevel(logging.DEBUG)
+            i += 1
+        elif a == "--timing":
+            show_timing = True
+            i += 1
         else:
             remaining.append(a)
             i += 1
-    return broker_name, remaining, json_mode
+    return broker_name, remaining, json_mode, verbose, show_timing
 
 
 def main() -> None:
@@ -413,14 +477,22 @@ def main() -> None:
 
     P0-10: dict-based dispatch replaces the hand-rolled ``if/elif``
     chain.  ``--json`` flag produces structured output on stdout.
+    
+    Phase 5.3: Added --verbose (debug logging) and --timing (execution time) flags.
     """
-    broker_name, cmd_args, json_mode = _parse_flags(sys.argv[1:])
+    import time
+    start_time = time.time()
+    
+    broker_name, cmd_args, json_mode, verbose, show_timing = _parse_flags(sys.argv[1:])
 
     console: Console
     if json_mode:
         console = Console(quiet=True, highlight=False)
     else:
         console = Console()
+    
+    if verbose:
+        logger.debug("verbose_mode_enabled", extra={"broker": broker_name, "args": cmd_args})
 
     # Help / no args
     if not cmd_args or cmd_args[0] in ("--help", "-h", "help"):
@@ -443,9 +515,12 @@ def main() -> None:
             pass  # fall through to unknown-command handler below
 
     # I-14: single composition root — BrokerService owns all gateways
+    # Phase 4.3: Lazy instrument loading - skip for commands that don't need symbol resolution
     needs_instruments = subcommand in {
         "historical", "history", "search", "instrument",
         "instrument-info", "instruments", "option-chain", "futures",
+        "quote", "depth", "stream",  # Market data needs instruments
+        "validate", "validate-history", "validate-option-chain",  # Validation needs instruments
     }
     event_bus_service = EventBusService()
     broker_service = BrokerService(
@@ -486,6 +561,19 @@ def main() -> None:
         sys.exit(1)
     finally:
         broker_service.close()
+        
+        # Phase 5.3: Display execution time if --timing flag is set
+        if show_timing:
+            elapsed = time.time() - start_time
+            if elapsed > 0.1:  # Only show if >100ms to avoid noise
+                console.print(f"[dim]⏱️  Completed in {elapsed:.2f}s[/dim]")
+            logger.debug(
+                "command_timing",
+                extra={
+                    "command": subcommand if 'subcommand' in locals() else "unknown",
+                    "elapsed_seconds": round(elapsed, 3),
+                },
+            )
 
 
 def _emit_result(result: CommandResult | None, json_mode: bool) -> None:

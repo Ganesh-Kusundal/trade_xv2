@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any, Generic, List, Optional, TypeVar
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 # ── Generic Response Wrapper ─────────────────────────────────────────────────
 
@@ -280,6 +280,32 @@ class IVSurfaceResponse(BaseModel):
     days_to_expiry: int
 
 
+class OptionContract(BaseModel):
+    """Single option contract with Greeks."""
+    symbol: str
+    expiry: str
+    strike: float
+    option_type: str  # CE or PE
+    ltp: float
+    bid: float
+    ask: float
+    volume: float
+    oi: float
+    iv: Optional[float] = None
+    delta: Optional[float] = None
+    gamma: Optional[float] = None
+    theta: Optional[float] = None
+    vega: Optional[float] = None
+
+
+class OptionChainResponse(BaseModel):
+    """Option chain response."""
+    underlying: str
+    expiry: str
+    contracts: List[OptionContract]
+    count: int
+
+
 # ── Replay Schemas ───────────────────────────────────────────────────────────
 
 class CreateReplaySessionRequest(BaseModel):
@@ -289,19 +315,18 @@ class CreateReplaySessionRequest(BaseModel):
     timeframe: str = "1m"
     from_t: Optional[int] = None
     to_t: Optional[int] = None
+    universe: str = "NIFTY500"
+    speed: int = 5
 
 
 class ReplaySessionResponse(BaseModel):
     """Replay session state."""
-    id: str
-    symbol: str
-    exchange: str
-    timeframe: str
-    from_t: int
-    to_t: int
-    cursor_t: int
-    state: str  # IDLE, PLAYING, PAUSED, ENDED
-    speed: int = 1
+    session_id: str
+    status: str  # initialized, playing, paused, stopped
+    date: str
+    universe: str = "NIFTY500"
+    speed: int = 5
+    progress: float = 0.0
 
 
 class ReplayControlRequest(BaseModel):
@@ -373,10 +398,17 @@ class OrderRequest(BaseModel):
     exchange: str
     transaction_type: str = Field(..., description="BUY or SELL")
     order_type: str = Field(..., description="MARKET, LIMIT, SL, SL-M")
-    quantity: int
+    quantity: int = Field(..., ge=1, description="Order quantity (must be > 0)")
     price: Optional[float] = None
     trigger_price: Optional[float] = None
     product_type: str = Field("INTRADAY", description="INTRADAY, DELIVERY, MARGIN")
+    
+    @field_validator('transaction_type')
+    @classmethod
+    def validate_transaction_type(cls, v):
+        if v not in ['BUY', 'SELL']:
+            raise ValueError('transaction_type must be BUY or SELL')
+        return v
 
 
 class OrderResponse(BaseModel):
@@ -398,6 +430,90 @@ class OrderListResponse(BaseModel):
     """All orders."""
     orders: List[OrderResponse]
     count: int
+
+
+class Position(BaseModel):
+    """Simplified position model."""
+    symbol: str
+    exchange: str
+    quantity: float
+    average_price: float
+    current_price: float
+    unrealized_pnl: float
+    realized_pnl: float
+    pnl_pct: float
+
+
+class PositionsResponse(BaseModel):
+    """All positions response."""
+    positions: List[Position]
+    count: int
+    total_pnl: float
+    total_pnl_percent: float
+
+
+class Holding(BaseModel):
+    """Holding model."""
+    symbol: str
+    exchange: str
+    quantity: int
+    average_price: float
+    current_price: float
+    invested_value: float
+    current_value: float
+    pnl: float
+    pnl_percent: float
+
+
+class HoldingsResponse(BaseModel):
+    """All holdings response."""
+    holdings: List[Holding]
+    count: int
+    total_value: float
+    total_invested: float
+    total_pnl: float
+
+
+class PortfolioSummary(BaseModel):
+    """Portfolio summary."""
+    total_value: float
+    total_invested: float
+    total_pnl: float
+    total_pnl_percent: float
+    realized_pnl: float
+    unrealized_pnl: float
+    margin_used: float
+    margin_available: float
+    positions_count: int
+    holdings_count: int
+
+
+class Trade(BaseModel):
+    """Trade execution model."""
+    trade_id: str
+    order_id: str
+    symbol: str
+    exchange: str
+    transaction_type: str
+    quantity: int
+    price: float
+    timestamp: datetime
+
+
+class TradesResponse(BaseModel):
+    """All trades response."""
+    trades: List[Trade]
+    count: int
+
+
+class OrdersResponse(BaseModel):
+    """All orders response (alias for OrderListResponse)."""
+    orders: List[OrderResponse]
+    count: int
+
+
+# Backwards compatibility aliases
+Order = OrderResponse
 
 
 # ── Health & Status Schemas ──────────────────────────────────────────────────

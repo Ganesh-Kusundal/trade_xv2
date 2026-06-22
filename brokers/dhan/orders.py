@@ -19,6 +19,7 @@ from typing import Any
 from brokers.common.event_bus import DomainEvent, EventBus
 from brokers.common.core.domain import OrderRequest, OrderResponse
 from brokers.common.oms.risk_manager import RiskManager
+from config.endpoints import Dhan
 from brokers.dhan.domain import (
     Exchange,
     Order,
@@ -31,8 +32,9 @@ from brokers.dhan.domain import (
 )
 from brokers.dhan.exceptions import OrderError
 from brokers.dhan.http_client import DhanHttpClient
+from brokers.dhan.identity import DhanIdentityProvider, DhanInstrumentRef, coerce_identity_provider
+from brokers.dhan.invariants import assert_dhan_payload
 from brokers.dhan.order_mapping import DhanFieldMapping
-from brokers.dhan.resolver import SymbolResolver
 from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
 
 logger = logging.getLogger(__name__)
@@ -92,13 +94,21 @@ class OrdersAdapter:
     def __init__(
         self,
         client: DhanHttpClient,
-        resolver: SymbolResolver,
+        identity: DhanIdentityProvider | object,
         idempotency_cache: IdempotencyCache | None = None,
         event_bus: EventBus | None = None,
         risk_manager: RiskManager | None = None,
     ):
         self._client = client
-        self._resolver = resolver
+        # Accept either a DhanIdentityProvider (production path) or a raw
+        # SymbolResolver (legacy test fixtures). ``coerce_identity_provider``
+        # guarantees the adapter holds a provider-shaped object so the
+        # Dhan-internal contract is enforced end-to-end.
+        self._identity = coerce_identity_provider(identity)
+        # Backward-compat shim for tests/code that still asks the adapter
+        # for its underlying resolver. The resolver is owned by the
+        # DhanIdentityProvider; this property delegates to it.
+        self._resolver = self._identity.resolver
         self._idempotency = idempotency_cache or IdempotencyCache()
         self._event_bus = event_bus
         self._risk_manager = risk_manager
@@ -128,7 +138,7 @@ class OrdersAdapter:
 
         # Resolve instrument for lot size and segment checks
         try:
-            inst = self._resolver.resolve(symbol, exchange)
+            inst = self._identity.resolver.resolve(symbol, exchange)
         except Exception:
             errors.append(f"Instrument not found: {symbol} on {exchange}")
             return errors
@@ -223,9 +233,20 @@ class OrdersAdapter:
             for w in warnings:
                 logger.warning("order_warning", extra={"symbol": symbol, "warning": w})
 
-            # Resolve instrument and canonicalise enums once for risk + payload.
-            inst = self._resolver.resolve(symbol, exchange)
-            segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, "NSE_EQ")
+            # Resolve instrument via the identity provider so the carrier
+            # (DhanInstrumentRef) is the only thing that can flow into
+            # the payload builder. The provider enforces the Dhan-only
+            # contract; any non-Dhan segment or non-digit security_id
+            # raises DhanIdentityError before we ever call _client.post.
+            # The expected_segment hint maps the user-supplied exchange
+            # string to a Dhan segment so the index-fallback is rejected
+            # for derivatives queries (PR-C.4).
+            from brokers.dhan.segments import EXCHANGE_TO_SEGMENT
+            ref = self._identity.resolve_ref(
+                symbol, exchange,
+                expected_segment=EXCHANGE_TO_SEGMENT.get(exchange.upper()),
+            )
+            segment = ref.exchange_segment
             side_val, ot_val, pt_val, v_val = self._canonicalize_order_enums(
                 side, order_type, product_type, validity,
             )
@@ -235,7 +256,7 @@ class OrdersAdapter:
                 preview = Order(
                     order_id="",
                     symbol=symbol,
-                    exchange=inst.exchange.value,
+                    exchange=ref.exchange.value,
                     side=OrderSide(side_val),
                     order_type=OrderType(ot_val),
                     quantity=quantity,
@@ -249,14 +270,18 @@ class OrdersAdapter:
                     raise OrderError(f"Risk check failed: {risk_result.reason}")
 
             payload = self._build_order_payload(
-                inst, segment, side_val, ot_val, pt_val, v_val,
+                ref, segment, side_val, ot_val, pt_val, v_val,
                 quantity, price, trigger_price, correlation_id,
             )
+            # PR-B: defence-in-depth. The carrier already enforced the
+            # Dhan-internal contract, but a future change could build a
+            # payload from non-carrier sources. Re-verify at the boundary.
+            assert_dhan_payload(payload, context="orders.place_order")
 
             data = self._client.post("/orders", json=payload)
 
             order = self._build_placed_order(
-                data, symbol, inst.exchange,
+                data, symbol, ref.exchange,
                 side_val, ot_val, pt_val, v_val, quantity,
                 price, trigger_price, correlation_id,
             )
@@ -264,7 +289,7 @@ class OrdersAdapter:
             logger.info("order_placed", extra={
                 "order_id": order.order_id, "symbol": symbol, "side": side_val,
                 "quantity": quantity, "order_type": ot_val, "price": str(price or 0),
-                "product_type": pt_val, "exchange": inst.exchange.value,
+                "product_type": pt_val, "exchange": ref.exchange.value,
             })
 
             self._idempotency.put(correlation_id, order)
@@ -444,7 +469,7 @@ class OrdersAdapter:
 
     def _build_order_payload(
         self,
-        inst: Any,
+        ref: DhanInstrumentRef,
         segment: str,
         side_val: str,
         ot_val: str,
@@ -455,10 +480,17 @@ class OrdersAdapter:
         trigger_price: Decimal | None = None,
         correlation_id: str | None = None,
     ) -> dict[str, Any]:
-        """Build the Dhan order placement payload dict."""
+        """Build the Dhan order placement payload dict.
+
+        The *ref* argument is a :class:`DhanInstrumentRef`; the carrier
+        is the only thing that can flow into a Dhan HTTP body, and
+        ``DhanInstrumentRef.__post_init__`` has already enforced the
+        Dhan-internal contract (segment ∈ Dhan's set, security_id is
+        a positive digit string).
+        """
         payload: dict[str, Any] = {
             "dhanClientId": self._client.client_id,
-            "securityId": inst.security_id,
+            "securityId": ref.security_id_str(),
             "exchangeSegment": segment,
             "transactionType": side_val,
             "orderType": ot_val,
@@ -525,9 +557,13 @@ class OrdersAdapter:
         validity = kwargs.get("validity", "DAY")
         correlation_id: str | None = kwargs.get("correlation_id")
 
-        # Resolve instrument and canonicalise enums.
-        inst = self._resolver.resolve(symbol, exchange)
-        segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, "NSE_EQ")
+        # Resolve instrument via the identity provider so the carrier
+        # (DhanInstrumentRef) is the only thing that can flow into
+        # the payload builder. Slice orders are broker-managed and have
+        # no idempotency/risk check; the identity provider is the
+        # single place that enforces the Dhan-internal contract.
+        ref = self._identity.resolve_ref(symbol, exchange)
+        segment = ref.exchange_segment
         side_val, ot_val, pt_val, v_val = self._canonicalize_order_enums(
             side, order_type, product_type, validity,
         )
@@ -540,11 +576,13 @@ class OrdersAdapter:
         )
 
         payload = self._build_order_payload(
-            inst, segment, side_val, ot_val, pt_val, v_val,
+            ref, segment, side_val, ot_val, pt_val, v_val,
             quantity, price, trigger_price, correlation_id,
         )
+        # PR-B: defence-in-depth invariant assertion.
+        assert_dhan_payload(payload, context="orders.place_slice_order")
 
-        data = self._client.post("/orders/slicing", json=payload)
+        data = self._client.post(Dhan.ORDERS_SLICING, json=payload)
         order_data = data.get("data", data)
         order = self._parse_order(order_data)
 

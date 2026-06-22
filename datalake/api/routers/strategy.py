@@ -43,7 +43,29 @@ async def get_strategy_signals(
             )
         
         view_name = view_map[strategy]
-        query = f"SELECT * FROM {view_name}"
+        
+        if strategy == "halftrend":
+            query = f"""
+                SELECT symbol, ltp, intraday_score, signal, trend,
+                       rsi_14, roc_5, relative_volume, atr_14,
+                       stop_loss, target
+                FROM {view_name}
+            """
+        elif strategy == "momentum":
+            query = f"""
+                SELECT symbol, ltp, intraday_score, signal, trend,
+                       rsi_14, roc_5, relative_volume, atr_14,
+                       entry_level, target_level
+                FROM {view_name}
+            """
+        elif strategy == "breakout":
+            query = f"""
+                SELECT symbol, ltp, intraday_score, signal, trend,
+                       rsi_14, roc_5, relative_volume, atr_14,
+                       breakout_stop, breakout_target
+                FROM {view_name}
+            """
+        
         params = []
         
         if symbol:
@@ -56,14 +78,21 @@ async def get_strategy_signals(
         
         signals = []
         for row in results:
-            # Map columns based on view
             signals.append(StrategySignal(
                 symbol=row[0] if row else "",
-                timestamp=0,  # TODO: Add timestamp column
-                signal_type=row[3] if len(row) > 3 else "NEUTRAL",
-                score=float(row[2]) if len(row) > 2 else 0.0,
-                stop_loss=float(row[-3]) if len(row) > 2 else None,
-                target=float(row[-2]) if len(row) > 1 else None,
+                timestamp=0,
+                signal_type=row[3] or "NEUTRAL",
+                score=float(row[2]) if row[2] else 0.0,
+                stop_loss=float(row[9]) if row[9] else None,
+                target=float(row[10]) if row[10] else None,
+                metadata={
+                    "ltp": float(row[1]) if row[1] else 0.0,
+                    "trend": row[4],
+                    "rsi": float(row[5]) if row[5] else None,
+                    "roc_5": float(row[6]) if row[6] else None,
+                    "rel_volume": float(row[7]) if row[7] else None,
+                    "atr": float(row[8]) if row[8] else None,
+                },
             ))
         
         return StrategySignalsResponse(

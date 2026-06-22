@@ -38,7 +38,26 @@ class InstrumentLoader:
             logger.warning("Failed to clean up old cache files: %s", exc)
 
     @staticmethod
-    def load_cached(force_refresh: bool = False) -> list[dict]:
+    def load_cached(force_refresh: bool = False, *, mcx_required: bool | None = None) -> list[dict]:
+        """Load instrument master rows with daily caching.
+
+        Parameters
+        ----------
+        force_refresh:
+            If True, ignore the on-disk cache and re-download.
+        mcx_required:
+            When True, the MCX detailed fetch is mandatory and the
+            loader raises if it fails. When False, MCX failures are
+            logged and skipped. When None (the default), the loader
+            uses the environment variable ``DHAN_TRADING_SEGMENTS``:
+            if the comma-separated list contains ``MCX``, MCX is
+            required; otherwise MCX failures are non-fatal.
+
+            This closes the silent-failure hotspot in
+            ``_fetch_mcx_detailed`` for commodity traders. The
+            previous behaviour (non-fatal on failure) was a documented
+            risk in the architecture review.
+        """
         # Use environment variable if set, otherwise compute default from project root
         env_cache = os.environ.get("DHAN_CACHE_DIR")
         if env_cache:
@@ -94,9 +113,25 @@ class InstrumentLoader:
 
         rows = InstrumentLoader._compact_to_rows(df)
 
-        # Supplement with MCX detailed API (has GOLD/CRUDEOIL futures missing from compact)
+        # Resolve whether MCX is mandatory. ``None`` (the default)
+        # looks at the operator's env var; the explicit boolean wins.
+        if mcx_required is None:
+            trading_segments = os.environ.get("DHAN_TRADING_SEGMENTS", "")
+            mcx_required = "MCX" in [s.strip().upper() for s in trading_segments.split(",") if s.strip()]
+
+        # Supplement with MCX detailed API (has GOLD/CRUDEOIL futures
+        # missing from compact). The behaviour on failure is now
+        # configurable via ``mcx_required`` — see the docstring.
         try:
             mcx_rows = InstrumentLoader._fetch_mcx_detailed()
+        except Exception as exc:
+            if mcx_required:
+                logger.error("MCX detailed fetch FAILED and is required: %s", exc)
+                raise
+            logger.warning("MCX detailed fetch failed (non-fatal): %s", exc)
+            mcx_rows = []
+
+        if mcx_rows:
             existing_idx = {r["SEM_SMST_SECURITY_ID"]: i for i, r in enumerate(rows)}
             added = 0
             replaced = 0
@@ -113,8 +148,6 @@ class InstrumentLoader:
                     rows[i] = r
                     replaced += 1
             logger.info("Merged %d MCX instruments (added=%d replaced=%d)", len(mcx_rows), added, replaced)
-        except Exception as exc:
-            logger.warning("MCX detailed fetch failed (non-fatal): %s", exc)
 
         return rows
 

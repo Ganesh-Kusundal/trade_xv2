@@ -42,11 +42,11 @@ async def get_indicators(
     
     try:
         view_map = {
-            "atr": "v_feature_atr",
-            "vwap": "v_feature_vwap",
-            "rsi": "v_feature_rsi",
-            "momentum": "v_feature_momentum",
-            "volume": "v_feature_volume",
+            "atr": ("v_feature_atr", "atr_14"),
+            "vwap": ("v_feature_vwap", "vwap"),
+            "rsi": ("v_feature_rsi", "rsi_14"),
+            "momentum": ("v_feature_momentum", "roc_5"),
+            "volume": ("v_feature_volume", "relative_volume"),
         }
         
         if type not in view_map:
@@ -55,9 +55,9 @@ async def get_indicators(
                 detail=f"Invalid indicator type '{type}'. Valid: {', '.join(view_map.keys())}",
             )
         
-        view_name = view_map[type]
+        view_name, value_col = view_map[type]
         query = f"""
-            SELECT timestamp, symbol, *
+            SELECT timestamp, symbol, {value_col}
             FROM {view_name}
             WHERE symbol = ?
             ORDER BY timestamp DESC
@@ -68,19 +68,7 @@ async def get_indicators(
         
         values = []
         for row in results:
-            # Extract value based on indicator type
-            if type == "atr":
-                value = row[2]  # atr_14
-            elif type == "vwap":
-                value = row[2]  # vwap
-            elif type == "rsi":
-                value = row[2]  # rsi_14
-            elif type == "momentum":
-                value = row[2]  # roc_5
-            elif type == "volume":
-                value = row[2]  # relative_volume
-            else:
-                value = 0.0
+            value = row[2]
             
             ts = row[0]
             if hasattr(ts, "timestamp"):
@@ -125,7 +113,7 @@ async def get_snapshot(
     try:
         query = """
             SELECT symbol, ltp, intraday_score, signal, trend,
-                   rsi_14, roc_5, relative_volume, day_high, day_low, day_volume
+                   rsi_approx, roc_5, relative_volume, day_high, day_low, day_volume
             FROM v_intraday_snapshot
             ORDER BY intraday_score DESC
             LIMIT ?

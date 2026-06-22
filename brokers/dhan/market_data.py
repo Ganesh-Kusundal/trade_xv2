@@ -7,25 +7,37 @@ from decimal import Decimal
 
 from brokers.common.core.domain import DepthLevel, MarketDepth, Quote
 from brokers.dhan.http_client import DhanHttpClient
-from brokers.dhan.resolver import SymbolResolver
+from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
+from brokers.dhan.invariants import assert_dhan_identity
 from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
 
 logger = logging.getLogger(__name__)
 
 
 class MarketDataAdapter:
-    def __init__(self, client: DhanHttpClient, resolver: SymbolResolver):
+    def __init__(self, client: DhanHttpClient, identity: DhanIdentityProvider | object):
         self._client = client
-        self._resolver = resolver
+        self._identity = coerce_identity_provider(identity)
+        self._resolver = self._identity.resolver
 
     def _resolve_and_segment(self, symbol: str, exchange: str):
-        inst = self._resolver.resolve(symbol, exchange)
-        segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, DEFAULT_SEGMENT)
-        return inst, segment
+        """Resolve *symbol* on *exchange* and return (ref, segment).
+
+        Uses the identity provider so the carrier (DhanInstrumentRef) is
+        the only thing that can flow into a Dhan HTTP body. The provider
+        enforces the Dhan-internal contract on every call.
+        """
+        ref = self._identity.resolve_ref(symbol, exchange)
+        return ref, ref.exchange_segment
 
     def get_ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:
-        inst, segment = self._resolve_and_segment(symbol, exchange)
-        sid = int(inst.security_id)
+        ref, segment = self._resolve_and_segment(symbol, exchange)
+        sid = int(ref.security_id)
+        # PR-B: defence-in-depth invariant assertion. The market-feed
+        # endpoint takes a ``{segment: [security_id, ...]}`` map rather
+        # than a flat payload, so we verify each entry with
+        # ``assert_dhan_identity`` rather than ``assert_dhan_payload``.
+        assert_dhan_identity(sid, segment, context="market_data.get_ltp")
         data = self._client.post("/marketfeed/ltp", json={segment: [sid]})
         segment_data = data.get("data", {}).get(segment, {})
         entry = segment_data.get(str(sid))
@@ -40,13 +52,14 @@ class MarketDataAdapter:
         return ltp
 
     def get_quote(self, symbol: str, exchange: str = "NSE") -> Quote:
-        inst, segment = self._resolve_and_segment(symbol, exchange)
-        sid = int(inst.security_id)
+        ref, segment = self._resolve_and_segment(symbol, exchange)
+        sid = int(ref.security_id)
+        assert_dhan_identity(sid, segment, context="market_data.get_quote")
         data = self._client.post("/marketfeed/quote", json={segment: [sid]})
         raw = data["data"][segment][str(sid)]
         ohlc = raw.get("ohlc", {}) or {}
         from brokers.dhan.domain import InstrumentType
-        display = inst.symbol if inst.instrument_type == InstrumentType.EQUITY else (inst.canonical_symbol or inst.symbol)
+        display = ref.symbol if ref.instrument_type == InstrumentType.EQUITY else (ref.symbol)
         quote = Quote(
             symbol=display,
             ltp=Decimal(str(raw.get("last_price", 0))),
@@ -61,8 +74,9 @@ class MarketDataAdapter:
         return quote
 
     def get_depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
-        inst, segment = self._resolve_and_segment(symbol, exchange)
-        sid = int(inst.security_id)
+        ref, segment = self._resolve_and_segment(symbol, exchange)
+        sid = int(ref.security_id)
+        assert_dhan_identity(sid, segment, context="market_data.get_depth")
         data = self._client.post("/marketfeed/quote", json={segment: [sid]})
         raw = data["data"][segment][str(sid)]
         bids = [
@@ -74,14 +88,15 @@ class MarketDataAdapter:
             for l in raw.get("depth", {}).get("sell", [])[:5]
         ]
         from brokers.dhan.domain import InstrumentType
-        display = inst.symbol if inst.instrument_type == InstrumentType.EQUITY else (inst.canonical_symbol or inst.symbol)
+        display = ref.symbol if ref.instrument_type == InstrumentType.EQUITY else (ref.symbol)
         depth = MarketDepth(symbol=display, bids=bids, asks=asks)
         logger.debug("depth_fetched", extra={"symbol": symbol, "bid_levels": len(bids), "ask_levels": len(asks)})
         return depth
 
     def get_ohlc(self, symbol: str, exchange: str = "NSE") -> dict:
-        inst, segment = self._resolve_and_segment(symbol, exchange)
-        sid = int(inst.security_id)
+        ref, segment = self._resolve_and_segment(symbol, exchange)
+        sid = int(ref.security_id)
+        assert_dhan_identity(sid, segment, context="market_data.get_ohlc")
         data = self._client.post("/marketfeed/ohlc", json={segment: [sid]})
         result = data["data"][segment][str(sid)]["ohlc"]
         logger.debug("ohlc_fetched", extra={"symbol": symbol})
@@ -92,8 +107,10 @@ class MarketDataAdapter:
         symbol_map: dict[int, str] = {}
         for sym in symbols:
             try:
-                inst, segment = self._resolve_and_segment(sym, exchange)
-                sid = int(inst.security_id)
+                ref, segment = self._resolve_and_segment(sym, exchange)
+                sid = int(ref.security_id)
+                # PR-B: defence-in-depth invariant assertion per-entry.
+                assert_dhan_identity(sid, segment, context="market_data.get_batch_ltp")
                 segment_map.setdefault(segment, []).append(sid)
                 symbol_map[sid] = sym
             except Exception:
@@ -114,14 +131,16 @@ class MarketDataAdapter:
         from brokers.common.core.domain import Quote as DhanQuote
         segment_map: dict[str, list[int]] = {}
         symbol_map: dict[int, str] = {}
-        inst_map: dict[int, object] = {}
+        ref_map: dict[int, object] = {}
         for sym in symbols:
             try:
-                inst, segment = self._resolve_and_segment(sym, exchange)
-                sid = int(inst.security_id)
+                ref, segment = self._resolve_and_segment(sym, exchange)
+                sid = int(ref.security_id)
+                # PR-B: defence-in-depth invariant assertion per-entry.
+                assert_dhan_identity(sid, segment, context="market_data.get_batch_quote")
                 segment_map.setdefault(segment, []).append(sid)
                 symbol_map[sid] = sym
-                inst_map[sid] = inst
+                ref_map[sid] = ref
             except Exception:
                 continue
         if not segment_map:
@@ -132,9 +151,9 @@ class MarketDataAdapter:
             for sid_str, info in sids.items():
                 sid = int(sid_str)
                 if sid in symbol_map:
-                    inst = inst_map[sid]
+                    ref = ref_map[sid]
                     ohlc = info.get("ohlc", {}) or {}
-                    display = inst.symbol if inst.instrument_type == InstrumentType.EQUITY else (inst.canonical_symbol or inst.symbol)
+                    display = ref.symbol if ref.instrument_type == InstrumentType.EQUITY else (ref.symbol)
                     result[symbol_map[sid]] = DhanQuote(
                         symbol=display,
                         ltp=Decimal(str(info.get("last_price", 0))),

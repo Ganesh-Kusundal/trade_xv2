@@ -94,7 +94,7 @@ async def get_snapshots(
     try:
         query = """
             SELECT symbol, ltp, intraday_score, signal, trend,
-                   rsi_14, roc_5, relative_volume, day_high, day_low, day_volume
+                   rsi_approx, roc_5, relative_volume, day_high, day_low, day_volume
             FROM v_intraday_snapshot
             ORDER BY intraday_score DESC
             LIMIT ?

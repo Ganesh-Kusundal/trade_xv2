@@ -71,8 +71,12 @@ class Dhan:
     OPTION_CHAIN: str = "/optionchain"
 
     # Orders
+    # NOTE: The Dhan v2 slice-order endpoint is POST /orders/slicing.
+    # The historical /sliceorder path is the v1 endpoint and is no
+    # longer used by this client. Keep the constant aligned with the
+    # path actually called by ``OrdersAdapter.place_slice_order``.
     ORDERS: str = "/orders"
-    SLICE_ORDER: str = "/sliceorder"
+    ORDERS_SLICING: str = "/orders/slicing"
 
     # Kill switch
     KILL_SWITCH: str = "/killswitch"

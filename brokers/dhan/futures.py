@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from brokers.dhan.http_client import DhanHttpClient
-from brokers.dhan.resolver import SymbolResolver
+from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 
 COMMON_COMMODITIES = {
     "GOLD", "SILVER", "CRUDEOIL", "NATURALGAS", "COPPER",
@@ -36,9 +36,16 @@ def _resolve_derivatives_exchange(underlying: str, exchange: str) -> str:
 
 
 class FuturesAdapter:
-    def __init__(self, client: DhanHttpClient, resolver: SymbolResolver):
+    def __init__(self, client: DhanHttpClient, identity: DhanIdentityProvider | object):
+        # The futures adapter is read-side only (it queries the resolver
+        # and returns Instrument-derived data to callers). It does not
+        # build Dhan HTTP bodies, so no security_id ever leaves this
+        # adapter as a payload. We still accept the identity provider to
+        # keep the constructor signature consistent with the rest of
+        # the adapter layer.
         self._client = client
-        self._resolver = resolver
+        self._identity = coerce_identity_provider(identity)
+        self._resolver = self._identity.resolver
 
     def get_contracts(self, underlying: str, exchange: str) -> list[dict]:
         exchange = _resolve_derivatives_exchange(underlying, exchange)

@@ -13,7 +13,7 @@ from pathlib import Path
 
 import duckdb
 
-from datalake.duckdb_utils import connect_with_retry
+from datalake.duckdb_utils import get_pool
 from datalake.symbols import normalize_symbol
 
 logger = logging.getLogger(__name__)
@@ -37,15 +37,11 @@ class DataCatalog:
     @property
     def conn(self) -> duckdb.DuckDBPyConnection:
         if self._conn is None:
-            self._conn = connect_with_retry(str(self._db_path), read_only=self._read_only)
+            self._conn = get_pool().get(self._db_path)
         return self._conn
 
     def close(self) -> None:
         if self._conn is not None:
-            try:
-                self._conn.close()
-            except Exception as exc:
-                logger.debug("catalog_close_failed: %s", exc)
             self._conn = None
 
     def _ensure_schema(self) -> None:

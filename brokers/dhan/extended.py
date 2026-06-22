@@ -49,6 +49,17 @@ class DhanExtendedCapabilities:
         return self._conn.instruments
 
     @property
+    def identity(self) -> Any:
+        """Access the Dhan identity provider (PR-A).
+
+        The provider is the single source of truth for symbol→security_id
+        resolution. Adapters and callers that need to build a Dhan HTTP
+        payload must go through ``identity.resolve_ref(symbol, exchange)``
+        rather than calling the resolver directly.
+        """
+        return self._conn.identity
+
+    @property
     def orders(self) -> Any:
         """Access the orders adapter (idempotency cache, validation, etc.)."""
         return self._conn.orders
@@ -180,6 +191,31 @@ class DhanExtendedCapabilities:
     def get_option_expiries(self, underlying: str, exchange: str = "NFO") -> list[str]:
         """Get available option expiry dates."""
         return self._conn.options.get_expiries(underlying, exchange)
+
+    def get_expired_options_data(
+        self,
+        security_id: int,
+        expiry_flag: str,
+        expiry_code: int,
+        strike: str,
+        option_type: str,
+        from_date: str,
+        to_date: str,
+        required_data: list[str] | None = None,
+        interval: int = 1,
+    ) -> dict:
+        """Fetch expired options OHLCV data from Dhan rolling option API."""
+        return self._conn.options.get_expired_options_data(
+            security_id=security_id,
+            expiry_flag=expiry_flag,
+            expiry_code=expiry_code,
+            strike=strike,
+            option_type=option_type,
+            from_date=from_date,
+            to_date=to_date,
+            required_data=required_data,
+            interval=interval,
+        )
 
     def get_option_chain(
         self,

@@ -8,8 +8,9 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from dhanhq.marketfeed import MarketFeed as SDKMarketFeed
-from dhanhq.orderupdate import OrderUpdate as SDKOrderUpdate
+from dhanhq import marketfeed as sdk_marketfeed
+from dhanhq.marketfeed import DhanFeed as SDKMarketFeed
+from dhanhq.orderupdate import OrderSocket as SDKOrderUpdate
 
 from brokers.common.core.domain import (
     DepthLevel,
@@ -31,34 +32,34 @@ from brokers.common.lifecycle.lifecycle import (
 
 logger = logging.getLogger(__name__)
 
-# SDK exchange segment constants
+# SDK exchange segment constants (module-level in dhanhq.marketfeed)
 _EXCHANGE_MAP: dict[str, int] = {
-    "IDX_I": SDKMarketFeed.IDX,
-    "IDX": SDKMarketFeed.IDX,
-    "NSE_EQ": SDKMarketFeed.NSE,
-    "NSE": SDKMarketFeed.NSE,
-    "NSE_FNO": SDKMarketFeed.NSE_FNO,
-    "NFO": SDKMarketFeed.NSE_FNO,
-    "NSE_CURRENCY": SDKMarketFeed.NSE_CURR,
-    "CDS": SDKMarketFeed.NSE_CURR,
-    "BSE_EQ": SDKMarketFeed.BSE,
-    "BSE": SDKMarketFeed.BSE,
-    "MCX_COMM": SDKMarketFeed.MCX,
-    "MCX": SDKMarketFeed.MCX,
-    "BSE_FNO": SDKMarketFeed.BSE_FNO,
-    "BFO": SDKMarketFeed.BSE_FNO,
-    "BSE_CURRENCY": SDKMarketFeed.BSE_CURR,
+    "IDX_I": sdk_marketfeed.IDX,
+    "IDX": sdk_marketfeed.IDX,
+    "NSE_EQ": sdk_marketfeed.NSE,
+    "NSE": sdk_marketfeed.NSE,
+    "NSE_FNO": sdk_marketfeed.NSE_FNO,
+    "NFO": sdk_marketfeed.NSE_FNO,
+    "NSE_CURRENCY": sdk_marketfeed.NSE_CURR,
+    "CDS": sdk_marketfeed.NSE_CURR,
+    "BSE_EQ": sdk_marketfeed.BSE,
+    "BSE": sdk_marketfeed.BSE,
+    "MCX_COMM": sdk_marketfeed.MCX,
+    "MCX": sdk_marketfeed.MCX,
+    "BSE_FNO": sdk_marketfeed.BSE_FNO,
+    "BFO": sdk_marketfeed.BSE_FNO,
+    "BSE_CURRENCY": sdk_marketfeed.BSE_CURR,
 }
 
-# SDK subscription type constants
+# SDK subscription type constants (module-level in dhanhq.marketfeed)
 # v2 SDK supports: Ticker (15), Quote (17), Full (21).
 # Depth (19) is NOT supported in v2 — falls back to Quote.
 _MODE_MAP: dict[str, int] = {
-    "LTP": SDKMarketFeed.Ticker,
-    "TICKER": SDKMarketFeed.Ticker,
-    "QUOTE": SDKMarketFeed.Quote,
-    "FULL": SDKMarketFeed.Full,
-    "DEPTH": SDKMarketFeed.Quote,  # v2 does not support Depth (19)
+    "LTP": sdk_marketfeed.Ticker,
+    "TICKER": sdk_marketfeed.Ticker,
+    "QUOTE": sdk_marketfeed.Quote,
+    "FULL": sdk_marketfeed.Full,
+    "DEPTH": sdk_marketfeed.Quote,  # v2 does not support Depth (19)
 }
 
 

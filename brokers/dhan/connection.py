@@ -19,6 +19,7 @@ from brokers.dhan.forever_orders import ForeverOrdersAdapter
 from brokers.dhan.futures import FuturesAdapter
 from brokers.dhan.historical import HistoricalAdapter
 from brokers.dhan.http_client import DhanHttpClient
+from brokers.dhan.identity import DhanIdentityProvider
 from brokers.dhan.ip_management import IPManagementAdapter
 from brokers.dhan.ledger import LedgerAdapter
 from brokers.dhan.loader import InstrumentLoader
@@ -28,6 +29,7 @@ from brokers.dhan.options import OptionsAdapter
 from brokers.dhan.orders import OrdersAdapter
 from brokers.dhan.portfolio import PortfolioAdapter
 from brokers.dhan.resolver import SymbolResolver
+from brokers.dhan.resolver_refresher import ResolverRefresher
 from brokers.dhan.super_orders import SuperOrdersAdapter
 from brokers.dhan.user_profile import UserProfileAdapter
 from brokers.dhan.websocket import DhanMarketFeed, DhanOrderStream, PollingMarketFeed
@@ -88,6 +90,11 @@ class DhanConnection:
     ):
         self._client = client
         self.instruments = resolver or SymbolResolver()
+        # PR-A: single source of truth for symbol→security_id resolution.
+        # All adapters that build Dhan HTTP payloads MUST go through
+        # this provider rather than calling self.instruments.resolve(...)
+        # directly.
+        self.identity = DhanIdentityProvider(self.instruments)
         self._event_bus = event_bus
         # B5: if a lifecycle is provided, lazily-created WebSocket
         # services will be registered with it. close() then drains
@@ -96,13 +103,13 @@ class DhanConnection:
 
         # ── Registry-driven adapter construction ──
         for attr_name, adapter_cls in _ADAPTERS_WITH_INSTRUMENTS:
-            setattr(self, attr_name, adapter_cls(client, self.instruments))
+            setattr(self, attr_name, adapter_cls(client, self.identity))
         for attr_name, adapter_cls in _ADAPTERS_CLIENT_ONLY:
             setattr(self, attr_name, adapter_cls(client))
 
         # Special case: OrdersAdapter takes extra kwargs
         self._orders = OrdersAdapter(
-            client, self.instruments, event_bus=event_bus, risk_manager=risk_manager
+            client, self.identity, event_bus=event_bus, risk_manager=risk_manager
         )
         self._market_feed: DhanMarketFeed | None = None
         self._order_stream: DhanOrderStream | None = None
@@ -120,6 +127,11 @@ class DhanConnection:
         # stale token until their next reconnect — that was the
         # documented DH-906-incident failure mode.
         self._token_receivers: list[Callable[[str], None]] = []
+        # PR-C: ResolverRefresher. The refresher is created on first
+        # registration and reused on subsequent calls. The actual
+        # background thread is started by ``start_resolver_refresher``
+        # (or by the LifecycleManager that owns this connection).
+        self._resolver_refresher: ResolverRefresher | None = None
 
     @property
     def market_data(self) -> MarketDataAdapter:
@@ -248,7 +260,15 @@ class DhanConnection:
         self._order_stream = value
 
     def load_instruments(self, source: str | None = None, use_cache: bool = True) -> None:
-        """Load instruments into memory resolver."""
+        """Load instruments into memory resolver.
+
+        PR-C: the *skipped* count returned by
+        :meth:`brokers.dhan.resolver.SymbolResolver.load_from_rows` is
+        logged at WARNING level when it exceeds 1% of the total row
+        count. This closes the silent-failure hotspot where a partially
+        broken CSV would leave the resolver incomplete without any
+        operator-visible signal.
+        """
         import time
 
         start = time.monotonic()
@@ -269,12 +289,25 @@ class DhanConnection:
         )
 
         start = time.monotonic()
-        self.instruments.load_from_rows(rows)
+        stats = self.instruments.load_from_rows(rows)
         memory_time = time.monotonic() - start
+
+        skipped = int(stats.get("skipped", 0))
+        total = int(stats.get("total", len(rows)))
+        if total > 0 and skipped / total > 0.01:
+            logger.warning(
+                "instrument_load_skipped_high",
+                extra={
+                    "skipped": skipped,
+                    "total": total,
+                    "skip_rate": round(skipped / total, 4),
+                    "threshold": 0.01,
+                },
+            )
 
         logger.info(
             "instrument_memory_load_completed",
-            extra={"count": len(rows), "memory_time_s": round(memory_time, 2)},
+            extra={"count": len(rows), "skipped": skipped, "memory_time_s": round(memory_time, 2)},
         )
 
     def create_market_feed(
@@ -466,6 +499,57 @@ class DhanConnection:
                 )
         return delivered
 
+    # ── ResolverRefresher wiring (PR-C) ─────────────────────────────────
+
+    def get_or_create_resolver_refresher(
+        self,
+        interval_seconds: int = 24 * 3600,
+        on_success=None,
+        on_error=None,
+    ) -> ResolverRefresher:
+        """Return the singleton :class:`ResolverRefresher` for this connection.
+
+        The refresher is created lazily so unit tests that build a
+        connection without ever wanting the background thread do not
+        pay the cost. The lifecycle manager (if any) should call
+        :meth:`register_resolver_refresher_with_lifecycle` to attach
+        the refresher as a :class:`ManagedService`.
+        """
+        if self._resolver_refresher is None:
+            self._resolver_refresher = ResolverRefresher(
+                connection=self,
+                interval_seconds=interval_seconds,
+                on_success=on_success,
+                on_error=on_error,
+            )
+        return self._resolver_refresher
+
+    def register_resolver_refresher_with_lifecycle(
+        self,
+        interval_seconds: int = 24 * 3600,
+    ) -> ResolverRefresher:
+        """Create the refresher and register it with the lifecycle manager.
+
+        No-op (returns ``None``) if the connection was constructed
+        without a :class:`LifecycleManager`. Otherwise the refresher's
+        start/stop/health are driven by the lifecycle and the process
+        can drain it deterministically on shutdown.
+        """
+        if self._lifecycle is None:
+            logger.debug(
+                "resolver_refresher_not_registered: connection has no lifecycle manager"
+            )
+            return None
+        refresher = self.get_or_create_resolver_refresher(
+            interval_seconds=interval_seconds,
+        )
+        if refresher.name not in self._lifecycle.service_names():
+            try:
+                self._lifecycle.register(refresher)
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.debug("resolver_refresher_register_failed: %s", exc)
+        return refresher
+
     def close(self) -> None:
         """Close HTTP client, stop token scheduler, and disconnect WebSocket connections.
 
@@ -481,6 +565,15 @@ class DhanConnection:
                 scheduler.stop()
             except Exception as exc:
                 logger.warning("token_scheduler_stop_failed: %s", exc)
+        # PR-C: stop the resolver refresher if one was created. The
+        # lifecycle manager (when present) handles this for us, but
+        # we explicitly call stop() to be safe for callers that did
+        # not register the refresher with a lifecycle.
+        if self._resolver_refresher is not None:
+            try:
+                self._resolver_refresher.stop(timeout_seconds=5.0)
+            except Exception as exc:
+                logger.warning("resolver_refresher_stop_failed: %s", exc)
         # Stop the WebSocket services via their ManagedService.stop()
         # method which joins the thread within timeout.
         for svc in (self._market_feed, self._order_stream, self._polling_feed,

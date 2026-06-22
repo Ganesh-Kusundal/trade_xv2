@@ -31,6 +31,15 @@ from brokers.dhan.exceptions import (
 from brokers.dhan.factory import BrokerFactory
 from brokers.dhan.gateway import BrokerGateway
 from brokers.dhan.http_client import DhanHttpClient
+from brokers.dhan.identity import (
+    DHAN_SEGMENTS,
+    DhanIdentityError,
+    DhanIdentityProvider,
+    DhanIdentitySource,
+    DhanInstrumentRef,
+    coerce_identity_provider,
+    is_dhan_segment,
+)
 from brokers.dhan.loader import InstrumentLoader
 from brokers.dhan.reconciliation import DhanReconciliationService, ReconciliationReport
 
@@ -47,9 +56,17 @@ __all__ = [
     "BrokerGateway",
     "ConfigurationError",
     "DepthLevel",
+    "DHAN_SEGMENTS",
     "DhanConnection",
     "DhanError",
     "DhanHttpClient",
+    # Identity provider (PR-A)
+    "DhanIdentityError",
+    "DhanIdentityProvider",
+    "DhanIdentitySource",
+    "DhanInstrumentRef",
+    "coerce_identity_provider",
+    "is_dhan_segment",
     # WebSocket
     "DhanMarketFeed",
     "DhanOrderStream",

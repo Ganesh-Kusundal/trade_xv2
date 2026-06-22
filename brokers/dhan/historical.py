@@ -8,7 +8,8 @@ import pandas as pd
 
 from brokers.dhan.exceptions import MarketDataError
 from brokers.dhan.http_client import DhanHttpClient
-from brokers.dhan.resolver import SymbolResolver
+from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
+from brokers.dhan.invariants import assert_dhan_payload
 from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
 
 logger = logging.getLogger(__name__)
@@ -29,9 +30,10 @@ _TIMEFRAME_MAP = {
 
 
 class HistoricalAdapter:
-    def __init__(self, client: DhanHttpClient, resolver: SymbolResolver):
+    def __init__(self, client: DhanHttpClient, identity: DhanIdentityProvider | object):
         self._client = client
-        self._resolver = resolver
+        self._identity = coerce_identity_provider(identity)
+        self._resolver = self._identity.resolver
 
     def get_historical(
         self,
@@ -41,15 +43,23 @@ class HistoricalAdapter:
         to_date: str,
         timeframe: str = "1D",
     ) -> pd.DataFrame:
-        inst = self._resolver.resolve(symbol, exchange)
-        segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, DEFAULT_SEGMENT)
+        # Resolve instrument via the identity provider. The carrier
+        # (DhanInstrumentRef) is the only thing that can flow into the
+        # payload; the provider enforces the Dhan-internal contract.
+        ref = self._identity.resolve_ref(symbol, exchange)
+        segment = ref.exchange_segment
         interval = _TIMEFRAME_MAP.get(timeframe, timeframe)
-        instrument_type = self._get_instrument_type(inst)
+        # ``_get_instrument_type`` reads ``Instrument.name`` (the SM_SYMBOL
+        # group). The ref carries the same logical value but no ``name``;
+        # fetch the underlying Instrument from the resolver so we do not
+        # mutate the DhanInstrumentRef carrier contract.
+        instrument = self._resolver.get_by_security_id(ref.security_id)
+        instrument_type = self._get_instrument_type(instrument or ref)
 
         if interval == "1D":
             endpoint = "/charts/historical"
             payload = {
-                "securityId": inst.security_id,
+                "securityId": ref.security_id_str(),
                 "exchangeSegment": segment,
                 "instrument": instrument_type,
                 "expiryCode": 0,
@@ -63,7 +73,7 @@ class HistoricalAdapter:
             sess_open = _SESSION_OPEN.get(exch_upper, _DEFAULT_OPEN)
             sess_close = _SESSION_CLOSE.get(exch_upper, _DEFAULT_CLOSE)
             payload = {
-                "securityId": inst.security_id,
+                "securityId": ref.security_id_str(),
                 "exchangeSegment": segment,
                 "instrument": instrument_type,
                 "interval": str(interval),
@@ -71,6 +81,9 @@ class HistoricalAdapter:
                 "fromDate": f"{from_date} {sess_open}",
                 "toDate": f"{to_date} {sess_close}",
             }
+
+        # PR-B: defence-in-depth invariant assertion.
+        assert_dhan_payload(payload, context="historical.get_historical")
 
         data = self._client.post(endpoint, json=payload)
         df = self._parse(data, symbol=symbol, exchange=exchange, timeframe=timeframe)
@@ -110,12 +123,21 @@ class HistoricalAdapter:
 
     @staticmethod
     def _get_instrument_type(inst) -> str:
-        if inst.name:
-            return "EQUITY" if inst.name == "INDEX" else inst.name
-        if inst.exchange.value == "INDEX":
+        # Accept either an Instrument (has .name) or a DhanInstrumentRef
+        # (has .exchange and .instrument_type). Defensive read in either
+        # case to keep the helper independent of the carrier shape.
+        name = getattr(inst, "name", None)
+        if name:
+            return "EQUITY" if name == "INDEX" else name
+        exchange_value = getattr(inst.exchange, "value", str(inst.exchange))
+        if exchange_value == "INDEX":
             return "EQUITY"
-        if inst.exchange.value in ("NFO", "BFO"):
+        if exchange_value in ("NFO", "BFO"):
             return "OPTIDX"
-        if inst.exchange.value == "MCX":
+        if exchange_value == "MCX":
             return "FUTCOM"
+        # Fall through to the ref's instrument_type if we have one.
+        ref_type = getattr(inst, "instrument_type", None)
+        if ref_type is not None:
+            return ref_type.value if hasattr(ref_type, "value") else str(ref_type)
         return "EQUITY"

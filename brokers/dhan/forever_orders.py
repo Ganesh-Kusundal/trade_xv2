@@ -9,7 +9,8 @@ from brokers.common.core.models import OrderResponse
 from brokers.dhan.domain import ForeverOrder, ForeverOrderRequest
 from brokers.dhan.exceptions import ForeverOrderError
 from brokers.dhan.http_client import DhanHttpClient
-from brokers.dhan.resolver import SymbolResolver
+from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
+from brokers.dhan.invariants import assert_dhan_payload
 from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
 
 logger = logging.getLogger(__name__)
@@ -22,9 +23,10 @@ class ForeverOrdersAdapter:
     until triggered or cancelled. Supports SINGLE and OCO modes.
     """
 
-    def __init__(self, client: DhanHttpClient, resolver: SymbolResolver):
+    def __init__(self, client: DhanHttpClient, identity: DhanIdentityProvider | object):
         self._client = client
-        self._resolver = resolver
+        self._identity = coerce_identity_provider(identity)
+        self._resolver = self._identity.resolver
 
     def place_forever_order(self, request: ForeverOrderRequest) -> ForeverOrder:
         """Place a forever order (SINGLE or OCO).
@@ -50,15 +52,18 @@ class ForeverOrdersAdapter:
             })
             raise ValueError(f"Forever order validation failed: {msg}")
 
-        # Resolve instrument
-        inst = self._resolver.resolve(request.symbol, request.exchange)
-        segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, DEFAULT_SEGMENT)
+        # Resolve instrument via the identity provider. The carrier
+        # (DhanInstrumentRef) is the only thing that can flow into the
+        # payload builder; the provider enforces the Dhan-internal
+        # contract.
+        ref = self._identity.resolve_ref(request.symbol, request.exchange)
+        segment = ref.exchange_segment
 
         # Build API payload
         payload = {
             "dhanClientId": self._client.client_id,
             "exchangeSegment": segment,
-            "securityId": inst.security_id,
+            "securityId": ref.security_id_str(),
             "orderFlag": request.order_flag,
             "transactionType": request.transaction_type,
             "productType": request.product_type,
@@ -80,6 +85,9 @@ class ForeverOrdersAdapter:
 
         if request.correlation_id:
             payload["correlationId"] = request.correlation_id
+
+        # PR-B: defence-in-depth invariant assertion.
+        assert_dhan_payload(payload, context="forever_orders.place_forever_order")
 
         # Call API
         try:
@@ -117,12 +125,12 @@ class ForeverOrdersAdapter:
         Raises:
             ForeverOrderError: If API call fails
         """
-        inst = self._resolver.resolve(request.symbol, request.exchange)
-        segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, DEFAULT_SEGMENT)
+        ref = self._identity.resolve_ref(request.symbol, request.exchange)
+        segment = ref.exchange_segment
 
         payload = {
             "exchangeSegment": segment,
-            "securityId": inst.security_id,
+            "securityId": ref.security_id_str(),
             "orderFlag": request.order_flag,
             "transactionType": request.transaction_type,
             "productType": request.product_type,
@@ -140,6 +148,9 @@ class ForeverOrdersAdapter:
                 payload["triggerPrice1"] = float(request.trigger_price1)
             if request.quantity1 is not None:
                 payload["quantity1"] = request.quantity1
+
+        # PR-B: defence-in-depth invariant assertion.
+        assert_dhan_payload(payload, context="forever_orders.modify_forever_order")
 
         try:
             data = self._client.put(f"/forever/orders/{order_id}", json=payload)

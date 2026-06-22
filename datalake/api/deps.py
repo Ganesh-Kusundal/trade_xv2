@@ -1,6 +1,7 @@
 """Dependency injection for API routers.
 
 Provides FastAPI dependencies for:
+- TradingContext (OMS container)
 - DataLakeGateway (historical data)
 - ViewManager (DuckDB analytics views)
 - DataCatalog (symbol metadata)
@@ -19,6 +20,9 @@ logger = logging.getLogger(__name__)
 
 # Global service instances (populated during app startup)
 _service_registry: dict[str, Any] = {}
+
+# TradingContext holder (single owner of OMS state)
+_trading_context: Any = None
 
 
 def register_service(name: str, instance: Any) -> None:
@@ -80,6 +84,40 @@ def get_event_bus() -> Any:
     return get_service("event_bus", required=False)
 
 
+# ── TradingContext Dependencies ─────────────────────────────────────────────
+
+def set_trading_context(ctx: Any) -> None:
+    """Set the TradingContext during app startup."""
+    global _trading_context
+    _trading_context = ctx
+    logger.info("TradingContext registered")
+
+
+def get_trading_context() -> Any:
+    """Get the TradingContext. Raises 503 if not initialized."""
+    if _trading_context is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="TradingContext not initialized. OMS is not available.",
+        )
+    return _trading_context
+
+
+def get_order_manager() -> Any:
+    """Get OrderManager from TradingContext."""
+    return get_trading_context().order_manager
+
+
+def get_position_manager() -> Any:
+    """Get PositionManager from TradingContext."""
+    return get_trading_context().position_manager
+
+
+def get_risk_manager() -> Any:
+    """Get RiskManager from TradingContext."""
+    return get_trading_context().risk_manager
+
+
 def get_broker_service() -> Any:
     """Get BrokerService instance for live broker connections."""
     return get_service("broker_service", required=False)
@@ -93,6 +131,7 @@ def initialize_all_services(
     data_catalog: Any = None,
     event_bus: Any = None,
     broker_service: Any = None,
+    trading_context: Any = None,
     **additional_services: Any,
 ) -> None:
     """Initialize all services at once.
@@ -111,9 +150,16 @@ def initialize_all_services(
         EventBus instance for real-time event publishing.
     broker_service:
         BrokerService instance for live broker connections.
+    trading_context:
+        TradingContext instance for OMS (order/position/risk management).
     **additional_services:
         Additional services to register (key=name, value=instance).
     """
+    # Register TradingContext if provided
+    if trading_context is not None:
+        set_trading_context(trading_context)
+    
+    # Register other services
     if datalake_gateway is not None:
         register_service("datalake_gateway", datalake_gateway)
     if view_manager is not None:

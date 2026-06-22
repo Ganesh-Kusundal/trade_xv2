@@ -30,7 +30,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from datalake.api.config import APIConfig
-from datalake.api.deps import initialize_all_services
+from datalake.api.deps import initialize_all_services, set_trading_context, get_trading_context
 
 logger = logging.getLogger(__name__)
 
@@ -41,8 +41,44 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("TradeXV2 API server starting...")
     logger.info("OpenAPI docs available at %s%s", app.docs_url or "/docs", "")
+    
+    # Start TradingContext lifecycle (reconciliation, DLQ monitor, daily PnL reset)
+    from brokers.common.lifecycle import LifecycleManager
+    from datalake.api.ws.market import market_manager
+    from datalake.api.ws.bridge import MarketBridge
+    
+    lifecycle = LifecycleManager()
+    market_bridge = None
+    try:
+        ctx = get_trading_context()
+        ctx.attach_lifecycle(lifecycle)
+        lifecycle.start_all()
+        logger.info("TradingContext lifecycle started")
+        
+        # Start MarketBridge for WebSocket market data
+        market_bridge = MarketBridge(
+            event_bus=ctx.event_bus,
+            connection_manager=market_manager,
+        )
+        await market_bridge.start()
+        logger.info("MarketBridge started")
+    except HTTPException:
+        logger.warning("No TradingContext available — OMS endpoints disabled")
+    
     yield
+    
     # Shutdown
+    try:
+        if market_bridge:
+            await market_bridge.stop()
+            logger.info("MarketBridge stopped")
+        lifecycle.stop_all()
+        logger.info("TradingContext lifecycle stopped")
+    except Exception:
+        pass  # Lifecycle may not be started if no TradingContext
+    
+    from datalake.duckdb_utils import close_all_connections
+    close_all_connections()
     logger.info("TradeXV2 API server shutting down...")
 
 
@@ -53,6 +89,7 @@ def create_app(
     data_catalog: Any = None,
     event_bus: Any = None,
     broker_service: Any = None,
+    trading_context: Any = None,
     **additional_services: Any,
 ) -> FastAPI:
     """Create and configure the FastAPI application.
@@ -80,13 +117,19 @@ def create_app(
     """
     cfg = config or APIConfig()
     
-    # Initialize services
+    # Auto-build TradingContext if not provided but event_bus is available
+    if trading_context is None and event_bus is not None:
+        from datalake.api.lifecycle import build_trading_context
+        trading_context = build_trading_context(event_bus=event_bus)
+    
+    # Initialize services (now includes TradingContext)
     initialize_all_services(
         datalake_gateway=datalake_gateway,
         view_manager=view_manager,
         data_catalog=data_catalog,
         event_bus=event_bus,
         broker_service=broker_service,
+        trading_context=trading_context,
         **additional_services,
     )
     
@@ -170,10 +213,16 @@ def create_app(
     from datalake.api.routers.orders import router as orders_router
     app.include_router(orders_router, prefix=f"{cfg.api_prefix}/orders", tags=["Orders"])
     
+    # Risk endpoints
+    from datalake.api.routers.risk import router as risk_router
+    app.include_router(risk_router, prefix=f"{cfg.api_prefix}/risk", tags=["Risk"])
+    
     # WebSocket endpoints (mounted separately)
-    # These will be added in Wave 6
-    # from datalake.api.ws.market import websocket_router as ws_market
-    # app.include_router(ws_market)
+    from datalake.api.ws.market import router as ws_market_router
+    app.include_router(ws_market_router, prefix="/ws", tags=["WebSocket - Market"])
+    
+    from datalake.api.ws.replay import router as ws_replay_router
+    app.include_router(ws_replay_router, prefix="/ws", tags=["WebSocket - Replay"])
     
     logger.info("TradeXV2 API app created with prefix: %s", cfg.api_prefix)
     

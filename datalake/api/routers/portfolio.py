@@ -6,8 +6,9 @@ import logging
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from datalake.api.deps import get_position_manager, get_order_manager
 from datalake.api.schemas import (
     PositionsResponse,
     Position,
@@ -15,6 +16,8 @@ from datalake.api.schemas import (
     Holding,
     PortfolioSummary,
 )
+from brokers.common.oms.position_manager import PositionManager
+from brokers.common.oms.order_manager import OrderManager
 
 logger = logging.getLogger(__name__)
 
@@ -23,19 +26,38 @@ router = APIRouter()
 
 @router.get("/positions", response_model=PositionsResponse)
 async def get_positions(
-    status: Optional[str] = Query(None, description="Filter: open, closed, all"),
+    status_filter: Optional[str] = Query(None, alias="status", description="Filter: open, closed, all"),
+    position_manager: PositionManager = Depends(get_position_manager),
 ):
-    """Get current positions.
+    """Get current positions from OMS.
     
     Returns open and closed positions from broker or paper trading.
     """
-    # TODO: Implement with broker_service.get_positions()
-    # For now, return empty list
+    positions = position_manager.get_positions()
+    
+    # Filter by status if requested
+    if status_filter and status_filter != "all":
+        positions = [p for p in positions if (status_filter == "open") == (p.quantity != 0)]
+    
+    total_pnl = sum(p.unrealized_pnl + p.realized_pnl for p in positions)
+    total_value = sum(abs(p.quantity) * p.avg_price for p in positions if p.quantity != 0)
+    
     return PositionsResponse(
-        positions=[],
-        count=0,
-        total_pnl=0.0,
-        total_pnl_percent=0.0,
+        positions=[
+            Position(
+                symbol=p.symbol,
+                exchange=p.exchange,
+                quantity=p.quantity,
+                avg_price=float(p.avg_price),
+                current_price=float(p.current_price) if hasattr(p, 'current_price') and p.current_price else None,
+                unrealized_pnl=float(p.unrealized_pnl),
+                realized_pnl=float(p.realized_pnl),
+            )
+            for p in positions
+        ],
+        count=len(positions),
+        total_pnl=float(total_pnl),
+        total_pnl_percent=float((total_pnl / total_value * 100) if total_value else 0.0),
     )
 
 
@@ -45,13 +67,10 @@ async def get_holdings():
     
     Returns long-term holdings with cost basis and current value.
     """
-    # TODO: Implement with broker_service.get_holdings()
-    return HoldingsResponse(
-        holdings=[],
-        count=0,
-        total_value=0.0,
-        total_invested=0.0,
-        total_pnl=0.0,
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Portfolio Management Service not connected. OMS integration in progress.",
+        headers={"Retry-After": "30"},
     )
 
 
@@ -61,18 +80,10 @@ async def get_portfolio_summary():
     
     Returns total value, P&L, margin usage, and risk metrics.
     """
-    # TODO: Implement with broker_service.get_portfolio_summary()
-    return PortfolioSummary(
-        total_value=0.0,
-        total_invested=0.0,
-        total_pnl=0.0,
-        total_pnl_percent=0.0,
-        realized_pnl=0.0,
-        unrealized_pnl=0.0,
-        margin_used=0.0,
-        margin_available=0.0,
-        positions_count=0,
-        holdings_count=0,
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Portfolio Management Service not connected. OMS integration in progress.",
+        headers={"Retry-After": "30"},
     )
 
 
@@ -86,14 +97,11 @@ async def get_pnl_history(
     
     Returns daily/weekly/monthly P&L for equity curve visualization.
     """
-    # TODO: Implement with broker_service.get_pnl_history()
-    return {
-        "pnl_curve": [],
-        "total_pnl": 0.0,
-        "win_rate": 0.0,
-        "avg_win": 0.0,
-        "avg_loss": 0.0,
-    }
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Portfolio Management Service not connected. OMS integration in progress.",
+        headers={"Retry-After": "30"},
+    )
 
 
 @router.post("/square-off", response_model=dict)
@@ -104,16 +112,8 @@ async def square_off_positions(
     
     Closes all open positions or specific symbol position.
     """
-    # TODO: Implement with broker_service.square_off()
-    return {
-        "status": "success",
-        "message": f"Square off {'completed' if not symbol else f'for {symbol}'}",
-        "timestamp": datetime.now().isoformat(),
-    }
-"""Portfolio endpoints."""
-from __future__ import annotations
-from fastapi import APIRouter
-
-router = APIRouter()
-
-# TODO: Implement portfolio endpoints
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="Portfolio Management Service not connected. OMS integration in progress.",
+        headers={"Retry-After": "30"},
+    )

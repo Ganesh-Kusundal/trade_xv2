@@ -15,7 +15,7 @@ from analytics.views.options_views import OptionViews
 from analytics.views.quality import QualityViews
 from analytics.views.scanner import ScannerViews
 from analytics.views.strategy import StrategyViews
-from datalake.duckdb_utils import DEFAULT_CATALOG_PATH, connect_with_retry
+from datalake.duckdb_utils import DEFAULT_CATALOG_PATH, get_pool
 from datalake.options_analytics_sql import SQL_M_IV_SURFACE, SQL_M_MAX_PAIN, SQL_M_PCR
 
 logger = logging.getLogger(__name__)
@@ -57,15 +57,11 @@ class ViewManager:
     @property
     def conn(self) -> duckdb.DuckDBPyConnection:
         if self._conn is None:
-            self._conn = connect_with_retry(str(self._path), read_only=self._read_only)
+            self._conn = get_pool().get(self._path)
         return self._conn
 
     def close(self) -> None:
         if self._conn is not None:
-            try:
-                self._conn.close()
-            except Exception as exc:
-                logger.debug("view_manager_close_failed: %s", exc)
             self._conn = None
 
     # ─── Materialization ─────────────────────────────────────────────────────

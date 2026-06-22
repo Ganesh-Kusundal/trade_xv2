@@ -23,6 +23,7 @@ __all__ = [
     "ConfigurationError",
     "ConditionalTriggerError",
     "DhanError",
+    "DhanIdentityError",
     "EDISError",
     "ExitAllError",
     "ForeverOrderError",
@@ -63,6 +64,10 @@ class AuthenticationError(DhanError):
 
 class ConfigurationError(DhanError):
     """Missing or invalid configuration."""
+
+
+class DhanIdentityError(DhanError):
+    """Non-Dhan identifier leaked into a Dhan payload or identity validation failure."""
 
 
 # ── Feature-specific exceptions ──────────────────────────────────────────

@@ -48,9 +48,16 @@ class SymbolResolver:
         self._loaded = False
         self._lock = threading.RLock()
 
-    def resolve(self, symbol: str, exchange: str) -> Instrument:
+    def resolve(self, symbol: str, exchange: str, *, expected_segment: str | None = None) -> Instrument:
+        """Resolve symbol to Instrument.
+        
+        Args:
+            symbol: Trading symbol
+            exchange: Exchange code
+            expected_segment: Optional hint to prevent index-vs-derivative misroutes
+        """
         exch = self._normalise_exchange(exchange)
-        inst = self._find(symbol, exch)
+        inst = self._find(symbol, exch, expected_segment=expected_segment)
         if inst is None:
             raise InstrumentNotFoundError(
                 f"Instrument not found: symbol={symbol!r}, exchange={exchange!r}"
@@ -90,7 +97,12 @@ class SymbolResolver:
     def all_instruments(self) -> list[Instrument]:
         return list(self._by_security_id.values())
 
-    def load_from_rows(self, rows: Iterable[dict]) -> None:
+    def load_from_rows(self, rows: Iterable[dict]) -> dict[str, int | float]:
+        """Load instruments from CSV rows with atomic swap.
+        
+        Returns:
+            Dict with keys: total, skipped, skip_rate
+        """
         new_by_symbol: dict[tuple[str, Exchange], Instrument] = {}
         new_by_sid: dict[str, Instrument] = {}
         new_by_underlying: dict[tuple[str, Exchange], list[Instrument]] = {}
@@ -156,11 +168,39 @@ class SymbolResolver:
             self._by_underlying = new_by_underlying
             self._loaded = True
 
-        logger.info("instrument cache loaded: total=%d skipped=%d", len(new_by_sid), skipped)
+        total_loaded = len(new_by_sid)
+        total_processed = total_loaded + skipped
+        skip_rate = skipped / total_processed if total_processed > 0 else 0.0
+
+        result = {
+            "total": total_loaded,
+            "skipped": skipped,
+            "skip_rate": skip_rate,
+        }
+
+        if skip_rate > 0.01:
+            logger.warning(
+                "high_skip_rate_in_resolver",
+                extra={"skipped": skipped, "total": total_processed, "rate": skip_rate},
+            )
+
+        logger.info(
+            "instrument cache loaded: total=%d skipped=%d skip_rate=%.2f%%",
+            total_loaded, skipped, skip_rate * 100,
+        )
+
+        return result
 
     # ── internals ──
 
-    def _find(self, symbol: str, exch: Exchange) -> Instrument | None:
+    def _find(self, symbol: str, exch: Exchange, *, expected_segment: str | None = None) -> Instrument | None:
+        """Find instrument with progressive lookup.
+        
+        Args:
+            symbol: Trading symbol
+            exch: Exchange enum
+            expected_segment: Optional hint to prevent index-vs-derivative misroutes
+        """
         clean = symbol.strip().upper()
 
         # 1. Try direct lookup
@@ -212,6 +252,15 @@ class SymbolResolver:
         if is_index(clean):
             entry = get_index_entry(clean)
             if entry and entry.dhan_security_id:
+                # Guard against index fallback when derivatives expected
+                if expected_segment:
+                    derivative_segments = {"NSE_FNO", "BSE_FNO", "MCX_COMM", "NSE_CURRENCY", "BSE_CURRENCY"}
+                    if expected_segment in derivative_segments:
+                        raise InstrumentNotFoundError(
+                            f"{symbol} is an index; specify the derivative contract symbol "
+                            f"e.g. NIFTY 26 JUN 25000 CE for {expected_segment}"
+                        )
+                
                 from decimal import Decimal
                 logger.info(
                     "index_resolved_via_hardcoded_id",

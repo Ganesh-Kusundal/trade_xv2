@@ -9,7 +9,8 @@ from brokers.common.core.models import OrderResponse
 from brokers.dhan.domain import SuperOrder, SuperOrderLeg
 from brokers.dhan.exceptions import SuperOrderError
 from brokers.dhan.http_client import DhanHttpClient
-from brokers.dhan.resolver import SymbolResolver
+from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
+from brokers.dhan.invariants import assert_dhan_payload
 from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
 
 logger = logging.getLogger(__name__)
@@ -22,9 +23,10 @@ class SuperOrdersAdapter:
     and Stop Loss legs with optional trailing SL.
     """
 
-    def __init__(self, client: DhanHttpClient, resolver: SymbolResolver):
+    def __init__(self, client: DhanHttpClient, identity: DhanIdentityProvider | object):
         self._client = client
-        self._resolver = resolver
+        self._identity = coerce_identity_provider(identity)
+        self._resolver = self._identity.resolver
 
     def place_super_order(
         self,
@@ -75,15 +77,18 @@ class SuperOrdersAdapter:
             })
             raise ValueError(f"Super order validation failed: {msg}")
 
-        # Resolve instrument
-        inst = self._resolver.resolve(symbol, exchange)
-        segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, DEFAULT_SEGMENT)
+        # Resolve instrument via the identity provider. The carrier
+        # (DhanInstrumentRef) is the only thing that can flow into the
+        # payload builder; the provider enforces the Dhan-internal
+        # contract.
+        ref = self._identity.resolve_ref(symbol, exchange)
+        segment = ref.exchange_segment
 
         # Build API payload
         payload = {
             "dhanClientId": self._client.client_id,
             "exchangeSegment": segment,
-            "securityId": inst.security_id,
+            "securityId": ref.security_id_str(),
             "transactionType": transaction_type,
             "orderType": order_type,
             "productType": product_type,
@@ -97,6 +102,9 @@ class SuperOrdersAdapter:
 
         if correlation_id:
             payload["correlationId"] = correlation_id
+
+        # PR-B: defence-in-depth invariant assertion.
+        assert_dhan_payload(payload, context="super_orders.place_super_order")
 
         # Call API
         try:

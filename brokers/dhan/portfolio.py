@@ -8,16 +8,23 @@ from decimal import Decimal
 from brokers.common.core.domain import Balance
 from brokers.dhan.domain import Exchange, Holding, Position, ProductType
 from brokers.dhan.http_client import DhanHttpClient
-from brokers.dhan.resolver import SymbolResolver
+from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 from brokers.dhan.segments import SEGMENT_TO_EXCHANGE
 
 logger = logging.getLogger(__name__)
 
 
 class PortfolioAdapter:
-    def __init__(self, client: DhanHttpClient, resolver: SymbolResolver):
+    def __init__(self, client: DhanHttpClient, identity: DhanIdentityProvider | object):
+        # The portfolio adapter is read-side only: it parses Dhan's
+        # positions/holdings/balance responses and never builds a
+        # security_id-bearing payload. It still receives the identity
+        # provider to keep the constructor signature aligned with the
+        # rest of the adapter layer; the underlying resolver is the
+        # only thing it would ever need.
         self._client = client
-        self._resolver = resolver
+        self._identity = coerce_identity_provider(identity)
+        self._resolver = self._identity.resolver
 
     def get_positions(self) -> list[Position]:
         data = self._client.get("/positions")

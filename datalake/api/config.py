@@ -43,8 +43,12 @@ class APIConfig:
         "http://127.0.0.1:3000",
     ])
     cors_allow_credentials: bool = True
-    cors_allow_methods: List[str] = field(default_factory=lambda: ["*"])
-    cors_allow_headers: List[str] = field(default_factory=lambda: ["*"])
+    cors_allow_methods: List[str] = field(default_factory=lambda: [
+        "GET", "POST", "PUT", "DELETE", "OPTIONS"
+    ])
+    cors_allow_headers: List[str] = field(default_factory=lambda: [
+        "Authorization", "Content-Type", "X-Correlation-ID"
+    ])
     max_page_size: int = 1000
     default_page_size: int = 100
     rate_limit_per_minute: int = 0  # 0 = disabled

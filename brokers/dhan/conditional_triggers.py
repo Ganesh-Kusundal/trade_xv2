@@ -8,7 +8,8 @@ from decimal import Decimal
 from brokers.dhan.domain import ConditionalTrigger, ConditionalTriggerRequest
 from brokers.dhan.exceptions import ConditionalTriggerError
 from brokers.dhan.http_client import DhanHttpClient
-from brokers.dhan.resolver import SymbolResolver
+from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
+from brokers.dhan.invariants import assert_dhan_payload
 from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
 
 logger = logging.getLogger(__name__)
@@ -21,9 +22,10 @@ class ConditionalTriggersAdapter:
     Only PRICE_WITH_VALUE comparison type is supported (not indicators).
     """
 
-    def __init__(self, client: DhanHttpClient, resolver: SymbolResolver):
+    def __init__(self, client: DhanHttpClient, identity: DhanIdentityProvider | object):
         self._client = client
-        self._resolver = resolver
+        self._identity = coerce_identity_provider(identity)
+        self._resolver = self._identity.resolver
 
     def place_trigger(self, request: ConditionalTriggerRequest) -> ConditionalTrigger:
         """Place a conditional trigger order.
@@ -48,13 +50,13 @@ class ConditionalTriggersAdapter:
             })
             raise ValueError(f"Conditional trigger validation failed: {msg}")
 
-        inst = self._resolver.resolve(request.symbol, request.exchange)
-        segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, DEFAULT_SEGMENT)
+        ref = self._identity.resolve_ref(request.symbol, request.exchange)
+        segment = ref.exchange_segment
 
         payload = {
             "dhanClientId": self._client.client_id,
             "exchangeSegment": segment,
-            "securityId": inst.security_id,
+            "securityId": ref.security_id_str(),
             "comparisonType": request.comparison_type,
             "operator": request.operator,
             "comparingValue": float(request.comparing_value),
@@ -66,6 +68,9 @@ class ConditionalTriggersAdapter:
             payload["orders"] = request.orders
         if request.user_note:
             payload["userNote"] = request.user_note
+
+        # PR-B: defence-in-depth invariant assertion.
+        assert_dhan_payload(payload, context="conditional_triggers.place_trigger")
 
         try:
             data = self._client.post("/alerts/orders", json=payload)
@@ -101,12 +106,12 @@ class ConditionalTriggersAdapter:
         Raises:
             ConditionalTriggerError: If API call fails
         """
-        inst = self._resolver.resolve(request.symbol, request.exchange)
-        segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, DEFAULT_SEGMENT)
+        ref = self._identity.resolve_ref(request.symbol, request.exchange)
+        segment = ref.exchange_segment
 
         payload = {
             "exchangeSegment": segment,
-            "securityId": inst.security_id,
+            "securityId": ref.security_id_str(),
             "comparisonType": request.comparison_type,
             "operator": request.operator,
             "comparingValue": float(request.comparing_value),
@@ -118,6 +123,9 @@ class ConditionalTriggersAdapter:
             payload["orders"] = request.orders
         if request.user_note:
             payload["userNote"] = request.user_note
+
+        # PR-B: defence-in-depth invariant assertion.
+        assert_dhan_payload(payload, context="conditional_triggers.modify_trigger")
 
         try:
             data = self._client.put(f"/alerts/orders/{alert_id}", json=payload)
