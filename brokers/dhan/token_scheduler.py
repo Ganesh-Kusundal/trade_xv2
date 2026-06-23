@@ -175,6 +175,15 @@ class TokenRefreshScheduler(ManagedService):
             self._stop_event.wait(timeout=self._interval)
 
     def _do_refresh(self) -> bool:
+        # Check if we're in backoff period due to rate limiting
+        if hasattr(self, '_backoff_until') and time.monotonic() < self._backoff_until:
+            remaining = self._backoff_until - time.monotonic()
+            logger.debug(
+                "token_scheduler_backoff",
+                extra={"remaining_seconds": round(remaining, 1)}
+            )
+            return False
+            
         if not self._refresh_lock.acquire(blocking=False):
             logger.debug(
                 "Token refresh already in progress (from HTTP handler); "
@@ -189,10 +198,38 @@ class TokenRefreshScheduler(ManagedService):
                 self._refresh_count += 1
                 self._last_refresh_at = time.monotonic()
                 self._last_error = None
+                # Clear backoff on success
+                if hasattr(self, '_backoff_until'):
+                    delattr(self, '_backoff_until')
                 logger.debug("Token refresh check passed (count=%d)", self._refresh_count)
                 return True
             self._last_error = "no valid token available"
             logger.warning("Token refresh check failed — no valid token available")
+            return False
+        except RuntimeError as exc:
+            # Handle rate limit errors specifically
+            error_msg = str(exc)
+            if "rate limit" in error_msg.lower() or "once every 2 minutes" in error_msg:
+                # Exponential backoff: start with 2 minutes, double each time
+                backoff_seconds = getattr(self, '_backoff_seconds', 120)
+                self._backoff_until = time.monotonic() + backoff_seconds
+                self._backoff_seconds = min(backoff_seconds * 2, 600)  # Cap at 10 minutes
+                self._last_error = f"Rate limited: {error_msg}"
+                logger.warning(
+                    "Token rate limited - backing off",
+                    extra={
+                        "backoff_seconds": backoff_seconds,
+                        "next_attempt_in": f"{backoff_seconds:.0f}s"
+                    }
+                )
+            else:
+                self._last_error = f"{type(exc).__name__}: {exc}"
+                logger.warning("Token refresh failed: %s", exc)
+            if self._on_error:
+                try:
+                    self._on_error(exc)
+                except Exception as exc2:
+                    logger.debug("token_refresh_error_callback_failed: %s", exc2)
             return False
         except Exception as exc:
             self._last_error = f"{type(exc).__name__}: {exc}"

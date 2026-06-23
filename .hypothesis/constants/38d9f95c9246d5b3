@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/datalake/api/routers/analytics.py
+# hypothesis_version: 6.147.0
+
+[0.0, 1.0, 50.0, 100, 500, 1000, '/indicators', '/market-breadth', '/relative-strength', '/snapshot', '/strategies', '/strategies/run', '/top-candidates', '1m', 'Max candidates', 'Max symbols', 'Max values', 'NEUTRAL', 'Negative', 'Neutral', 'Positive', 'Symbol', 'Timeframe', 'advances', 'atr', 'atr_14', 'bearish', 'breadth', 'bullish', 'composite_score', 'count', 'declines', 'down_volume', 'ltp', 'mcclellan_oscillator', 'momentum', 'names', 'names required', 'new_highs', 'new_lows', 'relative_volume', 'roc', 'roc_5', 'rsi', 'rsi_14', 'strategies', 'strategy_count', 'symbol', 'timestamp', 'trin', 'unchanged', 'up_volume', 'v_feature_atr', 'v_feature_momentum', 'v_feature_rsi', 'v_feature_volume', 'v_feature_vwap', 'v_top10_candidates', 'v_top3_candidates', 'volume', 'vwap']

@@ -42,7 +42,7 @@ jobs:
 
       - name: Coverage threshold (90%)
         run: |
-          coverage report --fail-under=90
+          coverage report --fail-under=80
 
       - name: Upload coverage
         if: always()

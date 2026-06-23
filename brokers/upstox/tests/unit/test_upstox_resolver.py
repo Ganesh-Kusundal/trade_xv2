@@ -273,3 +273,79 @@ class TestResolverBulk:
         resolver.register(_defn("NSE_EQ|A", symbol="A", exchange_segment="NSE_EQ", instrument_type="EQUITY"))
         resolver.register(_defn("NSE_EQ|B", symbol="B", exchange_segment="NSE_EQ", instrument_type="EQUITY"))
         assert set(resolver.keys()) == {"NSE_EQ|A", "NSE_EQ|B"}
+
+
+# ---------------------------------------------------------------------------
+# Option expiry derivation (replaces deprecated /v2/option/expiry)
+# ---------------------------------------------------------------------------
+class TestListOptionExpiries:
+    def test_derives_sorted_future_expiries(self):
+        from datetime import date, timedelta
+        future = (date.today() + timedelta(days=7)).isoformat()
+        farther = (date.today() + timedelta(days=30)).isoformat()
+        resolver = UpstoxInstrumentResolver()
+        resolver.register(_defn(
+            "NSE_FO|NIFTY 24JUN26 25000 CE",
+            symbol="NIFTY 24JUN26 25000 CE", exchange_segment="NSE_FO",
+            instrument_type="OPTION", expiry=future,
+            strike=25000, option_type="CE", underlying_symbol="NIFTY",
+        ))
+        resolver.register(_defn(
+            "NSE_FO|NIFTY 30JUL26 25000 CE",
+            symbol="NIFTY 30JUL26 25000 CE", exchange_segment="NSE_FO",
+            instrument_type="OPTION", expiry=farther,
+            strike=25000, option_type="CE", underlying_symbol="NIFTY",
+        ))
+        result = resolver.list_option_expiries("NIFTY")
+        assert result == sorted(result)
+        assert future in result
+        assert farther in result
+
+    def test_filters_past_expiries(self):
+        from datetime import date, timedelta
+        past = (date.today() - timedelta(days=14)).isoformat()
+        future = (date.today() + timedelta(days=14)).isoformat()
+        resolver = UpstoxInstrumentResolver()
+        resolver.register(_defn(
+            "NSE_FO|NIFTY PAST CE",
+            symbol="NIFTY PAST CE", exchange_segment="NSE_FO",
+            instrument_type="OPTION", expiry=past,
+            option_type="CE", underlying_symbol="NIFTY",
+        ))
+        resolver.register(_defn(
+            "NSE_FO|NIFTY FUTURE CE",
+            symbol="NIFTY FUTURE CE", exchange_segment="NSE_FO",
+            instrument_type="OPTION", expiry=future,
+            option_type="CE", underlying_symbol="NIFTY",
+        ))
+        result = resolver.list_option_expiries("NIFTY")
+        assert past not in result
+        assert future in result
+
+    def test_unknown_underlying_returns_empty(self):
+        resolver = UpstoxInstrumentResolver()
+        # Register an unrelated instrument so the resolver is "loaded".
+        resolver.register(_defn("NSE_EQ|TCS", symbol="TCS", exchange_segment="NSE_EQ", instrument_type="EQUITY"))
+        assert resolver.list_option_expiries("NIFTY") == []
+
+    def test_unloaded_raises(self):
+        # An empty resolver that has never been registered against is not
+        # "loaded" — get_expiries must surface this clearly.
+        resolver = UpstoxInstrumentResolver()
+        with __import__("pytest").raises(RuntimeError):
+            resolver.list_option_expiries("NIFTY")
+
+    def test_resets_expiry_index(self):
+        from datetime import date, timedelta
+        future = (date.today() + timedelta(days=7)).isoformat()
+        resolver = UpstoxInstrumentResolver()
+        resolver.register(_defn(
+            "NSE_FO|NIFTY 24JUN26 25000 CE",
+            symbol="NIFTY 24JUN26 25000 CE", exchange_segment="NSE_FO",
+            instrument_type="OPTION", expiry=future,
+            option_type="CE", underlying_symbol="NIFTY",
+        ))
+        assert len(resolver.list_option_expiries("NIFTY")) == 1
+        resolver.reset()
+        with __import__("pytest").raises(RuntimeError):
+            resolver.list_option_expiries("NIFTY")

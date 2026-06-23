@@ -9,6 +9,8 @@ from typing import Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from datalake.api.auth import reject_ws_if_unauthorized
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -65,7 +67,10 @@ async def market_websocket(websocket: WebSocket):
     """
     import uuid
     connection_id = str(uuid.uuid4())
-    
+
+    if not await reject_ws_if_unauthorized(websocket):
+        return
+
     await market_manager.connect(websocket, connection_id)
     
     # Check if event_bus is available — fail loud if not
@@ -100,6 +105,8 @@ async def market_websocket(websocket: WebSocket):
                 
                 symbols = message.get("symbols", [])
                 await market_manager.subscribe(connection_id, symbols)
+                from datalake.api.ws.feed_wiring import subscribe_symbols_to_broker
+                subscribe_symbols_to_broker(symbols)
                 await market_manager.send_to_client(
                     connection_id,
                     {"type": "subscribed", "symbols": symbols},
@@ -135,9 +142,14 @@ async def symbol_websocket(websocket: WebSocket, symbol: str):
     """
     import uuid
     connection_id = str(uuid.uuid4())
-    
+
+    if not await reject_ws_if_unauthorized(websocket):
+        return
+
     await market_manager.connect(websocket, connection_id)
     await market_manager.subscribe(connection_id, [symbol])
+    from datalake.api.ws.feed_wiring import subscribe_symbols_to_broker
+    subscribe_symbols_to_broker([symbol])
     
     try:
         while True:

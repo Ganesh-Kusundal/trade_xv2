@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/datalake/api/routers/backtest.py
+# hypothesis_version: 6.147.0
+
+[365, ',', '/comparison/{run_id}', '/run', 'NSE', 'breakout', 'count', 'homogeneous', 'metadata', 'metrics', 'momentum', 'run_id', 'runs', 'symbol', 'symbols', 'timeframe', 'timeframes']

@@ -151,6 +151,7 @@ def register_oms_services(
             reconciliation_service=dhan_reconciliation,
             reconciliation_interval_seconds=300.0,
             event_log=event_log,
+            event_bus=service._event_bus,
             replay_events=event_log is not None,
         )
         

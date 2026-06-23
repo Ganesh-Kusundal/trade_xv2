@@ -11,6 +11,11 @@ import time of ``main.py``. These tests verify:
 * ``register`` rejects empty inputs.
 * ``lookup`` raises ``KeyError`` for unknown commands.
 * The registry is reset-clean across tests.
+* ``cli/main.py`` registers every name in
+  :data:`cli.tests.endpoint_manifest.TOP_LEVEL_COMMANDS` and the
+  module-path table (``COMMANDS``) matches the dispatch table
+  (``DISPATCH_TABLE``) — preventing silent drift when new commands
+  are added.
 """
 
 from __future__ import annotations
@@ -18,17 +23,21 @@ from __future__ import annotations
 import pytest
 
 from cli.commands import registry
+from cli.tests.endpoint_manifest import TOP_LEVEL_COMMANDS
 
 
 @pytest.fixture(autouse=True)
 def _isolate_registry() -> None:
     """Save and restore the registry so a test does not leak entries."""
     saved = dict(registry.COMMANDS)
+    saved_dispatch = dict(registry.DISPATCH_TABLE)
     try:
         yield
     finally:
         registry.COMMANDS.clear()
         registry.COMMANDS.update(saved)
+        registry.DISPATCH_TABLE.clear()
+        registry.DISPATCH_TABLE.update(saved_dispatch)
 
 
 def test_register_adds_entry() -> None:
@@ -70,76 +79,82 @@ def test_reset_clears_entries() -> None:
     assert registry.COMMANDS == {}
 
 
-# ── Coverage of the production elif chain ────────────────────────────────
+# ── Manifest-driven contract checks (T0) ───────────────────────────────
 #
-# The names below mirror the strings ``cli/main.py`` routes on. If a
-# future change adds a new subcommand, this list must be updated
-# alongside the elif chain. (The test does NOT import ``cli/main.py``
-# itself — that would create a real BrokerService and pull in Dhan
-# credentials — but it documents the contract that ``main.py`` must
-# register the same names.)
-
-EXPECTED_COMMANDS = {
-    "broker": "cli.commands.broker",
-    "dashboard": "cli.commands.dashboard",
-    "validate": "cli.commands.validate",
-    "validate-history": "cli.commands.validate_history",
-    "validate-option-chain": "cli.commands.validate_option_chain",
-    "benchmark": "cli.commands.benchmark",
-    "compare": "cli.commands.compare",
-    "quality-report": "cli.commands.quality_report",
-    "instrument-info": "cli.commands.instrument_info",
-    "account": "cli.commands.account",
-    "holdings": "cli.commands.portfolio",
-    "positions": "cli.commands.portfolio",
-    "orders": "cli.commands.oms",
-    "trades": "cli.commands.oms",
-    "oms": "cli.commands.oms",
-    "quote": "cli.commands.market",
-    "depth": "cli.commands.market",
-    "option-chain": "cli.commands.market",
-    "futures": "cli.commands.market",
-    "historical": "cli.commands.market",
-    "history": "cli.commands.market",
-    "stream": "cli.commands.market",
-    "websocket": "cli.commands.websocket",
-    "journal": "cli.commands.journal",
-    "events": "cli.commands.events",
-    "search": "cli.commands.search",
-    "instrument": "cli.commands.instrument",
-    "instruments": "cli.commands.instruments",
-    "doctor": "cli.commands.doctor",
-    "load-test": "cli.commands.load_test",
-    "news": "cli.commands.news",
-}
+# The names below are the canonical CLI surface. They must match the
+# dispatch table populated by ``cli/main.py`` at import time. Adding a
+# new CLI command without updating ``endpoint_manifest.py`` will fail
+# this test.
 
 
-def test_register_all_expected_commands() -> None:
-    """Apply the production registration table; every name must be in the registry."""
-    for name, module in EXPECTED_COMMANDS.items():
-        registry.register(name, module)
-    for name, module in EXPECTED_COMMANDS.items():
-        assert registry.lookup(name) == module
+def test_manifest_is_nonempty() -> None:
+    assert len(TOP_LEVEL_COMMANDS) >= 40, (
+        "endpoint_manifest.TOP_LEVEL_COMMANDS must list every CLI "
+        "command. If this fails, you probably removed a command from "
+        "the router without updating the manifest."
+    )
+    assert len(set(TOP_LEVEL_COMMANDS)) == len(TOP_LEVEL_COMMANDS), (
+        "TOP_LEVEL_COMMANDS contains duplicates"
+    )
 
 
 def test_main_module_populates_registry_on_import() -> None:
-    """Importing cli.main must register every subcommand via the
-    module-level ``register(...)`` calls in cli.main.
+    """Importing cli.main must register every manifest top-level command.
 
-    We mark this test as a contract check: it asserts that the dispatch
-    names the elif chain recognises are also discoverable from the
-    registry. If a future change to cli/main.py drops a name from the
-    elif chain but leaves it in the registry, the next test will catch
-    the divergence.
+    Both the module-path table (``COMMANDS``) and the dispatch table
+    (``DISPATCH_TABLE``) must contain every name. If either is
+    missing an entry, the next test will catch the divergence.
     """
     import cli.main  # noqa: F401 — triggers register() calls
 
-    for name, module in EXPECTED_COMMANDS.items():
-        assert name in registry.COMMANDS, (
-            f"cli/main.py does not register command {name!r} "
-            f"(expected module {module!r})"
-        )
-        assert registry.COMMANDS[name] == module, (
-            f"cli/main.py registers {name!r} -> {registry.COMMANDS[name]!r}, "
-            f"expected {module!r}"
-        )
+    missing_from_commands = [
+        name for name in TOP_LEVEL_COMMANDS if name not in registry.COMMANDS
+    ]
+    missing_from_dispatch = [
+        name for name in TOP_LEVEL_COMMANDS if name not in registry.DISPATCH_TABLE
+    ]
+    assert not missing_from_commands, (
+        f"cli/main.py does not register these commands in COMMANDS: "
+        f"{missing_from_commands}"
+    )
+    assert not missing_from_dispatch, (
+        f"cli/main.py does not register these commands in DISPATCH_TABLE: "
+        f"{missing_from_dispatch}"
+    )
+
+
+def test_commands_table_matches_dispatch_table() -> None:
+    """The two registry tables must be in lockstep.
+
+    The dispatch table is what the router actually uses; COMMANDS is
+    a discoverability aid. A drift between them means a command is
+    either un-routable or un-discoverable — both are bugs.
+    """
+    import cli.main  # noqa: F401
+
+    in_commands_only = set(registry.COMMANDS) - set(registry.DISPATCH_TABLE)
+    in_dispatch_only = set(registry.DISPATCH_TABLE) - set(registry.COMMANDS)
+    assert not in_commands_only, (
+        f"commands present in COMMANDS but missing from DISPATCH_TABLE "
+        f"(un-routable): {sorted(in_commands_only)}"
+    )
+    assert not in_dispatch_only, (
+        f"commands present in DISPATCH_TABLE but missing from COMMANDS "
+        f"(un-discoverable): {sorted(in_dispatch_only)}"
+    )
+
+
+def test_no_unexpected_commands_in_dispatch() -> None:
+    """If cli/main.py adds a new command, the manifest must be updated.
+
+    This is the inverse of the previous test — it catches a new
+    command being added to the router but forgotten in
+    ``endpoint_manifest.py``.
+    """
+    import cli.main  # noqa: F401
+
+    extra = set(registry.DISPATCH_TABLE) - set(TOP_LEVEL_COMMANDS)
+    assert not extra, (
+        f"cli/main.py routes new commands not in endpoint_manifest: "
+        f"{sorted(extra)}. Add them to cli/tests/endpoint_manifest.py."
+    )

@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/cli/commands/doctor/strategies/market_data.py
+# hypothesis_version: 6.147.0
+
+['1D', 'FAIL', 'Historical Data', 'INFO', 'Market Data', 'Market Depth', 'PASS', 'Quote', 'RELIANCE', 'WARN']

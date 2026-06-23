@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/upstox/broker.py
+# hypothesis_version: 6.147.0
+
+['fundamentals', 'futures', 'gtt', 'intelligence', 'ipo', 'kill_switch', 'margin', 'market_status', 'mutual_funds', 'news', 'options', 'payments', 'placeholder', 'portfolio', 'static_ip', 'upstox']

@@ -261,22 +261,28 @@ class GreeksAnalytics:
         if days_to_expiry is None:
             days_to_expiry = 30.0
         t = max(days_to_expiry / 365.0, 1 / 365.0)
-
-        for _, row in df.iterrows():
-            strike = float(row["strike"])
-            iv = float(row.get("iv", 0.2))
-            iv = max(iv, 0.01)
-            option_type = str(row.get("option_type", "CE")).upper()
-
-            d1, d2 = self._d1_d2(spot, strike, t, risk_free_rate, iv)
-            if option_type in ("CE", "CALL"):
-                df.at[row.name, "delta"] = self._call_delta(d1)
-                df.at[row.name, "theta"] = self._call_theta(spot, strike, t, risk_free_rate, iv, d1, d2) / 365.0
+        
+        # Pre-allocate columns
+        df["delta"] = 0.0
+        df["theta"] = 0.0
+        df["gamma"] = 0.0
+        df["vega"] = 0.0
+        
+        # Vectorized computation where possible, fallback to row iteration for complex logic
+        strikes = df["strike"].values
+        ivs = df["iv"].fillna(0.2).clip(lower=0.01).values
+        option_types = df["option_type"].fillna("CE").str.upper().values
+        
+        for i, (strike, iv, opt_type) in enumerate(zip(strikes, ivs, option_types)):
+            d1, d2 = self._d1_d2(spot, float(strike), t, risk_free_rate, float(iv))
+            if opt_type in ("CE", "CALL"):
+                df.iat[i, df.columns.get_loc("delta")] = self._call_delta(d1)
+                df.iat[i, df.columns.get_loc("theta")] = self._call_theta(spot, float(strike), t, risk_free_rate, float(iv), d1, d2) / 365.0
             else:
-                df.at[row.name, "delta"] = self._put_delta(d1)
-                df.at[row.name, "theta"] = self._put_theta(spot, strike, t, risk_free_rate, iv, d1, d2) / 365.0
-            df.at[row.name, "gamma"] = self._gamma(spot, t, iv, d1)
-            df.at[row.name, "vega"] = self._vega(spot, t, iv, d1) / 100.0
+                df.iat[i, df.columns.get_loc("delta")] = self._put_delta(d1)
+                df.iat[i, df.columns.get_loc("theta")] = self._put_theta(spot, float(strike), t, risk_free_rate, float(iv), d1, d2) / 365.0
+            df.iat[i, df.columns.get_loc("gamma")] = self._gamma(spot, t, float(iv), d1)
+            df.iat[i, df.columns.get_loc("vega")] = self._vega(spot, t, float(iv), d1) / 100.0
 
         return df
 

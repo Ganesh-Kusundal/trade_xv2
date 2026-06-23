@@ -7,6 +7,8 @@ from typing import Protocol
 
 import pandas as pd
 
+from domain.entities import FutureChain, OptionChain
+
 
 class MarketDataProvider(Protocol):
     """Minimal interface required by analytics engines."""
@@ -21,15 +23,21 @@ class MarketDataProvider(Protocol):
         to_date: str | None = None,
     ) -> pd.DataFrame: ...
 
-    def option_chain(self, underlying: str, *, expiry: str | None = None) -> dict: ...
+    def option_chain(self, underlying: str, *, expiry: str | None = None) -> OptionChain: ...
 
-    def future_chain(self, underlying: str) -> dict: ...
+    def future_chain(self, underlying: str) -> FutureChain: ...
 
     def ltp(self, symbol: str, *, exchange: str = "NSE") -> float: ...
 
 
 class DataFrameMarketDataProvider:
-    def __init__(self, history: dict[str, pd.DataFrame], option_chains: dict[str, dict] | None = None, future_chains: dict[str, dict] | None = None, prices: dict[str, float] | None = None) -> None:
+    def __init__(
+        self,
+        history: dict[str, pd.DataFrame],
+        option_chains: dict[str, OptionChain | dict] | None = None,
+        future_chains: dict[str, FutureChain | dict] | None = None,
+        prices: dict[str, float] | None = None,
+    ) -> None:
         self._history = history
         self.option_chains = option_chains or {}
         self.future_chains = future_chains or {}
@@ -47,12 +55,18 @@ class DataFrameMarketDataProvider:
         del timeframe, lookback_days, from_date, to_date
         return self._history.get(symbol.upper(), pd.DataFrame())
 
-    def option_chain(self, underlying: str, *, expiry: str | None = None) -> dict:
+    def option_chain(self, underlying: str, *, expiry: str | None = None) -> OptionChain:
         del expiry
-        return self.option_chains.get(underlying.upper(), {"strikes": []})
+        raw = self.option_chains.get(underlying.upper())
+        if isinstance(raw, OptionChain):
+            return raw
+        return OptionChain.from_dict(raw or {"strikes": []})
 
-    def future_chain(self, underlying: str) -> dict:
-        return self.future_chains.get(underlying.upper(), {"contracts": []})
+    def future_chain(self, underlying: str) -> FutureChain:
+        raw = self.future_chains.get(underlying.upper())
+        if isinstance(raw, FutureChain):
+            return raw
+        return FutureChain.from_dict(raw or {"contracts": []})
 
     def ltp(self, symbol: str, *, exchange: str = "NSE") -> float:
         del exchange
@@ -84,13 +98,13 @@ class CsvMarketDataProvider:
                 self._cache[key] = df
         return self._cache[key]
 
-    def option_chain(self, underlying: str, *, expiry: str | None = None) -> dict:
+    def option_chain(self, underlying: str, *, expiry: str | None = None) -> OptionChain:
         del underlying, expiry
-        return {"strikes": []}
+        return OptionChain(underlying="", exchange="", expiry="")
 
-    def future_chain(self, underlying: str) -> dict:
+    def future_chain(self, underlying: str) -> FutureChain:
         del underlying
-        return {"contracts": []}
+        return FutureChain(underlying="", exchange="")
 
     def ltp(self, symbol: str, *, exchange: str = "NSE") -> float:
         del symbol, exchange
@@ -112,11 +126,17 @@ class GatewayMarketDataProvider:
     ) -> pd.DataFrame:
         return self._gateway.history(symbol, timeframe=timeframe, lookback_days=lookback_days, from_date=from_date, to_date=to_date)
 
-    def option_chain(self, underlying: str, *, expiry: str | None = None) -> dict:
-        return self._gateway.option_chain(underlying, expiry=expiry)
+    def option_chain(self, underlying: str, *, expiry: str | None = None) -> OptionChain:
+        chain = self._gateway.option_chain(underlying, expiry=expiry)
+        if isinstance(chain, OptionChain):
+            return chain
+        return OptionChain.from_dict(chain)
 
-    def future_chain(self, underlying: str) -> dict:
-        return self._gateway.future_chain(underlying)
+    def future_chain(self, underlying: str) -> FutureChain:
+        chain = self._gateway.future_chain(underlying)
+        if isinstance(chain, FutureChain):
+            return chain
+        return FutureChain.from_dict(chain if isinstance(chain, dict) else {})
 
     def ltp(self, symbol: str, *, exchange: str = "NSE") -> float:
         return float(self._gateway.ltp(symbol, exchange=exchange))

@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/common/connection_pool.py
+# hypothesis_version: 6.147.0
+
+[100, 'Accept', 'BROKER_TYPES', 'Content-Type', 'DEFAULT_POOL_MAXSIZE', 'application/json', 'broker_keys', 'dhan', 'get_broker_session', 'get_connection_pool', 'http://', 'https://', 'is_closed', 'max_retries', 'paper', 'pool_connections', 'pool_maxsize', 'session_count', 'upstox']

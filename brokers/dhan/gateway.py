@@ -10,27 +10,31 @@ from typing import Any
 
 import pandas as pd
 
+from brokers.common.batch_mixin import BatchFetchMixin
 from brokers.common.gateway import BrokerCapabilities, MarketDataGateway, ObservabilityProvider
 from brokers.common.core.domain import (
     Balance,
     ExchangeSegment,
+    FutureChain,
     MarketDepth,
+    OptionChain,
     OrderRequest,
     OrderResponse,
+    OrderStatus,
     OrderType,
     ProductType,
     Quote,
     Side,
     Validity,
-)
-from brokers.dhan.connection import DhanConnection
-from brokers.dhan.domain import (
     Holding,
     Order,
     Position,
     Trade,
 )
+from brokers.dhan.connection import DhanConnection
+from brokers.dhan.exceptions import OrderError
 from brokers.common.resilience.circuit_breaker import CircuitState
+from brokers.common.core.exchange_segments import parse_segment
 from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
 
 from brokers.dhan.websocket import DhanMarketFeed
@@ -38,7 +42,7 @@ from brokers.dhan.websocket import DhanMarketFeed
 logger = logging.getLogger(__name__)
 
 
-class BrokerGateway(MarketDataGateway, ObservabilityProvider):
+class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
     """Unified broker API. All calls delegate to connection adapters.
     
     Implements both MarketDataGateway (broker-agnostic contract) and
@@ -52,6 +56,12 @@ class BrokerGateway(MarketDataGateway, ObservabilityProvider):
         self._stream_registry: dict[tuple[str, str], list[Any]] = {}
         # P1 Fix: Track subscription mode per instrument for correct unsubscribe
         self._subscription_modes: dict[tuple[str, str], str] = {}
+        # Broker-agnostic options facade — CLI/tests use ``gateway.options``.
+        from brokers.common.options.gateway_facade import GatewayOptionsFacade
+        self.options = GatewayOptionsFacade(
+            _DhanOptionsAdapterShim(self._conn.options),
+            exchange_normalize=_dhan_normalize_exchange,
+        )
 
     @property
     def extended(self) -> Any:
@@ -79,6 +89,7 @@ class BrokerGateway(MarketDataGateway, ObservabilityProvider):
         validity: str = "DAY",
         trigger_price: Decimal = Decimal("0"),
         correlation_id: str | None = None,
+        transport_only: bool = False,
     ) -> OrderResponse:
         """Place an order with explicit parameters matching MarketDataGateway ABC.
 
@@ -109,10 +120,13 @@ class BrokerGateway(MarketDataGateway, ObservabilityProvider):
             except ImportError:
                 pass
 
+        exchange_segment = parse_segment(exchange)
+        if exchange_segment is None:
+            raise ValueError(f"Unknown exchange segment: {exchange!r}")
         request = OrderRequest(
             symbol=symbol,
             exchange=exchange,
-            exchange_segment=ExchangeSegment.NSE,
+            exchange_segment=exchange_segment,
             transaction_type=Side(side.upper()),
             quantity=quantity,
             price=price,
@@ -121,11 +135,34 @@ class BrokerGateway(MarketDataGateway, ObservabilityProvider):
             product_type=ProductType(product_type.upper()),
             validity=Validity(validity.upper()),
             correlation_id=correlation_id,
+            transport_only=transport_only,
         )
-        return self._conn.orders.place_order(request)
+        try:
+            order = self._conn.orders.place_order(request)
+            status = OrderStatus.OPEN
+            try:
+                status = OrderStatus(order.status.value.upper())
+            except (AttributeError, ValueError):
+                pass
+            return OrderResponse.ok(
+                order_id=order.order_id,
+                message="Order placed",
+                status=status,
+            )
+        except OrderError as exc:
+            return OrderResponse.fail(str(exc))
 
     def cancel_order(self, order_id: str) -> OrderResponse:
         return self._conn.orders.cancel_order(order_id)
+
+    def modify_order(self, order_id: str, **changes: Any) -> OrderResponse:
+        from brokers.common.core.models import OrderResponse as OR
+
+        try:
+            order = self._conn.orders.modify_order(order_id, **changes)
+            return OR.ok(order_id=order.order_id, message="Order modified", status=order.status)
+        except Exception as exc:
+            return OR.fail(str(exc))
 
     def get_orderbook(self) -> list[Order]:
         return self._conn.orders.get_orderbook()
@@ -308,15 +345,17 @@ class BrokerGateway(MarketDataGateway, ObservabilityProvider):
         underlying: str,
         exchange: str = "NFO",
         expiry: str | None = None,
-    ) -> dict:
+    ) -> OptionChain:
         """Get option chain. Delegates MCX-specific expiry lookup to extended."""
-        return self.extended.get_option_chain(underlying, exchange, expiry)
+        return OptionChain.from_dict(
+            self.extended.get_option_chain(underlying, exchange, expiry)
+        )
 
     def future_chain(
         self,
         underlying: str,
         exchange: str = "NFO",
-    ) -> dict:
+    ) -> FutureChain:
         nfo_map = {"NIFTY": "NFO", "BANKNIFTY": "NFO", "FINNIFTY": "NFO", "SENSEX": "BFO"}
         dhan_exchange = nfo_map.get(underlying.upper(), exchange)
         contracts = self._conn.futures.get_contracts(underlying, dhan_exchange)
@@ -329,7 +368,12 @@ class BrokerGateway(MarketDataGateway, ObservabilityProvider):
                 "lot_size": c.get("lot_size", 1),
                 "underlying": c.get("underlying", underlying),
             })
-        return {"underlying": underlying, "exchange": dhan_exchange, "expiries": expiries, "contracts": chain}
+        return FutureChain.from_dict({
+            "underlying": underlying,
+            "exchange": dhan_exchange,
+            "expiries": expiries,
+            "contracts": chain,
+        })
 
     def funds(self) -> Balance:
         return self._conn.portfolio.get_balance()
@@ -547,29 +591,7 @@ class BrokerGateway(MarketDataGateway, ObservabilityProvider):
         """Fetch quotes for multiple symbols using native batch API (up to 1000)."""
         return self._conn.market_data.get_batch_quote(symbols, exchange)
 
-    def history_batch(
-        self,
-        symbols: list[str],
-        exchange: str = "NSE",
-        timeframe: str = "1D",
-        lookback_days: int = 90,
-    ) -> pd.DataFrame:
-        """Fetch history for multiple symbols in parallel."""
-        from concurrent.futures import ThreadPoolExecutor, as_completed
-        frames = []
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            futures = {
-                executor.submit(self.history, sym, exchange, timeframe, lookback_days): sym
-                for sym in symbols
-            }
-            for future in as_completed(futures):
-                try:
-                    df = future.result()
-                    if not df.empty:
-                        frames.append(df)
-                except Exception as exc:
-                    logger.debug("history_batch_future_failed: %s", exc)
-        return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+    # history_batch inherited from BatchFetchMixin (parallel single-item history calls)
 
     # -----------------------------------------------------------------------
     # ObservabilityProvider Implementation
@@ -637,4 +659,38 @@ class BrokerGateway(MarketDataGateway, ObservabilityProvider):
         except Exception as exc:
             logger.debug("token_refresh_metrics_failed: %s", exc)
             return {"refresh_count": 0, "error_count": 0}
+
+
+class _DhanOptionsAdapterShim:
+    """Bridges :class:`brokers.dhan.options.OptionsAdapter` to the
+    :class:`GatewayOptionsFacade` interface.
+
+    Dhan's adapter has ``get_expiries(underlying, exchange)`` and
+    ``get_option_chain(underlying, exchange, expiry, *, security_id=None)``
+    returning a Dhan-canonical dict. This shim strips ``security_id`` for
+    the facade and passes through everything else.
+    """
+
+    def __init__(self, adapter) -> None:
+        self._adapter = adapter
+
+    def get_expiries(self, underlying: str, exchange: str) -> list[str]:
+        return self._adapter.get_expiries(underlying, exchange)
+
+    def get_option_chain(self, underlying: str, exchange: str, expiry: str) -> dict:
+        return self._adapter.get_option_chain(underlying, exchange, expiry)
+
+
+def _dhan_normalize_exchange(symbol: str, exchange: str) -> str:
+    """Translate a generic exchange string into the Dhan-canonical form.
+
+    Dhan option-chain calls accept ``"INDEX"`` (per integration tests) and
+    ``"NSE"`` / ``"BSE"``. The integration suite uses ``"INDEX"`` for index
+    underlyings (NIFTY, BANKNIFTY); we keep that convention.
+    """
+    from config.indices import dhan_index_exchange, is_index
+
+    if is_index(symbol):
+        return dhan_index_exchange(symbol) or exchange
+    return exchange
 

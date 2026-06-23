@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/common/event_bus/factory.py
+# hypothesis_version: 6.147.0
+
+[1000, '0', '1', 'ASYNC_BUS_ENV_VAR', 'AsyncEventBusFactory', 'AsyncPublishAdapter', 'BLOCK', 'TRUE', 'True', 'USE_ASYNC_EVENT_BUS', 'create_domain_event', 'env_var', 'force_async', 'true']

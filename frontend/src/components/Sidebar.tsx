@@ -1,39 +1,18 @@
 /**
  * Sidebar — vertical nav + watchlist (left rail).
- *
- * Click a watchlist row to switch the active symbol. The watchlist
- * is persisted to localStorage via the app store.
  */
 
-import { useState, useEffect } from 'react'
-import { Star, X, Activity } from 'lucide-react'
 import { useAppStore } from '@/store/app'
-import { getQuote } from '@/api/client'
+import { useMarketStream } from '@/hooks/useMarketStream'
+import { Star, X, Activity } from 'lucide-react'
 import { cn, formatIN, formatPercent, pnlColor } from '@/lib/utils'
-import type { Quote } from '@/types'
 
 export function Sidebar() {
   const watchlist = useAppStore((s) => s.watchlist)
   const active = useAppStore((s) => s.activeSymbol)
   const setActive = useAppStore((s) => s.setActiveSymbol)
   const remove = useAppStore((s) => s.removeFromWatchlist)
-  const [quotes, setQuotes] = useState<Record<string, Quote | null>>({})
-
-  useEffect(() => {
-    let alive = true
-    const tick = async () => {
-      const out: Record<string, Quote | null> = {}
-      await Promise.all(
-        watchlist.map(async (s) => {
-          try { out[s] = await getQuote(s) } catch { out[s] = null }
-        }),
-      )
-      if (alive) setQuotes(out)
-    }
-    tick()
-    const id = window.setInterval(tick, 3000)
-    return () => { alive = false; clearInterval(id) }
-  }, [watchlist])
+  const { quotes, connected } = useMarketStream({ symbols: watchlist, enabled: watchlist.length > 0 })
 
   return (
     <aside className="w-64 border-r border-bline bg-bbg1 flex flex-col min-h-0">
@@ -41,6 +20,7 @@ export function Sidebar() {
       <div className="flex items-center justify-between px-2 h-7 border-b border-bline bg-bbg2">
         <div className="flex items-center gap-1.5 text-2xs font-semibold uppercase tracking-wider text-bfgm">
           <Star className="h-3 w-3 text-bamb" /> Watchlist
+          {connected && <Activity className="h-3 w-3 text-bull" aria-label="Live feed" />}
         </div>
         <span className="text-[10px] font-mono num text-bfgd">{watchlist.length}</span>
       </div>
@@ -55,7 +35,7 @@ export function Sidebar() {
       {/* Rows */}
       <ul className="flex-1 overflow-y-auto">
         {watchlist.map((s) => {
-          const q = quotes[s]
+          const q = quotes[s.toUpperCase()] ?? quotes[s]
           const isActive = s === active
           return (
             <li
@@ -78,31 +58,21 @@ export function Sidebar() {
               <span className="font-mono num text-right">
                 {q ? formatIN(q.ltp) : '—'}
               </span>
-              <span className={cn('font-mono num text-right', q ? pnlColor(q.changePct) : '')}>
+              <span className={cn('font-mono num text-right', q ? pnlColor(q.change) : '')}>
                 {q ? formatPercent(q.changePct) : '—'}
               </span>
               <button
+                type="button"
+                className="opacity-0 group-hover:opacity-100 text-fgd hover:text-bear"
                 onClick={(e) => { e.stopPropagation(); remove(s) }}
-                className="opacity-0 group-hover:opacity-100 text-bfgd hover:text-bear"
-                title="Remove from watchlist"
+                aria-label={`Remove ${s}`}
               >
                 <X className="h-3 w-3" />
               </button>
             </li>
           )
         })}
-        {watchlist.length === 0 && (
-          <li className="px-2 py-4 text-center text-2xs text-bfgd">
-            Empty. Use ⌘K to add symbols.
-          </li>
-        )}
       </ul>
-
-      {/* Footer */}
-      <div className="border-t border-bline px-2 py-1.5 text-[10px] text-bfgd flex items-center gap-1.5">
-        <Activity className="h-3 w-3 text-bcy" />
-        <span className="font-mono num">Auto-refresh 3s</span>
-      </div>
     </aside>
   )
 }

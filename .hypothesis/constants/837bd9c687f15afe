@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/cli/commands/analytics_halftrend.py
+# hypothesis_version: 6.147.0
+
+[1.0, 100, 365, 500, 100000, '#', '-', '--', '--cooldown', '--period', '--top', '--workers', '--years', '1m', 'BUY', 'BUY Signals', 'Bars', 'Close', 'Cooldown', 'Current Trend', 'DOWN', 'Distance', 'FLAT', 'HOLD', 'HT Line', 'HalfTrend Line', 'Metric', 'Period', 'Recent Signals', 'Return', 'SELL', 'SELL Signals', 'Sharpe', 'Signal', 'Symbol', 'Time', 'Total Bars', 'Trades', 'Trend', 'UNDEFINED', 'UP', 'Value', 'Win Rate', '[red]No data[/red]', 'bold', 'bold cyan', 'bold white', 'close', 'cyan', 'dim', 'green', 'halftrend', 'halftrend_direction', 'halftrend_signal', 'magenta', 'red', 'timestamp', 'yellow']

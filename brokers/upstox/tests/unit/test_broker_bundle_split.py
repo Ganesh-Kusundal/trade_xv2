@@ -80,6 +80,8 @@ EXPECTED_ATTRIBUTES = frozenset(
         # Reconciliation / pnl
         "reconciliation_service",
         "trade_pnl_calculator",
+        # Capability groups (deepening roadmap)
+        "capabilities",
     }
 )
 

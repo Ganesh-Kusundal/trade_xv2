@@ -41,6 +41,7 @@ from brokers.common.core.domain import (
     Validity,
 )
 from brokers.upstox.order_mapping import UpstoxFieldMapping
+import brokers.upstox.status_mapper  # noqa: F401 — register Upstox status mappings
 
 from .price_parser import UpstoxPriceParser
 
@@ -78,8 +79,7 @@ def _wire_status_to_domain_status(raw: str) -> OrderStatus:
     """Convert Upstox wire status string to canonical domain OrderStatus."""
     if not raw:
         return OrderStatus.OPEN
-    from brokers.upstox.status_mapper import normalize_upstox_status
-    return normalize_upstox_status(raw)
+    return OrderStatus.normalize(raw)
 
 
 # ── Parsing helpers (delegated to shared utilities) ─────────────────────
@@ -375,6 +375,9 @@ class UpstoxDomainMapper:
     def to_option_contract(payload: Any) -> OptionContract:
         if not isinstance(payload, dict):
             return OptionContract()
+        call = payload.get("call_options") if isinstance(payload.get("call_options"), dict) else {}
+        put = payload.get("put_options") if isinstance(payload.get("put_options"), dict) else {}
+
         return OptionContract(
             strike=UpstoxPriceParser.parse(payload.get("strike_price") or 0),
             expiry=str(payload.get("expiry") or ""),
@@ -383,17 +386,68 @@ class UpstoxDomainMapper:
             ).value,
             exchange=str(payload.get("exchange") or "NFO"),
             lot_size=_to_int(payload.get("lot_size")),
-            call_ltp=UpstoxPriceParser.parse(
-                payload.get("call_options", {}).get("market_data", {}).get("ltp") or 0
-            )
-            if isinstance(payload.get("call_options"), dict)
-            else None,
-            put_ltp=UpstoxPriceParser.parse(
-                payload.get("put_options", {}).get("market_data", {}).get("ltp") or 0
-            )
-            if isinstance(payload.get("put_options"), dict)
-            else None,
+            call_ltp=UpstoxDomainMapper._leg_ltp(call),
+            call_oi=UpstoxDomainMapper._leg_oi(call),
+            call_volume=UpstoxDomainMapper._leg_volume(call),
+            call_iv=UpstoxDomainMapper._leg_iv(call),
+            put_ltp=UpstoxDomainMapper._leg_ltp(put),
+            put_oi=UpstoxDomainMapper._leg_oi(put),
+            put_volume=UpstoxDomainMapper._leg_volume(put),
+            put_iv=UpstoxDomainMapper._leg_iv(put),
         )
+
+    # -- Per-leg field extractors for Upstox option-chain payloads ---------
+    @staticmethod
+    def _leg_market_data(leg: dict) -> dict:
+        if not isinstance(leg, dict):
+            return {}
+        md = leg.get("market_data")
+        return md if isinstance(md, dict) else {}
+
+    @staticmethod
+    def _leg_greeks(leg: dict) -> dict:
+        if not isinstance(leg, dict):
+            return {}
+        g = leg.get("option_greeks")
+        return g if isinstance(g, dict) else {}
+
+    @staticmethod
+    def _leg_ltp(leg: dict):
+        md = UpstoxDomainMapper._leg_market_data(leg)
+        val = md.get("ltp")
+        return UpstoxPriceParser.parse(val) if val is not None else None
+
+    @staticmethod
+    def _leg_oi(leg: dict) -> int | None:
+        md = UpstoxDomainMapper._leg_market_data(leg)
+        val = md.get("oi")
+        return _to_int(val) if val is not None else None
+
+    @staticmethod
+    def _leg_volume(leg: dict) -> int | None:
+        md = UpstoxDomainMapper._leg_market_data(leg)
+        val = md.get("volume")
+        return _to_int(val) if val is not None else None
+
+    @staticmethod
+    def _leg_iv(leg: dict):
+        md = UpstoxDomainMapper._leg_market_data(leg)
+        val = md.get("iv")
+        return UpstoxPriceParser.parse(val) if val is not None else None
+
+    @staticmethod
+    def leg_instrument_key(leg: dict) -> str | None:
+        if not isinstance(leg, dict):
+            return None
+        key = leg.get("instrument_key") or leg.get("instrument_token")
+        return str(key) if key else None
+
+    @staticmethod
+    def leg_trading_symbol(leg: dict) -> str | None:
+        if not isinstance(leg, dict):
+            return None
+        ts = leg.get("trading_symbol") or leg.get("symbol")
+        return str(ts) if ts else None
 
     @staticmethod
     def to_historical_candle(payload: Any) -> HistoricalCandle:

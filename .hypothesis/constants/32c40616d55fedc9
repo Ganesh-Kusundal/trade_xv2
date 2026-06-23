@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/analytics/sector/volume.py
+# hypothesis_version: 6.147.0
+
+[0.0, 0.5, 0.9, 1.0, 1.1, 1.5, 100, 'Unknown', 'close', 'concentrating', 'date', 'decreasing', 'increasing', 'neutral', 'rotating', 'sector', 'stable', 'timestamp', 'volume']

@@ -28,6 +28,8 @@ from brokers.common.batch_mixin import BatchFetchMixin
 from brokers.common.core.domain import (
     Balance,
     ExchangeSegment,
+    FutureChain,
+    OptionChain,
     Holding,
     MarketDepth,
     Order,
@@ -72,12 +74,12 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
 
     def __init__(self, broker: UpstoxBroker):
         """Initialize gateway with broker facade and create adapters.
-        
+
         Args:
             broker: UpstoxBroker instance with all underlying adapters initialized
         """
         self._broker = broker
-        
+
         # Initialize specialized adapters
         self._market_data = MarketDataAdapter(broker)
         self._historical = HistoricalAdapter(broker)
@@ -85,6 +87,18 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         self._stream_manager = StreamManagerAdapter(broker, broker.instrument_resolver)
         self._order_adapter = OrderAdapter(broker)
         self._portfolio = PortfolioAdapter(broker)
+
+        # Broker-agnostic options facade for CLI / tests.
+        from brokers.common.options.gateway_facade import GatewayOptionsFacade
+        # The facade adapter is only constructed when the broker exposes an
+        # ``options`` attribute — tests that build a MagicMock with
+        # ``spec=UpstoxBroker`` (which doesn't list ``options``) still
+        # construct successfully.
+        options_attr = getattr(self._broker, "options", None)
+        if options_attr is not None:
+            self.options = GatewayOptionsFacade(
+                options_attr, exchange_normalize=_upstox_normalize_exchange
+            )
 
 
     # ── Backward compatibility properties (for tests accessing internals) ──
@@ -281,25 +295,35 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         underlying: str,
         exchange: str = "NFO",
         expiry: str | None = None,
-    ) -> dict:
-        """Get the option chain for an underlying.
-
-        Delegates to the broker's UpstoxOptionsAdapter which calls the
-        V2 option-chain endpoint.
-        """
+    ) -> OptionChain:
+        """Get the option chain for an underlying."""
         if expiry is None:
             expiries = self._broker.options.get_expiries(underlying, exchange)
             if not expiries:
-                return {}
+                return OptionChain(underlying=underlying, exchange=exchange, expiry="")
             expiry = expiries[0]
+        from brokers.common.options.chain_normalizer import upstox_chain_to_canonical
+        if hasattr(self._broker.options, "get_option_chain_with_meta"):
+            result = self._broker.options.get_option_chain_with_meta(
+                underlying, exchange, expiry
+            )
+            if isinstance(result, tuple) and len(result) == 3:
+                contracts, raw_rows, _body = result
+                return upstox_chain_to_canonical(
+                    contracts, raw_rows, underlying, exchange, expiry
+                )
         contracts = self._broker.options.get_option_chain(underlying, exchange, expiry)
-        return {"data": contracts, "underlying": underlying, "expiry": expiry}
+        if not isinstance(contracts, list):
+            return OptionChain(underlying=underlying, exchange=exchange, expiry=expiry)
+        return upstox_chain_to_canonical(
+            contracts, None, underlying, exchange, expiry
+        )
 
     def future_chain(
         self,
         underlying: str,
         exchange: str = "NFO",
-    ) -> dict:
+    ) -> FutureChain:
         """Get the future chain for an underlying.
         
         Raises:
@@ -477,6 +501,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         trigger_price: Decimal = Decimal("0"),
         correlation_id: str | None = None,
         is_amo: bool = False,
+        transport_only: bool = False,
     ) -> OrderResponse:
         """Place an order via Upstox.
 
@@ -500,6 +525,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
             trigger_price=trigger_price,
             correlation_id=correlation_id,
             is_amo=is_amo,
+            transport_only=transport_only,
         )
 
     def cancel_order(self, order_id: str) -> OrderResponse:
@@ -512,6 +538,19 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
             never raises.
         """
         return self._order_adapter.cancel_order(order_id)
+
+    def modify_order(self, order_id: str, **changes: Any) -> OrderResponse:
+        """Modify an order via Upstox V3 API."""
+        from brokers.common.core.models import OrderResponse
+
+        try:
+            result = self._order_adapter.modify_order(order_id, **changes)
+            if isinstance(result, dict) and result.get("status") == "success":
+                return OrderResponse.ok(order_id=order_id, message="Order modified")
+            message = result.get("message", "modify failed") if isinstance(result, dict) else "modify failed"
+            return OrderResponse.fail(message)
+        except Exception as exc:
+            return OrderResponse.fail(str(exc))
 
     # ── Backward compatibility for internal methods (used by tests) ──
 
@@ -544,3 +583,13 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         """
         from brokers.upstox.adapters.tick_translator import TickTranslatorAdapter
         return TickTranslatorAdapter._canonical_symbol_for_defn(defn, fallback_key)
+
+
+def _upstox_normalize_exchange(symbol: str, exchange: str) -> str:
+    """Translate a generic exchange string into the Upstox segment form.
+
+    CLI callers pass ``"INDEX"`` for index underlyings; the options adapter
+    normalizes this to ``NSE_INDEX`` (or ``BSE_INDEX``) internally. The
+    facade just passes through; the adapter handles segment mapping.
+    """
+    return exchange

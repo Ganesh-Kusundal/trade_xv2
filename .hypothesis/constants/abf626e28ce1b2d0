@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/cli/commands/doctor/strategies/active_broker.py
+# hypothesis_version: 6.147.0
+
+['  Capabilities', '  Rate Limits', ', ', 'Active Broker', 'Depth20', 'Depth200', 'FAIL', 'PASS', 'SuperOrders', 'WebSocket', 'capabilities', 'describe', 'live', 'type']

@@ -59,6 +59,7 @@ class DhanConnectionSettings(BrokerSettings):
     token_lifetime_seconds: int = _TOKEN_LIFETIME_SECONDS
     scheduler_interval_seconds: int = _SCHEDULER_INTERVAL_SECONDS
     refresh_buffer_seconds: int = _REFRESH_BUFFER_SECONDS
+    allow_live_orders: bool = False
 
     # ── Derived properties ────────────────────────────────────────────
 
@@ -109,9 +110,16 @@ class DhanSettingsLoader(SettingsLoaderBase):
         """
         cls._load_default_env(env_path)
 
+        from config.secrets_manager import SecretsManager
+
+        secrets = SecretsManager()
+
         client_id = cls._get(prefix, "CLIENT_ID")
         if not client_id:
             raise ValueError("DHAN_CLIENT_ID is required")
+
+        pin = cls._get(prefix, "PIN", default="") or secrets.get_dhan_pin()
+        totp_secret = cls._get(prefix, "TOTP_SECRET", default="") or secrets.get_dhan_totp_secret()
 
         return DhanConnectionSettings(
             client_id=client_id,
@@ -121,8 +129,8 @@ class DhanSettingsLoader(SettingsLoaderBase):
             enable_retry=cls._get_bool(prefix, "ENABLE_RETRY", default=True),
             pool_connections=cls._get_int(prefix, "POOL_CONNECTIONS", default=50),
             pool_maxsize=cls._get_int(prefix, "POOL_MAXSIZE", default=100),
-            pin=cls._get(prefix, "PIN", default=""),
-            totp_secret=cls._get(prefix, "TOTP_SECRET", default=""),
+            pin=pin,
+            totp_secret=totp_secret,
             token_lifetime_seconds=cls._get_int(
                 prefix, "TOKEN_LIFETIME_SECONDS", default=_TOKEN_LIFETIME_SECONDS
             ),
@@ -132,6 +140,7 @@ class DhanSettingsLoader(SettingsLoaderBase):
             refresh_buffer_seconds=cls._get_int(
                 prefix, "REFRESH_BUFFER_SECONDS", default=_REFRESH_BUFFER_SECONDS
             ),
+            allow_live_orders=cls._get_bool(prefix, "ALLOW_LIVE_ORDERS", default=False),
         )
 
     @classmethod
@@ -161,4 +170,5 @@ class DhanSettingsLoader(SettingsLoaderBase):
             refresh_buffer_seconds=cls._parse_int(
                 _val("refreshBufferSeconds"), _REFRESH_BUFFER_SECONDS
             ),
+            allow_live_orders=cls._parse_bool(_val("allowLiveOrders"), False),
         )

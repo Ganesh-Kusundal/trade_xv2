@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/datalake/store/parquet_store.py
+# hypothesis_version: 6.147.0
+
+[100, 300, '15m', '15min', '1D', '1h', '1m', '30m', '30min', '5m', '5min', 'No data for %s/%s', 'candles', 'close', 'data.parquet', 'equities', 'first', 'high', 'last', 'low', 'market_data', 'max', 'min', 'open', 'sum', 'symbol', 'symbol=', 'timestamp', 'volume']

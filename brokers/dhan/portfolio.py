@@ -6,7 +6,8 @@ import logging
 from decimal import Decimal
 
 from brokers.common.core.domain import Balance
-from brokers.dhan.domain import Exchange, Holding, Position, ProductType
+from domain import Holding, Position, ProductType
+from brokers.dhan.domain import Exchange
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 from brokers.dhan.segments import SEGMENT_TO_EXCHANGE

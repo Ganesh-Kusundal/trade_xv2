@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/cli/commands/instrument.py
+# hypothesis_version: 6.147.0
+
+['  Canonical', '  Expiry', '  Lot Size', '  Option Type', '  Strike', '  Underlying', ', ', 'BFO', 'BSE', 'CDS', 'EQUITY', 'FUTURE', 'INDEX', 'Instrument Catalog', 'Lookup Method', 'MCX', 'NFO', 'NSE', 'Not found', 'Not loaded', 'Partial Matches', 'Resolve (strict)', 'Result', 'Status', '[dim]info[/dim]', '[green]OK[/green]', '[red]Missing[/red]', 'bold cyan', 'bold white', 'center', 'loaded', 'total']

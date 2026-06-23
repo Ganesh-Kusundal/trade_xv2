@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/cli/utils/error_formatter.py
+# hypothesis_version: 6.147.0
+
+['401', '403', '429', '502', '503', '504', 'Error', 'connection', 'critical', 'dhan', 'empty', 'error', 'error_details', 'file not found', 'forbidden', 'info', 'instrument', 'insufficient', 'invalid', 'invalid order', 'invalid token', 'margin', 'network', 'no data', 'no such file', 'not found', 'order', 'permission denied', 'rate limit', 'refused', 'rejected', 'risk', 'symbol', 'timed out', 'timeout', 'token', 'too many requests', 'unauthorized', 'upstox', 'warning']

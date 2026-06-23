@@ -20,27 +20,27 @@ from brokers.common.event_bus import DomainEvent, EventBus
 from brokers.common.core.domain import OrderRequest, OrderResponse
 from brokers.common.oms.risk_manager import RiskManager
 from config.endpoints import Dhan
-from brokers.dhan.domain import (
-    Exchange,
+from brokers.common.core.domain import (
     Order,
-    OrderSide,
     OrderStatus,
     OrderType,
     ProductType,
+    Side as OrderSide,
     Trade,
     Validity,
 )
+from brokers.dhan.domain import Exchange
 from brokers.dhan.exceptions import OrderError
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, DhanInstrumentRef, coerce_identity_provider
 from brokers.dhan.invariants import assert_dhan_payload
-from brokers.dhan.order_mapping import DhanFieldMapping
+from brokers.common.core.field_mapping import DefaultFieldMapping
 from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
 
 logger = logging.getLogger(__name__)
 
-# Module-level Dhan field mapping instance (reused for all order parsing)
-_DHAN_MAPPING = DhanFieldMapping()
+# Module-level field mapping instance (reused for all order parsing)
+_DHAN_MAPPING = DefaultFieldMapping()
 
 # Segments where only INTRADAY and MARGIN product types are allowed
 _DERIVATIVE_SEGMENTS = frozenset({
@@ -98,6 +98,7 @@ class OrdersAdapter:
         idempotency_cache: IdempotencyCache | None = None,
         event_bus: EventBus | None = None,
         risk_manager: RiskManager | None = None,
+        allow_live_orders: bool = False,
     ):
         self._client = client
         # Accept either a DhanIdentityProvider (production path) or a raw
@@ -112,6 +113,7 @@ class OrdersAdapter:
         self._idempotency = idempotency_cache or IdempotencyCache()
         self._event_bus = event_bus
         self._risk_manager = risk_manager
+        self._allow_live_orders = allow_live_orders
 
     # ── Validation ────────────────────────────────────────────────────
 
@@ -200,6 +202,11 @@ class OrdersAdapter:
             catches ``OrderError`` and converts it to ``OrderResponse.fail()``,
             so callers using the gateway see consistent error handling.
         """
+        if not self._allow_live_orders:
+            raise OrderError(
+                "Live orders are disabled. Set DHAN_ALLOW_LIVE_ORDERS=1 to enable."
+            )
+
         correlation_id = request.correlation_id
         symbol = request.symbol or ""
         exchange = request.exchange or "NSE"
@@ -251,8 +258,8 @@ class OrdersAdapter:
                 side, order_type, product_type, validity,
             )
 
-            # Pre-trade risk check
-            if self._risk_manager is not None:
+            # Pre-trade risk check (skipped when OMS already validated)
+            if self._risk_manager is not None and not request.transport_only:
                 preview = Order(
                     order_id="",
                     symbol=symbol,

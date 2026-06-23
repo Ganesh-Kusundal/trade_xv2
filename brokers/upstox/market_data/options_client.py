@@ -37,14 +37,18 @@ class UpstoxOptionsClient:
         self,
         instrument_key: str,
     ) -> list[str]:
-        params = {"instrument_key": instrument_key}
-        body = self._http.get_json(self._urls.option_expiry_url(), params=params)
-        if not isinstance(body, list):
-            data = body.get("data") if isinstance(body, dict) else None
-            if isinstance(data, list):
-                return [str(x) for x in data]
-            return []
-        return [str(x) for x in body]
+        """DEPRECATED: ``/v2/option/expiry`` returns HTTP 400 (see
+        ``docs/upstox_verified_capabilities.md``). Expiries are now derived
+        from the in-memory instrument master via
+        ``UpstoxInstrumentResolver.list_option_expiries``.
+
+        Kept only for backward compatibility; raises to prevent silent
+        re-use of the dead endpoint.
+        """
+        raise NotImplementedError(
+            "Upstox /v2/option/expiry is deprecated. Use "
+            "UpstoxInstrumentResolver.list_option_expiries(underlying) instead."
+        )
 
     def get_greeks(self, instrument_keys: list[str]) -> dict[str, Any]:
         if isinstance(instrument_keys, str):

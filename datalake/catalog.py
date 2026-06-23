@@ -8,12 +8,14 @@ from __future__ import annotations
 
 import logging
 import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import date
 from pathlib import Path
 
 import duckdb
 
-from datalake.duckdb_utils import get_pool
+from datalake.duckdb_utils import duckdb_connection, get_pool
 from datalake.symbols import normalize_symbol
 
 logger = logging.getLogger(__name__)
@@ -36,12 +38,31 @@ class DataCatalog:
 
     @property
     def conn(self) -> duckdb.DuckDBPyConnection:
+        """Return the cached read-write connection (write mode only)."""
+        if self._read_only:
+            raise RuntimeError(
+                "DataCatalog is read-only; use _connection() context manager for reads"
+            )
         if self._conn is None:
-            self._conn = get_pool().get(self._db_path)
+            self._conn = get_pool().acquire(self._db_path, read_only=False)
         return self._conn
+
+    @contextmanager
+    def _connection(self, *, write: bool = False) -> Iterator[duckdb.DuckDBPyConnection]:
+        """Yield a DuckDB connection appropriate for read or write access."""
+        if write and self._read_only:
+            raise duckdb.InvalidInputException(
+                "DataCatalog is read-only; writes are not allowed"
+            )
+        if self._read_only or not write:
+            with duckdb_connection(self._db_path, read_only=True) as conn:
+                yield conn
+        else:
+            yield self.conn
 
     def close(self) -> None:
         if self._conn is not None:
+            get_pool().release(self._db_path)
             self._conn = None
 
     def _ensure_schema(self) -> None:
@@ -104,6 +125,9 @@ class DataCatalog:
             )
         """)
 
+        from datalake.migrations import apply_migrations
+        apply_migrations(conn)
+
     def register_symbol(
         self,
         symbol: str,
@@ -116,6 +140,8 @@ class DataCatalog:
         **kwargs,
     ) -> None:
         """Register or update a symbol in the catalog."""
+        if self._read_only:
+            raise duckdb.InvalidInputException("DataCatalog is read-only; writes are not allowed")
         symbol = normalize_symbol(symbol)
         self.conn.execute("""
             INSERT OR REPLACE INTO symbols
@@ -126,34 +152,37 @@ class DataCatalog:
     def get_symbol(self, symbol: str) -> dict | None:
         """Get symbol metadata."""
         symbol = normalize_symbol(symbol)
-        result = self.conn.execute(
-            "SELECT * FROM symbols WHERE symbol = ?", [symbol]
-        ).fetchone()
-        if result is None:
-            return None
-        cursor = self.conn.execute(
-            "SELECT * FROM symbols WHERE symbol = ?", [symbol]
-        )
-        cols = [desc[0] for desc in cursor.description]
-        return dict(zip(cols, result, strict=False))
+        with self._connection() as conn:
+            result = conn.execute(
+                "SELECT * FROM symbols WHERE symbol = ?", [symbol]
+            ).fetchone()
+            if result is None:
+                return None
+            cursor = conn.execute(
+                "SELECT * FROM symbols WHERE symbol = ?", [symbol]
+            )
+            cols = [desc[0] for desc in cursor.description]
+            return dict(zip(cols, result, strict=False))
 
     def list_symbols(self, timeframe: str = "1m") -> list[str]:
         """List all registered symbols."""
-        results = self.conn.execute(
-            "SELECT symbol FROM symbols WHERE timeframe = ? ORDER BY symbol",
-            [timeframe],
-        ).fetchall()
-        return [r[0] for r in results]
+        with self._connection() as conn:
+            results = conn.execute(
+                "SELECT symbol FROM symbols WHERE timeframe = ? ORDER BY symbol",
+                [timeframe],
+            ).fetchall()
+            return [r[0] for r in results]
 
     def get_parquet_path(self, symbol: str, timeframe: str = "1m") -> Path | None:
         """Get the Parquet file path for a symbol."""
-        row = self.conn.execute(
-            "SELECT parquet_path FROM symbols WHERE symbol = ? AND timeframe = ?",
-            [symbol, timeframe],
-        ).fetchone()
-        if row and row[0]:
-            return Path(row[0])
-        return None
+        with self._connection() as conn:
+            row = conn.execute(
+                "SELECT parquet_path FROM symbols WHERE symbol = ? AND timeframe = ?",
+                [symbol, timeframe],
+            ).fetchone()
+            if row and row[0]:
+                return Path(row[0])
+            return None
 
     def scan_parquet_files(self, timeframe: str = "1m") -> int:
         """Scan the hive directory and register all symbols found.
@@ -225,11 +254,14 @@ class DataCatalog:
 
     def summary(self) -> dict:
         """Get catalog summary."""
-        symbols = self.conn.execute("SELECT COUNT(*) FROM symbols").fetchone()[0]
-        total_rows = self.conn.execute("SELECT COALESCE(SUM(total_rows), 0) FROM symbols").fetchone()[0]
-        quality = self.conn.execute("SELECT COUNT(*) FROM data_quality").fetchone()[0]
-        return {
-            "symbols": symbols,
-            "total_rows": total_rows,
-            "quality_records": quality,
-        }
+        with self._connection() as conn:
+            symbols = conn.execute("SELECT COUNT(*) FROM symbols").fetchone()[0]
+            total_rows = conn.execute(
+                "SELECT COALESCE(SUM(total_rows), 0) FROM symbols"
+            ).fetchone()[0]
+            quality = conn.execute("SELECT COUNT(*) FROM data_quality").fetchone()[0]
+            return {
+                "symbols": symbols,
+                "total_rows": total_rows,
+                "quality_records": quality,
+            }

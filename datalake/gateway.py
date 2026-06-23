@@ -28,8 +28,11 @@ from typing import Any
 import pandas as pd
 from cachetools import TTLCache
 
-from brokers.common.core.domain import Balance, MarketDepth, Quote
+from domain import Balance, MarketDepth, Quote
+from brokers.common.gateway_errors import UnsupportedGatewayOperation
+from domain.constants import BATCH_MAX_WORKERS
 from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
+from datalake.store import ParquetStore
 from datalake.symbols import normalize_symbol, symbol_to_path
 from datalake.cache_utils import generate_cache_key, load_candles_projected
 
@@ -44,20 +47,9 @@ class DataLakeGateway(MarketDataGateway):
     """
 
     def __init__(self, root: str = "market_data") -> None:
-        self._root = Path(root)
-        self._candles_dir = self._root / "equities" / "candles"
-        # I-18: resample cache keyed by (symbol, timeframe) with TTL and memory bounds
-        # Using cachetools.TTLCache with:
-        # - maxsize=100 entries
-        # - ttl=300 seconds (5 minutes)
-        # - getsizeof to track memory usage
-        self._resample_cache: TTLCache = TTLCache(
-            maxsize=100,
-            ttl=300,
-            getsizeof=self._df_size,
-        )
-        self._resample_cache_lock = threading.Lock()
-        # Thread pool for parallel downloads
+        self._store = ParquetStore(root)
+        self._root = self._store.root
+        self._candles_dir = self._store.candles_dir
         self._download_pool_max_workers = 4
 
     @staticmethod
@@ -65,77 +57,11 @@ class DataLakeGateway(MarketDataGateway):
         """Calculate memory size of a DataFrame in bytes."""
         return int(df.memory_usage(deep=True).sum())
 
-    def _parquet_path(self, symbol: str, timeframe: str) -> Path:
-        return self._candles_dir / f"timeframe={timeframe}" / symbol_to_path(symbol) / "data.parquet"
-
     def _load_parquet(self, symbol: str, timeframe: str) -> pd.DataFrame | None:
-        symbol = normalize_symbol(symbol)
-        path = self._parquet_path(symbol, timeframe)
-        if path.exists():
-            try:
-                return pd.read_parquet(path)
-            except Exception as exc:
-                logger.error("Failed to read %s: %s", path, exc)
-                return None
-
-        if timeframe != "1m":
-            df_1m = self._load_parquet(symbol, "1m")
-            if df_1m is not None and not df_1m.empty:
-                return self._resample(df_1m, timeframe)
-
-        logger.warning("No data for %s/%s", symbol, timeframe)
-        return None
+        return self._store.load_candles(symbol, timeframe)
 
     def _resample(self, df: pd.DataFrame, timeframe: str) -> pd.DataFrame:
-        """Resample 1m data to larger timeframe (with TTL-bounded cache)."""
-        if df.empty:
-            return df
-
-        # Check cache — keyed by symbol + timeframe
-        symbol = df["symbol"].iloc[0] if "symbol" in df.columns else ""
-        cache_key = generate_cache_key(symbol, timeframe)
-        
-        with self._resample_cache_lock:
-            if cache_key in self._resample_cache:
-                # Return cached copy — defensive copy to prevent mutation
-                return self._resample_cache[cache_key].copy()
-
-        # Work on a copy only once
-        df = df.copy()
-        df["timestamp"] = pd.to_datetime(df["timestamp"])
-        df = df.set_index("timestamp")
-
-        # Map timeframe to pandas rule
-        rule_map = {
-            "5m": "5min",
-            "15m": "15min",
-            "30m": "30min",
-            "1h": "1h",
-            "1D": "1D",
-        }
-        rule = rule_map.get(timeframe)
-        if not rule:
-            return df.reset_index()
-
-        resampled = df.resample(rule).agg({
-            "open": "first",
-            "high": "max",
-            "low": "min",
-            "close": "last",
-            "volume": "sum",
-            "oi": "last",
-        }).dropna()
-
-        resampled = resampled.reset_index()
-        resampled["symbol"] = df["symbol"].iloc[0] if "symbol" in df.columns else ""
-        resampled["exchange"] = df["exchange"].iloc[0] if "exchange" in df.columns else "NSE"
-        resampled["timeframe"] = timeframe
-
-        # Cache the result with TTL and memory bounds
-        with self._resample_cache_lock:
-            self._resample_cache[cache_key] = resampled
-        
-        return resampled
+        return self._store.resample(df, timeframe)
 
     def _filter_by_date(
         self,
@@ -206,7 +132,7 @@ class DataLakeGateway(MarketDataGateway):
             feeds. OHLCV parquet files only contain aggregated candle data, not
             the order book snapshots needed to derive bid/ask prices.
         """
-        from brokers.common.core.domain import Quote as _Quote
+        from domain import Quote as _Quote
         symbol = normalize_symbol(symbol)
         df = self._load_parquet(symbol, "1m")
         if df is None or df.empty:
@@ -236,7 +162,7 @@ class DataLakeGateway(MarketDataGateway):
         return Decimal(str(df.iloc[-1]["close"]))
 
     def depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
-        from brokers.common.core.domain import MarketDepth as _MarketDepth
+        from domain import MarketDepth as _MarketDepth
         return _MarketDepth(symbol=symbol)
 
     def option_chain(
@@ -244,18 +170,20 @@ class DataLakeGateway(MarketDataGateway):
         underlying: str,
         exchange: str = "NSE",
         expiry: str | None = None,
-    ) -> dict:
-        return {"underlying": underlying, "calls": [], "puts": [], "expiry": expiry}
+    ):
+        from domain.entities import OptionChain
+        return OptionChain(underlying=underlying, exchange=exchange, expiry=expiry or "")
 
     def future_chain(
         self,
         underlying: str,
         exchange: str = "NFO",
-    ) -> list[dict]:
-        return []
+    ):
+        from domain.entities import FutureChain
+        return FutureChain(underlying=underlying, exchange=exchange)
 
     def stream(self, symbols: list[str], exchange: str = "NSE") -> Any:
-        raise NotImplementedError("DataLakeGateway does not support live streaming")
+        raise UnsupportedGatewayOperation("DataLakeGateway", "streaming")
 
     # -----------------------------------------------------------------------
     # MarketDataGateway — Batch
@@ -297,7 +225,12 @@ class DataLakeGateway(MarketDataGateway):
                     WHERE rn = 1
                 """
                 df = duckdb.execute(query, [parquet_paths]).fetchdf()
-                return {row["symbol"]: Decimal(str(row["close"])) for _, row in df.iterrows()}
+                # Vectorized conversion — avoid iterrows overhead
+                return {
+                    symbol: Decimal(str(close))
+                    for symbol, close in zip(df["symbol"], df["close"])
+                    if pd.notna(symbol) and pd.notna(close)
+                }
         except Exception as exc:
             logger.debug("DuckDB ltp_batch failed, using fallback: %s", exc)
 
@@ -391,77 +324,43 @@ class DataLakeGateway(MarketDataGateway):
         self,
         fn: callable,
         symbols: list[str],
-        max_workers: int = 5,
+        max_workers: int = BATCH_MAX_WORKERS,
     ) -> dict[str, Any]:
-        """Execute fn(symbol) for each symbol in parallel.
+        from brokers.common.batch_executor import batch_execute
 
-        Uses ThreadPoolExecutor for I/O-bound work. Exceptions per symbol
-        are logged and that symbol is omitted from results.
-
-        Args:
-            fn: Callable that takes a symbol string and returns any value.
-            symbols: List of symbol strings.
-            max_workers: Maximum number of concurrent threads.
-
-        Returns:
-            Dict mapping symbol -> result for successful executions.
-        """
-        if not symbols:
-            return {}
-
-        results: dict[str, Any] = {}
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_symbol = {
-                executor.submit(fn, s): s for s in symbols
-            }
-            for future in as_completed(future_to_symbol):
-                symbol = future_to_symbol[future]
-                try:
-                    results[symbol] = future.result()
-                except Exception as exc:
-                    logger.debug("batch_execute failed for %s: %s", symbol, exc)
-        return results
+        return batch_execute(symbols, fn, max_workers=max_workers)
 
     # -----------------------------------------------------------------------
     # MarketDataGateway — Trading (not supported)
     # -----------------------------------------------------------------------
 
     def place_order(self, *args, **kwargs) -> Any:
-        raise NotImplementedError("DataLakeGateway does not support trading")
+        raise UnsupportedGatewayOperation("DataLakeGateway", "trading")
 
     def cancel_order(self, *args, **kwargs) -> bool:
-        raise NotImplementedError("DataLakeGateway does not support trading")
+        raise UnsupportedGatewayOperation("DataLakeGateway", "trading")
 
     def get_orderbook(self) -> list[Any]:
-        raise NotImplementedError("DataLakeGateway does not support trading")
+        raise UnsupportedGatewayOperation("DataLakeGateway", "trading")
 
     def get_trade_book(self) -> list[Any]:
-        raise NotImplementedError("DataLakeGateway does not support trading")
+        raise UnsupportedGatewayOperation("DataLakeGateway", "trading")
 
     # -----------------------------------------------------------------------
     # MarketDataGateway — Portfolio (not supported)
     # -----------------------------------------------------------------------
 
     def positions(self) -> list[Any]:
-        raise NotImplementedError("DataLakeGateway does not support portfolio")
+        raise UnsupportedGatewayOperation("DataLakeGateway", "portfolio")
 
     def holdings(self) -> list[Any]:
-        raise NotImplementedError("DataLakeGateway does not support portfolio")
+        raise UnsupportedGatewayOperation("DataLakeGateway", "portfolio")
 
     def funds(self) -> Balance:
-        """Return fund limits.
-
-        DataLakeGateway does not support portfolio operations.
-        Returns a Balance with zero values per ABC contract.
-        """
-        return Balance(
-            available_balance=Decimal("0"),
-            used_margin=Decimal("0"),
-            total_balance=Decimal("0"),
-        )
+        raise UnsupportedGatewayOperation("DataLakeGateway", "portfolio")
 
     def trades(self) -> list[Any]:
-        raise NotImplementedError("DataLakeGateway does not support portfolio")
+        raise UnsupportedGatewayOperation("DataLakeGateway", "portfolio")
 
     # -----------------------------------------------------------------------
     # MarketDataGateway — Instrument
@@ -510,14 +409,7 @@ class DataLakeGateway(MarketDataGateway):
     # -----------------------------------------------------------------------
 
     def list_symbols(self, timeframe: str = "1m") -> list[str]:
-        tf_dir = self._candles_dir / f"timeframe={timeframe}"
-        if not tf_dir.exists():
-            return []
-        return sorted(
-            p.name.replace("symbol=", "")
-            for p in tf_dir.iterdir()
-            if p.is_dir() and p.name.startswith("symbol=")
-        )
+        return self._store.list_symbols(timeframe)
     
     def load_candles_parallel(
         self,

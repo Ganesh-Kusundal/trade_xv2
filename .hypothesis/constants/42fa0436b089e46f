@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/datalake/cache_utils.py
+# hypothesis_version: 6.147.0
+
+[256, ':memory:', 'close', 'high', 'low', 'oi', 'open', 'timestamp', 'volume']

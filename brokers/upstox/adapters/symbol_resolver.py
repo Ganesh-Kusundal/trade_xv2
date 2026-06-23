@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from brokers.common.core.domain import ExchangeSegment
+from brokers.common.core.exchange_segments import parse_segment
 
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 
@@ -49,18 +50,25 @@ class SymbolResolverAdapter:
         
         Resolution priority:
         1. Hardcoded index mapping (NIFTY, BANKNIFTY, etc.) → NSE_INDEX segment
-        2. Normal segment resolution for equities/F&O
+        2. Instrument master lookup (returns ISIN for equities)
+        3. Fallback: construct key from segment|symbol
         
         Args:
             symbol: Canonical trading symbol (e.g., "RELIANCE", "NIFTY")
             exchange: Exchange segment (e.g., "NSE", "NFO")
             
         Returns:
-            Upstox instrument_key string (e.g., "NSE_EQ|RELIANCE")
+            Upstox instrument_key string (e.g., "NSE_EQ|INE002A01018")
             
         Note:
             For index symbols, checks config.indices.index_upstox_key first
             since indices use a different segment (NSE_INDEX) than equities.
+            
+        Important:
+            Upstox V3 historical API requires:
+            - ISIN format for equities: NSE_EQ|INE002A01018
+            - Exact symbol format for indices: NSE_INDEX|Nifty 50
+            Spaces in instrument keys are valid for indices but NOT for equities.
         """
         from config.indices import index_upstox_key
         
@@ -74,7 +82,7 @@ class SymbolResolverAdapter:
             # Fall through — return the hardcoded key anyway (it's a known index)
             return idx_key
         
-        # 2. Normal segment resolution for equities/F&O
+        # 2. Try instrument master lookup (returns ISIN for equities)
         segment = UpstoxDomainMapper.segment_to_wire(exchange)
         if segment == 'NSE':
             segment = 'NSE_EQ'
@@ -88,7 +96,16 @@ class SymbolResolverAdapter:
         if defn:
             return defn.instrument_key
         
-        return f"{segment}|{symbol}"
+        # 3. Fallback: construct key, but warn if it contains spaces
+        fallback_key = f"{segment}|{symbol}"
+        if ' ' in symbol:
+            import logging
+            logging.getLogger(__name__).warning(
+                "Instrument key contains space: %s. This may fail for historical API. "
+                "Consider using the correct symbol from instrument master.",
+                fallback_key
+            )
+        return fallback_key
     
     @staticmethod
     def resolve_exchange_segment(exchange: str, symbol: str = "") -> ExchangeSegment:
@@ -111,16 +128,7 @@ class SymbolResolverAdapter:
             if index_upstox_key(symbol) is not None:
                 return ExchangeSegment.IDX_I
         
-        mapping: dict[str, ExchangeSegment] = {
-            "NSE": ExchangeSegment.NSE,
-            "BSE": ExchangeSegment.BSE,
-            "NFO": ExchangeSegment.NSE_FNO,
-            "NSE_FNO": ExchangeSegment.NSE_FNO,
-            "BFO": ExchangeSegment.BSE_FNO,
-            "BSE_FNO": ExchangeSegment.BSE_FNO,
-            "MCX": ExchangeSegment.MCX,
-            "NSE_CURRENCY": ExchangeSegment.NSE_CURRENCY,
-            "BSE_CURRENCY": ExchangeSegment.BSE_CURRENCY,
-            "IDX_I": ExchangeSegment.IDX_I,
-        }
-        return mapping.get(exchange.upper(), ExchangeSegment.NSE)
+        parsed = parse_segment(exchange)
+        if parsed is None:
+            raise ValueError(f"Unknown exchange segment: {exchange!r}")
+        return parsed

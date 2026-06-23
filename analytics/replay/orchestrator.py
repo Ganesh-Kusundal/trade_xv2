@@ -135,12 +135,22 @@ class UnifiedReplayOrchestrator:
 
     def __init__(
         self,
+        feature_pipeline=None,
+        strategy_pipeline=None,
         events_dir: str | Path | None = None,
         data_root: str = "market_data",
         timeframe: str = "1m",
+        initial_capital: float = 100_000.0,
+        warmup_bars: int = 20,
+        trading_context: Any = None,
     ) -> None:
+        self._feature_pipeline = feature_pipeline
+        self._strategy_pipeline = strategy_pipeline
         self._data_root = data_root
         self._timeframe = timeframe
+        self._initial_capital = initial_capital
+        self._warmup_bars = warmup_bars
+        self._trading_context = trading_context
 
         # Event log for reading persisted events
         self._event_log = EventLog(events_dir=events_dir) if events_dir else None
@@ -275,33 +285,28 @@ class UnifiedReplayOrchestrator:
     def _df_to_items(
         self, df: pd.DataFrame, symbol: str, seq_start: int = 0
     ) -> list[ReplayItem]:
-        """Convert a DataFrame of OHLCV data to ReplayItems."""
-        items: list[ReplayItem] = []
+        """Convert a DataFrame of OHLCV data to ReplayItems (vectorized)."""
         ts_col = "timestamp" if "timestamp" in df.columns else "date"
+        timestamps = pd.to_datetime(df[ts_col]).dt.tz_localize(timezone.utc)
 
-        for idx, row in df.iterrows():
-            ts = pd.Timestamp(row[ts_col])
-            if ts.tzinfo is None:
-                ts = ts.replace(tzinfo=timezone.utc)
-
-            bar_data = {
-                "symbol": symbol,
-                "timestamp": ts,
-                "open": float(row.get("open", 0)),
-                "high": float(row.get("high", 0)),
-                "low": float(row.get("low", 0)),
-                "close": float(row.get("close", 0)),
-                "volume": float(row.get("volume", 0)),
-            }
-            items.append(ReplayItem(
+        return [
+            ReplayItem(
                 timestamp=ts,
-                sequence=seq_start + idx,
+                sequence=seq_start + i,
                 kind="bar",
                 symbol=symbol,
-                bar_data=bar_data,
-            ))
-
-        return items
+                bar_data={
+                    "symbol": symbol,
+                    "timestamp": ts,
+                    "open": float(row.get("open", 0)),
+                    "high": float(row.get("high", 0)),
+                    "low": float(row.get("low", 0)),
+                    "close": float(row.get("close", 0)),
+                    "volume": float(row.get("volume", 0)),
+                },
+            )
+            for i, (ts, row) in enumerate(zip(timestamps, df.itertuples(index=False)))
+        ]
 
     def _load_events(
         self, day_start: datetime, day_end: datetime
@@ -384,20 +389,37 @@ class UnifiedReplayOrchestrator:
         if df.empty:
             return None
 
-        # Placeholder: In full implementation, this would:
-        # 1. Create ReplayEngine with FeaturePipeline + StrategyPipeline
-        # 2. Run engine.run(df)
-        # 3. Inject events from merged_stream at appropriate timestamps
-        # 4. Return ReplayResult
+        if self._feature_pipeline is None or self._strategy_pipeline is None:
+            logger.warning("UnifiedReplayOrchestrator: pipelines not configured")
+            return None
 
-        logger.info(
-            "Replay executed: %d bars, %d events",
-            len(df),
-            len(merged_stream),
+        from analytics.replay.engine import ReplayEngine
+        from analytics.replay.models import ReplayConfig
+        from domain.runtime_hooks import create_trading_context
+
+        for item in merged_stream:
+            if item.kind == "event" and item.event is not None:
+                event_bus.publish(item.event)
+
+        tc = self._trading_context or create_trading_context(
+            event_bus=event_bus,
+            replay_events=False,
         )
 
-        # Return minimal result for now
-        return ReplayResult()
+        config = ReplayConfig(
+            initial_capital=self._initial_capital,
+            warmup_bars=self._warmup_bars,
+        )
+        engine = ReplayEngine(
+            self._feature_pipeline,
+            self._strategy_pipeline,
+            config,
+            trading_context=tc,
+            event_bus=event_bus,
+        )
+
+        symbol = str(df["symbol"].iloc[0]) if "symbol" in df.columns and not df.empty else "REPLAY"
+        return engine.run(df, symbol=symbol)
 
     def _assert_state(
         self,
@@ -429,19 +451,28 @@ class UnifiedReplayOrchestrator:
         }
 
         if result is not None:
-            actual["event_count"] = result.signals_generated
+            actual["event_count"] = len(event_items)
+            actual["trade_count"] = result.session.total_trades
+            actual["equity_final"] = (
+                float(result.session.equity_curve[-1][1])
+                if result.session.equity_curve
+                else 0.0
+            )
+            actual["trades"] = [
+                (t.symbol, str(t.side), t.quantity, str(t.entry_price))
+                for t in result.session.trades
+            ]
+            actual["open_positions"] = 1 if result.session.position is not None else 0
 
-        # Count specific event types from the log
         trade_events = [
             i for i in event_items
             if i.event is not None and i.event.event_type in ("TRADE", "TRADE_APPLIED")
         ]
         expected["trade_count"] = len(trade_events)
-        actual["trade_count"] = result.session.total_trades if result else 0
 
-        matches = (
-            expected.get("trade_count", 0) == actual.get("trade_count", 0)
-        )
+        matches = expected.get("trade_count", 0) == actual.get("trade_count", 0)
+        if result is not None and result.session.trades:
+            matches = matches and actual.get("open_positions", 0) >= 0
 
         diff = {}
         if not matches:

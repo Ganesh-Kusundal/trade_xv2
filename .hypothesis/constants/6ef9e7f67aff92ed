@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/datalake/catalog.py
+# hypothesis_version: 6.147.0
+
+[0.0, '1m', 'NSE', 'OK', 'candles', 'catalog.duckdb', 'data.parquet', 'equities', 'market_data', 'quality_records', 'symbol=', 'symbols', 'timestamp', 'total_rows']

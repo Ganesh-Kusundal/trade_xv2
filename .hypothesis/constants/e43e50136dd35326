@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/cli/commands/oms.py
+# hypothesis_version: 6.147.0
+
+['%H:%M:%S', '-', 'Active Count', 'Avg Price', 'BUY', 'CANCELLED', 'COMPLETE', 'FILLED', 'Limit Price', 'MARKET', 'Metric / Status', 'N/A', 'OPEN', 'Open Orders (OPEN)', 'Order ID', 'PARTIAL', 'PENDING', 'Price', 'Qty', 'Qty (Filled/Total)', 'REJECTED', 'Side', 'Status', 'Symbol', 'Time', "Today's Orders", 'Trade ID', 'Type', 'Value', 'bold blue', 'bold cyan', 'bold white', 'bold yellow', 'cancelled', 'center', 'dim white', 'filled', 'green', 'open', 'pending', 'red', 'rejected', 'right', 'yellow']

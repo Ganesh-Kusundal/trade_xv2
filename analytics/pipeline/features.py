@@ -358,3 +358,94 @@ class ATRPercent:
         df = df.copy()
         df[self.name] = (atr_series / df["close"].replace(0, math.inf)) * 100
         return df
+
+
+# ---------------------------------------------------------------------------
+# Statistical features (z-score, correlation)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ZScore:
+    """Z-score normalization of price (how many std devs from mean)."""
+
+    name: str = "z_score"
+    source: str = "close"
+    period: int = 20
+
+    def compute(self, df: pd.DataFrame) -> pd.DataFrame:
+        _ensure_columns(df, [self.source])
+        mean = df[self.source].rolling(window=self.period, min_periods=1).mean()
+        std = df[self.source].rolling(window=self.period, min_periods=1).std()
+        df = df.copy()
+        df[self.name] = ((df[self.source] - mean) / std.replace(0, math.inf)).fillna(0)
+        return df
+
+
+@dataclass(frozen=True)
+class Correlation:
+    """Rolling correlation between two series."""
+
+    name: str = "correlation"
+    source1: str = "close"
+    source2: str = "volume"
+    period: int = 20
+
+    def compute(self, df: pd.DataFrame) -> pd.DataFrame:
+        _ensure_columns(df, [self.source1, self.source2])
+        df = df.copy()
+        df[self.name] = df[self.source1].rolling(window=self.period, min_periods=self.period).corr(df[self.source2])
+        return df
+
+
+# ---------------------------------------------------------------------------
+# Multi-asset features (cross-sectional)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Beta:
+    """Beta coefficient vs benchmark (rolling regression slope)."""
+
+    name: str = "beta"
+    asset_col: str = "close"
+    bench_col: str = "benchmark"
+    period: int = 60
+
+    def compute(self, df: pd.DataFrame) -> pd.DataFrame:
+        _ensure_columns(df, [self.asset_col, self.bench_col])
+        df = df.copy()
+
+        # Vectorized calculation using rolling operations
+        asset_ret = df[self.asset_col].pct_change()
+        bench_ret = df[self.bench_col].pct_change()
+
+        # Rolling covariance and variance
+        cov = asset_ret.rolling(window=self.period, min_periods=self.period).cov(bench_ret)
+        var = bench_ret.rolling(window=self.period, min_periods=self.period).var()
+
+        df[self.name] = (cov / var.replace(0, float('nan'))).fillna(0)
+        return df
+
+
+# ---------------------------------------------------------------------------
+# Cross-sectional features
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class PercentRank:
+    """Percent rank over rolling window (cross-sectional ranking)."""
+
+    name: str = "pct_rank"
+    source: str = "close"
+    period: int = 252  # ~1 year of trading days
+
+    def compute(self, df: pd.DataFrame) -> pd.DataFrame:
+        _ensure_columns(df, [self.source])
+        df = df.copy()
+        df[self.name] = df[self.source].rolling(window=self.period, min_periods=1).apply(
+            lambda x: (pd.Series(x).rank(pct=True).iloc[-1] * 100) if len(x) > 1 else 50.0,
+            raw=False
+        )
+        return df

@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/datalake/api/routers/market.py
+# hypothesis_version: 6.147.0
+
+[0.0, 200, 300, 1000, 3600, 5000, ', ', '/candles', '/quote/{symbol}', '15m', '1d', '1h', '1m', '1w', '30m', '3m', '4h', '5m', 'Cache-Control', 'End timestamp (ms)', 'Exchange', 'Max candles', 'NSE', 'Start timestamp (ms)', 'Symbol to fetch', 'X-Cache-TTL', 'X-Data-Days-Old', 'X-Data-Freshness', 'X-Data-Last-Update', 'X-Data-Stale', 'X-Data-Type', 'candles', 'close', 'count', 'datetime64[ms]', 'exchange', 'high', 'historical', 'int64', 'low', 'ltp', 'ms', 'oi', 'open', 'quote', 'records', 'symbol', 'timeframe', 'timestamp', 'volume']

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 
 from brokers.common.core.domain import ExchangeSegment, InstrumentType
+from brokers.common.core.exchange_segments import canonical_exchange_short, parse_segment
 
 
 @dataclass(frozen=True)
@@ -110,32 +111,14 @@ class InstrumentRegistry:
 
     @staticmethod
     def canonical_exchange(segment: ExchangeSegment) -> str:
-        return {
-            ExchangeSegment.NSE: "NSE",
-            ExchangeSegment.BSE: "BSE",
-            ExchangeSegment.NSE_FNO: "NFO",
-            ExchangeSegment.BSE_FNO: "BFO",
-            ExchangeSegment.MCX: "MCX",
-            ExchangeSegment.NSE_CURRENCY: "CDS",
-            ExchangeSegment.BSE_CURRENCY: "BCD",
-            ExchangeSegment.IDX_I: "IDX",
-        }[segment]
+        return canonical_exchange_short(segment)
 
     @staticmethod
     def exchange_segment(exchange: str) -> ExchangeSegment:
-        normalized = exchange.upper()
-        return {
-            "NSE": ExchangeSegment.NSE,
-            "BSE": ExchangeSegment.BSE,
-            "NFO": ExchangeSegment.NSE_FNO,
-            "BFO": ExchangeSegment.BSE_FNO,
-            "MCX": ExchangeSegment.MCX,
-            "CDS": ExchangeSegment.NSE_CURRENCY,
-            "BCD": ExchangeSegment.BSE_CURRENCY,
-            # Both the canonical key "IDX" and the raw Dhan segment "IDX_I" are accepted
-            "IDX": ExchangeSegment.IDX_I,
-            "IDX_I": ExchangeSegment.IDX_I,
-        }[normalized]
+        parsed = parse_segment(exchange)
+        if parsed is None:
+            raise ValueError(f"Unknown exchange segment: {exchange!r}")
+        return parsed
 
     @staticmethod
     def _decimal(value: Decimal | str | int | float | None) -> Decimal:

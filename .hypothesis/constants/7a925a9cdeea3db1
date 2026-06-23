@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/common/oms/daily_pnl_reset_scheduler.py
+# hypothesis_version: 6.147.0
+
+[0.0, 'daily-pnl-reset', 'not started', 'poll_interval_s', 'reset_count', 'rollover_hour_ist', 'rollover_unix', 'running', 'seconds_since_start']

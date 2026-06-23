@@ -18,12 +18,7 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 import pytest
 
-from brokers.common.core.domain import (
-    Balance,
-    MarketDepth,
-    DepthLevel,
-    Quote,
-)
+from domain import Balance, DepthLevel, MarketDepth, Quote
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -87,6 +82,32 @@ def _make_mock_intraday_response(n: int = 75) -> dict:
     return {"data": rows}
 
 
+def _make_historical_resolver():
+    """Real SymbolResolver with RELIANCE loaded (no MagicMock identity)."""
+    from brokers.dhan.resolver import SymbolResolver
+
+    resolver = SymbolResolver()
+    resolver.load_from_rows([
+        {
+            "SEM_TRADING_SYMBOL": "RELIANCE",
+            "SEM_SMST_SECURITY_ID": "2885",
+            "SEM_EXM_EXCH_ID": "NSE_EQ",
+            "SEM_INSTRUMENT_NAME": "EQUITY",
+            "SEM_LOT_UNITS": 1,
+            "SEM_TICK_SIZE": 0.05,
+        },
+    ])
+    return resolver
+
+
+def _make_historical_adapter(client: MagicMock, response: dict):
+    """HistoricalAdapter backed by a real SymbolResolver identity."""
+    from brokers.dhan.historical import HistoricalAdapter
+
+    client.post.return_value = response
+    return HistoricalAdapter(client, _make_historical_resolver())
+
+
 # ── 1. Historical Data Performance ──────────────────────────────────────────
 
 
@@ -96,20 +117,8 @@ class TestHistoricalDataPerformance:
 
     def test_daily_30day_parse_latency(self):
         """Parsing 30 daily candles must complete in < 50ms."""
-        from brokers.dhan.historical import HistoricalAdapter
-
         client = MagicMock()
-        client.post.return_value = _make_mock_historical_response(30)
-        resolver = MagicMock()
-        inst = MagicMock()
-        inst.security_id = "2885"
-        inst.exchange = MagicMock()
-        inst.exchange.value = "NSE"
-        inst.instrument_type = MagicMock()
-        inst.instrument_type.value = "EQUITY"
-        resolver.resolve.return_value = inst
-
-        adapter = HistoricalAdapter(client, resolver)
+        adapter = _make_historical_adapter(client, _make_mock_historical_response(30))
         start = time.perf_counter()
         df = adapter.get_historical("RELIANCE", "NSE", "2026-01-01", "2026-01-31", "1D")
         elapsed_ms = (time.perf_counter() - start) * 1000
@@ -119,20 +128,8 @@ class TestHistoricalDataPerformance:
 
     def test_intraday_1day_parse_latency(self):
         """Parsing 75 5-min intraday candles must complete in < 50ms."""
-        from brokers.dhan.historical import HistoricalAdapter
-
         client = MagicMock()
-        client.post.return_value = _make_mock_intraday_response(75)
-        resolver = MagicMock()
-        inst = MagicMock()
-        inst.security_id = "2885"
-        inst.exchange = MagicMock()
-        inst.exchange.value = "NSE"
-        inst.instrument_type = MagicMock()
-        inst.instrument_type.value = "EQUITY"
-        resolver.resolve.return_value = inst
-
-        adapter = HistoricalAdapter(client, resolver)
+        adapter = _make_historical_adapter(client, _make_mock_intraday_response(75))
         start = time.perf_counter()
         df = adapter.get_historical("RELIANCE", "NSE", "2026-01-02", "2026-01-02", "5")
         elapsed_ms = (time.perf_counter() - start) * 1000
@@ -142,20 +139,8 @@ class TestHistoricalDataPerformance:
 
     def test_daily_365day_parse_latency(self):
         """Parsing 250 daily candles (1 year) must complete in < 100ms."""
-        from brokers.dhan.historical import HistoricalAdapter
-
         client = MagicMock()
-        client.post.return_value = _make_mock_historical_response(250)
-        resolver = MagicMock()
-        inst = MagicMock()
-        inst.security_id = "2885"
-        inst.exchange = MagicMock()
-        inst.exchange.value = "NSE"
-        inst.instrument_type = MagicMock()
-        inst.instrument_type.value = "EQUITY"
-        resolver.resolve.return_value = inst
-
-        adapter = HistoricalAdapter(client, resolver)
+        adapter = _make_historical_adapter(client, _make_mock_historical_response(250))
         start = time.perf_counter()
         df = adapter.get_historical("RELIANCE", "NSE", "2025-01-01", "2026-01-01", "1D")
         elapsed_ms = (time.perf_counter() - start) * 1000
@@ -165,20 +150,8 @@ class TestHistoricalDataPerformance:
 
     def test_dataframe_column_schema(self):
         """Parsed DataFrame must have the canonical OHLCV schema."""
-        from brokers.dhan.historical import HistoricalAdapter
-
         client = MagicMock()
-        client.post.return_value = _make_mock_historical_response(5)
-        resolver = MagicMock()
-        inst = MagicMock()
-        inst.security_id = "2885"
-        inst.exchange = MagicMock()
-        inst.exchange.value = "NSE"
-        inst.instrument_type = MagicMock()
-        inst.instrument_type.value = "EQUITY"
-        resolver.resolve.return_value = inst
-
-        adapter = HistoricalAdapter(client, resolver)
+        adapter = _make_historical_adapter(client, _make_mock_historical_response(5))
         df = adapter.get_historical("RELIANCE", "NSE", "2026-01-01", "2026-01-05", "1D")
 
         required_cols = {"open", "high", "low", "close", "volume"}

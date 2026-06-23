@@ -35,6 +35,7 @@ from cli.commands import (
     analytics as cmd_analytics,
     benchmark as cmd_benchmark,
     broker as cmd_broker,
+    cache_management as cmd_cache_management,
     compare as cmd_compare,
     dashboard as cmd_dashboard,
     doctor as cmd_doctor,
@@ -99,6 +100,7 @@ _register_cmd("events", "cli.commands.events")
 _register_cmd("search", "cli.commands.search")
 _register_cmd("instrument", "cli.commands.instrument")
 _register_cmd("instruments", "cli.commands.instruments")
+_register_cmd("funds", "cli.commands.account")
 _register_cmd("doctor", "cli.commands.doctor")
 _register_cmd("load-test", "cli.commands.load_test")
 _register_cmd("news", "cli.commands.news")
@@ -280,16 +282,23 @@ def _handle_history(args: list[str], broker_service: BrokerService, console: Con
     table.add_column("Low", justify="right")
     table.add_column("Close", justify="right")
     table.add_column("Volume", justify="right")
-    for _, row in df.tail(5).iterrows():
-        ts = row["timestamp"]
+    
+    for ts, open_val, high_val, low_val, close_val, volume in zip(
+        df["timestamp"].tail(5),
+        df["open"].tail(5),
+        df["high"].tail(5),
+        df["low"].tail(5),
+        df["close"].tail(5),
+        df["volume"].tail(5),
+    ):
         date_str = ts.strftime("%Y-%m-%d") if hasattr(ts, "strftime") else str(ts)
         table.add_row(
             date_str,
-            f"\u20b9{row['open']:,.2f}",
-            f"\u20b9{row['high']:,.2f}",
-            f"\u20b9{row['low']:,.2f}",
-            f"\u20b9{row['close']:,.2f}",
-            f"{int(row['volume']):,}",
+            f"\u20b9{open_val:,.2f}",
+            f"\u20b9{high_val:,.2f}",
+            f"\u20b9{low_val:,.2f}",
+            f"\u20b9{close_val:,.2f}",
+            f"{int(volume):,}",
         )
     console.print(table)
     console.print(f"[dim]{len(df)} candles total[/dim]")

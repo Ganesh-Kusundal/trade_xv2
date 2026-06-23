@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/cli/commands/broker.py
+# hypothesis_version: 6.147.0
+
+['Broker', 'Connected', 'Disconnected', 'Status', 'bold cyan', 'bold white', 'broker', 'center', 'dim white', 'green', 'list', 'status', 'use', 'yellow']

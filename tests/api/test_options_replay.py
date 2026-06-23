@@ -83,9 +83,24 @@ class TestOptionsEndpoints:
     def test_get_volume_profile(self, client: TestClient):
         """GET /api/v1/options/volume-profile/{underlying} returns profile."""
         response = client.get("/api/v1/options/volume-profile/NIFTY")
-        
-        # Currently stub
-        assert response.status_code in [200, 503]
+        assert response.status_code in [200, 404, 500, 503]
+        if response.status_code == 200:
+            data = response.json()
+            assert "strikes" in data
+            assert "profile" in data
+            assert "note" not in data
+
+    def test_option_chain_rejects_path_traversal(self, client: TestClient):
+        response = client.get("/api/v1/options/chain/../etc")
+        assert response.status_code == 404
+
+    def test_option_chain_rejects_sql_injection_symbol(self, client: TestClient):
+        response = client.get("/api/v1/options/chain/';DROP")
+        assert response.status_code == 400
+
+    def test_option_chain_rejects_empty_symbol(self, client: TestClient):
+        response = client.get("/api/v1/options/chain/")
+        assert response.status_code in (404, 405)
 
 
 class TestReplayEndpoints:

@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/dhan/identity.py
+# hypothesis_version: 6.147.0
+
+['BSE_CURRENCY', 'BSE_EQ', 'BSE_FNO', 'DHAN_SEGMENTS', 'DhanIdentityError', 'DhanIdentityProvider', 'DhanIdentitySource', 'DhanInstrumentRef', 'IDX_I', 'INDEX', 'MCX_COMM', 'NSE_COMM', 'NSE_CURRENCY', 'NSE_EQ', 'NSE_FNO', 'csv', 'exchange', 'exchange_segment', 'expected_segment', 'get_by_security_id', 'hardcoded_index', 'is_dhan_segment', 'is_synthetic_index', 'mcx_json', 'object | None', 'resolve', 'resolver', 'security_id', 'security_id_issued', 'source', 'symbol']

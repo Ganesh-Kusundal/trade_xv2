@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/cli/services/oms_service.py
+# hypothesis_version: 6.147.0
+
+['0', 'BUY', 'FILLED', 'MARKET', 'NSE', 'PENDING', 'cancelled', 'filled', 'live', 'open', 'pending', 'rejected']

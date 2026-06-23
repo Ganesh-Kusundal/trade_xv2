@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/analytics/indicators/halftrend_backtest.py
+# hypothesis_version: 6.147.0
+
+[0.0, 0.05, 0.065, 0.1, 0.7, 0.94, 0.97, 1.0, 1.03, 1.06, 100, 252, 365, 390, 500, 1000000, '\nBottom 5:', '\nTop 10:', '--top', '--years', '1m', 'BUY', 'HOLD', 'HalfTrend', 'HalfTrend BUY signal', 'HalfTrend Backtester', 'LONG', 'No data', 'No results', 'SELL', 'SYMBOL', 'Years of history', '__main__', 'close', 'entry', 'halftrend', 'halftrend_direction', 'halftrend_signal', 'market_data', 'max_dd', 'pnl', 'profit_factor', 'qty', 'return', 'sharpe', 'symbol', 'time', 'timestamp', 'trades', 'volume', 'win_rate']

@@ -276,9 +276,13 @@ class InstrumentRegistry:
 
         chain = self._gateway.option_chain(
             underlying, exchange=exchange, expiry=expiry
-        ) if hasattr(self._gateway, "option_chain") else {}
+        ) if hasattr(self._gateway, "option_chain") else OptionChain(underlying="", exchange="", expiry="")
 
-        return chain.get("strikes", [])
+        if hasattr(chain, "strikes"):
+            return [row.to_dict() for row in chain.strikes]
+        if isinstance(chain, dict):
+            return chain.get("strikes", [])
+        return []
 
     def future_chain(
         self,
@@ -294,9 +298,13 @@ class InstrumentRegistry:
 
         chain = self._gateway.future_chain(
             underlying, exchange=exchange
-        ) if hasattr(self._gateway, "future_chain") else {}
+        ) if hasattr(self._gateway, "future_chain") else None
 
-        return chain.get("contracts", [])
+        if chain is not None and hasattr(chain, "contracts"):
+            return [c.to_dict() for c in chain.contracts]
+        if isinstance(chain, dict):
+            return chain.get("contracts", [])
+        return []
 
     def search(self, query: str, exchange: str | None = None) -> list[CanonicalInstrument]:
         """Search instruments by symbol prefix.

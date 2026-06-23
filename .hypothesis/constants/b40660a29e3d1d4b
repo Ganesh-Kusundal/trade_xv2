@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/common/settings.py
+# hypothesis_version: 6.147.0
+
+[15.0, 100, '.env', '.env.local', '1', 'on', 'true', 'y', 'yes']

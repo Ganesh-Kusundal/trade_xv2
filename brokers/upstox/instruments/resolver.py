@@ -23,6 +23,10 @@ class UpstoxInstrumentResolver:
         self._by_key: dict[str, UpstoxInstrumentDefinition] = {}
         self._by_symbol_segment: dict[tuple[str, str], UpstoxInstrumentDefinition] = {}
         self._by_symbol_index: dict[str, list[UpstoxInstrumentDefinition]] = defaultdict(list)
+        # Underlying symbol -> set of unique expiry dates (for option/future chains).
+        # The upstream /v2/option/expiry endpoint is DEPRECATED, so we derive
+        # expiries from the in-memory instrument master instead.
+        self._expiries_by_underlying: dict[str, set[str]] = defaultdict(set)
         self._lock = threading.RLock()
         self._loaded = False
 
@@ -35,6 +39,7 @@ class UpstoxInstrumentResolver:
             self._by_key.clear()
             self._by_symbol_segment.clear()
             self._by_symbol_index.clear()
+            self._expiries_by_underlying.clear()
             self._loaded = False
 
     def register(self, definition: UpstoxInstrumentDefinition) -> None:
@@ -71,6 +76,14 @@ class UpstoxInstrumentResolver:
 
                 if sym:
                     self._by_symbol_index[sym.upper()].append(definition)
+
+                # Index option/future expiries by underlying symbol so the
+                # options adapter can derive expiries without calling the
+                # deprecated /v2/option/expiry endpoint.
+                if definition.is_option and definition.expiry and definition.underlying_symbol:
+                    self._expiries_by_underlying[definition.underlying_symbol.strip().upper()].add(
+                        definition.expiry[:10]
+                    )
             self._loaded = True
 
     def register_many(self, definitions: Iterable[UpstoxInstrumentDefinition]) -> None:
@@ -158,6 +171,25 @@ class UpstoxInstrumentResolver:
     def keys(self) -> list[str]:
         with self._lock:
             return list(self._by_key.keys())
+
+    def list_option_expiries(self, underlying: str) -> list[str]:
+        """Return sorted, future-dated option expiry strings for *underlying*.
+
+        Derives expiries from the loaded instrument master instead of calling
+        the deprecated ``/v2/option/expiry`` endpoint. Returns ``[]`` only if
+        no matching options are loaded; callers that need to distinguish
+        "not loaded" from "no expiries" should check :meth:`is_loaded`.
+        """
+        from datetime import date
+
+        with self._lock:
+            if not self._loaded:
+                raise RuntimeError(
+                    "Upstox instruments not loaded; cannot derive option expiries"
+                )
+            exps = self._expiries_by_underlying.get(underlying.strip().upper(), set())
+            today = date.today().isoformat()
+            return sorted(e for e in exps if e >= today)
 
     def __len__(self) -> int:
         with self._lock:

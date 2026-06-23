@@ -28,16 +28,22 @@ def _ensure_dhanhq_sdk_aliases() -> None:
     except Exception:
         return
 
-    _SEGMENT_CONSTANTS = {
-        "IDX": 0,
-        "NSE": 1,
-        "NSE_FNO": 2,
-        "NSE_CURR": 3,
-        "BSE": 4,
-        "MCX": 5,
-        "BSE_CURR": 7,
-        "BSE_FNO": 8,
-    }
+    _SEGMENT_CONSTANTS = None
+    try:
+        from brokers.dhan.segments import DHAN_SDK_SEGMENT_CONSTANTS
+
+        _SEGMENT_CONSTANTS = DHAN_SDK_SEGMENT_CONSTANTS
+    except Exception:
+        _SEGMENT_CONSTANTS = {
+            "IDX": 0,
+            "NSE": 1,
+            "NSE_FNO": 2,
+            "NSE_CURR": 3,
+            "BSE": 4,
+            "MCX": 5,
+            "BSE_CURR": 7,
+            "BSE_FNO": 8,
+        }
     _REQUEST_CODE_CONSTANTS = {
         "Ticker": 15,
         "Quote": 17,

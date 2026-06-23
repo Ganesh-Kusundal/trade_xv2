@@ -9,7 +9,13 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from datalake.api.deps import get_position_manager, get_order_manager, get_risk_manager
+from datalake.api.deps import (
+    get_position_repository,
+    get_order_repository,
+    get_risk_manager,
+    get_broker_service,
+    get_trade_journal,
+)
 from datalake.api.auth import require_auth
 from datalake.api.schemas import (
     PositionsResponse,
@@ -18,9 +24,8 @@ from datalake.api.schemas import (
     Holding,
     PortfolioSummary,
 )
-from brokers.common.oms.position_manager import PositionManager
-from brokers.common.oms.order_manager import OrderManager
-from brokers.common.core.domain import Side, OrderType, ProductType
+from domain.repositories import PositionRepository
+from domain import Side, OrderType, ProductType
 
 logger = logging.getLogger(__name__)
 
@@ -30,13 +35,13 @@ router = APIRouter(dependencies=[Depends(require_auth)])
 @router.get("/positions", response_model=PositionsResponse)
 async def get_positions(
     status_filter: Optional[str] = Query(None, alias="status", description="Filter: open, closed, all"),
-    position_manager: PositionManager = Depends(get_position_manager),
+    position_repo: PositionRepository = Depends(get_position_repository),
 ):
     """Get current positions from OMS.
     
     Returns open and closed positions from broker or paper trading.
     """
-    positions = position_manager.get_positions()
+    positions = position_repo.get_positions()
     
     # Filter by status if requested
     if status_filter and status_filter != "all":
@@ -67,7 +72,7 @@ async def get_positions(
 
 @router.get("/holdings", response_model=HoldingsResponse)
 async def get_holdings(
-    position_manager: PositionManager = Depends(get_position_manager),
+    position_repo: PositionRepository = Depends(get_position_repository),
 ):
     """Get current holdings/portfolio.
     
@@ -75,7 +80,7 @@ async def get_holdings(
     Uses real PositionManager data, filtering for delivery positions.
     """
     try:
-        positions = position_manager.get_positions()
+        positions = position_repo.get_positions()
         
         # Filter for holdings (non-zero quantity positions)
         holdings = []
@@ -128,7 +133,7 @@ async def get_holdings(
 
 @router.get("/summary", response_model=PortfolioSummary)
 async def get_portfolio_summary(
-    position_manager: PositionManager = Depends(get_position_manager),
+    position_repo: PositionRepository = Depends(get_position_repository),
     risk_manager = Depends(get_risk_manager),
 ):
     """Get portfolio summary with key metrics.
@@ -137,7 +142,7 @@ async def get_portfolio_summary(
     Uses real PositionManager and RiskManager data.
     """
     try:
-        positions = position_manager.get_positions()
+        positions = position_repo.get_positions()
         
         # Calculate portfolio metrics
         total_value = 0.0
@@ -209,65 +214,82 @@ async def get_pnl_history(
     from_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
     to_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
     group_by: str = Query("day", description="Group by: day, week, month"),
-    order_manager: OrderManager = Depends(get_order_manager),
+    journal=Depends(get_trade_journal),
+    position_repo: PositionRepository = Depends(get_position_repository),
 ):
     """Get historical P&L curve.
     
     Returns daily/weekly/monthly P&L for equity curve visualization.
-    Uses real OMS trade history for accurate P&L calculation.
+    Uses trade journal closed trades, with PositionManager fallback.
     """
     try:
-        # Get all completed orders
-        orders = order_manager.get_orders(status=None)  # All orders
-        
-        # Apply date filters
-        if from_date:
-            from_dt = datetime.fromisoformat(from_date)
-            orders = [o for o in orders if o.timestamp and o.timestamp >= from_dt]
-        if to_date:
-            to_dt = datetime.fromisoformat(to_date)
-            orders = [o for o in orders if o.timestamp and o.timestamp <= to_dt]
-        
-        # Group P&L by time period
-        pnl_data = {}
-        
-        for order in orders:
-            if not order.timestamp or order.filled_quantity == 0:
-                continue
-            
-            # Determine grouping key
-            ts = order.timestamp
-            if group_by == "day":
-                key = ts.strftime("%Y-%m-%d")
-            elif group_by == "week":
-                key = ts.strftime("%Y-W%U")
-            elif group_by == "month":
-                key = ts.strftime("%Y-%m")
-            else:
-                key = ts.strftime("%Y-%m-%d")
-            
-            # Calculate P&L for this trade (simplified)
-            pnl = 0.0  # Would need position context for accurate P&L
-            
-            if key not in pnl_data:
-                pnl_data[key] = {
-                    "date": key,
-                    "pnl": 0.0,
-                    "trades": 0,
-                }
-            
-            pnl_data[key]["pnl"] += pnl
-            pnl_data[key]["trades"] += 1
-        
-        # Sort by date
+        from_dt = datetime.fromisoformat(from_date) if from_date else None
+        to_dt = datetime.fromisoformat(to_date) if to_date else None
+
+        pnl_data: dict[str, dict] = {}
+        source = "journal"
+
+        trades = journal.get_trades(status="CLOSED", limit=10000)
+        if trades:
+            for trade in trades:
+                exit_time = trade.get("exit_time")
+                if not exit_time:
+                    continue
+                ts = datetime.fromisoformat(str(exit_time).replace("Z", "+00:00"))
+                if from_dt and ts < from_dt:
+                    continue
+                if to_dt and ts > to_dt:
+                    continue
+
+                if group_by == "day":
+                    key = ts.strftime("%Y-%m-%d")
+                elif group_by == "week":
+                    key = ts.strftime("%Y-W%U")
+                elif group_by == "month":
+                    key = ts.strftime("%Y-%m")
+                else:
+                    key = ts.strftime("%Y-%m-%d")
+
+                pnl = float(trade.get("pnl") or 0.0)
+                if key not in pnl_data:
+                    pnl_data[key] = {"date": key, "pnl": 0.0, "trades": 0}
+                pnl_data[key]["pnl"] += pnl
+                pnl_data[key]["trades"] += 1
+        else:
+            source = "positions"
+            for position in position_repo.get_positions():
+                if position.realized_pnl == 0:
+                    continue
+                ts = getattr(position, "updated_at", None) or datetime.now()
+                if from_dt and ts < from_dt:
+                    continue
+                if to_dt and ts > to_dt:
+                    continue
+
+                if group_by == "day":
+                    key = ts.strftime("%Y-%m-%d")
+                elif group_by == "week":
+                    key = ts.strftime("%Y-W%U")
+                elif group_by == "month":
+                    key = ts.strftime("%Y-%m")
+                else:
+                    key = ts.strftime("%Y-%m-%d")
+
+                pnl = float(position.realized_pnl)
+                if key not in pnl_data:
+                    pnl_data[key] = {"date": key, "pnl": 0.0, "trades": 0}
+                pnl_data[key]["pnl"] += pnl
+                pnl_data[key]["trades"] += 1
+
         pnl_curve = sorted(pnl_data.values(), key=lambda x: x["date"])
-        
+
         return {
             "pnl_curve": pnl_curve,
             "group_by": group_by,
             "total_pnl": sum(p["pnl"] for p in pnl_curve),
             "total_trades": sum(p["trades"] for p in pnl_curve),
             "count": len(pnl_curve),
+            "source": source,
         }
     except HTTPException:
         raise
@@ -282,8 +304,9 @@ async def get_pnl_history(
 @router.post("/square-off", response_model=dict)
 async def square_off_positions(
     symbol: Optional[str] = Query(None, description="Square off specific symbol"),
-    position_manager: PositionManager = Depends(get_position_manager),
-    order_manager: OrderManager = Depends(get_order_manager),
+    position_repo: PositionRepository = Depends(get_position_repository),
+    order_repo=Depends(get_order_repository),
+    broker_service=Depends(get_broker_service),
 ):
     """Square off all or specific positions.
     
@@ -291,7 +314,7 @@ async def square_off_positions(
     Uses real OMS to place market orders for position closure.
     """
     try:
-        positions = position_manager.get_positions()
+        positions = position_repo.get_positions()
         
         # Filter positions to square off
         if symbol:
@@ -305,8 +328,15 @@ async def square_off_positions(
                 "message": "No positions to square off",
                 "squared_off": 0,
             }
+
+        submit_fn = getattr(broker_service, "submit_order", None) if broker_service else None
+        if submit_fn is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Broker order submission unavailable.",
+                headers={"Retry-After": "60"},
+            )
         
-        # Place market orders to close positions
         squared_off = []
         failed = []
         
@@ -316,21 +346,21 @@ async def square_off_positions(
                 opposite_side = Side.SELL if p.quantity > 0 else Side.BUY
                 quantity = abs(p.quantity)
                 
-                # Create order command
-                from brokers.common.oms.order_manager import OmsOrderCommand
-                command = OmsOrderCommand(
+                from domain.requests import OrderRequest as DomainOrderRequest
+                from brokers.common.oms.order_repository_adapter import request_to_command
+
+                domain_req = DomainOrderRequest(
                     symbol=p.symbol,
                     exchange=p.exchange,
-                    side=opposite_side,
+                    transaction_type=opposite_side,
                     order_type=OrderType.MARKET,
                     quantity=quantity,
                     price=Decimal("0"),
                     product_type=ProductType.INTRADAY,
                     correlation_id=f"square-off-{datetime.now().isoformat()}",
                 )
-                
-                # Place order (without broker submit for now - would need broker connection)
-                result = order_manager.place_order(command, submit_fn=None)
+
+                result = order_repo.place_command(request_to_command(domain_req), submit_fn=submit_fn)
                 
                 if result.success:
                     squared_off.append({

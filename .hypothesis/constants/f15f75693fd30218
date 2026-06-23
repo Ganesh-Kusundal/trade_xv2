@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/common/services/benchmark.py
+# hypothesis_version: 6.147.0
+
+[0.0, 0.95, 0.99, 1000.0, 1000, '-', '1d', '=', 'BENCHMARK REPORT', 'FAIL', 'OK', 'RELIANCE', 'avg_ms', 'depth', 'failed', 'future_chain', 'historical', 'iterations', 'latencies', 'ltp', 'max_ms', 'min_ms', 'option_chain', 'p50_ms', 'p95_ms', 'p99_ms', 'passed', 'quote', 'search', 'tests', 'throughput']

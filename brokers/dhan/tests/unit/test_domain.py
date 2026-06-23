@@ -5,13 +5,13 @@ from decimal import Decimal
 
 import pytest
 
+from domain import Side
 from brokers.common.core.domain import Balance, Quote
 from brokers.dhan.domain import (
     Exchange,
     Instrument,
     InstrumentType,
     OptionType,
-    OrderSide,
 )
 
 
@@ -45,8 +45,8 @@ def test_quote_defaults():
 
 
 def test_order_side_enum():
-    assert OrderSide.BUY.value == "BUY"
-    assert OrderSide.SELL.value == "SELL"
+    assert Side.BUY.value == "BUY"
+    assert Side.SELL.value == "SELL"
 
 
 def test_balance_fields():

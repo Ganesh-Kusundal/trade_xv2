@@ -23,7 +23,8 @@ from .analytics_sector import (
     run_sector_strength,
     run_sector_volume,
 )
-from .analytics_stock import run_symbol_command
+from .analytics_walkforward import run_walkforward
+from .analytics_strategies import run_strategies
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ def run(args: list[str], broker_service, console: Console) -> CommandResult:
     """
     if not args:
         console.print("[yellow]Usage: tradex analytics <command> [args][/yellow]")
-        console.print("[dim]Commands: stock, future, option, volatility, volume-profile, breadth, sector, sector-rotation, sector-volume, sector-strength, sector-full, backtest, paper, replay, scan, rank, scan-momentum, scan-volume, scan-rs, scan-breakout, halftrend, halftrend-scan, datalake-backtest, orderflow, probability, optimize, compare[/dim]")
+        console.print("[dim]Commands: stock, future, option, volatility, volume-profile, breadth, sector, sector-rotation, sector-volume, sector-strength, sector-full, backtest, paper, replay, walkforward, strategies, scan, rank, scan-momentum, scan-volume, scan-rs, scan-breakout, halftrend, halftrend-scan, datalake-backtest, orderflow, probability, optimize, compare[/dim]")
         return CommandResult(success=False, error="Missing analytics subcommand")
 
     command = args[0].lower()
@@ -109,6 +110,12 @@ def run(args: list[str], broker_service, console: Console) -> CommandResult:
         elif command == "compare":
             run_compare(args[1:], console)
             return CommandResult(success=True, data={"command": "compare"})
+        elif command == "walkforward":
+            run_walkforward(args[1:], console)
+            return CommandResult(success=True, data={"command": "walkforward"})
+        elif command == "strategies":
+            run_strategies(args[1:], console)
+            return CommandResult(success=True, data={"command": "strategies"})
         else:
             console.print(f"[red]Unknown analytics command '{command}'.[/red]")
             return CommandResult(success=False, error=f"Unknown analytics command: {command}")

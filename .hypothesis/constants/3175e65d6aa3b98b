@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/common/services/data_validator.py
+# hypothesis_version: 6.147.0
+
+[-0.9, 1.5, 3.0, '\nIssues:', '15m', '1d', '1h', '1m', '1w', '30m', '5m', 'Empty DataFrame', 'FAILED', 'No timestamp column', 'PASSED', 'close', 'coerce', 'critical', 'duplicate', 'first', 'high', 'high/low', 'info', 'low', 'missing', 'oi', 'open', 'structure', 'timestamp', 'volume', 'warning']

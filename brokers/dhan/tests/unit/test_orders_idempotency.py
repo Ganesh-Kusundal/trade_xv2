@@ -6,8 +6,8 @@ import threading
 
 import pytest
 
-from brokers.common.core.domain import OrderRequest
-from brokers.dhan.domain import Order, OrderSide, OrderStatus, OrderType, ProductType, Validity
+from domain import Order, OrderStatus, OrderType, ProductType, Side, Validity
+from domain.requests import OrderRequest
 from brokers.dhan.orders import IdempotencyCache, OrdersAdapter
 
 
@@ -16,7 +16,7 @@ def _make_order(order_id: str = "ORD1", correlation_id: str | None = None) -> Or
         order_id=order_id,
         symbol="RELIANCE",
         exchange="NSE",
-        side=OrderSide.BUY,
+        side=Side.BUY,
         order_type=OrderType.MARKET,
         quantity=10,
         status=OrderStatus.OPEN,
@@ -78,7 +78,7 @@ def test_lock_context_manager_returns_cache():
 def test_place_order_generates_correlation_id(fake_client, resolver):
     """If no correlation_id is supplied, one is generated and sent to Dhan."""
     fake_client.set_response("POST", "/orders", {"data": {"orderId": "ORD-GEN"}})
-    adapter = OrdersAdapter(fake_client, resolver)
+    adapter = OrdersAdapter(fake_client, resolver, allow_live_orders=True)
     order = adapter.place_order(OrderRequest(symbol="RELIANCE", exchange="NSE", quantity=1))
 
     payloads = fake_client.calls_for("POST", "/orders")
@@ -91,7 +91,7 @@ def test_place_order_generates_correlation_id(fake_client, resolver):
 def test_place_order_uses_supplied_correlation_id(fake_client, resolver):
     """A supplied correlation_id is forwarded and cached."""
     fake_client.set_response("POST", "/orders", {"data": {"orderId": "ORD-SUP"}})
-    adapter = OrdersAdapter(fake_client, resolver)
+    adapter = OrdersAdapter(fake_client, resolver, allow_live_orders=True)
     cid = "my-correlation-id"
     order = adapter.place_order(OrderRequest(symbol="RELIANCE", exchange="NSE", quantity=1, correlation_id=cid))
 
@@ -103,7 +103,7 @@ def test_place_order_uses_supplied_correlation_id(fake_client, resolver):
 def test_place_order_idempotency_returns_cached_order(fake_client, resolver):
     """Second call with same correlation_id returns cached order without HTTP post."""
     fake_client.set_response("POST", "/orders", {"data": {"orderId": "ORD-IDEM"}})
-    adapter = OrdersAdapter(fake_client, resolver)
+    adapter = OrdersAdapter(fake_client, resolver, allow_live_orders=True)
     cid = "idem-cid"
 
     first = adapter.place_order(OrderRequest(symbol="RELIANCE", exchange="NSE", quantity=1, correlation_id=cid))
@@ -116,7 +116,7 @@ def test_place_order_idempotency_returns_cached_order(fake_client, resolver):
 def test_place_order_concurrent_idempotency_posts_once(fake_client, resolver):
     """Many threads racing with the same correlation_id must result in exactly one HTTP post."""
     fake_client.set_response("POST", "/orders", {"data": {"orderId": "ORD-RACE"}})
-    adapter = OrdersAdapter(fake_client, resolver)
+    adapter = OrdersAdapter(fake_client, resolver, allow_live_orders=True)
     cid = "race-cid"
     results: list[Order] = []
     errors: list[Exception] = []
@@ -152,7 +152,7 @@ def test_place_order_concurrent_idempotency_posts_once(fake_client, resolver):
 def test_place_order_concurrent_unique_correlation_ids(fake_client, resolver):
     """Concurrent unique correlation_ids each post exactly once."""
     fake_client.set_response("POST", "/orders", {"data": {"orderId": "ORD-UNIQUE"}})
-    adapter = OrdersAdapter(fake_client, resolver)
+    adapter = OrdersAdapter(fake_client, resolver, allow_live_orders=True)
     count = 10
     results: list[Order] = []
     errors: list[Exception] = []
@@ -187,7 +187,7 @@ def test_place_order_validation_failure_is_not_cached(fake_client, resolver):
     """A validation failure must not be cached as a successful idempotency entry."""
     from brokers.dhan.exceptions import OrderError
 
-    adapter = OrdersAdapter(fake_client, resolver)
+    adapter = OrdersAdapter(fake_client, resolver, allow_live_orders=True)
     cid = "bad-order"
 
     with pytest.raises(OrderError):

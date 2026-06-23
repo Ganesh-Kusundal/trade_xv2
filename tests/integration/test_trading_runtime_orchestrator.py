@@ -1,0 +1,74 @@
+"""Integration test: TradingRuntimeFactory orchestrator handles CANDIDATE_GENERATED."""
+
+from __future__ import annotations
+
+from unittest.mock import MagicMock
+
+import pandas as pd
+import pytest
+
+from analytics.strategy.models import Signal, SignalType
+from analytics.strategy.pipeline import StrategyPipeline
+from brokers.common.event_bus import DomainEvent, EventType
+from brokers.common.lifecycle import LifecycleManager
+from brokers.common.oms.factory import create_trading_context
+from runtime.trading_runtime_factory import TradingRuntimeFactory
+
+
+class _StaticFeatureFetcher:
+    def fetch(self, symbol: str) -> pd.DataFrame:
+        return pd.DataFrame({"close": [100.0, 101.0, 102.0, 103.0, 104.0]})
+
+
+class _AlwaysBuyStrategy:
+    name = "always_buy"
+
+    def evaluate(self, candidate, features):
+        return Signal(
+            symbol=candidate.symbol,
+            signal_type=SignalType.BUY,
+            confidence=0.95,
+            strategy=self.name,
+            entry_price=100.0,
+        )
+
+
+@pytest.fixture
+def mock_broker_service():
+    tc = create_trading_context(replay_events=False)
+    bs = MagicMock()
+    bs.active_broker = MagicMock()
+    bs.trading_context = tc
+    bs._gateway = None
+    bs._upstox_gateway = None
+    bs._active_name = "dhan"
+    bs.lifecycle = LifecycleManager()
+    bs.http_observability = None
+    bs._readiness_report = None
+    bs.live_actionable = False
+    bs.active_broker_name = "mock"
+    bs._event_bus = tc.event_bus
+    return bs
+
+
+def test_candidate_generated_increments_orchestrator_counter(mock_broker_service) -> None:
+    factory = TradingRuntimeFactory(
+        wire_orchestrator=True,
+        orchestrator_dry_run=True,
+        skip_parity_gate=True,
+    )
+    runtime = factory.build_from_broker_service(mock_broker_service)
+    orch = runtime.trading_orchestrator
+    assert orch is not None
+
+    orch._feature_fetcher = _StaticFeatureFetcher()
+    orch._strategy_pipeline = StrategyPipeline(strategies=[_AlwaysBuyStrategy()])
+
+    event = DomainEvent.now(
+        EventType.CANDIDATE_GENERATED,
+        {"symbol": "RELIANCE", "score": 85.0},
+        correlation_id="test-corr-1",
+    )
+    runtime.trading_context.event_bus.publish(event)
+
+    assert orch.executed_count + orch.rejected_count > 0

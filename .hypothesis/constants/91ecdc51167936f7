@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/cli/commands/doctor/strategies/broker_registry.py
+# hypothesis_version: 6.147.0
+
+['FAIL', 'INFO', 'PASS', 'Registered Brokers', 'WARN', 'available', 'env_file', 'name']

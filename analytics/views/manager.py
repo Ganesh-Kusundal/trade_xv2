@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -15,7 +17,7 @@ from analytics.views.options_views import OptionViews
 from analytics.views.quality import QualityViews
 from analytics.views.scanner import ScannerViews
 from analytics.views.strategy import StrategyViews
-from datalake.duckdb_utils import DEFAULT_CATALOG_PATH, get_pool
+from datalake.duckdb_utils import DEFAULT_CATALOG_PATH, duckdb_connection, get_pool
 from datalake.options_analytics_sql import SQL_M_IV_SURFACE, SQL_M_MAX_PAIN, SQL_M_PCR
 
 logger = logging.getLogger(__name__)
@@ -56,12 +58,23 @@ class ViewManager:
 
     @property
     def conn(self) -> duckdb.DuckDBPyConnection:
+        """Return the cached read-write connection for materialization and DDL."""
         if self._conn is None:
-            self._conn = get_pool().get(self._path)
+            self._conn = get_pool().acquire(self._path, read_only=False)
         return self._conn
+
+    @contextmanager
+    def _query_connection(self) -> Iterator[duckdb.DuckDBPyConnection]:
+        """Yield a connection for read queries (RO pool when read_only)."""
+        if self._read_only:
+            with duckdb_connection(self._path, read_only=True) as conn:
+                yield conn
+        else:
+            yield self.conn
 
     def close(self) -> None:
         if self._conn is not None:
+            get_pool().release(self._path)
             self._conn = None
 
     # ─── Materialization ─────────────────────────────────────────────────────
@@ -532,63 +545,83 @@ class ViewManager:
 
     def query(self, sql: str, params: list | None = None) -> duckdb.DuckDBPyRelation:
         """Execute a query against the analytics views."""
-        if params:
-            return self.conn.execute(sql, params)
-        return self.conn.execute(sql)
+        if not self._read_only:
+            if params:
+                return self.conn.execute(sql, params)
+            return self.conn.execute(sql)
+        with self._query_connection() as conn:
+            if params:
+                df = conn.execute(sql, params).fetchdf()
+            else:
+                df = conn.execute(sql).fetchdf()
+        return duckdb.from_df(df)
 
     def query_df(self, sql: str, params: list | None = None) -> Any:
         """Execute a query and return as pandas DataFrame."""
-        return self.query(sql, params).fetchdf()
+        with self._query_connection() as conn:
+            if params:
+                return conn.execute(sql, params).fetchdf()
+            return conn.execute(sql).fetchdf()
 
     def query_scalar(self, sql: str, params: list | None = None) -> Any:
         """Execute a query and return single scalar value."""
-        result = self.query(sql, params).fetchone()
-        return result[0] if result else None
+        with self._query_connection() as conn:
+            if params:
+                result = conn.execute(sql, params).fetchone()
+            else:
+                result = conn.execute(sql).fetchone()
+            return result[0] if result else None
 
     # ─── Introspection ───────────────────────────────────────────────────────
 
     def list_views(self) -> list[dict]:
         """List all user-created views in the catalog."""
-        results = self.conn.execute(
-            "SELECT view_name, sql FROM duckdb_views() WHERE schema_name = 'main' AND internal = false"
-        ).fetchall()
-        return [{"name": r[0], "definition": r[1] or ""} for r in results]
+        with self._query_connection() as conn:
+            results = conn.execute(
+                "SELECT view_name, sql FROM duckdb_views() WHERE schema_name = 'main' AND internal = false"
+            ).fetchall()
+            return [{"name": r[0], "definition": r[1] or ""} for r in results]
 
     def view_exists(self, view_name: str) -> bool:
         """Check if a view exists."""
-        result = self.conn.execute(
-            "SELECT COUNT(*) FROM duckdb_views() WHERE view_name = ? AND schema_name = 'main'",
-            [view_name],
-        ).fetchone()
-        return result[0] > 0
+        with self._query_connection() as conn:
+            result = conn.execute(
+                "SELECT COUNT(*) FROM duckdb_views() WHERE view_name = ? AND schema_name = 'main'",
+                [view_name],
+            ).fetchone()
+            return result[0] > 0
 
     def table_exists(self, table_name: str) -> bool:
         """Check if a table exists."""
-        result = self.conn.execute(
-            "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ? AND table_schema = 'main'",
-            [table_name],
-        ).fetchone()
-        return result[0] > 0
+        with self._query_connection() as conn:
+            result = conn.execute(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ? AND table_schema = 'main'",
+                [table_name],
+            ).fetchone()
+            return result[0] > 0
 
     def view_columns(self, view_name: str) -> list[str]:
         """Get column names for a view or table."""
         try:
-            result = self.conn.execute(f"DESCRIBE {view_name}").fetchall()
-            return [r[0] for r in result]
+            with self._query_connection() as conn:
+                result = conn.execute(f"DESCRIBE {view_name}").fetchall()
+                return [r[0] for r in result]
         except Exception:
             return []
 
     def view_count(self) -> int:
         """Count total number of user-created views."""
-        return self.conn.execute(
-            "SELECT COUNT(*) FROM duckdb_views() WHERE schema_name = 'main' AND internal = false"
-        ).fetchone()[0]
+        with self._query_connection() as conn:
+            return conn.execute(
+                "SELECT COUNT(*) FROM duckdb_views() WHERE schema_name = 'main' AND internal = false"
+            ).fetchone()[0]
 
     def table_count(self) -> int:
         """Count total number of tables."""
-        return self.conn.execute(
-            "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'main'"
-        ).fetchone()[0]
+        with self._query_connection() as conn:
+            return conn.execute(
+                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'main'"
+            ).fetchone()[0]
 
     # ─── Performance ─────────────────────────────────────────────────────────
 
@@ -597,7 +630,8 @@ class ViewManager:
         times = []
         for _ in range(iterations):
             start = time.perf_counter()
-            self.conn.execute(sql).fetchall()
+            with self._query_connection() as conn:
+                conn.execute(sql).fetchall()
             elapsed = time.perf_counter() - start
             times.append(elapsed)
 

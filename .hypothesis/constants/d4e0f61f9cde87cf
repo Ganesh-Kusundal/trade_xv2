@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/cli/utils/retry_handler.py
+# hypothesis_version: 6.147.0
+
+[1.0, 'attempt', 'attempts', 'error', 'function', 'max_retries', 'retry_attempt', 'retry_exhausted', 'wait_time']

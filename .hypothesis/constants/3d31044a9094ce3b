@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/datalake/backtest_cache_store.py
+# hypothesis_version: 6.147.0
+
+[10.0, 500, 'metrics', 'payload', 'run_id', 'symbol', 'timeframe', 'trades']

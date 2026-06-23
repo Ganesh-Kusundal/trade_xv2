@@ -227,24 +227,22 @@ def get_last_candle_fast(
         ...     print(f"Last close: {last['close']}")
     """
     from datalake.paths import get_candle_path
-    from datalake.duckdb_utils import get_connection
+    from datalake.duckdb_utils import duckdb_connection
     
     path = get_candle_path(symbol, timeframe)
     if not path.exists():
         return None
     
     try:
-        conn = get_connection()
-        
-        # Efficient last-row query (doesn't load entire file)
-        # P0.3: Parameterized query to prevent SQL injection
-        query = """
-            SELECT * FROM read_parquet(?)
-            ORDER BY timestamp DESC
-            LIMIT 1
-        """
-        
-        result_row = conn.execute(query, [str(path)])
+        with duckdb_connection(":memory:", read_only=False) as conn:
+            # Efficient last-row query (doesn't load entire file)
+            query = """
+                SELECT * FROM read_parquet(?)
+                ORDER BY timestamp DESC
+                LIMIT 1
+            """
+            
+            result_row = conn.execute(query, [str(path)])
         description = result_row.description
         if description is None:
             return None

@@ -24,9 +24,3 @@ DHAN_STATUS_MAP: dict[str, OrderStatus] = {
 
 # Register Dhan mappings at module load
 StatusMapperRegistry.register("dhan", DHAN_STATUS_MAP)
-
-
-def normalize_dhan_status(broker_status: str) -> OrderStatus:
-    """Map a Dhan-specific status string to canonical OrderStatus."""
-    normalized = broker_status.upper().strip().replace(" ", "_")
-    return DHAN_STATUS_MAP.get(normalized, OrderStatus.normalize(normalized))

@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/upstox/news/adapter.py
+# hypothesis_version: 6.147.0
+
+['category', 'from_date', 'holdings', 'instrument_keys', 'symbol', 'to_date']

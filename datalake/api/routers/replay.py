@@ -70,6 +70,11 @@ class ReplaySessionStore:
 _session_store = ReplaySessionStore()
 
 
+def get_replay_session_store() -> ReplaySessionStore:
+    """Return the process-wide replay session store."""
+    return _session_store
+
+
 def _build_response(session: dict) -> ReplaySessionResponse:
     """Build a ReplaySessionResponse from a session dict."""
     return ReplaySessionResponse(

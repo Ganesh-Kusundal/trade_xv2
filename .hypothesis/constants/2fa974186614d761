@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/upstox/market_intelligence/client.py
+# hypothesis_version: 6.147.0
+
+['1D', 'INDEX', 'NSE_EQ|CASH', 'NSE_FO|INDEX_FUTURES', 'TOP_TRADED', 'asset_type', 'bucket_interval', 'category', 'data', 'data_type', 'date', 'expiry', 'instrument_key', 'interval', 'page_number', 'page_size']

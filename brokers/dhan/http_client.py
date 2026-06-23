@@ -38,6 +38,7 @@ _MAX_RETRIES = 3
 _BASE_DELAY_MS = 500
 _MAX_DELAY_MS = 5000
 _REFRESH_COOLDOWN_SECONDS = 60
+_RATE_LIMIT_BACKOFF_SECONDS = 130  # Dhan's 2-min rate limit + 10s buffer
 
 # ── Endpoint categorization for circuit-breaker isolation (A1) ────────────
 #
@@ -222,22 +223,57 @@ class DhanHttpClient:
             return None
 
     def _try_refresh_token(self) -> bool:
-        """Attempt token refresh. Returns True if successful."""
+        """Attempt token refresh. Returns True if successful.
+        
+        Implements exponential backoff when Dhan's rate limit is hit
+        ("Token can be generated once every 2 minutes").
+        """
         now = time.time()
+        
+        # Check if we're in backoff period due to rate limiting
+        if hasattr(self, '_refresh_backoff_until') and now < self._refresh_backoff_until:
+            remaining = self._refresh_backoff_until - now
+            logger.debug(
+                "token_refresh_backoff",
+                extra={"remaining_seconds": round(remaining, 1)}
+            )
+            return False
+        
+        # Standard cooldown check
         if now - self._last_refresh_time < _REFRESH_COOLDOWN_SECONDS:
             logger.debug("token_refresh_skipped", extra={"reason": "cooldown_active"})
             return False
+            
         if self._token_refresh_fn is None:
             return False
         try:
-            self._last_refresh_time = now
             new_token = self._token_refresh_fn()
             if new_token:
+                self._last_refresh_time = now
                 self.update_token(new_token)
+                # Clear any backoff state on success
+                if hasattr(self, '_refresh_backoff_until'):
+                    delattr(self, '_refresh_backoff_until')
                 logger.info("token_refreshed", extra={"client_id": self.client_id})
                 return True
+            else:
+                # Token generation returned None - likely rate limited
+                # Check response body for rate limit message
+                logger.warning("token_generation_failed", extra={"reason": "returned_none"})
+                # Set backoff to prevent rapid retries
+                self._refresh_backoff_until = now + _RATE_LIMIT_BACKOFF_SECONDS
+                return False
         except Exception as exc:
-            logger.warning("token_refresh_failed", extra={"error": str(exc)})
+            error_msg = str(exc)
+            # Detect Dhan's rate limit error
+            if "once every 2 minutes" in error_msg or "rate limit" in error_msg.lower():
+                logger.warning(
+                    "dhan_token_rate_limit",
+                    extra={"backoff_seconds": _RATE_LIMIT_BACKOFF_SECONDS}
+                )
+                self._refresh_backoff_until = now + _RATE_LIMIT_BACKOFF_SECONDS
+            else:
+                logger.warning("token_refresh_failed", extra={"error": error_msg})
         return False
 
     def _request(self, method: str, endpoint: str, json: dict | None = None) -> dict[str, Any]:

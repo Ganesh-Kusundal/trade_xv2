@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/cli/commands/events.py
+# hypothesis_version: 6.147.0
+
+[0.5, 'Event Category', 'Processed Count', 'bold magenta', 'bold white', 'center']

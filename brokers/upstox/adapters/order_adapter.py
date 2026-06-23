@@ -76,6 +76,7 @@ class OrderAdapter:
         trigger_price: Decimal = Decimal("0"),
         correlation_id: str | None = None,
         is_amo: bool = False,
+        transport_only: bool = False,
     ) -> OrderResponse:
         """Place an order via Upstox.
         
@@ -132,6 +133,7 @@ class OrderAdapter:
             validity=Validity(validity.upper()),
             correlation_id=correlation_id,
             is_amo=is_amo,
+            transport_only=transport_only,
         )
         
         try:

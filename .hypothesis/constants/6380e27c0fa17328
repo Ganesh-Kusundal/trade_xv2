@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/datalake/journal.py
+# hypothesis_version: 6.147.0
+
+[10.0, 100, ' AND status = ?', ' AND strategy = ?', ' AND symbol = ?', 'BUY', 'CLOSED', 'OPEN', 'SELECT 1', 'avg_pnl', 'entry_price', 'losing_trades', 'metadata', 'quantity', 'side', 'total_pnl', 'total_trades', 'win_rate', 'winning_trades']

@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/cli/commands/validate_option_chain.py
+# hypothesis_version: 6.147.0
+
+[1000, '  Status: N/A', ', ', '.env.local', '.env.upstox', 'ATM Strike', 'ATM not found', 'Expiry', 'Highest Call OI', 'Highest Put OI', 'Latency', 'Metric', 'N/A', 'PASS', 'PCR', 'PCR is zero', 'Spot', 'Status', 'Strikes', 'Value', 'WARN: ', 'call', 'cyan', 'dhan', 'expiry', 'no strikes', 'oi', 'put', 'spot', 'strike', 'strikes', 'upstox']

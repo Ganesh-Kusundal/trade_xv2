@@ -310,5 +310,80 @@ async def get_options_volume_profile(
     expiry: Optional[str] = Query(None, description="Expiry date"),
 ):
     """Get options volume profile by strike."""
-    # TODO: Implement with volume profile analytics
-    return {"strikes": [], "profile": [], "note": "Not implemented — requires order flow analytics"}
+    import duckdb
+
+    try:
+        if not re.match(r'^[A-Z][A-Z0-9]{0,10}$', underlying.upper()):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid underlying symbol format. Must be alphanumeric (e.g., NIFTY, BANKNIFTY, RELIANCE)",
+            )
+
+        options_dir = Path("market_data/options/candles")
+        underlying_dir = options_dir / f"underlying={underlying.upper()}"
+
+        if not underlying_dir.exists():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No option data found for {underlying}",
+            )
+
+        parquet_base = str(underlying_dir)
+        query = """
+            SELECT strike, option_type, SUM(volume) AS total_volume
+            FROM read_parquet(? || '/**/data.parquet', hive_partitioning=true)
+            WHERE underlying = ?
+        """
+        params: list = [parquet_base, underlying.upper()]
+
+        if expiry:
+            query += " AND expiry_date = ?"
+            params.append(expiry)
+
+        query += " GROUP BY strike, option_type ORDER BY strike"
+
+        conn = duckdb.connect(":memory:")
+        try:
+            rows = conn.execute(query, params).fetchall()
+        finally:
+            conn.close()
+
+        strike_map: dict[float, dict[str, float]] = {}
+        for strike, option_type, volume in rows:
+            strike_val = float(strike) if strike is not None else 0.0
+            bucket = strike_map.setdefault(strike_val, {"ce": 0.0, "pe": 0.0, "total": 0.0})
+            vol = float(volume or 0.0)
+            opt = (option_type or "").upper()
+            if opt == "CE":
+                bucket["ce"] += vol
+            elif opt == "PE":
+                bucket["pe"] += vol
+            bucket["total"] += vol
+
+        strikes = sorted(strike_map.keys())
+        profile = [
+            {
+                "strike": strike,
+                "ce_volume": strike_map[strike]["ce"],
+                "pe_volume": strike_map[strike]["pe"],
+                "total_volume": strike_map[strike]["total"],
+            }
+            for strike in strikes
+        ]
+
+        return {
+            "underlying": underlying.upper(),
+            "expiry": expiry or "all",
+            "strikes": strikes,
+            "profile": profile,
+            "count": len(profile),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Options volume profile fetch failed: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Options volume profile fetch failed: {str(exc)}",
+        )

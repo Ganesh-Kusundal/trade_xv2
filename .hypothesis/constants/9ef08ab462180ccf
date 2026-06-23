@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/dhan/invariants.py
+# hypothesis_version: 6.147.0
+
+['VALID_SEGMENTS', 'assert_dhan_identity', 'assert_dhan_payload', 'assert_dhan_segment', 'exchangeSegment', 'exchange_segment', 'securityId', 'security_id']

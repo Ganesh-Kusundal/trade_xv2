@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/dhan/portfolio.py
+# hypothesis_version: 6.147.0
+
+['/fundlimit', '/holdings', '/positions', '0', 'INTRADAY', 'NSE', 'NSE_EQ', 'availabelBalance', 'availableBalance', 'availableQty', 'availableQuantity', 'available_balance', 'avgCostPrice', 'balance_fetch_failed', 'balance_fetched', 'buyAveragePrice', 'collateralAmount', 'costPrice', 'count', 'data', 'exchangeSegment', 'holdings_fetched', 'lastPrice', 'lastTradedPrice', 'netQuantity', 'pnlValue', 'positions_fetched', 'productType', 'quantity', 'realizedPnl', 'reason', 'sodLimit', 'totalQty', 'tradingSymbol', 'unrealizedPnl', 'utilizedAmount', 'withdrawableBalance']

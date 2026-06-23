@@ -160,8 +160,23 @@ def _make_trade_j_duckdb(path: Path, rows: list[dict]) -> None:
     """)
     if rows:
         df = pd.DataFrame(rows)
-        c.execute("INSERT INTO rolling_option_bars SELECT * FROM df")
+        for col in ("underlying", "expiry_kind", "option_type"):
+            df[col] = df[col].astype(object)
+        c.register("rows_df", df)
+        c.execute("INSERT INTO rolling_option_bars SELECT * FROM rows_df")
     c.close()
+
+
+def _insert_option_rows(conn: duckdb.DuckDBPyConnection, rows: list[dict]) -> None:
+    """Insert rows into rolling_option_bars with DuckDB-safe dtypes."""
+    if not rows:
+        return
+    df = pd.DataFrame(rows)
+    for col in ("underlying", "expiry_kind", "option_type"):
+        df[col] = df[col].astype(object)
+    conn.register("rows_df", df)
+    conn.execute("INSERT INTO rolling_option_bars SELECT * FROM rows_df")
+    conn.unregister("rows_df")
 
 
 def _make_option_row(underlying: str, ek: str, ec: int, so: int, ot: str,
@@ -235,8 +250,7 @@ class TestSyncOptions:
             # Duplicate of the new bar (same bar_time_ms, same symbol)
             _make_option_row("NIFTY", "WEEK", 1, -2, "CALL", 1772496900000, price_paisa=99999),
         ]
-        df = pd.DataFrame(rows2)
-        c.execute("INSERT INTO rolling_option_bars SELECT * FROM df")
+        _insert_option_rows(c, rows2)
         c.close()
 
         s = sync_options(trade_j_duckdb=tj_path, target_root=tgt_path)
@@ -260,8 +274,7 @@ class TestSyncOptions:
         # Add a new row with later timestamp
         c = duckdb.connect(str(tj_path))
         rows2 = [_make_option_row("NIFTY", "WEEK", 1, -2, "CALL", 1772496900000)]  # +15 min
-        df = pd.DataFrame(rows2)
-        c.execute("INSERT INTO rolling_option_bars SELECT * FROM df")
+        _insert_option_rows(c, rows2)
         c.close()
 
         s = sync_options(trade_j_duckdb=tj_path, target_root=tgt_path)

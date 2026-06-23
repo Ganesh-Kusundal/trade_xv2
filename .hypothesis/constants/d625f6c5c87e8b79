@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/cli/commands/analytics_research.py
+# hypothesis_version: 6.147.0
+
+['--chain', '--file', '--momentum', '--oi', '--rs', '--symbol', '--trend', '--volume', '100%', '15%', '20%', '25%', 'COMPOSITE', 'Component', 'Score', 'Weight', '_', 'bold cyan', 'bold white', 'composite_score', 'dim', 'green', 'momentum', 'oi', 'red', 'relative_strength', 'trend', 'volume', 'yellow', '─']

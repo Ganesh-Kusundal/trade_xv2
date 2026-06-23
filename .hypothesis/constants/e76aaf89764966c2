@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/analytics/scanner/models.py
+# hypothesis_version: 6.147.0
+
+[0.0, 50.0, ', ', '0', '100', '50', 'COMPLETED', 'FAILED', 'IDLE', 'RUNNING', 'UNKNOWN', '_signal', 'base', 'candidate_count', 'close', 'composite_score', 'high', 'low', 'open', 'profile', 'reason', 'reasons', 'score', 'score_', 'symbol', 'timestamp', 'universe', 'volume']

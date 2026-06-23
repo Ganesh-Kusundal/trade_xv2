@@ -53,8 +53,10 @@ Usage:
 from __future__ import annotations
 
 import logging
+import os
 from collections import deque
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 import pandas as pd
 
@@ -70,8 +72,14 @@ from analytics.replay.models import (
 from analytics.scanner.models import Candidate
 from analytics.strategy.models import Signal
 from analytics.strategy.pipeline import StrategyPipeline
+from domain.execution import compute_order_quantity
+from domain.runtime_hooks import create_oms_backtest_adapter
+from domain.ports.oms_backtest_adapter import OmsBacktestAdapterPort
 
 logger = logging.getLogger(__name__)
+
+# Module-level default for backward compat; prefer the constructor parameter.
+_DEFAULT_STRICT_PARITY = os.getenv("STRICT_EXECUTION_PARITY", "0") == "1"
 
 
 class ReplayEngine:
@@ -113,24 +121,35 @@ class ReplayEngine:
         config: ReplayConfig | None = None,
         event_bus=None,
         trading_context=None,
+        execution_adapter: object | None = None,
+        oms_adapter: OmsBacktestAdapterPort | None = None,
+        strict_parity: bool | None = None,
     ) -> None:
         self._pipeline = pipeline or FeaturePipeline()
         self._strategy = strategy_pipeline or StrategyPipeline()
         self._config = config or ReplayConfig()
         self._event_bus = event_bus
         self._trading_context = trading_context
+        self._execution_adapter = execution_adapter
+        self._strict_parity = strict_parity if strict_parity is not None else _DEFAULT_STRICT_PARITY
 
-        # P0-2: Initialize OMS adapter if trading_context is provided
-        if trading_context is not None:
-            from analytics.replay.oms_bridge import OmsBacktestAdapter
+        if oms_adapter is not None:
+            self._oms_adapter = oms_adapter
+        elif trading_context is not None:
             cfg = self._config
-            self._oms_adapter = OmsBacktestAdapter(
-                trading_context=trading_context,
+            self._oms_adapter = create_oms_backtest_adapter(
+                trading_context,
+                mode="replay",
                 slippage_pct=cfg.slippage_pct,
-                commission_flat=Decimal(str(cfg.commission_flat)),
+                commission_flat=cfg.commission_flat,
+                execution_adapter=execution_adapter,
             )
         else:
             self._oms_adapter = None
+            if self._strict_parity:
+                raise ValueError(
+                    "STRICT_EXECUTION_PARITY=1 requires trading_context or oms_adapter on ReplayEngine"
+                )
 
     def run(self, data: pd.DataFrame, *, symbol: str = "SYMBOL") -> ReplayResult:
         """Run replay on OHLCV DataFrame.
@@ -332,7 +351,13 @@ class ReplayEngine:
         if self._oms_adapter is not None:
             self._process_signal_via_oms(signal, bar, session, config)
         else:
-            # Fallback: legacy simulated position management (deprecated)
+            logger.warning(
+                "ReplayEngine using legacy simulated fills; pass trading_context for OMS parity"
+            )
+            if self._strict_parity:
+                raise RuntimeError(
+                    "STRICT_EXECUTION_PARITY=1 forbids simulated replay fills"
+                )
             self._process_signal_simulated(signal, bar, session, config)
 
     def _process_signal_via_oms(
@@ -350,8 +375,11 @@ class ReplayEngine:
         if signal.is_buy and session.position is None:
             # Open long via OMS
             price = Decimal(str(bar.close * (1 + config.slippage_pct / 100)))
-            max_notional = session.capital * (config.max_position_pct / 100)
-            qty = int(max_notional / float(price)) if float(price) > 0 else 0
+            qty = compute_order_quantity(
+                equity=session.capital,
+                price=float(price),
+                max_position_pct=config.max_position_pct,
+            )
 
             if qty > 0:
                 order_id = self._oms_adapter.open_long(
@@ -541,10 +569,11 @@ class ReplayEngine:
         never abort the replay bar loop.
         """
         try:
-            from brokers.common.event_bus import DomainEvent
+            from domain.events import EventType
+            from domain.runtime_hooks import create_domain_event
 
-            event = DomainEvent.now(
-                event_type="SIGNAL_GENERATED",
+            event = create_domain_event(
+                event_type=EventType.SIGNAL_GENERATED.value,
                 payload={
                     "symbol": signal.symbol,
                     "strategy": signal.strategy,

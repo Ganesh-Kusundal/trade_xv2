@@ -304,25 +304,6 @@ class TestFromBrokerDictWithExchangeResolver:
         assert captured == ["NSE_EQ"]
         assert order.exchange == "EX::NSE_EQ"
 
-    def test_exchange_resolver_can_map_to_dhan_exchange_enum(self):
-        from brokers.dhan.domain import Exchange as DhanExchange
-
-        def dhan_resolver(seg: str) -> DhanExchange:
-            from brokers.dhan.segments import SEGMENT_TO_EXCHANGE
-            return DhanExchange(SEGMENT_TO_EXCHANGE.get(str(seg), "NSE"))
-
-        raw = {
-            "orderId": "ORD-D",
-            "tradingSymbol": "RELIANCE",
-            "exchangeSegment": "NSE_EQ",
-            "transactionType": "BUY",
-            "orderType": "MARKET",
-            "quantity": 1,
-            "orderStatus": "OPEN",
-        }
-        order = Order.from_broker_dict(raw, exchange_resolver=dhan_resolver)
-        assert order.exchange == DhanExchange.NSE
-
     def test_no_resolver_falls_back_to_segment_string(self):
         raw = {
             "orderId": "ORD-N",

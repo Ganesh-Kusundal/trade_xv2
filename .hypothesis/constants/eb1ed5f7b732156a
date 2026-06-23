@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/common/contracts/module_test_suite.py
+# hypothesis_version: 6.147.0
+
+['-m', 'contract', 'integration', 'unit']

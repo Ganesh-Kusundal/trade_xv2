@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/upstox/adapters/historical_adapter.py
+# hypothesis_version: 6.147.0
+
+[3650, '%Y-%m-%d', '1', '15', '15MIN', '1D', '1H', '1MIN', '1W', '3', '30', '30MIN', '3MIN', '4', '4H', '5', '5MIN', '60', '60MIN', 'D', 'DAY', 'MON', 'MONTH', 'W', 'candles', 'close', 'data', 'days', 'exchange', 'high', 'hours', 'low', 'minutes', 'months', 'oi', 'open', 'symbol', 'timeframe', 'timestamp', 'volume', 'weeks']

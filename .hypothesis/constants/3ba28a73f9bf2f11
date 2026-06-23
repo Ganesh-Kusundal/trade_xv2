@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/datalake/api/schemas.py
+# hypothesis_version: 6.147.0
+
+[0.0, 0.01, 0.05, 100, 200, 1000, 5000, 100000, 1000000, '1.0.0', '1d', '1m', 'BCD', 'BO', 'BSE', 'BUY', 'BUY or SELL', 'CDS', 'CO', 'Close', 'DELIVERY', 'EQUITY', 'End timestamp (ms)', 'High', 'INTRADAY', 'LIMIT', 'Low', 'MARGIN', 'MARKET', 'MCX', 'Max candles', 'Max results', 'NFO', 'NIFTY500', 'NSE', 'Open', 'Open interest', 'OrderRequest', 'SELL', 'SL', 'SL-M', 'Search query', 'Start timestamp (ms)', 'Strategy name', 'Symbol to fetch', 'T', 'Timestamp (ms)', 'Volume', 'after', 'exchange', 'healthy', 'order_type', 'product_type', 'transaction_type']

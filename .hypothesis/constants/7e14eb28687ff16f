@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/analytics/replay/engine.py
+# hypothesis_version: 6.147.0
+
+[0.0, 50.0, 100, '0', '1', 'BUY', 'End of replay', 'NSE', 'SYMBOL', 'Signal sell', 'Stop-loss hit', 'Target hit', 'close', 'confidence', 'date', 'high', 'low', 'open', 'replay', 'replay_signal', 'score', 'signal_type', 'strategy', 'symbol', 'timestamp', 'value', 'volume']

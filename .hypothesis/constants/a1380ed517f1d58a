@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/cli/commands/order_composition.py
+# hypothesis_version: 6.147.0
+
+['--file', '--order1-price', '--order2-price', '--stop-loss', '--target', 'BUY', 'Count', 'Empty CSV file', 'Entry', 'Failed', 'LIMIT', 'Leg', 'MARKET', 'Market', 'Metric', 'Missing file path', 'Order', 'Order 1', 'Order 2', 'Order ID', 'Price', 'STOP_LOSS', 'Status', 'Stop Loss', 'Successful', 'Target', 'Total Orders', 'Type', 'UNKNOWN', 'bold cyan', 'bold magenta', 'bold white', 'center', 'entry_order_id', 'error', 'failed', 'order1_id', 'order2_id', 'order_id', 'quantity', 'results', 'right', 'side', 'status', 'stop_loss_order_id', 'success', 'successful', 'symbol', 'target_order_id', 'total', 'utf-8', '🔀 OCO Order Summary']

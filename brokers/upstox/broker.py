@@ -9,6 +9,7 @@ adapter wiring.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import logging
 from typing import Any
 
@@ -72,8 +73,25 @@ from brokers.upstox.websocket.market_data_v3 import UpstoxMarketDataV3Multiplexe
 from brokers.upstox.websocket.v3_auto_reconnect import UpstoxAutoReconnect
 from brokers.upstox.websocket.v3_decoder import UpstoxV3Decoder
 from brokers.upstox.websocket.v3_subscription_manager import UpstoxV3SubscriptionLimits
+from brokers.upstox.capabilities import (
+    InstrumentsCapability,
+    MarketDataCapability,
+    OrdersCapability,
+    PortfolioCapability,
+    StreamingCapability,
+)
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class _UpstoxCapabilities:
+    market_data: MarketDataCapability
+    orders: OrdersCapability
+    portfolio: PortfolioCapability
+    instruments: InstrumentsCapability
+    streaming: StreamingCapability
+
 
 # ── Adapter registry: (attr_name, client_class, adapter_class, capability) ──
 # Each entry constructs a client from (http_client, url_resolver) and an
@@ -145,7 +163,13 @@ class UpstoxBroker:
         for name, client_cls, adapter_cls, capability in _ADAPTER_REGISTRY:
             client = client_cls(self.context.http_client, self.context.url_resolver)
             setattr(self, f"{name}_client", client)
-            adapter = adapter_cls(client)
+            
+            # Options adapter needs instrument_resolver
+            if name == 'options':
+                adapter = adapter_cls(client, self.instrument_resolver)
+            else:
+                adapter = adapter_cls(client)
+            
             setattr(self, name, adapter)
             if capability is not None:
                 self._register_capability(capability, adapter)
@@ -216,6 +240,47 @@ class UpstoxBroker:
         # Trade P&L Calculator
         self.trade_pnl_calculator = TradePnLCalculator(
             self.portfolio_client, self.market_data_v2
+        )
+
+        self.capabilities = _UpstoxCapabilities(
+            market_data=MarketDataCapability(
+                market_data=self.market_data,
+                market_data_v2=self.market_data_v2,
+                market_data_v3=self.market_data_v3,
+                historical_v2=self.historical_v2,
+                historical_v3=self.historical_v3,
+                options=self.options,
+                futures=self.futures,
+                expired_instruments_client=self.expired_instruments_client,
+                market_status=self.market_status,
+                intelligence=self.intelligence,
+                intelligence_snapshot=self.intelligence_snapshot,
+            ),
+            orders=OrdersCapability(
+                order_command=self.order_command,
+                order_query=self.order_query,
+                slice=self.slice,
+                cover=self.cover,
+                gtt=self.gtt,
+                alert=self.alert,
+                exit_all=self.exit_all,
+                order_client=self.order_client,
+            ),
+            portfolio=PortfolioCapability(
+                portfolio=self.portfolio,
+                margin=self.margin,
+                portfolio_client=self.portfolio_client,
+                margin_client=self.margin_client,
+            ),
+            instruments=InstrumentsCapability(
+                instrument_resolver=self.instrument_resolver,
+                instrument_loader=self.instrument_loader,
+                instrument_search=self.instrument_search,
+            ),
+            streaming=StreamingCapability(
+                feed_authorizer=self.feed_authorizer,
+                market_data_websocket=self.market_data_websocket,
+            ),
         )
 
         self._register_all_capabilities()

@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/dhan/margin.py
+# hypothesis_version: 6.147.0
+
+['/margincalculator', '; ', 'BUY', 'LIMIT', 'STOP_LOSS', 'availableMargin', 'data', 'dhanClientId', 'errors', 'exchangeSegment', 'exposureMargin', 'margin.calculate', 'margin_calculated', 'orderMargin', 'orderType', 'price', 'productType', 'quantity', 'securityId', 'spanMargin', 'symbol', 'totalMargin', 'total_margin', 'transactionType', 'triggerPrice']

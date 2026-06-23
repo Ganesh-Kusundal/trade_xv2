@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from brokers.common.core.domain import Order, OrderStatus, Side, Trade
+from brokers.common.core.domain import Order, OrderStatus, OrderType, Side, Trade
+from brokers.common.execution.execution_service import ExecutionService
 from brokers.common.gateway import MarketDataGateway
 from brokers.common.oms.context import TradingContext
+from brokers.common.oms.order_manager import OmsOrderCommand
 
 
 class OmsService:
@@ -116,18 +118,13 @@ class OmsService:
         event-bus publishing.
         """
         if self._ctx is not None:
-            from brokers.common.core.domain import (
-                OrderType as Ot,
-            )
-            from brokers.common.core.domain import (
-                ProductType as Pt,
-            )
-            from brokers.common.oms.order_manager import OrderRequest
+            from brokers.common.core.domain import OrderType as Ot, ProductType as Pt
+
             try:
                 ot = Ot(order_type)
             except ValueError:
                 ot = Ot.MARKET
-            req = OrderRequest(
+            req = OmsOrderCommand(
                 symbol=symbol,
                 exchange=exchange,
                 side=Side(side) if isinstance(side, str) else side,
@@ -135,6 +132,7 @@ class OmsService:
                 price=price if price is not None else Decimal("0"),
                 order_type=ot,
                 product_type=Pt.INTRADAY,
+                correlation_id=f"cli:{symbol}:{exchange}",
             )
             gw = self._gw
             if gw is None:
@@ -142,29 +140,35 @@ class OmsService:
                     "No broker gateway available. Configure .env.local with valid credentials."
                 )
 
-            def _submit(r: OrderRequest) -> Order:
-                return gw.place_order(
-                    symbol=r.symbol,
-                    exchange=r.exchange,
-                    side=r.side,
-                    quantity=r.quantity,
-                    price=r.price,
-                    order_type=r.order_type,
-                    product_type=r.product_type,
-                )
-
-            result = self._ctx.order_manager.place_order(req, submit_fn=_submit)
+            svc = ExecutionService(
+                trading_context=self._ctx,
+                gateway=gw,
+                mode="live",
+            )
+            result = svc.place_order(req)
             if not result.success:
                 raise RuntimeError(f"OMS rejected order: {result.error}")
             return result.order
         gw = self._ensure_gateway()
-        return gw.place_order(
+        response = gw.place_order(
             symbol=symbol,
             exchange=exchange,
-            side=side,
+            side=side.value if isinstance(side, Side) else str(side),
             quantity=quantity,
-            price=price,
+            price=price if price is not None else Decimal("0"),
             order_type=order_type,
+        )
+        if not response.success:
+            raise RuntimeError(response.message or "Order rejected by broker")
+        return Order(
+            order_id=response.order_id,
+            symbol=symbol.upper(),
+            exchange=exchange.upper(),
+            side=Side(side) if isinstance(side, str) else side,
+            order_type=OrderType.MARKET,
+            quantity=quantity,
+            price=price if price is not None else Decimal("0"),
+            status=response.status,
         )
 
     def cancel_order(self, order_id: str) -> bool:

@@ -13,13 +13,7 @@ from typing import Sequence
 
 logger = logging.getLogger(__name__)
 
-# Valid exchange codes recognized by the Dhan SDK
-_VALID_EXCHANGES: set[str] = {
-    "IDX_I", "IDX",
-    "NSE_EQ", "NSE", "NSE_FNO", "NFO", "NSE_CURRENCY", "CDS",
-    "BSE_EQ", "BSE", "MCX_COMM", "MCX",
-    "BSE_FNO", "BFO", "BSE_CURRENCY",
-}
+from brokers.common.core.exchange_segments import parse_segment
 
 
 class DhanSubscriptionManager:
@@ -134,7 +128,7 @@ class DhanSubscriptionManager:
         Raises:
             ValueError: If exchange code is not recognized.
         """
-        if exchange.upper() not in _VALID_EXCHANGES:
+        if parse_segment(exchange) is None:
             raise ValueError(f"Unknown exchange: {exchange}")
 
     def validate_instruments(self, instruments: Sequence[tuple]) -> None:

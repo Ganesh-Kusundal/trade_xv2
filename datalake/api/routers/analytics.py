@@ -351,3 +351,34 @@ async def get_market_breadth():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Market breadth fetch failed: {str(exc)}",
         )
+
+
+@router.get("/strategies")
+async def list_strategies():
+    """List registered strategy names."""
+    from brokers.common.strategy.multi_strategy_runtime import MultiStrategyRuntime
+
+    runtime = MultiStrategyRuntime()
+    return {"strategies": runtime.list_strategies(), "count": len(runtime.list_strategies())}
+
+
+@router.post("/strategies/run")
+async def run_strategies(body: dict):
+    """Build a multi-strategy pipeline for the given strategy names."""
+    from analytics.strategy.registry import StrategyRegistry
+    from brokers.common.strategy.multi_strategy_runtime import MultiStrategyRuntime
+
+    names = body.get("names") or body.get("strategies") or []
+    if not names:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="names required")
+    StrategyRegistry.discover("analytics.strategy.builtins")
+    pipeline = MultiStrategyRuntime.create_pipeline(names)
+    if not pipeline.strategies:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"No valid strategies in {names}",
+        )
+    return {
+        "strategy_count": len(pipeline.strategies),
+        "strategies": [s.name for s in pipeline.strategies],
+    }

@@ -18,6 +18,7 @@ import requests
 
 from brokers.common.resilience.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
 from .exceptions import UpstoxApiError, UpstoxAuthError
+from .config import UPSTOX_DEFAULT_RATE_PER_SECOND
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +59,9 @@ class UpstoxHttpClient:
         self._token_provider = token_provider
         self._settings = settings
         self._timeout_seconds = timeout_seconds
-        self._rate_limiter = rate_limiter or UpstoxRateLimiter(rate_per_second=10.0)
+        self._rate_limiter = rate_limiter or UpstoxRateLimiter(
+            rate_per_second=UPSTOX_DEFAULT_RATE_PER_SECOND,
+        )
         if session is not None:
             self._session = session
         else:

@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/dhan/gateway.py
+# hypothesis_version: 6.147.0
+
+[200, 365, 1000, '0', '15m', '1D', '1h', '1m', '30m', '5m', 'BANKNIFTY', 'BFO', 'BUY', 'CNC', 'DAY', 'Dhan', 'FINNIFTY', 'IDX_I', 'INTRADAY', 'IOC', 'LIMIT', 'LTP', 'MARGIN', 'MARKET', 'MTF', 'NFO', 'NIFTY', 'NSE', 'NSE_EQ', 'NSE_FNO', 'Order modified', 'Order placed', 'SENSEX', 'STOP_LOSS', 'STOP_LOSS_MARKET', '_', '_cb', '_circuit_breaker', '_client', '_last_error', '_token_scheduler', 'available', 'broker', 'change', 'close', 'contracts', 'error_count', 'exchange', 'expiries', 'expiry', 'futures', 'high', 'historical', 'instrument_count', 'instruments_loaded', 'lot_size', 'low', 'ltp', 'market_data', 'market_feed', 'name', 'open', 'options', 'order_stream', 'refresh_count', 'security_id', 'streaming', 'symbol', 'total', 'type', 'underlying', 'volume']

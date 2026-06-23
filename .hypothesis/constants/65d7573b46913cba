@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/analytics/volume_profile/volume_profile.py
+# hypothesis_version: 6.147.0
+
+[0.25, 0.75, 70.0, 100, 'No price data', 'bins must be >= 10', 'close', 'data', 'high', 'hvn', 'low', 'lvn', 'max', 'mean', 'min', 'poc', 'price_bin', 'price_high', 'price_low', 'price_mid', 'profile', 'records', 'sum', 'symbol', 'type', 'vah', 'val', 'value_area_pct', 'volume', 'volume_profile']

@@ -23,7 +23,10 @@ from typing import Any
 
 import pandas as pd
 
-from brokers.common.core.domain import (
+from domain.constants import DEFAULT_DERIVATIVES_EXCHANGE, DEFAULT_EXCHANGE
+from domain.entities import (
+    FutureChain,
+    OptionChain,
     Balance,
     Holding,
     MarketDepth,
@@ -107,6 +110,19 @@ class BrokerCapabilities:
     rate_limit_per_minute: int = 200
 
 
+# ISP-focused interfaces for partial gateway implementations (REF-18).
+from brokers.common.gateway_interfaces import (  # noqa: F401
+    BatchMarketDataProvider,
+    DerivativesProvider,
+    InstrumentProvider,
+    LifecycleAware,
+    MarketDataProvider,
+    PortfolioReader,
+    StreamProvider,
+    TradingExecutor,
+)
+
+
 # ---------------------------------------------------------------------------
 # MarketDataGateway v1.0
 # ---------------------------------------------------------------------------
@@ -127,7 +143,7 @@ class MarketDataGateway(ABC):
     def history(
         self,
         symbol: str | list[str],
-        exchange: str = "NSE",
+        exchange: str = DEFAULT_EXCHANGE,
         timeframe: str = "1D",
         lookback_days: int = 90,
         from_date: str | None = None,
@@ -155,17 +171,17 @@ class MarketDataGateway(ABC):
         ...
 
     @abstractmethod
-    def quote(self, symbol: str, exchange: str = "NSE") -> Quote:
+    def quote(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> Quote:
         """Return a canonical Quote with: symbol, ltp, open, high, low, close, volume, change, bid, ask, timestamp."""
         ...
 
     @abstractmethod
-    def ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:
+    def ltp(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> Decimal:
         """Return last traded price."""
         ...
 
     @abstractmethod
-    def depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
+    def depth(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> MarketDepth:
         """Return canonical MarketDepth with bids and asks."""
         ...
 
@@ -173,32 +189,26 @@ class MarketDataGateway(ABC):
     def option_chain(
         self,
         underlying: str,
-        exchange: str = "NFO",
+        exchange: str = DEFAULT_DERIVATIVES_EXCHANGE,
         expiry: str | None = None,
-    ) -> dict:
-        """Return option chain with strikes, CE/PE data.
-
-        Returns dict with: underlying, exchange, expiry, strikes list[dict].
-        """
+    ) -> OptionChain:
+        """Return option chain with strikes, CE/PE data."""
         ...
 
     @abstractmethod
     def future_chain(
         self,
         underlying: str,
-        exchange: str = "NFO",
-    ) -> dict:
-        """Return futures chain with expiry dates and prices.
-
-        Returns dict with: underlying, exchange, expiries list[str], contracts list[dict].
-        """
+        exchange: str = DEFAULT_DERIVATIVES_EXCHANGE,
+    ) -> FutureChain:
+        """Return futures chain with expiry dates and prices."""
         ...
 
     @abstractmethod
     def stream(
         self,
         symbol: str,
-        exchange: str = "NSE",
+        exchange: str = DEFAULT_EXCHANGE,
         mode: str = "LTP",
         on_tick: Any | None = None,
     ) -> Any:
@@ -222,7 +232,7 @@ class MarketDataGateway(ABC):
     # -----------------------------------------------------------------------
 
     @abstractmethod
-    def ltp_batch(self, symbols: list[str], exchange: str = "NSE") -> dict[str, Decimal]:
+    def ltp_batch(self, symbols: list[str], exchange: str = DEFAULT_EXCHANGE) -> dict[str, Decimal]:
         """Return LTP for multiple symbols.
 
         Returns dict mapping symbol -> Decimal LTP.
@@ -230,7 +240,7 @@ class MarketDataGateway(ABC):
         ...
 
     @abstractmethod
-    def quote_batch(self, symbols: list[str], exchange: str = "NSE") -> dict[str, dict]:
+    def quote_batch(self, symbols: list[str], exchange: str = DEFAULT_EXCHANGE) -> dict[str, dict]:
         """Return quotes for multiple symbols.
 
         Returns dict mapping symbol -> quote dict.
@@ -241,7 +251,7 @@ class MarketDataGateway(ABC):
     def history_batch(
         self,
         symbols: list[str],
-        exchange: str = "NSE",
+        exchange: str = DEFAULT_EXCHANGE,
         timeframe: str = "1D",
         lookback_days: int = 90,
     ) -> pd.DataFrame:
@@ -259,7 +269,7 @@ class MarketDataGateway(ABC):
     def place_order(
         self,
         symbol: str,
-        exchange: str = "NSE",
+        exchange: str = DEFAULT_EXCHANGE,
         side: str = "BUY",
         quantity: int = 1,
         price: Decimal = Decimal("0"),
@@ -268,6 +278,7 @@ class MarketDataGateway(ABC):
         validity: str = "DAY",
         trigger_price: Decimal = Decimal("0"),
         correlation_id: str | None = None,
+        transport_only: bool = False,
     ) -> OrderResponse:
         """Place an order. Returns OrderResponse with success, order_id, message."""
         ...
@@ -295,6 +306,10 @@ class MarketDataGateway(ABC):
             caller is expected to retry.
         """
         ...
+
+    def modify_order(self, order_id: str, **changes: Any) -> OrderResponse:
+        """Modify an open order. Not all brokers support this."""
+        raise NotImplementedError(f"{type(self).__name__} does not support modify_order")
 
     @abstractmethod
     def get_orderbook(self) -> list[Order]:

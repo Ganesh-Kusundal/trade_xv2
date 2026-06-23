@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/cli/commands/doctor/strategies/instrument_catalog.py
+# hypothesis_version: 6.147.0
+
+['FAIL', 'INFO', 'Instrument Catalog', 'Instrument Resolver', 'Instrument Search', 'PASS', 'RELIANCE', 'WARN', 'loaded', 'search', 'stats', 'total']

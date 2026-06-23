@@ -26,6 +26,7 @@ from .jwt_expiry import UpstoxJwtExpiry
 from .oauth_client import UpstoxOAuthClient
 from .pkce import PkcePair, UpstoxPkceUtil
 from .token_expiry import UpstoxTokenExpiry
+from .totp_client import UpstoxTotpClient
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +66,9 @@ class UpstoxTokenManager:
             return UpstoxAnalyticsTokenHolder(s.analytics_token or s.access_token)
         if s.is_extended and s.extended_token:
             return UpstoxExtendedTokenHolder(s.extended_token)
+        if s.is_totp:
+            # TOTP mode: return placeholder, will be populated during bootstrap
+            return UpstoxStaticTokenHolder("placeholder-totp-will-refresh")
         if s.is_static or (s.access_token and not s.refresh_token):
             return UpstoxStaticTokenHolder(
                 s.access_token,
@@ -132,6 +136,10 @@ class UpstoxTokenManager:
     def bootstrap(self) -> TokenSnapshot:
         """Acquire the initial state from settings or the persisted JSON file."""
         with self._lock:
+            # TOTP mode: generate token automatically
+            if self._settings.is_totp:
+                return self._bootstrap_totp()
+            
             if self._state_store is not None:
                 persisted = self._state_store.load()
                 if persisted and self._valid_persisted(persisted):
@@ -377,3 +385,60 @@ class UpstoxTokenManager:
             issued_at_ms=int(persisted.get("issued_at_ms", 0)),
             source=str(persisted.get("source", "OAUTH")),
         )
+
+    def _bootstrap_totp(self) -> TokenSnapshot:
+        """Bootstrap token using TOTP auto-generation.
+        
+        Generates a fresh token using the upstox-totp library and persists it.
+        Falls back to refresh-token mechanism if TOTP generation fails.
+        """
+        try:
+            logger.info("Attempting TOTP token generation...")
+            totp_client = UpstoxTotpClient(self._settings)
+            
+            if not totp_client.validate_config():
+                raise UpstoxAuthError(
+                    "TOTP configuration incomplete. Set UPSTOX_MOBILE, UPSTOX_PIN, "
+                    "and UPSTOX_TOTP_SECRET environment variables."
+                )
+            
+            result = totp_client.generate_token()
+            access_token = result["access_token"]
+            
+            # Parse expiry from JWT
+            exp = UpstoxJwtExpiry.parse_expiry_epoch_ms(access_token)
+            if exp <= 0:
+                exp = UpstoxTokenExpiry.next_expiry_epoch_ms()
+            
+            state = TokenSnapshot(
+                access_token=access_token,
+                refresh_token=None,  # TOTP tokens don't have refresh tokens
+                expires_at_ms=exp,
+                issued_at_ms=int(time.time() * 1000),
+                source="TOTP",
+            )
+            
+            self._state = state
+            self._holder.replace(
+                UpstoxStaticTokenHolder(
+                    access_token,
+                    analytics_only=False,
+                    label="Upstox token (TOTP)",
+                )
+            )
+            self._persist(state)
+            
+            logger.info("TOTP token bootstrap successful, expires at: %d", exp)
+            return state
+            
+        except Exception as exc:
+            logger.warning("TOTP bootstrap failed: %s, falling back to refresh-token", exc)
+            
+            # Fallback: try refresh-token mechanism if available
+            if self._settings.refresh_token:
+                logger.info("Falling back to refresh-token mechanism")
+                return self._acquire_initial()
+            
+            raise UpstoxAuthError(
+                f"TOTP authentication failed and no fallback available: {exc}"
+            ) from exc

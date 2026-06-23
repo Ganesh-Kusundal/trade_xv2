@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/cli/utils/timeout_handler.py
+# hypothesis_version: 6.147.0
+
+['function', 'timeout_exceeded', 'timeout_seconds']

@@ -78,6 +78,8 @@ class TestBrokerGateway:
         """gateway.place_order must call orders.place_order with same kwargs."""
         gateway, conn = self._make_gateway()
 
+        from brokers.common.core.domain import OrderResponse
+
         expected = Order(order_id="ORD-001", symbol="RELIANCE", exchange="NSE", side=Side.BUY, order_type=OrderType.LIMIT, quantity=10)
         conn._orders.place_order.return_value = expected
 
@@ -102,7 +104,35 @@ class TestBrokerGateway:
         assert request.product_type.value == "INTRADAY"
         assert request.validity.value == "DAY"
         assert request.correlation_id is None
-        assert result is expected
+        assert isinstance(result, OrderResponse)
+        assert result.success is True
+        assert result.order_id == "ORD-001"
+
+    def test_place_order_mcx_resolves_canonical_segment(self):
+        """MCX exchange must map to ExchangeSegment.MCX, not silently fall back to NSE."""
+        from brokers.common.core.domain import ExchangeSegment, OrderResponse
+
+        gateway, conn = self._make_gateway()
+        conn._orders.place_order.return_value = Order(
+            order_id="ORD-MCX",
+            symbol="GOLD",
+            exchange="MCX",
+            side=Side.BUY,
+            order_type=OrderType.MARKET,
+            quantity=1,
+        )
+
+        gateway.place_order(symbol="GOLD", exchange="MCX", side="BUY", quantity=1)
+
+        request = conn._orders.place_order.call_args[0][0]
+        assert request.exchange_segment is ExchangeSegment.MCX
+
+    def test_place_order_unknown_exchange_raises(self):
+        gateway, conn = self._make_gateway()
+        import pytest
+
+        with pytest.raises(ValueError, match="Unknown exchange"):
+            gateway.place_order(symbol="X", exchange="BOGUS", quantity=1)
 
     # -- lifecycle -------------------------------------------------------
 

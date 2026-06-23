@@ -8,7 +8,6 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from datalake.api.deps import get_risk_manager
 from datalake.api.auth import require_auth
-from brokers.common.oms.risk_manager import RiskManager
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +15,7 @@ router = APIRouter(dependencies=[Depends(require_auth)])
 
 
 @router.get("/state", response_model=dict)
-async def get_risk_state(risk_manager: RiskManager = Depends(get_risk_manager)):
+async def get_risk_state(risk_manager=Depends(get_risk_manager)):
     """Get current risk management state.
     
     Returns kill switch status, daily PnL, and risk limits.

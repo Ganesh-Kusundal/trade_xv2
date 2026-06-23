@@ -17,9 +17,9 @@ from pathlib import Path
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 _BROKERS_DIR = _PROJECT_ROOT / "brokers"
 
-_CANONICAL_TYPES = {"Quote", "Balance", "DepthLevel", "MarketDepth"}
+_CANONICAL_TYPES = {"Quote", "Balance", "DepthLevel", "MarketDepth", "Order", "Position", "OptionChain"}
 
-_CANONICAL_PACKAGE = "brokers/common/core"
+_CANONICAL_PACKAGE = "domain"
 
 
 def _find_class_definitions(
@@ -51,22 +51,22 @@ def _is_canonical(path: Path) -> bool:
 
 
 def test_quote_is_single_source() -> None:
-    """Quote must be defined exactly once, in brokers/common/core/."""
+    """Quote must be defined exactly once, in domain/."""
     hits = _find_class_definitions(_BROKERS_DIR, {"Quote"})
     non_canonical = [(f, c) for f, c in hits if not _is_canonical(f)]
     assert not non_canonical, (
-        "Quote must NOT be defined outside brokers/common/core/. "
+        "Quote must NOT be defined outside domain/. "
         "Found duplicates in: "
         + ", ".join(str(f.relative_to(_PROJECT_ROOT)) for f, _ in non_canonical)
     )
 
 
 def test_balance_is_single_source() -> None:
-    """Balance must be defined exactly once, in brokers/common/core/."""
+    """Balance must be defined exactly once, in domain/."""
     hits = _find_class_definitions(_BROKERS_DIR, {"Balance"})
     non_canonical = [(f, c) for f, c in hits if not _is_canonical(f)]
     assert not non_canonical, (
-        "Balance must NOT be defined outside brokers/common/core/. "
+        "Balance must NOT be defined outside domain/. "
         "Found duplicates in: "
         + ", ".join(str(f.relative_to(_PROJECT_ROOT)) for f, _ in non_canonical)
     )
@@ -78,7 +78,7 @@ def test_depth_types_are_single_source() -> None:
     non_canonical = [(f, c) for f, c in hits if not _is_canonical(f)]
     assert not non_canonical, (
         "DepthLevel/MarketDepth must NOT be defined outside "
-        "brokers/common/core/. Found duplicates:\n"
+        "domain/. Found duplicates:\n"
         + "\n".join(
             f"  {c} in {f.relative_to(_PROJECT_ROOT)}" for f, c in non_canonical
         )
@@ -87,12 +87,12 @@ def test_depth_types_are_single_source() -> None:
 
 def test_all_canonical_domain_types_are_single_source() -> None:
     """All domain types in _CANONICAL_TYPES must have exactly one definition
-    and it must be in brokers/common/core/."""
+    and it must be in domain/."""
     hits = _find_class_definitions(_BROKERS_DIR, _CANONICAL_TYPES)
     non_canonical = [(f, c) for f, c in hits if not _is_canonical(f)]
     assert not non_canonical, (
         "The following domain types are defined outside "
-        "brokers/common/core/ and must be consolidated:\n"
+        "domain/ and must be consolidated:\n"
         + "\n".join(
             f"  {c} in {f.relative_to(_PROJECT_ROOT)}" for f, c in non_canonical
         )

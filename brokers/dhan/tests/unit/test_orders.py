@@ -5,8 +5,8 @@ from decimal import Decimal
 import pytest
 
 from brokers.common.event_bus import EventBus
-from brokers.common.core.domain import OrderRequest
-from brokers.dhan.domain import Exchange, OrderSide, OrderStatus
+from brokers.common.core.domain import OrderRequest, OrderStatus, Side
+from brokers.dhan.domain import Exchange
 from brokers.dhan.orders import OrdersAdapter
 
 
@@ -14,7 +14,7 @@ def test_place_order_payload(fake_client, resolver):
     fake_client.set_response("POST", "/orders", {
         "data": {"orderId": "ORD123456"}
     })
-    adapter = OrdersAdapter(fake_client, resolver)
+    adapter = OrdersAdapter(fake_client, resolver, allow_live_orders=True)
     adapter.place_order(OrderRequest(
         symbol="RELIANCE",
         exchange="NSE",
@@ -40,7 +40,7 @@ def test_place_order_returns_order(fake_client, resolver):
     fake_client.set_response("POST", "/orders", {
         "data": {"orderId": "ORD789012"}
     })
-    adapter = OrdersAdapter(fake_client, resolver)
+    adapter = OrdersAdapter(fake_client, resolver, allow_live_orders=True)
     order = adapter.place_order(OrderRequest(
         symbol="RELIANCE",
         exchange="NSE",
@@ -54,7 +54,7 @@ def test_place_order_returns_order(fake_client, resolver):
 
 def test_cancel_order(fake_client, resolver):
     fake_client.set_response("DELETE", "/orders/ORD123456", {"status": "success"})
-    adapter = OrdersAdapter(fake_client, resolver)
+    adapter = OrdersAdapter(fake_client, resolver, allow_live_orders=True)
     result = adapter.cancel_order("ORD123456")
     assert result.success is True
     assert result.order_id == "ORD123456"
@@ -70,7 +70,7 @@ def test_cancel_order_broker_error(fake_client, resolver):
         "/orders/ORD123456",
         {"status": "error", "errorCode": "DH-906", "errorMessage": "Invalid token"},
     )
-    adapter = OrdersAdapter(fake_client, resolver)
+    adapter = OrdersAdapter(fake_client, resolver, allow_live_orders=True)
     result = adapter.cancel_order("ORD123456")
     assert result.success is False
     assert result.error_code == "DH-906"
@@ -104,7 +104,7 @@ def test_get_orderbook_parsing(fake_client, resolver):
             },
         ]
     })
-    adapter = OrdersAdapter(fake_client, resolver)
+    adapter = OrdersAdapter(fake_client, resolver, allow_live_orders=True)
     orders = adapter.get_orderbook()
     assert len(orders) == 2
 
@@ -112,7 +112,7 @@ def test_get_orderbook_parsing(fake_client, resolver):
     assert first.order_id == "ORD001"
     assert first.symbol == "RELIANCE"
     assert first.exchange == Exchange.NSE
-    assert first.side == OrderSide.BUY
+    assert first.side == Side.BUY
     assert first.quantity == 10
     assert first.filled_quantity == 10
     assert first.price == Decimal("2450.0")
@@ -121,7 +121,7 @@ def test_get_orderbook_parsing(fake_client, resolver):
 
     second = orders[1]
     assert second.order_id == "ORD002"
-    assert second.side == OrderSide.SELL
+    assert second.side == Side.SELL
     assert second.status == OrderStatus.OPEN
 
 
@@ -148,7 +148,7 @@ def test_get_trade_book_parsing(fake_client, resolver):
             },
         ]
     })
-    adapter = OrdersAdapter(fake_client, resolver)
+    adapter = OrdersAdapter(fake_client, resolver, allow_live_orders=True)
     trades = adapter.get_trade_book()
     assert len(trades) == 2
 
@@ -157,13 +157,13 @@ def test_get_trade_book_parsing(fake_client, resolver):
     assert first.order_id == "ORD001"
     assert first.symbol == "RELIANCE"
     assert first.exchange == Exchange.NSE
-    assert first.side == OrderSide.BUY
+    assert first.side == Side.BUY
     assert first.quantity == 10
     assert first.price == Decimal("2449.75")
 
     second = trades[1]
     assert second.trade_id == "TRD002"
-    assert second.side == OrderSide.SELL
+    assert second.side == Side.SELL
     assert second.quantity == 5
     assert second.price == Decimal("2460.0")
 
@@ -172,7 +172,7 @@ def test_kill_switch_url(fake_client, resolver):
     fake_client.set_response("POST", "/killswitch?killSwitchStatus=ACTIVATE", {
         "status": "success"
     })
-    adapter = OrdersAdapter(fake_client, resolver)
+    adapter = OrdersAdapter(fake_client, resolver, allow_live_orders=True)
     result = adapter.kill_switch(enable=True)
     assert result is True
     # Verify the exact URL with query param was used
@@ -185,7 +185,7 @@ def test_place_order_publishes_event(fake_client, resolver):
     bus = EventBus()
     received = []
     bus.subscribe("ORDER_PLACED", lambda e: received.append(e))
-    adapter = OrdersAdapter(fake_client, resolver, event_bus=bus)
+    adapter = OrdersAdapter(fake_client, resolver, event_bus=bus, allow_live_orders=True)
     adapter.place_order(OrderRequest(symbol="RELIANCE", exchange="NSE", transaction_type="BUY", quantity=1))
     assert len(received) == 1
     assert received[0].payload["order"].order_id == "ORD123"
@@ -196,7 +196,7 @@ def test_place_order_idempotency_does_not_publish_duplicate(fake_client, resolve
     bus = EventBus()
     received = []
     bus.subscribe("ORDER_PLACED", lambda e: received.append(e))
-    adapter = OrdersAdapter(fake_client, resolver, event_bus=bus)
+    adapter = OrdersAdapter(fake_client, resolver, event_bus=bus, allow_live_orders=True)
     adapter.place_order(OrderRequest(symbol="RELIANCE", exchange="NSE", transaction_type="BUY", quantity=1, correlation_id="abc"))
     adapter.place_order(OrderRequest(symbol="RELIANCE", exchange="NSE", transaction_type="BUY", quantity=1, correlation_id="abc"))
     assert len(received) == 1
@@ -212,7 +212,7 @@ def test_place_order_risk_check_blocks_order(fake_client, resolver):
     fake_client.set_response("POST", "/orders", {"data": {"orderId": "ORD123"}})
     position_manager = PositionManager()
     risk = RiskManager(position_manager, RiskConfig(max_position_pct=Decimal("1")), lambda: Decimal("100000"))
-    adapter = OrdersAdapter(fake_client, resolver, risk_manager=risk)
+    adapter = OrdersAdapter(fake_client, resolver, risk_manager=risk, allow_live_orders=True)
 
     with pytest.raises(Exception) as exc_info:
         adapter.place_order(OrderRequest(symbol="RELIANCE", exchange="NSE", transaction_type="BUY", quantity=1000, price=Decimal("100"), order_type="LIMIT"))
@@ -220,12 +220,40 @@ def test_place_order_risk_check_blocks_order(fake_client, resolver):
     assert len(fake_client.calls_for("POST", "/orders")) == 0
 
 
-def test_place_slice_order_payload(fake_client, resolver):
+def test_place_order_transport_only_skips_risk_check(fake_client, resolver):
+    from decimal import Decimal
+
+    from brokers.common.core.domain import OrderRequest
+    from brokers.common.oms.position_manager import PositionManager
+    from brokers.common.oms.risk_manager import RiskConfig, RiskManager
+
+    fake_client.set_response("POST", "/orders", {"data": {"orderId": "ORD123"}})
+    position_manager = PositionManager()
+    risk = RiskManager(
+        position_manager,
+        RiskConfig(max_position_pct=Decimal("1")),
+        lambda: Decimal("100000"),
+    )
+    adapter = OrdersAdapter(fake_client, resolver, risk_manager=risk, allow_live_orders=True)
+
+    order = adapter.place_order(
+        OrderRequest(
+            symbol="RELIANCE",
+            exchange="NSE",
+            transaction_type="BUY",
+            quantity=1000,
+            price=Decimal("100"),
+            order_type="LIMIT",
+            transport_only=True,
+        )
+    )
+    assert order.order_id == "ORD123"
+    assert len(fake_client.calls_for("POST", "/orders")) == 1
     """Verify POST /orders/slicing payload (same as regular order)."""
     fake_client.set_response("POST", "/orders/slicing", {
         "data": {"orderId": "SLICE123"}
     })
-    adapter = OrdersAdapter(fake_client, resolver)
+    adapter = OrdersAdapter(fake_client, resolver, allow_live_orders=True)
     order = adapter.place_slice_order(
         symbol="RELIANCE",
         exchange="NSE",
@@ -260,7 +288,7 @@ def test_get_trade_history_payload(fake_client, resolver):
             },
         ]
     })
-    adapter = OrdersAdapter(fake_client, resolver)
+    adapter = OrdersAdapter(fake_client, resolver, allow_live_orders=True)
     trades = adapter.get_trade_history("2026-01-01", "2026-01-31", page=0)
     
     calls = fake_client.calls_for("GET", "/trades/2026-01-01/2026-01-31/0")
@@ -294,13 +322,13 @@ def test_get_trade_history_parsing(fake_client, resolver):
             },
         ]
     })
-    adapter = OrdersAdapter(fake_client, resolver)
+    adapter = OrdersAdapter(fake_client, resolver, allow_live_orders=True)
     trades = adapter.get_trade_history("2026-01-01", "2026-01-31")
     
     assert len(trades) == 2
     assert trades[0].quantity == 10
     assert trades[0].price == Decimal("2449.75")
-    assert trades[1].side == OrderSide.SELL
+    assert trades[1].side == Side.SELL
 
 
 def test_get_trade_history_pagination(fake_client, resolver):
@@ -308,7 +336,7 @@ def test_get_trade_history_pagination(fake_client, resolver):
     fake_client.set_response("GET", "/trades/2026-01-01/2026-01-31/2", {
         "data": []
     })
-    adapter = OrdersAdapter(fake_client, resolver)
+    adapter = OrdersAdapter(fake_client, resolver, allow_live_orders=True)
     trades = adapter.get_trade_history("2026-01-01", "2026-01-31", page=2)
     
     calls = fake_client.calls_for("GET", "/trades/2026-01-01/2026-01-31/2")

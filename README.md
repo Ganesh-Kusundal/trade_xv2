@@ -96,6 +96,13 @@ scripts/verify_event_replay.py  # Replay-determinism CI check (Phase 1 cert)
 ```bash
 git clone https://github.com/Ganesh-Kusundal/trade_xv2.git
 cd trade_xv2
+
+# The project ships a working virtualenv at venv/ (Python 3.13,
+# miniconda-based) that already has all runtime + dev dependencies
+# installed. The ./tradex launcher uses it directly.
+source venv/bin/activate
+
+# Or, create a fresh venv from scratch:
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
@@ -103,6 +110,11 @@ pip install -e ".[dev]"
 # Install pre-commit hooks
 pre-commit install
 ```
+
+> The `./tradex` launcher hardcodes `venv/bin/python`. The on-disk
+> `.venv/` (created later with `uv`) is a symlink to miniconda and
+> does **not** ship `pip` or the full dep set — use `venv/` for
+> running CLI smoke tests until the conda env is rebuilt.
 
 ### Running tests
 
@@ -116,6 +128,9 @@ pytest -q
 # With coverage (HTML + XML)
 pytest --cov=brokers --cov=cli --cov=datalake --cov=tests/chaos \
       --cov-branch --cov-report=term-missing --cov-report=html
+
+# CLI endpoint matrix (offline + T1 smoke)
+pytest cli/tests/test_cli_endpoint_matrix.py -m cli_endpoint -q
 
 # Replay determinism verifier (Phase 1 cert)
 python -m scripts.verify_event_replay
@@ -230,6 +245,22 @@ The architecture mirrors the Java sibling project `Trade_J`:
 | `GatewayResult` monad | `brokers.common.core.result.GatewayResult` |
 | SPI ports | `brokers.common.api.ports.*` |
 | Broker router + fallback | `brokers.common.intelligent_gateway.IntelligentGateway` |
+
+### Deep module map (2026-06)
+
+| Layer | Module | Role |
+|---|---|---|
+| Exchange resolution | `brokers/common/core/exchange_segments.py` | Canonical `parse_segment()` |
+| Dhan wire/SDK | `brokers/dhan/segments.py` | `to_dhan_wire()`, `to_sdk_int()` |
+| OMS facade | `brokers/common/oms/order_manager.py` | Single order orchestration entry |
+| OMS internals | `brokers/common/oms/_internal/` | Validators, audit, risk (private) |
+| Execution transport | `brokers/common/execution/gateway_submit.py` | OMS `submit_fn` factory |
+| Upstox capabilities | `brokers/upstox/capabilities/` | Grouped adapter clusters |
+| Data lake store | `datalake/store/parquet_store.py` | Parquet load/resample (deep) |
+| CLI composition | `cli/services/composition.py` | `build_cli_runtime()` |
+| Batch utility | `brokers/common/batch_executor.py` | Shared parallel fetch |
+
+See ADR-006 (exchange resolution) and ADR-007 (OMS-first execution) in `docs/adr/`.
 
 The Python translation uses `@dataclass(slots=True, frozen=True)` for
 domain types, `threading.RLock` for concurrency, and `pydantic` only

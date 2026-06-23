@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/datalake/api/routers/strategy.py
+# hypothesis_version: 6.147.0
+
+[0.0, 100, 500, ' WHERE symbol = ?', '/candidates', '/signals', 'Filter by symbol', 'Max candidates', 'Max signals', 'NEUTRAL', 'atr', 'breakout', 'halftrend', 'ltp', 'momentum', 'rel_volume', 'roc_5', 'rsi', 'suggested_qty', 'trend', 'v_strategy_breakout', 'v_strategy_halftrend', 'v_strategy_momentum']

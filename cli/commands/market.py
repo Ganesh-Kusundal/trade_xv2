@@ -153,6 +153,8 @@ def show_option_chain(
 
     try:
         chain = gw.options.get_option_chain(sym, exchange, expiry)
+        if hasattr(chain, "to_dict"):
+            chain = chain.to_dict()
 
         table = Table(
             title=f"Option Chain -- {sym}  |  Expiry: {expiry}",
@@ -318,8 +320,14 @@ def show_historical(
         table.add_column("Volume", justify="right")
 
         if df is not None and not df.empty:
-            for _, row in df.tail(5).iterrows():
-                ts_val = row.get("timestamp")
+            for ts_val, open_val, high_val, low_val, close_val, volume in zip(
+                df["timestamp"].tail(5),
+                df["open"].tail(5),
+                df["high"].tail(5),
+                df["low"].tail(5),
+                df["close"].tail(5),
+                df["volume"].tail(5),
+            ):
                 ts_str = (
                     ts_val.strftime("%Y-%m-%d")
                     if isinstance(ts_val, datetime)
@@ -327,11 +335,11 @@ def show_historical(
                 )
                 table.add_row(
                     ts_str,
-                    f"{row['open']:,.2f}",
-                    f"{row['high']:,.2f}",
-                    f"{row['low']:,.2f}",
-                    f"{row['close']:,.2f}",
-                    f"{int(row['volume']):,}",
+                    f"{open_val:,.2f}",
+                    f"{high_val:,.2f}",
+                    f"{low_val:,.2f}",
+                    f"{close_val:,.2f}",
+                    f"{int(volume):,}",
                 )
             console.print(table)
             console.print()

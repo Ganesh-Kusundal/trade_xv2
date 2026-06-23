@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/common/gateway.py
+# hypothesis_version: 6.147.0
+
+[200, 365, '0', '15m', '1D', '1d', '1h', '1m', '30m', '5m', 'BUY', 'DAY', 'INTRADAY', 'IOC', 'LIMIT', 'LTP', 'MARGIN', 'MARKET', 'STOP_LOSS', 'STOP_LOSS_MARKET', 'error_count', 'refresh_count', 'requests_throttled', 'tokens_available']

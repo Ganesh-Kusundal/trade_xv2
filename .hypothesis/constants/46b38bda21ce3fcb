@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/analytics/core/models.py
+# hypothesis_version: 6.147.0
+
+[0.0, 100.0, 'UNKNOWN', 'charts', 'close', 'coerce', 'date', 'exchange', 'high', 'last', 'low', 'metrics', 'name', 'oi', 'open', 'recommendations', 'scores', 'signals', 'summary', 'symbol', 'timeframe', 'timestamp', 'volume']

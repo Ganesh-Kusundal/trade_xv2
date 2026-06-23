@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/upstox/gateway.py
+# hypothesis_version: 6.147.0
+
+[200, 365, '0', '15m', '1D', '1h', '1m', '30m', '5m', 'BUY', 'CNC', 'DAY', 'INTRADAY', 'IOC', 'LIMIT', 'LTP', 'MARGIN', 'MARKET', 'NFO', 'NSE', 'Order modified', 'STOP_LOSS', 'STOP_LOSS_MARKET', 'Upstox', 'available', 'broker', 'cached', 'count', 'futures', 'historical', 'instruments_loaded', 'is_loaded', 'load_time_s', 'market_data', 'memory_time_s', 'message', 'modify failed', 'options', 'search', 'source', 'status', 'streaming', 'success']

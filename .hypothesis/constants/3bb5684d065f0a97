@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/cli/commands/analytics_sector.py
+# hypothesis_version: 6.147.0
+
+[-0.4, 0.01, 0.015, 0.018, 0.02, 0.022, 0.025, 1.8, 100, 700, 1200, 100000, 500000, '#', '2026-01-01', 'Auto', 'Avg Daily', 'BANK', 'Breadth', 'Change %', 'D', 'FMCG', 'Finance', 'IT', 'Metals', 'Mom', 'Momentum', 'Pharma', 'Phase', 'RS', 'RS Ratio', 'Rank', 'Rel Volume', 'Score', 'Sector', 'Sector Strength', 'Signal', 'Stocks', 'Total Volume', 'Trend', 'Vol', 'Volume', 'advances', 'blue', 'bold', 'bold cyan', 'bold white', 'close', 'cyan', 'declines', 'decreasing', 'dim', 'first', 'green', 'high', 'increasing', 'inflow', 'low', 'magenta', 'new_highs', 'new_lows', 'open', 'outflow', 'red', 'relative_strength', 'return_pct', 'sector', 'strong', 'symbol', 'timestamp', 'unchanged', 'volume', 'weak', 'yellow']

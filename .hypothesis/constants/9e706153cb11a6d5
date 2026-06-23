@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/common/execution/trading_orchestrator.py
+# hypothesis_version: 6.147.0
+
+[0.0, 0.7, '0', 'BUY', 'NSE', 'OrchestratorConfig', 'SELL', 'STRONG_BUY', 'STRONG_SELL', 'TradingOrchestrator', 'limit', 'order_id', 'reason', 'risk_check', 'rule', 'score', 'signal', 'symbol', 'trading_orchestrator', 'unknown', 'value']

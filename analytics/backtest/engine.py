@@ -64,11 +64,21 @@ class BacktestEngine:
         pipeline: FeaturePipeline | None = None,
         strategy_pipeline: StrategyPipeline | None = None,
         config: BacktestConfig | None = None,
+        trading_context=None,
+        execution_adapter=None,
     ) -> None:
         self._pipeline = pipeline or FeaturePipeline()
         self._strategy = strategy_pipeline or StrategyPipeline()
         self._config = config or BacktestConfig()
-        self._replay_engine = ReplayEngine(self._pipeline, self._strategy, self._config)
+        self._trading_context = trading_context
+        self._execution_adapter = execution_adapter
+        self._replay_engine = ReplayEngine(
+            self._pipeline,
+            self._strategy,
+            self._config,
+            trading_context=trading_context,
+            execution_adapter=execution_adapter,
+        )
 
     def run(
         self,

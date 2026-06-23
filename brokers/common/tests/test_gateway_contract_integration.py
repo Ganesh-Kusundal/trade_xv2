@@ -18,10 +18,12 @@ import pandas as pd
 import pytest
 
 from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
-from brokers.common.core.domain import (
+from domain import (
     Balance,
+    FutureChain,
     Holding,
     MarketDepth,
+    OptionChain,
     Order,
     OrderResponse,
     Position,
@@ -299,10 +301,7 @@ class TestDhanGatewayReturnTypes:
         result = dhan_gw.trades()
         assert isinstance(result, list)
 
-    def test_option_chain_returns_dict(self, dhan_gw):
-        # option_chain delegates to self.extended.get_option_chain()
-        # which creates DhanExtendedCapabilities(self._conn) internally.
-        # Mock the conn's options adapter to return proper data.
+    def test_option_chain_returns_option_chain(self, dhan_gw):
         options_adapter = MagicMock()
         options_adapter.get_expiries.return_value = ["2026-06-26"]
         options_adapter.get_option_chain.return_value = {
@@ -311,16 +310,14 @@ class TestDhanGatewayReturnTypes:
         }
         dhan_gw._conn.options = options_adapter
         result = dhan_gw.option_chain("NIFTY", "NFO")
-        assert isinstance(result, dict)
+        assert isinstance(result, OptionChain)
 
-    def test_future_chain_returns_dict(self, dhan_gw):
+    def test_future_chain_returns_future_chain(self, dhan_gw):
         dhan_gw._conn.futures = MagicMock()
         dhan_gw._conn.futures.get_contracts.return_value = []
         dhan_gw._conn.futures.get_expiries.return_value = []
         result = dhan_gw.future_chain("NIFTY", "NFO")
-        assert isinstance(result, dict)
-        assert "contracts" in result
-        assert "expiries" in result
+        assert isinstance(result, FutureChain)
 
     def test_unstream_exists_and_is_callable(self, dhan_gw):
         assert callable(getattr(dhan_gw, "unstream", None))
@@ -361,7 +358,6 @@ class TestUpstoxGatewayReturnTypes:
         assert isinstance(result, Decimal)
 
     def test_quote_returns_quote(self, upstox_gw):
-        from brokers.upstox.gateway import UpstoxDomainMapper
         upstox_gw._broker.market_data_v2.get_quote.return_value = {
             "data": {"NSE_EQ|INE002A01018": {
                 "last_price": 2450.55, "ohlc": {

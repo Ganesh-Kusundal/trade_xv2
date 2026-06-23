@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/datalake/loader.py
+# hypothesis_version: 6.147.0
+
+[0.0, 0.9, 1.0, 6.25, 100.0, 100, 365, 375, 100000, '%s: no gaps detected', '15m', '1m', '30m', '5m', '60', 'Close', 'Date', 'Datetime', 'High', 'Low', 'NSE', 'Open', 'Unknown universe: %s', 'Volume', 'bar_time_ms', 'candles', 'close', 'close_paisa', 'coerce', 'data.parquet', 'duplicates_dropped', 'equities', 'exchange', 'h', 'high', 'high_paisa', 'invalid_dropped', 'last', 'low', 'low_paisa', 'm', 'market_data', 'oi', 'open', 'open_paisa', 'rows', 'snappy', 'symbol', 'timestamp', 'volume']

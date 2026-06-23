@@ -15,7 +15,9 @@ from brokers.common.oms.context import TradingContext
 from brokers.common.observability.http_server import HttpObservabilityServer
 from brokers.paper import PaperGateway
 
-from cli.services.broker_registry import create_gateway
+from brokers.common.execution.execution_service import ExecutionService
+from brokers.common.oms.order_manager import OmsOrderCommand, OrderResult
+from cli.services.broker_registry import create_gateway, resolve_env_path
 from cli.services.capital_provider import TrackedCapitalProvider
 from cli.services.observability_setup import start_http_observability
 from cli.services.websocket_wiring import start_websocket_services
@@ -136,7 +138,7 @@ class BrokerService:
                 # path is intentionally bypassed here.
                 self._gateway = create_gateway(
                     "dhan",
-                    env_path=_ENV_PATH,
+                    env_path=resolve_env_path("dhan", _ENV_PATH),
                     load_instruments=self._load_instruments,
                     event_bus=self._event_bus,
                     lifecycle=self._lifecycle,
@@ -200,8 +202,8 @@ class BrokerService:
             self._mock = create_seeded_mock_broker("dhan")
 
         # Try to create Upstox gateway using the unified registry.
-        upstox_env_path = Path(".env.upstox")
-        if upstox_env_path.exists():
+        upstox_env_path = resolve_env_path("upstox")
+        if upstox_env_path is not None and upstox_env_path.exists():
             try:
                 self._upstox_gateway = create_gateway(
                     "upstox",
@@ -248,6 +250,21 @@ class BrokerService:
         self._ensure_initialized()
         return self._trading_context
 
+    @property
+    def execution_service(self) -> ExecutionService | None:
+        """OMS-first execution facade when trading context and gateway are ready."""
+        self._ensure_initialized()
+        if self._trading_context is None:
+            return None
+        gw = self.active_broker
+        if gw is None or not isinstance(gw, MarketDataGateway):
+            return None
+        return ExecutionService(
+            trading_context=self._trading_context,
+            gateway=gw,
+            mode="live",
+        )
+
     # -- properties ---------------------------------------------------------
 
     @property
@@ -286,7 +303,10 @@ class BrokerService:
         name_lower = name.lower()
         if name_lower == "paper":
             if self._paper is None:
-                self._paper = PaperGateway()
+                paper_gw = create_gateway("paper")
+                if paper_gw is None:
+                    raise ValueError("Paper gateway not available.")
+                self._paper = paper_gw
             self._active_name = "paper"
         elif name_lower == "dhan":
             if self._gateway is None:
@@ -318,45 +338,29 @@ class BrokerService:
         statuses.append({"broker": "Paper", "status": "Available"})
         return statuses
 
-    def submit_order(self, command: Any) -> Any:
-        """Submit an order to the active broker gateway.
-        
-        Delegates to the active gateway's place_order method with the
-        correct signature expected by OrderManager.place_order().
-        
-        Parameters
-        ----------
-        command:
-            OmsOrderCommand with order details.
-            
-        Returns
-        -------
-        Order
-            The placed order with broker_id and status.
-            
-        Raises
-        ------
-        RuntimeError
-            If no broker gateway is configured.
+    def submit_order(self, command: OmsOrderCommand) -> Order:
+        """Transport-only broker submission for OMS ``submit_fn`` wiring.
+
+        Risk, idempotency, and audit are enforced by
+        :class:`~brokers.common.oms.order_manager.OrderManager` before this
+        method is invoked. Duplicate broker-level risk checks are skipped via
+        ``transport_only=True``.
         """
         self._ensure_initialized()
         gateway = self.active_broker
         if gateway is None:
             raise RuntimeError("No broker gateway configured")
-        
-        # Delegate to gateway's place_order with individual parameters
-        # This adapts OmsOrderCommand to the gateway's expected signature
-        return gateway.place_order(
-            symbol=command.symbol,
-            exchange=command.exchange,
-            side=command.side.value if hasattr(command.side, 'value') else str(command.side),
-            quantity=command.quantity,
-            price=float(command.price) if command.price else 0.0,
-            order_type=command.order_type.value if hasattr(command.order_type, 'value') else str(command.order_type),
-            product_type=command.product_type.value if hasattr(command.product_type, 'value') else "INTRADAY",
-            trigger_price=float(command.trigger_price) if hasattr(command, 'trigger_price') and command.trigger_price else None,
-            correlation_id=command.correlation_id,
-        )
+
+        submit_fn = make_gateway_submit_fn(gateway, transport_only=True)
+        return submit_fn(command)
+
+    def place_order_through_oms(self, command: OmsOrderCommand) -> OrderResult:
+        """Place an order through OMS with broker transport as ``submit_fn``."""
+        self._ensure_initialized()
+        svc = self.execution_service
+        if svc is None:
+            raise RuntimeError("TradingContext not initialized")
+        return svc.place_order(command)
 
     def close(self) -> None:
         """Clean up the live gateway connection and stop every managed service.

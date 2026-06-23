@@ -183,6 +183,20 @@ def create_app(
         from datalake.api.lifecycle import build_trading_context
         trading_context = build_trading_context(event_bus=event_bus)
     
+    # Register domain runtime hooks for analytics engines
+    from domain.runtime_hooks import (
+        register_oms_backtest_factory,
+        register_domain_event_factory,
+        register_trading_context_factory,
+    )
+    from brokers.common.execution.factory import create_oms_backtest_adapter
+    from brokers.common.event_bus.factory import create_domain_event
+    from brokers.common.oms.factory import create_trading_context
+
+    register_oms_backtest_factory(create_oms_backtest_adapter)
+    register_domain_event_factory(create_domain_event)
+    register_trading_context_factory(create_trading_context)
+
     # Initialize services (now includes TradingContext)
     initialize_all_services(
         datalake_gateway=datalake_gateway,
@@ -219,6 +233,10 @@ def create_app(
         ],
     )
     
+    # Request logging + correlation ID middleware
+    from datalake.api.middleware import RequestLoggingMiddleware
+    app.add_middleware(RequestLoggingMiddleware)
+
     # CORS middleware
     app.add_middleware(
         CORSMiddleware,
@@ -285,6 +303,6 @@ def create_app(
     from datalake.api.ws.replay import router as ws_replay_router
     app.include_router(ws_replay_router, prefix="/ws", tags=["WebSocket - Replay"])
     
-    logger.info("TradeXV2 API app created with prefix: %s", cfg.api_prefix)
-    
+    logger.info("TradeXV2 API app created with %d routers", len(app.routes))
+
     return app

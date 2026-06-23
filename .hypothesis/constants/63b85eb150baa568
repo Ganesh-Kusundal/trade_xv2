@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/config/endpoints.py
+# hypothesis_version: 6.147.0
+
+['/charts/historical', '/charts/intraday', '/instruments', '/killswitch', '/marketfeed/ltp', '/marketfeed/ohlc', '/marketfeed/quote', '/marketstatus', '/optionchain', '/orders', '/orders/slicing', 'NSE']

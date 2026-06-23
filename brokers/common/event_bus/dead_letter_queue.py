@@ -74,17 +74,18 @@ class DeadLetterQueue:
     def push(self, dead_letter: DeadLetter) -> bool:
         """Add a dead letter. Returns True if accepted, False if dropped due to capacity."""
         with self._lock:
-            current_size = len(self._items)
-            if current_size >= self._max_size:
+            # deque(maxlen=...) handles eviction automatically; track drops
+            pre_len = len(self._items)
+            self._items.append(dead_letter)
+            if len(self._items) < pre_len + 1:
+                # deque evicted oldest entry because it was at capacity
                 self._dropped += 1
                 if self._on_drop is not None:
                     try:
                         self._on_drop(dead_letter)
                     except Exception as exc:
-                        # Never let the drop callback break the producer.
                         logger.debug("dead_letter_drop_callback_failed: %s", exc)
                 return False
-            self._items.append(dead_letter)
             return True
 
     def push_failure(

@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/cli/commands/doctor/__init__.py
+# hypothesis_version: 6.147.0
+
+['--broker', '--parallel', '--quick', 'Active Broker', 'CheckOrchestrator', 'CheckResult', 'CheckStrategy', 'Gateway Creation', 'HTTP Observability', 'Instrument Catalog', 'Lifecycle', 'Market Data', 'Order API', 'Portfolio', 'ResultRenderer', 'Risk Manager', '_check_active_broker', '_check_lifecycle', '_check_market_data', '_check_order_api', '_check_portfolio', '_render_table', '_status_str', 'run', 'run_doctor', '🌐 HTTP Observability', '💰 Portfolio Sync', '📚 Instrument Catalog', '📝 Order & Trade API', '🔋 Lifecycle Health', '🛡️  OMS RiskManager']

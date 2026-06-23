@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/analytics/paper/engine.py
+# hypothesis_version: 6.147.0
+
+[0.0, 50.0, 100, '0', '1', 'End', 'End of paper trading', 'NSE', 'SYMBOL', 'Signal cover', 'Signal sell', 'Stop-loss hit', 'Take-profit hit', '_window', 'close', 'date', 'high', 'live', 'low', 'open', 'paper', 'symbol', 'timestamp', 'volume']

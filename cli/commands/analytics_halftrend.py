@@ -89,13 +89,16 @@ def run_halftrend(args: list[str], broker_service, console: Console) -> None:
         sig_table.add_column("Signal", style="bold")
         sig_table.add_column("Close", style="green")
         sig_table.add_column("HT Line", style="cyan")
-        for _, row in recent.iterrows():
-            sig_style = "green" if row["halftrend_signal"] == "BUY" else "red"
-            ht_val = f"{row['halftrend']:.2f}" if pd.notna(row["halftrend"]) else "-"
+        
+        for ts, halftrend_signal, close, halftrend in zip(
+            recent["timestamp"], recent["halftrend_signal"], recent["close"], recent["halftrend"]
+        ):
+            sig_style = "green" if halftrend_signal == "BUY" else "red"
+            ht_val = f"{halftrend:.2f}" if pd.notna(halftrend) else "-"
             sig_table.add_row(
-                str(row.get("timestamp", "")),
-                f"[{sig_style}]{row['halftrend_signal']}[/{sig_style}]",
-                f"{row['close']:.2f}",
+                str(ts) if pd.notna(ts) else "",
+                f"[{sig_style}]{halftrend_signal}[/{sig_style}]",
+                f"{close:.2f}",
                 ht_val,
             )
         console.print(sig_table)

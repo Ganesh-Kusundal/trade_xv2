@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/datalake/api/deps.py
+# hypothesis_version: 6.147.0
+
+['broker_service', 'data_catalog', 'datalake_gateway', 'event_bus', 'extra', 'order_manager', 'position_manager', 'risk_manager', 'trading_context', 'view_manager']

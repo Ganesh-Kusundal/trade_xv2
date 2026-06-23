@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/datalake/api/routers/symbols.py
+# hypothesis_version: 6.147.0
+
+[0.05, 100, '#', ',', '/search', '/universe/{name}', '/{symbol}', 'EQUITY', 'Filter by exchange', 'Max results', 'Search query', 'banknifty', 'data/universes', 'finnifty', 'nifty100', 'nifty200', 'nifty50', 'nifty500']

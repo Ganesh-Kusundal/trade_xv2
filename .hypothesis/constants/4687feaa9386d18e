@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/common/observability/alerting.py
+# hypothesis_version: 6.147.0
+
+[0.0, 0.05, 5.0, 10.0, 20.0, 60.0, 300.0, 100, '*', '*/dead_letter', '*/handler_error*', '*/log_error*', '/', 'Alert', 'AlertLevel', 'AlertRule', 'AlertingEngine', 'CRITICAL', 'INFO', 'WARNING', 'circuit_breaker_open', 'high_error_rate', 'log_write_failures']

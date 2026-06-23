@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/datalake/api/ws/replay.py
+# hypothesis_version: 6.147.0
+
+[0.02, 0.2, 0.25, 1.0, 1000, '/replay/{session_id}', '1m', 'BAD_DATA', 'ENDED', 'NO_DATA', 'PAUSED', 'PLAYING', 'RELIANCE', 'SESSION_NOT_FOUND', 'STOPPED', 'action', 'c', 'candle', 'close', 'code', 'cursor_t', 'date', 'error', 'h', 'high', 'l', 'low', 'market_data', 'message', 'o', 'open', 'pause', 'ping', 'play', 'pong', 'replay_candle', 'replay_state', 'seek', 'session_id', 'speed', 'state', 'stop', 'symbol', 't', 'timeframe', 'timestamp', 'to_t', 'type', 'universe', 'v', 'volume']

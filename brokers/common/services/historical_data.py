@@ -230,19 +230,23 @@ class HistoricalDataService:
 
             df = pd.read_parquet(path)
             out: list[HistoricalCandle] = []
-            for _, row in df.iterrows():
-                out.append(
-                    HistoricalCandle(
-                        timestamp=row["timestamp"].to_pydatetime()
-                        if hasattr(row["timestamp"], "to_pydatetime")
-                        else row["timestamp"],
-                        open=row["open"],
-                        high=row["high"],
-                        low=row["low"],
-                        close=row["close"],
-                        volume=int(row["volume"]),
-                    )
+            
+            def to_timestamp(ts):
+                return ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else ts
+            
+            out = [
+                HistoricalCandle(
+                    timestamp=to_timestamp(ts),
+                    open=float(open_val),
+                    high=float(high_val),
+                    low=float(low_val),
+                    close=float(close_val),
+                    volume=int(volume),
                 )
+                for ts, open_val, high_val, low_val, close_val, volume in zip(
+                    df["timestamp"], df["open"], df["high"], df["low"], df["close"], df["volume"]
+                )
+            ]
             return out
         except Exception as exc:
             logger.warning("load_from_parquet failed: %s", exc)

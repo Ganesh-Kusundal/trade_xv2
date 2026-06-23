@@ -9,7 +9,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from datalake.api.deps import get_order_manager, get_broker_service
+from datalake.api.deps import get_order_repository, get_broker_service
 from datalake.api.auth import require_auth
 from datalake.api.schemas import (
     OrdersResponse,
@@ -18,8 +18,10 @@ from datalake.api.schemas import (
     OrderRequest,
     OrderResponse,
 )
-from brokers.common.oms.order_manager import OrderManager, OmsOrderCommand
-from brokers.common.core.domain import Order, OrderStatus, Side, OrderType, ProductType
+from domain.repositories import OrderRepository
+from domain import Order, OrderStatus, Side, OrderType, ProductType
+from domain.requests import OrderRequest as DomainOrderRequest
+from brokers.common.oms.order_repository_adapter import request_to_command
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +33,7 @@ async def get_orders(
     from_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
     to_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
     limit: int = Query(100, ge=1, le=1000, description="Max orders"),
-    order_manager: OrderManager = Depends(get_order_manager),
+    repo = Depends(get_order_repository),
 ):
     """Get order history from OMS."""
     # Parse optional status filter
@@ -42,7 +44,7 @@ async def get_orders(
         except ValueError:
             raise HTTPException(status_code=400, detail=f"Invalid status: {status_filter}")
 
-    orders = order_manager.get_orders(status=status)
+    orders = repo.get_orders(status=status)
 
     # Apply date filters if provided
     if from_date:
@@ -81,7 +83,7 @@ async def get_trades(
     from_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
     to_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
     limit: int = Query(100, ge=1, le=1000, description="Max trades"),
-    order_manager: OrderManager = Depends(get_order_manager),
+    repo = Depends(get_order_repository),
 ):
     """Get trade/executed order history.
 
@@ -90,7 +92,7 @@ async def get_trades(
     """
     try:
         # Get all orders and filter for filled/completed ones
-        orders = order_manager.get_orders(status=OrderStatus.COMPLETE)
+        orders = repo.get_orders(status=OrderStatus.COMPLETE)
         
         # Apply date filters if provided
         if from_date:
@@ -136,7 +138,7 @@ async def get_trades(
 async def get_tradebook(
     from_date: Optional[str] = Query(None, description="Start date"),
     to_date: Optional[str] = Query(None, description="End date"),
-    order_manager: OrderManager = Depends(get_order_manager),
+    repo = Depends(get_order_repository),
 ):
     """Get complete tradebook with P&L analysis.
 
@@ -145,7 +147,7 @@ async def get_tradebook(
     """
     try:
         # Get all completed orders
-        orders = order_manager.get_orders(status=OrderStatus.COMPLETE)
+        orders = repo.get_orders(status=OrderStatus.COMPLETE)
         
         # Apply date filters
         if from_date:
@@ -212,10 +214,10 @@ async def get_tradebook(
 @router.get("/{order_id}", response_model=OrderResponse)
 async def get_order(
     order_id: str,
-    order_manager: OrderManager = Depends(get_order_manager),
+    repo = Depends(get_order_repository),
 ):
     """Get specific order details from OMS."""
-    order = order_manager.get_order(order_id)
+    order = repo.get_order(order_id)
     if order is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -239,7 +241,7 @@ async def get_order(
 @router.post("", response_model=OrderResponse)
 async def place_order(
     req: OrderRequest,
-    order_manager: OrderManager = Depends(get_order_manager),
+    repo = Depends(get_order_repository),
 ):
     """Place a new order through the OMS.
 
@@ -282,10 +284,10 @@ async def place_order(
             detail=f"Invalid order parameter: {exc}",
         )
 
-    command = OmsOrderCommand(
+    domain_req = DomainOrderRequest(
         symbol=req.symbol,
         exchange=req.exchange,
-        side=side,
+        transaction_type=side,
         order_type=order_type,
         quantity=req.quantity,
         price=Decimal(str(req.price)) if req.price else Decimal("0"),
@@ -294,16 +296,18 @@ async def place_order(
     )
 
     # Call OMS with broker submission function
-    # CRITICAL: submit_fn must NOT be None for live order placement
-    submit_fn = getattr(broker_service, "submit_order", None)
-    if submit_fn is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Broker order submission unavailable.",
-            headers={"Retry-After": "60"},
-        )
-    
-    result = order_manager.place_order(command, submit_fn=submit_fn)
+    execution_svc = getattr(broker_service, "execution_service", None)
+    if execution_svc is not None:
+        result = execution_svc.place_order(request_to_command(domain_req))
+    else:
+        submit_fn = getattr(broker_service, "submit_order", None)
+        if submit_fn is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Broker order submission unavailable.",
+                headers={"Retry-After": "60"},
+            )
+        result = repo.place_command(request_to_command(domain_req), submit_fn=submit_fn)
 
     if not result.success:
         raise HTTPException(
@@ -331,7 +335,7 @@ async def place_order(
 async def modify_order(
     order_id: str,
     req: OrderRequest,
-    order_manager: OrderManager = Depends(get_order_manager),
+    repo = Depends(get_order_repository),
 ):
     """Modify an existing order.
 
@@ -348,7 +352,7 @@ async def modify_order(
             detail=f"Invalid order parameter: {exc}",
         )
 
-    existing = order_manager.get_order(order_id)
+    existing = repo.get_order(order_id)
     if existing is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -381,17 +385,17 @@ async def modify_order(
         )
 
     # Cancel existing, place new (as a pending-modify pattern)
-    cancel_result = order_manager.cancel_order(order_id, cancel_fn=cancel_fn)
+    cancel_result = repo.cancel_with_fn(order_id, cancel_fn=cancel_fn)
     if not cancel_result.success:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=cancel_result.error or "Modify: cancel failed",
         )
 
-    command = OmsOrderCommand(
+    modify_req = DomainOrderRequest(
         symbol=req.symbol or existing.symbol,
         exchange=req.exchange or existing.exchange,
-        side=side,
+        transaction_type=side,
         order_type=order_type,
         quantity=req.quantity or existing.quantity,
         price=Decimal(str(req.price)) if req.price else existing.price,
@@ -399,7 +403,7 @@ async def modify_order(
         correlation_id=f"http-modify-{datetime.now().isoformat()}",
     )
 
-    result = order_manager.place_order(command, submit_fn=submit_fn)
+    result = repo.place_command(request_to_command(modify_req), submit_fn=submit_fn)
     if not result.success:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -425,7 +429,7 @@ async def modify_order(
 @router.delete("/{order_id}", response_model=OrderResponse)
 async def cancel_order(
     order_id: str,
-    order_manager: OrderManager = Depends(get_order_manager),
+    repo = Depends(get_order_repository),
 ):
     """Cancel a pending order.
 
@@ -439,7 +443,7 @@ async def cancel_order(
     else:
         cancel_fn = None
     
-    result = order_manager.cancel_order(order_id, cancel_fn=cancel_fn)
+    result = repo.cancel_with_fn(order_id, cancel_fn=cancel_fn)
     if not result.success:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

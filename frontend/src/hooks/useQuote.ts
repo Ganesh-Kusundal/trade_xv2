@@ -1,12 +1,13 @@
 /**
- * useQuote — small hook to poll a single symbol's quote.
- *
- * Uses the API client (real backend if up, mock otherwise).
+ * useQuote — live quote via WebSocket with HTTP poll fallback.
  */
 
 import { useEffect, useRef, useState } from 'react'
 import { getQuote } from '@/api/client'
+import { useMarketStream } from '@/hooks/useMarketStream'
 import type { Quote } from '@/types'
+
+const REQUIRE_API = import.meta.env.VITE_REQUIRE_API === 'true'
 
 interface UseQuoteOptions {
   intervalMs?: number
@@ -16,6 +17,7 @@ interface UseQuoteOptions {
 interface UseQuoteResult {
   quote: Quote | null
   isLive: boolean
+  wsConnected: boolean
   latencyMs: number
   lastUpdated: number
 }
@@ -27,13 +29,35 @@ export function useQuote(symbol: string, opts: UseQuoteOptions = {}): UseQuoteRe
   const [lastUpdated, setLastUpdated] = useState(0)
   const symRef = useRef(symbol)
 
+  const { connected: wsConnected, quotes: wsQuotes } = useMarketStream({
+    symbols: enabled ? [symbol] : [],
+    enabled,
+  })
+
   useEffect(() => {
     symRef.current = symbol
     setQuote(null)
+  }, [symbol])
+
+  useEffect(() => {
+    const wsQuote = wsQuotes[symbol.toUpperCase()]
+    if (wsQuote) {
+      setQuote(wsQuote)
+      setLatencyMs(0)
+      setLastUpdated(Date.now())
+    }
+  }, [wsQuotes, symbol])
+
+  useEffect(() => {
     if (!enabled) return
+    if (wsConnected) return
+    if (REQUIRE_API) {
+      // Production: no mock poll when WS down — surface stale/null quote
+      return
+    }
     let alive = true
     const tick = async () => {
-      if (!alive) return
+      if (!alive || wsConnected) return
       const t0 = performance.now()
       try {
         const q = await getQuote(symRef.current)
@@ -47,11 +71,12 @@ export function useQuote(symbol: string, opts: UseQuoteOptions = {}): UseQuoteRe
     tick()
     const id = window.setInterval(tick, intervalMs)
     return () => { alive = false; clearInterval(id) }
-  }, [symbol, intervalMs, enabled])
+  }, [symbol, intervalMs, enabled, wsConnected])
 
   return {
     quote,
-    isLive: !!quote,
+    isLive: wsConnected || !!quote,
+    wsConnected,
     latencyMs,
     lastUpdated,
   }

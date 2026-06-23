@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/dhan/ws_subscription.py
+# hypothesis_version: 6.147.0
+
+[0.8, 1000, 'current', 'max']

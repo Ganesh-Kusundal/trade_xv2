@@ -32,8 +32,10 @@ Usage:
 from __future__ import annotations
 
 import logging
+import os
 import uuid
 from datetime import datetime
+from decimal import Decimal
 
 import pandas as pd
 
@@ -53,8 +55,14 @@ from analytics.replay.models import Bar
 from analytics.scanner.models import Candidate
 from analytics.strategy.models import Signal
 from analytics.strategy.pipeline import StrategyPipeline
+from domain.execution import compute_order_quantity
+from domain.runtime_hooks import create_oms_backtest_adapter
+from domain.ports.oms_backtest_adapter import OmsBacktestAdapterPort
 
 logger = logging.getLogger(__name__)
+
+# Module-level default for backward compat; prefer the constructor parameter.
+_DEFAULT_STRICT_PARITY = os.getenv("STRICT_EXECUTION_PARITY", "0") == "1"
 
 
 def _gen_id() -> str:
@@ -83,10 +91,31 @@ class PaperTradingEngine:
         pipeline: FeaturePipeline | None = None,
         strategy_pipeline: StrategyPipeline | None = None,
         config: PaperConfig | None = None,
+        trading_context=None,
+        execution_adapter=None,
+        oms_adapter: OmsBacktestAdapterPort | None = None,
+        strict_parity: bool | None = None,
     ) -> None:
         self._pipeline = pipeline or FeaturePipeline()
         self._strategy = strategy_pipeline or StrategyPipeline()
         self._config = config or PaperConfig()
+        self._trading_context = trading_context
+        self._strict_parity = strict_parity if strict_parity is not None else _DEFAULT_STRICT_PARITY
+        self._oms_adapter: OmsBacktestAdapterPort | None = None
+        if oms_adapter is not None:
+            self._oms_adapter = oms_adapter
+        elif trading_context is not None:
+            self._oms_adapter = create_oms_backtest_adapter(
+                trading_context,
+                mode="paper",
+                slippage_pct=self._config.slippage_pct,
+                commission_flat=self._config.commission_flat,
+                execution_adapter=execution_adapter,
+            )
+        elif self._strict_parity:
+            raise ValueError(
+                "STRICT_EXECUTION_PARITY=1 requires trading_context or oms_adapter on PaperTradingEngine"
+            )
 
     # -----------------------------------------------------------------------
     # Public API
@@ -368,17 +397,80 @@ class PaperTradingEngine:
         if not signal.is_actionable:
             return
 
+        if self._oms_adapter is not None:
+            self._process_signal_via_oms(signal, bar, session)
+            return
+
+        if self._strict_parity:
+            raise RuntimeError(
+                "STRICT_EXECUTION_PARITY=1 requires trading_context; legacy paper fills disabled"
+            )
+
         if signal.is_buy:
             self._open_position(bar, session, signal)
         elif signal.is_sell:
-            # Close matching position
             if bar.symbol in session.positions:
                 pos = session.positions[bar.symbol]
                 if pos.side == PositionSide.LONG:
                     self._close_position(bar.symbol, bar.close, bar.timestamp, session, "Signal sell")
                 elif pos.side == PositionSide.SHORT:
-                    # Short covering
                     self._close_position(bar.symbol, bar.close, bar.timestamp, session, "Signal cover")
+
+    def _process_signal_via_oms(self, signal: Signal, bar: Bar, session: PaperSession) -> None:
+        """Route paper signals through OMS for parity with live/replay."""
+        config = self._config
+        if signal.is_buy and bar.symbol not in session.positions:
+            if session.position_count >= config.max_positions:
+                return
+            price = Decimal(str(bar.close * (1 + config.slippage_pct / 100)))
+            qty = compute_order_quantity(
+                equity=session.capital,
+                price=float(price),
+                max_position_pct=config.max_position_pct,
+            )
+            if qty <= 0:
+                return
+            order_id = self._oms_adapter.open_long(
+                symbol=bar.symbol,
+                exchange="NSE",
+                quantity=qty,
+                price=price,
+                timestamp=bar.timestamp,
+                strategy=signal.strategy,
+                reasons=list(signal.reasons),
+            )
+            if order_id:
+                cost = float(price) * qty + config.commission_flat
+                session.capital -= cost
+                session.positions[bar.symbol] = PaperPosition(
+                    symbol=bar.symbol,
+                    side=PositionSide.LONG,
+                    entry_price=float(price),
+                    quantity=qty,
+                    entry_time=bar.timestamp,
+                    current_price=bar.close,
+                    stop_loss=signal.stop_loss,
+                    take_profit=signal.target,
+                    strategy=signal.strategy,
+                )
+        elif signal.is_sell and bar.symbol in session.positions:
+            pos = session.positions[bar.symbol]
+            if pos.side != PositionSide.LONG:
+                return
+            price = Decimal(str(bar.close * (1 - config.slippage_pct / 100)))
+            order_id = self._oms_adapter.close_long(
+                symbol=bar.symbol,
+                exchange="NSE",
+                quantity=pos.quantity,
+                price=price,
+                timestamp=bar.timestamp,
+                strategy=signal.strategy,
+                reasons=list(signal.reasons),
+            )
+            if order_id:
+                proceeds = float(price) * pos.quantity - config.commission_flat
+                session.capital += proceeds
+                del session.positions[bar.symbol]
 
     def _open_position(self, bar: Bar, session: PaperSession, signal: Signal) -> None:
         """Open a new position."""

@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/cli/commands/order_placement.py
+# hypothesis_version: 6.147.0
+
+['--exchange', '--file', '--price', '--product', '--quantity', '--type', '0', 'BUY', 'Count', 'Empty CSV file', 'Exchange', 'Failed', 'Field', 'MARKET', 'Metric', 'Missing file path', 'Missing order ID', 'N/A', 'NSE', 'Order ID', 'Price', 'Quantity', 'Side', 'Status', 'Successful', 'Symbol', 'Total Orders', 'Type', 'UNKNOWN', 'Value', 'bold cyan', 'bold green', 'bold white', 'cancelled', 'center', 'error', 'exchange', 'failed', 'green', 'new_price', 'new_quantity', 'order_id', 'price', 'quantity', 'results', 'side', 'status', 'success', 'successful', 'symbol', 'total', 'type', 'utf-8']

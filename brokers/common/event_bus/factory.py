@@ -381,9 +381,15 @@ class AsyncPublishAdapter:
         return self._event_bus
 
 
+def create_domain_event(**kwargs: Any) -> DomainEvent:
+    """Build a domain event with current timestamp (composition-root helper)."""
+    return DomainEvent.now(**kwargs)
+
+
 __all__ = [
     "AsyncEventBusFactory",
     "AsyncPublishAdapter",
     "async_publish_wrapper",
     "ASYNC_BUS_ENV_VAR",
+    "create_domain_event",
 ]

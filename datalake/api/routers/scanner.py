@@ -9,7 +9,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from datalake.api.deps import get_view_manager, get_trading_context
+from datalake.api.deps import get_view_manager, get_trading_context, get_datalake_gateway, get_data_catalog
 from datalake.api.auth import require_auth
 from datalake.api.schemas import ScannerCandidatesResponse, ScannerSnapshot
 from datalake.scan_store import get_recent_scans, save_scan_result
@@ -167,6 +167,8 @@ async def get_snapshots(
 async def run_scan(
     scanner_name: str = Query(..., description="Scanner to run"),
     universe: str = Query("NIFTY500", description="Universe to scan"),
+    gateway=Depends(get_datalake_gateway),
+    catalog=Depends(get_data_catalog),
 ):
     """Trigger a new scanner run.
     
@@ -175,11 +177,15 @@ async def run_scan(
     Uses real ScannerRunner with scanner implementations.
     """
     try:
-        # Get TradingContext for event bus and scanner infrastructure
+        if gateway is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Data lake gateway not connected.",
+            )
+
         ctx = get_trading_context()
         event_bus = ctx.event_bus if ctx else None
         
-        # Build scanner list based on scanner_name
         from analytics.scanner import MomentumScanner, VolumeScanner, BreakoutScanner
         from analytics.pipeline.pipeline import FeaturePipeline
         
@@ -198,24 +204,30 @@ async def run_scan(
             )
         
         scanners = [scanner_map[scanner_name.lower()]()]
-        
-        # Load universe data (simplified - in production would fetch from datalake)
-        import pandas as pd
-        universe_df = pd.DataFrame()  # Universe loading requires datalake integration
+
+        from datalake.scanner_universe import load_scanner_universe
+
+        universe_df, load_stats = load_scanner_universe(
+            gateway,
+            catalog,
+            universe,
+            timeframe="1m",
+        )
         
         if universe_df.empty:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=f"Universe data not available for '{universe}'. Scanner cannot run.",
+                detail=(
+                    f"Universe data not available for '{universe}'. "
+                    f"requested={load_stats['requested']} loaded={load_stats['loaded']}"
+                ),
                 headers={"Retry-After": "60"},
             )
         
-        # Run scanners using ScannerRunner
         from analytics.scanner.runner import ScannerRunner
         runner = ScannerRunner(max_workers=4, timeout_seconds=30.0)
         results = runner.run_all(scanners, universe_df)
         
-        # Save results to scan store
         scan_ids = []
         for result in results:
             if result.success and result.scan_result:
@@ -223,7 +235,10 @@ async def run_scan(
                     scanner=result.scanner_name,
                     candidates=result.scan_result.candidates,
                     universe_size=result.scan_result.universe_size,
-                    metadata={"universe": universe},
+                    metadata={
+                        "universe": universe,
+                        "load_stats": load_stats,
+                    },
                 )
                 scan_ids.append(scan_id)
         
@@ -241,6 +256,7 @@ async def run_scan(
             "universe": universe,
             "timestamp": datetime.now().isoformat(),
             "candidate_count": sum(r.candidate_count for r in results if r.success),
+            "universe_stats": load_stats,
         }
         
     except HTTPException:

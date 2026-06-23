@@ -1,17 +1,16 @@
-"""Shared DuckDB connection utilities — process-wide connection pool.
+"""Shared DuckDB connection utilities — process-wide connection pools.
 
 Provides:
 - ``connect_with_retry`` for handling DuckDB's single-writer lock
-- ``DuckDBPool`` for process-wide connection reuse (single connection per file)
-- ``get_pool`` / ``get_connection`` for convenient access
+- ``DuckDBPool`` for read-write connection reuse (one RW conn per file)
+- ``DuckDBReadPool`` for concurrent read-only connections (fresh conn per acquire)
+- ``get_pool`` / ``get_read_pool`` / ``get_connection`` / ``duckdb_connection``
 - ``close_all_connections`` for clean shutdown
 
 Used by DataCatalog, ViewManager, and ScanStore.
 
-DuckDB does NOT allow multiple connections to the same file with different
-configurations (e.g. read_only=True vs read_only=False). This module enforces
-a single connection per file path, always opened in read-write mode so both
-catalog writes and view queries work through the same handle.
+RW and RO pools are separate: catalog writes and materialization use
+``DuckDBPool``; API read handlers use ``DuckDBReadPool`` for concurrency.
 """
 
 from __future__ import annotations
@@ -19,6 +18,8 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -211,9 +212,10 @@ class DuckDBPool:
             logger.info("DuckDBPool: closed %d connections", count)
 
 
-# ── Module-level singleton ────────────────────────────────────────────────────
+# ── Module-level singletons ───────────────────────────────────────────────────
 
 _pool: DuckDBPool | None = None
+_read_pool: DuckDBReadPool | None = None
 _pool_lock = threading.Lock()
 
 
@@ -227,24 +229,66 @@ def get_pool() -> DuckDBPool:
     return _pool
 
 
+def get_read_pool() -> DuckDBReadPool:
+    """Return the process-wide DuckDBReadPool singleton (created on first call)."""
+    global _read_pool
+    if _read_pool is None:
+        with _pool_lock:
+            if _read_pool is None:
+                _read_pool = DuckDBReadPool()
+    return _read_pool
+
+
 def get_connection(
     db_path: str | Path = "market_data/catalog.duckdb",
     read_only: bool = True,
 ) -> duckdb.DuckDBPyConnection:
-    """Get a DuckDB connection from the process-wide pool.
+    """Get a DuckDB connection from the appropriate pool.
 
-    ``read_only`` is accepted for API compatibility but ignored — all
-    connections are opened in read-write mode so catalog writes and view
-    queries share the same handle.
+    Read-only requests use ``DuckDBReadPool`` (caller must ``release`` via
+    ``duckdb_connection`` context manager). Read-write requests use
+    ``DuckDBPool``.
     """
-    return get_pool().get(db_path)
+    path = Path(db_path)
+    if read_only:
+        return get_read_pool().acquire(path)
+    return get_pool().acquire(path, read_only=False)
+
+
+@contextmanager
+def duckdb_connection(
+    db_path: str | Path,
+    read_only: bool = True,
+) -> Iterator[duckdb.DuckDBPyConnection]:
+    """Acquire and release a DuckDB connection safely.
+
+    Example::
+
+        with duckdb_connection("market_data/catalog.duckdb", read_only=True) as conn:
+            rows = conn.execute("SELECT 1").fetchall()
+    """
+    path = Path(db_path)
+    if read_only:
+        pool = get_read_pool()
+        conn = pool.acquire(path)
+        try:
+            yield conn
+        finally:
+            pool.release(path, conn)
+    else:
+        pool = get_pool()
+        conn = pool.acquire(path, read_only=False)
+        try:
+            yield conn
+        finally:
+            pool.release(path)
 
 
 def close_all_connections() -> None:
-    """Close all pooled DuckDB connections.
+    """Close all pooled DuckDB connections (RW and RO).
 
     Call this during application shutdown to cleanly release all database
     connections and file locks.
     """
-    pool = get_pool()
-    pool.close_all()
+    get_read_pool().close_all()
+    get_pool().close_all()

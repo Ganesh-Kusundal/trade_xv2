@@ -23,9 +23,3 @@ UPSTOX_STATUS_MAP: dict[str, OrderStatus] = {
 
 # Register Upstox mappings at module load
 StatusMapperRegistry.register("upstox", UPSTOX_STATUS_MAP)
-
-
-def normalize_upstox_status(broker_status: str) -> OrderStatus:
-    """Map an Upstox-specific status string to canonical OrderStatus."""
-    normalized = broker_status.upper().strip().replace(" ", "_")
-    return UPSTOX_STATUS_MAP.get(normalized, OrderStatus.normalize(normalized))

@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/dhan/connection.py
+# hypothesis_version: 6.147.0
+
+[0.01, 2.0, 5.0, 3600, '%s_stop_failed: %s', '__qualname__', '_alerts', '_edis', '_exit_all', '_forever_orders', '_futures', '_historical', '_ip_management', '_ledger', '_margin', '_market_data', '_options', '_portfolio', '_super_orders', '_token_scheduler', '_user_profile', 'cached', 'count', 'error', 'http://', 'https://', 'load_time_s', 'memory_time_s', 'name', 'receiver', 'skip_rate', 'skipped', 'source', 'threshold', 'total', 'update_token']

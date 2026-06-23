@@ -4,6 +4,7 @@ from __future__ import annotations
 import pytest
 
 from brokers.common.core.exchange_segments import (
+    canonical_exchange_short,
     is_commodity_segment,
     is_currency_segment,
     is_derivative_segment,
@@ -19,6 +20,38 @@ class TestParseSegment:
         assert parse_segment("NSE_EQ") is ExchangeSegment.NSE
         assert parse_segment("MCXCOMM") is ExchangeSegment.MCX
         assert parse_segment("NSE_FNO") is ExchangeSegment.NSE_FNO
+
+    def test_mcx_comm_alias(self):
+        assert parse_segment("MCX_COMM") is ExchangeSegment.MCX
+
+    def test_mcx_comm_wire_differs_from_enum_value(self):
+        assert wire_value("MCX_COMM") == "MCXCOMM"
+
+    @pytest.mark.parametrize(
+        ("alias", "expected"),
+        [
+            ("NSE", ExchangeSegment.NSE),
+            ("NSE_EQ", ExchangeSegment.NSE),
+            ("BSE", ExchangeSegment.BSE),
+            ("BSE_EQ", ExchangeSegment.BSE),
+            ("NFO", ExchangeSegment.NSE_FNO),
+            ("NSE_FNO", ExchangeSegment.NSE_FNO),
+            ("BFO", ExchangeSegment.BSE_FNO),
+            ("BSE_FNO", ExchangeSegment.BSE_FNO),
+            ("MCX", ExchangeSegment.MCX),
+            ("MCXCOMM", ExchangeSegment.MCX),
+            ("MCX_COMM", ExchangeSegment.MCX),
+            ("CDS", ExchangeSegment.NSE_CURRENCY),
+            ("NSE_CURRENCY", ExchangeSegment.NSE_CURRENCY),
+            ("BCD", ExchangeSegment.BSE_CURRENCY),
+            ("BSE_CURRENCY", ExchangeSegment.BSE_CURRENCY),
+            ("IDX_I", ExchangeSegment.IDX_I),
+            ("INDEX", ExchangeSegment.IDX_I),
+        ],
+    )
+    def test_alias_permutations(self, alias, expected):
+        assert parse_segment(alias) is expected
+        assert wire_value(alias) == expected.value
 
     def test_short_aliases(self):
         assert parse_segment("NSE") is ExchangeSegment.NSE
@@ -93,3 +126,10 @@ class TestWireValue:
     def test_unknown_segment_raises(self):
         with pytest.raises(ValueError):
             wire_value("BOGUS")
+
+
+class TestCanonicalExchangeShort:
+    def test_nse_and_nfo(self):
+        assert canonical_exchange_short("NSE_EQ") == "NSE"
+        assert canonical_exchange_short("NFO") == "NFO"
+        assert canonical_exchange_short(ExchangeSegment.MCX) == "MCX"

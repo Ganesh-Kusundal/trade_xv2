@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/common/services/historical_data.py
+# hypothesis_version: 6.147.0
+
+[365, '+00:00', '1d', 'Asia/Kolkata', 'EQUITY', 'Z', 'close', 'd', 'day', 'high', 'low', 'open', 'snappy', 'timestamp', 'to_pydatetime', 'volume']

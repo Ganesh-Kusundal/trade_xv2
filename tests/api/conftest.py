@@ -54,13 +54,25 @@ def app():
         default_page_size=100,
     )
     
-    # Register mock services so symbol endpoints return 404 gracefully
-    # instead of crashing with 'NoneType has no attribute conn'
+    # Register mock services so endpoints return gracefully
+    # instead of crashing with 'NoneType has no attribute'
     mock_catalog = MockDataCatalog()
-    
+
+    class _StubGateway:
+        """Minimal stub so readiness check sees a non-None gateway."""
+
+    class _StubViewManager:
+        """Minimal stub so readiness check sees a non-None view_manager."""
+
+    class _StubEventBus:
+        """Minimal stub so readiness check sees a non-None event_bus."""
+
     return create_app(
         config=config,
         data_catalog=mock_catalog,
+        datalake_gateway=_StubGateway(),
+        view_manager=_StubViewManager(),
+        event_bus=_StubEventBus(),
     )
 
 

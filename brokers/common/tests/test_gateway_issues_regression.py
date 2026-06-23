@@ -113,18 +113,22 @@ class TestUpstoxNotImplementedErrors:
         upstox_gateway._broker.options.get_expiries.return_value = ["2026-06-25"]
         upstox_gateway._broker.options.get_option_chain.return_value = []
         result = upstox_gateway.option_chain("NIFTY", exchange="NFO")
-        assert isinstance(result, dict)
-        assert result["underlying"] == "NIFTY"
+        from domain import OptionChain
+        assert isinstance(result, OptionChain)
+        assert result.underlying == "NIFTY"
 
     def test_upstox_future_chain_raises(self, upstox_gateway):
         with pytest.raises(NotImplementedError, match="future chain"):
             upstox_gateway.future_chain("NIFTY", exchange="NFO")
 
     def test_upstox_get_trade_book_delegates_to_order_query(self, upstox_gateway):
-        """Upstox get_trade_book now delegates to order_query.get_trades()."""
-        upstox_gateway._broker.order_query.get_trades.return_value = []
+        """Upstox get_trade_book delegates to PortfolioAdapter.get_trades()."""
+        from unittest.mock import MagicMock
+        upstox_gateway._portfolio = MagicMock()
+        upstox_gateway._portfolio.get_trades.return_value = []
         result = upstox_gateway.get_trade_book()
         assert result == []
+        upstox_gateway._portfolio.get_trades.assert_called_once()
 
 
 class TestMarketDataGatewayContract:
@@ -276,21 +280,19 @@ class TestGatewayLogging:
 
 
 class TestUpstoxQuoteLogging:
-    """Upstox quote() should log when data is not found."""
+    """MarketDataAdapter.get_quote should log when data is not found."""
 
     def test_quote_logs_warning_on_empty_data(self):
         from unittest.mock import MagicMock, patch
-        from brokers.upstox.gateway import UpstoxBrokerGateway
 
-        gw = UpstoxBrokerGateway.__new__(UpstoxBrokerGateway)
-        gw._broker = MagicMock()
-        gw._broker.market_data_v2.get_quote.return_value = {"data": {}}
-        gw._broker.instrument_resolver.resolve.return_value = MagicMock(
-            instrument_key="NSE_EQ|INE001A01023"
-        )
+        from brokers.upstox.adapters.market_data_adapter import MarketDataAdapter
 
-        with patch("brokers.upstox.gateway.logger") as mock_logger:
-            result = gw.quote("RELIANCE", "NSE")
+        broker = MagicMock()
+        broker.market_data_v2.get_quote.return_value = {"data": {}}
+        adapter = MarketDataAdapter(broker)
+
+        with patch("brokers.upstox.adapters.market_data_adapter.logger") as mock_logger:
+            result = adapter.get_quote("RELIANCE", "NSE", "NSE_EQ|INE001A01023")
             assert mock_logger.warning.called, "Should log warning when quote data is empty"
             assert result.symbol == "RELIANCE"
 

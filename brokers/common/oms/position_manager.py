@@ -11,7 +11,7 @@ import threading
 from decimal import Decimal
 from typing import Any
 
-from brokers.common.core.domain import Position, Trade
+from domain.entities import Position, Trade
 from brokers.common.core.state_machine import IllegalTransitionError, StateMachine
 from brokers.common.core.types import POSITION_STATE_TRANSITIONS, PositionState
 from brokers.common.event_bus import DomainEvent, EventBus, EventType
@@ -55,36 +55,32 @@ class PositionManager:
     def apply_trade(self, trade: Trade) -> Position:
         """Apply a trade to the position book and return the new position.
 
-        Idempotency is the OMS's responsibility: this method should only
-        be called with trades that the OMS has already accepted.
-        
-        P2-Phase 2: Validates position state transitions using state machine.
-        P1-Phase 1: Publishes POSITION_OPENED and POSITION_CLOSED lifecycle
-        events in addition to existing POSITION_UPDATED.
+        REF-020: Event publishing is collected under the lock but
+        executed after release, preventing nested lock acquisitions
+        when event handlers re-enter the manager.
         """
         symbol_key = self._key(trade.symbol, trade.exchange)
+        events_to_publish: list[tuple[str, dict | Position]] = []
+
         with self._lock:
             current = self._positions.get(
                 symbol_key, Position(symbol=trade.symbol, exchange=trade.exchange)
             )
-            
-            # P2-Phase 2: Determine current position state
+
             position_state = self._position_states.get(symbol_key)
             if position_state is None:
-                # New position: starts at FLAT
                 position_state = StateMachine(
                     transitions=POSITION_STATE_TRANSITIONS,
                     initial=PositionState.FLAT,
                 )
                 self._position_states[symbol_key] = position_state
-            
+
             old_state = position_state.state
             was_flat = current.quantity == 0
             delta = trade.quantity if trade.side.value == "BUY" else -trade.quantity
             new_quantity = current.quantity + delta
             will_be_flat = new_quantity == 0
-            
-            # P2-Phase 2: Determine target state
+
             if was_flat and not will_be_flat:
                 new_state = PositionState.OPEN
             elif not was_flat and will_be_flat:
@@ -96,17 +92,15 @@ class PositionManager:
                      (current.quantity < 0 and new_quantity > 0):
                     new_state = PositionState.REVERSED
                 else:
-                    new_state = PositionState.OPEN  # Adding to position
+                    new_state = PositionState.OPEN
             else:
-                new_state = old_state  # No change
-            
-            # P2-Phase 2: Validate state transition
+                new_state = old_state
+
             if old_state != new_state:
                 if not position_state.can_transition_to(new_state):
                     if self._enforce_state_transitions:
                         raise IllegalTransitionError(old_state, new_state)
                     else:
-                        # Audit-only mode: log violation but accept
                         logger.warning(
                             "PositionManager: illegal position state transition "
                             "%s → %s for %s (audit mode: accepting)",
@@ -115,39 +109,39 @@ class PositionManager:
                             symbol_key,
                         )
                 else:
-                    # Valid transition: update state machine
                     position_state.transition_to(new_state)
-            
+
             updated = current.with_fill(delta, trade.price)
             self._positions[symbol_key] = updated
             self._trades_applied += 1
             if self._metrics is not None:
-                self._metrics.inc(EventType.TRADE_APPLIED.value, "position_updated")  # P1-3: Migrated to EventType enum
-            
-            # P1-Phase 1: Publish position lifecycle events
+                self._metrics.inc(EventType.TRADE_APPLIED.value, "position_updated")
+
+            # Collect events under lock, publish after release
             if was_flat and not will_be_flat:
-                # Flat → Open: POSITION_OPENED
-                self._publish(
+                events_to_publish.append((
                     EventType.POSITION_OPENED.value,
-                    payload={
+                    {
                         "symbol": updated.symbol,
                         "quantity": updated.quantity,
                         "avg_price": float(updated.avg_price),
                     },
-                )
+                ))
             elif not was_flat and will_be_flat:
-                # Open → Flat: POSITION_CLOSED
-                self._publish(
+                events_to_publish.append((
                     EventType.POSITION_CLOSED.value,
-                    payload={
+                    {
                         "symbol": updated.symbol,
                         "realized_pnl": float(updated.realized_pnl) if hasattr(updated, 'realized_pnl') else 0.0,
                     },
-                )
-            
-            # Always publish POSITION_UPDATED
-            self._publish(EventType.POSITION_UPDATED.value, updated)  # P1-3: Migrated to EventType enum
-            return updated
+                ))
+            events_to_publish.append((EventType.POSITION_UPDATED.value, updated))
+
+        # REF-020: Publish events OUTSIDE the lock
+        for event_type, data in events_to_publish:
+            self._publish(event_type, data if isinstance(data, Position) else None, payload=data if isinstance(data, dict) else None)
+
+        return updated
 
     def update_ltp(self, symbol: str, exchange: str, ltp: Decimal | float) -> Position | None:
         """Update last traded price for a position."""

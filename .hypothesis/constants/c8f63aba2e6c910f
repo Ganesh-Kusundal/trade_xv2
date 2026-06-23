@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/cli/commands/benchmark.py
+# hypothesis_version: 6.147.0
+
+[1000, '.env.local', '.env.upstox', '1D', '=', 'Best Broker', 'Consistently faster', 'Depth', 'Dhan', 'Futures', 'HDFCBANK', 'ICICIBANK', 'INFY', 'LTP (any count)', 'NIFTY', 'Option Chain', 'Quote (1 symbol)', 'Quote (5+ symbols)', 'RELIANCE', 'Rationale', 'Symbols', 'TCS', 'Upstox', 'Winner', 'Workload', 'bold', 'center', 'cyan', 'dhan', 'right', 'strikes', 'upstox']

@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/cli/widgets/performance_console.py
+# hypothesis_version: 6.147.0
+
+[3.0, '#btn-run-perf', '#lbl-perf-status', '#perf-options-row', '#perf-results-table', '#perf-test-select', 'Average Latency', 'Execution Duration', 'Failure Count', 'Historical Candles', 'Idle', 'Min / Max Latency', 'Option Chain Grid', 'Performance Metric', 'Quotes Endpoint', 'Success Count', 'Throughput (RPS)', 'Total Requests Sent', 'Value', 'Websocket Client', 'bold', 'btn-run-perf', 'historical', 'lbl-perf-status', 'option-chain', 'panel', 'perf-options-row', 'perf-results-table', 'perf-test-select', 'primary', 'quotes', 'title', 'websocket', 'yellow']

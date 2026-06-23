@@ -46,7 +46,11 @@ from typing import Any
 
 import pandas as pd
 
-from brokers.common.core.domain import FundLimits, MarketDepth, Quote
+from brokers.common.core.domain import FundLimits, MarketDepth, Quote, FutureChain, OptionChain
+from brokers.common.core.constants.timeouts import (
+    HISTORY_CACHE_TTL_SECONDS,
+    QUOTE_CACHE_TTL_SECONDS,
+)
 from brokers.common.observability.event_metrics import EventMetrics
 from brokers.common.resilience.broker_health_monitor import BrokerHealthMonitor
 from brokers.common.resilience.errors import BrokerDegradedError
@@ -54,10 +58,6 @@ from brokers.common.resilience.errors import BrokerDegradedError
 logger = logging.getLogger(__name__)
 
 _RAISE = object()  # sentinel for _route() default="raise RuntimeError"
-
-# Cache TTL constants (seconds)
-_QUOTE_CACHE_TTL = 60  # 60 seconds for quotes/LTP
-_HISTORY_CACHE_TTL = 300  # 300 seconds for history
 
 # Write operations that must NEVER return stale data
 _WRITE_OPERATIONS = frozenset({
@@ -205,8 +205,8 @@ class IntelligentGateway:
     def _cache_ttl_for(self, operation: str) -> float:
         """Return the appropriate TTL based on operation type."""
         if operation in ("history", "history_batch"):
-            return _HISTORY_CACHE_TTL
-        return _QUOTE_CACHE_TTL
+            return HISTORY_CACHE_TTL_SECONDS
+        return QUOTE_CACHE_TTL_SECONDS
 
     # ── Generic routing helper ───────────────────────────────────────────
 
@@ -468,7 +468,7 @@ class IntelligentGateway:
         underlying: str,
         exchange: str = "INDEX",
         expiry: str | None = None,
-    ) -> dict:
+    ) -> OptionChain:
         return self._route(
             "option_chain", underlying, exchange, expiry,
             primary="dhan", fallback="upstox",
@@ -478,11 +478,16 @@ class IntelligentGateway:
         self,
         underlying: str,
         exchange: str = "INDEX",
-    ) -> dict:
+    ) -> FutureChain:
         return self._route(
             "future_chain", underlying, exchange,
             primary="dhan",
-            default={"underlying": underlying, "exchange": exchange, "expiries": [], "contracts": []},
+            default=FutureChain.from_dict({
+                "underlying": underlying,
+                "exchange": exchange,
+                "expiries": [],
+                "contracts": [],
+            }),
         )
 
     def stream(

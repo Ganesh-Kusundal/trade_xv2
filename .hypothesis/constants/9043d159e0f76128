@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/upstox/websocket/feed_authorizer.py
+# hypothesis_version: 6.147.0
+
+[',', ':', 'data', 'gtt_order', 'guid', 'holding', 'instrumentKeys', 'method', 'mode', 'order', 'position', 'redirect_uri', 'sub', 'update_types', 'utf-8']

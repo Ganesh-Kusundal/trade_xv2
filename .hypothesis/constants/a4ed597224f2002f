@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/analytics/indicators/market_structure.py
+# hypothesis_version: 6.147.0
+
+[0.0, 1e-10, 0.015, 0.02, 0.035, 1.0, 1.5, 'Breakout', 'Compression', 'Downtrend', 'Neutral', 'Pullback', 'Range', 'Trend Continuation', 'Uptrend', 'atr', 'close', 'high', 'low', 'market_structure', 'relative_volume', 'swing_high', 'swing_low', 'trend']

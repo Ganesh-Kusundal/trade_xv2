@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/common/event_bus/processed_trade_repository.py
+# hypothesis_version: 6.147.0
+
+[' auto-cleanup=off', ',', ':', 'a', 'broker_trade_id', 'default', 'duplicates_observed', 'evicted', 'exchange_trade_id', 'order_id', 'recorded_at', 'size', 'total_processed', 'trade', 'trade_id', 'utf-8']

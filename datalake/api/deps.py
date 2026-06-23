@@ -228,9 +228,30 @@ def get_risk_manager() -> Any:
     return ctx.risk_manager
 
 
+def get_order_repository() -> Any:
+    """Get OrderRepository adapter backed by OrderManager."""
+    from brokers.common.oms.order_repository_adapter import OrderManagerRepository
+
+    return OrderManagerRepository(get_order_manager())
+
+
+def get_position_repository() -> Any:
+    """Get PositionRepository adapter backed by PositionManager."""
+    from brokers.common.oms.position_repository_adapter import PositionManagerRepository
+
+    return PositionManagerRepository(get_position_manager())
+
+
 def get_broker_service() -> Any:
     """Get BrokerService instance for live broker connections."""
     return get_container().broker_service
+
+
+def get_trade_journal() -> Any:
+    """Get TradeJournal for historical P&L queries."""
+    from datalake.journal import TradeJournal
+
+    return TradeJournal(read_only=True)
 
 
 # ── Initialization Helper ────────────────────────────────────────────────────

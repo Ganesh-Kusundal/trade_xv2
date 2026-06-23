@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/dhan/ws_parser.py
+# hypothesis_version: 6.147.0
+
+['0', 'DEPTH', 'FULL', 'Full Data', 'LTP', 'Market Depth', 'QUOTE', 'Quote Data', 'TICKER', 'Ticker Data', 'UNKNOWN', 'change', 'close', 'depth', 'exception_type', 'high', 'last_price', 'low', 'ltp', 'open', 'security_id', 'symbol', 'volume']

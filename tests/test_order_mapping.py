@@ -1,23 +1,23 @@
 """Tests for FieldMapping protocol and implementations.
 
 Verifies that:
-1. DhanFieldMapping correctly maps Dhan API responses
+1. DefaultFieldMapping correctly maps Dhan API responses
 2. UpstoxFieldMapping correctly maps Upstox API responses
 3. Order.from_broker_dict works with both mappings
-4. Backward compatibility is maintained (default mapping is Dhan)
+4. Backward compatibility is maintained (default mapping handles camelCase)
 """
 
 import pytest
 from decimal import Decimal
 
+from brokers.common.core.field_mapping import DefaultFieldMapping
 from brokers.common.core.models import Order
 from brokers.common.core.types import OrderStatus, OrderType, Side
-from brokers.dhan.order_mapping import DhanFieldMapping
 from brokers.upstox.order_mapping import UpstoxFieldMapping
 
 
 class TestDhanFieldMapping:
-    """Test Dhan-specific field name mapping."""
+    """Test default field mapping against Dhan API response shapes."""
 
     def test_map_complete_dhan_order(self):
         """Map a complete Dhan order response."""
@@ -34,7 +34,7 @@ class TestDhanFieldMapping:
             "averagePrice": "2498.50",
             "rejectReason": "",
         }
-        mapping = DhanFieldMapping()
+        mapping = DefaultFieldMapping()
         order = Order.from_broker_dict(raw, field_mapping=mapping)
 
         assert order.order_id == "12345"
@@ -60,7 +60,7 @@ class TestDhanFieldMapping:
             "quantity": 5,
             "filledQty": 0,
         }
-        mapping = DhanFieldMapping()
+        mapping = DefaultFieldMapping()
         order = Order.from_broker_dict(raw, field_mapping=mapping)
 
         assert order.side == Side.SELL
@@ -70,28 +70,28 @@ class TestDhanFieldMapping:
     def test_map_stoploss_limit_alias(self):
         """Map STOPLOSS_LIMIT to STOP_LOSS."""
         raw = {"orderType": "STOPLOSS_LIMIT"}
-        mapping = DhanFieldMapping()
+        mapping = DefaultFieldMapping()
         ot = mapping.map_order_type(raw)
         assert ot == "STOP_LOSS"
 
     def test_map_stoploss_market_alias(self):
         """Map STOPLOSS_MARKET to STOP_LOSS_MARKET."""
         raw = {"orderType": "STOPLOSS_MARKET"}
-        mapping = DhanFieldMapping()
+        mapping = DefaultFieldMapping()
         ot = mapping.map_order_type(raw)
         assert ot == "STOP_LOSS_MARKET"
 
     def test_map_stoploss_market_hyphen_alias(self):
         """Map STOPLOSS-MARKET to STOP_LOSS_MARKET."""
         raw = {"orderType": "STOPLOSS-MARKET"}
-        mapping = DhanFieldMapping()
+        mapping = DefaultFieldMapping()
         ot = mapping.map_order_type(raw)
         assert ot == "STOP_LOSS_MARKET"
 
     def test_map_empty_fields(self):
         """Map empty dict to default values."""
         raw = {}
-        mapping = DhanFieldMapping()
+        mapping = DefaultFieldMapping()
         order = Order.from_broker_dict(raw, field_mapping=mapping)
 
         assert order.order_id == ""
@@ -108,7 +108,7 @@ class TestDhanFieldMapping:
     def test_map_null_price(self):
         """Map null/empty price to None."""
         raw = {"price": None}
-        mapping = DhanFieldMapping()
+        mapping = DefaultFieldMapping()
         assert mapping.map_price(raw) is None
 
         raw = {"price": ""}
@@ -117,7 +117,7 @@ class TestDhanFieldMapping:
     def test_map_reject_reason(self):
         """Map reject reason."""
         raw = {"rejectReason": "Insufficient funds"}
-        mapping = DhanFieldMapping()
+        mapping = DefaultFieldMapping()
         assert mapping.map_reject_reason(raw) == "Insufficient funds"
 
 
@@ -294,14 +294,14 @@ class TestEdgeCases:
     def test_invalid_order_type_defaults_to_market(self):
         """Invalid order type should default to MARKET."""
         raw = {"orderType": "INVALID_TYPE"}
-        mapping = DhanFieldMapping()
+        mapping = DefaultFieldMapping()
         order = Order.from_broker_dict(raw, field_mapping=mapping)
         assert order.order_type == OrderType.MARKET
 
     def test_invalid_status_normalized(self):
         """Invalid status should be normalized."""
         raw = {"orderStatus": "UNKNOWN_STATUS"}
-        mapping = DhanFieldMapping()
+        mapping = DefaultFieldMapping()
         order = Order.from_broker_dict(raw, field_mapping=mapping)
         # OrderStatus.normalize should handle this
         assert order.status is not None
@@ -309,7 +309,7 @@ class TestEdgeCases:
     def test_negative_quantity(self):
         """Negative quantity should be handled (though invalid)."""
         raw = {"quantity": -10}
-        mapping = DhanFieldMapping()
+        mapping = DefaultFieldMapping()
         order = Order.from_broker_dict(raw, field_mapping=mapping)
         assert order.quantity == -10  # Let validation catch this
 
@@ -319,7 +319,7 @@ class TestEdgeCases:
             "price": "1234.5678",
             "averagePrice": "1234.5600",
         }
-        mapping = DhanFieldMapping()
+        mapping = DefaultFieldMapping()
         order = Order.from_broker_dict(raw, field_mapping=mapping)
 
         assert isinstance(order.price, Decimal)

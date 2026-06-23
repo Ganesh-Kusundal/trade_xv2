@@ -152,6 +152,7 @@ class BrokerFactory(BrokerProviderFactory):
             # services (DhanMarketFeed, DhanOrderStream,
             # PollingMarketFeed) are registered with it.
             lifecycle=lifecycle,
+            allow_live_orders=settings.allow_live_orders,
         )
         connection._auth = auth  # Store auth manager on connection
         gateway = BrokerGateway(connection)
@@ -289,6 +290,9 @@ def _next_token_expiry(now: Any, lifetime_seconds: int) -> Any:
 
 def _generate_totp_token(settings: DhanConnectionSettings | None = None) -> str | None:
     """Generate a fresh access token via TOTP. Returns None on failure.
+    
+    Raises RuntimeError with descriptive message if Dhan's rate limit
+    is hit ("Token can be generated once every 2 minutes").
 
     Uses secrets from *settings* if provided, otherwise falls back to
     environment variables ``DHAN_PIN`` / ``DHAN_TOTP_SECRET``.
@@ -312,13 +316,31 @@ def _generate_totp_token(settings: DhanConnectionSettings | None = None) -> str 
         params = {"dhanClientId": client_id, "pin": pin, "totp": totp_code}
         url = f"{token_url}?{urlencode(params)}"
         resp = _requests.post(url, timeout=15)
+        
+        # Parse response body regardless of status code
+        try:
+            body = resp.json()
+        except Exception:
+            body = {}
+        
+        # Check for rate limit error (even on HTTP 200)
+        message = body.get("message", "")
+        status = body.get("status", "")
+        if "once every 2 minutes" in message or status == "error":
+            error_msg = f"Dhan token rate limit: {message}"
+            logger.warning(error_msg)
+            raise RuntimeError(error_msg)
+        
         if resp.status_code != 200:
             logger.warning("TOTP token generation failed: HTTP %d", resp.status_code)
             return None
-        body = resp.json()
+            
         data = body.get("data", body)
         result: str = data.get("accessToken") or data.get("access_token") or ""
         return result or None
+    except RuntimeError:
+        # Re-raise rate limit errors
+        raise
     except Exception as exc:
         logger.warning("TOTP token generation failed: %s", exc)
         return None

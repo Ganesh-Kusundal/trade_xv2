@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/common/resilience/circuit_breaker.py
+# hypothesis_version: 6.147.0
+
+[0.0, 1000000, 'CLOSED', 'HALF_OPEN', 'OPEN']

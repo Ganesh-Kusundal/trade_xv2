@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/cli/commands/registry.py
+# hypothesis_version: 6.147.0
+
+['COMMANDS', 'CommandResult', 'DISPATCH_TABLE', 'lookup', 'lookup_handler', 'register', 'register_handler', 'reset']

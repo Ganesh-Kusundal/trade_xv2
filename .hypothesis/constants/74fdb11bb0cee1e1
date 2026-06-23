@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/cli/commands/doctor/strategies/portfolio.py
+# hypothesis_version: 6.147.0
+
+['FAIL', 'Funds', 'Holdings', 'PASS', 'Portfolio', 'Positions', 'WARN', 'available_balance', 'sod_limit']

@@ -198,6 +198,10 @@ class PaperSession:
     daily_bars: int = 0
 
     @property
+    def total_trades(self) -> int:
+        return len(self.trades)
+
+    @property
     def open_positions(self) -> list[PaperPosition]:
         return list(self.positions.values())
 

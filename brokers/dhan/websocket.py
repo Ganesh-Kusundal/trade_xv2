@@ -9,13 +9,14 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from dhanhq import marketfeed as sdk_marketfeed
-from dhanhq.marketfeed import DhanFeed as SDKMarketFeed
-from dhanhq.orderupdate import OrderSocket as SDKOrderUpdate
+from dhanhq.marketfeed import MarketFeed as SDKMarketFeed
+from dhanhq.orderupdate import OrderUpdate as SDKOrderUpdate
 
 from brokers.common.core.domain import (
     DepthLevel,
     MarketDepth,
     Order,
+    OrderStatus,
     OrderType,
     ProductType,
     Quote,
@@ -24,6 +25,7 @@ from brokers.common.core.domain import (
     Validity,
 )
 from brokers.common.event_bus import DomainEvent, EventBus
+import brokers.dhan.status_mapper  # noqa: F401 — register Dhan status mappings
 from brokers.common.lifecycle.lifecycle import (
     HealthState,
     HealthStatus,
@@ -33,34 +35,16 @@ from brokers.dhan.reconnecting_service import ReconnectingServiceMixin
 
 logger = logging.getLogger(__name__)
 
-# SDK exchange segment constants (module-level in dhanhq.marketfeed)
-_EXCHANGE_MAP: dict[str, int] = {
-    "IDX_I": sdk_marketfeed.IDX,
-    "IDX": sdk_marketfeed.IDX,
-    "NSE_EQ": sdk_marketfeed.NSE,
-    "NSE": sdk_marketfeed.NSE,
-    "NSE_FNO": sdk_marketfeed.NSE_FNO,
-    "NFO": sdk_marketfeed.NSE_FNO,
-    "NSE_CURRENCY": sdk_marketfeed.NSE_CURR,
-    "CDS": sdk_marketfeed.NSE_CURR,
-    "BSE_EQ": sdk_marketfeed.BSE,
-    "BSE": sdk_marketfeed.BSE,
-    "MCX_COMM": sdk_marketfeed.MCX,
-    "MCX": sdk_marketfeed.MCX,
-    "BSE_FNO": sdk_marketfeed.BSE_FNO,
-    "BFO": sdk_marketfeed.BSE_FNO,
-    "BSE_CURRENCY": sdk_marketfeed.BSE_CURR,
-}
-
-# SDK subscription type constants (module-level in dhanhq.marketfeed)
+from brokers.dhan.segments import to_sdk_int
+# SDK subscription type constants (now class attributes on MarketFeed in v2.2.0)
 # v2 SDK supports: Ticker (15), Quote (17), Full (21).
 # Depth (19) is NOT supported in v2 — falls back to Quote.
 _MODE_MAP: dict[str, int] = {
-    "LTP": sdk_marketfeed.Ticker,
-    "TICKER": sdk_marketfeed.Ticker,
-    "QUOTE": sdk_marketfeed.Quote,
-    "FULL": sdk_marketfeed.Full,
-    "DEPTH": sdk_marketfeed.Quote,  # v2 does not support Depth (19)
+    "LTP": SDKMarketFeed.Ticker,
+    "TICKER": SDKMarketFeed.Ticker,
+    "QUOTE": SDKMarketFeed.Quote,
+    "FULL": SDKMarketFeed.Full,
+    "DEPTH": SDKMarketFeed.Quote,  # v2 does not support Depth (19)
 }
 
 
@@ -92,7 +76,10 @@ def _to_sdk_instruments(instruments: list[tuple]) -> list[tuple]:
         if isinstance(exchange, int):
             exch_int = exchange
         else:
-            exch_int = _EXCHANGE_MAP.get(str(exchange).upper())
+            try:
+                exch_int = to_sdk_int(str(exchange))
+            except ValueError:
+                exch_int = None
         if exch_int is None:
             logger.warning("Unknown exchange: %s", exchange)
             continue
@@ -976,8 +963,7 @@ class DhanOrderStream(ReconnectingServiceMixin, ManagedService):
         if self._event_bus is None:
             return
         try:
-            from brokers.dhan.status_mapper import normalize_dhan_status
-            status = normalize_dhan_status(str(data.get("status", "OPEN")))
+            status = OrderStatus.normalize(str(data.get("status", "OPEN")))
             side = Side.BUY if str(data.get("side", "")).upper() == "BUY" else Side.SELL
             order_type = OrderType(str(data.get("order_type", "MARKET")).upper())
             product_type = ProductType(str(data.get("product_type", "INTRADAY")).upper())

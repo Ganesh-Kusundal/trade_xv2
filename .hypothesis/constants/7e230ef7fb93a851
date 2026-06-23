@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/cli/commands/doctor/strategies/__init__.py
+# hypothesis_version: 6.147.0
+
+['ActiveBrokerCheck', 'BrokerRegistryCheck', 'GatewayCreationCheck', 'LifecycleCheck', 'MarketDataCheck', 'OMSRiskManagerCheck', 'OrderAPICheck', 'PortfolioCheck']

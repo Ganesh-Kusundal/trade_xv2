@@ -11,6 +11,10 @@ from collections.abc import Callable
 from typing import Any
 
 from brokers.common.event_bus import DomainEvent, EventBus
+from brokers.upstox.auth.config import (
+    UPSTOX_WS_PING_INTERVAL_SECONDS,
+    UPSTOX_WS_PING_TIMEOUT_SECONDS,
+)
 from brokers.upstox.websocket.feed_authorizer import UpstoxFeedAuthorizer
 
 logger = logging.getLogger(__name__)
@@ -143,7 +147,12 @@ def _default_portfolio_factory(url: str) -> Any:
     try:
         import websockets  # type: ignore
 
-        return websockets.connect(url, ping_interval=20, ping_timeout=20, max_size=2**20)
+        return websockets.connect(
+            url,
+            ping_interval=UPSTOX_WS_PING_INTERVAL_SECONDS,
+            ping_timeout=UPSTOX_WS_PING_TIMEOUT_SECONDS,
+            max_size=2**20,
+        )
     except ImportError as exc:
         raise RuntimeError(
             "websockets library is required for live Upstox portfolio stream"

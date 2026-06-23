@@ -9,14 +9,14 @@
  * tracks the latest replay tick.
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { CandlestickChart } from './CandlestickChart'
 import { ReplayPanel } from './ReplayPanel'
 import { ChartToolbar, type ChartSettings } from './ChartToolbar'
 import { useAppStore } from '@/store/app'
 import { useCandles } from '@/hooks/useCandles'
 import { useQuote } from '@/hooks/useQuote'
-import { getQuote } from '@/api/client'
+import { useMarketStream } from '@/hooks/useMarketStream'
 import { cn, formatIN, formatPercent, pnlColor } from '@/lib/utils'
 import type { Candle, ReplayState } from '@/types'
 
@@ -36,35 +36,32 @@ export function ChartPanel() {
 
   const [bars, setBars] = useState(200)
   const [settings, setSettings] = useState<ChartSettings>(DEFAULT_SETTINGS)
-  const { candles, loading, error, push, visibleCount } = useCandles(symbol, timeframe, bars)
-  const { quote } = useQuote(symbol, { intervalMs: 1500 })
-
   const [replayActive, setReplayActive] = useState(false)
   const [replayState, setReplayState] = useState<ReplayState>('IDLE')
 
-  // Live tick — only when not in replay
-  const lastTickRef = useRef<number>(0)
+  const { candles, loading, error, push, visibleCount } = useCandles(symbol, timeframe, bars)
+  const { quote, wsConnected } = useQuote(symbol, { intervalMs: 1500 })
+  const { lastMessage } = useMarketStream({ symbols: [symbol], enabled: !replayActive })
+
+  // Live tick from WebSocket — skip HTTP poll when WS active
   useEffect(() => {
-    if (replayActive) return
-    const id = window.setInterval(async () => {
-      if (Date.now() - lastTickRef.current < 1000) return
-      lastTickRef.current = Date.now()
-      try {
-        const q = await getQuote(symbol)
-        const tBucket = bucketFor(timeframe, q.ts)
-        push({
-          t: tBucket,
-          o: candles.at(-1)?.o ?? q.ltp,
-          h: Math.max(candles.at(-1)?.h ?? q.ltp, q.ltp),
-          l: Math.min(candles.at(-1)?.l ?? q.ltp, q.ltp),
-          c: q.ltp,
-          v: (candles.at(-1)?.v ?? 0) + Math.floor(q.volume * 0.0001),
-        })
-      } catch { /* ignore */ }
-    }, 1500)
-    return () => clearInterval(id)
+    if (replayActive || !wsConnected) return
+    if (!lastMessage || (lastMessage.type !== 'quote' && lastMessage.type !== 'tick')) return
+    if (lastMessage.symbol?.toUpperCase() !== symbol.toUpperCase()) return
+    const ltp = lastMessage.ltp
+    if (ltp == null) return
+    const ts = lastMessage.ts ?? Date.now()
+    const tBucket = bucketFor(timeframe, ts)
+    push({
+      t: tBucket,
+      o: candles.at(-1)?.o ?? ltp,
+      h: Math.max(candles.at(-1)?.h ?? ltp, ltp),
+      l: Math.min(candles.at(-1)?.l ?? ltp, ltp),
+      c: ltp,
+      v: (candles.at(-1)?.v ?? 0) + Math.floor((lastMessage.volume ?? 0) * 0.0001),
+    })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [symbol, timeframe, replayActive, candles.length])
+  }, [lastMessage, symbol, timeframe, replayActive, wsConnected])
 
   return (
     <div className="flex-1 min-w-0 min-h-0 flex flex-col">

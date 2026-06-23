@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/upstox/fundamentals/client.py
+# hypothesis_version: 6.147.0
+
+['P&L', 'balance_sheet', 'cash_flow', 'ratios']

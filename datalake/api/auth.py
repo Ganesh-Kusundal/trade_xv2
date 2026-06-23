@@ -12,10 +12,11 @@ Protected endpoints (require auth when AUTH_MODE=api_key):
 - /api/v1/orders, /api/v1/portfolio, /api/v1/risk (trading)
 - /api/v1/market, /api/v1/analytics, /api/v1/scanner (data)
 - /api/v1/replay, /api/v1/backtest, /api/v1/strategy (analytics)
+- WebSocket streams (/ws/*) when AUTH_MODE=api_key
 
 Usage:
-    from datalake.api.auth import require_auth
-    
+    from datalake.api.auth import require_auth, validate_ws_api_key
+
     @router.post("/orders", dependencies=[Depends(require_auth)])
     async def create_order(...):
         ...
@@ -23,12 +24,12 @@ Usage:
 
 from __future__ import annotations
 
+import logging
 import os
 import secrets
-import logging
 from typing import Optional
 
-from fastapi import Header, HTTPException, status
+from fastapi import Header, HTTPException, WebSocket, status
 from fastapi.security import APIKeyHeader
 
 logger = logging.getLogger(__name__)
@@ -68,7 +69,46 @@ PUBLIC_PATHS = frozenset({
 
 def is_public_path(path: str) -> bool:
     """Check if a path should bypass authentication."""
-    return path in PUBLIC_PATHS or path.startswith("/ws")
+    return path in PUBLIC_PATHS
+
+
+def _validate_api_key_value(api_key: str | None) -> None:
+    """Raise HTTPException if the API key is missing or invalid."""
+    if AUTH_MODE != "api_key":
+        return
+
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing API key. Provide X-API-Key header.",
+            headers={"WWW-Authenticate": "ApiKey"},
+        )
+
+    if not secrets.compare_digest(api_key, API_KEY):
+        logger.warning("Invalid API key attempt from client")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API key",
+            headers={"WWW-Authenticate": "ApiKey"},
+        )
+
+
+async def reject_ws_if_unauthorized(websocket: WebSocket) -> bool:
+    """Validate WebSocket API key. Returns True if connection should proceed."""
+    if AUTH_MODE != "api_key":
+        return True
+
+    api_key = websocket.query_params.get("api_key")
+    if not api_key:
+        api_key = websocket.headers.get("x-api-key")
+
+    if api_key and secrets.compare_digest(api_key, API_KEY):
+        return True
+
+    logger.warning("WebSocket connection rejected: invalid or missing API key")
+    await websocket.accept()
+    await websocket.close(code=1008, reason="Unauthorized")
+    return False
 
 
 # ── Authentication Dependency ─────────────────────────────────────────────────
@@ -84,25 +124,9 @@ async def require_auth(
 
     Does nothing if:
     - AUTH_MODE is "none" (or unrecognized)
-    - Path is public (health, docs, WebSocket)
+    - Path is public (health, docs)
     """
-    if AUTH_MODE != "api_key":
-        return  # Auth disabled
-
-    if not x_api_key:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing API key. Provide X-API-Key header.",
-            headers={"WWW-Authenticate": "ApiKey"},
-        )
-
-    if not secrets.compare_digest(x_api_key, API_KEY):
-        logger.warning("Invalid API key attempt from client")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid API key",
-            headers={"WWW-Authenticate": "ApiKey"},
-        )
+    _validate_api_key_value(x_api_key)
 
 
 # ── Utility Functions ─────────────────────────────────────────────────────────

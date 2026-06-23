@@ -18,6 +18,23 @@ from tests.market_hours import is_market_open, now_ist
 logger = logging.getLogger(__name__)
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _register_domain_runtime_hooks() -> None:
+    """Wire broker factories into domain hooks for analytics engines in tests."""
+    from domain.runtime_hooks import (
+        register_domain_event_factory,
+        register_oms_backtest_factory,
+        register_trading_context_factory,
+    )
+    from brokers.common.execution.factory import create_oms_backtest_adapter
+    from brokers.common.event_bus.factory import create_domain_event
+    from brokers.common.oms.factory import create_trading_context
+
+    register_oms_backtest_factory(create_oms_backtest_adapter)
+    register_domain_event_factory(create_domain_event)
+    register_trading_context_factory(create_trading_context)
+
+
 def is_token_expired(token: str) -> bool:
     """Check if a JWT token is expired.
 

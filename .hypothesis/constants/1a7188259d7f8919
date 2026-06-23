@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/cli/widgets/broker_console.py
+# hypothesis_version: 6.147.0
+
+['#holdings-table', '#positions-table', '#val-balance', '#val-realized', '#val-unrealized', '#val-used', 'Active Positions', 'Available Balance', 'Avg Price', 'Demat Holdings', 'LTP', 'PnL', 'Product', 'Qty', 'Realized PnL', 'Refresh Data', 'Rs. 0.00', 'Symbol', 'Unrealized PnL', 'Used Margin', 'account-metrics-grid', 'bold green', 'bold red', 'btn-refresh-broker', 'holdings-table', 'lbl-balance', 'lbl-realized', 'lbl-unrealized', 'lbl-used', 'metric-label', 'metric-value', 'panel', 'positions-table', 'primary', 'scroll-container', 'title', 'val-balance', 'val-realized', 'val-unrealized', 'val-used', 'white']

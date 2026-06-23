@@ -398,9 +398,8 @@ class BufferedEventLog(EventLog):
         """Flush buffer on process exit."""
         try:
             self.flush()
-            logger.info("BufferedEventLog flushed on exit (flushes=%d)", self._flush_count)
-        except Exception as exc:
-            logger.error("BufferedEventLog exit flush failed: %s", exc)
+        except Exception:
+            pass
     
     def close(self) -> None:
         """Flush buffer and close the log."""

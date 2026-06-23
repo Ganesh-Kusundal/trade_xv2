@@ -121,7 +121,7 @@ def test_quote_batch_runs_in_parallel(tmp_path: Path):
         time.sleep(sleep_seconds)
         from decimal import Decimal
         # Return a minimal Quote
-        from brokers.common.core.domain import Quote
+        from domain import Quote
         return Quote(symbol=symbol, ltp=Decimal("100.0"))
 
     with patch.object(gw, "quote", side_effect=slow_quote):

@@ -25,3 +25,22 @@ repos:
         files: ^brokers/
         additional_dependencies: [pydantic, pandas, requests]
         args: [--ignore-missing-imports]
+
+  # Fast test checks (run on staged test files only)
+  - repo: local
+    hooks:
+      - id: pytest-smoke
+        name: Pytest Smoke Test
+        entry: pytest
+        language: system
+        types: [python]
+        files: ^tests/
+        args: [
+          "-m", "unit",
+          "-x", "--tb=short", "-q",
+          "tests/brokers/dhan/tests/",
+          "tests/brokers/upstox/tests/",
+          "tests/brokers/paper/tests/",
+        ]
+        pass_filenames: false
+        description: Run fast unit tests on broker test files

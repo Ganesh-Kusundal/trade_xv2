@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/common/orchestrator/feature_fetcher.py
+# hypothesis_version: 6.147.0
+
+[200, '1m', 'NSE', 'history']

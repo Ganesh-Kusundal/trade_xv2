@@ -63,10 +63,6 @@ from brokers.common.core.constants import (
     THIRD_PARTY_LOG_LEVEL,
     TOKEN_CLOCK_SKEW_SECONDS,
     TOKEN_REFRESH_RECOMMENDED_BUFFER_SECONDS,
-    UPSTOX_DEFAULT_RATE_PER_SECOND,
-    UPSTOX_INSTRUMENT_CACHE_HOURS,
-    UPSTOX_WS_PING_INTERVAL_SECONDS,
-    UPSTOX_WS_PING_TIMEOUT_SECONDS,
 )
 from brokers.common.core.exchange_segments import (
     is_commodity_segment,
@@ -75,6 +71,7 @@ from brokers.common.core.exchange_segments import (
     is_equity_segment,
     parse_segment,
     wire_value,
+    canonical_exchange_short,
 )
 from brokers.common.core.instruments import Instrument, InstrumentRegistry
 from brokers.common.core.domain import (

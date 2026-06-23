@@ -10,6 +10,7 @@ Usage:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from decimal import Decimal
 from enum import Enum
 from typing import Any, Protocol, runtime_checkable
 
@@ -59,12 +60,12 @@ class Candidate:
     """A stock selected by a scanner with a score and reasons."""
 
     symbol: str
-    score: float
+    score: Decimal
     reasons: list[str] = field(default_factory=list)
-    metrics: dict[str, float] = field(default_factory=dict)
+    metrics: dict[str, Decimal] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
-        if not 0 <= self.score <= 100:
+        if not Decimal("0") <= self.score <= Decimal("100"):
             raise ValueError(f"Score must be 0-100, got {self.score}")
 
 
@@ -75,7 +76,7 @@ class ScanResult:
     scanner: str
     candidates: list[Candidate] = field(default_factory=list)
     universe_size: int = 0
-    metrics: dict[str, float] = field(default_factory=dict)
+    metrics: dict[str, Decimal] = field(default_factory=dict)
 
     @property
     def count(self) -> int:
@@ -136,7 +137,8 @@ class BaseScanner:
     pipeline: FeaturePipeline
     name: str = "base"
     top_n: int = 10
-    event_bus: Any | None = None  # P1-Phase 1: Optional EventBus for event publishing
+    event_bus: Any | None = None
+    _candidates: list[Candidate] = field(default_factory=list, init=False, repr=False)
 
     def scan(self, universe: pd.DataFrame) -> ScanResult:
         """Default scan: compute features, score, rank. Override for custom logic.
@@ -145,7 +147,7 @@ class BaseScanner:
         """
         # P1-Phase 1: Publish SCAN_STARTED
         if self.event_bus is not None:
-            from brokers.common.event_bus import EventType
+            from domain.events import EventType
             self.event_bus.publish(
                 EventType.SCAN_STARTED.value,
                 payload={
@@ -183,30 +185,36 @@ class BaseScanner:
         return self.pipeline.run(df)
 
     def _score_candidates(self, scored: pd.DataFrame) -> ScanResult:
-        """Convert scored DataFrame into ScanResult.
-        
-        P1-Phase 1: Publishes CANDIDATE_GENERATED events for each candidate.
-        """
-        candidates = []
-        for _, row in scored.iterrows():
-            reasons = []
-            for col in scored.columns:
-                if col.endswith("_signal") and row.get(col):
-                    reasons.append(str(row[col]))
-            score_val = row.get("composite_score", 50.0)
-            if pd.isna(score_val):
-                score_val = 50.0
+        """Convert scored DataFrame into ScanResult (vectorized data extraction)."""
+        signal_cols = [col for col in scored.columns if col.endswith("_signal")]
+
+        def _to_decimal(val: object, default: str = "50") -> Decimal:
+            if val is None or (isinstance(val, float) and pd.isna(val)):
+                return Decimal(default)
+            return Decimal(str(round(float(val), 8)))
+
+        for row in scored.itertuples(index=False):
+            reasons = [str(getattr(row, col)) for col in signal_cols if getattr(row, col, None)]
+            score_val = getattr(row, "composite_score", 50.0)
+
+            score_metric_cols = [col for col in scored.columns if col.startswith("score_")]
+            metrics = {
+                col: _to_decimal(getattr(row, col, None))
+                for col in score_metric_cols
+                if not pd.isna(getattr(row, col, None))
+            }
+
             candidate = Candidate(
-                symbol=str(row.get("symbol", "UNKNOWN")),
-                score=float(score_val),
+                symbol=str(getattr(row, "symbol", "UNKNOWN")),
+                score=_to_decimal(score_val),
                 reasons=reasons,
-                metrics={col: float(row[col]) for col in scored.columns if col.startswith("score_") and not pd.isna(row[col])},
+                metrics=metrics,
             )
-            candidates.append(candidate)
+            self._candidates.append(candidate)
 
             # P1-Phase 1: Publish CANDIDATE_GENERATED event
             if self.event_bus is not None:
-                from brokers.common.event_bus import EventType
+                from domain.events import EventType
                 self.event_bus.publish(
                     EventType.CANDIDATE_GENERATED.value,
                     payload={
@@ -218,19 +226,20 @@ class BaseScanner:
 
         result = ScanResult(
             scanner=self.name,
-            candidates=candidates,
+            candidates=self._candidates,
             universe_size=len(scored),
         )
 
         # P1-Phase 1: Publish SCAN_COMPLETED
         if self.event_bus is not None:
-            from brokers.common.event_bus import EventType
+            from domain.events import EventType
             self.event_bus.publish(
                 EventType.SCAN_COMPLETED.value,
                 payload={
-                    "candidate_count": len(candidates),
+                    "candidate_count": len(self._candidates),
                     "universe": len(scored),
                 },
             )
 
+        self._candidates = []
         return result

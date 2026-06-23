@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/cli/commands/search.py
+# hypothesis_version: 6.147.0
+
+['Exchange', 'Security ID', 'Symbol', 'Type', 'bold white', 'bold yellow', 'center', 'instruments']

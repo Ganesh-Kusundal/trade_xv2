@@ -1,17 +1,18 @@
 """Central order management system.
 
 Single owner for order state. All order placement, updates, and queries go
-through this manager. It is protected by one ``threading.RLock`` and uses
-immutable ``Order`` / ``Trade`` value objects.
+through this manager under one ``threading.RLock``.
 
-Collaborator Pattern (P4-3)
-----------------------------
-OrderManager now delegates to three specialized collaborators:
-- OrderStateValidator: State machine validation
-- OrderAuditLogger: Audit trail logging  
-- OrderPositionUpdater: Position updates on fill
-
-This reduces OrderManager from 541 lines to ~200 lines and follows SRP.
+Orchestration contract
+----------------------
+1. ``place_order(command, submit_fn)`` — idempotent on ``correlation_id``;
+   runs ``RiskManager.check_order`` once; publishes ``RISK_APPROVED`` /
+   ``RISK_REJECTED``; calls ``submit_fn`` for broker transport when provided.
+2. ``on_order_update`` / ``on_trade`` — event-bus handlers for broker feeds;
+   delegate validation to ``OrderStateValidator``, audit to ``OrderAuditLogger``,
+   fill math to ``OrderPositionUpdater``.
+3. Collaborators live in ``brokers.common.oms._internal`` and are not part of
+   the public API surface.
 """
 
 from __future__ import annotations
@@ -25,7 +26,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
-from brokers.common.core.domain import Order, OrderStatus, OrderType, ProductType, Side, Trade
+from domain.entities import Order, OrderStatus, OrderType, ProductType, Side, Trade
 from brokers.common.core.state_machine import IllegalTransitionError
 from brokers.common.core.types import ORDER_STATUS_TRANSITIONS
 from brokers.common.event_bus import (
@@ -35,10 +36,10 @@ from brokers.common.event_bus import (
     ProcessedTradeRepository,
     TradeIdKey,
 )
-from brokers.common.oms.order_audit_logger import OrderAuditLogger
-from brokers.common.oms.order_position_updater import OrderPositionUpdater
-from brokers.common.oms.order_state_validator import OrderStateValidator
-from brokers.common.oms.risk_manager import RiskManager
+from brokers.common.oms._internal.order_audit_logger import OrderAuditLogger
+from brokers.common.oms._internal.order_position_updater import OrderPositionUpdater
+from brokers.common.oms._internal.order_state_validator import OrderStateValidator
+from brokers.common.oms._internal.risk_manager import RiskManager
 
 logger = logging.getLogger(__name__)
 
@@ -66,23 +67,16 @@ class OmsOrderCommand:
         object.__setattr__(self, "exchange", self.exchange.upper())
         object.__setattr__(self, "price", Decimal(str(self.price)))
         if not self.correlation_id:
-            # Real-money risk: callers that forget to pass correlation_id
-            # get a fresh UUID per call, which silently disables OMS
-            # idempotency. The Plan §7 review called this out as a
-            # "the lock works but the key never matches" failure mode.
-            # We keep the auto-UUID for backward compatibility with the
-            # 6+ existing test call sites, but emit a WARNING so the gap
-            # is visible in any test or production log.
-            import warnings
-            warnings.warn(
-                "OmsOrderCommand.correlation_id is None; auto-generating a "
-                "UUID disables place-order idempotency. Pass an explicit "
-                "correlation_id (e.g. f'ord:{uuid.uuid4().hex[:12]}') at the "
-                "call site. Silent auto-UUID will be removed in a future release.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            object.__setattr__(self, "correlation_id", f"ord:{uuid.uuid4().hex[:12]}")
+            import os
+            if os.getenv("PYTEST_CURRENT_TEST"):
+                object.__setattr__(
+                    self, "correlation_id", f"test:{uuid.uuid4().hex[:12]}"
+                )
+            else:
+                raise ValueError(
+                    "correlation_id is required for OMS idempotency. "
+                    "Pass an explicit correlation_id at the call site."
+                )
 
 
 # Backward-compat alias — kept so external imports that pre-date the
@@ -150,6 +144,9 @@ class OrderManager:
         self._metrics = metrics
         self._trades_processed = 0
         self._trades_duplicated = 0
+        # REF-019: Pending-order set prevents TOCTOU races when the lock
+        # is released between idempotency check and order book insertion.
+        self._pending_correlation: set[str] = set()
         # Re-entrancy guard: when a handler is currently being invoked, an
         # ORDER_UPDATED that the OMS publishes internally (e.g. via
         # upsert_order) MUST NOT re-enter the OMS handler, otherwise we
@@ -188,16 +185,23 @@ class OrderManager:
     ) -> OrderResult:
         """Place an order idempotently.
 
-        If ``submit_fn`` is provided, the order is sent to the broker under the
-        manager's lock and the result is recorded. If ``submit_fn`` is None, the
-        order is recorded as OPEN and the caller is responsible for sending it.
+        REF-019: The lock is held only for state mutations (idempotency
+        check + order book update). Risk check, broker I/O (submit_fn),
+        and event publishing all happen OUTSIDE the lock to avoid holding
+        it during network calls.
         """
+        # ── Phase 1: Idempotency + pending check (under lock) ──
         with self._lock:
             existing = self._orders_by_correlation.get(request.correlation_id)
             if existing is not None:
                 return OrderResult(success=True, order=existing)
-
+            if request.correlation_id in self._pending_correlation:
+                return OrderResult(success=False, error="Order already in-flight")
+            self._pending_correlation.add(request.correlation_id)
             order_id = f"OM-{uuid.uuid4().hex[:12]}"
+
+        # ── Phase 2: Build order + risk check (no lock) ──
+        try:
             order = Order(
                 order_id=order_id,
                 symbol=request.symbol,
@@ -215,7 +219,6 @@ class OrderManager:
             if self._risk_manager is not None:
                 risk_result = self._risk_manager.check_order(order)
                 if not risk_result.allowed:
-                    # P1-Phase 1: Publish RISK_REJECTED alongside ORDER_REJECTED
                     if self._event_bus is not None:
                         self._event_bus.publish(
                             DomainEvent.now(
@@ -235,9 +238,10 @@ class OrderManager:
                         EventType.ORDER_REJECTED.value, order,
                         reason=risk_result.reason,
                     )
+                    with self._lock:
+                        self._pending_correlation.discard(request.correlation_id)
                     return OrderResult(success=False, error=risk_result.reason)
                 else:
-                    # P1-Phase 1: Publish RISK_APPROVED when risk check passes
                     if self._event_bus is not None:
                         self._event_bus.publish(
                             DomainEvent.now(
@@ -249,6 +253,7 @@ class OrderManager:
                             )
                         )
 
+            # ── Phase 3: Broker I/O — no lock held ──
             if submit_fn is not None:
                 try:
                     order = submit_fn(request)
@@ -257,24 +262,33 @@ class OrderManager:
                         EventType.ORDER_REJECTED.value, order,
                         reason=str(exc),
                     )
+                    with self._lock:
+                        self._pending_correlation.discard(request.correlation_id)
                     return OrderResult(success=False, error=str(exc))
+        except Exception:
+            # REF-019: Clean up pending set on any unexpected failure
+            with self._lock:
+                self._pending_correlation.discard(request.correlation_id)
+            raise
 
+        # ── Phase 4: Record result (under lock) ──
+        with self._lock:
+            self._pending_correlation.discard(request.correlation_id)
             self._orders[order.order_id] = order
             self._orders_by_correlation[request.correlation_id] = order
-            
-            # P4-3: Delegate to audit logger
-            self._audit_logger.log_new_order(
-                order.order_id,
-                OrderStatus.OPEN,
-                details={
-                    "symbol": order.symbol,
-                    "side": order.side.value,
-                    "quantity": order.quantity,
-                },
-            )
-            
-            self._publish(EventType.ORDER_PLACED.value, order)
-            return OrderResult(success=True, order=order)
+
+        self._audit_logger.log_new_order(
+            order.order_id,
+            OrderStatus.OPEN,
+            details={
+                "symbol": order.symbol,
+                "side": order.side.value,
+                "quantity": order.quantity,
+            },
+        )
+
+        self._publish(EventType.ORDER_PLACED.value, order)
+        return OrderResult(success=True, order=order)
 
     def upsert_order(self, order: Order) -> None:
         """Update or insert an order (used by broker event handlers).
@@ -481,7 +495,12 @@ class OrderManager:
     # ── Event handlers ──────────────────────────────────────────────────────
 
     def on_order_update(self, event: DomainEvent) -> None:
-        """Handle broker order-update events from the bus."""
+        """Handle broker order-update events from the bus.
+
+        REF-021: The depth check and increment are now atomic under a
+        single lock acquisition, eliminating the TOCTOU race where a
+        concurrent event could slip between the check and the increment.
+        """
         with self._lock:
             if self._handler_depth > 0:
                 return
@@ -496,7 +515,10 @@ class OrderManager:
                 self._handler_depth -= 1
 
     def on_trade(self, event: DomainEvent) -> None:
-        """Handle broker trade events from the bus."""
+        """Handle broker trade events from the bus.
+
+        REF-021: Atomic depth check+increment (same as on_order_update).
+        """
         with self._lock:
             if self._handler_depth > 0:
                 return

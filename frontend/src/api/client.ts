@@ -1,10 +1,8 @@
 /**
  * API client — talks to the Python FastAPI backend (BACKEND_API_SPEC.md).
  *
- * All endpoints fall back to in-process mock data when the backend is
- * not reachable. The fallback is transparent: callers cannot tell the
- * difference. This keeps the UI fully functional during local dev or
- * when running the frontend standalone.
+ * When VITE_REQUIRE_API=true, mock fallbacks are disabled and API errors
+ * propagate to the caller (production / staging UI).
  */
 
 import type { Candle, Quote, Timeframe, ReplaySession, ReplayEvent, Exchange } from '@/types'
@@ -12,10 +10,34 @@ import { generateCandles, generateQuote, basePrice } from '@/data/mockMarket'
 import { SYMBOLS } from '@/data/symbols'
 
 const API_BASE = '/api/v1'
+const REQUIRE_API = import.meta.env.VITE_REQUIRE_API === 'true'
+
+/** WebSocket base URL (same host as the page). */
+export function getWsBaseUrl(): string {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws'
+  return `${proto}://${location.host}`
+}
+
+/** API key for WebSocket auth when AUTH_MODE=api_key on the backend. */
+export function getApiKey(): string | undefined {
+  const key = import.meta.env.VITE_API_KEY
+  return key && key.length > 0 ? key : undefined
+}
+
+/** Open an authenticated market WebSocket to `/ws/market`. */
+export function createMarketWebSocket(): WebSocket {
+  const apiKey = getApiKey()
+  const qs = apiKey ? `?api_key=${encodeURIComponent(apiKey)}` : ''
+  return new WebSocket(`${getWsBaseUrl()}/ws/market${qs}`)
+}
 
 let backendUp: boolean | null = null
 let lastProbeAt = 0
 const PROBE_TTL_MS = 30_000 // re-probe every 30s if previously down
+
+function allowMockFallback(): boolean {
+  return !REQUIRE_API
+}
 
 async function probe(): Promise<boolean> {
   if (backendUp === true) return true
@@ -43,7 +65,10 @@ export async function searchSymbols(q: string, limit = 25) {
       if (r.ok) return (await r.json()).results
     } catch { /* fall through to mock */ }
   }
-  // Mock
+  // Mock (disabled when VITE_REQUIRE_API=true)
+  if (!allowMockFallback()) {
+    throw new Error(`Backend unavailable for symbol search: ${q}`)
+  }
   const needle = q.trim().toUpperCase()
   if (!needle) return SYMBOLS.slice(0, limit)
   return SYMBOLS
@@ -59,6 +84,9 @@ export async function getQuote(symbol: string, exchange: Exchange = 'NSE'): Prom
       const r = await fetch(`${API_BASE}/market/quote/${symbol}`)
       if (r.ok) return await r.json()
     } catch { /* fall through */ }
+  }
+  if (!allowMockFallback()) {
+    throw new Error(`Backend unavailable for quote: ${symbol}`)
   }
   return generateQuote(symbol)
 }
@@ -81,6 +109,9 @@ export async function getCandles(
         if (Array.isArray(body?.candles)) return body.candles
       }
     } catch { /* fall through */ }
+  }
+  if (!allowMockFallback()) {
+    throw new Error(`Backend unavailable for candles: ${symbol}`)
   }
   return generateCandles(symbol, timeframe, bars)
 }

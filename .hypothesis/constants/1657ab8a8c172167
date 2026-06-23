@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/cli/commands/validate.py
+# hypothesis_version: 6.147.0
+
+[100, 1000, '#', ', ', '--', '--exchange', '--segment', '--symbol', '--timeframe', '...', '.env.local', '1D', '1d', '=', 'Category', 'Check', 'Details', 'ERROR', 'FAIL', 'INDEX', 'Message', 'N/A', 'NIFTY', 'NSE', 'PASS', 'RELIANCE', 'Severity', 'Status', 'WARN', 'asks', 'balance', 'bids', 'bold', 'bold cyan', 'broker', 'center', 'close', 'completeness', 'contracts', 'critical', 'cyan', 'data', 'depth', 'dhan', 'dim', 'duplicates', 'end', 'error', 'exchange', 'expiries', 'futures', 'green', 'high', 'historical', 'info', 'latency', 'low', 'ltp', 'oi', 'open', 'options', 'portfolio', 'quote', 'red', 'rows', 'schema', 'start', 'status', 'symbol', 'timeframe', 'timestamp', 'value', 'volume', 'warning', 'yellow']

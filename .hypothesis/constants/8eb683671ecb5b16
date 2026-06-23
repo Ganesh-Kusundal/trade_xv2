@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/common/oms/context.py
+# hypothesis_version: 6.147.0
+
+[10.0, 30.0, 60.0, 'dead_letter', 'depth', 'dlq-monitor', 'dropped', 'event_log_errors', 'metrics', 'none', 'oms.dlq_monitor', 'size', 'total_drained', 'trades']

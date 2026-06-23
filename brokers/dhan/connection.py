@@ -87,6 +87,7 @@ class DhanConnection:
         backfill_callback: Callable[[str, datetime, datetime], list[dict]] | None = None,
         reconciliation_service: object | None = None,
         lifecycle: LifecycleManager | None = None,
+        allow_live_orders: bool = False,
     ):
         self._client = client
         self.instruments = resolver or SymbolResolver()
@@ -109,7 +110,11 @@ class DhanConnection:
 
         # Special case: OrdersAdapter takes extra kwargs
         self._orders = OrdersAdapter(
-            client, self.identity, event_bus=event_bus, risk_manager=risk_manager
+            client,
+            self.identity,
+            event_bus=event_bus,
+            risk_manager=risk_manager,
+            allow_live_orders=allow_live_orders,
         )
         self._market_feed: DhanMarketFeed | None = None
         self._order_stream: DhanOrderStream | None = None

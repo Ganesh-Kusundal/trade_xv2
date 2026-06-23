@@ -58,7 +58,7 @@ class UpstoxOrderCommandAdapter(OrderCommand):
             if cached is not None:
                 return cached
 
-        if self._risk_manager is not None:
+        if self._risk_manager is not None and not request.transport_only:
             preview_order = self._to_domain_order(request)
             risk_result = self._risk_manager.check_order(preview_order)
             if not risk_result.allowed:

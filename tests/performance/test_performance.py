@@ -5,16 +5,12 @@ from decimal import Decimal
 
 import pytest
 
+from domain import Order, OrderStatus, OrderType, Position, Side
 from brokers.common.core.domain import DepthLevel, MarketDepth, Quote
 from brokers.dhan.domain import (
     Exchange,
     Instrument,
     InstrumentType,
-    Order,
-    OrderSide,
-    OrderStatus,
-    OrderType,
-    Position,
 )
 from brokers.dhan.resolver import SymbolResolver
 
@@ -40,7 +36,7 @@ class TestDomainModelCreationLatency:
                 order_id=f"ORD-{i}",
                 symbol="RELIANCE",
                 exchange=Exchange.NSE,
-                side=OrderSide.BUY,
+                side=Side.BUY,
                 quantity=100,
                 order_type=OrderType.LIMIT,
                 price=Decimal("2500"),

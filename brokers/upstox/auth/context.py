@@ -102,12 +102,16 @@ class UpstoxAdapterContext:
             RateLimitConfig,
         )
         from brokers.common.resilience.retry import RetryConfig, RetryExecutor
+        from brokers.upstox.auth.config import UPSTOX_DEFAULT_RATE_PER_SECOND
 
         _CONFIGS: dict[str, tuple[RetryConfig, CircuitBreakerConfig, RateLimitConfig]] = {
             "orders": (
                 RetryConfig(max_attempts=3),
                 CircuitBreakerConfig(failure_threshold=5, open_duration_ms=30_000),
-                RateLimitConfig(rate_per_second=10, capacity=10),
+                RateLimitConfig(
+                    rate_per_second=int(UPSTOX_DEFAULT_RATE_PER_SECOND),
+                    capacity=int(UPSTOX_DEFAULT_RATE_PER_SECOND),
+                ),
             ),
             "quotes": (
                 RetryConfig(max_attempts=2),

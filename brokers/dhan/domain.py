@@ -1,11 +1,6 @@
-"""Dhan broker domain models.
+"""Dhan broker domain models — Dhan-only types with silent canonical re-exports.
 
-Re-exports all canonical types from ``brokers.common.core.domain`` and
-adds Dhan-specific types that have no broker-agnostic equivalent.
-
-Usage::
-
-    from brokers.dhan.domain import Order, Side, Exchange, Instrument
+Canonical order/trade types resolve via ``__getattr__`` to :mod:`domain`.
 """
 
 from __future__ import annotations
@@ -15,28 +10,28 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any
 
-# ── Re-exports from canonical common domain ────────────────────────────────
-# These are the single source of truth for order/trade/position/holding
-# types and their associated enums across ALL broker adapters.
-from brokers.common.core.domain import (
-    Holding,
-    Order,
-    OrderStatus,
-    OrderType,
-    Position,
-    ProductType,
-    Side,
-    Trade,
-    Validity,
-)
-
 from brokers.common.core.constants import IST_OFFSET as IST
+
+_CANONICAL = frozenset({
+    "Holding", "Order", "OrderStatus", "OrderType", "Position",
+    "ProductType", "Side", "Trade", "Validity", "OrderSide",
+})
+
+_ALIASES = {"OrderSide": "Side"}
+
+
+def __getattr__(name: str) -> Any:
+    if name in _CANONICAL:
+        from brokers.common.core import domain as _domain
+        return getattr(_domain, _ALIASES.get(name, name))
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 # ── Dhan-specific enums ────────────────────────────────────────────────────
 
 
 class Exchange(str, Enum):
-    """Dhan-supported exchange segments."""
+    """Dhan short exchange codes (deprecated — prefer ExchangeSegment at boundaries)."""
 
     NSE = "NSE"
     BSE = "BSE"
@@ -47,13 +42,17 @@ class Exchange(str, Enum):
     INDEX = "INDEX"
 
 
-class InstrumentType(str, Enum):
+class DhanInstrumentType(str, Enum):
     """Dhan instrument categories."""
 
     EQUITY = "EQUITY"
     FUTURE = "FUTURE"
     OPTION = "OPTION"
     COMMODITY = "COMMODITY"
+
+
+# Backward compatibility aliases
+InstrumentType = DhanInstrumentType
 
 
 class OptionType(str, Enum):
@@ -121,7 +120,7 @@ class Instrument:
     symbol: str
     exchange: Exchange
     security_id: str
-    instrument_type: InstrumentType
+    instrument_type: DhanInstrumentType
     lot_size: int = 1
     tick_size: Decimal = Decimal("0.05")
     name: str | None = None
@@ -134,19 +133,14 @@ class Instrument:
 
     @property
     def is_option(self) -> bool:
-        return self.instrument_type == InstrumentType.OPTION
+        return self.instrument_type == DhanInstrumentType.OPTION
 
     @property
     def is_future(self) -> bool:
-        return self.instrument_type == InstrumentType.FUTURE
+        return self.instrument_type == DhanInstrumentType.FUTURE
 
 
-# ── Backward-compatibility aliases ────────────────────────────────────────
-# Existing code imports ``OrderSide`` — map it to the canonical ``Side``
-# enum so that ``OrderSide.BUY`` / ``OrderSide.SELL`` keep working.
-
-OrderSide = Side
-
+# OrderSide remains available via __getattr__ deprecation shim.
 
 @dataclass(frozen=True)
 class SuperOrderLeg:

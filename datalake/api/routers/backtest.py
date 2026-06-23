@@ -20,15 +20,30 @@ from datalake.api.schemas import (
     BacktestResultResponse,
     BacktestMetrics,
 )
+from datalake.backtest_cache_store import BacktestCacheStore
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(dependencies=[Depends(require_auth)])
 
 
-# Thread-safe in-memory cache for backtest results
 _backtest_cache: dict[str, BacktestResultResponse] = {}
 _backtest_cache_lock = threading.Lock()
+_cache_store = BacktestCacheStore()
+
+
+def _hydrate_cache() -> None:
+    with _backtest_cache_lock:
+        _backtest_cache.update(_cache_store.load_all())
+
+
+def _cache_result(resp: BacktestResultResponse) -> None:
+    with _backtest_cache_lock:
+        _backtest_cache[resp.run_id] = resp
+    _cache_store.save(resp)
+
+
+_hydrate_cache()
 
 
 @router.post("/run", response_model=BacktestResultResponse)
@@ -49,7 +64,6 @@ async def run_backtest(
         )
 
     try:
-        # Load historical data for the symbol
         lookback_days = req.years * 365
         df = gateway.history(
             symbol=req.symbol,
@@ -64,11 +78,9 @@ async def run_backtest(
                 detail=f"No historical data for symbol '{req.symbol}'",
             )
 
-        # Build FeaturePipeline with standard indicators
         from analytics.pipeline import FeaturePipeline, RSI, ATR, SMA
         pipeline = FeaturePipeline().add(RSI(14)).add(ATR(14)).add(SMA(20))
 
-        # Build StrategyPipeline (use momentum as default)
         from analytics.strategy import MomentumStrategy, BreakoutStrategy, StrategyPipeline
 
         strategy_map = {
@@ -78,7 +90,6 @@ async def run_backtest(
         strategy_cls = strategy_map.get(req.strategy, MomentumStrategy)
         strategy = StrategyPipeline(strategies=[strategy_cls()])
 
-        # Run backtest engine
         from analytics.backtest import BacktestEngine, BacktestConfig
 
         config = BacktestConfig(
@@ -88,7 +99,6 @@ async def run_backtest(
         engine = BacktestEngine(pipeline, strategy, config)
         result = engine.run(df, symbol=req.symbol)
 
-        # Build response
         run_id = str(uuid.uuid4())[:12]
         m = result.metrics
 
@@ -110,10 +120,7 @@ async def run_backtest(
             ),
         )
 
-        # Cache result (thread-safe)
-        with _backtest_cache_lock:
-            _backtest_cache[run_id] = resp
-
+        _cache_result(resp)
         return resp
 
     except HTTPException:
@@ -132,18 +139,68 @@ async def get_backtest_result(backtest_id: str):
     with _backtest_cache_lock:
         result = _backtest_cache.get(backtest_id)
     if not result:
+        result = _cache_store.get(backtest_id)
+        if result:
+            with _backtest_cache_lock:
+                _backtest_cache[backtest_id] = result
+    if not result:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Backtest result '{backtest_id}' not found. Results are cached only in-memory.",
+            detail=f"Backtest result '{backtest_id}' not found.",
         )
     return result
 
 
+def _resolve_run_ids(run_id: str, run_ids: Optional[str]) -> list[str]:
+    if run_ids:
+        ids = [rid.strip() for rid in run_ids.split(",") if rid.strip()]
+        if len(ids) >= 2:
+            return ids
+    return [run_id]
+
+
 @router.get("/comparison/{run_id}", response_model=dict)
-async def compare_backtests(run_id: str):
+async def compare_backtests(
+    run_id: str,
+    run_ids: Optional[str] = Query(None, description="Comma-separated run IDs to compare"),
+):
     """Compare multiple backtest runs side by side."""
-    raise HTTPException(
-        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        detail="Backtest comparison not available yet.",
-        headers={"Retry-After": "30"},
-    )
+    ids = _resolve_run_ids(run_id, run_ids)
+    if len(ids) < 2 and run_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least two run_ids required for comparison.",
+        )
+
+    comparisons = []
+    for rid in ids:
+        with _backtest_cache_lock:
+            result = _backtest_cache.get(rid)
+        if not result:
+            result = _cache_store.get(rid)
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Backtest result '{rid}' not found.",
+            )
+        comparisons.append({
+            "run_id": result.run_id,
+            "symbol": result.symbol,
+            "timeframe": result.timeframe,
+            "metrics": result.metrics.model_dump(),
+        })
+
+    if len(comparisons) == 1:
+        return {"runs": comparisons, "count": 1}
+
+    symbols = {row["symbol"] for row in comparisons}
+    timeframes = {row["timeframe"] for row in comparisons}
+    return {
+        "runs": comparisons,
+        "count": len(comparisons),
+        "metadata": {
+            "symbols": sorted(symbols),
+            "timeframes": sorted(timeframes),
+            "homogeneous": len(symbols) == 1 and len(timeframes) == 1,
+        },
+    }

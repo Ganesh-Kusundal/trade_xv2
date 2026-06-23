@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/cli/services/broker_registry.py
+# hypothesis_version: 6.147.0
+
+['.env.local', '.env.upstox', 'available', 'dhan', 'env_file', 'name', 'paper', 'upstox']

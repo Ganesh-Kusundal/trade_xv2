@@ -10,10 +10,13 @@ import pandas as pd
 from brokers.common.batch_mixin import BatchFetchMixin
 from brokers.common.core.domain import (
     Balance,
+    FutureChain,
     Holding,
     MarketDepth,
+    OptionChain,
     Order,
     OrderResponse,
+    OrderStatus,
     Position,
     Quote,
     Trade,
@@ -99,6 +102,7 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway):
     ) -> pd.DataFrame:
         from datetime import datetime, timedelta, timezone
 
+        import hashlib
         import numpy as np
 
         symbols = [symbol] if isinstance(symbol, str) else symbol
@@ -107,7 +111,8 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway):
 
         rows = []
         for sym in symbols:
-            np.random.seed(hash(sym) % 2**31)
+            seed = int(hashlib.md5(sym.encode()).hexdigest()[:8], 16) % (2**31)
+            np.random.seed(seed)
             base_price = 500.0 + np.random.uniform(0, 4500)
             close = base_price + np.cumsum(np.random.randn(n) * base_price * 0.02)
             high = close + abs(np.random.randn(n)) * base_price * 0.01
@@ -163,7 +168,7 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway):
         underlying: str,
         exchange: str = "NFO",
         expiry: str | None = None,
-    ) -> dict:
+    ) -> OptionChain:
         import numpy as np
         base = float(self._market_data.get_ltp(underlying, "NSE"))
         strikes = [round(base + i * 50, 0) for i in range(-10, 11)]
@@ -171,26 +176,21 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway):
         for strike in strikes:
             chain.append({
                 "strike": strike,
-                "expiry": expiry or "2026-07-30",
-                "call_ltp": round(max(0, base - strike + np.random.uniform(5, 50)), 2),
-                "put_ltp": round(max(0, strike - base + np.random.uniform(5, 50)), 2),
-                "call_oi": int(np.random.randint(10000, 100000)),
-                "put_oi": int(np.random.randint(10000, 100000)),
-                "call_volume": int(np.random.randint(1000, 50000)),
-                "put_volume": int(np.random.randint(1000, 50000)),
+                "call": {"ltp": round(max(0, base - strike + np.random.uniform(5, 50)), 2)},
+                "put": {"ltp": round(max(0, strike - base + np.random.uniform(5, 50)), 2)},
             })
-        return {
+        return OptionChain.from_dict({
             "underlying": underlying,
             "exchange": exchange,
             "expiry": expiry or "2026-07-30",
             "strikes": chain,
-        }
+        })
 
     def future_chain(
         self,
         underlying: str,
         exchange: str = "NFO",
-    ) -> dict:
+    ) -> FutureChain:
         import numpy as np
         base = float(self._market_data.get_ltp(underlying, "NSE"))
         from datetime import datetime, timedelta
@@ -204,12 +204,12 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway):
                 "oi": int(np.random.randint(50000, 1000000)),
                 "change": round(np.random.uniform(-2, 2), 2),
             })
-        return {
+        return FutureChain.from_dict({
             "underlying": underlying,
             "exchange": exchange,
             "expiries": expiries,
             "contracts": contracts,
-        }
+        })
 
     def stream(
         self,
@@ -238,8 +238,18 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway):
             status=order.status,
         )
 
-    def cancel_order(self, order_id: str) -> bool:
-        return self._orders.cancel_order(order_id)
+    def cancel_order(self, order_id: str) -> OrderResponse:
+        success = self._orders.cancel_order(order_id)
+        if success:
+            return OrderResponse.ok(
+                order_id=order_id,
+                message="Order cancelled (paper)",
+                status=OrderStatus.CANCELLED,
+            )
+        return OrderResponse.fail(
+            message=f"Order {order_id} not found or not open",
+            status=OrderStatus.REJECTED,
+        )
 
     def get_orderbook(self) -> list[Order]:
         return self._orders.get_orderbook()

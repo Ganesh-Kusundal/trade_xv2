@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/datalake/quality.py
+# hypothesis_version: 6.147.0
+
+[0.0, 100, '\nIssues:', '15m', '1h', '1m', '30m', '5m', 'EMPTY', 'ERROR', 'File is empty', 'MISSING', 'NIFTY500', 'OK', 'WARNING', 'candles', 'close', 'data.parquet', 'equities', 'high', 'low', 'market_data', 'open', 'timestamp', 'volume']

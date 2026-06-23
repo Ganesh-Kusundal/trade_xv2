@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/upstox/auth/totp_client.py
+# hypothesis_version: 6.147.0
+
+[', ', 'UPSTOX_CLIENT_ID', 'UPSTOX_CLIENT_SECRET', 'UPSTOX_DEBUG', 'UPSTOX_PASSWORD', 'UPSTOX_PIN_CODE', 'UPSTOX_REDIRECT_URI', 'UPSTOX_TOTP_SECRET', 'UPSTOX_USERNAME', 'access_token', 'client_id', 'client_secret', 'false', 'mobile', 'pin', 'success', 'totp_secret', 'user_name']

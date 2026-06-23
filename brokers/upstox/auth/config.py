@@ -8,8 +8,22 @@ from brokers.common.settings import BrokerSettings, SettingsLoaderBase
 
 UPSTOX_PREFIX = "UPSTOX"
 
+# ── Operational defaults (REF-4) ───────────────────────────────────────────
+
+#: Default REST API rate limit (requests per second).
+UPSTOX_DEFAULT_RATE_PER_SECOND: float = 10.0
+
+#: WebSocket keepalive ping interval (seconds).
+UPSTOX_WS_PING_INTERVAL_SECONDS: int = 20
+
+#: WebSocket keepalive ping timeout (seconds).
+UPSTOX_WS_PING_TIMEOUT_SECONDS: int = 20
+
+#: Default on-disk instrument cache validity (hours).
+UPSTOX_INSTRUMENT_CACHE_HOURS: int = 24
+
 VALID_ENVIRONMENTS = ("LIVE", "SANDBOX")
-VALID_AUTH_MODES = ("STATIC", "OAUTH", "INTERACTIVE", "EXTENDED", "WEBHOOK")
+VALID_AUTH_MODES = ("STATIC", "OAUTH", "INTERACTIVE", "EXTENDED", "WEBHOOK", "TOTP")
 
 
 @dataclass(frozen=True)
@@ -48,6 +62,13 @@ class UpstoxConnectionSettings(BrokerSettings):
     ws_reconnect_interval_s: int = 10
     ws_reconnect_max_retries: int = 5
 
+    # TOTP-specific fields (for automated token generation)
+    mobile: str = ""
+    pin: str = ""
+    totp_secret: str = ""
+    totp_refresh_hour: int = 8  # Default: 8 AM IST
+    totp_refresh_minute: int = 0
+
     @property
     def is_sandbox(self) -> bool:
         return self.environment.upper() == "SANDBOX"
@@ -75,6 +96,15 @@ class UpstoxConnectionSettings(BrokerSettings):
     @property
     def is_webhook(self) -> bool:
         return self.auth_mode.upper() == "WEBHOOK"
+
+    @property
+    def is_totp(self) -> bool:
+        return self.auth_mode.upper() == "TOTP"
+
+    @property
+    def has_totp_config(self) -> bool:
+        """Check if all required TOTP credentials are present."""
+        return bool(self.mobile and self.pin and self.totp_secret)
 
     @property
     def has_access_token(self) -> bool:
@@ -182,6 +212,16 @@ class UpstoxSettingsLoader(SettingsLoaderBase):
         redirect_port = cls._get_int(prefix, "REDIRECT_PORT", default=18080)
         refresh_buffer_minutes = cls._get_int(prefix, "REFRESH_BUFFER_MINUTES", default=30)
 
+        # TOTP configuration
+        from config.secrets_manager import SecretsManager
+
+        secrets = SecretsManager()
+        mobile = cls._get(prefix, "MOBILE", default="")
+        pin = cls._get(prefix, "PIN", default="") or secrets.get_upstox_pin()
+        totp_secret = cls._get(prefix, "TOTP_SECRET", default="") or secrets.get_upstox_totp_secret()
+        totp_refresh_hour = cls._get_int(prefix, "TOTP_REFRESH_HOUR", default=8)
+        totp_refresh_minute = cls._get_int(prefix, "TOTP_REFRESH_MINUTE", default=0)
+
         token_state_file_path = cls._get(prefix, "TOKEN_STATE_FILE")
         token_state_file = Path(token_state_file_path) if token_state_file_path else None
         instrument_cache_str = cls._get(
@@ -213,6 +253,11 @@ class UpstoxSettingsLoader(SettingsLoaderBase):
             market_protection_default=market_protection_default,
             slice_default=slice_default,
             ws_plus_plan=ws_plus_plan,
+            mobile=mobile,
+            pin=pin,
+            totp_secret=totp_secret,
+            totp_refresh_hour=totp_refresh_hour,
+            totp_refresh_minute=totp_refresh_minute,
         )
 
     @classmethod
@@ -260,6 +305,11 @@ class UpstoxSettingsLoader(SettingsLoaderBase):
                 values.get(f"{prefix}.marketProtectionDefault"), -1
             ),
             slice_default=cls._parse_bool(values.get(f"{prefix}.sliceDefault"), False),
+            mobile=values.get(f"{prefix}.mobile", ""),
+            pin=values.get(f"{prefix}.pin", ""),
+            totp_secret=values.get(f"{prefix}.totpSecret", ""),
+            totp_refresh_hour=cls._parse_int(values.get(f"{prefix}.totpRefreshHour"), 8),
+            totp_refresh_minute=cls._parse_int(values.get(f"{prefix}.totpRefreshMinute"), 0),
         )
 
     @staticmethod

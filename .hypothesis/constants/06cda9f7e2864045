@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/analytics/core/feature_builder.py
+# hypothesis_version: 6.147.0
+
+[0.0, 0.2, 0.5, 2.0, 5.0, 10.0, 15.0, 25.0, 50.0, 100.0, 'Breakout', 'Compression', 'Downtrend', 'Pullback', 'Trend Continuation', 'Uptrend', 'acceleration', 'atr', 'atr_period', 'bar_count', 'close', 'exchange', 'high', 'last_acceleration', 'last_atr', 'last_close', 'last_relative_volume', 'last_roc', 'last_rsi', 'last_volume', 'low', 'market_structure', 'momentum', 'relative_volume', 'returns', 'roc', 'rolling_high_20', 'rolling_low_20', 'rsi', 'rsi_period', 'symbol', 'timeframe', 'trend', 'trend_score', 'volume', 'volume_accumulation', 'volume_average', 'volume_bars', 'volume_dry_up', 'volume_spike', 'volume_zscore']

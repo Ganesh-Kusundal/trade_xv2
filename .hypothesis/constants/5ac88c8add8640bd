@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/datalake/api/routers/options.py
+# hypothesis_version: 6.147.0
+
+[0.0, 200, 1000, ' AND expiry_date = ?', '/chain/{underlying}', '/pcr/{underlying}', ':memory:', 'CE', 'CE, PE, or both', 'Expiry date', 'MONTH', 'PCR fetch failed: %s', 'PE', 'all', 'at_spot', 'ce', 'ce_volume', 'count', 'expiry', 'pe', 'pe_volume', 'profile', 'strike', 'strikes', 'timestamp', 'total', 'total_volume', 'underlying']
