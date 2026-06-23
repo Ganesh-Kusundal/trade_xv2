@@ -1,4 +1,4 @@
-# file: /Users/apple/Downloads/Trade_XV2/brokers/upstox/auth/context.py
-# hypothesis_version: 6.147.0
+# file: /workspaces/trade_xv2/brokers/upstox/auth/context.py
+# hypothesis_version: 6.155.7
 
 [500, 5000, 10000, 30000, 'data', 'orders', 'quotes', 'upstox']

@@ -1,4 +1,4 @@
-# file: /Users/apple/Downloads/Trade_XV2/analytics/futures/futures_analytics.py
-# hypothesis_version: 6.147.0
+# file: /workspaces/trade_xv2/analytics/futures/futures_analytics.py
+# hypothesis_version: 6.155.7
 
 [0.0, 10.0, 20.0, 30.0, 50.0, 70.0, 80.0, 100, 'Bearish', 'Bullish', 'Discount', 'Flat', 'Long Build-Up', 'Long Unwinding', 'Neutral', 'Premium', 'Short Build-Up', 'Short Covering', 'Unavailable', 'basis', 'basis_pct', 'basis_type', 'current_oi', 'future', 'future_strength', 'next_oi', 'oi', 'oi_change', 'oi_state', 'price_change', 'roll_pct', 'rollover', 'spot']

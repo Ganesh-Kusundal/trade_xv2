@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/brokers/upstox/websocket/market_data_v3.py
-# hypothesis_version: 6.147.0
-
-['backfill', 'change_mode', 'close', 'data', 'disconnect', 'frame_type', 'full', 'full_d30', 'guid', 'instrumentKey', 'instrumentKeys', 'instrument_key', 'ltpc', 'market_info', 'method', 'now', 'option_greeks', 'payload', 'recv', 'send', 'sub', 'tick', 'type', 'unsub']

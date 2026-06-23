@@ -16,6 +16,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from brokers.common.oms.capital_provider import CapitalProvider
+from domain.constants.defaults import RISK_FAIL_OPEN_THRESHOLD
 
 if TYPE_CHECKING:
     from cli.services.broker_service import BrokerService
@@ -71,7 +72,7 @@ class TrackedCapitalProvider(CapitalProvider):
                         "fallback_count": self._service._capital_fallback_count,
                     },
                 )
-                return Decimal("1000000")
+                return RISK_FAIL_OPEN_THRESHOLD
             
             logger.error(
                 "risk_capital_blocking",

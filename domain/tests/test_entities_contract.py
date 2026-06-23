@@ -12,51 +12,48 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from decimal import Decimal
 
-import pytest
-
 from domain.entities import Order, Position
 from domain.types import OrderStatus, OrderType, ProductType, Side, Validity
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
 
 def _make_order(**overrides) -> Order:
-    defaults = dict(
-        order_id="O-1001",
-        symbol="RELIANCE",
-        exchange="NSE",
-        side=Side.BUY,
-        order_type=OrderType.LIMIT,
-        quantity=10,
-        filled_quantity=0,
-        price=Decimal("2500"),
-        trigger_price=Decimal("0"),
-        status=OrderStatus.OPEN,
-        timestamp=datetime(2026, 1, 1, tzinfo=timezone.utc),
-        product_type=ProductType.INTRADAY,
-        validity=Validity.DAY,
-        avg_price=Decimal("0"),
-        reject_reason="",
-        correlation_id="corr-1",
-    )
+    defaults = {
+        "order_id": "O-1001",
+        "symbol": "RELIANCE",
+        "exchange": "NSE",
+        "side": Side.BUY,
+        "order_type": OrderType.LIMIT,
+        "quantity": 10,
+        "filled_quantity": 0,
+        "price": Decimal("2500"),
+        "trigger_price": Decimal("0"),
+        "status": OrderStatus.OPEN,
+        "timestamp": datetime(2026, 1, 1, tzinfo=timezone.utc),
+        "product_type": ProductType.INTRADAY,
+        "validity": Validity.DAY,
+        "avg_price": Decimal("0"),
+        "reject_reason": "",
+        "correlation_id": "corr-1",
+    }
     defaults.update(overrides)
     return Order(**defaults)
 
 
 def _make_position(**overrides) -> Position:
-    defaults = dict(
-        symbol="RELIANCE",
-        exchange="NSE",
-        quantity=0,
-        avg_price=Decimal("0"),
-        ltp=Decimal("0"),
-        unrealized_pnl=Decimal("0"),
-        realized_pnl=Decimal("0"),
-        product_type=ProductType.INTRADAY,
-        correlation_id=None,
-    )
+    defaults = {
+        "symbol": "RELIANCE",
+        "exchange": "NSE",
+        "quantity": 0,
+        "avg_price": Decimal("0"),
+        "ltp": Decimal("0"),
+        "unrealized_pnl": Decimal("0"),
+        "realized_pnl": Decimal("0"),
+        "product_type": ProductType.INTRADAY,
+        "correlation_id": None,
+    }
     defaults.update(overrides)
     return Position(**defaults)
 

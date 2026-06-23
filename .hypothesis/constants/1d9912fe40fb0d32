@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/datalake/api/ws/bridge.py
-# hypothesis_version: 6.147.0
-
-[1000, 'MarketBridge stopped', 'QUOTE', 'TICK', 'symbol', 'type']

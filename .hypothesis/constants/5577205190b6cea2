@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/datalake/api/routers/risk.py
-# hypothesis_version: 6.147.0
-
-['/kill-switch', '/state', 'daily_loss_limit_pct', 'daily_pnl', 'kill_switch_active', 'max_position_pct', 'status', 'success']

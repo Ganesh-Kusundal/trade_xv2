@@ -1,7 +1,14 @@
-"""DataLakeGateway — MarketDataGateway implementation backed by Parquet lake.
+"""DataLakeGateway — read-only market-data access backed by a Parquet lake.
 
-Provides the same interface as Dhan/Upstox/Paper gateways, but reads
-historical data from the local Parquet lake instead of a live broker.
+Composes the narrow ISP interfaces (:class:`MarketDataProvider`,
+:class:`BatchMarketDataProvider`, :class:`DerivativesProvider`,
+:class:`InstrumentProvider`, :class:`LifecycleAware`) instead of the
+full :class:`~brokers.common.gateway.MarketDataGateway` contract.
+
+This avoids the Liskov-substitution violation (REF-18) where a read-only
+implementation was forced to ``raise NotImplementedError`` for trading
+and portfolio methods.
+
 Used for backtesting, research, and offline analysis.
 
 Usage:
@@ -19,31 +26,42 @@ from __future__ import annotations
 
 import duckdb
 import logging
-import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
-from cachetools import TTLCache
 
-from domain import Balance, MarketDepth, Quote
+from domain import MarketDepth, Quote
+from brokers.common.gateway_interfaces import (
+    BatchMarketDataProvider,
+    DerivativesProvider,
+    InstrumentProvider,
+    LifecycleAware,
+    MarketDataProvider,
+)
 from brokers.common.gateway_errors import UnsupportedGatewayOperation
 from domain.constants import BATCH_MAX_WORKERS
-from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
+from brokers.common.gateway import BrokerCapabilities
 from datalake.store import ParquetStore
-from datalake.symbols import normalize_symbol, symbol_to_path
-from datalake.cache_utils import generate_cache_key, load_candles_projected
+from datalake.symbols import normalize_symbol
 
 logger = logging.getLogger(__name__)
 
 
-class DataLakeGateway(MarketDataGateway):
-    """MarketDataGateway backed by local Parquet data lake.
+class DataLakeGateway(
+    MarketDataProvider,
+    BatchMarketDataProvider,
+    DerivativesProvider,
+    InstrumentProvider,
+    LifecycleAware,
+):
+    """Read-only market-data access backed by local Parquet data lake.
 
-    Implements the read-only subset of the MarketDataGateway contract.
-    Trading methods raise NotImplementedError.
+    Composes five narrow ISP interfaces instead of the full
+    ``MarketDataGateway`` contract. Trading and portfolio methods are
+    intentionally absent — use a live broker gateway for those.
     """
 
     def __init__(self, root: str = "market_data") -> None:
@@ -331,39 +349,7 @@ class DataLakeGateway(MarketDataGateway):
         return batch_execute(symbols, fn, max_workers=max_workers)
 
     # -----------------------------------------------------------------------
-    # MarketDataGateway — Trading (not supported)
-    # -----------------------------------------------------------------------
-
-    def place_order(self, *args, **kwargs) -> Any:
-        raise UnsupportedGatewayOperation("DataLakeGateway", "trading")
-
-    def cancel_order(self, *args, **kwargs) -> bool:
-        raise UnsupportedGatewayOperation("DataLakeGateway", "trading")
-
-    def get_orderbook(self) -> list[Any]:
-        raise UnsupportedGatewayOperation("DataLakeGateway", "trading")
-
-    def get_trade_book(self) -> list[Any]:
-        raise UnsupportedGatewayOperation("DataLakeGateway", "trading")
-
-    # -----------------------------------------------------------------------
-    # MarketDataGateway — Portfolio (not supported)
-    # -----------------------------------------------------------------------
-
-    def positions(self) -> list[Any]:
-        raise UnsupportedGatewayOperation("DataLakeGateway", "portfolio")
-
-    def holdings(self) -> list[Any]:
-        raise UnsupportedGatewayOperation("DataLakeGateway", "portfolio")
-
-    def funds(self) -> Balance:
-        raise UnsupportedGatewayOperation("DataLakeGateway", "portfolio")
-
-    def trades(self) -> list[Any]:
-        raise UnsupportedGatewayOperation("DataLakeGateway", "portfolio")
-
-    # -----------------------------------------------------------------------
-    # MarketDataGateway — Instrument
+    # Instrument (narrow interface: InstrumentProvider)
     # -----------------------------------------------------------------------
 
     def search(self, query: str, exchange: str = "NSE") -> list[dict]:
@@ -371,11 +357,11 @@ class DataLakeGateway(MarketDataGateway):
         matches = [s for s in symbols if query.upper() in s.upper()]
         return [{"symbol": s, "exchange": exchange, "name": s} for s in matches[:20]]
 
-    def load_instruments(self) -> Any:
+    def load_instruments(self, source: str | None = None, use_cache: bool = True) -> None:
         return None
 
     # -----------------------------------------------------------------------
-    # MarketDataGateway — Lifecycle
+    # Lifecycle (narrow interface: LifecycleAware)
     # -----------------------------------------------------------------------
 
     def describe(self) -> dict:

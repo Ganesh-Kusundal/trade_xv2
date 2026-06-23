@@ -77,6 +77,135 @@ class PaperOrders:
         if isinstance(validity, str):
             validity = Validity(validity.upper())
 
+        # REF-018: Route through OMS OrderManager for idempotency when available.
+        if self._order_manager is not None:
+            return self._place_via_oms(
+                symbol=symbol, exchange=exchange, side=side, quantity=quantity,
+                price=price, order_type=order_type, product_type=product_type,
+                validity=validity, trigger_price=trigger_price,
+                correlation_id=correlation_id,
+            )
+
+        # Legacy path: no OMS available, manage state internally.
+        return self._place_internal(
+            symbol=symbol, exchange=exchange, side=side, quantity=quantity,
+            price=price, order_type=order_type, product_type=product_type,
+            validity=validity, trigger_price=trigger_price,
+            correlation_id=correlation_id,
+        )
+
+    def _place_via_oms(
+        self,
+        symbol: str,
+        exchange: str,
+        side: Side,
+        quantity: int,
+        price: Decimal,
+        order_type: OrderType,
+        product_type: ProductType,
+        validity: Validity,
+        trigger_price: Decimal,
+        correlation_id: str | None,
+    ) -> Order:
+        """Route through OrderManager.place_order for idempotency + risk + events."""
+        from brokers.common.oms.order_manager import OmsOrderCommand
+
+        self._order_seq += 1
+        seq = self._order_seq
+
+        cmd = OmsOrderCommand(
+            symbol=symbol,
+            exchange=exchange,
+            side=side,
+            quantity=quantity,
+            price=price,
+            order_type=order_type,
+            product_type=product_type,
+            correlation_id=correlation_id or f"ppr:{seq}",
+        )
+
+        fill_price = price if price > 0 and order_type == OrderType.LIMIT else self._md.get_ltp(symbol, exchange)
+
+        def _fill(cmd: OmsOrderCommand) -> Order:
+            return Order(
+                order_id=f"PPR-{seq:06d}",
+                symbol=cmd.symbol,
+                exchange=cmd.exchange,
+                side=cmd.side,
+                order_type=cmd.order_type,
+                quantity=cmd.quantity,
+                filled_quantity=cmd.quantity,
+                price=cmd.price,
+                trigger_price=trigger_price,
+                status=OrderStatus.FILLED,
+                timestamp=datetime.now(timezone.utc),
+                product_type=cmd.product_type,
+                avg_price=fill_price,
+                correlation_id=cmd.correlation_id,
+            )
+
+        result = self._order_manager.place_order(
+            request=cmd,
+            submit_fn=_fill,
+        )
+        if not result.success or result.order is None:
+            rejected = Order(
+                order_id=f"PPR-{seq:06d}", symbol=symbol, exchange=exchange,
+                side=side, order_type=order_type, quantity=quantity,
+                price=price, status=OrderStatus.REJECTED,
+                correlation_id=correlation_id,
+            )
+            with self._lock:
+                self._orders.append(rejected)
+            # Upsert rejected order to OMS for audit trail (matches legacy behavior).
+            self._order_manager.upsert_order(rejected)
+            return rejected
+
+        # Keep internal order/trade list synced for backward-compatible getters.
+        with self._lock:
+            self._orders.append(result.order)
+            self._order_seq = seq  # sync sequence counter
+
+        # Record trade through OMS so PositionManager receives TRADE_APPLIED event.
+        self._trade_seq += 1
+        trade = Trade(
+            trade_id=f"PPR-T-{self._trade_seq:06d}",
+            order_id=result.order.order_id,
+            symbol=symbol,
+            exchange=exchange,
+            side=side,
+            quantity=quantity,
+            price=fill_price,
+            trade_value=fill_price * quantity,
+            timestamp=datetime.now(timezone.utc),
+            product_type=product_type,
+        )
+        with self._lock:
+            self._trades.append(trade)
+            # Sync internal position dict for backward-compatible getters.
+            self._positions = self._update_position(
+                symbol, exchange, side, quantity, fill_price, product_type,
+            )
+        self._order_manager.record_trade(trade)
+        if self._position_manager is not None:
+            self._position_manager.apply_trade(trade)
+
+        return result.order
+
+    def _place_internal(
+        self,
+        symbol: str,
+        exchange: str,
+        side: Side,
+        quantity: int,
+        price: Decimal,
+        order_type: OrderType,
+        product_type: ProductType,
+        validity: Validity,
+        trigger_price: Decimal,
+        correlation_id: str | None,
+    ) -> Order:
+        """Legacy internal order placement (no OMS, backward compatible)."""
         if price > 0 and order_type == OrderType.LIMIT:
             fill_price = price
         else:
@@ -107,8 +236,6 @@ class PaperOrders:
                     reject_reason=reason or "Risk check failed",
                 )
                 self._orders.append(rejected)
-                if self._order_manager is not None:
-                    self._order_manager.upsert_order(rejected)
                 return rejected
 
             order = Order(
@@ -130,9 +257,6 @@ class PaperOrders:
             )
 
             self._orders.append(order)
-            if self._order_manager is not None:
-                self._order_manager.upsert_order(order)
-
             self._trade_seq += 1
             trade = Trade(
                 trade_id=f"PPR-T-{self._trade_seq:06d}",
@@ -147,8 +271,6 @@ class PaperOrders:
                 product_type=product_type,
             )
             self._trades.append(trade)
-            if self._order_manager is not None:
-                self._order_manager.record_trade(trade)
 
             if self._position_manager is not None:
                 self._position_manager.apply_trade(trade)

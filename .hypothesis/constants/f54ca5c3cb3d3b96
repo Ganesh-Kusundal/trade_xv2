@@ -1,4 +1,4 @@
-# file: /Users/apple/Downloads/Trade_XV2/cli/commands/analytics_optimize.py
-# hypothesis_version: 6.147.0
+# file: /workspaces/trade_xv2/cli/commands/analytics_optimize.py
+# hypothesis_version: 6.155.7
 
 [100000.0, '#', ',', '--atr', '--capital', '--file', '--rsi', '--sma', '--strategy', '--symbol', '--top', 'Max DD', 'OPTIMIZE', 'Parameters', 'Return', 'Sharpe', 'Trades', 'Win Rate', 'atr_period', 'bold cyan', 'bold white', 'cyan', 'dim', 'green', 'magenta', 'momentum', 'params', 'red', 'rsi_period', 'sharpe_ratio', 'sma_period', 'total_return_pct', 'total_trades', 'yellow']

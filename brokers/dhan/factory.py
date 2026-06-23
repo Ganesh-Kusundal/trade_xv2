@@ -43,12 +43,49 @@ class BrokerFactory(BrokerProviderFactory):
         settings = DhanSettingsLoader.from_env(env_path=env_path)
         cid = settings.client_id
 
-        # ── AuthManager setup ──────────────────────────────────────
+        # ── Auth & token ───────────────────────────────────────────
+        auth, token = self._create_auth(settings, env_path or Path(".env.local"))
+
+        # ── Per-instance refresh lock shared between the HTTP 401 handler and
+        # the scheduler.  Created here (the natural owner) rather than inside
+        # a helper so it does not need to be threaded through return values.
+        refresh_lock = threading.Lock()
+
+        # ── HTTP client ────────────────────────────────────────────
+        client = self._create_http_client(settings, auth, cid, token, env_path or Path(".env.local"), refresh_lock)
+
+        # ── Connection + Gateway ───────────────────────────────────
+        gateway = self._create_connection_and_gateway(
+            client, auth, settings, event_bus, risk_manager, reconciliation_service,
+            backfill_callback, lifecycle,
+        )
+
+        if load_instruments:
+            gateway.load_instruments()
+
+        # ── WebSocket auto-wiring ──────────────────────────────────
+        self._wire_websocket_services(gateway, client, token, lifecycle, event_bus)
+
+        # ── Token refresh scheduler ────────────────────────────────
+        self._setup_token_refresh_scheduler(
+            gateway, auth, client, settings, env_path or Path(".env.local"), lifecycle, refresh_lock,
+        )
+
+        return gateway
+
+    # ── Bootstrapper helpers ──────────────────────────────────────────────
+
+    def _create_auth(
+        self,
+        settings: DhanConnectionSettings,
+        env_file: Path,
+    ) -> tuple[AuthManager, str]:
+        """Create AuthManager and acquire an access token."""
+        cid = settings.client_id
         token_state_dir = Path("runtime")
         token_state_dir.mkdir(parents=True, exist_ok=True)
         token_store = JsonTokenStateStore(token_state_dir / "dhan-token-state.json")
 
-        # Build the TOTP token generator closure
         def _generate_token() -> str | None:
             return _generate_totp_token(settings)
 
@@ -61,14 +98,10 @@ class BrokerFactory(BrokerProviderFactory):
             token_lifetime_seconds=settings.token_lifetime_seconds,
         )
 
-        # ── Token acquisition ──────────────────────────────────────
-        env_file = env_path or Path(".env.local")
         token = settings.access_token
         if not token:
-            # Try store first, then generate fresh token
             state = auth.acquire()
             if not state or not state.is_valid():
-                # Store was empty/expired — generate fresh token directly
                 fresh = _generate_totp_token(settings)
                 if fresh:
                     from datetime import datetime, timedelta
@@ -90,22 +123,23 @@ class BrokerFactory(BrokerProviderFactory):
                 raise ConfigurationError("DHAN_ACCESS_TOKEN not configured and TOTP refresh failed")
 
             token = state.access_token
-
-            # Also update .env.local for backward compatibility
             if env_file.exists():
                 _update_env_token(env_file, token)
 
-        # ── HTTP client ────────────────────────────────────────────
+        return auth, token
+
+    def _create_http_client(
+        self,
+        settings: DhanConnectionSettings,
+        auth: AuthManager,
+        cid: str,
+        token: str,
+        env_file: Path,
+        refresh_lock: threading.Lock,
+    ) -> DhanHttpClient:
+        """Create DhanHttpClient with per-category circuit breakers."""
         from brokers.common.resilience.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
 
-        # Three independent circuit breakers — one per endpoint category.
-        # Phase A / A1 split the previous single "dhan-api" breaker so a
-        # failure storm on read endpoints (e.g. option-chain during a
-        # volatile session) cannot OPEN the breaker for write endpoints
-        # (order placement). This is the same failure mode that caused
-        # the documented DH-906 incident, generalised: any category's
-        # outage previously took out the others. See
-        # PRODUCTION_CERTIFICATION_REPORT §B1.
         cb_read = CircuitBreaker(
             "dhan-read-cb",
             CircuitBreakerConfig(failure_threshold=10, open_duration_ms=15_000),
@@ -119,13 +153,7 @@ class BrokerFactory(BrokerProviderFactory):
             CircuitBreakerConfig(failure_threshold=5, open_duration_ms=30_000),
         )
 
-        # Per-instance refresh lock shared between the HTTP 401 handler
-        # and the scheduler. This replaces the previous module-level
-        # `_token_refresh_lock` global, which leaked across every
-        # gateway constructed in the process.
-        refresh_lock = threading.Lock()
-
-        client = DhanHttpClient(
+        return DhanHttpClient(
             client_id=cid,
             access_token=token,
             base_url=settings.base_url,
@@ -137,76 +165,78 @@ class BrokerFactory(BrokerProviderFactory):
             admin_circuit_breaker=cb_admin,
         )
 
-        # ── Connection + Gateway ───────────────────────────────────
+    def _create_connection_and_gateway(
+        self,
+        client: DhanHttpClient,
+        auth: AuthManager,
+        settings: DhanConnectionSettings,
+        event_bus: Any | None,
+        risk_manager: Any | None,
+        reconciliation_service: object | None,
+        backfill_callback: Callable[[str, datetime, datetime], list[dict]] | None,
+        lifecycle: Any | None,
+    ) -> BrokerGateway:
+        """Create DhanConnection + BrokerGateway."""
         connection = DhanConnection(
             client=client,
             event_bus=event_bus,
-            # B7: thread the OMS's risk_manager so the OrdersAdapter
-            # consults it on every place_order call. The OMS is the
-            # canonical owner of risk checks; OrdersAdapter is a
-            # transport-layer executor.
             risk_manager=risk_manager,
             backfill_callback=backfill_callback,
             reconciliation_service=reconciliation_service,
-            # B5: thread the lifecycle so lazily-created WebSocket
-            # services (DhanMarketFeed, DhanOrderStream,
-            # PollingMarketFeed) are registered with it.
             lifecycle=lifecycle,
             allow_live_orders=settings.allow_live_orders,
         )
         connection._auth = auth  # Store auth manager on connection
-        gateway = BrokerGateway(connection)
+        return BrokerGateway(connection)
 
-        if load_instruments:
-            gateway.load_instruments()
+    def _wire_websocket_services(
+        self,
+        gateway: BrokerGateway,
+        client: DhanHttpClient,
+        token: str,
+        lifecycle: Any | None,
+        event_bus: Any | None,
+    ) -> None:
+        """Auto-create and register WebSocket services when lifecycle is provided."""
+        if lifecycle is None or event_bus is None:
+            return
 
-        # ── Auto-wire WebSocket services ─────────────────────────────
-        # When both lifecycle and event_bus are provided, auto-create
-        # and register WebSocket services so they're managed by the
-        # lifecycle. This fixes the readiness check failure:
-        # "websocket_market_feed_wired — DhanMarketFeed was not created"
-        if lifecycle is not None and event_bus is not None:
-            # Create and register market feed
-            def access_token_fn():
-                return client.access_token
-            connection.create_market_feed(
-                access_token=token,
-                instruments=[],  # Empty — subscribe on-demand via gateway.stream()
-                access_token_fn=access_token_fn,
-            )
+        def access_token_fn():
+            return client.access_token
 
-            # Create and register order stream
-            connection.create_order_stream(
-                access_token=token,
-                access_token_fn=access_token_fn,
-            )
+        gateway._conn.create_market_feed(
+            access_token=token,
+            instruments=[],
+            access_token_fn=access_token_fn,
+        )
+        gateway._conn.create_order_stream(
+            access_token=token,
+            access_token_fn=access_token_fn,
+        )
 
-            # Note: Depth 20/200 feeds are created on-demand via gateway.depth_20/depth_200
-            # since they require specific instrument subscriptions.
-            # They will be auto-registered with lifecycle when created.
+        logger.info("websocket_wired", extra={
+            "market_feed": "dhan.market_feed",
+            "order_stream": "dhan.order_stream",
+            "depth_20": "on_demand",
+            "depth_200": "on_demand",
+        })
 
-            logger.info("websocket_wired", extra={
-                "market_feed": "dhan.market_feed",
-                "order_stream": "dhan.order_stream",
-                "depth_20": "on_demand",
-                "depth_200": "on_demand",
-            })
-
-        # ── Token refresh scheduler ────────────────────────────────
+    def _setup_token_refresh_scheduler(
+        self,
+        gateway: BrokerGateway,
+        auth: AuthManager,
+        client: DhanHttpClient,
+        settings: DhanConnectionSettings,
+        env_file: Path,
+        lifecycle: Any | None,
+        refresh_lock: threading.Lock,
+    ) -> None:
+        """Create and register the token refresh scheduler."""
         def _on_token_refresh(new_token: str) -> None:
-            """Push fresh token to HTTP client and every receiver.
-
-            REF-13: the previous design only updated the HTTP client
-            and the market feed. The order stream and depth feeds
-            silently kept using the stale token until their next
-            reconnect. Now every receiver registered with the
-            connection is notified, and the receivers are auto-
-            registered when the corresponding service is created.
-            """
             client.update_token(new_token)
             if env_file.exists():
                 _update_env_token(env_file, new_token)
-            delivered = connection.broadcast_token(new_token)
+            delivered = gateway._conn.broadcast_token(new_token)
             logger.info(
                 "dhan_token_refreshed",
                 extra={
@@ -223,20 +253,11 @@ class BrokerFactory(BrokerProviderFactory):
             on_refresh=_on_token_refresh,
         )
         if lifecycle is not None:
-            # New path: the caller owns the lifecycle and the scheduler
-            # is just one of many managed services. The factory does
-            # not start it directly.
             lifecycle.register(scheduler)
-            connection._token_scheduler = scheduler
+            gateway._conn._token_scheduler = scheduler
         else:
-            # Backward-compatible path: auto-start the scheduler. This
-            # path is the same one the CLI takes and keeps the daemon
-            # leak that Wave 2 is closing. New callers should always
-            # pass `lifecycle`.
             scheduler.start()
-            connection._token_scheduler = scheduler
-
-        return gateway
+            gateway._conn._token_scheduler = scheduler
 
 
 def _refresh_via_auth(

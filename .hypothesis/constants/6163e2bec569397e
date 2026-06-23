@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/domain/constants/exchanges.py
-# hypothesis_version: 6.147.0
-
-['BCD', 'BFO', 'BSE', 'BSE_CURRENCY', 'BSE_EQ', 'BSE_FNO', 'CDS', 'IDX', 'IDX_I', 'MCX', 'MCXCOMM', 'NFO', 'NSE', 'NSE_CURRENCY', 'NSE_EQ', 'NSE_FNO', 'SHORT_TO_SEGMENT', 'WIRE_BSE_CURRENCY', 'WIRE_BSE_EQ', 'WIRE_BSE_FNO', 'WIRE_IDX', 'WIRE_MCX_COMM', 'WIRE_NSE_CURRENCY', 'WIRE_NSE_EQ', 'WIRE_NSE_FNO']

@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/conftest.py
-# hypothesis_version: 6.147.0
-
-['BSE', 'BSE_CURR', 'BSE_FNO', 'DELETE', 'Depth', 'DhanFeed', 'Full', 'GET', 'IDX', 'MCX', 'NSE', 'NSE_CURR', 'NSE_FNO', 'OrderSocket', 'POST', 'PUT', 'Quote', 'TEST_CLIENT', 'TEST_TOKEN', 'Ticker']

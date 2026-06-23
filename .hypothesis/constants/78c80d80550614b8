@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/brokers/common/contracts/broker_contract.py
-# hypothesis_version: 6.147.0
-
-['0', '1D', 'COMPLETE', 'EXECUTED', 'NFO', 'NIFTY', 'NSE', 'PARTIALLY_EXECUTED', 'RELIANCE', 'TRANSIT', 'TRIGGER PENDING', 'broker', 'close', 'exchange', 'exchange_token', 'high', 'instrument_token', 'low', 'oi', 'open', 'security_id', 'symbol', 'timeframe', 'timestamp', 'underlying', 'volume']

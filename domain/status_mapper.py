@@ -14,36 +14,36 @@ from domain.types import OrderStatus
 
 class StatusMapperRegistry:
     """Global registry for broker-specific status mappings.
-    
+
     Broker adapters register their mappings at module import time by calling
     ``register(broker_name, mapping_dict)``. The registry merges all mappings
     and provides a single ``normalize()`` method that tries all registered
     mappings in order, falling back to OPEN for unknown statuses.
     """
-    
+
     _mappings: ClassVar[dict[str, dict[str, OrderStatus]]] = {}
     _merged: ClassVar[dict[str, OrderStatus] | None] = None
-    
+
     @classmethod
     def register(cls, broker_name: str, mapping: dict[str, OrderStatus]) -> None:
         """Register a broker-specific status mapping.
-        
+
         Args:
             broker_name: Unique identifier for the broker (e.g., 'dhan', 'upstox')
             mapping: Dict mapping status strings to OrderStatus enums
         """
         cls._mappings[broker_name] = mapping
         cls._merged = None  # Invalidate cache
-    
+
     @classmethod
     def normalize(cls, broker_status: str) -> OrderStatus:
         """Normalize a broker-specific status string to canonical OrderStatus.
-        
+
         Tries all registered mappings in order. Returns OPEN for unknown statuses.
-        
+
         Args:
             broker_status: Raw status string from broker API
-            
+
         Returns:
             Canonical OrderStatus enum value
         """

@@ -1,4 +1,4 @@
-# file: /Users/apple/Downloads/Trade_XV2/datalake/fast_backtest.py
-# hypothesis_version: 6.147.0
+# file: /workspaces/trade_xv2/datalake/fast_backtest.py
+# hypothesis_version: 6.155.7
 
 [0.065, 50.0, 100, 252, 'FastBacktestEngine', 'LONG', 'SYMBOL', 'bias_warning', 'close', 'cost', 'engine', 'entry_price', 'entry_time', 'fast_backtest', 'quantity', 'reasons', 'side', 'strategy', 'timestamp']

@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/brokers/upstox/instruments/segment_mapper.py
-# hypothesis_version: 6.147.0
-
-['BCD_FO', 'BSE_EQ', 'BSE_FO', 'BSE_INDEX', 'GLOBAL_INDEX', 'MCX_COMM', 'MCX_FO', 'MCX_INDEX', 'NCD_FO', 'NSE_COM', 'NSE_EQ', 'NSE_FO', 'NSE_INDEX', 'UNKNOWN']

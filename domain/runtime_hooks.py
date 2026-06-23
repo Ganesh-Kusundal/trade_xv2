@@ -1,61 +1,96 @@
-"""Runtime hooks registered at composition root (no broker imports in domain)."""
+"""Runtime hooks registered at composition root (no broker imports in domain).
+
+REF-026: Module-level mutable globals replaced by frozen ``RuntimeHooks`` dataclass.
+New code should use ``set_runtime_hooks(hooks)`` for dependency injection;
+legacy ``register_*`` / ``create_*`` functions delegate to the module singleton
+for backward compatibility.
+"""
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
+from dataclasses import dataclass, replace
+from typing import Any
 
-_oms_backtest_factory: Callable[..., Any] | None = None
-_domain_event_factory: Callable[..., Any] | None = None
+
+@dataclass(frozen=True)
+class RuntimeHooks:
+    """Immutable container for runtime factory callables.
+
+    Use :func:`set_runtime_hooks` to register all factories at once
+    from the composition root. Legacy callers can continue using the
+    individual ``register_*`` functions.
+    """
+
+    oms_backtest_factory: Callable[..., Any] | None = None
+    domain_event_factory: Callable[..., Any] | None = None
+    trading_context_factory: Callable[..., Any] | None = None
+
+
+# ── Module singleton (backward-compatible) ──────────────────────────────
+# All registrations happen at application startup; no concurrent callers.
+
+_runtime_hooks = RuntimeHooks()
+
+
+def set_runtime_hooks(hooks: RuntimeHooks) -> None:
+    """Replace the module-level runtime hooks (preferred for DI)."""
+    global _runtime_hooks
+    _runtime_hooks = hooks
 
 
 def register_oms_backtest_factory(factory: Callable[..., Any]) -> None:
     """Register factory used by analytics engines when ``trading_context`` is set."""
-    global _oms_backtest_factory
-    _oms_backtest_factory = factory
+    global _runtime_hooks
+    _runtime_hooks = replace(_runtime_hooks, oms_backtest_factory=factory)
 
 
 def register_domain_event_factory(factory: Callable[..., Any]) -> None:
-    global _domain_event_factory
-    _domain_event_factory = factory
+    """Register factory for creating domain events from analytics engines."""
+    global _runtime_hooks
+    _runtime_hooks = replace(_runtime_hooks, domain_event_factory=factory)
+
+
+def register_trading_context_factory(factory: Callable[..., Any]) -> None:
+    """Register factory for creating TradingContext from orchestrators."""
+    global _runtime_hooks
+    _runtime_hooks = replace(_runtime_hooks, trading_context_factory=factory)
 
 
 def create_oms_backtest_adapter(trading_context: Any, **kwargs: Any) -> Any:
-    if _oms_backtest_factory is None:
+    """Create an OMS backtest adapter via the registered factory."""
+    if _runtime_hooks.oms_backtest_factory is None:
         raise RuntimeError(
             "OMS backtest factory not registered. "
             "Call register_oms_backtest_factory() at application startup."
         )
-    return _oms_backtest_factory(trading_context, **kwargs)
+    return _runtime_hooks.oms_backtest_factory(trading_context, **kwargs)
 
 
 def create_domain_event(**kwargs: Any) -> Any:
-    if _domain_event_factory is None:
+    """Create a domain event via the registered factory."""
+    if _runtime_hooks.domain_event_factory is None:
         raise RuntimeError("Domain event factory not registered.")
-    return _domain_event_factory(**kwargs)
-
-
-_trading_context_factory: Callable[..., Any] | None = None
-
-
-def register_trading_context_factory(factory: Callable[..., Any]) -> None:
-    global _trading_context_factory
-    _trading_context_factory = factory
+    return _runtime_hooks.domain_event_factory(**kwargs)
 
 
 def create_trading_context(**kwargs: Any) -> Any:
-    if _trading_context_factory is None:
+    """Create a TradingContext via the registered factory."""
+    if _runtime_hooks.trading_context_factory is None:
         raise RuntimeError(
             "Trading context factory not registered. "
             "Call register_trading_context_factory() at application startup."
         )
-    return _trading_context_factory(**kwargs)
+    return _runtime_hooks.trading_context_factory(**kwargs)
 
 
 __all__ = [
+    "RuntimeHooks",
     "create_domain_event",
     "create_oms_backtest_adapter",
     "create_trading_context",
     "register_domain_event_factory",
     "register_oms_backtest_factory",
     "register_trading_context_factory",
+    "set_runtime_hooks",
 ]

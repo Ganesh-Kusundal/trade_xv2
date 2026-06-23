@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from decimal import Decimal
 from enum import Enum
 
 
@@ -153,6 +154,22 @@ class PaperPosition:
     def update_price(self, price: float) -> None:
         self.current_price = price
 
+    def to_domain_position(self) -> Any:
+        """Convert to canonical ``domain.entities.Position`` (REF-016).
+
+        Price fields are coerced to ``Decimal``.
+        """
+        from domain.entities import Position
+
+        qty = self.quantity if self.side == PositionSide.LONG else -self.quantity
+        return Position(
+            symbol=self.symbol,
+            exchange="NSE",
+            quantity=qty,
+            avg_price=Decimal(str(self.entry_price)),
+            ltp=Decimal(str(self.current_price)),
+        )
+
 
 # ---------------------------------------------------------------------------
 # PaperTrade
@@ -176,6 +193,26 @@ class PaperTrade:
     slippage_cost: float
     strategy: str
     reasons: list[str] = field(default_factory=list)
+
+    def to_domain_trade(self) -> Any:
+        """Convert to canonical ``domain.entities.Trade`` (REF-016).
+
+        Price and PnL fields are coerced to ``Decimal``.
+        """
+        from domain.entities import Trade
+        from domain.types import Side
+
+        side = Side.BUY if self.side == OrderSide.BUY else Side.SELL
+        return Trade(
+            trade_id=f"paper:{self.symbol}:{id(self)}",
+            order_id="",
+            symbol=self.symbol,
+            exchange="NSE",
+            side=side,
+            quantity=self.quantity,
+            price=Decimal(str(self.exit_price)),
+            trade_value=Decimal(str(abs(self.pnl))) if self.pnl != 0 else Decimal("0"),
+        )
 
 
 # ---------------------------------------------------------------------------

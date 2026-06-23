@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/domain/field_mapping.py
-# hypothesis_version: 6.147.0
-
-['BUY', 'MARKET', 'NSE', 'OPEN', 'SL', 'SLM', 'STOPLOSS-MARKET', 'STOPLOSS_LIMIT', 'STOPLOSS_MARKET', 'STOP_LOSS', 'STOP_LOSS_MARKET', 'averagePrice', 'average_price', 'avg_price', 'exchange', 'exchangeSegment', 'filledQty', 'filled_quantity', 'orderId', 'orderStatus', 'orderType', 'order_id', 'order_type', 'price', 'quantity', 'rejectReason', 'reject_reason', 'side', 'status', 'symbol', 'tradingSymbol', 'transactionType']

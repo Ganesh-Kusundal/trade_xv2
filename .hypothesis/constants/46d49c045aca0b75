@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/brokers/common/event_log.py
-# hypothesis_version: 6.147.0
-
-[1.0, 100, '*.jsonl', ',', ':', '__type__', 'a', 'buffer_size', 'date', 'datetime', 'decimal', 'event_type', 'fileno', 'flush_count', 'flush_interval', 'flush_threshold', 'last_flush', 'market_data/events', 'payload', 'sequence_number', 'source', 'symbol', 'timestamp', 'utf-8', 'value']

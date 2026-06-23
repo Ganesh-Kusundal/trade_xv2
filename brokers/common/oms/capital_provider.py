@@ -19,6 +19,8 @@ import logging
 from abc import ABC, abstractmethod
 from decimal import Decimal
 
+from domain.constants.defaults import RISK_FALLBACK_CAPITAL
+
 logger = logging.getLogger(__name__)
 
 
@@ -44,7 +46,7 @@ class GatewayCapitalProvider(CapitalProvider):
     def __init__(
         self,
         gateway,  # MarketDataGateway - avoid circular import
-        fallback_balance: Decimal = Decimal("100000"),
+        fallback_balance: Decimal = RISK_FALLBACK_CAPITAL,
     ) -> None:
         """Initialize with gateway and fallback balance.
         

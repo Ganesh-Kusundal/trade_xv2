@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/domain/constants/risk.py
-# hypothesis_version: 6.147.0
-
-[5.0, 20.0, 100.0, '1_000_000', '50_000', 'PHANTOM_CAPITAL_INR', 'RISK_GROSS_PERCENT']

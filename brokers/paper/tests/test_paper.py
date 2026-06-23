@@ -66,8 +66,9 @@ class TestPaperGateway:
     def test_cancel_filled_order_returns_false(self):
         gw = PaperGateway()
         o = gw.place_order("RELIANCE", "NSE", "BUY", 10)
-        # Filled orders cannot be cancelled
-        assert gw.cancel_order(o.order_id) is False
+        # Filled orders cannot be cancelled; REF-002: cancel_order returns OrderResponse
+        resp = gw.cancel_order(o.order_id)
+        assert resp.success is False
 
     def test_get_orderbook(self):
         gw = PaperGateway()

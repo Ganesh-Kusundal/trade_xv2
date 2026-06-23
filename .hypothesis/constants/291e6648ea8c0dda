@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/runtime/parity_gate.py
-# hypothesis_version: 6.147.0
-
-[120, 180, '--mode', '-m', '0', '1', 'PYTEST_CURRENT_TEST', 'SKIP_PARITY_GATE', 'scripts', 'verify']

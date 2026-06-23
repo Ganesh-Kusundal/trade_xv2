@@ -49,6 +49,7 @@ from brokers.common.core.constants import (
 from brokers.common.core.domain import Order
 from brokers.common.oms.capital_provider import CapitalProvider, FixedCapitalProvider
 from brokers.common.oms.position_manager import PositionManager
+from domain.constants.defaults import RISK_FALLBACK_CAPITAL
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +107,7 @@ class RiskManager:
             self._capital_provider = LegacyCapitalAdapter(capital_fn)
         else:
             # Default to fixed capital
-            self._capital_provider = FixedCapitalProvider(Decimal("100000"))
+            self._capital_provider = FixedCapitalProvider(RISK_FALLBACK_CAPITAL)
         
         self._daily_pnl: Decimal = Decimal("0")
         # A2: lock that protects _config, _daily_pnl, and the derived

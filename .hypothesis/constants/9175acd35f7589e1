@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/domain/constants/resilience.py
-# hypothesis_version: 6.147.0
-
-[0.2, 2.0, 1000, 30000, 'BACKOFF_JITTER', 'BACKOFF_MULTIPLIER', 'MAX_RETRY_ATTEMPTS', 'MAX_RETRY_DELAY_MS', 'RETRY_BASE_DELAY_MS']

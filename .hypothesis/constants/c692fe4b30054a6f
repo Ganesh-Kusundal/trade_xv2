@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/brokers/upstox/market_data/trade_pnl.py
-# hypothesis_version: 6.147.0
-
-['0', '100', 'average_price', 'data', 'error', 'exchange', 'fallback', 'instrument_key', 'last_price', 'quantity', 'trading_symbol']

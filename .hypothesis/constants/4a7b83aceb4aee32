@@ -1,4 +1,4 @@
-# file: /Users/apple/Downloads/Trade_XV2/brokers/upstox/instruments/loader.py
-# hypothesis_version: 6.147.0
+# file: /workspaces/trade_xv2/brokers/upstox/instruments/loader.py
+# hypothesis_version: 6.155.7
 
 [0.0, 1000, 1024, 3600, '%Y-%m-%d', ',', '.gz', '.parsed.json.gz', '.pkl', '.quarantine', ':', 'Asia/Kolkata', 'company_name', 'error', 'exchange', 'exchange_segment', 'expiry', 'freeze_qty', 'from', 'instrument_key', 'instrument_type', 'isin', 'lot_size', 'minimum_lot', 'name', 'option_type', 'pickle_quarantined', 'pkl_path', 'reason', 'rt', 'segment', 'short_name', 'strike', 'symbol', 'tick_size', 'to', 'to_dict', 'trading_symbol', 'underlying_key', 'underlying_symbol', 'utf-8', 'wb', 'wt']

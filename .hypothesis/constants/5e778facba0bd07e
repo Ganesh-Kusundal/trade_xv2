@@ -1,4 +1,4 @@
-# file: /Users/apple/Downloads/Trade_XV2/cli/commands/doctor/strategies/oms_risk_manager.py
-# hypothesis_version: 6.147.0
+# file: /workspaces/trade_xv2/cli/commands/doctor/strategies/oms_risk_manager.py
+# hypothesis_version: 6.155.7
 
 ['ACTIVE', 'FAIL', 'OMS RiskManager', 'PASS', 'WARN', 'daily_pnl', 'inactive', 'kill_switch', 'reset_count']

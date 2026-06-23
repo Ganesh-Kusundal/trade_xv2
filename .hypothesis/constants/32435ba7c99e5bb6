@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/brokers/upstox/websocket/v3_decoder.py
-# hypothesis_version: 6.147.0
-
-[100, '>H', 'askP', 'askQ', 'atp', 'bidAskQuote', 'bidP', 'bidQ', 'close', 'cp', 'delta', 'first_depth', 'fullFeed', 'full_feed', 'gamma', 'high', 'indexFeed', 'index_feed', 'interval', 'iv', 'low', 'ltp', 'ltpc', 'ltq', 'ltt', 'marketFF', 'marketLevel', 'marketOHLC', 'oi', 'open', 'optionGreeks', 'raw_size', 'rho', 'tbq', 'theta', 'ts', 'tsq', 'vega', 'vol', 'vtt']

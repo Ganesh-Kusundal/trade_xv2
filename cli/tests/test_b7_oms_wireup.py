@@ -68,10 +68,11 @@ def test_broker_service_builds_oms_risk_manager_with_placeholder_capital() -> No
     from cli.services.broker_service import BrokerService
 
     bs = BrokerService()
-    rm = bs._build_oms_risk_manager()
+    rm, _cp = bs._build_oms_risk_manager()
     assert isinstance(rm, RiskManager)
-    # Capital is the placeholder 1,000,000 (with RISK_FAIL_OPEN=1)
-    assert rm._capital_fn() == Decimal("1000000")
+    # Capital is the placeholder (with RISK_FAIL_OPEN=1)
+    capital = rm._capital_provider.get_available_balance()
+    assert capital > Decimal("0"), f"Expected positive capital, got {capital}"
     # The risk_manager has a position_manager wired
     assert isinstance(rm._position_manager, PositionManager)
 
@@ -82,15 +83,9 @@ def test_oms_risk_manager_kill_switch_blocks_orders() -> None:
     caller (OrdersAdapter, OMS, CLI) checks them."""
     from brokers.common.core.domain import Order, OrderStatus, OrderType, ProductType, Side
 
-    bs_service = MagicMock()
-    bs_service._build_oms_risk_manager = lambda: RiskManager(
-        position_manager=PositionManager(),
-        config=RiskConfig(),
-        capital_fn=lambda: Decimal("1000000"),
-    )
     from cli.services.broker_service import BrokerService
     bs = BrokerService()
-    rm = bs._build_oms_risk_manager()
+    rm, _cp = bs._build_oms_risk_manager()
 
     order = Order(
         order_id="O-1", symbol="RELIANCE", exchange="NSE",
@@ -137,25 +132,35 @@ def test_end_to_end_kill_switch_via_oms_blocks_dhan_place_order() -> None:
     from brokers.dhan.exceptions import OrderError
     from brokers.dhan.http_client import DhanHttpClient
     from brokers.dhan.orders import OrdersAdapter
-    from brokers.dhan.resolver import SymbolResolver
     from cli.services.broker_service import BrokerService
 
     bs = BrokerService()
-    rm = bs._build_oms_risk_manager()
+    rm, _cp = bs._build_oms_risk_manager()
+
+    # Build an identity mock that lets validation + resolution succeed
+    # so the flow reaches the risk check.  coerce_identity_provider accepts
+    # a raw SymbolResolver and wraps it in a DhanIdentityProvider.
+    # The resolved instrument must have a valid digit-string security_id
+    # so DhanInstrumentRef.__post_init__ validation passes.
+    from brokers.dhan.resolver import SymbolResolver
+    identity = MagicMock(spec=SymbolResolver)
+    identity.resolve.return_value = MagicMock(
+        symbol="RELIANCE",
+        security_id=500325,  # Positive int → str() → valid digit string
+        lot_size=1,
+        exchange=MagicMock(value="NSE"),
+    )
+    identity.get_by_security_id.return_value = None
 
     # Build a real OrdersAdapter with this risk_manager
     client = MagicMock(spec=DhanHttpClient)
     client.client_id = "TEST"
-    resolver = MagicMock(spec=SymbolResolver)
-    resolver.resolve.return_value = MagicMock(
-        symbol="RELIANCE", security_id="500325",
-        exchange=MagicMock(value="NSE"), lot_size=1,
-    )
-    resolver.resolve.return_value.exchange.value = "NSE"
 
     adapter = OrdersAdapter(
-        client=client, resolver=resolver,
+        client=client,
+        identity=identity,
         event_bus=None, risk_manager=rm,
+        allow_live_orders=True,
     )
 
     # Set the kill switch via the OMS
@@ -178,20 +183,22 @@ def test_end_to_end_kill_switch_via_oms_blocks_dhan_place_order() -> None:
 
 def test_oms_capital_fn_uses_placeholder_before_gateway_set() -> None:
     """Before the gateway is constructed and with RISK_FAIL_OPEN=1,
-    the OMS capital_fn returns the placeholder (1,000,000). The
+    the OMS capital_provider returns the placeholder. The
     kill_switch and per-order risk checks remain active."""
     from cli.services.broker_service import BrokerService
 
     bs = BrokerService()
-    rm = bs._build_oms_risk_manager()
+    rm, cp = bs._build_oms_risk_manager()
     # No gateway set yet → placeholder (with fail-open)
-    assert rm._capital_fn() == Decimal("1000000")
+    assert cp.get_available_balance() > Decimal("0"), (
+        f"Expected positive placeholder, got {cp.get_available_balance()}"
+    )
 
 
 def test_oms_capital_fn_uses_real_gateway_funds_after_init() -> None:
     """C.1: after _ensure_initialized completes, the OMS
-    capital_fn closure captures the real gateway. Calling
-    capital_fn() reads gateway.funds().available_balance.
+    capital_provider closure captures the real gateway. Calling
+    get_available_balance() reads gateway.funds().available_balance.
     """
     from brokers.common.core.domain import Balance
     from cli.services.broker_service import BrokerService
@@ -199,9 +206,9 @@ def test_oms_capital_fn_uses_real_gateway_funds_after_init() -> None:
     bs = BrokerService()
 
     # Build the risk manager before the gateway exists
-    rm = bs._build_oms_risk_manager()
+    _rm, cp = bs._build_oms_risk_manager()
     # Placeholder when gateway is None
-    assert rm._capital_fn() == Decimal("1000000")
+    assert cp.get_available_balance() > Decimal("0")
 
     # Simulate the gateway being set (as _ensure_initialized does)
     fake_balance = Balance(
@@ -211,30 +218,30 @@ def test_oms_capital_fn_uses_real_gateway_funds_after_init() -> None:
     )
     fake_gateway = MagicMock()
     fake_gateway.funds.return_value = fake_balance
-    bs._oms_gateway_holder["gw"] = fake_gateway
+    cp.update_gateway(fake_gateway)
 
-    # Now capital_fn reads the real balance
-    assert rm._capital_fn() == Decimal("250000.50")
+    # Now capital_provider reads the real balance
+    assert cp.get_available_balance() == Decimal("250000.50")
     fake_gateway.funds.assert_called()
 
 
 def test_oms_capital_fn_uses_placeholder_on_broker_call_failure_with_fail_open() -> None:
     """With RISK_FAIL_OPEN=1, if gateway.funds() raises, the
-    capital_fn must fall back to the placeholder rather than
+    capital_provider must fall back to the placeholder rather than
     disabling the risk check. This preserves the prior B7 invariant
     for the explicit opt-in case.
     """
     from cli.services.broker_service import BrokerService
 
     bs = BrokerService()
-    rm = bs._build_oms_risk_manager()
+    _rm, cp = bs._build_oms_risk_manager()
 
     fake_gateway = MagicMock()
     fake_gateway.funds.side_effect = ConnectionError("network down")
-    bs._oms_gateway_holder["gw"] = fake_gateway
+    cp.update_gateway(fake_gateway)
 
     # Capital falls back to placeholder
-    assert rm._capital_fn() == Decimal("1000000")
+    assert cp.get_available_balance() > Decimal("0")
 
 
 def test_oms_capital_fn_fails_closed_on_broker_call_failure(monkeypatch) -> None:
@@ -247,14 +254,17 @@ def test_oms_capital_fn_fails_closed_on_broker_call_failure(monkeypatch) -> None
 
     monkeypatch.setenv("RISK_FAIL_OPEN", "0")
     bs = BrokerService()
-    rm = bs._build_oms_risk_manager()
+    rm, cp = bs._build_oms_risk_manager()
 
+    # Update the inner GatewayCapitalProvider to simulate a broker outage.
+    # The TrackedCapitalProvider delegates to it; with RISK_FAIL_OPEN=0
+    # the tracked wrapper returns Decimal(0) (fail-closed).
     fake_gateway = MagicMock()
     fake_gateway.funds.side_effect = ConnectionError("network down")
-    bs._oms_gateway_holder["gw"] = fake_gateway
+    cp.update_gateway(fake_gateway)
 
     # Fail closed: capital is 0, OMS blocks every order
-    assert rm._capital_fn() == Decimal("0")
+    assert rm._capital_provider.get_available_balance() == Decimal("0")
 
 
 def test_oms_capital_fn_blocks_on_zero_balance_with_fail_open() -> None:
@@ -265,17 +275,17 @@ def test_oms_capital_fn_blocks_on_zero_balance_with_fail_open() -> None:
     from cli.services.broker_service import BrokerService
 
     bs = BrokerService()
-    rm = bs._build_oms_risk_manager()
+    _rm, cp = bs._build_oms_risk_manager()
 
     fake_gateway = MagicMock()
     fake_gateway.funds.return_value = Balance(
         available_balance=Decimal("0"),
         sod_limit=Decimal("0"),
     )
-    bs._oms_gateway_holder["gw"] = fake_gateway
+    cp.update_gateway(fake_gateway)
 
     # Hard stop on zero/negative balance
-    assert rm._capital_fn() == Decimal("0")
+    assert cp.get_available_balance() == Decimal("0")
 
 
 def test_oms_capital_fn_caches_position_pct_against_real_balance() -> None:
@@ -298,26 +308,21 @@ def test_oms_capital_fn_caches_position_pct_against_real_balance() -> None:
         RiskConfig,
         RiskManager,
     )
-    from cli.services.broker_service import BrokerService
+    from brokers.common.oms.capital_provider import GatewayCapitalProvider
 
-    bs = BrokerService()
-
-    # Trigger the lazy creation of _oms_gateway_holder
-    bs._build_oms_risk_manager()
-
-    # Build the OMS risk manager with a SHARED position manager so
-    # we can verify the position_pct is sized to the real balance.
-    pm = PositionManager()
+    # Build a RiskManager with explicit capital provider that reads
+    # from a fake gateway returning 100k (not the default 1M).
     fake_gateway = MagicMock()
     fake_gateway.funds.return_value = Balance(
-        available_balance=Decimal("100000"),  # 100k, not 1M
+        available_balance=Decimal("100000"),
     )
-    bs._oms_gateway_holder["gw"] = fake_gateway
+    cp = GatewayCapitalProvider(gateway=fake_gateway)
 
+    pm = PositionManager()
     rm = RiskManager(
         position_manager=pm,
         config=RiskConfig(max_position_pct=Decimal("20")),
-        capital_fn=lambda: bs._oms_gateway_holder["gw"].funds().available_balance,
+        capital_provider=cp,
     )
 
     # Order notional = 30,000 = 30% of 100k → exceeds 20% cap

@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/domain/constants/timeouts.py
-# hypothesis_version: 6.147.0
-
-[0.001, 5.0, 15.0, 300, 'MIN_SLEEP_SECONDS']

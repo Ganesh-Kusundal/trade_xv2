@@ -5,6 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 
 from brokers.common.core.domain import Balance, Holding, Position
+from domain.constants.defaults import PAPER_INITIAL_CAPITAL
 
 from .paper_orders import PaperOrders
 
@@ -15,7 +16,7 @@ class PaperPortfolio:
     def __init__(
         self,
         orders: PaperOrders,
-        initial_capital: Decimal = Decimal("1000000"),
+        initial_capital: Decimal = PAPER_INITIAL_CAPITAL,
     ) -> None:
         self._orders = orders
         self._holdings: list[Holding] = []

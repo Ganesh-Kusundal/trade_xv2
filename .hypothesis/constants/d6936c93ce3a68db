@@ -1,4 +1,4 @@
-# file: /Users/apple/Downloads/Trade_XV2/datalake/sync_options.py
-# hypothesis_version: 6.147.0
+# file: /workspaces/trade_xv2/datalake/sync_options.py
+# hypothesis_version: 6.155.7
 
 ['=', '__main__', 'bar_time_ms', 'data.parquet', 'expiry_code', 'expiry_date', 'expiry_kind', 'files_created', 'files_merged', 'groups', 'last', 'new_rows', 'snappy', 'symbol', 'timestamp', 'total_rows', 'total_rows_after', 'underlying']

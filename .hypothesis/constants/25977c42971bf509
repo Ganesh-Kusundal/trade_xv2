@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/datalake/api/routers/health.py
-# hypothesis_version: 6.147.0
-
-['/metrics', '/readyz', '1.0.0', 'Liveness probe', 'Readiness probe', 'checks', 'data_catalog', 'datalake_gateway', 'dead_letter_queue', 'error', 'event_bus', 'event_metrics', 'healthy', 'message', 'processed_trades', 'ready', 'view_manager']

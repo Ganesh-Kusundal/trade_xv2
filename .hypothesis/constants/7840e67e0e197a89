@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/domain/exchange_segments.py
-# hypothesis_version: 6.147.0
-
-['BCD', 'BFO', 'BSE', 'BSE_CURRENCY', 'BSE_EQ', 'BSE_FNO', 'CDS', 'IDX', 'IDX_I', 'INDEX', 'MCX', 'MCXCOMM', 'MCX_COMM', 'NFO', 'NSE', 'NSE_CURRENCY', 'NSE_EQ', 'NSE_FNO', 'is_commodity_segment', 'is_currency_segment', 'is_equity_segment', 'parse_segment', 'wire_value']

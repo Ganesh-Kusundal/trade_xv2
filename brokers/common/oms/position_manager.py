@@ -19,6 +19,31 @@ from brokers.common.event_bus import DomainEvent, EventBus, EventType
 logger = logging.getLogger(__name__)
 
 
+class _ReentrancyGuard:
+    """Context manager for handler-depth re-entrancy protection.
+
+    Shared with :class:`~brokers.common.oms.order_manager.OrderManager`.
+    See the docstring in that module for usage.
+    """
+
+    __slots__ = ("_lock", "_owner", "reentered")
+
+    def __init__(self, lock, owner) -> None:
+        self._lock = lock
+        self._owner = owner
+        self.reentered = False
+
+    def __enter__(self):
+        with self._lock:
+            self.reentered = self._owner._handler_depth > 0
+            self._owner._handler_depth += 1
+        return self
+
+    def __exit__(self, *args) -> None:
+        with self._lock:
+            self._owner._handler_depth -= 1
+
+
 class PositionManager:
     """Thread-safe position book updated via trades and LTP ticks.
 
@@ -217,50 +242,39 @@ class PositionManager:
         with self._lock:
             self._positions.clear()
 
-    # ── Event handler ───────────────────────────────────────────────────────
+    # ── Event handlers ───────────────────────────────────────────────────────
 
     def on_trade(self, event: DomainEvent) -> None:
         """Handle broker trade events from the event bus.
 
-        Re-entrancy: a position update that the manager itself publishes
-        (via :meth:`apply_trade` or :meth:`upsert_position`) must not
-        re-enter this handler.
-
-        Thread-safe: the depth guard is inside ``_lock`` (see
-        :class:`OrderManager.on_order_update`).
+        Uses ``_reentrancy_guard()`` to prevent recursive handler
+        invocation when the manager publishes events internally.
         """
-        with self._lock:
-            if self._handler_depth > 0:
+        with self._reentrancy_guard() as guard:
+            if guard.reentered:
                 return
-            self._handler_depth += 1
-        try:
             trade = event.payload.get("trade")
             if isinstance(trade, Trade):
                 self.apply_trade(trade)
-        finally:
-            with self._lock:
-                self._handler_depth -= 1
 
     def on_trade_applied(self, event: DomainEvent) -> None:
         """Apply a trade that has been verified by the OMS.
 
-        Use this handler in production wiring; subscribing to raw
-        ``TRADE`` events would bypass OMS idempotency and risk
-        double-counting positions.
-
-        Thread-safe: the depth guard is inside ``_lock``.
+        Uses ``_reentrancy_guard()`` to prevent recursive handler
+        invocation.
         """
-        with self._lock:
-            if self._handler_depth > 0:
+        with self._reentrancy_guard() as guard:
+            if guard.reentered:
                 return
-            self._handler_depth += 1
-        try:
             trade = event.payload.get("trade")
             if isinstance(trade, Trade):
                 self.apply_trade(trade)
-        finally:
-            with self._lock:
-                self._handler_depth -= 1
+
+    # ── Re-entrancy guard ───────────────────────────────────────────────────
+
+    def _reentrancy_guard(self):
+        """Return a context manager for handler re-entrancy protection."""
+        return _ReentrancyGuard(self._lock, self)
 
     # ── Helpers ─────────────────────────────────────────────────────────────
 

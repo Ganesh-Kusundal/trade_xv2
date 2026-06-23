@@ -1,4 +1,4 @@
-# file: /Users/apple/Downloads/Trade_XV2/brokers/upstox/status_mapper.py
-# hypothesis_version: 6.147.0
+# file: /workspaces/trade_xv2/brokers/upstox/status_mapper.py
+# hypothesis_version: 6.155.7
 
 ['CANCEL_PENDING', 'MODIFIED', 'MODIFIED_PENDING', 'OPEN_ORDER', 'REJECTED_BY_BROKER', 'REJECTED_BY_EXCHANGE', 'TRIGGER_ORDER', 'upstox']

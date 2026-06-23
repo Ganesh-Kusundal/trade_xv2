@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/analytics/replay/models.py
-# hypothesis_version: 6.147.0
-
-[0.0, 0.5, 100.0, 100000.0, 100, 252, 'bar_by_bar', 'bars_processed', 'close', 'custom', 'final_equity', 'high', 'low', 'max_drawdown_pct', 'on_close', 'open', 'sharpe_ratio', 'signals_generated', 'symbol', 'timestamp', 'total_return_pct', 'total_trades', 'volume', 'win_rate']

@@ -16,11 +16,3 @@ upstox.live.clientSecret=
 upstox.live.redirectUri=http://127.0.0.1:18080/callback
 upstox.live.accessToken=
 upstox.live.analyticsToken=
-
-# TOTP Authentication (optional — for automated daily token refresh)
-# To enable TOTP mode, set: upstox.authMode=TOTP
-upstox.mobile=
-upstox.pin=
-upstox.totpSecret=
-upstox.totpRefreshHour=8
-upstox.totpRefreshMinute=0

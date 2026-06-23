@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/datalake/api/routers/scanner.py
-# hypothesis_version: 6.147.0
-
-[0.0, 30.0, 100, 500, '/results', '/run', '/snapshots', '/top-candidates', '1m', '60', 'Max candidates', 'Max results', 'Max symbols', 'NEUTRAL', 'NIFTY500', 'Neutral', 'Retry-After', 'Scanner to run', 'Universe to scan', 'breakout', 'candidate_count', 'completed', 'count', 'date', 'isoformat', 'load_stats', 'momentum', 'scan_id', 'scan_ids', 'scanned_at', 'scanner', 'scans', 'status', 'timestamp', 'universe', 'universe_size', 'universe_stats', 'v_top10_candidates', 'v_top3_candidates', 'volume']

@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/brokers/upstox/adapters/order_adapter.py
-# hypothesis_version: 6.147.0
-
-['0', 'BUY', 'Cancel failed', 'DAY', 'INTRADAY', 'MARKET', 'NSE', 'Order cancelled', 'correlation_id', 'error', 'errorCode', 'errors', 'message', 'ok', 'order_id', 'order_placed', 'raw', 'side', 'status', 'success', 'symbol']

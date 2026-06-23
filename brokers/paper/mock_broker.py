@@ -7,6 +7,7 @@ from decimal import Decimal
 
 from brokers.common.core.domain import Balance, Holding, OrderResponse, Position
 from brokers.common.oms.context import TradingContext
+from domain.constants.defaults import PAPER_INITIAL_CAPITAL
 
 from .paper_gateway import PaperGateway
 
@@ -20,7 +21,7 @@ class MockBroker:
 
     def __init__(
         self,
-        initial_capital: Decimal = Decimal("1000000"),
+        initial_capital: Decimal = PAPER_INITIAL_CAPITAL,
         name: str = "paper",
         trading_context: TradingContext | None = None,
     ) -> None:
@@ -114,7 +115,7 @@ PaperBroker = MockBroker
 
 def create_seeded_mock_broker(
     name: str = "dhan",
-    initial_capital: Decimal = Decimal("1000000"),
+    initial_capital: Decimal = PAPER_INITIAL_CAPITAL,
 ) -> MockBroker:
     """Create a MockBroker pre-populated with realistic seed data.
 

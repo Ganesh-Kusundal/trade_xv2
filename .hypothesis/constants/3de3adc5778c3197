@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/datalake/api/routers/portfolio.py
-# hypothesis_version: 6.147.0
-
-[0.0, 100, 10000, '%Y-%m', '%Y-%m-%d', '%Y-W%U', '+00:00', '/holdings', '/pnl', '/positions', '/square-off', '/summary', '0', '60', 'CLOSED', 'Retry-After', 'Unknown error', 'Z', 'all', 'capital_fn', 'completed', 'count', 'date', 'day', 'details', 'error', 'exit_time', 'failed', 'group_by', 'journal', 'ltp', 'message', 'month', 'no_positions', 'open', 'order_id', 'pnl', 'pnl_curve', 'positions', 'quantity', 'side', 'source', 'squared_off', 'status', 'submit_order', 'symbol', 'total_pnl', 'total_trades', 'trades', 'updated_at', 'week']

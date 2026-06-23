@@ -197,9 +197,26 @@ class ReplayEngine:
         session.peak_equity = config.initial_capital
         session.equity_curve.append((df[ts_col].iloc[0], config.initial_capital))
 
-        # P5.2: Use bounded deque instead of unbounded list for O(window_size) memory
-        max_window = config.window_size if config.window_size > 0 else None
-        window: deque[dict] = deque(maxlen=max_window)
+        # REF-022: Pre-allocated ring buffer eliminates per-bar deque→DataFrame copy.
+        # Falls back to bounded deque for unlimited window_size (window_size=0).
+        window_size = config.window_size if config.window_size > 0 else 0
+        if window_size > 0:
+            _window_data: list[dict | None] = [None] * window_size
+            _write_idx = 0
+            _filled = 0
+
+            def _build_window_df() -> pd.DataFrame:
+                if _filled < window_size:
+                    return pd.DataFrame(_window_data[:_filled])
+                ordered = _window_data[_write_idx:] + _window_data[:_write_idx]
+                return pd.DataFrame(ordered)
+        else:
+            # Unlimited window — fall back to deque (no pre-allocation possible)
+            _window_data = deque()
+
+            def _build_window_df() -> pd.DataFrame:
+                return pd.DataFrame(_window_data)
+
         warmup_done = False
 
         for idx in range(len(df)):
@@ -216,7 +233,15 @@ class ReplayEngine:
                 volume=float(row.get("volume", 0)),
             )
 
-            window.append(bar.to_dict())
+            # REF-022: Write bar into ring buffer or deque
+            bar_dict = bar.to_dict()
+            if window_size > 0:
+                _window_data[_write_idx] = bar_dict
+                _write_idx = (_write_idx + 1) % window_size
+                _filled = min(_filled + 1, window_size)
+            else:
+                _window_data.append(bar_dict)
+
             session.bar_count += 1
 
             # Warmup phase
@@ -225,8 +250,8 @@ class ReplayEngine:
                     continue
                 warmup_done = True
 
-            # P5.2: Build window DataFrame from bounded deque (no slicing needed)
-            window_df = pd.DataFrame(window)
+            # REF-022: Build window DataFrame from ring buffer (or deque)
+            window_df = _build_window_df()
 
             # Run FeaturePipeline
             try:
@@ -273,10 +298,9 @@ class ReplayEngine:
             if equity > session.peak_equity:
                 session.peak_equity = equity
 
-        # Close any open position at end
-        if session.position is not None and window:
-            last_bar = Bar(**window[-1])
-            self._close_position(session, last_bar, "End of replay")
+        # Close any open position at end (bar holds the last loop iteration's bar)
+        if session.position is not None:
+            self._close_position(session, bar, "End of replay")
 
         return ReplayResult(
             session=session,
@@ -320,10 +344,9 @@ class ReplayEngine:
         )
 
     def _build_window(self, window_data, window_size: int) -> pd.DataFrame:
-        """Build a DataFrame from the window data.
+        """Build a DataFrame from the window data (deprecated by REF-022 ring buffer).
 
-        P5.2: Now accepts deque or list, no longer needs slicing since
-        deque handles bounded size automatically.
+        Retained for backward compatibility with external callers.
         """
         # If it's a deque with maxlen, it's already bounded
         # If it's a list and window_size > 0, slice it

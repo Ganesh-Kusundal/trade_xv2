@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/brokers/paper/paper_gateway.py
-# hypothesis_version: 6.147.0
-
-[-0.02, 0.005, 0.01, 0.02, 0.03, 500.0, 100, 365, 4500, 10000, 50000, 500000, 1000000, '%Y-%m-%d', '1.0.0', '10000', '1000000', '15m', '1D', '1h', '1m', '2026-07-30', '30m', '5m', 'CNC', 'DAY', 'INTRADAY', 'IOC', 'LIMIT', 'LTP', 'MARGIN', 'MARKET', 'NFO', 'NSE', 'Order filled (paper)', 'STOP_LOSS', 'STOP_LOSS_MARKET', 'call', 'change', 'close', 'connected', 'contracts', 'exchange', 'expiries', 'expiry', 'high', 'low', 'ltp', 'name', 'oi', 'open', 'paper', 'put', 'simulated', 'strike', 'strikes', 'symbol', 'timeframe', 'timestamp', 'type', 'underlying', 'version', 'volume']

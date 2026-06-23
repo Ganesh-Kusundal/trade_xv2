@@ -1,4 +1,4 @@
-# file: /Users/apple/Downloads/Trade_XV2/cli/commands/analytics.py
-# hypothesis_version: 6.147.0
+# file: /workspaces/trade_xv2/cli/commands/analytics.py
+# hypothesis_version: 6.155.7
 
 ['backtest', 'breadth', 'breakout', 'command', 'compare', 'datalake-backtest', 'future', 'halftrend', 'halftrend-scan', 'momentum', 'optimize', 'option', 'options', 'orderflow', 'paper', 'probability', 'rank', 'replay', 'rs', 'scan', 'scan-breakout', 'scan-momentum', 'scan-rs', 'scan-volume', 'sector', 'sector-full', 'sector-rotation', 'sector-strength', 'sector-volume', 'stock', 'strategies', 'volatility', 'volume', 'volume-profile', 'walkforward']

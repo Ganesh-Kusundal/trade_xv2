@@ -16,12 +16,10 @@ U = TypeVar("U")
 
 @dataclass
 class ResultMetadata:
-    """Metadata attached to every GatewayResult (source, latency, cache)."""
+    """Metadata attached to every GatewayResult (source, latency)."""
 
     source: str = ""
     latency_ms: float = 0.0
-    cached: bool = False
-    cache_hit: bool = False
 
 
 class GatewayResult(Generic[T]):
@@ -86,7 +84,7 @@ class GatewayResult(Generic[T]):
                 return GatewayResult.success(fn(self._value), self._metadata)
             except Exception as e:
                 return GatewayResult.failure(e, self._metadata)
-        return GatewayResult.failure(self._error, self._metadata)  # type: ignore
+        return GatewayResult.failure(self._error, self._metadata)
 
     def flat_map(self, fn: Callable[[T], GatewayResult[U]]) -> GatewayResult[U]:
         """Apply ``fn`` (which returns a GatewayResult) to the value."""
@@ -95,7 +93,7 @@ class GatewayResult(Generic[T]):
                 return fn(self._value)
             except Exception as e:
                 return GatewayResult.failure(e, self._metadata)
-        return GatewayResult.failure(self._error, self._metadata)  # type: ignore
+        return GatewayResult.failure(self._error, self._metadata)
 
     def recover(self, fn: Callable[[Any], T]) -> GatewayResult[T]:
         """On failure, use ``fn`` to produce a fallback value."""

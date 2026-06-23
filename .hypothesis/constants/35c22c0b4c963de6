@@ -1,4 +1,4 @@
-# file: /Users/apple/Downloads/Trade_XV2/brokers/dhan/segments.py
-# hypothesis_version: 6.147.0
+# file: /workspaces/trade_xv2/brokers/dhan/segments.py
+# hypothesis_version: 6.155.7
 
 ['BCD', 'BFO', 'BSE', 'BSE_CURR', 'BSE_CURRENCY', 'BSE_EQ', 'BSE_FNO', 'C', 'CDS', 'D', 'E', 'I', 'IDX', 'IDX_I', 'INDEX', 'M', 'MCX', 'MCX_COMM', 'NFO', 'NSE', 'NSE_COMM', 'NSE_CURR', 'NSE_CURRENCY', 'NSE_EQ', 'NSE_FNO']

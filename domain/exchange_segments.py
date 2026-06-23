@@ -24,7 +24,6 @@ from __future__ import annotations
 
 from domain.types import ExchangeSegment
 
-
 # ── Aliases ────────────────────────────────────────────────────────────────
 #
 # Many adapters receive the human-friendly exchange identifier

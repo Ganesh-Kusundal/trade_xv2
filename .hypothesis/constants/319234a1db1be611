@@ -1,4 +1,4 @@
-# file: /Users/apple/Downloads/Trade_XV2/cli/commands/analytics_datalake.py
-# hypothesis_version: 6.147.0
+# file: /workspaces/trade_xv2/cli/commands/analytics_datalake.py
+# hypothesis_version: 6.155.7
 
 [-120, 100, 120, 365, 100000, '#', '-', '--', '--scan', '--strategy', '--symbol', '--top', '--years', '1m', 'Avg Loss', 'Avg Win', 'CAGR', 'Calmar Ratio', 'Max DD', 'Max Drawdown', 'Metric', 'Profit Factor', 'Return', 'Sharpe', 'Sharpe Ratio', 'Sortino Ratio', 'Symbol', 'Total Return', 'Total Trades', 'Trades', 'Value', 'Win Rate', '[red]Error[/red]', 'bold cyan', 'bold white', 'breakout', 'close', 'cyan', 'dim', 'green', 'magenta', 'momentum', 'red', 'yellow']

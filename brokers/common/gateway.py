@@ -128,8 +128,23 @@ from brokers.common.gateway_interfaces import (  # noqa: F401
 # ---------------------------------------------------------------------------
 
 
-class MarketDataGateway(ABC):
-    """Contract for broker-agnostic market data access.
+class MarketDataGateway(
+    MarketDataProvider,
+    DerivativesProvider,
+    BatchMarketDataProvider,
+    TradingExecutor,
+    PortfolioReader,
+    InstrumentProvider,
+    StreamProvider,
+    LifecycleAware,
+    ABC,
+):
+    """Contract for broker-agnostic market data access — REF-028 ISP composition.
+
+    This monolithic gateway is **composed** from eight narrow ISP interfaces
+    (MarketDataProvider, DerivativesProvider, ...). Consumers that only need a
+    subset of the contract can depend on the corresponding narrow interface
+    instead of the full gateway.
 
     All broker adapters (Dhan, Upstox, Paper) must implement every method.
     No broker-specific fields are allowed in return types.

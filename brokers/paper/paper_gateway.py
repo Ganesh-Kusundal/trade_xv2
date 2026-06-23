@@ -24,6 +24,7 @@ from brokers.common.core.domain import (
 from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
 from brokers.common.oms.context import TradingContext
 from brokers.common.oms.risk_manager import RiskConfig
+from domain.constants.defaults import PAPER_INITIAL_CAPITAL, PAPER_MAX_POSITION_PCT
 
 from .paper_market_data import PaperMarketData
 from .paper_orders import PaperOrders
@@ -47,7 +48,7 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway):
 
     def __init__(
         self,
-        initial_capital: Decimal = Decimal("1000000"),
+        initial_capital: Decimal = PAPER_INITIAL_CAPITAL,
         trading_context: TradingContext | None = None,
     ) -> None:
         if trading_context is None:
@@ -56,9 +57,9 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway):
             trading_context = TradingContext(
                 capital_fn=lambda: initial_capital,
                 risk_config=RiskConfig(
-                    max_position_pct=Decimal("10000"),
-                    max_gross_exposure_pct=Decimal("10000"),
-                    max_daily_loss_pct=Decimal("10000"),
+                    max_position_pct=PAPER_MAX_POSITION_PCT,
+                    max_gross_exposure_pct=PAPER_MAX_POSITION_PCT,
+                    max_daily_loss_pct=PAPER_MAX_POSITION_PCT,
                 ),
             )
         self._trading_context = trading_context
@@ -311,6 +312,7 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway):
 
     def describe(self) -> dict:
         return {
+            "broker": "paper",
             "name": "paper",
             "version": "1.0.0",
             "connected": True,

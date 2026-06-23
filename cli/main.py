@@ -10,17 +10,14 @@ from __future__ import annotations
 import json as _json
 import logging
 import sys
-from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
 from rich.console import Console
-from rich.table import Table
 
 # Initialize centralized logging BEFORE any other imports that log
 from brokers.common.logging_config import setup_logging
 from brokers.common.env_loader import load_env_file
-from brokers.common.core.domain import DepthLevel, MarketDepth
 setup_logging()
 
 logger = logging.getLogger(__name__)
@@ -44,7 +41,6 @@ from cli.commands import (
     instruments as cmd_instruments,
     journal as cmd_journal,
     load_test as cmd_load_test,
-    market as cmd_market,
     news as cmd_news,
     oms as cmd_oms,
     options_sync as cmd_options_sync,
@@ -54,11 +50,20 @@ from cli.commands import (
     quality_report as cmd_quality_report,
     risk_controls as cmd_risk_controls,
     search as cmd_search,
-    validate as cmd_validate,
     validate_history as cmd_validate_history,
     validate_option_chain as cmd_validate_option_chain,
     views as cmd_views,
     websocket as cmd_websocket,
+)
+from cli.commands.market_handlers import (
+    handle_quote,
+    handle_depth,
+    handle_history,
+    handle_option_chain,
+    handle_futures,
+    handle_stream,
+    handle_orders,
+    handle_validate,
 )
 from cli.commands.registry import (
     DISPATCH_TABLE,
@@ -177,183 +182,6 @@ def _print_help(console: Console) -> None:
     console.print("  tradex quote RELIANCE --verbose --timing")
 
 
-# ── Inline / wrapped command handlers ──────────────────────────────────────
-# Commands whose logic lives inline (quote, depth, historical, option-chain,
-# futures, stream) or that need signature adaptation are wrapped here rather
-# than in separate modules.  Every handler returns CommandResult | None for
-# unified exit-code handling.
-
-
-def _handle_quote(args: list[str], broker_service: BrokerService, console: Console) -> CommandResult | None:
-    if not args:
-        console.print("[yellow]Usage: tradex quote <symbol>[/yellow]")
-        return CommandResult(success=False, error="Missing symbol")
-    symbol = args[0]
-    gw = broker_service.active_broker
-    if gw is None:
-        return CommandResult(success=False, error=f"No broker gateway available. Check credentials.")
-    quote = gw.quote(symbol)
-    if quote is None:
-        return CommandResult(success=False, error=f"No quote data for {symbol}")
-    table = Table(title=f"Quote: {symbol.upper()}", header_style="bold green")
-    table.add_column("Metric", style="bold white")
-    table.add_column("Value", justify="right")
-    table.add_row("LTP", f"\u20b9{quote.ltp:,.2f}")
-    table.add_row("Open", f"\u20b9{quote.open:,.2f}")
-    table.add_row("High", f"\u20b9{quote.high:,.2f}")
-    table.add_row("Low", f"\u20b9{quote.low:,.2f}")
-    table.add_row("Close", f"\u20b9{quote.close:,.2f}")
-    table.add_row("Volume", f"{quote.volume:,}")
-    table.add_row("Change", f"\u20b9{quote.change:,.2f}")
-    console.print(table)
-    return CommandResult(success=True, data={
-        "symbol": symbol, "ltp": str(quote.ltp), "open": str(quote.open),
-        "high": str(quote.high), "low": str(quote.low), "close": str(quote.close),
-        "volume": quote.volume, "change": str(quote.change),
-    })
-
-
-def _handle_depth(args: list[str], broker_service: BrokerService, console: Console) -> CommandResult | None:
-    if not args:
-        console.print("[yellow]Usage: tradex depth <symbol>[/yellow]")
-        return CommandResult(success=False, error="Missing symbol")
-    symbol = args[0]
-    gw = broker_service.active_broker
-    if gw is None:
-        return CommandResult(success=False, error="No broker gateway available. Check credentials.")
-    depth_obj: Any = gw.depth(symbol)
-    if depth_obj is None:
-        return CommandResult(success=False, error=f"No depth data for {symbol}")
-    depth: MarketDepth = depth_obj
-    bids: list[DepthLevel] = list(depth.bids) if depth.bids else []
-    asks: list[DepthLevel] = list(depth.asks) if depth.asks else []
-    if not bids and not asks:
-        return CommandResult(success=False, error=f"No depth data for {symbol}")
-    table = Table(title=f"Market Depth: {symbol.upper()}", header_style="bold magenta")
-    table.add_column("Bid Qty", style="green", justify="right")
-    table.add_column("Bid Price", style="bold green", justify="right")
-    table.add_column("Ask Price", style="bold red", justify="right")
-    table.add_column("Ask Qty", style="red", justify="right")
-    levels = max(len(bids), len(asks))
-    for i in range(levels):
-        bid: DepthLevel | None = bids[i] if i < len(bids) else None
-        ask: DepthLevel | None = asks[i] if i < len(asks) else None
-        table.add_row(
-            f"{bid.quantity:,}" if bid else "-",
-            f"\u20b9{bid.price:,.2f}" if bid else "-",
-            f"\u20b9{ask.price:,.2f}" if ask else "-",
-            f"{ask.quantity:,}" if ask else "-",
-        )
-    console.print(table)
-    return CommandResult(success=True)
-
-
-def _handle_history(args: list[str], broker_service: BrokerService, console: Console) -> CommandResult | None:
-    if not args:
-        console.print("[yellow]Usage: tradex history <symbol>[/yellow]")
-        return CommandResult(success=False, error="Missing symbol")
-    symbol = args[0]
-    gw = broker_service.active_broker
-    if gw is None:
-        return CommandResult(success=False, error="No broker gateway available. Check credentials.")
-    if not hasattr(gw, "history"):
-        return CommandResult(
-            success=False,
-            error=f"Broker '{broker_service.active_broker_name}' does not support historical data",
-        )
-    # Prefer the broker-specific `.historical` adapter (e.g. Dhan) for
-    # retries/caching; fall back to the MarketDataGateway.history() ABC
-    # method when no adapter is exposed.
-    history_fn: Any = getattr(getattr(gw, "historical", None), "history", gw.history)
-    to_date = date.today()
-    from_date = to_date - timedelta(days=10)
-    df = history_fn(
-        symbol, "NSE",
-        from_date=from_date.strftime("%Y-%m-%d"),
-        to_date=to_date.strftime("%Y-%m-%d"),
-        timeframe="1D",
-    )
-    if df is None or df.empty:
-        return CommandResult(success=False, error=f"No history data for {symbol}")
-    table = Table(title=f"History: {symbol.upper()} (last 5 days)", header_style="bold magenta")
-    table.add_column("Date", style="bold white")
-    table.add_column("Open", justify="right")
-    table.add_column("High", justify="right")
-    table.add_column("Low", justify="right")
-    table.add_column("Close", justify="right")
-    table.add_column("Volume", justify="right")
-    
-    for ts, open_val, high_val, low_val, close_val, volume in zip(
-        df["timestamp"].tail(5),
-        df["open"].tail(5),
-        df["high"].tail(5),
-        df["low"].tail(5),
-        df["close"].tail(5),
-        df["volume"].tail(5),
-    ):
-        date_str = ts.strftime("%Y-%m-%d") if hasattr(ts, "strftime") else str(ts)
-        table.add_row(
-            date_str,
-            f"\u20b9{open_val:,.2f}",
-            f"\u20b9{high_val:,.2f}",
-            f"\u20b9{low_val:,.2f}",
-            f"\u20b9{close_val:,.2f}",
-            f"{int(volume):,}",
-        )
-    console.print(table)
-    console.print(f"[dim]{len(df)} candles total[/dim]")
-    return CommandResult(success=True, data={"symbol": symbol, "candles": len(df)})
-
-
-def _handle_option_chain(args: list[str], broker_service: BrokerService, console: Console) -> CommandResult | None:
-    if not args:
-        console.print("[yellow]Usage: tradex option-chain <symbol> [--expiry <date>][/yellow]")
-        return CommandResult(success=False, error="Missing symbol")
-    symbol = args[0]
-    expiry = None
-    if "--expiry" in args:
-        idx = args.index("--expiry")
-        if idx + 1 < len(args):
-            expiry = args[idx + 1]
-    cmd_market.show_option_chain(broker_service, symbol, console, expiry)
-    return CommandResult(success=True)
-
-
-def _handle_futures(args: list[str], broker_service: BrokerService, console: Console) -> CommandResult | None:
-    if not args:
-        console.print("[yellow]Usage: tradex futures <symbol>[/yellow]")
-        return CommandResult(success=False, error="Missing symbol")
-    symbol = args[0]
-    cmd_market.show_futures(broker_service, symbol, console)
-    return CommandResult(success=True)
-
-
-def _handle_stream(args: list[str], broker_service: BrokerService, console: Console) -> CommandResult | None:
-    if not args:
-        console.print("[yellow]Usage: tradex stream <symbol>[/yellow]")
-        return CommandResult(success=False, error="Missing symbol")
-    symbol = args[0]
-    cmd_market.show_stream(broker_service, symbol, console)
-    return CommandResult(success=True)
-
-
-def _handle_orders(args: list[str], broker_service: BrokerService, console: Console) -> CommandResult | None:
-    status_filter = args[0] if args else None
-    cmd_oms.show_orders(broker_service, console, status_filter)
-    return CommandResult(success=True)
-
-
-def _handle_validate(args: list[str], broker_service: BrokerService, console: Console) -> CommandResult | None:
-    if args and args[0] == "history":
-        cmd_validate_history.run(args[1:], broker_service, console)
-    elif args and args[0] == "option-chain":
-        cmd_validate_option_chain.run(args[1:], broker_service, console)
-    else:
-        cmd_validate.run(args, broker_service, console)
-    return CommandResult(success=True)# ── Dispatch table (P0-10: replaces hand-rolled if/elif) ───────────────────
-# Standard signature: (args, broker_service, console) → CommandResult | None
-
-
 def _wrap(_fn: Any, *args: Any, **kwargs: Any) -> CommandResult:
     """Invoke *fn* and return a successful CommandResult.
 
@@ -410,16 +238,16 @@ _DISPATCH: list[tuple[str, Any]] = [
     ("views",             lambda a, bs, c: _wrap(cmd_views.run_views, a, c)),
     ("options-sync",      lambda a, bs, c: _wrap(cmd_options_sync.run_options_sync, a, c)),
     ("events",            lambda a, bs, c: _wrap(cmd_events.run, a, EventBusService(), c)),
-    # Inline handlers (gateway access routed through BrokerService)
-    ("quote",             _handle_quote),
-    ("depth",             _handle_depth),
-    ("historical",        _handle_history),
-    ("history",           _handle_history),
-    ("option-chain",      _handle_option_chain),
-    ("futures",           _handle_futures),
-    ("stream",            _handle_stream),
-    ("orders",            _handle_orders),
-    ("validate",          _handle_validate),
+    # Market data handlers — extracted from inline to cli/commands/market_handlers.py (REF-013)
+    ("quote",             handle_quote),
+    ("depth",             handle_depth),
+    ("historical",        handle_history),
+    ("history",           handle_history),
+    ("option-chain",      handle_option_chain),
+    ("futures",           handle_futures),
+    ("stream",            handle_stream),
+    ("orders",            handle_orders),
+    ("validate",          handle_validate),
 ]
 
 # Populate the registry dispatch table

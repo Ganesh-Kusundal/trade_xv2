@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/brokers/upstox/adapters/symbol_resolver.py
-# hypothesis_version: 6.147.0
-
-['BSE', 'BSE_EQ', 'NSE', 'NSE_EQ']

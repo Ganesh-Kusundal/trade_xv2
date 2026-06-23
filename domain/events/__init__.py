@@ -8,8 +8,8 @@ from domain.events.types import (
 )
 
 __all__ = [
-    "EventType",
     "EventPayload",
+    "EventType",
     "canonical_event_types",
     "make_payload",
 ]

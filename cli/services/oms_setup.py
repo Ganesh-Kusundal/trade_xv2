@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any
 from brokers.common.oms import PositionManager, RiskConfig, RiskManager
 from brokers.common.oms.capital_provider import GatewayCapitalProvider
 from cli.services.capital_provider import TrackedCapitalProvider
+from domain.constants.defaults import RISK_FALLBACK_CAPITAL
 
 if TYPE_CHECKING:
     from cli.services.broker_service import BrokerService
@@ -51,7 +52,7 @@ def build_risk_manager(service: BrokerService) -> tuple[RiskManager, GatewayCapi
     # Create base capital provider
     capital_provider = GatewayCapitalProvider(
         gateway=None,  # Will be updated after gateway construction
-        fallback_balance=Decimal("100000"),
+        fallback_balance=RISK_FALLBACK_CAPITAL,
     )
     
     # Wrap with tracking

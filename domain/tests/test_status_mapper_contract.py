@@ -12,9 +12,8 @@ from __future__ import annotations
 
 import pytest
 
-from domain.status_mapper import COMMON_STATUS_MAP, StatusMapperRegistry
+from domain.status_mapper import StatusMapperRegistry
 from domain.types import OrderStatus
-
 
 # ---------------------------------------------------------------------------
 # Common status strings

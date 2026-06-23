@@ -124,14 +124,33 @@ class BrokerService:
         if self._initialized:
             return
         self._initialized = True
+
+        # Initialise Dhan gateway (or fall back to mock).
+        self._ensure_dhan_initialized()
+
+        # Initialise Upstox gateway (best-effort, non-blocking).
+        self._ensure_upstox_initialized()
+
+    def _ensure_dhan_initialized(self) -> None:
+        """Create and wire the Dhan gateway (or fall back to a mock broker).
+
+        When ``.env.local`` exists the live path is attempted; on failure
+        ``self._dhan_load_error`` is populated and a mock broker is
+        created instead.
+        """
+        # Build OMS risk manager first so it can be threaded into the
+        # Dhan gateway OrdersAdapter for pre-trade risk checks.
+        # Only built when .env.local exists, mirroring the original guard.
+        oms_risk_manager: Any = None
+        capital_provider: Any = None
         if _ENV_PATH.exists():
+            oms_risk_manager, capital_provider = self._build_oms_risk_manager()
             try:
                 # B7: construct the OMS first so we can pass its
                 # risk_manager to the OrdersAdapter. The OMS is the
                 # canonical owner of risk checks; this is the first
                 # step in putting the central OMS on the live CLI
                 # path.
-                oms_risk_manager, capital_provider = self._build_oms_risk_manager()
                 # A5: pass the lifecycle so the factory registers
                 # TokenRefreshScheduler with it (instead of starting
                 # a bare daemon thread). The factory's backward-compat
@@ -201,6 +220,12 @@ class BrokerService:
         if self._gateway is None:
             self._mock = create_seeded_mock_broker("dhan")
 
+    def _ensure_upstox_initialized(self) -> None:
+        """Attempt to create the Upstox gateway (best-effort, non-blocking).
+
+        Failure populates ``self._upstox_load_error`` but never raises;
+        the CLI can still operate with Dhan + Paper.
+        """
         # Try to create Upstox gateway using the unified registry.
         upstox_env_path = resolve_env_path("upstox")
         if upstox_env_path is not None and upstox_env_path.exists():

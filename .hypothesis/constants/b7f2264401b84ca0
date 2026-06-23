@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/brokers/common/resilience/error_codes.py
-# hypothesis_version: 6.147.0
-
-['BRO-001', 'BRO-002', 'BRO-003', 'BRO-004', 'BRO-005', 'BRO-006', 'BRO-007', 'BRO-008', 'BRO-009', 'CFG-001', 'CFG-002', 'CFG-003', 'DH-808', 'DH-906', 'DLK-001', 'DLK-002', 'DLK-003', 'DLK-004', 'DLK-005', 'VAL-001', 'VAL-002', 'VAL-003', 'VAL-004', 'VAL-005']

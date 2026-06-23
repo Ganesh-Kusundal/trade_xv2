@@ -44,6 +44,41 @@ from brokers.common.oms._internal.risk_manager import RiskManager
 logger = logging.getLogger(__name__)
 
 
+class _ReentrancyGuard:
+    """Context manager that atomically checks and increments a handler-depth counter.
+
+    Eliminates the duplicated try/finally pattern from event handlers
+    in :class:`OrderManager` and :class:`PositionManager`.  On ``__enter__``
+    the ``reentered`` flag records whether a handler was already active
+    (``_handler_depth > 0`` before incrementing).  The caller checks
+    ``guard.reentered`` to decide whether to bail out.
+
+    Usage::
+
+        with self._reentrancy_guard() as guard:
+            if guard.reentered:
+                return       # re-entered, skip
+            # ... process event ...
+    """
+
+    __slots__ = ("_lock", "_owner", "reentered")
+
+    def __init__(self, lock, owner) -> None:
+        self._lock = lock
+        self._owner = owner
+        self.reentered = False
+
+    def __enter__(self):
+        with self._lock:
+            self.reentered = self._owner._handler_depth > 0
+            self._owner._handler_depth += 1
+        return self
+
+    def __exit__(self, *args) -> None:
+        with self._lock:
+            self._owner._handler_depth -= 1
+
+
 @dataclass(frozen=True)
 class OmsOrderCommand:
     """Plain request object for placing an order.
@@ -497,40 +532,45 @@ class OrderManager:
     def on_order_update(self, event: DomainEvent) -> None:
         """Handle broker order-update events from the bus.
 
-        REF-021: The depth check and increment are now atomic under a
-        single lock acquisition, eliminating the TOCTOU race where a
-        concurrent event could slip between the check and the increment.
+        Uses :func:`_reentrancy_guard` to prevent recursive handler
+        invocation when the OMS publishes events internally.
         """
-        with self._lock:
-            if self._handler_depth > 0:
+        with self._reentrancy_guard() as guard:
+            if guard.reentered:
                 return
-            self._handler_depth += 1
-        try:
             payload = event.payload
             order = payload.get("order")
             if isinstance(order, Order):
                 self.upsert_order(order)
-        finally:
-            with self._lock:
-                self._handler_depth -= 1
 
     def on_trade(self, event: DomainEvent) -> None:
         """Handle broker trade events from the bus.
 
-        REF-021: Atomic depth check+increment (same as on_order_update).
+        Uses :func:`_reentrancy_guard` to prevent recursive handler
+        invocation.
         """
-        with self._lock:
-            if self._handler_depth > 0:
+        with self._reentrancy_guard() as guard:
+            if guard.reentered:
                 return
-            self._handler_depth += 1
-        try:
             payload = event.payload
             trade = payload.get("trade")
             if isinstance(trade, Trade):
                 self.record_trade(trade)
-        finally:
-            with self._lock:
-                self._handler_depth -= 1
+
+    # ── Re-entrancy guard ───────────────────────────────────────────────────
+
+    def _reentrancy_guard(self):
+        """Context manager that atomically checks and increments ``_handler_depth``.
+
+        Returns a guard object whose ``__enter__`` atomically checks/increments
+        and whose ``__exit__`` decrements.  If the handler is already active
+        (``_handler_depth > 0``), the guard sets ``_handler_depth`` so the
+        caller can check it after the ``with`` block.
+
+        Extracted from ``on_order_update`` / ``on_trade`` to eliminate the
+        duplicated try/finally pattern (REF-021).
+        """
+        return _ReentrancyGuard(self._lock, self)
 
     # ── Helpers ─────────────────────────────────────────────────────────────
 

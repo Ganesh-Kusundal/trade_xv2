@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from decimal import Decimal
 from enum import Enum
 from typing import Any
 
@@ -143,6 +144,26 @@ class SimulatedTrade:
     strategy: str = ""
     reasons: list[str] = field(default_factory=list)
 
+    def to_domain_trade(self) -> Any:
+        """Convert to canonical ``domain.entities.Trade`` (REF-016).
+
+        Price and PnL fields are coerced to ``Decimal``.
+        """
+        from domain.entities import Trade
+        from domain.types import Side
+
+        side = Side.BUY if self.side == "BUY" else Side.SELL
+        return Trade(
+            trade_id=f"sim:{self.symbol}:{id(self)}",
+            order_id="",
+            symbol=self.symbol,
+            exchange="NSE",
+            side=side,
+            quantity=self.quantity,
+            price=Decimal(str(self.entry_price)),
+            trade_value=Decimal(str(abs(self.pnl))) if self.pnl != 0 else Decimal("0"),
+        )
+
 
 # ---------------------------------------------------------------------------
 # Position
@@ -169,6 +190,21 @@ class SimulatedPosition:
     @property
     def notional(self) -> float:
         return self.entry_price * self.quantity
+
+    def to_domain_position(self) -> Any:
+        """Convert to canonical ``domain.entities.Position`` (REF-016).
+
+        Price fields are coerced to ``Decimal``.
+        """
+        from domain.entities import Position
+
+        return Position(
+            symbol=self.symbol,
+            exchange="NSE",
+            quantity=self.quantity if self.side == "BUY" else -self.quantity,
+            avg_price=Decimal(str(self.entry_price)),
+            ltp=Decimal(str(self.entry_price)),
+        )
 
 
 # ---------------------------------------------------------------------------

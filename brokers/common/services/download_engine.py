@@ -10,9 +10,9 @@ This is the universal data download engine that handles:
 
 Usage:
     from brokers.common.services.download_engine import HistoricalDownloadEngine
-    from brokers.dhan.gateway import BrokerGateway
+    from brokers.common.gateway import MarketDataGateway
 
-    gw = BrokerGateway(connection)
+    gw: MarketDataGateway = PaperGateway()  # Any broker implementing the contract
     engine = HistoricalDownloadEngine(gw)
 
     # Single symbol, 5 years

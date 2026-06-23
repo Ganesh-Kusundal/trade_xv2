@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/domain/constants/market.py
-# hypothesis_version: 6.147.0
-
-['0.05', 'DEFAULT_EXCHANGE', 'DEFAULT_TICK_SIZE', 'IST_OFFSET', 'MCX_CLOSE_HOUR_IST', 'MCX_CLOSE_MINUTE_IST', 'MCX_OPEN_HOUR_IST', 'MCX_OPEN_MINUTE_IST', 'NFO', 'NSE', 'NSE_CLOSE_HOUR_IST', 'NSE_CLOSE_MINUTE_IST', 'NSE_EQ', 'NSE_OPEN_HOUR_IST', 'NSE_OPEN_MINUTE_IST']

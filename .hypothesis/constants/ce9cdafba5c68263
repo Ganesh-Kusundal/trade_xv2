@@ -1,4 +1,4 @@
-# file: /Users/apple/Downloads/Trade_XV2/brokers/dhan/http_client.py
-# hypothesis_version: 6.147.0
+# file: /workspaces/trade_xv2/brokers/dhan/http_client.py
+# hypothesis_version: 6.155.7
 
 [0.0, 0.01, 0.04, 0.15, 0.35, 15.0, 1000.0, 130, 200, 300, 400, 401, 429, 500, 1000, 5000, '/', '/charts/', '/instruments', '/killswitch', '/marketfeed/ltp', '/marketfeed/ohlc', '/marketfeed/quote', '/marketstatus', '/optionchain', '/orders', '/sliceorder', 'Accept', 'Content-Type', 'DELETE', 'DH-808', 'DH-906', 'GET', 'Invalid Token', 'POST', 'PUT', 'Retry-After', 'access-token', 'admin', 'application/json', 'attempt', 'backoff_seconds', 'body', 'client-id', 'client_id', 'cooldown_active', 'delay_ms', 'endpoint', 'error', 'failure', 'http_client_error', 'http_response', 'http_retry', 'method', 'once every 2 minutes', 'rate limit', 'read', 'reason', 'remaining_seconds', 'remarks', 'retry_after_s', 'returned_none', 'status', 'token_refresh_failed', 'token_refreshed', 'unknown error', 'write']

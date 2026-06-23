@@ -7,18 +7,8 @@ warnings for one release cycle.
 
 from __future__ import annotations
 
-from domain.types import (  # noqa: F401
-    Capability,
-    ConnectionStatus,
-    ExchangeSegment,
-    InstrumentType,
-    OrderStatus,
-    OrderType,
-    ProductType,
-    Side,
-    Validity,
-)
-from domain.entities import (  # noqa: F401
+from domain.capabilities import Capability, ConnectionStatus
+from domain.entities import (
     Balance,
     ConditionalAlert,
     ConditionalAlertRequest,
@@ -42,18 +32,20 @@ from domain.entities import (  # noqa: F401
     Quote,
     Trade,
 )
-from domain.requests import (  # noqa: F401
+from domain.enums import OrderStatus, OrderType, ProductType, Side, Validity
+from domain.market_enums import ExchangeSegment, InstrumentType
+from domain.reconciliation import (
+    DriftItem,
+    ReconciliationReport,
+)
+from domain.requests import (
     HistoricalCandle,
     ModifyOrderRequest,
     OrderPreview,
     OrderRequest,
     SliceOrderRequest,
 )
-from domain.reconciliation import (  # noqa: F401
-    DriftItem,
-    ReconciliationReport,
-)
-from domain.result import GatewayResult, ResultMetadata  # noqa: F401
+from domain.result import GatewayResult, ResultMetadata
 
 __all__ = [
     "Balance",

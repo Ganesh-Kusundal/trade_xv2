@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/runtime/trading_runtime_factory.py
-# hypothesis_version: 6.147.0
-
-[2000, '0', '0.7', '1', 'ORCHESTRATOR_DRY_RUN', 'RISK_FAIL_OPEN', '_event_bus', '_gateway', '_readiness_report', '_upstox_gateway', 'dhan', 'live']

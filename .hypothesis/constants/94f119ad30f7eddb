@@ -1,4 +1,4 @@
-# file: /Users/apple/Downloads/Trade_XV2/brokers/dhan/edis.py
-# hypothesis_version: 6.147.0
+# file: /workspaces/trade_xv2/brokers/dhan/edis.py
+# hypothesis_version: 6.155.7
 
 ['/edis/authorize', '/edis/tpin', 'data', 'edis_authorized', 'edis_status_checked', 'exchange', 'isin', 'quantity', 'status', 'tpin_generated']

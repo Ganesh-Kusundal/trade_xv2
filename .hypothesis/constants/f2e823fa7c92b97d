@@ -1,4 +1,4 @@
-# file: /Users/apple/Downloads/Trade_XV2/cli/commands/news.py
-# hypothesis_version: 6.147.0
+# file: /workspaces/trade_xv2/cli/commands/news.py
+# hypothesis_version: 6.155.7
 
 ['#', '%Y-%m-%d %H:%M', '--', '--from', '--limit', '--symbol', '--to', '-s', 'Headline', 'N/A', 'Source', 'Time', 'bold cyan', 'bold white', 'cyan', 'date', 'dim', 'from_date', 'green', 'headline', 'news', 'published_at', 'source', 'strftime', 'summary', 'symbol', 'timestamp', 'title', 'to_date']

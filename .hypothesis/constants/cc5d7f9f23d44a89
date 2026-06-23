@@ -1,4 +1,4 @@
-# file: /Users/apple/Downloads/Trade_XV2/brokers/upstox/auth/http.py
-# hypothesis_version: 6.147.0
+# file: /workspaces/trade_xv2/brokers/upstox/auth/http.py
+# hypothesis_version: 6.155.7
 
 [0.0, 1.0, 10.0, 100, 400, 401, 403, 30000, '/market-quote', '/market/', '/order', '/portfolio', '/user/', 'Accept', 'Authorization', 'Content-Type', 'DELETE', 'GET', 'POST', 'PUT', 'X-Algo-Name', 'algo_name', 'application/json', 'default', 'error', 'errors', 'failure', 'http://', 'https://', 'market_data', 'message', 'order', 'pool_connections', 'pool_maxsize', 'portfolio', 'remarks', 'status', 'upstox_api']

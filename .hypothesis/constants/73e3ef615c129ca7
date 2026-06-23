@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/domain/entities.py
-# hypothesis_version: 6.147.0
-
-[0.0, 200, '-1', '0', '1', 'ACTIVE', 'BUY', 'CE', 'DEPTH_5', 'NFO', 'NSE', 'OPTION', 'PE', 'Success', 'ask', 'bid', 'call', 'contracts', 'exchange', 'expiries', 'expiry', 'greeks', 'instrument_key', 'iv', 'lot_size', 'ltp', 'oi', 'put', 'security_id', 'spot', 'strike', 'strikePrice', 'strikes', 'symbol', 'tradingSymbol', 'trading_symbol', 'underlying', 'volume']

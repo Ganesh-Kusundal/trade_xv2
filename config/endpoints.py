@@ -71,12 +71,8 @@ class Dhan:
     OPTION_CHAIN: str = "/optionchain"
 
     # Orders
-    # NOTE: The Dhan v2 slice-order endpoint is POST /orders/slicing.
-    # The historical /sliceorder path is the v1 endpoint and is no
-    # longer used by this client. Keep the constant aligned with the
-    # path actually called by ``OrdersAdapter.place_slice_order``.
     ORDERS: str = "/orders"
-    ORDERS_SLICING: str = "/orders/slicing"
+    SLICE_ORDER: str = "/sliceorder"
 
     # Kill switch
     KILL_SWITCH: str = "/killswitch"
@@ -176,6 +172,47 @@ class _UpstoxUrls:
     def market_quote_ltp_v3_url(self) -> str:
         return f"{self._v3()}/market-quote/ltp"
 
+    # ── V3 historical candles (Plus plan) ──────────────────────────────
+    def historical_candle_v3_url(
+        self,
+        instrument_key: str,
+        unit: str,
+        interval: int,
+        to_date: str,
+        from_date: str | None = None,
+    ) -> str:
+        """Build the v3 historical-candle URL.
+
+        V3 supports custom intervals: 1-300 minutes, 1-5 hours,
+        days/weeks/months. The unit/interval pair is part of the
+        path. The resolver URL-encodes the instrument key for you.
+        """
+        from urllib.parse import quote
+
+        encoded_key = quote(instrument_key, safe="")
+        url = f"{self._v3()}/historical-candle/{encoded_key}/{unit}/{interval}/{to_date}"
+        if from_date:
+            url += f"/{from_date}"
+        return url
+
+    def intraday_candle_v3_url(
+        self,
+        instrument_key: str,
+        unit: str,
+        interval: int,
+        to_date: str,
+    ) -> str:
+        """Build the v3 intraday-candle URL.
+
+        V3 intraday differs from v2 in that it accepts arbitrary
+        units (minutes/hours/days) and intervals. The resolver
+        URL-encodes the instrument key for you.
+        """
+        from urllib.parse import quote
+
+        encoded_key = quote(instrument_key, safe="")
+        return f"{self._v3()}/intraday-candle/{encoded_key}/{unit}/{interval}/{to_date}"
+
     # ── WebSocket authorize (v2 / v3 HFT) ───────────────────────────────
     def feed_authorize_v2_url(self) -> str:
         return f"{self._v2()}/feed/market-data-feed/authorize"
@@ -209,9 +246,7 @@ class _UpstoxUrls:
         return f"{self._hft()}/order/history"
 
     def trades_for_day_url(self) -> str:
-        # Upstox V2 trades endpoint requires order_id per-call.
-        # Use order list endpoint and extract filled orders as trades.
-        return f"{self._v2()}/order/retrieve-all"
+        return f"{self._hft()}/order/trades/get-trades-for-day"
 
     # ── Orders (v2 legacy) ──────────────────────────────────────────────
     def place_order_v2_url(self) -> str:

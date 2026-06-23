@@ -1,6 +1,5 @@
 """Domain model sub-package."""
 
-from domain.models.trading import CandidateDTO, SignalDTO
 from domain.entities import (
     Balance,
     ConditionalAlert,
@@ -25,6 +24,7 @@ from domain.entities import (
     Quote,
     Trade,
 )
+from domain.models.trading import CandidateDTO, SignalDTO
 
 __all__ = [
     "Balance",

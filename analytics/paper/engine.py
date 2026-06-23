@@ -58,6 +58,7 @@ from analytics.strategy.pipeline import StrategyPipeline
 from domain.execution import compute_order_quantity
 from domain.runtime_hooks import create_oms_backtest_adapter
 from domain.ports.oms_backtest_adapter import OmsBacktestAdapterPort
+from collections.abc import Generator, Iterator
 
 logger = logging.getLogger(__name__)
 
@@ -222,53 +223,59 @@ class PaperTradingEngine:
     # Batch run (historical or replayed bars)
     # -----------------------------------------------------------------------
 
-    def _run_single(self, df: pd.DataFrame, symbol: str, ts_col: str) -> PaperResult:
-        """Process a single symbol's data bar-by-bar."""
-        config = self._config
-        session = PaperSession(capital=config.initial_capital)
-        session.peak_equity = config.initial_capital
-        session.equity_curve.append((df[ts_col].iloc[0], config.initial_capital))
-        session._window = []  # type: ignore[attr-defined]
+    def _process_bar_stream(
+        self,
+        bars: Iterator[Bar],
+        session: PaperSession,
+    ) -> list[Signal]:
+        """Shared bar-processing loop — extracted from ``_run_single`` and
+        ``_run_multi_symbol`` (REF-002 DRY remediation).
 
+        For each ``Bar`` yielded by *bars*:
+        1. Append to a growing sliding window.
+        2. Skip warmup bars.
+        3. Check stop-loss / take-profit exits.
+        4. Update position mark-to-market prices.
+        5. Run the feature pipeline to compute indicators.
+        6. Construct a ``Candidate`` and evaluate it through the strategy pipeline.
+        7. Process every actionable signal (place/close simulated orders).
+        8. Record the resulting equity in the session's equity curve.
+
+        Parameters
+        ----------
+        bars:
+            Iterator that yields :class:`Bar` instances in chronological order.
+        session:
+            Mutable :class:`PaperSession` updated in-place.
+
+        Returns
+        -------
+        list[Signal]:
+            Every signal generated during the run (for audit / metrics).
+        """
+        config = self._config
         window: list[dict] = []
         warmup_done = False
         signals_all: list[Signal] = []
 
-        for idx in range(len(df)):
-            row = df.iloc[idx]
-            bar_ts = row[ts_col]
-
-            bar = Bar(
-                symbol=symbol,
-                timestamp=bar_ts,
-                open=float(row.get("open", 0)),
-                high=float(row.get("high", 0)),
-                low=float(row.get("low", 0)),
-                close=float(row.get("close", 0)),
-                volume=float(row.get("volume", 0)),
-            )
-
+        for bar in bars:
             window.append(bar.to_dict())
             session.bar_count += 1
 
-            # Warmup phase
+            # Warmup phase — skip bars until the warmup window is full
             if not warmup_done:
                 if config.warmup_bars > 0 and session.bar_count < config.warmup_bars:
                     continue
                 warmup_done = True
 
-            # Check stop-loss / take-profit
+            # Check stop-loss / take-profit exits and update mark-to-market
             self._check_exits(bar, session)
-
-            # Update position prices
             for pos in session.positions.values():
                 if pos.symbol == bar.symbol:
                     pos.update_price(bar.close)
 
-            # Build window DataFrame
+            # Build window DataFrame and run feature pipeline
             window_df = self._build_window(window, config.window_size)
-
-            # Run FeaturePipeline
             try:
                 features = self._pipeline.run(window_df)
             except Exception as exc:
@@ -277,28 +284,51 @@ class PaperTradingEngine:
                 )
                 features = window_df
 
-            # Construct Candidate
-            candidate = Candidate(symbol=symbol, score=50.0, reasons=["paper"])
-
-            # Run StrategyPipeline
+            # Construct candidate and evaluate through strategy pipeline
+            candidate = Candidate(symbol=bar.symbol, score=50.0, reasons=["paper"])
             signals = self._strategy.evaluate_single(candidate, features)
 
-            # Process signals
+            # Process every actionable signal
             for signal in signals:
                 signals_all.append(signal)
                 self._process_signal(signal, bar, session)
 
-                # Update equity
-                equity = session.total_equity
-                session.equity_curve.append((bar_ts, equity))
-                if equity > session.peak_equity:
-                    session.peak_equity = equity
+            # Record equity after all signals for this bar have been processed
+            equity = session.total_equity
+            session.equity_curve.append((bar.timestamp, equity))
+            if equity > session.peak_equity:
+                session.peak_equity = equity
+
+        return signals_all
+
+    def _run_single(self, df: pd.DataFrame, symbol: str, ts_col: str) -> PaperResult:
+        """Process a single symbol's data bar-by-bar."""
+        config = self._config
+        session = PaperSession(capital=config.initial_capital)
+        session.peak_equity = config.initial_capital
+        session.equity_curve.append((df[ts_col].iloc[0], config.initial_capital))
+
+        signals_all = self._process_bar_stream(
+            self._iter_bars(df, symbol, ts_col), session
+        )
 
         # Close any open positions at end
-        if window:
-            last_bar = Bar(**window[-1])
+        if not df.empty:
+            last_row = df.iloc[-1]
+            last_bar = Bar(
+                symbol=symbol,
+                timestamp=last_row[ts_col],
+                open=float(last_row.get("open", 0)),
+                high=float(last_row.get("high", 0)),
+                low=float(last_row.get("low", 0)),
+                close=float(last_row.get("close", 0)),
+                volume=float(last_row.get("volume", 0)),
+            )
             for sym in list(session.positions.keys()):
-                self._close_position(sym, last_bar.close, last_bar.timestamp, session, "End of paper trading")
+                self._close_position(
+                    sym, last_bar.close, last_bar.timestamp, session,
+                    "End of paper trading",
+                )
 
         return PaperResult(
             session=session,
@@ -312,74 +342,33 @@ class PaperTradingEngine:
         config = self._config
         session = PaperSession(capital=config.initial_capital)
         session.peak_equity = config.initial_capital
-        session._window = {}  # type: ignore[attr-defined]
 
         symbols = df["symbol"].unique()
         all_signals: list[Signal] = []
 
-        # Build per-symbol windows
         for sym in symbols:
             sym_df = df[df["symbol"] == sym].sort_values(ts_col).reset_index(drop=True)
+            signals = self._process_bar_stream(
+                self._iter_bars(sym_df, sym, ts_col), session
+            )
+            all_signals.extend(signals)
 
-            window: list[dict] = []
-            warmup_done = False
-
-            for idx in range(len(sym_df)):
-                row = sym_df.iloc[idx]
-                bar_ts = row[ts_col]
-
-                bar = Bar(
-                    symbol=sym,
-                    timestamp=bar_ts,
-                    open=float(row.get("open", 0)),
-                    high=float(row.get("high", 0)),
-                    low=float(row.get("low", 0)),
-                    close=float(row.get("close", 0)),
-                    volume=float(row.get("volume", 0)),
-                )
-
-                window.append(bar.to_dict())
-                session.bar_count += 1
-
-                # Warmup
-                if not warmup_done:
-                    if config.warmup_bars > 0 and session.bar_count < config.warmup_bars:
-                        continue
-                    warmup_done = True
-
-                # Check exits
-                self._check_exits(bar, session)
-
-                # Update prices
-                for pos in session.positions.values():
-                    if pos.symbol == sym:
-                        pos.update_price(bar.close)
-
-                # Feature pipeline
-                window_df = self._build_window(window, config.window_size)
-                try:
-                    features = self._pipeline.run(window_df)
-                except Exception as exc:
-                    logger.warning("FeaturePipeline failed for %s: %s", sym, exc)
-                    features = window_df
-
-                candidate = Candidate(symbol=sym, score=50.0, reasons=["paper"])
-                signals = self._strategy.evaluate_single(candidate, features)
-
-                for signal in signals:
-                    all_signals.append(signal)
-                    self._process_signal(signal, bar, session)
-
-                equity = session.total_equity
-                session.equity_curve.append((bar_ts, equity))
-                if equity > session.peak_equity:
-                    session.peak_equity = equity
-
-        # Close remaining positions
-        if window:
-            last_bar = Bar(**window[-1])
-            for sym in list(session.positions.keys()):
-                self._close_position(sym, last_bar.close, last_bar.timestamp, session, "End")
+        # Close remaining positions using the last symbol's last bar
+        last_sym = symbols[-1]
+        last_row = df[df["symbol"] == last_sym].iloc[-1]
+        last_bar = Bar(
+            symbol=str(last_sym),
+            timestamp=last_row[ts_col],
+            open=float(last_row.get("open", 0)),
+            high=float(last_row.get("high", 0)),
+            low=float(last_row.get("low", 0)),
+            close=float(last_row.get("close", 0)),
+            volume=float(last_row.get("volume", 0)),
+        )
+        for sym in list(session.positions.keys()):
+            self._close_position(
+                sym, last_bar.close, last_bar.timestamp, session, "End"
+            )
 
         return PaperResult(
             session=session,
@@ -645,6 +634,26 @@ class PaperTradingEngine:
     # -----------------------------------------------------------------------
     # Helpers
     # -----------------------------------------------------------------------
+
+    @staticmethod
+    def _iter_bars(df: pd.DataFrame, symbol: str, ts_col: str) -> Generator[Bar, None, None]:
+        """Yield :class:`Bar` instances from a DataFrame in row order.
+
+        Extracted from the old ``_bar_generator`` closures in ``_run_single``
+        and ``_run_multi_symbol`` to avoid re-defining the closure on every
+        iteration of the caller's loop.
+        """
+        for idx in range(len(df)):
+            row = df.iloc[idx]
+            yield Bar(
+                symbol=symbol,
+                timestamp=row[ts_col],
+                open=float(row.get("open", 0)),
+                high=float(row.get("high", 0)),
+                low=float(row.get("low", 0)),
+                close=float(row.get("close", 0)),
+                volume=float(row.get("volume", 0)),
+            )
 
     def _build_window(self, window: list[dict], window_size: int) -> pd.DataFrame:
         """Build a DataFrame from the window, optionally limiting size."""
