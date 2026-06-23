@@ -45,7 +45,7 @@ import pandas as pd
 from domain.models.trading import CandidateDTO, SignalDTO
 from domain.ports.strategy_evaluator import StrategyEvaluator
 from domain import OrderStatus, OrderType, ProductType, Side
-from brokers.common.event_bus import (
+from infrastructure.event_bus import (
     DomainEvent,
     EventBus,
     EventType,

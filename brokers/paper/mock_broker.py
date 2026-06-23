@@ -5,7 +5,7 @@ from __future__ import annotations
 import random
 from decimal import Decimal
 
-from brokers.common.core.domain import Balance, Holding, OrderResponse, Position
+from domain import Balance, Holding, OrderResponse, Position
 from brokers.common.oms.context import TradingContext
 from domain.constants.defaults import PAPER_INITIAL_CAPITAL
 
@@ -125,7 +125,7 @@ def create_seeded_mock_broker(
     """
     from datetime import datetime, timedelta, timezone
 
-    from brokers.common.core.domain import (
+    from domain import (
         Holding,
         Order,
         OrderStatus,

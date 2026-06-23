@@ -7,7 +7,7 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, TypeVar
 
-from brokers.common.core.constants import BATCH_MAX_WORKERS
+from domain.constants import BATCH_MAX_WORKERS
 
 logger = logging.getLogger(__name__)
 

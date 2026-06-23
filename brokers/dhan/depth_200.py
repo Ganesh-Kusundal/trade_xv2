@@ -15,8 +15,8 @@ from __future__ import annotations
 
 import logging
 
-from brokers.common.core.domain import MarketDepth
-from brokers.common.event_bus import EventBus
+from domain import MarketDepth
+from infrastructure.event_bus import EventBus
 
 from brokers.dhan.depth_feed_base import BinaryDepthFeed
 

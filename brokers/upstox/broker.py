@@ -13,8 +13,8 @@ from dataclasses import dataclass
 import logging
 from typing import Any
 
-from brokers.common.core.domain import Capability, ConnectionStatus
-from brokers.common.event_bus import EventBus
+from domain import Capability, ConnectionStatus
+from infrastructure.event_bus import EventBus
 from brokers.common.oms.risk_manager import RiskManager
 from brokers.common.services.historical_data import HistoricalDataService
 from brokers.upstox.auth.config import UpstoxConnectionSettings

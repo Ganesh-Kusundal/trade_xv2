@@ -19,7 +19,7 @@ Never import broker-specific types from ``brokers`` top-level. This
 prevents shotgun surgery when adding new brokers.
 """
 
-from brokers.common.core.domain import (
+from domain import (
     Holding,
     Order,
     OrderResponse,

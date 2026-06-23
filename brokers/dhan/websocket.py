@@ -12,7 +12,7 @@ from dhanhq import marketfeed as sdk_marketfeed
 from dhanhq.marketfeed import MarketFeed as SDKMarketFeed
 from dhanhq.orderupdate import OrderUpdate as SDKOrderUpdate
 
-from brokers.common.core.domain import (
+from domain import (
     DepthLevel,
     MarketDepth,
     Order,
@@ -24,7 +24,7 @@ from brokers.common.core.domain import (
     Trade,
     Validity,
 )
-from brokers.common.event_bus import DomainEvent, EventBus
+from infrastructure.event_bus import DomainEvent, EventBus
 import brokers.dhan.status_mapper  # noqa: F401 — register Dhan status mappings
 from brokers.common.lifecycle.lifecycle import (
     HealthState,

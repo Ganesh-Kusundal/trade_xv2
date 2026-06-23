@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from brokers.common.core.types import OrderStatus
+from domain.types import OrderStatus
 from brokers.common.oms.order_audit_logger import AuditEntry, OrderAuditLogger
 
 

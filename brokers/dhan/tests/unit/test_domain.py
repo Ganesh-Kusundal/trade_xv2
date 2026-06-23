@@ -6,7 +6,7 @@ from decimal import Decimal
 import pytest
 
 from domain import Side
-from brokers.common.core.domain import Balance, Quote
+from domain import Balance, Quote
 from brokers.dhan.domain import (
     Exchange,
     Instrument,

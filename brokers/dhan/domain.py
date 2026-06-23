@@ -10,7 +10,7 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any
 
-from brokers.common.core.constants import IST_OFFSET as IST
+from domain.constants import IST_OFFSET as IST
 
 _CANONICAL = frozenset({
     "Holding", "Order", "OrderStatus", "OrderType", "Position",
@@ -22,7 +22,7 @@ _ALIASES = {"OrderSide": "Side"}
 
 def __getattr__(name: str) -> Any:
     if name in _CANONICAL:
-        from brokers.common.core import domain as _domain
+        import domain as _domain
         return getattr(_domain, _ALIASES.get(name, name))
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 

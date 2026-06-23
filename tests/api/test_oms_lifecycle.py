@@ -19,10 +19,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from brokers.common.event_bus import EventBus
+from infrastructure.event_bus import EventBus
 from brokers.common.oms.context import TradingContext
-from datalake.api.config import APIConfig
-from datalake.api.deps import (
+from api.config import APIConfig
+from api.deps import (
     ServiceContainer,
     get_container,
     get_order_manager,
@@ -32,13 +32,13 @@ from datalake.api.deps import (
     initialize_all_services,
     set_container,
 )
-from datalake.api.main import create_app
+from api.main import create_app
 
 
 @pytest.fixture(autouse=True)
 def reset_container():
     """Reset container before and after each test to ensure isolation."""
-    import datalake.api.deps as deps
+    import api.deps as deps
     deps._container = None
     yield
     deps._container = None
@@ -119,7 +119,8 @@ class TestOMSEndpointsWithoutTradingContext:
     @pytest.fixture
     def client_without_oms(self, app_without_oms):
         """Create test client without OMS."""
-        return TestClient(app_without_oms)
+        with TestClient(app_without_oms) as client:
+            yield client
 
     def test_get_orders_returns_503(self, client_without_oms):
         """GET /orders should return 503 when TradingContext not initialized."""
@@ -162,7 +163,8 @@ class TestOMSEndpointsWithTradingContext:
     @pytest.fixture
     def client_with_oms(self, app_with_oms):
         """Create test client with OMS."""
-        return TestClient(app_with_oms)
+        with TestClient(app_with_oms) as client:
+            yield client
 
     def test_get_orders_returns_200(self, client_with_oms):
         """GET /orders should return 200 with empty order list."""
@@ -311,7 +313,7 @@ class TestLifecycleShutdown:
 
     def test_shutdown_cleans_up_marketbridge(self):
         """Shutdown should stop MarketBridge."""
-        from datalake.api.main import _shutdown_cleanup
+        from api.main import _shutdown_cleanup
         
         mock_bridge = MagicMock()
         mock_bridge.stop = AsyncMock()
@@ -324,7 +326,7 @@ class TestLifecycleShutdown:
 
     def test_shutdown_skips_lifecycle_if_not_started(self, caplog):
         """Shutdown should skip lifecycle.stop_all() if not started."""
-        from datalake.api.main import _shutdown_cleanup
+        from api.main import _shutdown_cleanup
         
         mock_lifecycle = MagicMock()
         
@@ -338,7 +340,7 @@ class TestLifecycleShutdown:
 
     def test_shutdown_stops_lifecycle_if_started(self):
         """Shutdown should call lifecycle.stop_all() if started."""
-        from datalake.api.main import _shutdown_cleanup
+        from api.main import _shutdown_cleanup
         
         mock_lifecycle = MagicMock()
         

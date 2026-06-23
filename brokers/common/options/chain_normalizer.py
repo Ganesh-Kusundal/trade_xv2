@@ -28,7 +28,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
-from brokers.common.core.models import OptionChain, OptionContract, OptionStrike
+from domain.entities import OptionChain, OptionContract, OptionStrike
 
 
 def to_canonical_strikes(

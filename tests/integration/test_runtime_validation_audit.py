@@ -7,7 +7,7 @@ import pytest
 
 from analytics.strategy.models import Signal, SignalType
 from analytics.strategy.pipeline import StrategyPipeline
-from brokers.common.event_bus import DomainEvent, EventType
+from infrastructure.event_bus import DomainEvent, EventType
 from brokers.common.lifecycle import LifecycleManager
 from brokers.common.oms.factory import create_trading_context
 from runtime.trading_runtime_factory import TradingRuntimeFactory

@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 
-from brokers.common.core.domain import Balance, OrderRequest, Quote
+from domain import Balance, OrderRequest, Quote
 from brokers.dhan.connection import DhanConnection
 from brokers.dhan.domain import Order, OrderType, Position, Side
 from brokers.dhan.gateway import BrokerGateway
@@ -78,7 +78,7 @@ class TestBrokerGateway:
         """gateway.place_order must call orders.place_order with same kwargs."""
         gateway, conn = self._make_gateway()
 
-        from brokers.common.core.domain import OrderResponse
+        from domain import OrderResponse
 
         expected = Order(order_id="ORD-001", symbol="RELIANCE", exchange="NSE", side=Side.BUY, order_type=OrderType.LIMIT, quantity=10)
         conn._orders.place_order.return_value = expected
@@ -110,7 +110,7 @@ class TestBrokerGateway:
 
     def test_place_order_mcx_resolves_canonical_segment(self):
         """MCX exchange must map to ExchangeSegment.MCX, not silently fall back to NSE."""
-        from brokers.common.core.domain import ExchangeSegment, OrderResponse
+        from domain import ExchangeSegment, OrderResponse
 
         gateway, conn = self._make_gateway()
         conn._orders.place_order.return_value = Order(

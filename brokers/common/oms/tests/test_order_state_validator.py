@@ -15,8 +15,8 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from brokers.common.core.state_machine import IllegalTransitionError
-from brokers.common.core.types import ORDER_STATUS_TRANSITIONS, OrderStatus
+from brokers.common.state_machine import IllegalTransitionError
+from domain.types import ORDER_STATUS_TRANSITIONS, OrderStatus
 from brokers.common.oms.order_state_validator import OrderStateValidator
 
 

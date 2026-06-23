@@ -8,7 +8,7 @@ from typing import Any
 import pandas as pd
 
 from brokers.common.batch_mixin import BatchFetchMixin
-from brokers.common.core.domain import (
+from domain import (
     Balance,
     FutureChain,
     Holding,

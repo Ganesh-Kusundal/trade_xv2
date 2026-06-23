@@ -6,7 +6,7 @@ from decimal import Decimal
 import pytest
 
 from domain import Order, OrderStatus, OrderType, Position, Side
-from brokers.common.core.domain import DepthLevel, MarketDepth, Quote
+from domain import DepthLevel, MarketDepth, Quote
 from brokers.dhan.domain import (
     Exchange,
     Instrument,

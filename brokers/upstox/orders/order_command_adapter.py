@@ -10,14 +10,14 @@ from decimal import Decimal
 from typing import Any
 
 from brokers.common.api.ports import IdempotencyCachePort, OrderCommand
-from brokers.common.core.domain import (
+from domain import (
     Order,
     OrderPreview,
     OrderRequest,
     OrderResponse,
 )
-from brokers.common.core.domain import Side as OrderSide
-from brokers.common.event_bus import DomainEvent, EventBus
+from domain import Side as OrderSide
+from infrastructure.event_bus import DomainEvent, EventBus
 from brokers.common.oms.risk_manager import RiskManager
 from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
@@ -130,7 +130,7 @@ class UpstoxOrderCommandAdapter(OrderCommand):
             :class:`OrderResponse` indicating success or carrying the
             broker's error code/message on failure.
         """
-        from brokers.common.core.models import OrderResponse
+        from domain.entities import OrderResponse
 
         try:
             result = self._order_client.cancel_order_v3(order_id)
@@ -212,7 +212,7 @@ class UpstoxOrderCommandAdapter(OrderCommand):
     def _to_domain_order(self, request: OrderRequest) -> Order:
         from datetime import datetime, timezone
 
-        from brokers.common.core.domain import OrderStatus, OrderType, ProductType, Validity
+        from domain import OrderStatus, OrderType, ProductType, Validity
 
         return Order(
             order_id="",

@@ -12,7 +12,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.common.core.domain import OrderStatus, OrderType, ProductType, Side
+from domain import OrderStatus, OrderType, ProductType, Side
 from brokers.common.oms.order_manager import OrderManager
 from brokers.common.oms.risk_manager import RiskConfig, RiskManager
 
@@ -154,8 +154,8 @@ class TestPositionManagerStress:
         - No double-counting of trades
         - Final position correctness
         """
-        from brokers.common.event_bus import EventBus
-        from brokers.common.event_bus.dead_letter_queue import DeadLetterQueue
+        from infrastructure.event_bus import EventBus
+        from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
         from brokers.common.observability.event_metrics import EventMetrics
         from brokers.common.oms.position_manager import PositionManager
 

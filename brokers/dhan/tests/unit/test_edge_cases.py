@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from brokers.common.core.domain import OrderStatus
+from domain import OrderStatus
 from brokers.dhan.connection import DhanConnection
 from brokers.dhan.exceptions import InstrumentNotFoundError
 from brokers.dhan.gateway import BrokerGateway

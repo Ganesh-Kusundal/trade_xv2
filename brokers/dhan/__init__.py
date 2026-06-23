@@ -4,13 +4,13 @@ Canonical domain types (Order, Position, Holding, Trade, Side, OrderStatus,
 OrderType, ProductType, Validity, FundLimits) are no longer re-exported here.
 Import them from ``brokers.common.core.domain`` instead::
 
-    from brokers.common.core.domain import Order, Side, OrderStatus
+    from domain import Order, Side, OrderStatus
     from brokers.dhan import Exchange, Instrument, BrokerGateway
 """
 
 # ── Dhan-specific domain types ──────────────────────────────────────────────
 from brokers.dhan.connection import DhanConnection
-from brokers.common.core.domain import Balance, DepthLevel, MarketDepth, Quote
+from domain import Balance, DepthLevel, MarketDepth, Quote
 from brokers.dhan.domain import (
     Exchange,
     Instrument,

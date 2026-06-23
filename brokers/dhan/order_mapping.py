@@ -4,7 +4,7 @@ Dhan API responses use camelCase field names; :mod:`brokers.common.core.field_ma
 already handles both camelCase and snake_case variants.
 """
 
-from brokers.common.core.field_mapping import DefaultFieldMapping
+from domain.field_mapping import DefaultFieldMapping
 
 # Backward-compatible alias (REF-1).
 DhanFieldMapping = DefaultFieldMapping

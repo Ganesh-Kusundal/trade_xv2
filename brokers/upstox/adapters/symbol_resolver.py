@@ -9,8 +9,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from brokers.common.core.domain import ExchangeSegment
-from brokers.common.core.exchange_segments import parse_segment
+from domain import ExchangeSegment
+from domain.exchange_segments import parse_segment
 
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 

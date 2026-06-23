@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from threading import RLock
 
-from brokers.common.core.domain import (
+from domain import (
     Order,
     OrderStatus,
     OrderType,

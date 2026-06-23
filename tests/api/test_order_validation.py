@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from datalake.api.schemas import OrderRequest
+from api.schemas import OrderRequest
 
 
 class TestOrderRequestValidation:

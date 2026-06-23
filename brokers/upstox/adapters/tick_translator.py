@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-from brokers.common.core.domain import Quote
+from domain import Quote
 
 if TYPE_CHECKING:
     pass

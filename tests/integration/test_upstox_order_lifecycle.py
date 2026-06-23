@@ -23,14 +23,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from brokers.common.core.domain import (
+from domain import (
     Order,
     OrderResponse,
     OrderStatus,
     Side,
     Trade,
 )
-from brokers.common.event_bus import EventBus
+from infrastructure.event_bus import EventBus
 from brokers.common.oms.order_manager import OrderManager, OmsOrderCommand
 from brokers.upstox.gateway import UpstoxBrokerGateway
 

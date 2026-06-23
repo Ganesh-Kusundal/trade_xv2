@@ -34,8 +34,8 @@ from decimal import Decimal
 
 from config.endpoints import Dhan as _DhanEndpoints
 
-from brokers.common.core.domain import DepthLevel, MarketDepth
-from brokers.common.event_bus import DomainEvent, EventBus
+from domain import DepthLevel, MarketDepth
+from infrastructure.event_bus import DomainEvent, EventBus
 from brokers.common.lifecycle.lifecycle import (
     HealthState,
     HealthStatus,

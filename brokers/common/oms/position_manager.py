@@ -12,9 +12,9 @@ from decimal import Decimal
 from typing import Any
 
 from domain.entities import Position, Trade
-from brokers.common.core.state_machine import IllegalTransitionError, StateMachine
-from brokers.common.core.types import POSITION_STATE_TRANSITIONS, PositionState
-from brokers.common.event_bus import DomainEvent, EventBus, EventType
+from brokers.common.state_machine import IllegalTransitionError, StateMachine
+from domain.types import POSITION_STATE_TRANSITIONS, PositionState
+from infrastructure.event_bus import DomainEvent, EventBus, EventType
 
 logger = logging.getLogger(__name__)
 

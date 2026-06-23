@@ -8,7 +8,7 @@ from __future__ import annotations
 import random
 from abc import ABC, abstractmethod
 
-from brokers.common.core.constants import (
+from domain.constants import (
     BACKOFF_JITTER,
     BACKOFF_MULTIPLIER,
     MAX_RETRY_DELAY_MS,

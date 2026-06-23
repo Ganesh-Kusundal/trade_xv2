@@ -6,9 +6,9 @@ This module owns Dhan-specific wire strings (``MCX_COMM``) and SDK transport cod
 
 from __future__ import annotations
 
-from brokers.common.core.exchange_segments import parse_segment as _parse_segment
-from brokers.common.core.constants.market import DEFAULT_EXCHANGE_SEGMENT_FALLBACK
-from brokers.common.core.types import ExchangeSegment
+from domain.exchange_segments import parse_segment as _parse_segment
+from domain.constants.market import DEFAULT_EXCHANGE_SEGMENT_FALLBACK
+from domain.types import ExchangeSegment
 from brokers.dhan.domain import Exchange
 
 DEFAULT_SEGMENT = DEFAULT_EXCHANGE_SEGMENT_FALLBACK

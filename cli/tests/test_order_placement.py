@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from brokers.common.core.domain import Order, OrderStatus, OrderType, Side, Trade
+from domain import Order, OrderStatus, OrderType, Side, Trade
 from cli.commands.order_placement import (
     cancel_order,
     modify_order,

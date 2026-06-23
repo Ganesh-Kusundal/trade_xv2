@@ -6,7 +6,7 @@ import os
 
 import pytest
 
-from brokers.common.core.domain import Side
+from domain import Side
 from brokers.common.oms.order_manager import OmsOrderCommand
 
 

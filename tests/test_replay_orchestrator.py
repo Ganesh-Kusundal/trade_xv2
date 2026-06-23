@@ -27,7 +27,7 @@ from analytics.replay.orchestrator import (
     UnifiedReplayOrchestrator,
     UnifiedReplayResult,
 )
-from brokers.common.event_bus.event_bus import DomainEvent
+from infrastructure.event_bus.event_bus import DomainEvent
 
 
 # ---------------------------------------------------------------------------

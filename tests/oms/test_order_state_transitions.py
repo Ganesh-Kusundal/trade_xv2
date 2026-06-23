@@ -22,9 +22,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.common.core.domain import Order, OrderStatus, OrderType, ProductType, Side
-from brokers.common.core.state_machine import IllegalTransitionError
-from brokers.common.event_bus import EventBus
+from domain import Order, OrderStatus, OrderType, ProductType, Side
+from brokers.common.state_machine import IllegalTransitionError
+from infrastructure.event_bus import EventBus
 from brokers.common.oms.order_manager import OmsOrderCommand, OrderManager
 
 

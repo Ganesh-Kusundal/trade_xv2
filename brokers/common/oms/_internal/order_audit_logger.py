@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
-from brokers.common.core.types import OrderStatus
+from domain.types import OrderStatus
 
 logger = logging.getLogger(__name__)
 

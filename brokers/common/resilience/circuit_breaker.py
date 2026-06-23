@@ -11,7 +11,7 @@ import time
 from dataclasses import dataclass
 from enum import Enum
 
-from brokers.common.core.constants import (
+from domain.constants import (
     BACKOFF_JITTER,
     BACKOFF_MULTIPLIER,
     CIRCUIT_BREAKER_FAILURE_THRESHOLD,

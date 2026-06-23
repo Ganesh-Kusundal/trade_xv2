@@ -3,7 +3,7 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from decimal import Decimal
 
-from brokers.common.core.domain import OrderStatus, Side
+from domain import OrderStatus, Side
 from brokers.paper.paper_market_data import PaperMarketData
 from brokers.paper.paper_orders import PaperOrders
 

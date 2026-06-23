@@ -7,8 +7,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.common.core.domain import OrderStatus, Side
-from brokers.common.core.models import OrderResponse
+from domain import OrderStatus, Side
+from domain.entities import OrderResponse
 from brokers.common.execution.gateway_submit import make_gateway_submit_fn, order_from_response
 from brokers.common.oms.order_manager import OmsOrderCommand
 

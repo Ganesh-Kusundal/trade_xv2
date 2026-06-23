@@ -16,9 +16,9 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
-from datalake.api.main import create_app
-from datalake.api.config import APIConfig
-from datalake.api import deps
+from api.main import create_app
+from api.config import APIConfig
+from api import deps
 
 
 class MockDataLakeGateway:

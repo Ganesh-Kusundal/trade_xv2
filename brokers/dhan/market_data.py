@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from decimal import Decimal
 
-from brokers.common.core.domain import DepthLevel, MarketDepth, Quote
+from domain import DepthLevel, MarketDepth, Quote
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 from brokers.dhan.invariants import assert_dhan_identity
@@ -128,7 +128,7 @@ class MarketDataAdapter:
 
     def get_batch_quote(self, symbols: list[str], exchange: str = "NSE") -> dict[str, Quote]:
         from brokers.dhan.domain import InstrumentType
-        from brokers.common.core.domain import Quote as DhanQuote
+        from domain import Quote as DhanQuote
         segment_map: dict[str, list[int]] = {}
         symbol_map: dict[int, str] = {}
         ref_map: dict[int, object] = {}

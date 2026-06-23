@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from brokers.common.core.domain import OrderRequest, OrderResponse
+from domain import OrderRequest, OrderResponse
 
 
 @dataclass

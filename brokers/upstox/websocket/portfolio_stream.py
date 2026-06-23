@@ -10,7 +10,7 @@ import threading
 from collections.abc import Callable
 from typing import Any
 
-from brokers.common.event_bus import DomainEvent, EventBus
+from infrastructure.event_bus import DomainEvent, EventBus
 from brokers.upstox.auth.config import (
     UPSTOX_WS_PING_INTERVAL_SECONDS,
     UPSTOX_WS_PING_TIMEOUT_SECONDS,

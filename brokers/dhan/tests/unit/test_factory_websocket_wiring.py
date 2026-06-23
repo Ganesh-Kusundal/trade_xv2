@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from brokers.common.event_bus import EventBus
+from infrastructure.event_bus import EventBus
 from brokers.common.lifecycle import LifecycleManager
 from brokers.common.lifecycle.lifecycle import HealthState
 from brokers.dhan import BrokerFactory

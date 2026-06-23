@@ -2,7 +2,7 @@
 
 from decimal import Decimal
 
-from brokers.common.core.domain import (
+from domain import (
     Balance,
     OrderResponse,
     OrderStatus,
@@ -20,7 +20,7 @@ class TestPaperGateway:
     def test_quote_returns_dict(self):
         gw = PaperGateway()
         q = gw.quote("RELIANCE", "NSE")
-        from brokers.common.core.domain import Quote
+        from domain import Quote
         assert isinstance(q, Quote)
         assert q.symbol == "RELIANCE"
         assert q.ltp > 0
@@ -34,7 +34,7 @@ class TestPaperGateway:
     def test_depth(self):
         gw = PaperGateway()
         d = gw.depth("RELIANCE", "NSE")
-        from brokers.common.core.domain import MarketDepth
+        from domain import MarketDepth
         assert isinstance(d, MarketDepth)
         assert len(d.bids) == 5
         assert len(d.asks) == 5
@@ -183,7 +183,7 @@ class TestMockBroker:
     def test_get_quote(self):
         broker = MockBroker()
         q = broker.quote("RELIANCE", "NSE")
-        from brokers.common.core.domain import Quote
+        from domain import Quote
         assert isinstance(q, Quote)
         assert q.ltp > 0
 

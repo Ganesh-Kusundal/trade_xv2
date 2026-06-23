@@ -17,9 +17,9 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi import HTTPException
 
-from brokers.common.event_bus import EventBus
+from infrastructure.event_bus import EventBus
 from brokers.common.oms.context import TradingContext
-from datalake.api.deps import (
+from api.deps import (
     ServiceContainer,
     get_broker_service,
     get_container,
@@ -88,12 +88,12 @@ class TestServiceContainerInitialization:
 
     def setup_method(self):
         """Reset container before each test."""
-        import datalake.api.deps as deps
+        import api.deps as deps
         deps._container = None
 
     def teardown_method(self):
         """Clean up container after each test."""
-        import datalake.api.deps as deps
+        import api.deps as deps
         deps._container = None
 
     def test_set_container_initializes_container(self):
@@ -233,12 +233,12 @@ class TestDIDependencies:
 
     def setup_method(self):
         """Reset container before each test."""
-        import datalake.api.deps as deps
+        import api.deps as deps
         deps._container = None
 
     def teardown_method(self):
         """Clean up container after each test."""
-        import datalake.api.deps as deps
+        import api.deps as deps
         deps._container = None
 
     def test_get_container_raises_503_when_not_initialized(self):
@@ -347,12 +347,12 @@ class TestDIFallbackBehavior:
 
     def setup_method(self):
         """Reset container before each test."""
-        import datalake.api.deps as deps
+        import api.deps as deps
         deps._container = None
 
     def teardown_method(self):
         """Clean up container after each test."""
-        import datalake.api.deps as deps
+        import api.deps as deps
         deps._container = None
 
     def test_order_manager_falls_back_to_trading_context(self):
@@ -421,12 +421,12 @@ class TestThreadSafety:
 
     def setup_method(self):
         """Reset container before each test."""
-        import datalake.api.deps as deps
+        import api.deps as deps
         deps._container = None
 
     def teardown_method(self):
         """Clean up container after each test."""
-        import datalake.api.deps as deps
+        import api.deps as deps
         deps._container = None
 
     def test_concurrent_reads_are_safe(self):

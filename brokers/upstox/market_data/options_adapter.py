@@ -6,7 +6,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from brokers.common.api.ports import OptionsProvider
-from brokers.common.core.domain import OptionContract
+from domain import OptionContract
 from brokers.upstox.market_data.options_client import UpstoxOptionsClient
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 

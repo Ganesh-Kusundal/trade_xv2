@@ -27,9 +27,9 @@ from decimal import Decimal
 from typing import Any
 
 from domain.entities import Order, OrderStatus, OrderType, ProductType, Side, Trade
-from brokers.common.core.state_machine import IllegalTransitionError
-from brokers.common.core.types import ORDER_STATUS_TRANSITIONS
-from brokers.common.event_bus import (
+from brokers.common.state_machine import IllegalTransitionError
+from domain.types import ORDER_STATUS_TRANSITIONS
+from infrastructure.event_bus import (
     DomainEvent,
     EventBus,
     EventType,

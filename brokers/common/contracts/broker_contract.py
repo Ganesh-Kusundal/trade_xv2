@@ -16,7 +16,7 @@ from typing import Any
 import pandas as pd
 import pytest
 
-from brokers.common.core.domain import (
+from domain import (
     Balance,
     DepthLevel,
     MarketDepth,

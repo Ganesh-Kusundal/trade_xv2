@@ -20,8 +20,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.common.event_bus.async_event_bus import AsyncEventBus, BackpressurePolicy
-from brokers.common.event_bus.event_bus import DomainEvent
+from infrastructure.event_bus.async_event_bus import AsyncEventBus, BackpressurePolicy
+from infrastructure.event_bus.event_bus import DomainEvent
 
 
 # ---------------------------------------------------------------------------

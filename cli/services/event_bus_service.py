@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import random
 
-from brokers.common.event_bus import EventBus
+from infrastructure.event_bus import EventBus
 
 
 class EventBusService:

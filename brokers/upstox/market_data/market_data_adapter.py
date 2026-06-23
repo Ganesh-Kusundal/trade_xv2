@@ -9,8 +9,8 @@ from datetime import date
 from typing import Any
 
 from brokers.common.api.ports import MarketDataProvider
-from brokers.common.core.domain import MarketDepth, OptionContract, Quote
-from brokers.common.core.domain import HistoricalCandle
+from domain import MarketDepth, OptionContract, Quote
+from domain import HistoricalCandle
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from brokers.upstox.market_data.client_v2 import UpstoxMarketDataV2Client
 from brokers.upstox.market_data.client_v3 import UpstoxMarketDataV3Client

@@ -48,14 +48,14 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.common.core.domain import (
+from domain import (
     Order,
     OrderStatus,
     OrderType,
     ProductType,
     Side,
 )
-from brokers.common.event_bus import DomainEvent, EventBus
+from infrastructure.event_bus import DomainEvent, EventBus
 from brokers.common.lifecycle.lifecycle import (
     HealthState,
     HealthStatus,

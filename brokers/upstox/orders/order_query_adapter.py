@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from brokers.common.api.ports import OrderQuery
-from brokers.common.core.domain import Order, Trade
+from domain import Order, Trade
 from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from brokers.upstox.orders.order_client import UpstoxRestOrderClient

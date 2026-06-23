@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from brokers.common.core.domain import ExchangeSegment
+from domain import ExchangeSegment
 
 _UPSTOX_TO_SEGMENT: dict[str, ExchangeSegment] = {
     "NSE_EQ": ExchangeSegment.NSE,

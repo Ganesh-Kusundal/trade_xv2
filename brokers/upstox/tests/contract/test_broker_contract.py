@@ -15,7 +15,7 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 
-from brokers.common.core.domain import MarketDepth, Quote
+from domain import MarketDepth, Quote
 from brokers.upstox.gateway import UpstoxBrokerGateway
 
 # ---------------------------------------------------------------------------

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from brokers.common.core.domain import Order, OrderStatus, OrderType, Side, Trade
+from domain import Order, OrderStatus, OrderType, Side, Trade
 from brokers.common.execution.execution_service import ExecutionService
 from brokers.common.gateway import MarketDataGateway
 from brokers.common.oms.context import TradingContext
@@ -118,7 +118,7 @@ class OmsService:
         event-bus publishing.
         """
         if self._ctx is not None:
-            from brokers.common.core.domain import OrderType as Ot, ProductType as Pt
+            from domain import OrderType as Ot, ProductType as Pt
 
             try:
                 ot = Ot(order_type)

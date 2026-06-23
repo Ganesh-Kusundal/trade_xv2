@@ -40,13 +40,13 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from decimal import Decimal
 
-from brokers.common.core.constants import (
+from domain.constants import (
     PHANTOM_CAPITAL_INR,
     RISK_DAILY_LOSS_PERCENT,
     RISK_GROSS_PERCENT,
     RISK_POSITION_PERCENT,
 )
-from brokers.common.core.domain import Order
+from domain import Order
 from brokers.common.oms.capital_provider import CapitalProvider, FixedCapitalProvider
 from brokers.common.oms.position_manager import PositionManager
 from domain.constants.defaults import RISK_FALLBACK_CAPITAL

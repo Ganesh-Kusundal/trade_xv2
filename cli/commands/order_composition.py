@@ -16,7 +16,7 @@ from decimal import Decimal
 from rich.console import Console
 from rich.table import Table
 
-from brokers.common.core.domain import Side
+from domain import Side
 from cli.commands.registry import CommandResult
 from cli.services.broker_service import BrokerService
 from cli.services.oms_service import OmsService

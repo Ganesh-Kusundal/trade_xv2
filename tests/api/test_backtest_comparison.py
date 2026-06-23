@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from datalake.api.schemas import BacktestMetrics, BacktestResultResponse
-from datalake.api.routers import backtest as backtest_router
+from api.schemas import BacktestMetrics, BacktestResultResponse
+from api.routers import backtest as backtest_router
 from datalake.backtest_cache_store import BacktestCacheStore
 
 
@@ -52,9 +52,9 @@ class TestBacktestComparison:
             backtest_router._backtest_cache.update(store.load_all())
 
         from fastapi.testclient import TestClient
-        from datalake.api.config import APIConfig
-        from datalake.api.deps import reset_container
-        from datalake.api.main import create_app
+        from api.config import APIConfig
+        from api.deps import reset_container
+        from api.main import create_app
 
         reset_container()
         app = create_app(config=APIConfig(host="127.0.0.1", port=8000, cors_origins=[]))

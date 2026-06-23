@@ -43,13 +43,13 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from brokers.common.event_bus import (
+from infrastructure.event_bus import (
     AsyncEventBusFactory,
     AsyncPublishAdapter,
     async_publish_wrapper,
 )
-from brokers.common.event_bus.async_event_bus import AsyncEventBus
-from brokers.common.event_bus.dead_letter_queue import DeadLetterQueue
+from infrastructure.event_bus.async_event_bus import AsyncEventBus
+from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
 from brokers.common.observability.event_metrics import EventMetrics
 
 if TYPE_CHECKING:

@@ -21,7 +21,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.common.core.domain import Order, OrderStatus, OrderType, ProductType, Side
+from domain import Order, OrderStatus, OrderType, ProductType, Side
 from brokers.common.lifecycle.lifecycle import HealthState
 from brokers.common.oms import (
     DailyPnlResetScheduler,

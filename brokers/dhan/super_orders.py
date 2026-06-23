@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from decimal import Decimal
 
-from brokers.common.core.models import OrderResponse
+from domain.entities import OrderResponse
 from brokers.dhan.domain import SuperOrder, SuperOrderLeg
 from brokers.dhan.exceptions import SuperOrderError
 from brokers.dhan.http_client import DhanHttpClient

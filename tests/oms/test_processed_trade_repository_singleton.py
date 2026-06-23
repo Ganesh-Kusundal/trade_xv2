@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from brokers.common.event_bus.processed_trade_repository import (
+from infrastructure.event_bus.processed_trade_repository import (
     ProcessedTradeRepository,
     TradeIdKey,
 )

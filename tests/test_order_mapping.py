@@ -10,9 +10,9 @@ Verifies that:
 import pytest
 from decimal import Decimal
 
-from brokers.common.core.field_mapping import DefaultFieldMapping
-from brokers.common.core.models import Order
-from brokers.common.core.types import OrderStatus, OrderType, Side
+from domain.field_mapping import DefaultFieldMapping
+from domain.entities import Order
+from domain.types import OrderStatus, OrderType, Side
 from brokers.upstox.order_mapping import UpstoxFieldMapping
 
 

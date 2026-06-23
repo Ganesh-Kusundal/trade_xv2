@@ -19,8 +19,8 @@ from unittest.mock import MagicMock, call
 
 import pytest
 
-from brokers.common.event_bus.dead_letter_queue import DeadLetterQueue
-from brokers.common.event_bus.event_bus import DomainEvent, EventBus
+from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
+from infrastructure.event_bus.event_bus import DomainEvent, EventBus
 from brokers.common.observability.alerting import (
     Alert,
     AlertLevel,
@@ -723,7 +723,7 @@ class TestAsyncEventBusIntegration:
     @pytest.mark.asyncio
     async def test_async_bus_with_alerting(self) -> None:
         import asyncio
-        from brokers.common.event_bus.async_event_bus import AsyncEventBus
+        from infrastructure.event_bus.async_event_bus import AsyncEventBus
 
         metrics = EventMetrics()
         engine = AlertingEngine(metrics, cooldown_seconds=0)

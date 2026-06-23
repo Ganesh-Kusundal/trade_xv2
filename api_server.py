@@ -13,8 +13,8 @@ from pathlib import Path
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
-from datalake.api.main import create_app
-from datalake.api.config import APIConfig
+from api.main import create_app
+from api.config import APIConfig
 from datalake.gateway import DataLakeGateway
 from datalake.catalog import DataCatalog
 from analytics.views.manager import ViewManager

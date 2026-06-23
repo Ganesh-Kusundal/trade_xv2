@@ -129,6 +129,110 @@ class TestImportDirection:
             f"analytics must not import from cli:\n" + "\n".join(violations)
         )
 
+    def test_no_shim_imports_in_production_code(self):
+        """Production code must not import from deprecated shim paths.
+
+        All imports from brokers.common.core.{domain,types,field_mapping,requests,
+        result,reconciliation,exchange_segments,parsing} must migrate to the
+        canonical domain/ imports. Only the shim files themselves are exempt.
+
+        REF: Architecture Audit Phase 11 — Hidden Dependencies & Coupling Audit
+        """
+        SHIM_PATTERNS = [
+            "brokers.common.core.domain",
+            "brokers.common.core.types",
+            "brokers.common.core.field_mapping",
+            "brokers.common.core.requests",
+            "brokers.common.core.result",
+            "brokers.common.core.reconciliation",
+            "brokers.common.core.exchange_segments",
+            "brokers.common.core.parsing",
+        ]
+
+        # Files that ARE the shims — they MUST import from themselves
+        SHIM_FILE_PATHS = {
+            str(ROOT / "brokers/common/core/models.py"),
+            str(ROOT / "brokers/common/core/types.py"),
+            str(ROOT / "brokers/common/core/field_mapping.py"),
+            str(ROOT / "brokers/common/core/requests.py"),
+            str(ROOT / "brokers/common/core/result.py"),
+            str(ROOT / "brokers/common/core/reconciliation.py"),
+            str(ROOT / "brokers/common/core/exchange_segments.py"),
+            str(ROOT / "brokers/common/core/parsing.py"),
+            str(ROOT / "brokers/common/core/__init__.py"),
+        }
+
+        violations = []
+        for directory in ["brokers", "datalake", "analytics", "cli", "domain", "tests"]:
+            dir_path = ROOT / directory
+            if not dir_path.exists():
+                continue
+            for py_file in dir_path.rglob("*.py"):
+                # Skip __pycache__ and the shim files themselves
+                if "__pycache__" in str(py_file):
+                    continue
+                if str(py_file) in SHIM_FILE_PATHS:
+                    continue
+                imports = _get_imports(py_file)
+                for imp in imports:
+                    for pattern in SHIM_PATTERNS:
+                        if imp == pattern or imp.startswith(pattern + "."):
+                            violations.append(
+                                f"{py_file.relative_to(ROOT)} imports {imp}"
+                            )
+                            break
+
+        assert not violations, (
+            f"{len(violations)} shim imports found in non-shim files. "
+            f"Migrate to canonical domain/ imports.\n"
+            f"Run: python scripts/migrate_shim_imports.py --apply\n"
+            + "\n".join(violations[:20])
+            + ("\n..." if len(violations) > 20 else "")
+        )
+
+    def test_no_direct_event_bus_internal_imports(self):
+        """No file should import from the deprecated brokers/common/event_bus/ path.
+
+        After the EventBus elevation (Wave 2-3) and shim cleanup (Wave 5),
+        all event_bus code lives at infrastructure/event_bus/. The old
+        brokers/common/event_bus/ path is no longer a valid import target.
+
+        REF: Architecture Audit Phase 7 (Wave 3) + Wave 5 shim cleanup.
+        """
+        INTERNAL_PATTERNS = [
+            "brokers.common.event_bus.event_bus",
+            "brokers.common.event_bus.async_event_bus",
+            "brokers.common.event_bus.dead_letter_queue",
+            "brokers.common.event_bus.factory",
+            "brokers.common.event_bus.models",
+            "brokers.common.event_bus.event_types",
+            "brokers.common.event_bus.processed_trade_repository",
+        ]
+
+        violations = []
+        for directory in ["brokers", "datalake", "analytics", "cli", "domain", "tests", "infrastructure", "scripts"]:
+            dir_path = ROOT / directory
+            if not dir_path.exists():
+                continue
+            for py_file in dir_path.rglob("*.py"):
+                if "__pycache__" in str(py_file):
+                    continue
+                imports = _get_imports(py_file)
+                for imp in imports:
+                    for pattern in INTERNAL_PATTERNS:
+                        if imp == pattern or imp.startswith(pattern + "."):
+                            violations.append(
+                                f"{py_file.relative_to(ROOT)} imports {imp}"
+                            )
+                            break
+
+        assert not violations, (
+            f"{len(violations)} direct event_bus internal imports found. "
+            f"Import from infrastructure.event_bus instead.\n"
+            + "\n".join(violations[:15])
+            + ("\n..." if len(violations) > 15 else "")
+        )
+
 
 class TestModuleBoundaries:
     """Module boundary tests - enforce clean architecture."""

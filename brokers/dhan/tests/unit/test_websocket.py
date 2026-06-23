@@ -169,7 +169,7 @@ class TestDhanMarketFeed:
         assert len(result["depth"]) == 1
 
     def test_on_message_publishes_tick_event(self):
-        from brokers.common.event_bus import EventBus
+        from infrastructure.event_bus import EventBus
         bus = EventBus()
         received = []
         bus.subscribe("TICK", lambda e: received.append(e))
@@ -194,7 +194,7 @@ class TestDhanMarketFeed:
         assert received[0].payload["quote"].symbol == "2885"
 
     def test_on_message_publishes_depth_event(self):
-        from brokers.common.event_bus import EventBus
+        from infrastructure.event_bus import EventBus
         bus = EventBus()
         received = []
         bus.subscribe("DEPTH", lambda e: received.append(e))
@@ -337,7 +337,7 @@ class TestDhanOrderStream:
         assert received[0]["order_id"] == "999"
 
     def test_on_order_update_publishes_event(self):
-        from brokers.common.event_bus import EventBus
+        from infrastructure.event_bus import EventBus
         bus = EventBus()
         received = []
         bus.subscribe("ORDER_UPDATED", lambda e: received.append(e))
@@ -630,7 +630,7 @@ class TestDhanMarketFeedBackfill:
         """_backfill_gap must publish TICK events for backfilled bars."""
         from datetime import datetime, timezone
 
-        from brokers.common.event_bus import EventBus
+        from infrastructure.event_bus import EventBus
         bus = EventBus()
         received = []
         bus.subscribe("TICK", lambda e: received.append(e))

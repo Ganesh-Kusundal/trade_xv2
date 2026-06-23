@@ -24,7 +24,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from brokers.common.core.domain import (
+from domain import (
     Order,
     OrderStatus,
     OrderType,
@@ -32,7 +32,7 @@ from brokers.common.core.domain import (
     Side,
     Trade,
 )
-from brokers.common.event_bus import EventBus
+from infrastructure.event_bus import EventBus
 from brokers.common.event_log import EventLog
 from brokers.common.oms.context import TradingContext
 from brokers.common.oms.factory import create_trading_context
@@ -142,7 +142,7 @@ def test_scenario_1_crash_after_order_placement_replays_correctly(tmp_path):
     assert pre_crash_orders[0].order_id == placed.order_id
     # Simulate the broker event handler (DhanOrderStream) publishing
     # the canonical ORDER_UPDATED that is replayed on restart.
-    from brokers.common.event_bus import DomainEvent
+    from infrastructure.event_bus import DomainEvent
     ctx.event_bus.publish(
         DomainEvent.now(
             "ORDER_UPDATED",
@@ -188,7 +188,7 @@ def test_scenario_2_crash_after_fill_replays_position(tmp_path):
     # subscription. The cleanest invariant: place_order publishes
     # ORDER_UPDATED; the OMS-internal TRADE_APPLIED handler is the
     # only path that updates positions. record_trade is called once.
-    from brokers.common.event_bus import DomainEvent
+    from infrastructure.event_bus import DomainEvent
     placed_order = ctx.order_manager.get_orders(symbol="TCS")[0]
     filled_order = placed_order.with_status(OrderStatus.FILLED).with_fill(5, Decimal("3500"))
     ctx.event_bus.publish(

@@ -10,8 +10,8 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from brokers.common.event_bus import EventBus
-from brokers.common.event_bus.dead_letter_queue import DeadLetterQueue
+from infrastructure.event_bus import EventBus
+from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
 from brokers.common.event_log import EventLog
 from brokers.common.observability.event_metrics import EventMetrics
 from brokers.common.oms.context import TradingContext

@@ -16,8 +16,8 @@ import threading
 import time
 from collections.abc import Callable
 
-from brokers.common.core.auth import AuthManager
-from brokers.common.core.constants import (
+from brokers.common.auth import AuthManager
+from domain.constants import (
     DEFAULT_STOP_TIMEOUT_SECONDS,
     DHAN_TOKEN_REFRESH_BUFFER_SECONDS,
     DHAN_TOKEN_SCHEDULER_INTERVAL_SECONDS,

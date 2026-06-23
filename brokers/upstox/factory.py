@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from brokers.common.env_loader import load_env_file
-from brokers.common.event_bus import EventBus
+from infrastructure.event_bus import EventBus
 from brokers.common.factory import BrokerProviderFactory
 from brokers.common.gateway import MarketDataGateway
 from brokers.common.oms.risk_manager import RiskManager

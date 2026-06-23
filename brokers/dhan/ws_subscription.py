@@ -13,7 +13,7 @@ from typing import Sequence
 
 logger = logging.getLogger(__name__)
 
-from brokers.common.core.exchange_segments import parse_segment
+from domain.exchange_segments import parse_segment
 
 
 class DhanSubscriptionManager:

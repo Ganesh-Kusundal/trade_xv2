@@ -6,7 +6,7 @@ import logging
 from collections.abc import Callable
 from datetime import datetime
 
-from brokers.common.event_bus import EventBus
+from infrastructure.event_bus import EventBus
 from brokers.common.lifecycle import LifecycleManager
 from brokers.common.oms.risk_manager import RiskManager
 from brokers.dhan.alerts import AlertsAdapter

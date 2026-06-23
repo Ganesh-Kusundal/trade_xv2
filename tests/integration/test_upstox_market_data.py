@@ -24,7 +24,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from brokers.common.core.domain import MarketDepth, Quote
+from domain import MarketDepth, Quote
 from brokers.upstox.gateway import UpstoxBrokerGateway
 
 from tests.integration.fixtures.upstox import (

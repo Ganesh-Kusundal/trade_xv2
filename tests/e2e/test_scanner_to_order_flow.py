@@ -19,7 +19,7 @@ from decimal import Decimal
 import pandas as pd
 import pytest
 
-from brokers.common.core.domain import OrderStatus, Side, Trade
+from domain import OrderStatus, Side, Trade
 from brokers.common.oms.order_manager import OmsOrderCommand
 from brokers.common.oms.risk_manager import RiskConfig
 
@@ -274,7 +274,7 @@ class TestOrderExecution:
     """Tests: Orders execute correctly after scanner generates them."""
 
     def _submit_fn(self, fill_price: Decimal = Decimal("100.0")):
-        from brokers.common.core.domain import Order, ProductType, OrderType
+        from domain import Order, ProductType, OrderType
         def submit_fn(cmd):
             return Order(
                 order_id=f"SCAN-{cmd.correlation_id[:8]}",
@@ -338,7 +338,7 @@ class TestPortfolioUpdate:
     """Tests: Portfolio state updates correctly after scanner-driven trades."""
 
     def _submit_fn(self, fill_price: Decimal = Decimal("100.0")):
-        from brokers.common.core.domain import Order
+        from domain import Order
         def submit_fn(cmd):
             return Order(
                 order_id=f"PF-{cmd.correlation_id[:8]}",

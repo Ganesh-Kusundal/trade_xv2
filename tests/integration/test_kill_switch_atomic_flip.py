@@ -22,7 +22,7 @@ from decimal import Decimal
 
 import pytest
 
-from brokers.common.core.domain import Order, OrderStatus, OrderType, ProductType, Side
+from domain import Order, OrderStatus, OrderType, ProductType, Side
 from brokers.common.oms import PositionManager, RiskConfig, RiskManager
 
 

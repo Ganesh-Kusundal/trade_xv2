@@ -12,7 +12,7 @@ from decimal import Decimal
 
 import pytest
 
-from brokers.common.core.domain import Order, OrderStatus, OrderType, Side, Trade
+from domain import Order, OrderStatus, OrderType, Side, Trade
 from brokers.common.oms.order_manager import OrderManager
 
 

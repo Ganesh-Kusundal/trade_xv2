@@ -24,7 +24,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Protocol, runtime_checkable
 
-from brokers.common.core.constants import DEFAULT_STOP_TIMEOUT_SECONDS
+from domain.constants import DEFAULT_STOP_TIMEOUT_SECONDS
 
 logger = logging.getLogger(__name__)
 

@@ -33,12 +33,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from brokers.common.core.domain import (
+from domain import (
     OrderStatus,
     Side,
     Trade,
 )
-from brokers.common.event_bus import DomainEvent, EventType, EventBus
+from infrastructure.event_bus import DomainEvent, EventType, EventBus
 from brokers.common.lifecycle import LifecycleManager
 from brokers.common.lifecycle.lifecycle import (
     HealthState,

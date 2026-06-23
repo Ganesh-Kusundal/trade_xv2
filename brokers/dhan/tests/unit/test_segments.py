@@ -42,14 +42,14 @@ def test_numeric_segment_codes():
 
 
 def test_to_dhan_wire_mcx():
-    from brokers.common.core.types import ExchangeSegment
+    from domain.types import ExchangeSegment
 
     assert to_dhan_wire(ExchangeSegment.MCX) == "MCX_COMM"
     assert to_dhan_wire("MCX") == "MCX_COMM"
 
 
 def test_sdk_int_roundtrip():
-    from brokers.common.core.types import ExchangeSegment
+    from domain.types import ExchangeSegment
 
     assert from_sdk_int(5) is ExchangeSegment.MCX
     assert to_sdk_int(ExchangeSegment.MCX) == 5

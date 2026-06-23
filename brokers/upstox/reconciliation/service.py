@@ -10,7 +10,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from brokers.common.core.domain import DriftItem, OrderStatus, ReconciliationReport
+from domain import DriftItem, OrderStatus, ReconciliationReport
 from brokers.upstox.market_data.portfolio_client import UpstoxPortfolioClient
 from brokers.upstox.orders.order_client import UpstoxRestOrderClient
 

@@ -14,7 +14,7 @@ from decimal import Decimal
 
 import pytest
 
-from brokers.common.core.domain import (
+from domain import (
     Order,
     OrderStatus,
     OrderType,
@@ -22,8 +22,8 @@ from brokers.common.core.domain import (
     Side,
     Trade,
 )
-from brokers.common.event_bus import DomainEvent, EventBus
-from brokers.common.event_bus.dead_letter_queue import DeadLetterQueue
+from infrastructure.event_bus import DomainEvent, EventBus
+from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
 from brokers.common.event_log import EventLog
 from brokers.common.observability.event_metrics import EventMetrics
 from brokers.common.oms import (

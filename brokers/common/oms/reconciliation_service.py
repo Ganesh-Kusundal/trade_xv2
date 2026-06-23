@@ -13,12 +13,12 @@ import threading
 import time
 from typing import Any
 
-from brokers.common.core.constants import (
+from domain.constants import (
     DEFAULT_STOP_TIMEOUT_SECONDS,
     MIN_SLEEP_SECONDS,
     RECONCILIATION_INTERVAL_SECONDS,
 )
-from brokers.common.event_bus import EventBus
+from infrastructure.event_bus import EventBus
 from brokers.common.lifecycle import HealthState, ManagedService, build_health
 from brokers.common.oms.order_manager import OrderManager
 from brokers.common.oms.position_manager import PositionManager
@@ -179,7 +179,7 @@ class ReconciliationService(ManagedService):
             self._last_run_at = time.monotonic()
             if self._event_bus is not None:
                 try:
-                    from brokers.common.event_bus import DomainEvent
+                    from infrastructure.event_bus import DomainEvent
                     # Publish the canonical RECONCILIATION_COMPLETED with
                     # a sub-type indicator so operators watching the bus
                     # see drift/ok without needing a second event type.

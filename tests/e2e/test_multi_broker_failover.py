@@ -18,7 +18,7 @@ from typing import Any
 
 import pytest
 
-from brokers.common.core.domain import OrderResponse, OrderStatus
+from domain import OrderResponse, OrderStatus
 from brokers.common.observability.event_metrics import EventMetrics
 from brokers.common.resilience.broker_health_monitor import BrokerHealthMonitor
 from brokers.common.resilience.errors import BrokerDegradedError

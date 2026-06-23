@@ -9,7 +9,7 @@ from typing import Any
 import pandas as pd
 
 from brokers.common.batch_executor import batch_execute
-from brokers.common.core.constants import BATCH_MAX_WORKERS
+from domain.constants import BATCH_MAX_WORKERS
 
 logger = logging.getLogger(__name__)
 

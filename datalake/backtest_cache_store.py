@@ -8,7 +8,7 @@ import sqlite3
 import threading
 from pathlib import Path
 
-from datalake.api.schemas import BacktestMetrics, BacktestResultResponse
+from api.schemas import BacktestMetrics, BacktestResultResponse
 
 logger = logging.getLogger(__name__)
 

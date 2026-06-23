@@ -6,7 +6,7 @@ import random
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from brokers.common.core.domain import DepthLevel, MarketDepth, Quote
+from domain import DepthLevel, MarketDepth, Quote
 
 
 class PaperMarketData:

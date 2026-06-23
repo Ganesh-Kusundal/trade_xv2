@@ -7,8 +7,8 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from brokers.common.core.domain import Order, OrderStatus, OrderType, ProductType, Side
-from brokers.common.core.models import OrderResponse
+from domain import Order, OrderStatus, OrderType, ProductType, Side
+from domain.entities import OrderResponse
 from brokers.common.gateway import MarketDataGateway
 from brokers.common.oms.order_manager import OmsOrderCommand
 

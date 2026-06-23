@@ -13,13 +13,13 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from brokers.common.core.parsing import (
+from domain.parsing import (
     parse_decimal,
     parse_int,
     parse_optional_str,
     parse_timestamp,
 )
-from brokers.common.core.domain import (
+from domain import (
     DepthLevel,
     ExchangeSegment,
     FundLimits,

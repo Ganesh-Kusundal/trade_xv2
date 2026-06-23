@@ -16,7 +16,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.common.core.domain import MarketDepth, Quote
+from domain import MarketDepth, Quote
 from brokers.upstox.adapters.market_data_adapter import MarketDataAdapter
 
 

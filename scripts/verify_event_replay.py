@@ -30,7 +30,7 @@ from typing import Any
 # Make project importable when run as a script.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from brokers.common.event_bus import (
+from infrastructure.event_bus import (
     DeadLetterQueue,
     DomainEvent,
     EventBus,

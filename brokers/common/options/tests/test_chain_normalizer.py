@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from brokers.common.core.models import OptionChain, OptionContract
+from domain.entities import OptionChain, OptionContract
 from brokers.common.options.chain_normalizer import (
     to_canonical_strikes,
     upstox_chain_to_canonical,

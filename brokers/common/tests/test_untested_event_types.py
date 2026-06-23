@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from brokers.common.event_bus import DomainEvent, EventBus, EventType
+from infrastructure.event_bus import DomainEvent, EventBus, EventType
 
 
 class TestScannerEvents:

@@ -27,7 +27,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from brokers.common.core.domain import (
+from domain import (
     Balance,
     Holding,
     MarketDepth,

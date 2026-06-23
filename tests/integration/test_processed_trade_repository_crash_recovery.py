@@ -15,8 +15,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from brokers.common.core.domain import Side, Trade
-from brokers.common.event_bus import ProcessedTradeRepository, TradeIdKey
+from domain import Side, Trade
+from infrastructure.event_bus import ProcessedTradeRepository, TradeIdKey
 
 
 def _make_trade(trade_id: str, order_id: str = "O1") -> Trade:

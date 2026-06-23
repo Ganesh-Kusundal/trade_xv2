@@ -4,11 +4,9 @@ The engine processes OHLCV data one bar at a time, running the same
 FeaturePipeline and StrategyPipeline used in live trading. This ensures
 complete parity: if a strategy works in replay, it will work in live.
 
-P0-2 OMS Integration: When a ``TradingContext`` is provided, the engine routes
-all order execution through :class:`OmsBacktestAdapter`, ensuring backtest-live
-parity for risk gates, idempotency, and event publishing. Without a
-TradingContext, the engine falls back to legacy simulated position management
-for backward compatibility.
+P0-2 OMS Integration: All order execution is routed through
+:class:`OmsBacktestAdapter`, ensuring backtest-live parity for risk gates,
+idempotency, and event publishing.
 
 P2-3 Intra-Bar Checks: The engine checks open positions against stop-loss and
 target levels on every bar using intra-bar high/low, not just on explicit
@@ -26,7 +24,7 @@ Flow per bar:
     4. Construct Candidate from latest bar
     5. Run StrategyPipeline.evaluate_single(candidate, features)
     6. P2-3: Check intra-bar stop-loss/target for open positions
-    7. Process Signals (route through OMS if available, else simulated)
+    7. Process Signals via OMS adapter
     8. Update equity curve
 
 Usage:
@@ -36,12 +34,7 @@ Usage:
     pipeline = FeaturePipeline().add(RSI(14)).add(ATR(14)).add(SMA(20))
     strategy = StrategyPipeline(strategies=[MomentumStrategy()])
 
-    # Basic usage (legacy simulated positions)
-    engine = ReplayEngine(pipeline, strategy)
-    result = engine.run(dataframe)
-    print(result.summary)
-
-    # P0-2: With OMS integration for backtest-live parity
+    # Requires trading_context or oms_adapter for order execution
     from cli.services.compose import build_runtime
     runtime = build_runtime("dhan")
     engine = ReplayEngine(
@@ -53,7 +46,6 @@ Usage:
 from __future__ import annotations
 
 import logging
-import os
 from collections import deque
 from decimal import Decimal
 from typing import TYPE_CHECKING
@@ -78,9 +70,6 @@ from domain.ports.oms_backtest_adapter import OmsBacktestAdapterPort
 
 logger = logging.getLogger(__name__)
 
-# Module-level default for backward compat; prefer the constructor parameter.
-_DEFAULT_STRICT_PARITY = os.getenv("STRICT_EXECUTION_PARITY", "0") == "1"
-
 
 class ReplayEngine:
     """Bar-by-bar historical replay engine.
@@ -88,9 +77,9 @@ class ReplayEngine:
     Processes OHLCV data through the same FeaturePipeline + StrategyPipeline
     used in live trading, ensuring complete parity.
 
-    P0-2: When ``trading_context`` is provided, all order execution is routed
-    through :class:`OmsBacktestAdapter` for backtest-live parity. Without it,
-    the engine falls back to legacy simulated position management.
+    P0-2: All order execution is routed through :class:`OmsBacktestAdapter`
+    for backtest-live parity. A ``trading_context`` (or direct ``oms_adapter``)
+    is required.
 
     P2-3: Open positions are checked against stop-loss and target levels on
     every bar using intra-bar high/low data.
@@ -109,9 +98,9 @@ class ReplayEngine:
     event_bus:
         Optional EventBus for publishing signals.
     trading_context:
-        Optional OMS TradingContext. When provided, enables P0-2 OMS
-        integration for backtest-live parity. If None, uses legacy
-        simulated position management (backward compatible).
+        OMS TradingContext. Required unless ``oms_adapter`` is provided directly.
+    oms_adapter:
+        Pre-built OMS backtest adapter. Takes precedence over ``trading_context``.
     """
 
     def __init__(
@@ -123,7 +112,6 @@ class ReplayEngine:
         trading_context=None,
         execution_adapter: object | None = None,
         oms_adapter: OmsBacktestAdapterPort | None = None,
-        strict_parity: bool | None = None,
     ) -> None:
         self._pipeline = pipeline or FeaturePipeline()
         self._strategy = strategy_pipeline or StrategyPipeline()
@@ -131,7 +119,6 @@ class ReplayEngine:
         self._event_bus = event_bus
         self._trading_context = trading_context
         self._execution_adapter = execution_adapter
-        self._strict_parity = strict_parity if strict_parity is not None else _DEFAULT_STRICT_PARITY
 
         if oms_adapter is not None:
             self._oms_adapter = oms_adapter
@@ -145,11 +132,10 @@ class ReplayEngine:
                 execution_adapter=execution_adapter,
             )
         else:
-            self._oms_adapter = None
-            if self._strict_parity:
-                raise ValueError(
-                    "STRICT_EXECUTION_PARITY=1 requires trading_context or oms_adapter on ReplayEngine"
-                )
+            raise TypeError(
+                "ReplayEngine requires trading_context (or oms_adapter) for order execution. "
+                "Pass a TradingContext instance from your composition root."
+            )
 
     def run(self, data: pd.DataFrame, *, symbol: str = "SYMBOL") -> ReplayResult:
         """Run replay on OHLCV DataFrame.
@@ -361,27 +347,15 @@ class ReplayEngine:
         session: ReplaySession,
         config: ReplayConfig,
     ) -> None:
-        """Process a signal: route through OMS if available, else use simulated positions.
+        """Process a signal through OMS for backtest-live parity.
 
-        P0-2: When ``trading_context`` was provided at initialization, signals
-        are routed through :class:`OmsBacktestAdapter` to ensure backtest-live
-        parity. Otherwise, falls back to legacy simulated position management.
+        Requires ``trading_context`` (or ``oms_adapter``) passed at construction time.
         """
         if not signal.is_actionable:
             return
 
-        # P0-2: If OMS adapter is available, route through OMS for parity
-        if self._oms_adapter is not None:
-            self._process_signal_via_oms(signal, bar, session, config)
-        else:
-            logger.warning(
-                "ReplayEngine using legacy simulated fills; pass trading_context for OMS parity"
-            )
-            if self._strict_parity:
-                raise RuntimeError(
-                    "STRICT_EXECUTION_PARITY=1 forbids simulated replay fills"
-                )
-            self._process_signal_simulated(signal, bar, session, config)
+        self._process_signal_via_oms(signal, bar, session, config)
+    
 
     def _process_signal_via_oms(
         self,
@@ -447,64 +421,29 @@ class ReplayEngine:
                 session.capital += proceeds
                 session.position = None
 
-    def _process_signal_simulated(
-        self,
-        signal: Signal,
-        bar: Bar,
-        session: ReplaySession,
-        config: ReplayConfig,
-    ) -> None:
-        """Legacy simulated position management (deprecated, backward compatible).
-
-        This method is only used when no ``trading_context`` is provided.
-        New code should always use TradingContext for backtest-live parity.
-        """
-        if signal.is_buy and session.position is None:
-            # Open long position
-            price = bar.close * (1 + config.slippage_pct / 100)
-            max_notional = session.capital * (config.max_position_pct / 100)
-            qty = int(max_notional / price) if price > 0 else 0
-            if qty > 0:
-                cost = qty * price + config.commission_flat
-                if cost <= session.capital:
-                    session.capital -= cost
-                    session.position = SimulatedPosition(
-                        symbol=bar.symbol,
-                        side="BUY",
-                        entry_price=price,
-                        quantity=qty,
-                        entry_time=bar.timestamp,
-                        stop_loss=signal.stop_loss,
-                        target=signal.target,
-                        strategy=signal.strategy,
-                    )
-
-        elif signal.is_sell and session.position is not None and session.position.side == "BUY":
-            # Close long position
-            self._close_position(session, bar, "Signal sell")
-
     def _close_position(self, session: ReplaySession, bar: Bar, reason: str) -> None:
-        """Close the current position and record the trade."""
+        """Close the current position through OMS and record the trade."""
         pos = session.position
         if pos is None:
             return
 
-        exit_price = bar.close * (1 - self._config.slippage_pct / 100)
+        # Route through OMS for backtest-live parity (P0-2)
+        price = Decimal(str(bar.close * (1 - self._config.slippage_pct / 100)))
+        order_id = self._oms_adapter.close_long(
+            symbol=pos.symbol,
+            exchange="NSE",
+            quantity=pos.quantity,
+            price=price,
+            timestamp=bar.timestamp,
+            strategy=pos.strategy,
+            reasons=[reason],
+        )
+        if order_id is None:
+            return  # OMS rejected the close
+
+        exit_price = float(price)
         pnl = (exit_price - pos.entry_price) * pos.quantity - self._config.commission_flat
         pnl_pct = ((exit_price / pos.entry_price) - 1) * 100 if pos.entry_price > 0 else 0.0
-
-        # Route through OMS if available (P0-2)
-        if self._oms_adapter is not None:
-            price = Decimal(str(exit_price))
-            self._oms_adapter.close_long(
-                symbol=pos.symbol,
-                exchange="NSE",
-                quantity=pos.quantity,
-                price=price,
-                timestamp=bar.timestamp,
-                strategy=pos.strategy,
-                reasons=[reason],
-            )
 
         session.capital += pos.quantity * exit_price - self._config.commission_flat
         session.trades.append(SimulatedTrade(
@@ -529,10 +468,10 @@ class ReplayEngine:
         exit_price: float,
         reason: str,
     ) -> None:
-        """Close position at specific price (for stop-loss/target triggers).
+        """Close position at specific price through OMS (for stop-loss/target triggers).
 
         P2-3: This method is called when intra-bar price action hits a position's
-        stop-loss or target level. Routes through OMS if available (P0-2).
+        stop-loss or target level. Routes through OMS for backtest-live parity.
 
         Parameters
         ----------
@@ -549,18 +488,19 @@ class ReplayEngine:
         if pos is None:
             return
 
-        # Route through OMS if available (P0-2)
-        if self._oms_adapter is not None:
-            price = Decimal(str(exit_price))
-            self._oms_adapter.close_long(
-                symbol=pos.symbol,
-                exchange="NSE",
-                quantity=pos.quantity,
-                price=price,
-                timestamp=bar.timestamp,
-                strategy=pos.strategy,
-                reasons=[reason],
-            )
+        # Route through OMS for backtest-live parity (P0-2)
+        price = Decimal(str(exit_price))
+        order_id = self._oms_adapter.close_long(
+            symbol=pos.symbol,
+            exchange="NSE",
+            quantity=pos.quantity,
+            price=price,
+            timestamp=bar.timestamp,
+            strategy=pos.strategy,
+            reasons=[reason],
+        )
+        if order_id is None:
+            return  # OMS rejected the close
 
         # Update session state
         pnl = (exit_price - pos.entry_price) * pos.quantity - self._config.commission_flat
@@ -585,11 +525,10 @@ class ReplayEngine:
     def _publish_signal(self, signal: Signal) -> None:
         """Publish a signal to the EventBus.
 
-        Builds a canonical :class:`brokers.common.event_bus.DomainEvent`
-        with the ``SIGNAL_GENERATED`` event type so consumers on the bus
-        (metrics, audit, strategies) can react.  Errors are swallowed
-        because signal publishing is best-effort; a failed publish must
-        never abort the replay bar loop.
+        Builds a canonical DomainEvent with the ``SIGNAL_GENERATED`` event type
+        so consumers on the bus (metrics, audit, strategies) can react.  Errors
+        are swallowed because signal publishing is best-effort; a failed publish
+        must never abort the replay bar loop.
         """
         try:
             from domain.events import EventType

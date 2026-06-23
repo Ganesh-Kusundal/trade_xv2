@@ -23,8 +23,8 @@ from typing import TYPE_CHECKING
 
 from cachetools import TTLCache
 
-from brokers.common.core.state_machine import IllegalTransitionError, StateMachine
-from brokers.common.core.types import ORDER_STATUS_TRANSITIONS, OrderStatus
+from brokers.common.state_machine import IllegalTransitionError, StateMachine
+from domain.types import ORDER_STATUS_TRANSITIONS, OrderStatus
 
 if TYPE_CHECKING:
     pass

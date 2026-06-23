@@ -274,7 +274,7 @@ class TestUpstoxPortfolioStreamSafety:
         assert payload.get("symbol") == "INFY"
 
     async def test_read_loop_publishes_order_event_to_event_bus(self):
-        from brokers.common.event_bus import EventBus
+        from infrastructure.event_bus import EventBus
         bus = EventBus()
         received = []
         bus.subscribe("ORDER_UPDATED", lambda e: received.append(e))

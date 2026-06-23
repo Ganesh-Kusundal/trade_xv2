@@ -11,7 +11,7 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Generic, TypeVar
 
-from brokers.common.core.constants import MAX_RETRY_DELAY_MS
+from domain.constants import MAX_RETRY_DELAY_MS
 from brokers.common.resilience.backoff import BackoffStrategy, ExponentialBackoff
 from brokers.common.resilience.circuit_breaker import CircuitBreaker
 from brokers.common.resilience.errors import (

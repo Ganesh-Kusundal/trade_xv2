@@ -60,7 +60,7 @@ class TestDepthResponseParsing:
     """Verify get_depth parses the nested quotes response format."""
 
     def test_depth_parses_nested_format(self):
-        from brokers.common.core.domain import MarketDepth
+        from domain import MarketDepth
         from brokers.upstox.gateway import UpstoxBrokerGateway
 
         broker = MagicMock()
@@ -163,7 +163,7 @@ class TestMarketDepthInit:
     """Verify MarketDepth doesn't accept symbol kwarg."""
 
     def test_market_depth_no_symbol(self):
-        from brokers.common.core.domain import MarketDepth
+        from domain import MarketDepth
         depth = MarketDepth(bids=[], asks=[])
         assert depth.bids == []
         assert depth.asks == []

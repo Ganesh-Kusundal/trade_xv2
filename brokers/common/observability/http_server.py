@@ -36,7 +36,7 @@ from typing import Any
 
 from aiohttp import web
 
-from brokers.common.core.constants import (
+from domain.constants import (
     DEFAULT_STOP_TIMEOUT_SECONDS,
     OBSERVABILITY_DEFAULT_HOST,
     OBSERVABILITY_DEFAULT_PORT,

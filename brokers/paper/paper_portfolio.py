@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from brokers.common.core.domain import Balance, Holding, Position
+from domain import Balance, Holding, Position
 from domain.constants.defaults import PAPER_INITIAL_CAPITAL
 
 from .paper_orders import PaperOrders

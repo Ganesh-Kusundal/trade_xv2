@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.common.core.domain import (
+from domain import (
     ExchangeSegment,
     OrderRequest,
     OrderResponse,

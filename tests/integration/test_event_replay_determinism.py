@@ -10,7 +10,7 @@ import sys
 from decimal import Decimal
 from pathlib import Path
 
-from brokers.common.core.domain import (
+from domain import (
     Order,
     OrderStatus,
     OrderType,
@@ -18,8 +18,8 @@ from brokers.common.core.domain import (
     Side,
     Trade,
 )
-from brokers.common.event_bus import DomainEvent, ProcessedTradeRepository
-from brokers.common.event_bus.models import EventType  # P1-3: EventType enum
+from infrastructure.event_bus import DomainEvent, ProcessedTradeRepository
+from infrastructure.event_bus.models import EventType  # P1-3: EventType enum
 from brokers.common.event_log import EventLog
 from brokers.common.observability.event_metrics import EventMetrics
 from brokers.common.oms.context import TradingContext
@@ -31,15 +31,15 @@ def _bootstrap_context(
     events_dir: Path, repo_path: Path | None = None
 ) -> tuple[TradingContext, ProcessedTradeRepository]:
     metrics = EventMetrics()
-    from brokers.common.event_bus import DeadLetterQueue
+    from infrastructure.event_bus import DeadLetterQueue
 
     dlq = DeadLetterQueue()
-    from brokers.common.event_bus import EventBus
+    from infrastructure.event_bus import EventBus
 
     bus = EventBus(metrics=metrics, dead_letter_queue=dlq)
     log = EventLog(events_dir=events_dir)
     bus._event_log = log  # ensure bus persists
-    from brokers.common.event_bus import ProcessedTradeRepository
+    from infrastructure.event_bus import ProcessedTradeRepository
 
     # Use a persistent repo when one is requested so that two sessions
     # (live + replay) share idempotency state. This mirrors production
@@ -145,7 +145,7 @@ def test_synthetic_session_replays_deterministically(tmp_path: Path) -> None:
     # fresh in-memory ledger. It will re-apply every event in order
     # (including the TRADE events) and rebuild the same state. This is
     # the deterministic-replay contract.
-    from brokers.common.event_bus import (
+    from infrastructure.event_bus import (
         DeadLetterQueue,
         EventBus,
         ProcessedTradeRepository,
@@ -226,7 +226,7 @@ def test_duplicate_trade_does_not_double_position(tmp_path: Path) -> None:
     ctx.event_bus._event_log.close()
 
     # Session 2 — replay
-    from brokers.common.event_bus import (
+    from infrastructure.event_bus import (
         DeadLetterQueue,
         EventBus,
         ProcessedTradeRepository,

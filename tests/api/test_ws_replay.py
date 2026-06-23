@@ -7,9 +7,9 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from datalake.api.config import APIConfig
-from datalake.api.deps import reset_container
-from datalake.api.main import create_app
+from api.config import APIConfig
+from api.deps import reset_container
+from api.main import create_app
 
 
 @pytest.fixture

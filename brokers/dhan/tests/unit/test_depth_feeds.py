@@ -9,7 +9,7 @@ from unittest import mock
 
 import pytest
 
-from brokers.common.core.domain import DepthLevel, MarketDepth
+from domain import DepthLevel, MarketDepth
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Golden-file fixtures

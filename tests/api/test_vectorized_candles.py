@@ -15,7 +15,7 @@ from typing import List
 import pandas as pd
 import pytest
 
-from datalake.api.schemas import Candle
+from api.schemas import Candle
 
 
 class TestVectorizedConversionCorrectness:

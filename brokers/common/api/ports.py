@@ -46,7 +46,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Any, Generic, Protocol, TypeVar
 
-from brokers.common.core.domain import (
+from domain import (
     ConditionalAlert,
     ConditionalAlertRequest,
     FundLimits,

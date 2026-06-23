@@ -6,8 +6,8 @@ import os
 import pytest
 from fastapi.testclient import TestClient
 
-from datalake.api.main import create_app
-from datalake.api.config import APIConfig
+from api.main import create_app
+from api.config import APIConfig
 
 
 class TestAuthDisabled:
@@ -45,8 +45,8 @@ class TestAuthEnabled:
         monkeypatch.setenv("API_KEY", "test-secret-key-123")
         # Force reimport of auth module to pick up new env vars
         import importlib
-        import datalake.api.auth
-        importlib.reload(datalake.api.auth)
+        import api.auth
+        importlib.reload(api.auth)
 
     def test_public_endpoints_still_accessible(self):
         """Health/docs should be accessible even when auth is enabled."""

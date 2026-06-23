@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from brokers.common.core.models import OrderResponse
+from domain.entities import OrderResponse
 
 if TYPE_CHECKING:
     from brokers.dhan.connection import DhanConnection

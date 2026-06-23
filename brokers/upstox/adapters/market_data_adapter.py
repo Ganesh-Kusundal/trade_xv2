@@ -10,7 +10,7 @@ import logging
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-from brokers.common.core.domain import MarketDepth, Quote
+from domain import MarketDepth, Quote
 
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from brokers.upstox.mappers.price_parser import UpstoxPriceParser

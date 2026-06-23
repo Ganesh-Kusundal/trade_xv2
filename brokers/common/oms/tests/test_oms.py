@@ -7,8 +7,8 @@ from decimal import Decimal
 
 import pytest
 
-from brokers.common.core.domain import Order, OrderStatus, OrderType, ProductType, Side, Trade
-from brokers.common.event_bus import DomainEvent, EventBus, EventType
+from domain import Order, OrderStatus, OrderType, ProductType, Side, Trade
+from infrastructure.event_bus import DomainEvent, EventBus, EventType
 from brokers.common.oms import (
     OrderManager,
     OrderRequest,
@@ -274,7 +274,7 @@ def test_trading_context_replays_event_log(tmp_path) -> None:
 
 
 def _make_order(symbol: str, exchange: str, side: Side, qty: int, price: Decimal) -> object:
-    from brokers.common.core.domain import Order
+    from domain import Order
 
     return Order(
         order_id="O1",

@@ -24,7 +24,7 @@ from unittest.mock import patch
 
 import pytest
 
-from brokers.common.event_bus.event_bus import DomainEvent
+from infrastructure.event_bus.event_bus import DomainEvent
 from brokers.common.event_log import BufferedEventLog, EventLog
 
 

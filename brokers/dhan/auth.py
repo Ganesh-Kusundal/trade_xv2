@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Callable
 
 from brokers.common.auth.registry import BrokerAuthError, BrokerAuthenticator
-from brokers.common.core.auth import AuthManager, JsonTokenStateStore, TokenSource
+from brokers.common.auth import AuthManager, JsonTokenStateStore, TokenSource
 
 logger = logging.getLogger(__name__)
 

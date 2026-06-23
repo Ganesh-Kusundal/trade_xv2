@@ -13,7 +13,7 @@ brokers.paper → Paper/mock trading adapter (imports from brokers.common)
 from __future__ import annotations
 
 # Export common types
-from brokers.common.core.domain import (
+from domain import (
     Balance,
     DepthLevel,
     Holding,
@@ -35,8 +35,8 @@ from brokers.common.gateway import MarketDataGateway
 from brokers.common.factory import BrokerProviderFactory
 
 # Export field mapping protocol and default implementation
-from brokers.common.core.models import FieldMapping
-from brokers.common.core.field_mapping import DefaultFieldMapping
+from domain.entities import FieldMapping
+from domain.field_mapping import DefaultFieldMapping
 
 # Backward-compatibility alias
 OrderSide = Side

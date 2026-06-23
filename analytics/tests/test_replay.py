@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from unittest.mock import MagicMock
 
 import numpy as np
 import pandas as pd
@@ -24,6 +25,15 @@ from analytics.strategy.pipeline import MomentumStrategy, StrategyPipeline
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def mock_oms_adapter():
+    """Mock OmsBacktestAdapterPort that returns fake order IDs."""
+    adapter = MagicMock()
+    adapter.open_long.return_value = "mock-order-001"
+    adapter.close_long.return_value = "mock-order-002"
+    return adapter
 
 
 @pytest.fixture
@@ -192,7 +202,7 @@ class TestReplayEngine:
     def test_run_returns_result(
         self, sample_ohlcv: pd.DataFrame, default_pipeline: FeaturePipeline, default_config: ReplayConfig
     ) -> None:
-        engine = ReplayEngine(default_pipeline, config=default_config)
+        engine = ReplayEngine(default_pipeline, config=default_config, oms_adapter=mock_oms_adapter)
         result = engine.run(sample_ohlcv, symbol="TEST")
         assert isinstance(result, ReplayResult)
         assert result.bars_processed == 120
@@ -201,7 +211,7 @@ class TestReplayEngine:
         self, sample_ohlcv: pd.DataFrame, default_pipeline: FeaturePipeline
     ) -> None:
         config = ReplayConfig(initial_capital=100_000, warmup_bars=30)
-        engine = ReplayEngine(default_pipeline, config=config)
+        engine = ReplayEngine(default_pipeline, config=config, oms_adapter=mock_oms_adapter)
         result = engine.run(sample_ohlcv, symbol="TEST")
         # Should have processed all bars but only generated signals after warmup
         assert result.bars_processed == 120
@@ -211,34 +221,34 @@ class TestReplayEngine:
         self, sample_ohlcv: pd.DataFrame, default_pipeline: FeaturePipeline
     ) -> None:
         config = ReplayConfig(initial_capital=200_000, warmup_bars=50)
-        engine = ReplayEngine(default_pipeline, config=config)
+        engine = ReplayEngine(default_pipeline, config=config, oms_adapter=mock_oms_adapter)
         result = engine.run(sample_ohlcv, symbol="TEST")
         assert result.session.equity_curve[0][1] == 200_000
 
     def test_signals_generated(
         self, sample_ohlcv: pd.DataFrame, default_pipeline: FeaturePipeline
     ) -> None:
-        engine = ReplayEngine(default_pipeline, config=ReplayConfig(warmup_bars=20))
+        engine = ReplayEngine(default_pipeline, config=ReplayConfig(warmup_bars=20), oms_adapter=mock_oms_adapter)
         result = engine.run(sample_ohlcv, symbol="TEST")
         assert result.signals_generated >= 0  # May or may not generate signals
 
     def test_equity_curve_grows(
         self, sample_ohlcv: pd.DataFrame, default_pipeline: FeaturePipeline
     ) -> None:
-        engine = ReplayEngine(default_pipeline, config=ReplayConfig(warmup_bars=20))
+        engine = ReplayEngine(default_pipeline, config=ReplayConfig(warmup_bars=20), oms_adapter=mock_oms_adapter)
         result = engine.run(sample_ohlcv, symbol="TEST")
         # 1 initial entry + 101 post-warmup entries (bars 20-120 inclusive) = 102
         assert len(result.session.equity_curve) == 102
 
     def test_empty_data(self, default_pipeline: FeaturePipeline) -> None:
-        engine = ReplayEngine(default_pipeline)
+        engine = ReplayEngine(default_pipeline, oms_adapter=mock_oms_adapter)
         result = engine.run(pd.DataFrame(), symbol="TEST")
         assert result.bars_processed == 0
 
     def test_summary_has_all_fields(
         self, sample_ohlcv: pd.DataFrame, default_pipeline: FeaturePipeline
     ) -> None:
-        engine = ReplayEngine(default_pipeline, config=ReplayConfig(warmup_bars=20))
+        engine = ReplayEngine(default_pipeline, config=ReplayConfig(warmup_bars=20), oms_adapter=mock_oms_adapter)
         result = engine.run(sample_ohlcv, symbol="TEST")
         summary = result.summary
         assert "bars_processed" in summary
@@ -254,7 +264,7 @@ class TestReplayEngine:
         self, sample_ohlcv: pd.DataFrame, default_pipeline: FeaturePipeline
     ) -> None:
         config = ReplayConfig(warmup_bars=20, slippage_pct=0.1)
-        engine = ReplayEngine(default_pipeline, config=config)
+        engine = ReplayEngine(default_pipeline, config=config, oms_adapter=mock_oms_adapter)
         result = engine.run(sample_ohlcv, symbol="TEST")
         # Should not crash, slippage applied to entries/exits
         assert result.bars_processed == 120
@@ -263,7 +273,7 @@ class TestReplayEngine:
         self, sample_ohlcv: pd.DataFrame, default_pipeline: FeaturePipeline
     ) -> None:
         config = ReplayConfig(warmup_bars=20, commission_flat=10.0)
-        engine = ReplayEngine(default_pipeline, config=config)
+        engine = ReplayEngine(default_pipeline, config=config, oms_adapter=mock_oms_adapter)
         result = engine.run(sample_ohlcv, symbol="TEST")
         assert result.bars_processed == 120
 
@@ -271,7 +281,7 @@ class TestReplayEngine:
         self, sample_ohlcv: pd.DataFrame
     ) -> None:
         pipeline = FeaturePipeline().add(RSI(14)).add(SMA(10))
-        engine = ReplayEngine(pipeline, config=ReplayConfig(warmup_bars=15))
+        engine = ReplayEngine(pipeline, config=ReplayConfig(warmup_bars=15), oms_adapter=mock_oms_adapter)
         result = engine.run(sample_ohlcv, symbol="TEST")
         assert result.bars_processed == 120
 
@@ -292,14 +302,14 @@ class TestReplayEngine:
                     "close": close[i], "volume": vol[i],
                 })
         data = pd.DataFrame(rows)
-        engine = ReplayEngine(default_pipeline, config=ReplayConfig(warmup_bars=15))
+        engine = ReplayEngine(default_pipeline, config=ReplayConfig(warmup_bars=15), oms_adapter=mock_oms_adapter)
         result = engine.run(data, symbol="MULTI")
         assert result.bars_processed == 120  # 60 bars × 2 symbols
 
     def test_total_return_pct(
         self, sample_ohlcv: pd.DataFrame, default_pipeline: FeaturePipeline
     ) -> None:
-        engine = ReplayEngine(default_pipeline, config=ReplayConfig(warmup_bars=20))
+        engine = ReplayEngine(default_pipeline, config=ReplayConfig(warmup_bars=20), oms_adapter=mock_oms_adapter)
         result = engine.run(sample_ohlcv, symbol="TEST")
         # Return should be a finite number
         assert isinstance(result.total_return_pct, float)
@@ -317,7 +327,7 @@ class TestReplayMomentum:
         pipeline = FeaturePipeline().add(RSI(14)).add(ATR(14)).add(SMA(20))
         strategy = StrategyPipeline(strategies=[MomentumStrategy()])
         config = ReplayConfig(initial_capital=100_000, warmup_bars=20)
-        engine = ReplayEngine(pipeline, strategy, config)
+        engine = ReplayEngine(pipeline, strategy, config, oms_adapter=mock_oms_adapter)
         result = engine.run(bullish_ohlcv, symbol="BULL")
         assert result.bars_processed == 120
         # In a strong uptrend, MomentumStrategy should generate at least some signals
@@ -326,7 +336,7 @@ class TestReplayMomentum:
     def test_no_strategy_default(
         self, sample_ohlcv: pd.DataFrame, default_pipeline: FeaturePipeline
     ) -> None:
-        engine = ReplayEngine(default_pipeline, config=ReplayConfig(warmup_bars=20))
+        engine = ReplayEngine(default_pipeline, config=ReplayConfig(warmup_bars=20), oms_adapter=mock_oms_adapter)
         result = engine.run(sample_ohlcv, symbol="TEST")
         # Should use default StrategyPipeline
         assert result.bars_processed == 120
@@ -353,6 +363,6 @@ class TestAnalyticsFacade:
         self, sample_ohlcv: pd.DataFrame, default_pipeline: FeaturePipeline
     ) -> None:
         from analytics.replay import ReplayConfig, ReplayEngine
-        engine = ReplayEngine(default_pipeline, config=ReplayConfig(warmup_bars=20))
+        engine = ReplayEngine(default_pipeline, config=ReplayConfig(warmup_bars=20), oms_adapter=mock_oms_adapter)
         result = engine.run(sample_ohlcv, symbol="TEST")
         assert result.bars_processed == 120

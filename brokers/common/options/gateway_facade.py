@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from brokers.common.core.models import OptionChain
+from domain.entities import OptionChain
 
 
 class GatewayOptionsFacade:

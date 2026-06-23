@@ -16,11 +16,11 @@ from contextlib import contextmanager
 from decimal import Decimal
 from typing import Any
 
-from brokers.common.event_bus import DomainEvent, EventBus
-from brokers.common.core.domain import OrderRequest, OrderResponse
+from infrastructure.event_bus import DomainEvent, EventBus
+from domain import OrderRequest, OrderResponse
 from brokers.common.oms.risk_manager import RiskManager
 from config.endpoints import Dhan
-from brokers.common.core.domain import (
+from domain import (
     Order,
     OrderStatus,
     OrderType,
@@ -34,7 +34,7 @@ from brokers.dhan.exceptions import OrderError
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, DhanInstrumentRef, coerce_identity_provider
 from brokers.dhan.invariants import assert_dhan_payload
-from brokers.common.core.field_mapping import DefaultFieldMapping
+from domain.field_mapping import DefaultFieldMapping
 from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
 
 logger = logging.getLogger(__name__)
@@ -368,7 +368,7 @@ class OrdersAdapter:
             broker's ``status`` field (or inferred from
             ``errorCode`` being absent).
         """
-        from brokers.common.core.models import OrderResponse
+        from domain.entities import OrderResponse
 
         try:
             data = self._client.delete(f"/orders/{order_id}")

@@ -21,10 +21,10 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from brokers.common.core.types import OrderStatus
+from domain.types import OrderStatus
 
 if TYPE_CHECKING:
-    from brokers.common.core.domain import Order, Trade
+    from domain import Order, Trade
 
 
 class OrderPositionUpdater:

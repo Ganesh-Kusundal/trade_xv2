@@ -24,8 +24,8 @@ from unittest.mock import MagicMock, patch, PropertyMock
 
 import pytest
 
-from brokers.common.event_bus.event_bus import DomainEvent, EventBus
-from brokers.common.event_bus.dead_letter_queue import DeadLetterQueue
+from infrastructure.event_bus.event_bus import DomainEvent, EventBus
+from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
 from brokers.common.observability.event_metrics import EventMetrics
 from brokers.common.resilience.broker_health_monitor import (
     BrokerHealthMonitor,

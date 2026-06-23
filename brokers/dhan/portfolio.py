@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from decimal import Decimal
 
-from brokers.common.core.domain import Balance
+from domain import Balance
 from domain import Holding, Position, ProductType
 from brokers.dhan.domain import Exchange
 from brokers.dhan.http_client import DhanHttpClient

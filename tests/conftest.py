@@ -27,7 +27,7 @@ def _register_domain_runtime_hooks() -> None:
         register_trading_context_factory,
     )
     from brokers.common.execution.factory import create_oms_backtest_adapter
-    from brokers.common.event_bus.factory import create_domain_event
+    from infrastructure.event_bus.factory import create_domain_event
     from brokers.common.oms.factory import create_trading_context
 
     register_oms_backtest_factory(create_oms_backtest_adapter)

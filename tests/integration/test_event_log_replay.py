@@ -16,7 +16,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
-from brokers.common.event_bus import DomainEvent, EventType
+from infrastructure.event_bus import DomainEvent, EventType
 from brokers.common.event_log import EventLog
 
 

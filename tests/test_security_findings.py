@@ -163,7 +163,7 @@ class TestOrderPayloadValidation:
 
     def test_order_request_has_validation(self):
         """OrderRequest should validate quantity > 0."""
-        from brokers.common.core.requests import OrderRequest
+        from domain.requests import OrderRequest
 
         # Just verify OrderRequest exists
         # Validation will be added in a future phase

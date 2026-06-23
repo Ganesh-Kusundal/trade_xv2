@@ -61,7 +61,7 @@ from typing import Any
 import pandas as pd
 
 from analytics.replay.models import ReplayResult
-from brokers.common.event_bus.event_bus import DomainEvent, EventBus
+from infrastructure.event_bus.event_bus import DomainEvent, EventBus
 from brokers.common.event_log import EventLog
 
 logger = logging.getLogger(__name__)

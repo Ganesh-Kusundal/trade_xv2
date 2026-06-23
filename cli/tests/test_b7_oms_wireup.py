@@ -81,7 +81,7 @@ def test_oms_risk_manager_kill_switch_blocks_orders() -> None:
     """The OMS risk_manager's kill_switch is the canonical one.
     Setting it blocks all subsequent orders regardless of which
     caller (OrdersAdapter, OMS, CLI) checks them."""
-    from brokers.common.core.domain import Order, OrderStatus, OrderType, ProductType, Side
+    from domain import Order, OrderStatus, OrderType, ProductType, Side
 
     from cli.services.broker_service import BrokerService
     bs = BrokerService()
@@ -167,7 +167,7 @@ def test_end_to_end_kill_switch_via_oms_blocks_dhan_place_order() -> None:
     rm.set_kill_switch(True)
 
     # Try to place an order — must raise OrderError due to risk gate
-    from brokers.common.core.domain import OrderRequest
+    from domain import OrderRequest
     with pytest.raises(OrderError, match="Risk check failed"):
         adapter.place_order(OrderRequest(
             symbol="RELIANCE", exchange="NSE",
@@ -200,7 +200,7 @@ def test_oms_capital_fn_uses_real_gateway_funds_after_init() -> None:
     capital_provider closure captures the real gateway. Calling
     get_available_balance() reads gateway.funds().available_balance.
     """
-    from brokers.common.core.domain import Balance
+    from domain import Balance
     from cli.services.broker_service import BrokerService
 
     bs = BrokerService()
@@ -271,7 +271,7 @@ def test_oms_capital_fn_blocks_on_zero_balance_with_fail_open() -> None:
     """A zero or negative balance is a hard stop, even with
     RISK_FAIL_OPEN=1. Phantom capital would defeat the risk gate.
     """
-    from brokers.common.core.domain import Balance
+    from domain import Balance
     from cli.services.broker_service import BrokerService
 
     bs = BrokerService()
@@ -295,7 +295,7 @@ def test_oms_capital_fn_caches_position_pct_against_real_balance() -> None:
     of 1,000,000, the same order is only 3% — which would pass.
     This is the production impact of C.1.
     """
-    from brokers.common.core.domain import (
+    from domain import (
         Balance,
         Order,
         OrderStatus,

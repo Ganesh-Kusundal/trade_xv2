@@ -17,9 +17,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from datalake.api.schemas import OptionContract, OptionChainResponse, QuoteResponse
+from api.schemas import OptionContract, OptionChainResponse, QuoteResponse
 from datalake.gateway import DataLakeGateway
-from brokers.common.core.domain import Quote
+from domain import Quote
 
 
 # ── P0.1: Options Router Bid/Ask Tests ───────────────────────────────────────

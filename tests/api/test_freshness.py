@@ -7,7 +7,7 @@ from datetime import date, timedelta
 import pandas as pd
 import pytest
 
-from datalake.api.freshness import check_data_freshness, FreshnessResult
+from api.freshness import check_data_freshness, FreshnessResult
 
 
 class TestDataFreshness:

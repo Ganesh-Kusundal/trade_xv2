@@ -18,7 +18,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.common.core.domain import Quote
+from domain import Quote
 from brokers.upstox.adapters.tick_translator import TickTranslatorAdapter
 
 

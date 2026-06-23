@@ -21,7 +21,7 @@ from typing import Any
 
 import pytest
 
-from brokers.common.core.domain import (
+from domain import (
     Order,
     OrderStatus,
     OrderType,
@@ -29,8 +29,8 @@ from brokers.common.core.domain import (
     Side,
     Trade,
 )
-from brokers.common.event_bus import DomainEvent, EventBus
-from brokers.common.event_bus.dead_letter_queue import DeadLetterQueue
+from infrastructure.event_bus import DomainEvent, EventBus
+from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
 from brokers.common.observability.event_metrics import EventMetrics
 from brokers.common.oms.context import TradingContext
 from brokers.common.oms.order_manager import OmsOrderCommand, OrderResult
@@ -615,7 +615,7 @@ class TestStateConsistency:
         assert pos.avg_price == Decimal("100.0")
 
         # Verify trade was recorded (idempotency ledger)
-        from brokers.common.event_bus import TradeIdKey
+        from infrastructure.event_bus import TradeIdKey
         key = TradeIdKey(trade_id=trade.trade_id, order_id=trade.order_id)
         assert trading_context.processed_trade_repository.is_processed(key)
 

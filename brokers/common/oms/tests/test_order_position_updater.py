@@ -14,8 +14,8 @@ from decimal import Decimal
 
 import pytest
 
-from brokers.common.core.domain import Order, Trade
-from brokers.common.core.types import OrderStatus, OrderType, ProductType, Side
+from domain import Order, Trade
+from domain.types import OrderStatus, OrderType, ProductType, Side
 from brokers.common.oms.order_position_updater import OrderPositionUpdater
 
 

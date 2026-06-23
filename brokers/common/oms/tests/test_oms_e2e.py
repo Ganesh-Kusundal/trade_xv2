@@ -37,11 +37,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.common.core.domain import (
+from domain import (
     Side,
     Trade,
 )
-from brokers.common.event_bus import EventBus, ProcessedTradeRepository, TradeIdKey
+from infrastructure.event_bus import EventBus, ProcessedTradeRepository, TradeIdKey
 from brokers.common.lifecycle import (
     HealthState,
     HealthStatus,

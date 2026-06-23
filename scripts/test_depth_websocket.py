@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from brokers.common.event_bus import EventBus
+from infrastructure.event_bus import EventBus
 from brokers.common.lifecycle import LifecycleManager
 from brokers.dhan.factory import BrokerFactory
 

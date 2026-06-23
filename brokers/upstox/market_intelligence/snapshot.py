@@ -13,7 +13,7 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-from brokers.common.core.domain import MarketIntelligenceSnapshot
+from domain import MarketIntelligenceSnapshot
 from brokers.upstox.market_intelligence.client import UpstoxMarketIntelligenceClient
 
 

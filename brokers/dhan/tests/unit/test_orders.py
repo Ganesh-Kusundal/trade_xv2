@@ -4,8 +4,8 @@ from decimal import Decimal
 
 import pytest
 
-from brokers.common.event_bus import EventBus
-from brokers.common.core.domain import OrderRequest, OrderStatus, Side
+from infrastructure.event_bus import EventBus
+from domain import OrderRequest, OrderStatus, Side
 from brokers.dhan.domain import Exchange
 from brokers.dhan.orders import OrdersAdapter
 
@@ -223,7 +223,7 @@ def test_place_order_risk_check_blocks_order(fake_client, resolver):
 def test_place_order_transport_only_skips_risk_check(fake_client, resolver):
     from decimal import Decimal
 
-    from brokers.common.core.domain import OrderRequest
+    from domain import OrderRequest
     from brokers.common.oms.position_manager import PositionManager
     from brokers.common.oms.risk_manager import RiskConfig, RiskManager
 

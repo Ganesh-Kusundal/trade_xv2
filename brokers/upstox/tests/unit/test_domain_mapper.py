@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from brokers.common.core.domain import (
+from domain import (
     ExchangeSegment,
     FundLimits,
     Holding,
@@ -64,10 +64,10 @@ def test_txn_wire_round_trip():
 
 
 def test_to_place_payload_basic():
-    from brokers.common.core.domain import OrderType as EnumsOrderType
-    from brokers.common.core.domain import ProductType as EnumsProductType
-    from brokers.common.core.domain import Side
-    from brokers.common.core.domain import Validity as EnumsValidity
+    from domain import OrderType as EnumsOrderType
+    from domain import ProductType as EnumsProductType
+    from domain import Side
+    from domain import Validity as EnumsValidity
 
     req = OrderRequest(
         symbol="RELIANCE",
@@ -95,10 +95,10 @@ def test_to_place_payload_basic():
 
 
 def test_to_place_payload_with_slice_and_market_protection():
-    from brokers.common.core.domain import OrderType as EnumsOrderType
-    from brokers.common.core.domain import ProductType as EnumsProductType
-    from brokers.common.core.domain import Side
-    from brokers.common.core.domain import Validity as EnumsValidity
+    from domain import OrderType as EnumsOrderType
+    from domain import ProductType as EnumsProductType
+    from domain import Side
+    from domain import Validity as EnumsValidity
 
     req = OrderRequest(
         symbol="TCS",

@@ -7,7 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from brokers.common.event_bus import DomainEvent, EventBus
+from infrastructure.event_bus import DomainEvent, EventBus
 
 
 @pytest.fixture

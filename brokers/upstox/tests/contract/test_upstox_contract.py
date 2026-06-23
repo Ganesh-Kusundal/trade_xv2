@@ -13,7 +13,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from brokers.common.contracts.broker_contract import BrokerContractSuite
-from brokers.common.core.domain import (
+from domain import (
     Balance,
     DepthLevel,
     MarketDepth,

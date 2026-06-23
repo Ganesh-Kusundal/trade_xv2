@@ -10,7 +10,7 @@ import logging
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-from brokers.common.core.domain import (
+from domain import (
     ExchangeSegment,
     OrderRequest,
     OrderResponse,

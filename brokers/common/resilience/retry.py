@@ -11,7 +11,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from brokers.common.core.constants import MAX_RETRY_ATTEMPTS, MAX_RETRY_DELAY_MS
+from domain.constants import MAX_RETRY_ATTEMPTS, MAX_RETRY_DELAY_MS
 from brokers.common.resilience.backoff import BackoffStrategy, ExponentialBackoff
 from brokers.common.resilience.circuit_breaker import CircuitBreaker
 from brokers.common.resilience.errors import (

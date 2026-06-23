@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
@@ -21,6 +22,15 @@ from analytics.paper.models import (
 )
 from analytics.pipeline.pipeline import FeaturePipeline
 from analytics.replay.models import Bar
+
+
+@pytest.fixture
+def mock_oms_adapter():
+    """Mock OmsBacktestAdapterPort that returns fake order IDs."""
+    adapter = MagicMock()
+    adapter.open_long.return_value = "mock-order-001"
+    adapter.close_long.return_value = "mock-order-002"
+    return adapter
 
 
 def _make_ohlcv(n=100, start_price=100.0, symbol="TEST"):
@@ -132,32 +142,32 @@ class TestPaperTrade:
 
 class TestEngineSingle:
     def test_basic_run(self):
-        r = PaperTradingEngine(_pipeline(), config=PaperConfig(warmup_bars=20)).run(_make_ohlcv(100), symbol="T")
+        r = PaperTradingEngine(_pipeline(), config=PaperConfig(warmup_bars=20), oms_adapter=mock_oms_adapter).run(_make_ohlcv(100), symbol="T")
         assert isinstance(r, PaperResult)
         assert r.bars_processed == 100
         assert r.config.initial_capital == 100_000
 
     def test_empty_data(self):
-        r = PaperTradingEngine(_pipeline()).run(pd.DataFrame(), symbol="T")
+        r = PaperTradingEngine(_pipeline(), oms_adapter=mock_oms_adapter).run(pd.DataFrame(), symbol="T")
         assert r.bars_processed == 0
         assert r.final_equity == 0.0
 
     def test_no_timestamp_raises(self):
         with pytest.raises(ValueError, match="timestamp"):
-            PaperTradingEngine(_pipeline()).run(pd.DataFrame({"close": [100]}))
+            PaperTradingEngine(_pipeline(), oms_adapter=mock_oms_adapter).run(pd.DataFrame({"close": [100]}))
 
     def test_no_signals_preserves_capital(self):
-        r = PaperTradingEngine(_pipeline(), config=PaperConfig(initial_capital=50_000, warmup_bars=50)).run(_make_ohlcv(100), symbol="T")
+        r = PaperTradingEngine(_pipeline(), config=PaperConfig(initial_capital=50_000, warmup_bars=50), oms_adapter=mock_oms_adapter).run(_make_ohlcv(100), symbol="T")
         assert r.final_equity == 50_000
         assert r.session.position_count == 0
 
     def test_equity_curve(self):
-        r = PaperTradingEngine(_pipeline(), config=PaperConfig(warmup_bars=20)).run(_make_ohlcv(100), symbol="T")
+        r = PaperTradingEngine(_pipeline(), config=PaperConfig(warmup_bars=20), oms_adapter=mock_oms_adapter).run(_make_ohlcv(100), symbol="T")
         assert len(r.session.equity_curve) > 0
         assert r.session.equity_curve[0][1] == 100_000
 
     def test_peak_equity(self):
-        r = PaperTradingEngine(_pipeline(), config=PaperConfig(warmup_bars=20)).run(_make_ohlcv(100), symbol="T")
+        r = PaperTradingEngine(_pipeline(), config=PaperConfig(warmup_bars=20), oms_adapter=mock_oms_adapter).run(_make_ohlcv(100), symbol="T")
         assert r.session.peak_equity >= 100_000
 
 
@@ -165,11 +175,11 @@ class TestEngineSingle:
 
 class TestEngineMulti:
     def test_multi_run(self):
-        r = PaperTradingEngine(_pipeline(), config=PaperConfig(warmup_bars=20)).run(_make_multi(100, ["R", "T"]))
+        r = PaperTradingEngine(_pipeline(), config=PaperConfig(warmup_bars=20), oms_adapter=mock_oms_adapter).run(_make_multi(100, ["R", "T"]))
         assert r.bars_processed > 0
 
     def test_position_limit(self):
-        r = PaperTradingEngine(_pipeline(), config=PaperConfig(warmup_bars=5, max_positions=2)).run(_make_multi(100, ["A", "B", "C", "D"]))
+        r = PaperTradingEngine(_pipeline(), config=PaperConfig(warmup_bars=5, max_positions=2), oms_adapter=mock_oms_adapter).run(_make_multi(100, ["A", "B", "C", "D"]))
         assert r.session.position_count <= 2
 
 
@@ -177,7 +187,7 @@ class TestEngineMulti:
 
 class TestOnBar:
     def test_on_bar(self):
-        engine = PaperTradingEngine(_pipeline(), config=PaperConfig(warmup_bars=2))
+        engine = PaperTradingEngine(_pipeline(), config=PaperConfig(warmup_bars=2), oms_adapter=mock_oms_adapter)
         session = PaperSession(capital=100_000)
         session.peak_equity = 100_000
         for i in range(5):
@@ -188,7 +198,7 @@ class TestOnBar:
         assert len(session.equity_curve) > 0
 
     def test_warmup_no_signals(self):
-        engine = PaperTradingEngine(_pipeline(), config=PaperConfig(warmup_bars=10))
+        engine = PaperTradingEngine(_pipeline(), config=PaperConfig(warmup_bars=10), oms_adapter=mock_oms_adapter)
         session = PaperSession(capital=100_000)
         session.peak_equity = 100_000
         for i in range(5):
@@ -202,15 +212,15 @@ class TestOnBar:
 
 class TestPositionManagement:
     def test_stop_loss_no_crash(self):
-        r = PaperTradingEngine(_pipeline(), config=PaperConfig(warmup_bars=5, stop_loss_pct=1.0, slippage_pct=0.0)).run(_make_ohlcv(100), symbol="T")
+        r = PaperTradingEngine(_pipeline(), config=PaperConfig(warmup_bars=5, stop_loss_pct=1.0, slippage_pct=0.0), oms_adapter=mock_oms_adapter).run(_make_ohlcv(100), symbol="T")
         assert isinstance(r, PaperResult)
 
     def test_position_limit_respected(self):
-        r = PaperTradingEngine(_pipeline(), config=PaperConfig(warmup_bars=5, max_positions=2)).run(_make_multi(100, ["A", "B", "C", "D", "E", "F"]))
+        r = PaperTradingEngine(_pipeline(), config=PaperConfig(warmup_bars=5, max_positions=2), oms_adapter=mock_oms_adapter).run(_make_multi(100, ["A", "B", "C", "D", "E", "F"]))
         assert r.session.position_count <= 2
 
     def test_commission_tracked(self):
-        r = PaperTradingEngine(_pipeline(), config=PaperConfig(warmup_bars=10, commission_pct=0.001)).run(_make_ohlcv(100), symbol="T")
+        r = PaperTradingEngine(_pipeline(), config=PaperConfig(warmup_bars=10, commission_pct=0.001), oms_adapter=mock_oms_adapter).run(_make_ohlcv(100), symbol="T")
         if r.session.trades:
             assert r.session.total_commission > 0
 
@@ -219,7 +229,7 @@ class TestPositionManagement:
 
 class TestPaperResult:
     def test_summary_keys(self):
-        r = PaperTradingEngine(_pipeline(), config=PaperConfig(warmup_bars=20)).run(_make_ohlcv(100), symbol="T")
+        r = PaperTradingEngine(_pipeline(), config=PaperConfig(warmup_bars=20), oms_adapter=mock_oms_adapter).run(_make_ohlcv(100), symbol="T")
         s = r.summary
         for key in ["bars_processed", "signals_generated", "total_trades", "open_positions",
                      "win_rate", "final_equity", "total_return_pct", "total_pnl",
@@ -227,5 +237,5 @@ class TestPaperResult:
             assert key in s
 
     def test_total_return_pct(self):
-        r = PaperTradingEngine(_pipeline(), config=PaperConfig(warmup_bars=20)).run(_make_ohlcv(100), symbol="T")
+        r = PaperTradingEngine(_pipeline(), config=PaperConfig(warmup_bars=20), oms_adapter=mock_oms_adapter).run(_make_ohlcv(100), symbol="T")
         assert isinstance(r.total_return_pct, float)

@@ -15,7 +15,7 @@ from typing import Any
 from rich.console import Console
 from rich.table import Table
 
-from brokers.common.core.domain import DepthLevel, MarketDepth
+from domain import DepthLevel, MarketDepth
 from cli.commands import market as cmd_market
 from cli.commands import oms as cmd_oms
 from cli.commands import validate as cmd_validate

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from brokers.common.event_bus import DomainEvent, EventBus
+from infrastructure.event_bus import DomainEvent, EventBus
 
 
 @dataclass

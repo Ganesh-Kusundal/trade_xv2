@@ -11,7 +11,7 @@ import logging
 import threading
 from typing import TYPE_CHECKING, Any
 
-from brokers.common.core.domain import Quote
+from domain import Quote
 
 from brokers.upstox.adapters.tick_translator import TickTranslatorAdapter
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper

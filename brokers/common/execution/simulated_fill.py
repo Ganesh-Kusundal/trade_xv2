@@ -8,7 +8,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any, Callable
 
-from brokers.common.core.domain import Order, OrderStatus, ProductType, Side, Trade
+from domain import Order, OrderStatus, ProductType, Side, Trade
 from brokers.common.oms.order_manager import OmsOrderCommand
 
 

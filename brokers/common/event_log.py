@@ -18,7 +18,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from brokers.common.event_bus import DomainEvent
+from infrastructure.event_bus import DomainEvent
 
 logger = logging.getLogger(__name__)
 

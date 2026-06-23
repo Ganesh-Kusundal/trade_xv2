@@ -13,7 +13,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from brokers.common.oms.order_manager import OrderManager
-from brokers.common.core.domain import Order, OrderStatus, Side, OrderType, ProductType
+from domain import Order, OrderStatus, Side, OrderType, ProductType
 
 
 class TestGetOrdersEndpoint:

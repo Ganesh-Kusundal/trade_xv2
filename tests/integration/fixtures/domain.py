@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from brokers.common.core.domain import (
+from domain import (
     Balance,
     DepthLevel,
     Holding,

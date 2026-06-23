@@ -12,8 +12,8 @@ from __future__ import annotations
 
 import logging
 
-from brokers.common.core.domain import Order, OrderStatus, Position
-from brokers.common.core.reconciliation import DriftItem
+from domain import Order, OrderStatus, Position
+from domain.reconciliation import DriftItem
 
 logger = logging.getLogger(__name__)
 

@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from brokers.common.core.domain import Order, OrderStatus, Side
+from domain import Order, OrderStatus, Side
 from cli.commands.order_composition import (
     place_basket_order,
     place_bracket_order,

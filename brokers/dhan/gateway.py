@@ -12,7 +12,7 @@ import pandas as pd
 
 from brokers.common.batch_mixin import BatchFetchMixin
 from brokers.common.gateway import BrokerCapabilities, MarketDataGateway, ObservabilityProvider
-from brokers.common.core.domain import (
+from domain import (
     Balance,
     ExchangeSegment,
     FutureChain,
@@ -34,7 +34,7 @@ from brokers.common.core.domain import (
 from brokers.dhan.connection import DhanConnection
 from brokers.dhan.exceptions import OrderError
 from brokers.common.resilience.circuit_breaker import CircuitState
-from brokers.common.core.exchange_segments import parse_segment
+from domain.exchange_segments import parse_segment
 from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
 
 from brokers.dhan.websocket import DhanMarketFeed
@@ -156,7 +156,7 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         return self._conn.orders.cancel_order(order_id)
 
     def modify_order(self, order_id: str, **changes: Any) -> OrderResponse:
-        from brokers.common.core.models import OrderResponse as OR
+        from domain.entities import OrderResponse as OR
 
         try:
             order = self._conn.orders.modify_order(order_id, **changes)
@@ -477,7 +477,7 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
             mode:     Subscription mode — ``"LTP"`` | ``"QUOTE"`` | ``"FULL"``.
             on_tick:  Callable receiving a :class:`Quote`.
         """
-        from brokers.common.core.domain import Quote
+        from domain import Quote
         inst = self._conn.instruments.resolve(symbol, exchange)
         segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, DEFAULT_SEGMENT)
         sid = int(inst.security_id)

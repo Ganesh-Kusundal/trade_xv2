@@ -25,7 +25,7 @@ from typing import Any
 import pandas as pd
 
 from brokers.common.batch_mixin import BatchFetchMixin
-from brokers.common.core.domain import (
+from domain import (
     Balance,
     ExchangeSegment,
     FutureChain,
@@ -38,7 +38,7 @@ from brokers.common.core.domain import (
     Quote,
     Trade,
 )
-from brokers.common.event_bus import EventBus
+from infrastructure.event_bus import EventBus
 from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
 from brokers.upstox.adapters import (
     HistoricalAdapter,
@@ -541,7 +541,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
 
     def modify_order(self, order_id: str, **changes: Any) -> OrderResponse:
         """Modify an order via Upstox V3 API."""
-        from brokers.common.core.models import OrderResponse
+        from domain.entities import OrderResponse
 
         try:
             result = self._order_adapter.modify_order(order_id, **changes)

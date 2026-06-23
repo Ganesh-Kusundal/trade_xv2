@@ -39,7 +39,7 @@ class TestEventBusMemoryBounds:
 
     def test_event_bus_no_leak_from_rapid_publishes(self):
         """Rapid publishes should not cause unbounded memory growth."""
-        from brokers.common.event_bus.event_bus import DomainEvent, EventBus
+        from infrastructure.event_bus.event_bus import DomainEvent, EventBus
 
         tracemalloc.start()
 
@@ -71,7 +71,7 @@ class TestEventBusMemoryBounds:
 
     def test_event_bus_no_leak_from_subscribe_unsubscribe_cycles(self):
         """Subscribe/unsubscribe cycles should not leak handler references."""
-        from brokers.common.event_bus.event_bus import DomainEvent, EventBus
+        from infrastructure.event_bus.event_bus import DomainEvent, EventBus
 
         tracemalloc.start()
         snapshot1 = tracemalloc.take_snapshot()
@@ -95,7 +95,7 @@ class TestEventBusMemoryBounds:
 
     def test_event_bus_handler_reference_released_on_unsubscribe(self):
         """Unsubscribed handlers should be garbage collected."""
-        from brokers.common.event_bus.event_bus import DomainEvent, EventBus
+        from infrastructure.event_bus.event_bus import DomainEvent, EventBus
 
         class LargeHandler:
             def __init__(self):
@@ -125,8 +125,8 @@ class TestEventBusMemoryBounds:
 
     def test_dead_letter_queue_bounded_memory(self):
         """DeadLetterQueue should not grow beyond max_size."""
-        from brokers.common.event_bus.event_bus import DomainEvent
-        from brokers.common.event_bus.dead_letter_queue import DeadLetterQueue
+        from infrastructure.event_bus.event_bus import DomainEvent
+        from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
 
         dlq = DeadLetterQueue(max_size=100)
 
@@ -289,8 +289,8 @@ class TestReferenceCycles:
 
     def test_event_bus_no_reference_cycles(self):
         """EventBus should not create reference cycles."""
-        from brokers.common.event_bus.event_bus import DomainEvent, EventBus
-        from brokers.common.event_bus.dead_letter_queue import DeadLetterQueue
+        from infrastructure.event_bus.event_bus import DomainEvent, EventBus
+        from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
 
         dlq = DeadLetterQueue(max_size=100)
         bus = EventBus(dead_letter_queue=dlq, fail_fast=False)
@@ -318,7 +318,7 @@ class TestReferenceCycles:
 
     def test_domain_event_no_reference_cycles(self):
         """DomainEvent (frozen dataclass) should not create cycles."""
-        from brokers.common.event_bus.event_bus import DomainEvent
+        from infrastructure.event_bus.event_bus import DomainEvent
 
         gc.collect()
         before = len(gc.garbage)
@@ -483,8 +483,8 @@ class TestOverallMemoryGrowth:
 
     def test_sustained_event_bus_load_bounded_growth(self):
         """Sustained EventBus load should have bounded memory growth (< 10MB)."""
-        from brokers.common.event_bus.event_bus import DomainEvent, EventBus
-        from brokers.common.event_bus.dead_letter_queue import DeadLetterQueue
+        from infrastructure.event_bus.event_bus import DomainEvent, EventBus
+        from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
         from brokers.common.observability.event_metrics import EventMetrics
 
         tracemalloc.start()
@@ -519,7 +519,7 @@ class TestOverallMemoryGrowth:
 
     def test_process_memory_stable_after_gc(self):
         """After gc.collect(), process memory should be stable."""
-        from brokers.common.event_bus.event_bus import DomainEvent, EventBus
+        from infrastructure.event_bus.event_bus import DomainEvent, EventBus
 
         # Create a bus and generate some garbage
         bus = EventBus(fail_fast=False)

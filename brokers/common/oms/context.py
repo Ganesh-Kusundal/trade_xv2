@@ -8,15 +8,15 @@ from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
 
-from brokers.common.core.constants import PHANTOM_CAPITAL_INR, RECONCILIATION_INTERVAL_SECONDS
-from brokers.common.event_bus import (
+from domain.constants import PHANTOM_CAPITAL_INR, RECONCILIATION_INTERVAL_SECONDS
+from infrastructure.event_bus import (
     DeadLetterQueue,
     EventBus,
     EventType,
     ProcessedTradeRepository,
 )
-from brokers.common.event_bus.async_event_bus import AsyncEventBus
-from brokers.common.event_bus.factory import (
+from infrastructure.event_bus.async_event_bus import AsyncEventBus
+from infrastructure.event_bus.factory import (
     AsyncEventBusFactory,
     AsyncPublishAdapter,
     async_publish_wrapper,
@@ -385,7 +385,7 @@ class TradingContext:
         on handler failures. On shutdown (stop), drains the DLQ and logs
         any remaining entries so they are not silently lost.
         """
-        from brokers.common.event_bus import DeadLetterQueue
+        from infrastructure.event_bus import DeadLetterQueue
         from brokers.common.lifecycle import HealthState, ManagedService
 
         dlq: DeadLetterQueue = self._dead_letter_queue

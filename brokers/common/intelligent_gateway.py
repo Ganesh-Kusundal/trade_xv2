@@ -48,8 +48,8 @@ from collections.abc import Callable
 
 import pandas as pd
 
-from brokers.common.core.domain import FundLimits, MarketDepth, Quote, FutureChain, OptionChain
-from brokers.common.core.constants.timeouts import (
+from domain import FundLimits, MarketDepth, Quote, FutureChain, OptionChain
+from domain.constants.timeouts import (
     HISTORY_CACHE_TTL_SECONDS,
     QUOTE_CACHE_TTL_SECONDS,
 )

@@ -6,7 +6,7 @@ from decimal import Decimal
 
 import pytest
 
-from brokers.common.core.domain import Order, OrderType, ProductType, Side
+from domain import Order, OrderType, ProductType, Side
 from brokers.common.execution.execution_service import ExecutionService
 from brokers.common.oms.factory import create_trading_context
 from brokers.common.oms.order_manager import OmsOrderCommand

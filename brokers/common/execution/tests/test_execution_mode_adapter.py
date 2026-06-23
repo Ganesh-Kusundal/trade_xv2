@@ -6,7 +6,7 @@ from decimal import Decimal
 
 import pytest
 
-from brokers.common.core.domain import Side
+from domain import Side
 from brokers.common.execution.execution_mode_adapter import (
     LiveOMSAdapter,
     PaperOMSAdapter,

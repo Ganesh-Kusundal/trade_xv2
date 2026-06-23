@@ -16,7 +16,7 @@ from decimal import Decimal
 
 import pytest
 
-from brokers.common.core.domain import Order, OrderStatus, OrderType, Side
+from domain import Order, OrderStatus, OrderType, Side
 
 LIVE = pytest.mark.skipif(
     not os.environ.get("TRADEX_LIVE_TESTS"),
@@ -34,7 +34,7 @@ class TestDhanE2EOrderLifecycle:
         return factory.create()
 
     def test_place_status_cancel_flow(self, dhan_gateway):
-        from brokers.common.core.domain import OrderRequest
+        from domain import OrderRequest
 
         request = OrderRequest(
             symbol="RELIANCE",
@@ -58,7 +58,7 @@ class TestDhanE2EOrderLifecycle:
         assert cancel_response.success
 
     def test_modify_order_lifecycle(self, dhan_gateway):
-        from brokers.common.core.domain import OrderRequest
+        from domain import OrderRequest
 
         request = OrderRequest(
             symbol="RELIANCE",
@@ -90,7 +90,7 @@ class TestUpstoxE2EOrderLifecycle:
         return factory.create()
 
     def test_place_status_cancel_flow(self, upstox_gateway):
-        from brokers.common.core.domain import OrderRequest
+        from domain import OrderRequest
 
         request = OrderRequest(
             symbol="RELIANCE",
