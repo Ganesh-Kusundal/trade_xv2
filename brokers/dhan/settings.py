@@ -114,16 +114,30 @@ class DhanSettingsLoader(SettingsLoaderBase):
 
         secrets = SecretsManager()
 
-        client_id = cls._get(prefix, "CLIENT_ID")
+        # Support SANDBOX environment override
+        environment = cls._get(prefix, "ENVIRONMENT", default="LIVE").upper()
+        is_sandbox = environment == "SANDBOX"
+
+        client_id = (
+            cls._get(prefix, "SANDBOX_CLIENT_ID")
+            if is_sandbox
+            else cls._get(prefix, "CLIENT_ID")
+        )
         if not client_id:
             raise ValueError("DHAN_CLIENT_ID is required")
+
+        access_token = (
+            cls._get(prefix, "SANDBOX_ACCESS_TOKEN")
+            if is_sandbox
+            else cls._get(prefix, "ACCESS_TOKEN")
+        )
 
         pin = cls._get(prefix, "PIN", default="") or secrets.get_dhan_pin()
         totp_secret = cls._get(prefix, "TOTP_SECRET", default="") or secrets.get_dhan_totp_secret()
 
         return DhanConnectionSettings(
             client_id=client_id,
-            access_token=cls._get(prefix, "ACCESS_TOKEN", default=""),
+            access_token=access_token,
             base_url=cls._get(prefix, "BASE_URL", default=_BASE_URL),
             http_timeout=cls._get_float(prefix, "HTTP_TIMEOUT", default=15.0),
             enable_retry=cls._get_bool(prefix, "ENABLE_RETRY", default=True),
