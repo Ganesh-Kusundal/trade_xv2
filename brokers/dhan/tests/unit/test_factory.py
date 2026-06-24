@@ -2,8 +2,8 @@
 
 import os
 
+from brokers.common.auth.env_token import update_env_token as _update_env_token
 from brokers.common.env_loader import load_env_file
-from brokers.dhan.token_manager import update_env_token as _update_env_token
 
 
 def test_load_dotenv(tmp_path):
@@ -33,12 +33,7 @@ def test_load_dotenv(tmp_path):
 def test_load_dotenv_ignores_comments_and_blanks(tmp_path):
     """Comments and blank lines should be skipped."""
     env_file = tmp_path / ".env"
-    env_file.write_text(
-        "# full comment\n"
-        "\n"
-        "   \n"
-        "VALID_KEY=valid_value\n"
-    )
+    env_file.write_text("# full comment\n\n   \nVALID_KEY=valid_value\n")
 
     load_env_file(env_file)
 
@@ -52,9 +47,7 @@ def test_update_env_token(tmp_path):
     """_update_env_token should replace the DHAN_ACCESS_TOKEN value in the file."""
     env_file = tmp_path / ".env"
     env_file.write_text(
-        "DHAN_CLIENT_ID=MYCLIENT\n"
-        "DHAN_ACCESS_TOKEN=old_token_value\n"
-        "OTHER_VAR=untouched\n"
+        "DHAN_CLIENT_ID=MYCLIENT\nDHAN_ACCESS_TOKEN=old_token_value\nOTHER_VAR=untouched\n"
     )
 
     _update_env_token(env_file, "new_token_value")

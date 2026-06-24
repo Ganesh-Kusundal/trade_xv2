@@ -17,8 +17,10 @@ from typing import Any
 import requests
 
 from brokers.common.resilience.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
-from .exceptions import UpstoxApiError, UpstoxAuthError
+from brokers.common.resilience.rate_limiter import EndpointRateLimiter
+
 from .config import UPSTOX_DEFAULT_RATE_PER_SECOND
+from .exceptions import UpstoxApiError, UpstoxAuthError
 
 logger = logging.getLogger(__name__)
 
@@ -37,24 +39,8 @@ def _categorize_upstox_url(url: str, method: str) -> str:
     return "admin"
 
 
-class UpstoxRateLimiter:
-    """Simple token bucket rate limiter for Upstox API."""
-
-    def __init__(self, rate_per_second: float = 10.0):
-        self._rate = rate_per_second
-        self._min_interval = 1.0 / rate_per_second
-        self._last_request_time: dict[str, float] = {}
-        self._lock = threading.Lock()
-
-    def acquire(self, endpoint: str = "default") -> None:
-        """Wait until a request can be made."""
-        with self._lock:
-            now = time.time()
-            last = self._last_request_time.get(endpoint, 0.0)
-            elapsed = now - last
-            if elapsed < self._min_interval:
-                time.sleep(self._min_interval - elapsed)
-            self._last_request_time[endpoint] = time.time()
+# Backward-compat alias — use EndpointRateLimiter from common module
+UpstoxRateLimiter = EndpointRateLimiter
 
 
 class UpstoxHttpClient:
@@ -218,6 +204,7 @@ class UpstoxHttpClient:
         if cb is not None:
             from brokers.common.resilience.circuit_breaker import CircuitState
             from brokers.common.resilience.errors import CircuitBreakerOpenError
+
             if cb.state == CircuitState.OPEN:
                 logger.warning(
                     "Upstox API circuit breaker is open for %s %s",

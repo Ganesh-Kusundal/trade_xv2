@@ -31,14 +31,36 @@ from analytics.scanner.scanners import (
 )
 from analytics.strategy.models import Signal, SignalType
 from analytics.strategy.pipeline import StrategyPipeline
+from domain.ports.oms_backtest_adapter import OmsBacktestAdapterPort
+
+
+class _NullOmsAdapter:
+    """Minimal OMS adapter for replay tests that satisfies the port protocol."""
+
+    def open_long(self, symbol, exchange, quantity, price, timestamp, *, strategy=None, reasons=None):
+        return f"SIM-{symbol}"
+
+    def close_long(self, symbol, exchange, quantity, price, timestamp, *, strategy=None, reasons=None):
+        return f"SIM-CLOSE-{symbol}"
+
+    def modify_order(self, order_id, *, price=None, quantity=None, trigger_price=None):
+        return True
+
+    def cancel_order(self, order_id):
+        return True
+
+    def get_position(self, symbol, exchange="NSE"):
+        return None
+
+    def get_orders(self):
+        return []
+
 
 # Golden baseline directory
 GOLDEN_DIR = Path(__file__).parent / "golden"
 
 
-def _generate_ohlcv(
-    symbol: str = "TEST", bars: int = 500, seed: int = 42
-) -> pd.DataFrame:
+def _generate_ohlcv(symbol: str = "TEST", bars: int = 500, seed: int = 42) -> pd.DataFrame:
     """Generate deterministic synthetic OHLCV data."""
     rng = np.random.default_rng(seed)
     timestamps = pd.date_range("2026-01-01", periods=bars, freq="1min")
@@ -47,19 +69,19 @@ def _generate_ohlcv(
     returns = rng.normal(0.0001, 0.002, bars)
     price = 100.0 * (1 + returns).cumprod()
 
-    return pd.DataFrame({
-        "timestamp": timestamps,
-        "open": price * (1 + rng.uniform(-0.001, 0.001, bars)),
-        "high": price * (1 + rng.uniform(0, 0.003, bars)),
-        "low": price * (1 - rng.uniform(0, 0.003, bars)),
-        "close": price,
-        "volume": rng.integers(1000, 100000, bars),
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": timestamps,
+            "open": price * (1 + rng.uniform(-0.001, 0.001, bars)),
+            "high": price * (1 + rng.uniform(0, 0.003, bars)),
+            "low": price * (1 - rng.uniform(0, 0.003, bars)),
+            "close": price,
+            "volume": rng.integers(1000, 100000, bars),
+        }
+    )
 
 
-def _generate_universe(
-    n_symbols: int = 10, n_bars: int = 200, seed: int = 42
-) -> pd.DataFrame:
+def _generate_universe(n_symbols: int = 10, n_bars: int = 200, seed: int = 42) -> pd.DataFrame:
     """Generate synthetic multi-symbol universe."""
     frames = []
     for i in range(n_symbols):
@@ -72,6 +94,7 @@ def _generate_universe(
 
 def _create_simple_strategy() -> StrategyPipeline:
     """Create a simple strategy for replay testing."""
+
     class SimpleRSIStrategy:
         """Simple RSI-based strategy."""
 
@@ -169,15 +192,17 @@ class TestScannerDeterminism:
         frames = []
         for i in range(5):
             sym = f"SYM{i:02d}"
-            df = pd.DataFrame({
-                "timestamp": timestamps,
-                "symbol": sym,
-                "open": [100.0 + j * 0.01 for j in range(100)],
-                "high": [101.0 + j * 0.01 for j in range(100)],
-                "low": [99.0 + j * 0.01 for j in range(100)],
-                "close": [100.5 + j * 0.01 for j in range(100)],
-                "volume": [1000 + j for j in range(100)],
-            })
+            df = pd.DataFrame(
+                {
+                    "timestamp": timestamps,
+                    "symbol": sym,
+                    "open": [100.0 + j * 0.01 for j in range(100)],
+                    "high": [101.0 + j * 0.01 for j in range(100)],
+                    "low": [99.0 + j * 0.01 for j in range(100)],
+                    "close": [100.5 + j * 0.01 for j in range(100)],
+                    "volume": [1000 + j for j in range(100)],
+                }
+            )
             frames.append(df)
 
         universe = pd.concat(frames, ignore_index=True)
@@ -210,7 +235,7 @@ class TestReplayDeterminism:
         strategy = _create_simple_strategy()
         config = ReplayConfig(warmup_bars=50, window_size=100)
 
-        engine = ReplayEngine(pipeline, strategy, config)
+        engine = ReplayEngine(pipeline, strategy, config, oms_adapter=_NullOmsAdapter())
 
         results = [engine.run(df) for _ in range(5)]
 
@@ -233,7 +258,7 @@ class TestReplayDeterminism:
             commission_flat=20.0,
         )
 
-        engine = ReplayEngine(pipeline, strategy, config)
+        engine = ReplayEngine(pipeline, strategy, config, oms_adapter=_NullOmsAdapter())
 
         equities = []
         for _ in range(5):
@@ -250,8 +275,8 @@ class TestReplayDeterminism:
         strategy = _create_simple_strategy()
         config = ReplayConfig(warmup_bars=30, window_size=50)
 
-        # No trading_context = legacy simulated mode
-        engine = ReplayEngine(pipeline, strategy, config)
+        # OMS adapter required; NullOmsAdapter still produces deterministic replay
+        engine = ReplayEngine(pipeline, strategy, config, oms_adapter=_NullOmsAdapter())
 
         results = [engine.run(df) for _ in range(3)]
 
@@ -272,13 +297,20 @@ class TestResampleCorrectness:
         df = _generate_ohlcv(bars=1000)
 
         # Resample using pandas (reference)
-        df_5m = df.set_index("timestamp").resample("5min").agg({
-            "open": "first",
-            "high": "max",
-            "low": "min",
-            "close": "last",
-            "volume": "sum",
-        }).dropna()
+        df_5m = (
+            df.set_index("timestamp")
+            .resample("5min")
+            .agg(
+                {
+                    "open": "first",
+                    "high": "max",
+                    "low": "min",
+                    "close": "last",
+                    "volume": "sum",
+                }
+            )
+            .dropna()
+        )
 
         # Verify bar count is approximately correct (allow for edge effects)
         expected_bars = len(df) // 5
@@ -292,13 +324,20 @@ class TestResampleCorrectness:
         """1-minute to 15-minute resampling should be correct."""
         df = _generate_ohlcv(bars=1000)
 
-        df_15m = df.set_index("timestamp").resample("15min").agg({
-            "open": "first",
-            "high": "max",
-            "low": "min",
-            "close": "last",
-            "volume": "sum",
-        }).dropna()
+        df_15m = (
+            df.set_index("timestamp")
+            .resample("15min")
+            .agg(
+                {
+                    "open": "first",
+                    "high": "max",
+                    "low": "min",
+                    "close": "last",
+                    "volume": "sum",
+                }
+            )
+            .dropna()
+        )
 
         expected_bars = len(df) // 15
         assert abs(len(df_15m) - expected_bars) <= 1
@@ -307,13 +346,20 @@ class TestResampleCorrectness:
         """1-minute to 1-hour resampling should be correct."""
         df = _generate_ohlcv(bars=1000)
 
-        df_1h = df.set_index("timestamp").resample("1h").agg({
-            "open": "first",
-            "high": "max",
-            "low": "min",
-            "close": "last",
-            "volume": "sum",
-        }).dropna()
+        df_1h = (
+            df.set_index("timestamp")
+            .resample("1h")
+            .agg(
+                {
+                    "open": "first",
+                    "high": "max",
+                    "low": "min",
+                    "close": "last",
+                    "volume": "sum",
+                }
+            )
+            .dropna()
+        )
 
         expected_bars = len(df) // 60
         assert abs(len(df_1h) - expected_bars) <= 1
@@ -322,13 +368,20 @@ class TestResampleCorrectness:
         """Resampled volume should be sum of constituent bars."""
         df = _generate_ohlcv(bars=500)
 
-        df_5m = df.set_index("timestamp").resample("5min").agg({
-            "open": "first",
-            "high": "max",
-            "low": "min",
-            "close": "last",
-            "volume": "sum",
-        }).dropna()
+        df_5m = (
+            df.set_index("timestamp")
+            .resample("5min")
+            .agg(
+                {
+                    "open": "first",
+                    "high": "max",
+                    "low": "min",
+                    "close": "last",
+                    "volume": "sum",
+                }
+            )
+            .dropna()
+        )
 
         # First 5-minute bar volume should equal sum of first 5 1-minute bars
         if len(df_5m) > 0:
@@ -341,13 +394,20 @@ class TestResampleCorrectness:
 
         results = []
         for _ in range(5):
-            df_5m = df.set_index("timestamp").resample("5min").agg({
-                "open": "first",
-                "high": "max",
-                "low": "min",
-                "close": "last",
-                "volume": "sum",
-            }).dropna()
+            df_5m = (
+                df.set_index("timestamp")
+                .resample("5min")
+                .agg(
+                    {
+                        "open": "first",
+                        "high": "max",
+                        "low": "min",
+                        "close": "last",
+                        "volume": "sum",
+                    }
+                )
+                .dropna()
+            )
             results.append(df_5m)
 
         for r in results[1:]:
@@ -400,11 +460,13 @@ class TestFeatureComputationParity:
             features = pipeline.run(df)
             if not features.empty:
                 row = features.iloc[-1]
-                all_features.append({
-                    "rsi": float(row.get("rsi", 0)),
-                    "sma": float(row.get("sma", 0)),
-                    "atr": float(row.get("atr", 0)),
-                })
+                all_features.append(
+                    {
+                        "rsi": float(row.get("rsi", 0)),
+                        "sma": float(row.get("sma", 0)),
+                        "atr": float(row.get("atr", 0)),
+                    }
+                )
 
         for f in all_features[1:]:
             assert f == all_features[0]
@@ -423,14 +485,16 @@ class TestFeatureComputationParity:
         """Feature values should match known golden values."""
         # Use simple data for known values
         timestamps = pd.date_range("2026-01-01", periods=100, freq="1min")
-        df = pd.DataFrame({
-            "timestamp": timestamps,
-            "open": [100.0 + i * 0.1 for i in range(100)],
-            "high": [101.0 + i * 0.1 for i in range(100)],
-            "low": [99.0 + i * 0.1 for i in range(100)],
-            "close": [100.5 + i * 0.1 for i in range(100)],
-            "volume": [1000] * 100,
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": timestamps,
+                "open": [100.0 + i * 0.1 for i in range(100)],
+                "high": [101.0 + i * 0.1 for i in range(100)],
+                "low": [99.0 + i * 0.1 for i in range(100)],
+                "close": [100.5 + i * 0.1 for i in range(100)],
+                "volume": [1000] * 100,
+            }
+        )
 
         pipeline = FeaturePipeline().add(RSI(period=14))
         features = pipeline.run(df)
@@ -465,7 +529,7 @@ class TestQuantIntegration:
             strategy = _create_simple_strategy()
             config = ReplayConfig(warmup_bars=50, window_size=100)
 
-            engine = ReplayEngine(pipeline, strategy, config)
+            engine = ReplayEngine(pipeline, strategy, config, oms_adapter=_NullOmsAdapter())
             result = engine.run(symbol_data)
 
             assert result.bars_processed > 0
@@ -489,14 +553,16 @@ class TestQuantIntegration:
                 strategy = _create_simple_strategy()
                 config = ReplayConfig(warmup_bars=30, window_size=50)
 
-                engine = ReplayEngine(pipeline, strategy, config)
+                engine = ReplayEngine(pipeline, strategy, config, oms_adapter=_NullOmsAdapter())
                 replay_result = engine.run(symbol_data)
 
-                results.append({
-                    "symbol": symbol,
-                    "score": scan_result.candidates[0].score,
-                    "signals": replay_result.signals_generated,
-                })
+                results.append(
+                    {
+                        "symbol": symbol,
+                        "score": scan_result.candidates[0].score,
+                        "signals": replay_result.signals_generated,
+                    }
+                )
 
         # All runs should produce identical results
         for r in results[1:]:

@@ -7,13 +7,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from domain import Order, OrderStatus, Side
 from cli.commands.order_composition import (
     place_basket_order,
     place_bracket_order,
     place_oco_order,
 )
-from cli.commands.registry import CommandResult
+from domain import Order, OrderStatus, Side
 
 
 @pytest.fixture()
@@ -47,13 +46,27 @@ def mock_order():
     return order
 
 
+def _make_order_response(order_id="TEST-ORDER-001", status=OrderStatus.OPEN):
+    resp = MagicMock()
+    resp.order_id = order_id
+    resp.status = status
+    return resp
+
+
 class TestBracketOrder:
     """Test bracket order functionality."""
 
     def test_bracket_order_success(self, mock_broker_service, mock_console, mock_order):
         """Test successful bracket order placement."""
-        with patch("cli.commands.order_composition.OmsService") as mock_oms:
-            mock_oms.return_value.place_order.return_value = mock_order
+        with patch("cli.commands.order_composition._get_execution_composer") as mock_composer_fn, \
+             patch("cli.commands.order_composition._run_async") as mock_run:
+            mock_composer = MagicMock()
+            mock_composer_fn.return_value = mock_composer
+            mock_run.side_effect = [
+                _make_order_response("ENTRY-001"),
+                _make_order_response("TARGET-001"),
+                _make_order_response("SL-001"),
+            ]
 
             result = place_bracket_order(
                 ["RELIANCE", "BUY", "10", "--target", "2500", "--stop-loss", "2400"],
@@ -62,10 +75,10 @@ class TestBracketOrder:
             )
 
             assert result.success is True
-            assert "entry_order_id" in result.data
-            assert "target_order_id" in result.data
-            assert "stop_loss_order_id" in result.data
-            assert mock_oms.return_value.place_order.call_count == 3
+            assert result.data["entry_order_id"] == "ENTRY-001"
+            assert result.data["target_order_id"] == "TARGET-001"
+            assert result.data["stop_loss_order_id"] == "SL-001"
+            assert mock_run.call_count == 3
 
     def test_bracket_order_missing_arguments(self, mock_broker_service, mock_console):
         """Test bracket order with missing arguments."""
@@ -104,8 +117,15 @@ class TestBracketOrder:
 
     def test_bracket_order_sell(self, mock_broker_service, mock_console, mock_order):
         """Test bracket order for sell side."""
-        with patch("cli.commands.order_composition.OmsService") as mock_oms:
-            mock_oms.return_value.place_order.return_value = mock_order
+        with patch("cli.commands.order_composition._get_execution_composer") as mock_composer_fn, \
+             patch("cli.commands.order_composition._run_async") as mock_run:
+            mock_composer = MagicMock()
+            mock_composer_fn.return_value = mock_composer
+            mock_run.side_effect = [
+                _make_order_response("ENTRY-SELL-001"),
+                _make_order_response("TARGET-SELL-001"),
+                _make_order_response("SL-SELL-001"),
+            ]
 
             result = place_bracket_order(
                 ["RELIANCE", "SELL", "10", "--target", "2300", "--stop-loss", "2500"],
@@ -114,11 +134,10 @@ class TestBracketOrder:
             )
 
             assert result.success is True
-            # Verify exit side is BUY (opposite of SELL)
-            calls = mock_oms.return_value.place_order.call_args_list
-            # Exit orders should be BUY
-            assert calls[1][1]["side"] == Side.BUY
-            assert calls[2][1]["side"] == Side.BUY
+            place_calls = mock_composer.place_order.call_args_list
+            assert place_calls[0][0][0].transaction_type == Side.SELL
+            assert place_calls[1][0][0].transaction_type == Side.BUY
+            assert place_calls[2][0][0].transaction_type == Side.BUY
 
 
 class TestOcoOrder:
@@ -126,8 +145,14 @@ class TestOcoOrder:
 
     def test_oco_order_success(self, mock_broker_service, mock_console, mock_order):
         """Test successful OCO order placement."""
-        with patch("cli.commands.order_composition.OmsService") as mock_oms:
-            mock_oms.return_value.place_order.return_value = mock_order
+        with patch("cli.commands.order_composition._get_execution_composer") as mock_composer_fn, \
+             patch("cli.commands.order_composition._run_async") as mock_run:
+            mock_composer = MagicMock()
+            mock_composer_fn.return_value = mock_composer
+            mock_run.side_effect = [
+                _make_order_response("OCO-001"),
+                _make_order_response("OCO-002"),
+            ]
 
             result = place_oco_order(
                 ["RELIANCE", "SELL", "10", "--order1-price", "2500", "--order2-price", "2350"],
@@ -136,9 +161,9 @@ class TestOcoOrder:
             )
 
             assert result.success is True
-            assert "order1_id" in result.data
-            assert "order2_id" in result.data
-            assert mock_oms.return_value.place_order.call_count == 2
+            assert result.data["order1_id"] == "OCO-001"
+            assert result.data["order2_id"] == "OCO-002"
+            assert mock_run.call_count == 2
 
     def test_oco_order_missing_arguments(self, mock_broker_service, mock_console):
         """Test OCO order with missing arguments."""
@@ -165,8 +190,14 @@ class TestOcoOrder:
 
     def test_oco_order_buy_side(self, mock_broker_service, mock_console, mock_order):
         """Test OCO order for buy side."""
-        with patch("cli.commands.order_composition.OmsService") as mock_oms:
-            mock_oms.return_value.place_order.return_value = mock_order
+        with patch("cli.commands.order_composition._get_execution_composer") as mock_composer_fn, \
+             patch("cli.commands.order_composition._run_async") as mock_run:
+            mock_composer = MagicMock()
+            mock_composer_fn.return_value = mock_composer
+            mock_run.side_effect = [
+                _make_order_response("OCO-BUY-001"),
+                _make_order_response("OCO-BUY-002"),
+            ]
 
             result = place_oco_order(
                 ["RELIANCE", "BUY", "10", "--order1-price", "2400", "--order2-price", "2350"],
@@ -189,8 +220,15 @@ TCS,BUY,15"""
         csv_file = tmp_path / "basket.csv"
         csv_file.write_text(csv_content)
 
-        with patch("cli.commands.order_composition.OmsService") as mock_oms:
-            mock_oms.return_value.place_order.return_value = mock_order
+        with patch("cli.commands.order_composition._get_execution_composer") as mock_composer_fn, \
+             patch("cli.commands.order_composition._run_async") as mock_run:
+            mock_composer = MagicMock()
+            mock_composer_fn.return_value = mock_composer
+            mock_run.side_effect = [
+                _make_order_response("BASKET-001"),
+                _make_order_response("BASKET-002"),
+                _make_order_response("BASKET-003"),
+            ]
 
             result = place_basket_order(
                 ["--file", str(csv_file)],
@@ -202,7 +240,7 @@ TCS,BUY,15"""
             assert result.data["total"] == 3
             assert result.data["successful"] == 3
             assert result.data["failed"] == 0
-            assert mock_oms.return_value.place_order.call_count == 3
+            assert mock_run.call_count == 3
 
     def test_basket_order_file_not_found(self, mock_broker_service, mock_console):
         """Test basket order with non-existent file."""
@@ -231,17 +269,16 @@ TCS,BUY,15"""
 
         call_count = [0]
 
-        def mock_place_order(**kwargs):
+        def mock_run_async(coro):
             call_count[0] += 1
             if call_count[0] == 2:
                 raise RuntimeError("Order rejected")
-            order = MagicMock(spec=Order)
-            order.order_id = f"ORDER-{call_count[0]}"
-            order.status = OrderStatus.OPEN
-            return order
+            return _make_order_response(f"BASKET-{call_count[0]:03d}")
 
-        with patch("cli.commands.order_composition.OmsService") as mock_oms:
-            mock_oms.return_value.place_order.side_effect = mock_place_order
+        with patch("cli.commands.order_composition._get_execution_composer") as mock_composer_fn, \
+             patch("cli.commands.order_composition._run_async", side_effect=mock_run_async):
+            mock_composer = MagicMock()
+            mock_composer_fn.return_value = mock_composer
 
             result = place_basket_order(
                 ["--file", str(csv_file)],
@@ -274,8 +311,15 @@ class TestCompositionEdgeCases:
 
     def test_bracket_order_large_quantity(self, mock_broker_service, mock_console, mock_order):
         """Test bracket order with large quantity."""
-        with patch("cli.commands.order_composition.OmsService") as mock_oms:
-            mock_oms.return_value.place_order.return_value = mock_order
+        with patch("cli.commands.order_composition._get_execution_composer") as mock_composer_fn, \
+             patch("cli.commands.order_composition._run_async") as mock_run:
+            mock_composer = MagicMock()
+            mock_composer_fn.return_value = mock_composer
+            mock_run.side_effect = [
+                _make_order_response("BIG-001"),
+                _make_order_response("BIG-002"),
+                _make_order_response("BIG-003"),
+            ]
 
             result = place_bracket_order(
                 ["RELIANCE", "BUY", "10000", "--target", "2500", "--stop-loss", "2400"],
@@ -286,11 +330,25 @@ class TestCompositionEdgeCases:
 
     def test_oco_order_decimal_prices(self, mock_broker_service, mock_console, mock_order):
         """Test OCO order with decimal prices."""
-        with patch("cli.commands.order_composition.OmsService") as mock_oms:
-            mock_oms.return_value.place_order.return_value = mock_order
+        with patch("cli.commands.order_composition._get_execution_composer") as mock_composer_fn, \
+             patch("cli.commands.order_composition._run_async") as mock_run:
+            mock_composer = MagicMock()
+            mock_composer_fn.return_value = mock_composer
+            mock_run.side_effect = [
+                _make_order_response("DEC-001"),
+                _make_order_response("DEC-002"),
+            ]
 
             result = place_oco_order(
-                ["RELIANCE", "SELL", "10", "--order1-price", "2500.75", "--order2-price", "2350.25"],
+                [
+                    "RELIANCE",
+                    "SELL",
+                    "10",
+                    "--order1-price",
+                    "2500.75",
+                    "--order2-price",
+                    "2350.25",
+                ],
                 mock_broker_service,
                 mock_console,
             )
@@ -303,8 +361,11 @@ INVALID_SYMBOL,BUY,10"""
         csv_file = tmp_path / "invalid.csv"
         csv_file.write_text(csv_content)
 
-        with patch("cli.commands.order_composition.OmsService") as mock_oms:
-            mock_oms.return_value.place_order.side_effect = ValueError("Symbol not found")
+        with patch("cli.commands.order_composition._get_execution_composer") as mock_composer_fn, \
+             patch("cli.commands.order_composition._run_async") as mock_run:
+            mock_composer = MagicMock()
+            mock_composer_fn.return_value = mock_composer
+            mock_run.side_effect = ValueError("Symbol not found")
 
             result = place_basket_order(
                 ["--file", str(csv_file)],

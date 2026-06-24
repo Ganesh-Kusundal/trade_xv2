@@ -17,11 +17,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from domain import Order, OrderStatus, OrderType, ProductType, Side
-from domain.exchange_segments import is_derivative_segment
 from application.oms import PositionManager, RiskConfig, RiskManager
 from brokers.common.api import MarginCalculationError, MarginProvider, MarginResult
 from brokers.common.oms.margin_provider import BrokerMarginProvider
+from domain import Order, OrderStatus, OrderType, ProductType, Side
+from domain.exchange_segments import is_derivative_segment
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -120,7 +120,9 @@ class TestNoMarginProvider:
     def test_fo_order_rejected_without_margin_provider(
         self, position_manager, capital_provider, default_config, exchange
     ):
-        rm = _create_risk_manager(position_manager, capital_provider, default_config, margin_provider=None)
+        rm = _create_risk_manager(
+            position_manager, capital_provider, default_config, margin_provider=None
+        )
         order = _make_order(exchange=exchange)
 
         result = rm.check_order(order)
@@ -131,7 +133,9 @@ class TestNoMarginProvider:
         self, position_manager, capital_provider, default_config
     ):
         """Equity orders should still pass even without margin provider."""
-        rm = _create_risk_manager(position_manager, capital_provider, default_config, margin_provider=None)
+        rm = _create_risk_manager(
+            position_manager, capital_provider, default_config, margin_provider=None
+        )
         order = _make_order(symbol="RELIANCE", exchange="NSE")
 
         result = rm.check_order(order)
@@ -147,7 +151,7 @@ class TestInsufficientMargin:
     def test_fo_order_rejected_insufficient_margin(
         self, position_manager, capital_provider, default_config
     ):
-        mock_provider = MagicMock(spec=MarginProvider)
+        mock_provider = MagicMock(spec=BrokerMarginProvider)
         mock_provider.calculate_margin_for_order.return_value = MarginResult(
             required_margin=Decimal("200000"),
             available_margin=Decimal("100000"),
@@ -170,7 +174,7 @@ class TestSufficientMargin:
     def test_fo_order_accepted_sufficient_margin(
         self, position_manager, capital_provider, default_config
     ):
-        mock_provider = MagicMock(spec=MarginProvider)
+        mock_provider = MagicMock(spec=BrokerMarginProvider)
         mock_provider.calculate_margin_for_order.return_value = MarginResult(
             required_margin=Decimal("100000"),
             available_margin=Decimal("200000"),
@@ -187,7 +191,7 @@ class TestSufficientMargin:
         self, position_manager, capital_provider, default_config
     ):
         """Exact match (available == required) should pass (before multiplier)."""
-        mock_provider = MagicMock(spec=MarginProvider)
+        mock_provider = MagicMock(spec=BrokerMarginProvider)
         mock_provider.calculate_margin_for_order.return_value = MarginResult(
             required_margin=Decimal("100000"),
             available_margin=Decimal("100000"),
@@ -212,7 +216,7 @@ class TestSafetyMultiplier:
         self, position_manager, capital_provider, default_config
     ):
         """Available > required but < required * 1.2 → should reject."""
-        mock_provider = MagicMock(spec=MarginProvider)
+        mock_provider = MagicMock(spec=BrokerMarginProvider)
         # required=100k, available=110k, required*1.2=120k
         mock_provider.calculate_margin_for_order.return_value = MarginResult(
             required_margin=Decimal("100000"),
@@ -229,7 +233,7 @@ class TestSafetyMultiplier:
         self, position_manager, capital_provider, default_config
     ):
         """Available > required * 1.2 → should pass."""
-        mock_provider = MagicMock(spec=MarginProvider)
+        mock_provider = MagicMock(spec=BrokerMarginProvider)
         # required=100k, available=130k, required*1.2=120k
         mock_provider.calculate_margin_for_order.return_value = MarginResult(
             required_margin=Decimal("100000"),
@@ -242,12 +246,10 @@ class TestSafetyMultiplier:
         result = rm.check_order(order)
         assert result.allowed is True
 
-    def test_custom_safety_multiplier(
-        self, position_manager, capital_provider
-    ):
+    def test_custom_safety_multiplier(self, position_manager, capital_provider):
         """Custom safety multiplier in config should be respected."""
         config = RiskConfig(margin_safety_multiplier=Decimal("1.5"))
-        mock_provider = MagicMock(spec=MarginProvider)
+        mock_provider = MagicMock(spec=BrokerMarginProvider)
         # required=100k, available=140k, required*1.5=150k
         mock_provider.calculate_margin_for_order.return_value = MarginResult(
             required_margin=Decimal("100000"),
@@ -270,7 +272,7 @@ class TestFailClosed:
     def test_margin_calculation_error_rejects_order(
         self, position_manager, capital_provider, default_config
     ):
-        mock_provider = MagicMock(spec=MarginProvider)
+        mock_provider = MagicMock(spec=BrokerMarginProvider)
         mock_provider.calculate_margin_for_order.side_effect = MarginCalculationError("API timeout")
 
         rm = _create_risk_manager(position_manager, capital_provider, default_config, mock_provider)
@@ -283,7 +285,7 @@ class TestFailClosed:
     def test_generic_exception_rejects_order(
         self, position_manager, capital_provider, default_config
     ):
-        mock_provider = MagicMock(spec=MarginProvider)
+        mock_provider = MagicMock(spec=BrokerMarginProvider)
         mock_provider.calculate_margin_for_order.side_effect = RuntimeError("Unexpected error")
 
         rm = _create_risk_manager(position_manager, capital_provider, default_config, mock_provider)
@@ -300,9 +302,7 @@ class TestFailClosed:
 class TestMarginCheckDisabled:
     """When enable_margin_check=False, F&O orders should bypass margin check."""
 
-    def test_fo_order_bypasses_check_when_disabled(
-        self, position_manager, capital_provider
-    ):
+    def test_fo_order_bypasses_check_when_disabled(self, position_manager, capital_provider):
         config = RiskConfig(enable_margin_check=False)
         rm = _create_risk_manager(position_manager, capital_provider, config, margin_provider=None)
         order = _make_order()
@@ -311,12 +311,10 @@ class TestMarginCheckDisabled:
         assert result.allowed is True
         assert result.reason is None
 
-    def test_fo_order_bypasses_check_even_with_provider(
-        self, position_manager, capital_provider
-    ):
+    def test_fo_order_bypasses_check_even_with_provider(self, position_manager, capital_provider):
         """Even with a provider, disabled config should skip the check."""
         config = RiskConfig(enable_margin_check=False)
-        mock_provider = MagicMock(spec=MarginProvider)
+        mock_provider = MagicMock(spec=BrokerMarginProvider)
         # This provider would reject, but check is disabled
         mock_provider.calculate_margin_for_order.return_value = MarginResult(
             required_margin=Decimal("999999999"),
@@ -340,8 +338,12 @@ class TestBrokerMarginProvider:
         provider = BrokerMarginProvider(broker_margin_provider=None)
         with pytest.raises(MarginCalculationError, match="No broker margin provider configured"):
             provider.calculate_margin_for_order(
-                symbol="NIFTY", exchange="NFO", quantity=50,
-                price=Decimal("100"), product_type="MIS", order_type="LIMIT",
+                symbol="NIFTY",
+                exchange="NFO",
+                quantity=50,
+                price=Decimal("100"),
+                product_type="MIS",
+                order_type="LIMIT",
             )
 
     def test_delegates_to_calculate_margin_for_order_if_available(self):
@@ -353,8 +355,12 @@ class TestBrokerMarginProvider:
 
         provider = BrokerMarginProvider(mock_broker)
         result = provider.calculate_margin_for_order(
-            symbol="NIFTY", exchange="NFO", quantity=50,
-            price=Decimal("100"), product_type="MIS", order_type="LIMIT",
+            symbol="NIFTY",
+            exchange="NFO",
+            quantity=50,
+            price=Decimal("100"),
+            product_type="MIS",
+            order_type="LIMIT",
         )
 
         assert result.required_margin == Decimal("100000")
@@ -372,8 +378,12 @@ class TestBrokerMarginProvider:
 
         provider = BrokerMarginProvider(mock_broker)
         result = provider.calculate_margin_for_order(
-            symbol="NIFTY", exchange="NFO", quantity=50,
-            price=Decimal("100"), product_type="MIS", order_type="LIMIT",
+            symbol="NIFTY",
+            exchange="NFO",
+            quantity=50,
+            price=Decimal("100"),
+            product_type="MIS",
+            order_type="LIMIT",
         )
 
         assert result.required_margin == Decimal("100000")
@@ -391,8 +401,12 @@ class TestBrokerMarginProvider:
 
         provider = BrokerMarginProvider(mock_broker)
         result = provider.calculate_margin_for_order(
-            symbol="NIFTY", exchange="NFO", quantity=50,
-            price=Decimal("100"), product_type="MIS", order_type="LIMIT",
+            symbol="NIFTY",
+            exchange="NFO",
+            quantity=50,
+            price=Decimal("100"),
+            product_type="MIS",
+            order_type="LIMIT",
         )
 
         assert result.required_margin == Decimal("150000")
@@ -408,8 +422,12 @@ class TestBrokerMarginProvider:
         provider = BrokerMarginProvider(mock_broker)
         with pytest.raises(MarginCalculationError, match="Connection refused"):
             provider.calculate_margin_for_order(
-                symbol="NIFTY", exchange="NFO", quantity=50,
-                price=Decimal("100"), product_type="MIS", order_type="LIMIT",
+                symbol="NIFTY",
+                exchange="NFO",
+                quantity=50,
+                price=Decimal("100"),
+                product_type="MIS",
+                order_type="LIMIT",
             )
 
 

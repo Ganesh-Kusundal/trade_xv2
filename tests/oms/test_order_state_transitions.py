@@ -5,7 +5,7 @@ when enforce_state_transitions=True (the new default), and allows invalid
 transitions when explicitly set to False (backward compatibility).
 
 Valid transitions (from ORDER_STATUS_TRANSITIONS):
-    OPEN → PARTIALLY_FILLED, CANCELLED, REJECTED, EXPIRED
+    OPEN → PARTIALLY_FILLED, FILLED, CANCELLED, REJECTED, EXPIRED
     PARTIALLY_FILLED → FILLED, CANCELLED, REJECTED
     FILLED → (terminal, no transitions)
     CANCELLED → (terminal, no transitions)
@@ -22,10 +22,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from domain import Order, OrderStatus, OrderType, ProductType, Side
-from infrastructure.state_machine import IllegalTransitionError
-from infrastructure.event_bus import EventBus
 from application.oms.order_manager import OmsOrderCommand, OrderManager
+from domain import Order, OrderStatus, OrderType, ProductType, Side
+from infrastructure.event_bus import EventBus
+from infrastructure.state_machine import IllegalTransitionError
 
 
 def _make_order(
@@ -55,16 +55,16 @@ class TestOrderStateTransitionsEnforcedByDefault:
     def test_default_enforcement_is_true(self) -> None:
         """OrderManager should enforce state transitions by default."""
         om = OrderManager()
-        assert om._enforce_state_transitions is True
+        assert om._state_validator._enforce is True
 
     def test_explicit_false_disables_enforcement(self) -> None:
         """Backward compatibility: explicitly passing False should disable enforcement."""
         om = OrderManager(enforce_state_transitions=False)
-        assert om._enforce_state_transitions is False
+        assert om._state_validator._enforce is False
 
     def test_explicit_true_enables_enforcement(self) -> None:
         om = OrderManager(enforce_state_transitions=True)
-        assert om._enforce_state_transitions is True
+        assert om._state_validator._enforce is True
 
 
 class TestValidTransitionsWithEnforcement:
@@ -140,7 +140,7 @@ class TestValidTransitionsWithEnforcement:
     def test_same_status_update_is_allowed(self, order_manager: OrderManager) -> None:
         """Updating an order with the same status should not raise."""
         from dataclasses import replace
-        
+
         order = _make_order(status=OrderStatus.OPEN)
         order_manager.upsert_order(order)
 
@@ -197,12 +197,12 @@ class TestInvalidTransitionsWithEnforcement:
         with pytest.raises(IllegalTransitionError):
             order_manager.upsert_order(updated)
 
-    def test_open_to_filled_skipping_partially_raises(self, order_manager: OrderManager) -> None:
-        """OPEN cannot directly transition to FILLED (must go through PARTIALLY_FILLED)."""
-        order = _make_order(status=OrderStatus.OPEN)
+    def test_partially_filled_to_open_raises(self, order_manager: OrderManager) -> None:
+        """PARTIALLY_FILLED cannot transition back to OPEN."""
+        order = _make_order(status=OrderStatus.PARTIALLY_FILLED)
         order_manager.upsert_order(order)
 
-        updated = order.with_status(OrderStatus.FILLED)
+        updated = order.with_status(OrderStatus.OPEN)
         with pytest.raises(IllegalTransitionError):
             order_manager.upsert_order(updated)
 
@@ -259,18 +259,18 @@ class TestInvalidTransitionsAuditMode:
     def order_manager_audit(self) -> OrderManager:
         return OrderManager(enforce_state_transitions=False)
 
-    def test_open_to_filled_accepted_in_audit_mode(
+    def test_partially_filled_to_expired_accepted_in_audit_mode(
         self, order_manager_audit: OrderManager, caplog
     ) -> None:
-        """OPEN → FILLED should be accepted in audit mode with a warning."""
-        order = _make_order(status=OrderStatus.OPEN)
+        """PARTIALLY_FILLED → EXPIRED should be accepted in audit mode with a warning."""
+        order = _make_order(status=OrderStatus.PARTIALLY_FILLED)
         order_manager_audit.upsert_order(order)
 
-        updated = order.with_status(OrderStatus.FILLED)
+        updated = order.with_status(OrderStatus.EXPIRED)
         # Should NOT raise in audit mode
         order_manager_audit.upsert_order(updated)
 
-        assert order_manager_audit.get_order(order.order_id).status == OrderStatus.FILLED
+        assert order_manager_audit.get_order(order.order_id).status == OrderStatus.EXPIRED
         # Verify warning was logged
         assert "illegal order status transition" in caplog.text.lower()
 
@@ -345,7 +345,7 @@ class TestStateTransitionsWithPlaceOrder:
         assert om.get_order(order.order_id).status == OrderStatus.PARTIALLY_FILLED
 
     def test_place_order_then_invalid_transition_rejected(self) -> None:
-        """Place order, then attempt invalid transition OPEN → FILLED."""
+        """Place order, then attempt invalid transition PARTIALLY_FILLED → EXPIRED."""
         event_bus = MagicMock(spec=EventBus)
         om = OrderManager(event_bus=event_bus, enforce_state_transitions=True)
 
@@ -360,8 +360,12 @@ class TestStateTransitionsWithPlaceOrder:
         result = om.place_order(request)
         order = result.order
 
-        # Invalid transition: OPEN → FILLED (skipping PARTIALLY_FILLED)
-        updated = order.with_status(OrderStatus.FILLED)
+        # First transition to PARTIALLY_FILLED (valid)
+        partially = order.with_status(OrderStatus.PARTIALLY_FILLED)
+        om.upsert_order(partially)
+
+        # Invalid transition: PARTIALLY_FILLED → EXPIRED
+        updated = partially.with_status(OrderStatus.EXPIRED)
         with pytest.raises(IllegalTransitionError):
             om.upsert_order(updated)
 
@@ -411,14 +415,18 @@ class TestStateTransitionsThreadSafety:
 class TestStateMachineLifecycle:
     """Test state machine lifecycle and initialization."""
 
-    def test_state_machine_created_on_first_upsert(self) -> None:
-        """State machine should be created when order is first upserted."""
+    def test_state_machine_created_on_transition(self) -> None:
+        """State machine should be created when an order transitions status."""
         om = OrderManager(enforce_state_transitions=True)
         order = _make_order(status=OrderStatus.OPEN)
 
-        assert order.order_id not in om._state_machines
+        assert om._state_validator.get_state_machine(order.order_id) is None
         om.upsert_order(order)
-        assert order.order_id in om._state_machines
+        assert om._state_validator.get_state_machine(order.order_id) is None
+
+        updated = order.with_status(OrderStatus.PARTIALLY_FILLED)
+        om.upsert_order(updated)
+        assert om._state_validator.get_state_machine(order.order_id) is not None
 
     def test_state_machine_tracks_correct_state(self) -> None:
         """State machine should track the current order status."""
@@ -426,22 +434,24 @@ class TestStateMachineLifecycle:
         order = _make_order(status=OrderStatus.OPEN)
         om.upsert_order(order)
 
-        sm = om._state_machines[order.order_id]
-        assert sm.state == OrderStatus.OPEN
-
-        # Transition to PARTIALLY_FILLED
+        # Transition to PARTIALLY_FILLED — this creates the state machine
         updated = order.with_status(OrderStatus.PARTIALLY_FILLED)
         om.upsert_order(updated)
 
+        sm = om._state_validator.get_state_machine(order.order_id)
+        assert sm is not None
         assert sm.state == OrderStatus.PARTIALLY_FILLED
 
     def test_new_order_inherits_status_from_order(self) -> None:
-        """New order's state machine should start from the order's status."""
+        """State machine should start from the order's previous status on first transition."""
         om = OrderManager(enforce_state_transitions=True)
-        order = _make_order(status=OrderStatus.PARTIALLY_FILLED)
+        order = _make_order(status=OrderStatus.OPEN)
         om.upsert_order(order)
 
-        sm = om._state_machines[order.order_id]
+        updated = order.with_status(OrderStatus.PARTIALLY_FILLED)
+        om.upsert_order(updated)
+
+        sm = om._state_validator.get_state_machine(order.order_id)
         assert sm.state == OrderStatus.PARTIALLY_FILLED
         # Should be able to transition to FILLED
         assert sm.can_transition_to(OrderStatus.FILLED)

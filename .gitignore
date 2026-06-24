@@ -59,6 +59,7 @@ dist/
 .qoder/
 .trae/
 .mimocode/
+.import_linter_cache/
 
 # Local data lake (now tracked via Git LFS)
 # market_data/ directory removed from gitignore to allow LFS tracking

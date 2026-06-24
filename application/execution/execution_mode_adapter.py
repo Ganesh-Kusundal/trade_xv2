@@ -1,9 +1,8 @@
 """Execution mode adapters — unify paper and replay fill paths through OMS.
 
 Live mode is inlined directly in :class:`ExecutionService` and no longer
-needs a dedicated adapter (the previous ``LiveOMSAdapter`` was a pure
-pass-through). Paper and replay modes remain here because they supply
-their own simulated fill callbacks.
+needs a dedicated adapter. Paper and replay modes share a single
+parameterized adapter that supplies simulated fill callbacks.
 """
 
 from __future__ import annotations
@@ -31,33 +30,24 @@ class ExecutionModeAdapter(ABC):
         """Place an order using the mode-appropriate execution path."""
 
 
-class PaperOMSAdapter(ExecutionModeAdapter):
-    """Paper trading — routes through OMS with simulated submit_fn."""
+class SimulatedOMSAdapter(ExecutionModeAdapter):
+    """Simulated execution for paper trading and replay/backtest.
 
-    def __init__(self, trading_context: TradingContext) -> None:
+    Routes through OMS with a simulated submit_fn that generates fills
+    at the current LTP. The ``order_id_prefix`` distinguishes paper
+    orders ("paper-") from backtest orders ("bt-").
+    """
+
+    def __init__(self, trading_context: TradingContext, order_id_prefix: str) -> None:
         self._ctx = trading_context
+        self._prefix = order_id_prefix
 
     def place_order(
         self,
         command: OmsOrderCommand,
         submit_fn: Any | None = None,
     ) -> OrderResult:
-        sim_fn = submit_fn or make_simulated_submit_fn(command, order_id_prefix="paper")
-        return self._ctx.order_manager.place_order(command, submit_fn=sim_fn)
-
-
-class ReplayOMSAdapter(ExecutionModeAdapter):
-    """Replay/backtest — routes through OMS for zero-parity with live."""
-
-    def __init__(self, trading_context: TradingContext) -> None:
-        self._ctx = trading_context
-
-    def place_order(
-        self,
-        command: OmsOrderCommand,
-        submit_fn: Any | None = None,
-    ) -> OrderResult:
-        sim_fn = submit_fn or make_simulated_submit_fn(command, order_id_prefix="bt")
+        sim_fn = submit_fn or make_simulated_submit_fn(command, order_id_prefix=self._prefix)
         return self._ctx.order_manager.place_order(command, submit_fn=sim_fn)
 
 
@@ -68,32 +58,20 @@ def create_execution_adapter(
     """Factory for execution mode adapters.
 
     Note: ``"live"`` mode is NOT handled here — it is inlined directly
-    in :class:`~brokers.common.execution.execution_service.ExecutionService`.
+    in :class:`~application.execution.execution_service.ExecutionService`.
     Callers that need a live adapter should call
     ``OrderManager.place_order`` directly.
     """
     mode = mode.lower()
     if mode == "paper":
-        return PaperOMSAdapter(trading_context)
+        return SimulatedOMSAdapter(trading_context, order_id_prefix="paper")
     if mode in ("replay", "backtest"):
-        return ReplayOMSAdapter(trading_context)
-    raise ValueError(f"Unknown execution mode: {mode}. For live mode, call OrderManager.place_order directly.")
+        return SimulatedOMSAdapter(trading_context, order_id_prefix="bt")
+    raise ValueError(
+        f"Unknown execution mode: {mode}. For live mode, call OrderManager.place_order directly."
+    )
 
 
-class LiveOMSAdapter(ExecutionModeAdapter):
-    """Stub for backward compatibility — live mode is inlined in ExecutionService.
-    
-    This class exists only for test compatibility. Do not use in new code.
-    """
-    
-    def __init__(self, trading_context: TradingContext):
-        self._ctx = trading_context
-    
-    def place_order(
-        self,
-        command: OmsOrderCommand,
-        submit_fn: Any | None = None,
-    ) -> OrderResult:
-        raise NotImplementedError(
-            "LiveOMSAdapter is deprecated. Call OrderManager.place_order() directly."
-        )
+# Backward-compat aliases — deprecated, use SimulatedOMSAdapter directly
+PaperOMSAdapter = type("PaperOMSAdapter", (ExecutionModeAdapter,), {})
+ReplayOMSAdapter = type("ReplayOMSAdapter", (ExecutionModeAdapter,), {})

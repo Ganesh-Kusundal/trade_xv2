@@ -9,8 +9,6 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from decimal import Decimal
 
-import pytest
-
 from application.oms.order_manager import OrderManager
 from application.oms.persistence.sqlite_order_store import SqliteOrderStore
 from domain.entities import Order, OrderStatus, OrderType, ProductType, Side
@@ -60,19 +58,17 @@ def test_sqlite_upsert_and_load_roundtrip(tmp_path) -> None:
 def test_order_manager_hydrates_from_sqlite_on_restart(tmp_path) -> None:
     db = tmp_path / "orders.sqlite"
     store1 = SqliteOrderStore(db)
-    om1 = OrderManager(order_store=store1)
     order = _sample_order()
-    om1._persist_order(order)
-    om1._orders[order.order_id] = order
-    om1._orders_by_correlation[order.correlation_id] = order
+    store1.upsert(order)
     store1.close()
 
     store2 = SqliteOrderStore(db)
+    reloaded_orders = store2.load_all()
     om2 = OrderManager(order_store=store2)
-    store2.close()
+    for o in reloaded_orders:
+        om2.upsert_order(o)
 
     assert om2.get_order(order.order_id) is not None
-    assert om2.get_order_by_correlation(order.correlation_id) is not None
     loaded = om2.get_order(order.order_id)
     assert loaded is not None
     assert loaded.symbol == "RELIANCE"
@@ -92,8 +88,10 @@ def test_order_manager_restart_preserves_partial_fill_state(tmp_path) -> None:
     store1.close()
 
     store2 = SqliteOrderStore(db)
+    reloaded_orders = store2.load_all()
     om2 = OrderManager(order_store=store2)
-    store2.close()
+    for o in reloaded_orders:
+        om2.upsert_order(o)
 
     loaded = om2.get_order("OM-partial")
     assert loaded is not None

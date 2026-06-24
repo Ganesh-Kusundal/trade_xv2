@@ -1,4 +1,4 @@
-"""Tests for brokers.dhan.token_manager.update_env_token — atomic env update."""
+"""Tests for brokers.common.auth.env_token.update_env_token — atomic env update."""
 
 from __future__ import annotations
 
@@ -11,16 +11,14 @@ import pytest
 
 pytest.importorskip("fcntl")
 
-from brokers.dhan.token_manager import update_env_token
+from brokers.common.auth.env_token import update_env_token
 
 
 class TestUpdateEnvToken:
     def test_updates_existing_token(self, tmp_path: Path) -> None:
         env_file = tmp_path / ".env.local"
         env_file.write_text(
-            "DHAN_CLIENT_ID=client123\n"
-            "DHAN_ACCESS_TOKEN=old_token\n"
-            "DHAN_TOTP_SECRET=secret\n",
+            "DHAN_CLIENT_ID=client123\nDHAN_ACCESS_TOKEN=old_token\nDHAN_TOTP_SECRET=secret\n",
             encoding="utf-8",
         )
 
@@ -34,8 +32,7 @@ class TestUpdateEnvToken:
     def test_appends_missing_token(self, tmp_path: Path) -> None:
         env_file = tmp_path / ".env.local"
         env_file.write_text(
-            "DHAN_CLIENT_ID=client123\n"
-            "DHAN_TOTP_SECRET=secret\n",
+            "DHAN_CLIENT_ID=client123\nDHAN_TOTP_SECRET=secret\n",
             encoding="utf-8",
         )
 
@@ -124,6 +121,8 @@ class TestUpdateEnvToken:
         content = env_file.read_text(encoding="utf-8")
         # The final token must be one of the written tokens and the line must
         # be well-formed.
-        token_line = [line for line in content.splitlines() if line.startswith("DHAN_ACCESS_TOKEN=")]
+        token_line = [
+            line for line in content.splitlines() if line.startswith("DHAN_ACCESS_TOKEN=")
+        ]
         assert len(token_line) == 1
         assert token_line[0].split("=", 1)[1] in tokens

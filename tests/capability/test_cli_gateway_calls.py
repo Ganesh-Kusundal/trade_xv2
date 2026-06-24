@@ -39,6 +39,10 @@ _EXPECTED_GATEWAY_PATTERNS = (
     "broker_service",
     "OmsService",
     "execution_service",
+    "ExecutionComposer",
+    "execution_composer",
+    "composer.",
+    "get_execution_composer",
 )
 
 
@@ -49,7 +53,7 @@ def _extract_source_calls(module_path: Path) -> list[str]:
     calls: list[str] = []
 
     class CallVisitor(ast.NodeVisitor):
-        def visit_Attribute(self, node: ast.Attribute) -> None:
+        def visit_Attribute(self, node: ast.Attribute) -> None:  # noqa: N802
             parts: list[str] = []
             current: ast.AST = node
             while isinstance(current, ast.Attribute):
@@ -77,11 +81,11 @@ class TestCliGatewayCalls:
             f"{rel_path} has no recognizable gateway call patterns"
         )
 
-    def test_modify_order_uses_oms_service(self) -> None:
+    def test_modify_order_uses_composer(self) -> None:
         path = PROJECT_ROOT / "cli/commands/order_placement.py"
         source = path.read_text(encoding="utf-8")
         assert "modify_order" in source
-        assert "oms_service.modify_order" in source
+        assert "composer.modify_order" in source or "ExecutionComposer" in source
         assert "gw.modify_order" not in source
 
     def test_place_order_uses_oms(self) -> None:

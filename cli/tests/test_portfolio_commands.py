@@ -18,10 +18,12 @@ from cli.services.broker_service import BrokerService
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture()
 def broker_service():
     """Return a BrokerService backed by seeded MockBroker (no .env.local needed)."""
     from brokers.paper.mock_broker import create_seeded_mock_broker
+
     svc = BrokerService.__new__(BrokerService)
     svc._gateway = None
     svc._upstox_gateway = None
@@ -35,7 +37,18 @@ def broker_service():
     svc._http_observability = None
     svc._risk_fail_open = False
     svc._capital_fallback_count = 0
+    svc._oms_proxy = None
+    svc._upstox_oms_proxy = None
+    svc._oms_risk_manager = None
+    svc._broker_infra = None
+    svc._live_intent = False
+    svc._dhan_bootstrap = None
+    svc._upstox_bootstrap = None
+    svc._load_instruments = False
+    svc._event_bus = None
+    svc._readiness_report = None
     from infrastructure.lifecycle import LifecycleManager
+
     svc._lifecycle = LifecycleManager()
     return svc
 
@@ -55,6 +68,25 @@ def mock_broker_service():
     svc._mock = None
     svc._paper = None
     svc._active_name = "dhan"
+    svc._upstox_gateway = None
+    svc._upstox_load_error = None
+    svc._oms_proxy = None
+    svc._upstox_oms_proxy = None
+    svc._oms_risk_manager = None
+    svc._trading_context = None
+    svc._http_observability = None
+    svc._risk_fail_open = False
+    svc._capital_fallback_count = 0
+    svc._broker_infra = None
+    svc._live_intent = False
+    svc._dhan_bootstrap = None
+    svc._upstox_bootstrap = None
+    svc._load_instruments = False
+    svc._event_bus = None
+    svc._readiness_report = None
+    from infrastructure.lifecycle import LifecycleManager
+
+    svc._lifecycle = LifecycleManager()
     return svc, mock_portfolio
 
 
@@ -115,6 +147,7 @@ MOCK_POSITIONS_RAW = {
 # Tests — using MockBroker (built-in mock data)
 # ---------------------------------------------------------------------------
 
+
 class TestHoldingsWithMockBroker:
     """Tests that run against MockBroker's in-memory data."""
 
@@ -163,6 +196,7 @@ class TestPositionsWithMockBroker:
 # ---------------------------------------------------------------------------
 # Tests — with fully mocked gateway (simulate Dhan API responses)
 # ---------------------------------------------------------------------------
+
 
 class TestHoldingsWithMockedGateway:
     """Tests that mock broker_service.active_broker.portfolio.get_holdings()."""
@@ -241,8 +275,16 @@ class TestHoldingsWithMockedGateway:
 class TestPositionsWithMockedGateway:
     """Tests that mock broker_service.active_broker.portfolio.get_positions()."""
 
-    def _make_position(self, symbol="RELIANCE", qty=10, avg=2400, ltp=2450,
-                       unrealized=500, realized=0, product="INTRADAY"):
+    def _make_position(
+        self,
+        symbol="RELIANCE",
+        qty=10,
+        avg=2400,
+        ltp=2450,
+        unrealized=500,
+        realized=0,
+        product="INTRADAY",
+    ):
         p = MagicMock()
         p.symbol = symbol
         p.quantity = qty

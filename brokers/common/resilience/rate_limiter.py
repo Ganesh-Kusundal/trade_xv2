@@ -151,3 +151,48 @@ class MultiBucketRateLimiter:
         """Increase the rate for a category."""
         bucket = self.get_bucket(category)
         bucket.rate = bucket.rate * factor
+
+
+class EndpointRateLimiter:
+    """Per-endpoint rate limiter with blocking acquire.
+
+    Wraps MultiBucketRateLimiter to provide a simple per-endpoint
+    interface compatible with broker adapters that track rate limits
+    per URL endpoint.
+
+    Usage::
+
+        limiter = EndpointRateLimiter(rate_per_second=10.0)
+        limiter.acquire("/market-quote/RELIANCE")  # blocks until allowed
+    """
+
+    def __init__(self, rate_per_second: float = 10.0, capacity: int = 10):
+        config = RateLimitConfig(rate_per_second=rate_per_second, capacity=capacity)
+        self._multi = MultiBucketRateLimiter({"_default": config})
+        self._rate_per_second = rate_per_second
+        self._capacity = capacity
+
+    def acquire(self, endpoint: str = "default", timeout: float | None = None) -> None:
+        """Block until a request to the given endpoint is allowed.
+
+        Args:
+            endpoint: Endpoint identifier for per-endpoint tracking.
+            timeout: Maximum wait time in seconds. None blocks forever.
+        """
+        if endpoint not in self._multi._buckets:
+            config = RateLimitConfig(
+                rate_per_second=self._rate_per_second,
+                capacity=self._capacity,
+            )
+            self._multi._buckets[endpoint] = TokenBucketRateLimiter(config)
+        self._multi.acquire(endpoint, tokens=1, timeout=timeout)
+
+    @property
+    def rate(self) -> float:
+        return self._rate_per_second
+
+    @rate.setter
+    def rate(self, value: float) -> None:
+        self._rate_per_second = value
+        for bucket in self._multi._buckets.values():
+            bucket.rate = value

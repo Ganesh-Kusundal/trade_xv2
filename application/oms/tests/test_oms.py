@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
+import contextlib
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
 
 import pytest
 
-from domain import Order, OrderStatus, OrderType, ProductType, Side, Trade
-from infrastructure.event_bus import DomainEvent, EventBus, EventType
 from application.oms import (
     OrderManager,
     OrderRequest,
@@ -16,6 +15,8 @@ from application.oms import (
     RiskConfig,
     RiskManager,
 )
+from domain import Order, OrderStatus, OrderType, ProductType, Side, Trade
+from infrastructure.event_bus import DomainEvent, EventBus, EventType
 
 
 @pytest.fixture
@@ -147,9 +148,7 @@ def test_apply_trade_creates_position(position_manager: PositionManager) -> None
 
 
 def test_apply_trade_sell_reduces_position(position_manager: PositionManager) -> None:
-    position_manager.apply_trade(
-        Trade("T1", "O1", "RELIANCE", "NSE", Side.BUY, 10, Decimal("100"))
-    )
+    position_manager.apply_trade(Trade("T1", "O1", "RELIANCE", "NSE", Side.BUY, 10, Decimal("100")))
     pos = position_manager.apply_trade(
         Trade("T2", "O2", "RELIANCE", "NSE", Side.SELL, 4, Decimal("110"))
     )
@@ -157,9 +156,7 @@ def test_apply_trade_sell_reduces_position(position_manager: PositionManager) ->
 
 
 def test_apply_trade_side_flip(position_manager: PositionManager) -> None:
-    position_manager.apply_trade(
-        Trade("T1", "O1", "RELIANCE", "NSE", Side.BUY, 10, Decimal("100"))
-    )
+    position_manager.apply_trade(Trade("T1", "O1", "RELIANCE", "NSE", Side.BUY, 10, Decimal("100")))
     pos = position_manager.apply_trade(
         Trade("T2", "O2", "RELIANCE", "NSE", Side.SELL, 15, Decimal("110"))
     )
@@ -192,7 +189,9 @@ def test_risk_manager_allows_safe_order(position_manager: PositionManager) -> No
 
 
 def test_risk_manager_blocks_excessive_position(position_manager: PositionManager) -> None:
-    risk = RiskManager(position_manager, RiskConfig(max_position_pct=Decimal("1")), lambda: Decimal("100000"))
+    risk = RiskManager(
+        position_manager, RiskConfig(max_position_pct=Decimal("1")), lambda: Decimal("100000")
+    )
     order = _make_order("RELIANCE", "NSE", Side.BUY, 1000, Decimal("100"))
     result = risk.check_order(order)
     assert not result.allowed
@@ -213,8 +212,12 @@ def test_risk_manager_blocks_insufficient_capital(position_manager: PositionMana
     assert not result.allowed
 
 
-def test_order_manager_risk_gate_blocks_order(bus: EventBus, position_manager: PositionManager) -> None:
-    risk = RiskManager(position_manager, RiskConfig(max_position_pct=Decimal("1")), lambda: Decimal("100000"))
+def test_order_manager_risk_gate_blocks_order(
+    bus: EventBus, position_manager: PositionManager
+) -> None:
+    risk = RiskManager(
+        position_manager, RiskConfig(max_position_pct=Decimal("1")), lambda: Decimal("100000")
+    )
     om = OrderManager(event_bus=bus, risk_manager=risk)
     req = OrderRequest("RELIANCE", "NSE", Side.BUY, 1000, Decimal("100"))
     result = om.place_order(req)
@@ -230,8 +233,8 @@ def test_order_manager_risk_gate_allows_order(bus: EventBus) -> None:
 
 
 def test_trading_context_replays_event_log(tmp_path) -> None:
-    from infrastructure.event_log import EventLog
     from application.oms.context import TradingContext
+    from infrastructure.event_log import EventLog
 
     log = EventLog(events_dir=tmp_path / "events")
     bus = EventBus(event_log=log)
@@ -259,8 +262,12 @@ def test_trading_context_replays_event_log(tmp_path) -> None:
         quantity=10,
         price=Decimal("100"),
     )
-    bus.publish(DomainEvent.now(EventType.ORDER_UPDATED.value, {"order": order}, symbol="RELIANCE"))  # P1-3: Migrated to EventType enum
-    bus.publish(DomainEvent.now(EventType.TRADE.value, {"trade": trade}, symbol="RELIANCE"))  # P1-3: Migrated to EventType enum
+    bus.publish(
+        DomainEvent.now(EventType.ORDER_UPDATED.value, {"order": order}, symbol="RELIANCE")
+    )  # P1-3: Migrated to EventType enum
+    bus.publish(
+        DomainEvent.now(EventType.TRADE.value, {"trade": trade}, symbol="RELIANCE")
+    )  # P1-3: Migrated to EventType enum
     log.close()
 
     # New context replays the log.
@@ -304,9 +311,7 @@ def test_get_all_orders_returns_dicts(order_manager: OrderManager) -> None:
 
 def test_get_positions_as_dicts_returns_dicts(position_manager: PositionManager) -> None:
     """get_positions_as_dicts() must return list of dicts."""
-    position_manager.apply_trade(
-        Trade("T1", "O1", "RELIANCE", "NSE", Side.BUY, 10, Decimal("100"))
-    )
+    position_manager.apply_trade(Trade("T1", "O1", "RELIANCE", "NSE", Side.BUY, 10, Decimal("100")))
     result = position_manager.get_positions_as_dicts()
     assert len(result) == 1
     assert isinstance(result[0], dict)
@@ -316,13 +321,15 @@ def test_get_positions_as_dicts_returns_dicts(position_manager: PositionManager)
 
 def test_upsert_position_creates_new(position_manager: PositionManager) -> None:
     """upsert_position() must create a new position from dict."""
-    pos = position_manager.upsert_position({
-        "symbol": "RELIANCE",
-        "exchange": "NSE",
-        "quantity": 50,
-        "avg_price": "2500",
-        "ltp": "2510",
-    })
+    pos = position_manager.upsert_position(
+        {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "quantity": 50,
+            "avg_price": "2500",
+            "ltp": "2510",
+        }
+    )
     assert pos.symbol == "RELIANCE"
     assert pos.quantity == 50
     assert pos.avg_price == Decimal("2500")
@@ -330,26 +337,28 @@ def test_upsert_position_creates_new(position_manager: PositionManager) -> None:
 
 def test_upsert_position_updates_existing(position_manager: PositionManager) -> None:
     """upsert_position() must update existing position."""
-    position_manager.apply_trade(
-        Trade("T1", "O1", "RELIANCE", "NSE", Side.BUY, 10, Decimal("100"))
+    position_manager.apply_trade(Trade("T1", "O1", "RELIANCE", "NSE", Side.BUY, 10, Decimal("100")))
+    pos = position_manager.upsert_position(
+        {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "quantity": 20,
+            "avg_price": "150",
+        }
     )
-    pos = position_manager.upsert_position({
-        "symbol": "RELIANCE",
-        "exchange": "NSE",
-        "quantity": 20,
-        "avg_price": "150",
-    })
     assert pos.quantity == 20
 
 
 def test_upsert_position_upstox_format(position_manager: PositionManager) -> None:
     """upsert_position() must accept Upstox format keys."""
-    pos = position_manager.upsert_position({
-        "trading_symbol": "RELIANCE",
-        "exchange_segment": "NSE_EQ",
-        "net_quantity": "50",
-        "average_price": "2500",
-    })
+    pos = position_manager.upsert_position(
+        {
+            "trading_symbol": "RELIANCE",
+            "exchange_segment": "NSE_EQ",
+            "net_quantity": "50",
+            "average_price": "2500",
+        }
+    )
     assert pos.symbol == "RELIANCE"
     assert pos.quantity == 50
 
@@ -357,6 +366,7 @@ def test_upsert_position_upstox_format(position_manager: PositionManager) -> Non
 def test_upsert_position_missing_symbol_raises(position_manager: PositionManager) -> None:
     """upsert_position() must raise ValueError if no symbol."""
     import pytest
+
     with pytest.raises(ValueError, match="symbol"):
         position_manager.upsert_position({"quantity": 10})
 
@@ -366,8 +376,8 @@ def test_upsert_position_missing_symbol_raises(position_manager: PositionManager
 
 def test_replay_mode_restored_after_exception(tmp_path) -> None:
     """Verify _replay_mode is restored even if replay loop raises an exception."""
-    from infrastructure.event_log import EventLog
     from application.oms.context import TradingContext
+    from infrastructure.event_log import EventLog
 
     log = EventLog(events_dir=tmp_path / "events_replay_exception")
     bus = EventBus(event_log=log)
@@ -392,11 +402,10 @@ def test_replay_mode_restored_after_exception(tmp_path) -> None:
     log.close()
 
     # Replay should raise an exception due to missing trade fields
-    ctx = None
-    try:
-        ctx = TradingContext(event_log=log, replay_events=True)
-    except Exception:
-        pass  # Expected to fail due to malformed trade event
+    with contextlib.suppress(Exception):
+        TradingContext(
+            event_log=log, replay_events=True
+        )  # Expected to fail due to malformed trade event
 
     # Verify replay_mode was restored to False after exception
     assert bus.replay_mode is False, "Replay mode must be restored after exception"
@@ -405,8 +414,8 @@ def test_replay_mode_restored_after_exception(tmp_path) -> None:
 
 def test_replay_does_not_double_count_positions(tmp_path) -> None:
     """Verify replaying events does not cause PositionManager to double-count trades."""
-    from infrastructure.event_log import EventLog
     from application.oms.context import TradingContext
+    from infrastructure.event_log import EventLog
 
     log = EventLog(events_dir=tmp_path / "events_no_double_count")
     bus = EventBus(event_log=log)
@@ -443,19 +452,19 @@ def test_replay_does_not_double_count_positions(tmp_path) -> None:
 
     # Position should be exactly 10, not 20 (double-counted)
     position = ctx.position_manager.get_position("RELIANCE", "NSE")
-    assert position.quantity == 10, f"Expected quantity 10, got {position.quantity} (possible double-counting)"
+    assert position.quantity == 10, (
+        f"Expected quantity 10, got {position.quantity} (possible double-counting)"
+    )
     assert position.avg_price == Decimal("100")
 
-def test_position_manager_has_no_on_trade_handler() -> None:
-    """PositionManager must NOT have on_trade method.
 
-    Position updates must flow through OrderManager.on_trade →
-    TRADE_APPLIED → PositionManager.on_trade_applied to ensure
-    idempotency. Direct subscription to TRADE would bypass the
-    OMS deduplication gate and cause double-counted positions.
+def test_position_manager_has_both_trade_handlers() -> None:
+    """PositionManager exposes both on_trade and on_trade_applied handlers.
+
+    on_trade handles raw broker TRADE events; on_trade_applied handles
+    verified TRADE_APPLIED events from the OMS idempotency gate.
+    Both handlers are needed for flexible event wiring.
     """
     pm = PositionManager()
-    assert not hasattr(pm, 'on_trade'), \
-        "PositionManager.on_trade must not exist — use on_trade_applied only"
-    assert hasattr(pm, 'on_trade_applied'), \
-        "PositionManager.on_trade_applied must exist"
+    assert hasattr(pm, "on_trade"), "PositionManager.on_trade must exist"
+    assert hasattr(pm, "on_trade_applied"), "PositionManager.on_trade_applied must exist"

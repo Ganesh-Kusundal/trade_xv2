@@ -20,7 +20,14 @@ _DATA_SOURCE_IMPORT_HINTS: dict[str, tuple[str, ...]] = {
         "get_data_catalog",
         "data_catalog",
     ),
-    "oms": ("get_order_repository", "get_position_repository", "get_risk_manager", "get_trading_context"),
+    "oms": (
+        "get_order_repository",
+        "get_position_repository",
+        "get_risk_manager",
+        "get_trading_context",
+        "get_container",
+        "trading_context",
+    ),
     "live_broker": (
         "get_broker_service",
         "require_live_broker",
@@ -30,6 +37,9 @@ _DATA_SOURCE_IMPORT_HINTS: dict[str, tuple[str, ...]] = {
         "subscribe_symbols_to_broker",
         "feed_wiring",
         "get_event_bus",
+        "get_execution_composer",
+        "execution_composer",
+        "composer",
     ),
     "none": (),
     "mixed": ("get_datalake_gateway", "get_trading_context", "get_view_manager"),
@@ -66,7 +76,9 @@ class TestRestDataSourceContract:
 
     def test_quote_rest_uses_datalake_not_live_broker(self) -> None:
         exposures = [
-            r for s in CAPABILITY_SURFACES for r in s.rest
+            r
+            for s in CAPABILITY_SURFACES
+            for r in s.rest
             if r.path == "/api/v1/market/quote/{symbol}"
         ]
         assert len(exposures) == 1
@@ -74,7 +86,9 @@ class TestRestDataSourceContract:
 
     def test_orders_post_uses_live_broker(self) -> None:
         exposures = [
-            r for s in CAPABILITY_SURFACES for r in s.rest
+            r
+            for s in CAPABILITY_SURFACES
+            for r in s.rest
             if r.method == "POST" and r.path == "/api/v1/orders"
         ]
         assert len(exposures) == 1
@@ -82,7 +96,9 @@ class TestRestDataSourceContract:
 
     def test_portfolio_positions_uses_oms(self) -> None:
         exposures = [
-            r for s in CAPABILITY_SURFACES for r in s.rest
+            r
+            for s in CAPABILITY_SURFACES
+            for r in s.rest
             if r.path == "/api/v1/portfolio/positions"
         ]
         assert len(exposures) == 1

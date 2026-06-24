@@ -7,7 +7,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from domain import Order, OrderStatus, OrderType, Side, Trade
 from cli.commands.order_placement import (
     cancel_order,
     modify_order,
@@ -15,11 +14,12 @@ from cli.commands.order_placement import (
     place_orders_batch,
 )
 from cli.commands.registry import CommandResult
+from domain import Order, OrderStatus, OrderType, Side
 
 
 @pytest.fixture()
 def mock_broker_service():
-    """Mock broker service with TradingContext."""
+    """Mock broker service."""
     service = MagicMock()
     service.active_broker = MagicMock()
     service.trading_context = MagicMock()
@@ -35,17 +35,39 @@ def mock_console():
 
 
 @pytest.fixture()
-def mock_order():
-    """Create a mock Order object."""
-    order = MagicMock(spec=Order)
-    order.order_id = "TEST-ORDER-001"
-    order.symbol = "RELIANCE"
-    order.side = Side.BUY
-    order.quantity = 10
-    order.price = Decimal("2450.50")
-    order.order_type = OrderType.MARKET
-    order.status = OrderStatus.OPEN
-    return order
+def mock_composer():
+    """Mock ExecutionComposer."""
+    return MagicMock()
+
+
+@pytest.fixture()
+def mock_place_response():
+    """Create a mock OrderResponse for place_order success."""
+    resp = MagicMock()
+    resp.order_id = "TEST-ORDER-001"
+    resp.symbol = "RELIANCE"
+    resp.status = OrderStatus.OPEN
+    return resp
+
+
+@pytest.fixture()
+def mock_cancel_response():
+    """Create a mock OrderResponse for cancel_order success."""
+    resp = MagicMock()
+    resp.success = True
+    resp.order_id = "TEST-ORDER-001"
+    resp.error = ""
+    return resp
+
+
+@pytest.fixture()
+def mock_modify_response():
+    """Create a mock OrderResponse for modify_order success."""
+    resp = MagicMock()
+    resp.success = True
+    resp.order_id = "TEST-ORDER-001"
+    resp.error = ""
+    return resp
 
 
 @pytest.fixture()
@@ -53,7 +75,7 @@ def mock_csv_file(tmp_path):
     """Create a temporary CSV file with order data."""
     csv_content = """symbol,side,quantity,type,price,exchange,product
 RELIANCE,BUY,10,MARKET,0,NSE,INTRADAY
-INFY,SELL,20,LIMIT,1500.00,NSE,DELIVERY
+INFY,SELL,20,LIMIT,1500.00,NSE,CNC
 TATAMOTORS,BUY,50,MARKET,0,NSE,INTRADAY"""
     csv_file = tmp_path / "orders.csv"
     csv_file.write_text(csv_content)
@@ -63,11 +85,14 @@ TATAMOTORS,BUY,50,MARKET,0,NSE,INTRADAY"""
 class TestPlaceOrder:
     """Test place_order command."""
 
-    def test_place_order_market_success(self, mock_broker_service, mock_console, mock_order):
+    def test_place_order_market_success(
+        self, mock_broker_service, mock_console, mock_composer, mock_place_response
+    ):
         """Test successful market order placement."""
-        with patch("cli.commands.order_placement.OmsService") as mock_oms:
-            mock_oms.return_value.place_order.return_value = mock_order
-
+        with (
+            patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
+            patch("cli.commands.order_placement._run_async", return_value=mock_place_response),
+        ):
             result = place_order(
                 ["RELIANCE", "BUY", "10"],
                 mock_broker_service,
@@ -79,13 +104,15 @@ class TestPlaceOrder:
             assert result.data["symbol"] == "RELIANCE"
             assert result.data["side"] == "BUY"
             assert result.data["quantity"] == 10
-            mock_oms.return_value.place_order.assert_called_once()
 
-    def test_place_order_limit_success(self, mock_broker_service, mock_console, mock_order):
+    def test_place_order_limit_success(
+        self, mock_broker_service, mock_console, mock_composer, mock_place_response
+    ):
         """Test successful limit order placement."""
-        with patch("cli.commands.order_placement.OmsService") as mock_oms:
-            mock_oms.return_value.place_order.return_value = mock_order
-
+        with (
+            patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
+            patch("cli.commands.order_placement._run_async", return_value=mock_place_response),
+        ):
             result = place_order(
                 ["RELIANCE", "BUY", "10", "--type", "LIMIT", "--price", "2450.00"],
                 mock_broker_service,
@@ -93,13 +120,15 @@ class TestPlaceOrder:
             )
 
             assert result.success is True
-            mock_oms.return_value.place_order.assert_called_once()
 
-    def test_place_order_with_exchange(self, mock_broker_service, mock_console, mock_order):
+    def test_place_order_with_exchange(
+        self, mock_broker_service, mock_console, mock_composer, mock_place_response
+    ):
         """Test order with custom exchange."""
-        with patch("cli.commands.order_placement.OmsService") as mock_oms:
-            mock_oms.return_value.place_order.return_value = mock_order
-
+        with (
+            patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
+            patch("cli.commands.order_placement._run_async", return_value=mock_place_response),
+        ):
             result = place_order(
                 ["NIFTY24600CE", "SELL", "75", "--exchange", "NFO"],
                 mock_broker_service,
@@ -107,13 +136,15 @@ class TestPlaceOrder:
             )
 
             assert result.success is True
-            mock_oms.return_value.place_order.assert_called_once()
 
-    def test_place_order_with_product_type(self, mock_broker_service, mock_console, mock_order):
+    def test_place_order_with_product_type(
+        self, mock_broker_service, mock_console, mock_composer, mock_place_response
+    ):
         """Test order with CNC product type."""
-        with patch("cli.commands.order_placement.OmsService") as mock_oms:
-            mock_oms.return_value.place_order.return_value = mock_order
-
+        with (
+            patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
+            patch("cli.commands.order_placement._run_async", return_value=mock_place_response),
+        ):
             result = place_order(
                 ["RELIANCE", "BUY", "10", "--product", "CNC"],
                 mock_broker_service,
@@ -199,11 +230,15 @@ class TestPlaceOrder:
         assert result.success is False
         assert "Invalid price" in result.error
 
-    def test_place_order_oms_rejected(self, mock_broker_service, mock_console):
+    def test_place_order_oms_rejected(self, mock_broker_service, mock_console, mock_composer):
         """Test order rejected by OMS."""
-        with patch("cli.commands.order_placement.OmsService") as mock_oms:
-            mock_oms.return_value.place_order.side_effect = RuntimeError("Risk check failed")
-
+        with (
+            patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
+            patch(
+                "cli.commands.order_placement._run_async",
+                side_effect=RuntimeError("Risk check failed"),
+            ),
+        ):
             result = place_order(
                 ["RELIANCE", "BUY", "10"],
                 mock_broker_service,
@@ -213,11 +248,15 @@ class TestPlaceOrder:
             assert result.success is False
             assert "Risk check failed" in result.error
 
-    def test_place_order_network_error(self, mock_broker_service, mock_console):
+    def test_place_order_network_error(self, mock_broker_service, mock_console, mock_composer):
         """Test order with network error."""
-        with patch("cli.commands.order_placement.OmsService") as mock_oms:
-            mock_oms.return_value.place_order.side_effect = ConnectionError("Network timeout")
-
+        with (
+            patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
+            patch(
+                "cli.commands.order_placement._run_async",
+                side_effect=ConnectionError("Network timeout"),
+            ),
+        ):
             result = place_order(
                 ["RELIANCE", "BUY", "10"],
                 mock_broker_service,
@@ -228,11 +267,14 @@ class TestPlaceOrder:
             assert "Network timeout" in result.error
 
     @pytest.mark.parametrize("side", ["BUY", "SELL", "buy", "sell"])
-    def test_place_order_case_insensitive_side(self, mock_broker_service, mock_console, mock_order, side):
+    def test_place_order_case_insensitive_side(
+        self, mock_broker_service, mock_console, mock_composer, mock_place_response, side
+    ):
         """Test order with case-insensitive side."""
-        with patch("cli.commands.order_placement.OmsService") as mock_oms:
-            mock_oms.return_value.place_order.return_value = mock_order
-
+        with (
+            patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
+            patch("cli.commands.order_placement._run_async", return_value=mock_place_response),
+        ):
             result = place_order(
                 ["RELIANCE", side, "10"],
                 mock_broker_service,
@@ -242,11 +284,14 @@ class TestPlaceOrder:
             assert result.success is True
 
     @pytest.mark.parametrize("order_type", ["MARKET", "LIMIT", "STOP_LOSS", "STOP_LOSS_MARKET"])
-    def test_place_order_all_order_types(self, mock_broker_service, mock_console, mock_order, order_type):
+    def test_place_order_all_order_types(
+        self, mock_broker_service, mock_console, mock_composer, mock_place_response, order_type
+    ):
         """Test all order types."""
-        with patch("cli.commands.order_placement.OmsService") as mock_oms:
-            mock_oms.return_value.place_order.return_value = mock_order
-
+        with (
+            patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
+            patch("cli.commands.order_placement._run_async", return_value=mock_place_response),
+        ):
             result = place_order(
                 ["RELIANCE", "BUY", "10", "--type", order_type],
                 mock_broker_service,
@@ -256,11 +301,14 @@ class TestPlaceOrder:
             assert result.success is True
 
     @pytest.mark.parametrize("exchange", ["NSE", "BSE", "NFO", "MCX", "CDS"])
-    def test_place_order_all_exchanges(self, mock_broker_service, mock_console, mock_order, exchange):
+    def test_place_order_all_exchanges(
+        self, mock_broker_service, mock_console, mock_composer, mock_place_response, exchange
+    ):
         """Test all exchanges."""
-        with patch("cli.commands.order_placement.OmsService") as mock_oms:
-            mock_oms.return_value.place_order.return_value = mock_order
-
+        with (
+            patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
+            patch("cli.commands.order_placement._run_async", return_value=mock_place_response),
+        ):
             result = place_order(
                 ["RELIANCE", "BUY", "10", "--exchange", exchange],
                 mock_broker_service,
@@ -270,11 +318,14 @@ class TestPlaceOrder:
             assert result.success is True
 
     @pytest.mark.parametrize("product", ["INTRADAY", "CNC", "MARGIN"])
-    def test_place_order_all_product_types(self, mock_broker_service, mock_console, mock_order, product):
+    def test_place_order_all_product_types(
+        self, mock_broker_service, mock_console, mock_composer, mock_place_response, product
+    ):
         """Test all product types."""
-        with patch("cli.commands.order_placement.OmsService") as mock_oms:
-            mock_oms.return_value.place_order.return_value = mock_order
-
+        with (
+            patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
+            patch("cli.commands.order_placement._run_async", return_value=mock_place_response),
+        ):
             result = place_order(
                 ["RELIANCE", "BUY", "10", "--product", product],
                 mock_broker_service,
@@ -287,11 +338,14 @@ class TestPlaceOrder:
 class TestCancelOrder:
     """Test cancel_order command."""
 
-    def test_cancel_order_success(self, mock_broker_service, mock_console):
+    def test_cancel_order_success(
+        self, mock_broker_service, mock_console, mock_composer, mock_cancel_response
+    ):
         """Test successful order cancellation."""
-        with patch("cli.commands.order_placement.OmsService") as mock_oms:
-            mock_oms.return_value.cancel_order.return_value = True
-
+        with (
+            patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
+            patch("cli.commands.order_placement._run_async", return_value=mock_cancel_response),
+        ):
             result = cancel_order(
                 ["TEST-ORDER-001"],
                 mock_broker_service,
@@ -300,13 +354,17 @@ class TestCancelOrder:
 
             assert result.success is True
             assert result.data["order_id"] == "TEST-ORDER-001"
-            mock_oms.return_value.cancel_order.assert_called_once_with("TEST-ORDER-001")
 
-    def test_cancel_order_failure(self, mock_broker_service, mock_console):
+    def test_cancel_order_failure(self, mock_broker_service, mock_console, mock_composer):
         """Test failed order cancellation."""
-        with patch("cli.commands.order_placement.OmsService") as mock_oms:
-            mock_oms.return_value.cancel_order.return_value = False
+        fail_resp = MagicMock()
+        fail_resp.success = False
+        fail_resp.error = "Order not cancellable"
 
+        with (
+            patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
+            patch("cli.commands.order_placement._run_async", return_value=fail_resp),
+        ):
             result = cancel_order(
                 ["TEST-ORDER-001"],
                 mock_broker_service,
@@ -327,11 +385,15 @@ class TestCancelOrder:
         assert result.success is False
         assert "Missing order ID" in result.error
 
-    def test_cancel_order_network_error(self, mock_broker_service, mock_console):
+    def test_cancel_order_network_error(self, mock_broker_service, mock_console, mock_composer):
         """Test cancellation with network error."""
-        with patch("cli.commands.order_placement.OmsService") as mock_oms:
-            mock_oms.return_value.cancel_order.side_effect = ConnectionError("Timeout")
-
+        with (
+            patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
+            patch(
+                "cli.commands.order_placement._run_async",
+                side_effect=ConnectionError("Timeout"),
+            ),
+        ):
             result = cancel_order(
                 ["TEST-ORDER-001"],
                 mock_broker_service,
@@ -341,11 +403,15 @@ class TestCancelOrder:
             assert result.success is False
             assert "Timeout" in result.error
 
-    def test_cancel_order_not_found(self, mock_broker_service, mock_console):
+    def test_cancel_order_not_found(self, mock_broker_service, mock_console, mock_composer):
         """Test cancellation of non-existent order."""
-        with patch("cli.commands.order_placement.OmsService") as mock_oms:
-            mock_oms.return_value.cancel_order.side_effect = ValueError("Order not found")
-
+        with (
+            patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
+            patch(
+                "cli.commands.order_placement._run_async",
+                side_effect=ValueError("Order not found"),
+            ),
+        ):
             result = cancel_order(
                 ["NONEXISTENT"],
                 mock_broker_service,
@@ -359,9 +425,14 @@ class TestCancelOrder:
 class TestModifyOrder:
     """Test modify_order command."""
 
-    def test_modify_order_price_only(self, mock_broker_service, mock_console):
+    def test_modify_order_price_only(
+        self, mock_broker_service, mock_console, mock_composer, mock_modify_response
+    ):
         """Test modifying order price."""
-        with patch.object(mock_broker_service.active_broker, "modify_order", return_value=True):
+        with (
+            patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
+            patch("cli.commands.order_placement._run_async", return_value=mock_modify_response),
+        ):
             result = modify_order(
                 ["TEST-ORDER-001", "--price", "2500.00"],
                 mock_broker_service,
@@ -371,9 +442,14 @@ class TestModifyOrder:
             assert result.success is True
             assert result.data["new_price"] == "2500.00"
 
-    def test_modify_order_quantity_only(self, mock_broker_service, mock_console):
+    def test_modify_order_quantity_only(
+        self, mock_broker_service, mock_console, mock_composer, mock_modify_response
+    ):
         """Test modifying order quantity."""
-        with patch.object(mock_broker_service.active_broker, "modify_order", return_value=True):
+        with (
+            patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
+            patch("cli.commands.order_placement._run_async", return_value=mock_modify_response),
+        ):
             result = modify_order(
                 ["TEST-ORDER-001", "--quantity", "100"],
                 mock_broker_service,
@@ -383,9 +459,14 @@ class TestModifyOrder:
             assert result.success is True
             assert result.data["new_quantity"] == 100
 
-    def test_modify_order_both_price_and_quantity(self, mock_broker_service, mock_console):
+    def test_modify_order_both_price_and_quantity(
+        self, mock_broker_service, mock_console, mock_composer, mock_modify_response
+    ):
         """Test modifying both price and quantity."""
-        with patch.object(mock_broker_service.active_broker, "modify_order", return_value=True):
+        with (
+            patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
+            patch("cli.commands.order_placement._run_async", return_value=mock_modify_response),
+        ):
             result = modify_order(
                 ["TEST-ORDER-001", "--price", "2500.00", "--quantity", "100"],
                 mock_broker_service,
@@ -438,9 +519,16 @@ class TestModifyOrder:
         assert result.success is False
         assert "Invalid quantity" in result.error
 
-    def test_modify_order_failure(self, mock_broker_service, mock_console):
+    def test_modify_order_failure(self, mock_broker_service, mock_console, mock_composer):
         """Test failed modification."""
-        with patch.object(mock_broker_service.active_broker, "modify_order", return_value=False):
+        fail_resp = MagicMock()
+        fail_resp.success = False
+        fail_resp.error = "Order not modifiable"
+
+        with (
+            patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
+            patch("cli.commands.order_placement._run_async", return_value=fail_resp),
+        ):
             result = modify_order(
                 ["TEST-ORDER-001", "--price", "2500.00"],
                 mock_broker_service,
@@ -454,11 +542,14 @@ class TestModifyOrder:
 class TestPlaceOrdersBatch:
     """Test place_orders_batch command."""
 
-    def test_batch_orders_success(self, mock_broker_service, mock_console, mock_csv_file, mock_order):
+    def test_batch_orders_success(
+        self, mock_broker_service, mock_console, mock_csv_file, mock_composer, mock_place_response
+    ):
         """Test successful batch order placement."""
-        with patch("cli.commands.order_placement.OmsService") as mock_oms:
-            mock_oms.return_value.place_order.return_value = mock_order
-
+        with (
+            patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
+            patch("cli.commands.order_placement._run_async", return_value=mock_place_response),
+        ):
             result = place_orders_batch(
                 ["--file", str(mock_csv_file)],
                 mock_broker_service,
@@ -469,7 +560,6 @@ class TestPlaceOrdersBatch:
             assert result.data["total"] == 3
             assert result.data["successful"] == 3
             assert result.data["failed"] == 0
-            assert mock_oms.return_value.place_order.call_count == 3
 
     def test_batch_orders_file_not_found(self, mock_broker_service, mock_console):
         """Test batch order with non-existent file."""
@@ -507,19 +597,22 @@ class TestPlaceOrdersBatch:
         assert result.success is False
         assert "Empty CSV file" in result.error
 
-    def test_batch_orders_partial_failure(self, mock_broker_service, mock_console, mock_csv_file, mock_order):
+    def test_batch_orders_partial_failure(
+        self, mock_broker_service, mock_console, mock_csv_file, mock_composer, mock_place_response
+    ):
         """Test batch order with partial failures."""
         call_count = [0]
 
-        def mock_place_order(**kwargs):
+        def side_effect_factory(coro):
             call_count[0] += 1
             if call_count[0] == 2:
                 raise RuntimeError("Risk check failed")
-            return mock_order
+            return mock_place_response
 
-        with patch("cli.commands.order_placement.OmsService") as mock_oms:
-            mock_oms.return_value.place_order.side_effect = mock_place_order
-
+        with (
+            patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
+            patch("cli.commands.order_placement._run_async", side_effect=side_effect_factory),
+        ):
             result = place_orders_batch(
                 ["--file", str(mock_csv_file)],
                 mock_broker_service,
@@ -550,11 +643,14 @@ class TestPlaceOrdersBatch:
 class TestOrderPlacementIntegration:
     """Integration tests for order placement workflow."""
 
-    def test_place_then_cancel_workflow(self, mock_broker_service, mock_console, mock_order):
+    def test_place_then_cancel_workflow(
+        self, mock_broker_service, mock_console, mock_composer, mock_place_response, mock_cancel_response
+    ):
         """Test placing an order then cancelling it."""
-        with patch("cli.commands.order_placement.OmsService") as mock_oms:
-            # Place order
-            mock_oms.return_value.place_order.return_value = mock_order
+        with (
+            patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
+            patch("cli.commands.order_placement._run_async", return_value=mock_place_response),
+        ):
             place_result = place_order(
                 ["RELIANCE", "BUY", "10"],
                 mock_broker_service,
@@ -562,8 +658,10 @@ class TestOrderPlacementIntegration:
             )
             assert place_result.success is True
 
-            # Cancel order
-            mock_oms.return_value.cancel_order.return_value = True
+        with (
+            patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
+            patch("cli.commands.order_placement._run_async", return_value=mock_cancel_response),
+        ):
             cancel_result = cancel_order(
                 ["TEST-ORDER-001"],
                 mock_broker_service,
@@ -571,11 +669,15 @@ class TestOrderPlacementIntegration:
             )
             assert cancel_result.success is True
 
-    def test_place_modify_cancel_workflow(self, mock_broker_service, mock_console, mock_order):
+    def test_place_modify_cancel_workflow(
+        self, mock_broker_service, mock_console, mock_composer,
+        mock_place_response, mock_modify_response, mock_cancel_response
+    ):
         """Test complete lifecycle: place, modify, cancel."""
-        with patch("cli.commands.order_placement.OmsService") as mock_oms:
-            # Place
-            mock_oms.return_value.place_order.return_value = mock_order
+        with (
+            patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
+            patch("cli.commands.order_placement._run_async", return_value=mock_place_response),
+        ):
             place_result = place_order(
                 ["RELIANCE", "BUY", "10", "--type", "LIMIT", "--price", "2450.00"],
                 mock_broker_service,
@@ -583,17 +685,21 @@ class TestOrderPlacementIntegration:
             )
             assert place_result.success is True
 
-            # Modify
-            with patch.object(mock_broker_service.active_broker, "modify_order", return_value=True):
-                modify_result = modify_order(
-                    ["TEST-ORDER-001", "--price", "2460.00"],
-                    mock_broker_service,
-                    mock_console,
-                )
-                assert modify_result.success is True
+        with (
+            patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
+            patch("cli.commands.order_placement._run_async", return_value=mock_modify_response),
+        ):
+            modify_result = modify_order(
+                ["TEST-ORDER-001", "--price", "2460.00"],
+                mock_broker_service,
+                mock_console,
+            )
+            assert modify_result.success is True
 
-            # Cancel
-            mock_oms.return_value.cancel_order.return_value = True
+        with (
+            patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
+            patch("cli.commands.order_placement._run_async", return_value=mock_cancel_response),
+        ):
             cancel_result = cancel_order(
                 ["TEST-ORDER-001"],
                 mock_broker_service,
@@ -605,11 +711,14 @@ class TestOrderPlacementIntegration:
 class TestOrderPlacementEdgeCases:
     """Test edge cases and boundary conditions."""
 
-    def test_place_order_large_quantity(self, mock_broker_service, mock_console, mock_order):
+    def test_place_order_large_quantity(
+        self, mock_broker_service, mock_console, mock_composer, mock_place_response
+    ):
         """Test order with large quantity."""
-        with patch("cli.commands.order_placement.OmsService") as mock_oms:
-            mock_oms.return_value.place_order.return_value = mock_order
-
+        with (
+            patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
+            patch("cli.commands.order_placement._run_async", return_value=mock_place_response),
+        ):
             result = place_order(
                 ["RELIANCE", "BUY", "1000000"],
                 mock_broker_service,
@@ -618,11 +727,14 @@ class TestOrderPlacementEdgeCases:
 
             assert result.success is True
 
-    def test_place_order_decimal_price(self, mock_broker_service, mock_console, mock_order):
+    def test_place_order_decimal_price(
+        self, mock_broker_service, mock_console, mock_composer, mock_place_response
+    ):
         """Test order with decimal price."""
-        with patch("cli.commands.order_placement.OmsService") as mock_oms:
-            mock_oms.return_value.place_order.return_value = mock_order
-
+        with (
+            patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
+            patch("cli.commands.order_placement._run_async", return_value=mock_place_response),
+        ):
             result = place_order(
                 ["RELIANCE", "BUY", "10", "--type", "LIMIT", "--price", "2450.75"],
                 mock_broker_service,
@@ -631,11 +743,14 @@ class TestOrderPlacementEdgeCases:
 
             assert result.success is True
 
-    def test_place_order_futures_contract(self, mock_broker_service, mock_console, mock_order):
+    def test_place_order_futures_contract(
+        self, mock_broker_service, mock_console, mock_composer, mock_place_response
+    ):
         """Test order for futures contract."""
-        with patch("cli.commands.order_placement.OmsService") as mock_oms:
-            mock_oms.return_value.place_order.return_value = mock_order
-
+        with (
+            patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
+            patch("cli.commands.order_placement._run_async", return_value=mock_place_response),
+        ):
             result = place_order(
                 ["NIFTY24JANFUT", "BUY", "50", "--exchange", "NFO"],
                 mock_broker_service,
@@ -644,11 +759,14 @@ class TestOrderPlacementEdgeCases:
 
             assert result.success is True
 
-    def test_place_order_options_contract(self, mock_broker_service, mock_console, mock_order):
+    def test_place_order_options_contract(
+        self, mock_broker_service, mock_console, mock_composer, mock_place_response
+    ):
         """Test order for options contract."""
-        with patch("cli.commands.order_placement.OmsService") as mock_oms:
-            mock_oms.return_value.place_order.return_value = mock_order
-
+        with (
+            patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
+            patch("cli.commands.order_placement._run_async", return_value=mock_place_response),
+        ):
             result = place_order(
                 ["NIFTY24600CE", "SELL", "75", "--exchange", "NFO"],
                 mock_broker_service,
@@ -657,11 +775,14 @@ class TestOrderPlacementEdgeCases:
 
             assert result.success is True
 
-    def test_place_order_commodity(self, mock_broker_service, mock_console, mock_order):
+    def test_place_order_commodity(
+        self, mock_broker_service, mock_console, mock_composer, mock_place_response
+    ):
         """Test order for commodity."""
-        with patch("cli.commands.order_placement.OmsService") as mock_oms:
-            mock_oms.return_value.place_order.return_value = mock_order
-
+        with (
+            patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
+            patch("cli.commands.order_placement._run_async", return_value=mock_place_response),
+        ):
             result = place_order(
                 ["GOLD", "BUY", "1", "--exchange", "MCX"],
                 mock_broker_service,
@@ -670,11 +791,14 @@ class TestOrderPlacementEdgeCases:
 
             assert result.success is True
 
-    def test_place_order_currency(self, mock_broker_service, mock_console, mock_order):
+    def test_place_order_currency(
+        self, mock_broker_service, mock_console, mock_composer, mock_place_response
+    ):
         """Test order for currency pair."""
-        with patch("cli.commands.order_placement.OmsService") as mock_oms:
-            mock_oms.return_value.place_order.return_value = mock_order
-
+        with (
+            patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
+            patch("cli.commands.order_placement._run_async", return_value=mock_place_response),
+        ):
             result = place_order(
                 ["USDINR", "BUY", "1000", "--exchange", "CDS"],
                 mock_broker_service,

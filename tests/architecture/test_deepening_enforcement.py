@@ -57,8 +57,16 @@ def test_order_manager_documents_orchestration_contract():
 def test_api_orders_router_uses_oms_submit_fn():
     orders_path = REPO_ROOT / "api/routers/orders.py"
     text = orders_path.read_text(encoding="utf-8")
-    assert "order_manager.place_order" in text or "execution_svc.place_order" in text
-    assert "execution_service" in text or "submit_fn" in text
+    assert (
+        "order_manager.place_order" in text
+        or "execution_svc.place_order" in text
+        or "ExecutionComposer" in text
+    )
+    assert (
+        "execution_service" in text
+        or "submit_fn" in text
+        or "execution_composer" in text
+    )
 
 
 def test_broker_service_exposes_oms_transport_submit():

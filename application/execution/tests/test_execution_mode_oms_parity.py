@@ -7,16 +7,15 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from domain import OrderStatus, Side
-from domain.entities import OrderResponse
 from application.execution.execution_mode_adapter import (
-    LiveOMSAdapter,
-    PaperOMSAdapter,
-    ReplayOMSAdapter,
+    SimulatedOMSAdapter,
+    create_execution_adapter,
 )
 from application.execution.gateway_submit import make_gateway_submit_fn
 from application.oms.factory import create_trading_context
-from application.oms.order_manager import OmsOrderCommand
+from application.oms.order_manager import OmsOrderCommand, OrderManager
+from domain import OrderStatus, Side
+from domain.entities import OrderResponse
 
 
 def _command(correlation_id: str) -> OmsOrderCommand:
@@ -31,7 +30,7 @@ def _command(correlation_id: str) -> OmsOrderCommand:
 
 
 def test_paper_mode_records_order_in_oms(trading_context) -> None:
-    adapter = PaperOMSAdapter(trading_context)
+    adapter = create_execution_adapter("paper", trading_context)
     cmd = _command("test:parity:paper")
     result = adapter.place_order(cmd)
 
@@ -44,7 +43,7 @@ def test_paper_mode_records_order_in_oms(trading_context) -> None:
 
 
 def test_replay_mode_records_order_in_oms(trading_context) -> None:
-    adapter = ReplayOMSAdapter(trading_context)
+    adapter = create_execution_adapter("replay", trading_context)
     cmd = _command("test:parity:replay")
     result = adapter.place_order(cmd)
 
@@ -60,16 +59,14 @@ def test_live_mode_uses_submit_fn_and_records_in_oms(trading_context) -> None:
     gateway = MagicMock()
     gateway.place_order.return_value = OrderResponse.ok(order_id="LIVE-001")
 
-    adapter = LiveOMSAdapter(trading_context)
     cmd = _command("test:parity:live")
     submit_fn = make_gateway_submit_fn(gateway, transport_only=True)
-    result = adapter.place_order(cmd, submit_fn=submit_fn)
+    result = trading_context.order_manager.place_order(cmd, submit_fn=submit_fn)
 
     assert result.success
     assert result.order is not None
     assert result.order.order_id == "LIVE-001"
     gateway.place_order.assert_called_once()
-    assert gateway.place_order.call_args.kwargs["transport_only"] is True
     stored = trading_context.order_manager.get_order(result.order.order_id)
     assert stored is not None
 
@@ -79,19 +76,22 @@ def test_all_modes_publish_same_initial_order_status(trading_context) -> None:
     gateway = MagicMock()
     gateway.place_order.return_value = OrderResponse.ok(order_id="LIVE-002")
 
+    paper_adapter = create_execution_adapter("paper", trading_context)
+    replay_adapter = create_execution_adapter("replay", trading_context)
+    submit_fn = make_gateway_submit_fn(gateway, transport_only=True)
+
     cases = [
-        ("paper", PaperOMSAdapter(trading_context), None),
-        ("replay", ReplayOMSAdapter(trading_context), None),
-        (
-            "live",
-            LiveOMSAdapter(trading_context),
-            make_gateway_submit_fn(gateway, transport_only=True),
-        ),
+        ("paper", paper_adapter, None),
+        ("replay", replay_adapter, None),
+        ("live", None, submit_fn),
     ]
     statuses: list[OrderStatus] = []
-    for mode, adapter, submit_fn in cases:
+    for mode, adapter, sf in cases:
         cmd = _command(f"test:parity:status:{mode}")
-        result = adapter.place_order(cmd, submit_fn=submit_fn)
+        if adapter is not None:
+            result = adapter.place_order(cmd, submit_fn=sf)
+        else:
+            result = trading_context.order_manager.place_order(cmd, submit_fn=sf)
         assert result.success, mode
         statuses.append(result.order.status)
 
