@@ -525,7 +525,7 @@ class TradingContext:
 
         Replay invokes the OMS handlers directly, which in turn publishes
         ``TRADE_APPLIED`` for accepted trades. During replay, the event bus
-        suppresses handler dispatch (via ``_replay_mode``), so we must
+        suppresses handler dispatch (via ``replay_mode``), so we must
         directly invoke the position manager to ensure positions are rebuilt.
         """
         if self._event_log is None:
@@ -538,8 +538,8 @@ class TradingContext:
         count = 0
         # A3: Enable replay mode to prevent TRADE_APPLIED dispatch during replay
         # (which would cause PositionManager to double-count trades)
-        replay_was_enabled = getattr(self._event_bus, '_replay_mode', False)
-        self._event_bus._replay_mode = True
+        replay_was_enabled = self._event_bus.replay_mode
+        self._event_bus.set_replay_mode(True)
         # Prevent re-logging events while rebuilding state.
         logging_was_enabled = getattr(self._event_bus, '_logging_enabled', True)
         self._event_bus._logging_enabled = False
@@ -558,8 +558,7 @@ class TradingContext:
             # A3: Defensive cleanup - use hasattr() to prevent crashes
             if hasattr(self._event_bus, '_logging_enabled'):
                 self._event_bus._logging_enabled = logging_was_enabled
-            if hasattr(self._event_bus, '_replay_mode'):
-                self._event_bus._replay_mode = replay_was_enabled
+            self._event_bus.set_replay_mode(replay_was_enabled)
         logger.info("Replayed %d events into OMS", count)
 
     # ── Graceful shutdown (B2 fix) ──────────────────────────────────────

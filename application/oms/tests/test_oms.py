@@ -399,7 +399,7 @@ def test_replay_mode_restored_after_exception(tmp_path) -> None:
         pass  # Expected to fail due to malformed trade event
 
     # Verify replay_mode was restored to False after exception
-    assert bus._replay_mode is False, "Replay mode must be restored after exception"
+    assert bus.replay_mode is False, "Replay mode must be restored after exception"
     assert bus._logging_enabled is True, "Logging must be restored after exception"
 
 

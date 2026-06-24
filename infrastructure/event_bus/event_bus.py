@@ -202,6 +202,15 @@ class EventBus:
         """True if bus is in replay mode (P4)."""
         return self._replay_mode
 
+    def set_replay_mode(self, enabled: bool) -> None:
+        """Enable or disable replay mode (P4).
+
+        This is the public API for mutating replay_mode.  All callers
+        (including TradingContext._replay_log_into_oms) must use this
+        method instead of touching ``_replay_mode`` directly.
+        """
+        self._replay_mode = enabled
+
     @property
     def alerting_engine(self) -> AlertingEnginePort | None:
         """The alerting engine instance, if configured."""
