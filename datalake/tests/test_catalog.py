@@ -11,6 +11,13 @@ import pandas as pd
 import pytest
 
 from datalake.catalog import DataCatalog
+from datalake.duckdb_utils import get_pool
+
+
+def _close_writer(catalog: DataCatalog) -> None:
+    """Close the RW connection so subsequent reads can open RO connections."""
+    catalog.close()
+    get_pool().close(catalog._db_path)
 
 
 def _make_parquet(path: Path, n: int = 100, symbol: str = "TEST") -> None:
@@ -18,17 +25,19 @@ def _make_parquet(path: Path, n: int = 100, symbol: str = "TEST") -> None:
     np.random.seed(42)
     dates = pd.date_range("2026-01-01", periods=n, freq="1min")
     close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-    df = pd.DataFrame({
-        "timestamp": dates,
-        "symbol": symbol,
-        "exchange": "NSE",
-        "open": close + np.random.randn(n) * 0.2,
-        "high": close + np.abs(np.random.randn(n) * 0.5),
-        "low": close - np.abs(np.random.randn(n) * 0.5),
-        "close": close,
-        "volume": np.random.randint(1000, 10000, n),
-        "oi": np.zeros(n, dtype=np.int64),
-    })
+    df = pd.DataFrame(
+        {
+            "timestamp": dates,
+            "symbol": symbol,
+            "exchange": "NSE",
+            "open": close + np.random.randn(n) * 0.2,
+            "high": close + np.abs(np.random.randn(n) * 0.5),
+            "low": close - np.abs(np.random.randn(n) * 0.5),
+            "close": close,
+            "volume": np.random.randint(1000, 10000, n),
+            "oi": np.zeros(n, dtype=np.int64),
+        }
+    )
     path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(path, index=False)
 
@@ -52,12 +61,11 @@ class TestDataCatalogInit:
         assert "download_jobs" in table_names
         catalog.close()
 
-
     def test_read_only_mode_queries_existing_db(self, tmp_path: Path) -> None:
         # Create the DB with a writer first.
         writer = DataCatalog(root=str(tmp_path))
         writer.register_symbol("RELIANCE", total_rows=100)
-        writer.close()
+        _close_writer(writer)
 
         # Re-open in read-only mode and query.
         reader = DataCatalog(root=str(tmp_path), read_only=True)
@@ -87,60 +95,60 @@ class TestDataCatalogSymbols:
             last_date=date(2026, 6, 10),
             total_rows=463000,
         )
+        _close_writer(catalog)
         result = catalog.get_symbol("RELIANCE")
         assert result is not None
         assert result["symbol"] == "RELIANCE"
         assert result["exchange"] == "NSE"
         assert result["total_rows"] == 463000
-        catalog.close()
 
     def test_get_nonexistent_returns_none(self, tmp_path: Path) -> None:
         catalog = DataCatalog(root=str(tmp_path))
+        _close_writer(catalog)
         result = catalog.get_symbol("NONEXISTENT")
         assert result is None
-        catalog.close()
 
     def test_register_overwrites(self, tmp_path: Path) -> None:
         catalog = DataCatalog(root=str(tmp_path))
         catalog.register_symbol("TEST", total_rows=100)
         catalog.register_symbol("TEST", total_rows=200)
+        _close_writer(catalog)
         result = catalog.get_symbol("TEST")
         assert result["total_rows"] == 200
-        catalog.close()
 
     def test_list_symbols(self, tmp_path: Path) -> None:
         catalog = DataCatalog(root=str(tmp_path))
         catalog.register_symbol("AAA")
         catalog.register_symbol("BBB")
         catalog.register_symbol("CCC")
+        _close_writer(catalog)
         symbols = catalog.list_symbols()
         assert symbols == ["AAA", "BBB", "CCC"]
-        catalog.close()
 
     def test_list_symbols_by_timeframe(self, tmp_path: Path) -> None:
         catalog = DataCatalog(root=str(tmp_path))
         catalog.register_symbol("TEST", timeframe="1m")
         catalog.register_symbol("TEST2", timeframe="5m")
+        _close_writer(catalog)
         symbols_1m = catalog.list_symbols(timeframe="1m")
         symbols_5m = catalog.list_symbols(timeframe="5m")
         assert "TEST" in symbols_1m
         assert "TEST2" in symbols_5m
         assert "TEST2" not in symbols_1m
-        catalog.close()
 
     def test_get_parquet_path(self, tmp_path: Path) -> None:
         catalog = DataCatalog(root=str(tmp_path))
         parquet_path = tmp_path / "data.parquet"
         catalog.register_symbol("TEST", parquet_path=str(parquet_path))
+        _close_writer(catalog)
         result = catalog.get_parquet_path("TEST")
         assert result == parquet_path
-        catalog.close()
 
     def test_get_parquet_path_nonexistent(self, tmp_path: Path) -> None:
         catalog = DataCatalog(root=str(tmp_path))
+        _close_writer(catalog)
         result = catalog.get_parquet_path("NONEXISTENT")
         assert result is None
-        catalog.close()
 
 
 class TestDataCatalogQuality:
@@ -179,18 +187,18 @@ class TestDataCatalogSummary:
         catalog = DataCatalog(root=str(tmp_path))
         catalog.register_symbol("AAA", total_rows=100)
         catalog.register_symbol("BBB", total_rows=200)
+        _close_writer(catalog)
         summary = catalog.summary()
         assert summary["symbols"] == 2
         assert summary["total_rows"] == 300
         assert summary["quality_records"] == 0
-        catalog.close()
 
     def test_summary_empty(self, tmp_path: Path) -> None:
         catalog = DataCatalog(root=str(tmp_path))
+        _close_writer(catalog)
         summary = catalog.summary()
         assert summary["symbols"] == 0
         assert summary["total_rows"] == 0
-        catalog.close()
 
 
 class TestDataCatalogScanParquet:
@@ -204,11 +212,11 @@ class TestDataCatalogScanParquet:
         count = catalog.scan_parquet_files()
 
         assert count == 3
+        _close_writer(catalog)
         symbols = catalog.list_symbols()
         assert "HDFCBANK" in symbols
         assert "RELIANCE" in symbols
         assert "TCS" in symbols
-        catalog.close()
 
     def test_scan_empty_directory(self, tmp_path: Path) -> None:
         catalog = DataCatalog(root=str(tmp_path))
@@ -245,6 +253,6 @@ class TestDataCatalogThreadSafety:
             t.join()
 
         assert not errors
+        _close_writer(catalog)
         symbols = catalog.list_symbols()
         assert len(symbols) == 20
-        catalog.close()
