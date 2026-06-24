@@ -4,9 +4,9 @@ Consumers use symbol names like "NIFTY", "RELIANCE" — never security_id or ins
 The registry translates between canonical names and broker-specific identifiers.
 
 Usage:
-    from brokers.common.services.instrument_registry import InstrumentRegistry
+    from brokers.common.services.instrument_registry import CanonicalInstrumentRegistry
 
-    registry = InstrumentRegistry(gateway)
+    registry = CanonicalInstrumentRegistry(gateway)
 
     # Resolve by name
     inst = registry.resolve("RELIANCE", exchange="NFO")
@@ -78,7 +78,7 @@ class CanonicalInstrument:
 
 
 @dataclass
-class InstrumentRegistry:
+class CanonicalInstrumentRegistry:
     """Canonical instrument registry that hides broker-specific IDs.
 
     Wraps any gateway and provides broker-agnostic instrument resolution.

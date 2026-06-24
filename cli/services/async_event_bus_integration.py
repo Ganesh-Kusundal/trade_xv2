@@ -50,6 +50,9 @@ from infrastructure.event_bus import (
 )
 from infrastructure.event_bus.async_event_bus import AsyncEventBus
 from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
+from infrastructure.event_bus.persistent_dead_letter_queue import (
+    create_default_dead_letter_queue,
+)
 from brokers.common.observability.event_metrics import EventMetrics
 
 if TYPE_CHECKING:
@@ -103,7 +106,7 @@ def create_async_bus_for_trading(
     
     # Create metrics and DLQ if not provided
     effective_metrics = metrics or EventMetrics()
-    effective_dlq = dead_letter_queue or DeadLetterQueue(max_size=5000)
+    effective_dlq = dead_letter_queue or create_default_dead_letter_queue(max_size=5000)
     
     async_bus = AsyncEventBusFactory.create_async(
         maxsize=maxsize,

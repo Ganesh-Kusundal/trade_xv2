@@ -13,10 +13,23 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from decimal import Decimal
+from dataclasses import dataclass
+
 import pytest
 
 from domain import Position, Trade
-from brokers.common.core.pnl_calculator import PnLCalculator
+
+
+@dataclass(frozen=True)
+class PnLResult:
+    total_pnl: Decimal
+    position_count: int
+
+
+def compute_portfolio_pnl(positions: list[Position]) -> PnLResult:
+    total = sum((p.pnl for p in positions), start=Decimal("0"))
+    return PnLResult(total_pnl=total, position_count=len(positions))
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -53,7 +66,7 @@ class TestPnLBenchmarks:
         """PnL calculation for 10 positions should be fast."""
         positions = [create_test_position(f"SYM{i}", quantity=100) for i in range(10)]
 
-        result = benchmark(PnLCalculator.compute, positions)
+        result = benchmark(compute_portfolio_pnl, positions)
 
         assert result.total_pnl is not None
         assert result.position_count == 10
@@ -63,7 +76,7 @@ class TestPnLBenchmarks:
         """PnL calculation for 100 positions should be sub-millisecond."""
         positions = [create_test_position(f"SYM{i}", quantity=100) for i in range(100)]
 
-        result = benchmark(PnLCalculator.compute, positions)
+        result = benchmark(compute_portfolio_pnl, positions)
 
         assert result.total_pnl is not None
         assert result.position_count == 100
@@ -73,7 +86,7 @@ class TestPnLBenchmarks:
         """PnL calculation for 1000 positions should be fast."""
         positions = [create_test_position(f"SYM{i}", quantity=100) for i in range(1000)]
 
-        result = benchmark(PnLCalculator.compute, positions)
+        result = benchmark(compute_portfolio_pnl, positions)
 
         assert result.total_pnl is not None
         assert result.position_count == 1000

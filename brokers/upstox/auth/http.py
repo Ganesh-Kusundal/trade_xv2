@@ -23,6 +23,20 @@ from .config import UPSTOX_DEFAULT_RATE_PER_SECOND
 logger = logging.getLogger(__name__)
 
 
+def _categorize_upstox_url(url: str, method: str) -> str:
+    """Return 'read', 'write', or 'admin' for Upstox REST URLs."""
+    lower = url.lower()
+    if method.upper() in ("POST", "PUT", "PATCH", "DELETE") and "/order" in lower:
+        return "write"
+    if "/market-quote" in lower or "/market/" in lower or "/historical" in lower:
+        return "read"
+    if "/order" in lower and method.upper() == "GET":
+        return "read"
+    if "/portfolio" in lower or "/user/" in lower or "/login/" in lower:
+        return "admin"
+    return "admin"
+
+
 class UpstoxRateLimiter:
     """Simple token bucket rate limiter for Upstox API."""
 
@@ -55,6 +69,10 @@ class UpstoxHttpClient:
         session: requests.Session | None = None,
         rate_limiter: UpstoxRateLimiter | None = None,
         enable_circuit_breaker: bool = True,
+        circuit_breaker: CircuitBreaker | None = None,
+        read_circuit_breaker: CircuitBreaker | None = None,
+        write_circuit_breaker: CircuitBreaker | None = None,
+        admin_circuit_breaker: CircuitBreaker | None = None,
     ) -> None:
         self._token_provider = token_provider
         self._settings = settings
@@ -81,21 +99,59 @@ class UpstoxHttpClient:
         self._enable_circuit_breaker = enable_circuit_breaker
 
         if enable_circuit_breaker:
-            self._circuit_breaker = CircuitBreaker(
+            default_cb = circuit_breaker or CircuitBreaker(
                 name="upstox_api",
                 config=CircuitBreakerConfig(
                     failure_threshold=5,
                     success_threshold=3,
-                    open_duration_ms=30_000,  # 30 seconds
-                )
+                    open_duration_ms=30_000,
+                ),
+            )
+            self._circuit_breaker = default_cb
+            self._read_circuit_breaker = read_circuit_breaker or CircuitBreaker(
+                name="upstox_api_read",
+                config=CircuitBreakerConfig(
+                    failure_threshold=10,
+                    success_threshold=3,
+                    open_duration_ms=15_000,
+                ),
+            )
+            self._write_circuit_breaker = write_circuit_breaker or CircuitBreaker(
+                name="upstox_api_write",
+                config=CircuitBreakerConfig(
+                    failure_threshold=3,
+                    success_threshold=2,
+                    open_duration_ms=30_000,
+                ),
+            )
+            self._admin_circuit_breaker = admin_circuit_breaker or CircuitBreaker(
+                name="upstox_api_admin",
+                config=CircuitBreakerConfig(
+                    failure_threshold=5,
+                    success_threshold=3,
+                    open_duration_ms=30_000,
+                ),
             )
         else:
             self._circuit_breaker = None
+            self._read_circuit_breaker = None
+            self._write_circuit_breaker = None
+            self._admin_circuit_breaker = None
 
     @property
     def settings(self) -> Any:
         """Expose the underlying settings (algo_name, rest_base_url, etc.)."""
         return self._settings
+
+    def _get_circuit_breaker(self, url: str, method: str) -> CircuitBreaker | None:
+        if not self._enable_circuit_breaker:
+            return None
+        category = _categorize_upstox_url(url, method)
+        if category == "read":
+            return self._read_circuit_breaker
+        if category == "write":
+            return self._write_circuit_breaker
+        return self._admin_circuit_breaker
 
     def _headers(self, algo_name: str | None = None) -> dict[str, str]:
         headers = {
@@ -157,13 +213,18 @@ class UpstoxHttpClient:
         params: dict[str, Any] | None = None,
         algo_name: str | None = None,
     ) -> dict[str, Any]:
-        # Circuit breaker: fail fast if circuit is open
-        if self._circuit_breaker is not None:
+        # Circuit breaker: fail fast if circuit is open (category-specific)
+        cb = self._get_circuit_breaker(url, method)
+        if cb is not None:
             from brokers.common.resilience.circuit_breaker import CircuitState
             from brokers.common.resilience.errors import CircuitBreakerOpenError
-            if self._circuit_breaker.state == CircuitState.OPEN:
-                logger.warning("Upstox API circuit breaker is open, failing fast")
-                raise CircuitBreakerOpenError("upstox_api")
+            if cb.state == CircuitState.OPEN:
+                logger.warning(
+                    "Upstox API circuit breaker is open for %s %s",
+                    method,
+                    url,
+                )
+                raise CircuitBreakerOpenError(cb.name)
 
         try:
             result = self._execute_request(
@@ -173,14 +234,12 @@ class UpstoxHttpClient:
                 params=params,
                 algo_name=algo_name,
             )
-            # Record success
-            if self._circuit_breaker is not None:
-                self._circuit_breaker.on_success()
+            if cb is not None:
+                cb.on_success()
             return result
-        except Exception as e:
-            # Record failure
-            if self._circuit_breaker is not None:
-                self._circuit_breaker.on_failure()
+        except Exception:
+            if cb is not None:
+                cb.on_failure()
             raise
 
     def _execute_request(

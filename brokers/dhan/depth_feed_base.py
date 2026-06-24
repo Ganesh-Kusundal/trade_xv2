@@ -36,7 +36,7 @@ from config.endpoints import Dhan as _DhanEndpoints
 
 from domain import DepthLevel, MarketDepth
 from infrastructure.event_bus import DomainEvent, EventBus
-from brokers.common.lifecycle.lifecycle import (
+from infrastructure.lifecycle.lifecycle import (
     HealthState,
     HealthStatus,
     ManagedService,

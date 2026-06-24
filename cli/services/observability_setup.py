@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from cli.services.broker_service import BrokerService
     from brokers.common.observability.http_server import HttpObservabilityServer
-    from brokers.common.lifecycle import LifecycleManager
+    from infrastructure.lifecycle import LifecycleManager
 
 logger = logging.getLogger(__name__)
 

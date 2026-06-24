@@ -40,7 +40,7 @@ from domain import (
     Trade,
     Validity,
 )
-from brokers.upstox.order_mapping import UpstoxFieldMapping
+from domain.field_mapping import DefaultFieldMapping as UpstoxFieldMapping
 import brokers.upstox.status_mapper  # noqa: F401 — register Upstox status mappings
 
 from .price_parser import UpstoxPriceParser

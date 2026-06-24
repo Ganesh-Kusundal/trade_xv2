@@ -222,11 +222,11 @@ class TestDhanDepth20Feed:
         assert feed._dropped_depths == 1
 
     def test_health_stopped(self):
-        from brokers.common.lifecycle.lifecycle import HealthState
+        from infrastructure.lifecycle.lifecycle import HealthState
         assert _make_feed20().health().state == HealthState.STOPPED
 
     def test_health_degraded(self):
-        from brokers.common.lifecycle.lifecycle import HealthState
+        from infrastructure.lifecycle.lifecycle import HealthState
         feed = _make_feed20()
         feed._thread = mock.MagicMock()
         feed._thread.is_alive.return_value = True

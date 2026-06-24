@@ -10,8 +10,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from brokers.common.lifecycle import LifecycleManager
-from brokers.common.lifecycle.lifecycle import HealthState
+from infrastructure.lifecycle import LifecycleManager
+from infrastructure.lifecycle.lifecycle import HealthState
 
 
 class TestUpstoxWebSocketLifecycle:

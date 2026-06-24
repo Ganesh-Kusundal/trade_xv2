@@ -22,7 +22,7 @@ from __future__ import annotations
 import threading
 from unittest.mock import MagicMock
 
-from brokers.common.lifecycle import LifecycleManager, ManagedService
+from infrastructure.lifecycle import LifecycleManager, ManagedService
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -53,7 +53,7 @@ def _make_recorder_service(name: str = "test-recorder") -> ManagedService:
         def health(self):
             from datetime import datetime, timezone
 
-            from brokers.common.lifecycle.lifecycle import HealthState, HealthStatus
+            from infrastructure.lifecycle.lifecycle import HealthState, HealthStatus
             state = HealthState.HEALTHY if self.started and not self.stopped else HealthState.STOPPED
             return HealthStatus(
                 state=state,
@@ -164,7 +164,6 @@ def test_lifecycle_registers_token_scheduler_and_reconciliation(
         lambda self: MagicMock(passed=True, summary=lambda: "ok"),
     )
     monkeypatch.setattr("cli.services.broker_service.start_http_observability", lambda *a, **k: None)
-    monkeypatch.setattr("cli.services.broker_service.start_websocket_services", lambda *a, **k: None)
     monkeypatch.setattr("cli.services.broker_service._ENV_PATH", env)
 
     from cli.services.broker_service import BrokerService
@@ -237,7 +236,6 @@ def test_close_drains_lifecycle(monkeypatch, tmp_path) -> None:
         lambda self: MagicMock(passed=True, summary=lambda: "ok"),
     )
     monkeypatch.setattr("cli.services.broker_service.start_http_observability", lambda *a, **k: None)
-    monkeypatch.setattr("cli.services.broker_service.start_websocket_services", lambda *a, **k: None)
     monkeypatch.setattr("cli.services.broker_service._ENV_PATH", env)
 
     from cli.services.broker_service import BrokerService

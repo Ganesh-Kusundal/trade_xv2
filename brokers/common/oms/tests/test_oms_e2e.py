@@ -42,7 +42,7 @@ from domain import (
     Trade,
 )
 from infrastructure.event_bus import EventBus, ProcessedTradeRepository, TradeIdKey
-from brokers.common.lifecycle import (
+from infrastructure.lifecycle import (
     HealthState,
     HealthStatus,
     LifecycleManager,

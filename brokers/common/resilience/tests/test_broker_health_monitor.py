@@ -20,11 +20,13 @@ from unittest.mock import MagicMock
 import pandas as pd
 import pytest
 
+from domain.constants.timeouts import (
+    HISTORY_CACHE_TTL_SECONDS,
+    QUOTE_CACHE_TTL_SECONDS,
+)
 from brokers.common.intelligent_gateway import (
     _CacheEntry,
     IntelligentGateway,
-    _HISTORY_CACHE_TTL,
-    _QUOTE_CACHE_TTL,
     _WRITE_OPERATIONS,
 )
 from brokers.common.observability.event_metrics import EventMetrics
@@ -480,10 +482,10 @@ class TestIntelligentGatewayCacheTTL:
 
     def test_cache_ttl_for_operations(self):
         gw = IntelligentGateway()
-        assert gw._cache_ttl_for("ltp") == _QUOTE_CACHE_TTL
-        assert gw._cache_ttl_for("quote") == _QUOTE_CACHE_TTL
-        assert gw._cache_ttl_for("history") == _HISTORY_CACHE_TTL
-        assert gw._cache_ttl_for("history_batch") == _HISTORY_CACHE_TTL
+        assert gw._cache_ttl_for("ltp") == QUOTE_CACHE_TTL_SECONDS
+        assert gw._cache_ttl_for("quote") == QUOTE_CACHE_TTL_SECONDS
+        assert gw._cache_ttl_for("history") == HISTORY_CACHE_TTL_SECONDS
+        assert gw._cache_ttl_for("history_batch") == HISTORY_CACHE_TTL_SECONDS
 
     def test_cache_entry_expired_property(self):
         entry = _CacheEntry("value", ttl=0.001, operation="ltp", symbol="X")

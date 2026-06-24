@@ -56,7 +56,7 @@ from domain import (
     Side,
 )
 from infrastructure.event_bus import DomainEvent, EventBus
-from brokers.common.lifecycle.lifecycle import (
+from infrastructure.lifecycle.lifecycle import (
     HealthState,
     HealthStatus,
     LifecycleManager,

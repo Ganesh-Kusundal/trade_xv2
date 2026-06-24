@@ -102,6 +102,7 @@ def test_broker_class_has_expected_public_attributes():
         "connect",
         "disconnect",
         "_register_all_capabilities",
+        "_ensure_extended",
     }
     missing = expected_methods - declared
     assert not missing, f"UpstoxBroker missing expected methods: {missing}"

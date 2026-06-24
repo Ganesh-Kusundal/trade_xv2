@@ -26,7 +26,7 @@ from domain.constants.defaults import RISK_FALLBACK_CAPITAL
 
 if TYPE_CHECKING:
     from cli.services.broker_service import BrokerService
-    from brokers.common.lifecycle import LifecycleManager
+    from infrastructure.lifecycle import LifecycleManager
 
 logger = logging.getLogger(__name__)
 

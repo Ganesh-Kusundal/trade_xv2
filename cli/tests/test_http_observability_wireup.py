@@ -15,7 +15,7 @@ from __future__ import annotations
 import socket
 from decimal import Decimal
 
-from brokers.common.lifecycle import LifecycleManager
+from infrastructure.lifecycle import LifecycleManager
 from brokers.common.observability.http_server import HttpObservabilityServer
 
 

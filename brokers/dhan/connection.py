@@ -7,7 +7,7 @@ from collections.abc import Callable
 from datetime import datetime
 
 from infrastructure.event_bus import EventBus
-from brokers.common.lifecycle import LifecycleManager
+from infrastructure.lifecycle import LifecycleManager
 from application.oms.risk_manager import RiskManager
 from brokers.dhan.alerts import AlertsAdapter
 from brokers.dhan.conditional_triggers import ConditionalTriggersAdapter

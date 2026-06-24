@@ -24,7 +24,7 @@ def _skip_credential_gate(monkeypatch):
     )
     monkeypatch.setattr(
         "cli.services.broker_registry.authenticated_readiness_probe",
-        lambda gw, broker: AuthProbeResult(ok=True, probe_name="mock"),
+        lambda gw, broker, env_path=None: AuthProbeResult(ok=True, probe_name="mock"),
     )
 
 

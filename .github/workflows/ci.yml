@@ -109,6 +109,11 @@ jobs:
             analytics/walk_forward/tests/ -q --tb=short
       - name: Replay determinism verifier
         run: python -m scripts.verify_event_replay
+      - name: Auth integration regression (WS reconnect; live TOTP skips without creds)
+        run: |
+          pytest -m "auth_integration" -v --tb=short \
+            tests/integration/test_auth_totp_live.py \
+            tests/integration/test_websocket_reconnect_failure.py
       - name: Coverage threshold
         run: |
           # Overall coverage must be >= 80%
@@ -191,12 +196,13 @@ jobs:
         env:
           DHAN_INTEGRATION: "1"
         run: |
-          pytest -m "integration and sandbox" -v
+          pytest brokers/dhan/tests/integration/ -v --tb=short
       - name: Auth integration regression (TOTP + WebSocket reconnect)
         run: |
           pytest -m "auth_integration" -v --tb=short \
             tests/integration/test_auth_totp_live.py \
             tests/integration/test_websocket_reconnect_failure.py
+          echo "::notice title=Auth Integration::Requires .env.local / .env.upstox on runner for live TOTP tests; WS reconnect runs offline."
 
   frontend:
     name: Frontend Tests

@@ -1,13 +1,13 @@
 """Dhan order status mapper — translates Dhan-specific status strings to canonical.
 
-Extends :data:`brokers.common.status_mapper.COMMON_STATUS_MAP` with
+Extends :data:`domain.status_mapper.COMMON_STATUS_MAP` with
 Dhan-specific status strings that have no Upstox equivalent.
 """
 
 from __future__ import annotations
 
 from domain import OrderStatus
-from brokers.common.status_mapper import COMMON_STATUS_MAP, StatusMapperRegistry
+from domain.status_mapper import COMMON_STATUS_MAP, StatusMapperRegistry
 
 DHAN_STATUS_MAP: dict[str, OrderStatus] = {
     **COMMON_STATUS_MAP,

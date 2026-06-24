@@ -120,7 +120,7 @@ class TestDhanDepth200Feed:
 
     def test_depth_200_health_not_started(self):
         """Health should be STOPPED before start()."""
-        from brokers.common.lifecycle.lifecycle import HealthState
+        from infrastructure.lifecycle.lifecycle import HealthState
 
         feed = DhanDepth200Feed(
             client_id="CLIENT",

@@ -22,7 +22,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from domain import Order, OrderStatus, OrderType, ProductType, Side
-from brokers.common.lifecycle.lifecycle import HealthState
+from infrastructure.lifecycle.lifecycle import HealthState
 from application.oms import (
     DailyPnlResetScheduler,
     PositionManager,
@@ -319,7 +319,7 @@ def test_scheduler_validates_poll_interval(risk_manager: RiskManager) -> None:
 def test_scheduler_is_managed_service(risk_manager: RiskManager) -> None:
     """The scheduler must implement the ManagedService Protocol so
     it can be registered with a LifecycleManager (A4 / A5 contract)."""
-    from brokers.common.lifecycle.lifecycle import ManagedService
+    from infrastructure.lifecycle.lifecycle import ManagedService
     s = DailyPnlResetScheduler(risk_manager)
     assert isinstance(s, ManagedService)
     assert s.name == "daily-pnl-reset"

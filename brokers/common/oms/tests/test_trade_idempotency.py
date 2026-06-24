@@ -135,7 +135,7 @@ def test_trade_for_unknown_order_does_not_mark_ledger(
     result = order_manager.record_trade(trade)
     assert result is False
     assert not repo.is_processed(
-        __import__("brokers.common.event_bus", fromlist=["TradeIdKey"]).TradeIdKey.from_trade(
+        __import__("infrastructure.event_bus", fromlist=["TradeIdKey"]).TradeIdKey.from_trade(
             trade
         )
     )

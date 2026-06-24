@@ -57,9 +57,9 @@ def _should_skip_live() -> bool:
         return True
     # Validate token is not expired by checking JWT exp claim
     token = os.environ.get("DHAN_ACCESS_TOKEN", "")
-    from brokers.upstox.auth.jwt_expiry import UpstoxJwtExpiry
+    from brokers.common.auth.jwt_expiry import JwtExpiry
     import time as _time
-    exp_ms = UpstoxJwtExpiry.parse_expiry_epoch_ms(token)
+    exp_ms = JwtExpiry.parse_expiry_epoch_ms(token)
     if exp_ms > 0 and exp_ms < _time.time() * 1000:
         return True
     from tests.market_hours import is_market_open

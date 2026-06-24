@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from brokers.common.lifecycle import HealthState
+from infrastructure.lifecycle import HealthState
 from brokers.upstox.auth.totp_scheduler import TotpRefreshScheduler
 
 

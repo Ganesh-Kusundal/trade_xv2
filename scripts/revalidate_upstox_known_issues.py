@@ -42,9 +42,9 @@ def _load_env() -> bool:
 def _token_valid() -> tuple[bool, str]:
     token = os.environ.get("UPSTOX_ACCESS_TOKEN", "")
     try:
-        from brokers.upstox.auth.jwt_expiry import UpstoxJwtExpiry
+        from brokers.common.auth.jwt_expiry import JwtExpiry
 
-        exp_ms = UpstoxJwtExpiry.parse_expiry_epoch_ms(token)
+        exp_ms = JwtExpiry.parse_expiry_epoch_ms(token)
         if exp_ms > 0 and exp_ms < time.time() * 1000:
             return False, "access token expired"
         return True, "token valid"

@@ -21,7 +21,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from infrastructure.event_bus import EventBus
-from brokers.common.lifecycle import LifecycleManager
+from infrastructure.lifecycle import LifecycleManager
 from brokers.dhan.factory import BrokerFactory
 
 from brokers.common.logging_config import setup_logging

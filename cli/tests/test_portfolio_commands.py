@@ -35,7 +35,7 @@ def broker_service():
     svc._http_observability = None
     svc._risk_fail_open = False
     svc._capital_fallback_count = 0
-    from brokers.common.lifecycle import LifecycleManager
+    from infrastructure.lifecycle import LifecycleManager
     svc._lifecycle = LifecycleManager()
     return svc
 

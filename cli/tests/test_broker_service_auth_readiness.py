@@ -28,7 +28,6 @@ def test_live_actionable_false_when_auth_probe_fails(monkeypatch, tmp_path):
 
     monkeypatch.setattr("cli.services.broker_service.bootstrap_gateway", failing_bootstrap)
     monkeypatch.setattr("cli.services.broker_service.start_http_observability", lambda *a, **k: None)
-    monkeypatch.setattr("cli.services.broker_service.start_websocket_services", lambda *a, **k: None)
 
     from cli.services.broker_service import BrokerService
 
@@ -155,3 +154,29 @@ def test_active_broker_raises_for_upstox_when_selected_and_unavailable(
     assert exc_info.value.broker == "upstox"
     assert exc_info.value.status == BootstrapStatus.REAUTH_REQUIRED
     assert exc_info.value.bootstrap is upstox_bootstrap
+
+
+def test_active_broker_returns_upstox_oms_proxy_when_configured(monkeypatch, tmp_path):
+    env = tmp_path / ".env.local"
+    env.write_text("DHAN_CLIENT_ID=ABC\nDHAN_ACCESS_TOKEN=TOK\n")
+    monkeypatch.setattr("cli.services.broker_service._ENV_PATH", env)
+
+    upstox_gw = MagicMock()
+    upstox_proxy = MagicMock()
+    dhan_gw = MagicMock()
+    dhan_proxy = MagicMock()
+
+    from cli.services.broker_service import BrokerService
+
+    bs = BrokerService()
+    bs._initialized = True
+    bs._live_intent = True
+    bs._gateway = dhan_gw
+    bs._oms_proxy = dhan_proxy
+    bs._upstox_gateway = upstox_gw
+    bs._upstox_oms_proxy = upstox_proxy
+    bs._active_name = "upstox"
+
+    assert bs.active_broker is upstox_proxy
+    bs._active_name = "dhan"
+    assert bs.active_broker is dhan_proxy

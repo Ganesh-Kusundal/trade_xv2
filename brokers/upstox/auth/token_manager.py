@@ -22,7 +22,7 @@ from .holders import (
     UpstoxTokenHolder,
 )
 from .json_token_state_store import JsonTokenStateStore
-from .jwt_expiry import UpstoxJwtExpiry
+from brokers.common.auth.jwt_expiry import JwtExpiry
 from .oauth_client import UpstoxOAuthClient
 from .pkce import PkcePair, UpstoxPkceUtil
 from .token_expiry import UpstoxTokenExpiry
@@ -179,7 +179,7 @@ class UpstoxTokenManager:
                 return self._state
 
         if self._settings.access_token:
-            exp = UpstoxJwtExpiry.parse_expiry_epoch_ms(self._settings.access_token)
+            exp = JwtExpiry.parse_expiry_epoch_ms(self._settings.access_token)
             now_ms = int(time.time() * 1000)
             if exp <= 0 or exp > now_ms:
                 if exp <= 0:
@@ -341,7 +341,7 @@ class UpstoxTokenManager:
             if s.refresh_token:
                 exp = self._oauth_client.fetch_profile(s.access_token)
                 if exp <= 0:
-                    exp = UpstoxJwtExpiry.parse_expiry_epoch_ms(s.access_token)
+                    exp = JwtExpiry.parse_expiry_epoch_ms(s.access_token)
                 if exp <= 0:
                     exp = UpstoxTokenExpiry.next_expiry_epoch_ms()
                 state = TokenSnapshot(
@@ -359,7 +359,7 @@ class UpstoxTokenManager:
                 )
                 self._persist(state)
                 return state
-            jwt_exp = UpstoxJwtExpiry.parse_expiry_epoch_ms(s.access_token)
+            jwt_exp = JwtExpiry.parse_expiry_epoch_ms(s.access_token)
             exp = jwt_exp if jwt_exp > 0 else UpstoxTokenExpiry.next_expiry_epoch_ms()
             state = TokenSnapshot(
                 access_token=s.access_token,
@@ -457,7 +457,7 @@ class UpstoxTokenManager:
             access_token = result["access_token"]
             
             # Parse expiry from JWT
-            exp = UpstoxJwtExpiry.parse_expiry_epoch_ms(access_token)
+            exp = JwtExpiry.parse_expiry_epoch_ms(access_token)
             if exp <= 0:
                 exp = UpstoxTokenExpiry.next_expiry_epoch_ms()
             

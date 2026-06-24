@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock, patch
 
 import pytest
+import time
 
 from brokers.common.auth import AuthManager, JsonTokenStateStore, TokenSource, TokenState
 from brokers.common.connection.authenticated_readiness import (
@@ -75,13 +76,44 @@ class TestUpstoxAuthenticatedProbe:
         broker = MagicMock()
         tm = MagicMock()
         tm.bearer_token.return_value = "tok"
-        tm.oauth_client.fetch_profile.return_value = 1234567890000
+        future_ms = int(time.time() * 1000) + 3_600_000
+        tm.oauth_client.fetch_profile.return_value = future_ms
         broker.token_manager = tm
         gw._broker = broker
 
         result = execute_read_only_probe(gw, "upstox")
         assert result.ok
         assert result.probe_name == "upstox.profile"
+
+    def test_profile_returns_minus_one_falls_through_to_funds(self):
+        gw = MagicMock()
+        broker = MagicMock()
+        tm = MagicMock()
+        tm.bearer_token.return_value = "dead-token"
+        tm.oauth_client.fetch_profile.return_value = -1
+        broker.token_manager = tm
+        gw._broker = broker
+        gw.funds.return_value = MagicMock()
+
+        result = execute_read_only_probe(gw, "upstox")
+        assert result.ok
+        assert result.probe_name == "upstox.funds"
+        gw.funds.assert_called_once()
+
+    def test_profile_minus_one_and_funds_401_fails(self):
+        gw = MagicMock()
+        broker = MagicMock()
+        tm = MagicMock()
+        tm.bearer_token.return_value = "dead-token"
+        tm.oauth_client.fetch_profile.return_value = -1
+        broker.token_manager = tm
+        gw._broker = broker
+        gw.funds.side_effect = Exception("HTTP 401 unauthorized")
+
+        result = execute_read_only_probe(gw, "upstox")
+        assert not result.ok
+        assert result.probe_name == "upstox.funds"
+        assert result.token_rejected is True
 
 
 class TestAuthManagerForceRefresh:

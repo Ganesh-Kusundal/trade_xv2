@@ -39,8 +39,8 @@ from domain import (
     Trade,
 )
 from infrastructure.event_bus import DomainEvent, EventType, EventBus
-from brokers.common.lifecycle import LifecycleManager
-from brokers.common.lifecycle.lifecycle import (
+from infrastructure.lifecycle import LifecycleManager
+from infrastructure.lifecycle.lifecycle import (
     HealthState,
     HealthStatus,
     ManagedService,
@@ -320,7 +320,7 @@ def test_daily_pnl_reset_scheduler_under_clock_skew() -> None:
     # First call: still before tomorrow's midnight IST — must NOT fire.
     pre_midnight_utc = datetime(2026, 6, 15, 17, 30, tzinfo=timezone.utc)  # 23:00 IST
     with patch(
-        "brokers.common.oms.daily_pnl_reset_scheduler._time.time",
+        "application.oms.daily_pnl_reset_scheduler._time.time",
         return_value=pre_midnight_utc.timestamp(),
     ):
         s._maybe_reset()
@@ -330,7 +330,7 @@ def test_daily_pnl_reset_scheduler_under_clock_skew() -> None:
     # Second call: just after IST midnight — must fire exactly once.
     post_midnight_utc = datetime(2026, 6, 15, 18, 31, tzinfo=timezone.utc)  # 00:01 IST
     with patch(
-        "brokers.common.oms.daily_pnl_reset_scheduler._time.time",
+        "application.oms.daily_pnl_reset_scheduler._time.time",
         return_value=post_midnight_utc.timestamp(),
     ):
         s._maybe_reset()
@@ -340,7 +340,7 @@ def test_daily_pnl_reset_scheduler_under_clock_skew() -> None:
     # Third call: an hour later, same rollover window — must NOT fire again.
     later = datetime(2026, 6, 15, 19, 30, tzinfo=timezone.utc)  # 01:00 IST
     with patch(
-        "brokers.common.oms.daily_pnl_reset_scheduler._time.time",
+        "application.oms.daily_pnl_reset_scheduler._time.time",
         return_value=later.timestamp(),
     ):
         s._maybe_reset()

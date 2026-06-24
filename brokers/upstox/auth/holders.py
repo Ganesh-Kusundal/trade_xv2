@@ -20,7 +20,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from .jwt_expiry import UpstoxJwtExpiry
+from brokers.common.auth.jwt_expiry import JwtExpiry
 from .token_expiry import UpstoxTokenExpiry
 
 
@@ -76,7 +76,7 @@ class UpstoxStaticTokenHolder(UpstoxTokenHolder):
         if not token or not token.strip():
             raise ValueError(f"{label} must not be blank")
         self._token = token
-        self._expiry = UpstoxJwtExpiry.parse_expiry_epoch_ms(token)
+        self._expiry = JwtExpiry.parse_expiry_epoch_ms(token)
         if self._expiry <= 0:
             self._expiry = UpstoxTokenExpiry.next_expiry_epoch_ms()
         self._analytics_only = analytics_only
@@ -112,7 +112,7 @@ class UpstoxAnalyticsTokenHolder(UpstoxTokenHolder):
         if not token or not token.strip():
             raise ValueError("upstox analytics token is required when analyticsOnly=true")
         self._token = token
-        self._expiry = UpstoxJwtExpiry.parse_expiry_epoch_ms(token)
+        self._expiry = JwtExpiry.parse_expiry_epoch_ms(token)
         self._clock = clock
 
     def bearer_token(self) -> str:
@@ -142,7 +142,7 @@ class UpstoxExtendedTokenHolder(UpstoxTokenHolder):
         if not token or not token.strip():
             raise ValueError("upstox extended token is required")
         self._token = token
-        self._expiry = UpstoxJwtExpiry.parse_expiry_epoch_ms(token)
+        self._expiry = JwtExpiry.parse_expiry_epoch_ms(token)
 
     def bearer_token(self) -> str:
         return self._token

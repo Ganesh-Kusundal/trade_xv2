@@ -249,15 +249,23 @@ def get_broker_service() -> Any:
 
 def require_live_broker() -> Any:
     """Return the active broker gateway or raise 503 when unavailable."""
+    from brokers.common.connection.errors import BrokerNotReadyError
+
     svc = get_broker_service()
-    gw = getattr(svc, "active_broker", None) if svc is not None else None
-    if gw is None:
+    if svc is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Live broker not configured",
             headers={"Retry-After": "30"},
         )
-    return gw
+    try:
+        return svc.active_broker
+    except BrokerNotReadyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+            headers={"Retry-After": "30"},
+        ) from exc
 
 
 def get_live_broker_name() -> str:

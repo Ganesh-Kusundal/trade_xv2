@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
+
+from brokers.common.auth.credential_resolver import CredentialResolver
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +55,11 @@ def execute_read_only_probe(gateway: Any, broker: str) -> AuthProbeResult:
     return AuthProbeResult(ok=False, error=f"unsupported broker: {broker}")
 
 
-def authenticated_readiness_probe(gateway: Any, broker: str) -> AuthProbeResult:
+def authenticated_readiness_probe(
+    gateway: Any,
+    broker: str,
+    env_path: str | Path | None = None,
+) -> AuthProbeResult:
     """Probe broker API auth; on token rejection force one refresh and retry."""
     broker = broker.lower().strip()
     if broker == "paper":
@@ -68,7 +76,7 @@ def authenticated_readiness_probe(gateway: Any, broker: str) -> AuthProbeResult:
         "authenticated_probe_token_rejected",
         extra={"broker": broker, "probe": first.probe_name},
     )
-    refreshed = _force_token_refresh(gateway, broker)
+    refreshed = _force_token_refresh(gateway, broker, env_path=env_path)
     if not refreshed:
         return AuthProbeResult(
             ok=False,
@@ -116,7 +124,6 @@ def _probe_dhan(gateway: Any) -> AuthProbeResult:
 
 def _probe_upstox(gateway: Any) -> AuthProbeResult:
     broker_obj = getattr(gateway, "_broker", None)
-    settings = getattr(broker_obj, "settings", None) if broker_obj else None
     probe_name = "upstox.profile"
 
     if broker_obj is not None:
@@ -124,9 +131,25 @@ def _probe_upstox(gateway: Any) -> AuthProbeResult:
         if tm is not None and hasattr(tm, "oauth_client"):
             try:
                 token = tm.bearer_token()
-                exp = tm.oauth_client.fetch_profile(token)
-                if exp != 0 or token:
+                if not token:
+                    return AuthProbeResult(
+                        ok=False,
+                        probe_name=probe_name,
+                        error="Upstox bearer token is empty",
+                        token_rejected=True,
+                    )
+                exp_ms = tm.oauth_client.fetch_profile(token)
+                now_ms = int(time.time() * 1000)
+                if exp_ms > now_ms:
                     return AuthProbeResult(ok=True, probe_name=probe_name)
+                if exp_ms > 0:
+                    return AuthProbeResult(
+                        ok=False,
+                        probe_name=probe_name,
+                        error="Upstox token expired (profile token_expiry in past)",
+                        token_rejected=True,
+                    )
+                # fetch_profile returned -1 (401/unavailable) — fall through to funds()
             except Exception as exc:
                 rejected = is_token_rejection(exc)
                 return AuthProbeResult(
@@ -150,16 +173,28 @@ def _probe_upstox(gateway: Any) -> AuthProbeResult:
         )
 
 
-def _force_token_refresh(gateway: Any, broker: str) -> bool:
+def _force_token_refresh(
+    gateway: Any,
+    broker: str,
+    env_path: str | Path | None = None,
+) -> bool:
     broker = broker.lower().strip()
     if broker == "dhan":
-        return _force_dhan_token_refresh(gateway)
+        return _force_dhan_token_refresh(gateway, env_path=env_path)
     if broker == "upstox":
         return _force_upstox_token_refresh(gateway)
     return False
 
 
-def _force_dhan_token_refresh(gateway: Any) -> bool:
+def _resolve_dhan_env_path(env_path: str | Path | None) -> Path:
+    resolved = CredentialResolver.resolve_env_path("dhan", env_path)
+    return resolved if resolved is not None else Path(".env.local")
+
+
+def _force_dhan_token_refresh(
+    gateway: Any,
+    env_path: str | Path | None = None,
+) -> bool:
     conn = getattr(gateway, "_conn", None)
     if conn is None:
         return False
@@ -176,14 +211,12 @@ def _force_dhan_token_refresh(gateway: Any) -> bool:
         if hasattr(conn, "broadcast_token"):
             conn.broadcast_token(state.access_token)
         try:
-            from pathlib import Path
-
             from brokers.common.auth import JsonTokenStateStore
             from brokers.common.auth.token_persistence import TokenPersistence
 
-            env_path = Path(".env.local")
+            dhan_env = _resolve_dhan_env_path(env_path)
             store = JsonTokenStateStore(Path("runtime/dhan-token-state.json"))
-            TokenPersistence.save(state, store, env_path)
+            TokenPersistence.save(state, store, dhan_env)
         except Exception as exc:
             logger.debug("dhan_env_token_update_skipped: %s", exc)
         return True

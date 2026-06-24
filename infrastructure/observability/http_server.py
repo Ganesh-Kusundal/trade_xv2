@@ -402,7 +402,7 @@ class HttpObservabilityServer(ManagedService):
         logger.info("http_observability_stopped")
 
     def health(self):
-        from brokers.common.lifecycle.lifecycle import HealthState, HealthStatus
+        from infrastructure.lifecycle.lifecycle import HealthState, HealthStatus
 
         if self._last_error:
             state = HealthState.DEGRADED

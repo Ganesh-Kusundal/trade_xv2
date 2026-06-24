@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 from unittest.mock import MagicMock, patch
 
-from brokers.common.lifecycle import LifecycleManager
+from infrastructure.lifecycle import LifecycleManager
 from brokers.upstox.auth.config import UpstoxConnectionSettings
 from brokers.upstox.factory import UpstoxBrokerFactory
 

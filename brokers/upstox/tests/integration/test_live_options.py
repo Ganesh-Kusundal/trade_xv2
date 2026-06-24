@@ -37,10 +37,12 @@ if ENV_PATH.exists() and ENV_PATH.stat().st_size > 0:
 def _should_skip_live() -> bool:
     if not _live_env_loaded:
         return True
+    if os.environ.get("UPSTOX_INTEGRATION") != "1":
+        return True
     token = os.environ.get("UPSTOX_ACCESS_TOKEN", "")
     try:
-        from brokers.upstox.auth.jwt_expiry import UpstoxJwtExpiry
-        exp_ms = UpstoxJwtExpiry.parse_expiry_epoch_ms(token)
+        from brokers.common.auth.jwt_expiry import JwtExpiry
+        exp_ms = JwtExpiry.parse_expiry_epoch_ms(token)
         if exp_ms > 0 and exp_ms < time.time() * 1000:
             return True
     except Exception:

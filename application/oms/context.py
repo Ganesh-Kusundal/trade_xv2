@@ -23,6 +23,9 @@ from infrastructure.event_bus.factory import (
     AsyncPublishAdapter,
     async_publish_wrapper,
 )
+from infrastructure.event_bus.persistent_dead_letter_queue import (
+    create_default_dead_letter_queue,
+)
 from infrastructure.event_log import EventLog
 from infrastructure.lifecycle import LifecycleManager
 from infrastructure.observability.event_metrics import EventMetrics
@@ -100,7 +103,7 @@ class TradingContext:
     ) -> None:
         self._event_log = event_log
         self._metrics = metrics or EventMetrics()
-        self._dead_letter_queue = dead_letter_queue or DeadLetterQueue()
+        self._dead_letter_queue = dead_letter_queue or create_default_dead_letter_queue()
 
         # If the caller supplied an event bus, attach observability to it
         # silently; otherwise build a bus that has both observability hooks

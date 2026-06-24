@@ -33,7 +33,8 @@ async def health_check():
 async def readiness_check():
     """Check if the API server is ready to serve traffic.
     
-    Verifies that all required services are initialized.
+    Verifies container services and, when live broker intent is set,
+    production readiness checks aligned with the CLI live path.
     Returns 503 if any critical service is unavailable.
     """
     from api.deps import get_container
@@ -48,10 +49,29 @@ async def readiness_check():
         checks["data_catalog"] = container.data_catalog is not None
         checks["event_bus"] = container.event_bus is not None
         all_ready = all(checks.values())
+
+        broker_service = getattr(container, "broker_service", None)
+        live_intent = (
+            broker_service is not None
+            and getattr(broker_service, "_live_intent", False)
+        )
+        if live_intent and broker_service is not None:
+            from brokers.common.services.production_readiness import (
+                ProductionReadinessChecker,
+            )
+
+            report = ProductionReadinessChecker(broker_service).run()
+            checks["production_readiness"] = report.passed
+            checks["production_readiness_summary"] = report.summary()
+            if not report.passed:
+                checks["production_readiness_failed"] = report.failed
+            all_ready = all_ready and report.passed
+        elif broker_service is not None:
+            checks["live_broker"] = getattr(broker_service, "live_actionable", False)
         
         if not all_ready:
-            failed = [k for k, v in checks.items() if not v]
-            logger.warning("Readiness check failed: services not ready: %s", failed)
+            failed = [k for k, v in checks.items() if v is False]
+            logger.warning("Readiness check failed: %s", failed)
             
     except Exception as exc:
         logger.exception("Readiness check failed with exception")

@@ -87,10 +87,12 @@ class TestUpstoxBrokerStub:
         assert b.has_capability("portfolio")
         assert b.has_capability("options_chain")
         assert b.has_capability("websocket")
-        assert b.has_capability("market_intelligence")
         assert b.has_capability("kill_switch")
-        assert b.has_capability("static_ip")
         assert b.has_capability("order_slicing")
+        assert not b.has_capability("market_intelligence")
+        b._ensure_extended()
+        assert b.has_capability("market_intelligence")
+        assert b.has_capability("static_ip")
 
 
 class TestLoginModule:

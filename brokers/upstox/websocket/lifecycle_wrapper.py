@@ -12,7 +12,7 @@ import threading
 from datetime import datetime, timezone
 from typing import Any
 
-from brokers.common.lifecycle.lifecycle import (
+from infrastructure.lifecycle.lifecycle import (
     HealthState,
     HealthStatus,
     ManagedService,

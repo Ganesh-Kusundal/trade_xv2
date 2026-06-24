@@ -25,7 +25,7 @@ from __future__ import annotations
 import time
 from unittest.mock import MagicMock
 
-from brokers.common.lifecycle.lifecycle import (
+from infrastructure.lifecycle.lifecycle import (
     HealthState,
     LifecycleManager,
     ManagedService,

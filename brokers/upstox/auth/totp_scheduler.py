@@ -14,7 +14,7 @@ import time
 from datetime import datetime, timedelta
 from typing import Callable
 
-from brokers.common.lifecycle import HealthState, ManagedService, build_health
+from infrastructure.lifecycle import HealthState, ManagedService, build_health
 from brokers.upstox.auth.token_manager import UpstoxTokenManager
 
 logger = logging.getLogger(__name__)

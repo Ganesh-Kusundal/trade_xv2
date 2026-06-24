@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from brokers.common.lifecycle.lifecycle import (
+from infrastructure.lifecycle.lifecycle import (
     HealthState,
     HealthStatus,
     LifecycleManager,

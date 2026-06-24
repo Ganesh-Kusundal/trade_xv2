@@ -27,7 +27,7 @@ from domain import (
 )
 from infrastructure.event_bus import DomainEvent, EventBus
 import brokers.dhan.status_mapper  # noqa: F401 — register Dhan status mappings
-from brokers.common.lifecycle.lifecycle import (
+from infrastructure.lifecycle.lifecycle import (
     HealthState,
     HealthStatus,
     ManagedService,

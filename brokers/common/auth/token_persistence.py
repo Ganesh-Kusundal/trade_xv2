@@ -118,9 +118,9 @@ class TokenPersistence:
         store.save(enriched)
         if env_path is not None and env_path.exists() and enriched.access_token:
             if env_key == "DHAN_ACCESS_TOKEN":
-                from brokers.dhan.token_manager import update_env_token
+                from brokers.common.auth.env_token import update_env_token
 
-                update_env_token(env_path, enriched.access_token)
+                update_env_token(env_path, enriched.access_token, env_key=env_key)
             else:
                 logger.debug("token_persistence: no env mirror for key %s", env_key)
 

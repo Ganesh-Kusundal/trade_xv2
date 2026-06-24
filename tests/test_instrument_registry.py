@@ -1,10 +1,10 @@
-"""Tests for InstrumentRegistry — canonical instrument resolution, ATM, future chain."""
+"""Tests for CanonicalInstrumentRegistry — canonical instrument resolution, ATM, future chain."""
 
 from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.common.services.instrument_registry import CanonicalInstrument, InstrumentRegistry
+from brokers.common.services.instrument_registry import CanonicalInstrument, CanonicalInstrumentRegistry
 
 
 class TestCanonicalInstrument:
@@ -62,7 +62,7 @@ class TestCanonicalInstrument:
         assert "12345" not in repr(inst)
 
 
-class TestInstrumentRegistry:
+class TestCanonicalInstrumentRegistry:
     def _make_gateway(self):
         gw = MagicMock()
         gw.search.return_value = [
@@ -94,7 +94,7 @@ class TestInstrumentRegistry:
 
     def test_resolve_cached(self):
         gw = self._make_gateway()
-        reg = InstrumentRegistry(gw)
+        reg = CanonicalInstrumentRegistry(gw)
         inst1 = reg.resolve("RELIANCE", "NSE")
         inst2 = reg.resolve("RELIANCE", "NSE")
         assert inst1 is inst2
@@ -103,19 +103,19 @@ class TestInstrumentRegistry:
     def test_resolve_not_found(self):
         gw = self._make_gateway()
         gw.search.return_value = []
-        reg = InstrumentRegistry(gw)
+        reg = CanonicalInstrumentRegistry(gw)
         assert reg.resolve("NONEXISTENT") is None
 
     def test_resolve_required_raises(self):
         gw = self._make_gateway()
         gw.search.return_value = []
-        reg = InstrumentRegistry(gw)
+        reg = CanonicalInstrumentRegistry(gw)
         with pytest.raises(ValueError, match="Instrument not found"):
             reg.resolve_required("NONEXISTENT")
 
     def test_atm_finds_closest_strike(self):
         gw = self._make_gateway()
-        reg = InstrumentRegistry(gw)
+        reg = CanonicalInstrumentRegistry(gw)
         result = reg.atm("NIFTY", spot_price=25030)
         # ATM strike should be 25000 (closest to 25030)
         assert result["call"] is not None
@@ -130,14 +130,14 @@ class TestInstrumentRegistry:
     def test_atm_no_chain(self):
         gw = self._make_gateway()
         gw.option_chain.return_value = {"strikes": []}
-        reg = InstrumentRegistry(gw)
+        reg = CanonicalInstrumentRegistry(gw)
         result = reg.atm("NIFTY", spot_price=25000)
         assert result["call"] is None
         assert result["put"] is None
 
     def test_current_future(self):
         gw = self._make_gateway()
-        reg = InstrumentRegistry(gw)
+        reg = CanonicalInstrumentRegistry(gw)
         inst = reg.current_future("NIFTY")
         assert inst is not None
         assert inst.is_future
@@ -146,38 +146,38 @@ class TestInstrumentRegistry:
     def test_current_future_no_contracts(self):
         gw = self._make_gateway()
         gw.future_chain.return_value = {"contracts": []}
-        reg = InstrumentRegistry(gw)
+        reg = CanonicalInstrumentRegistry(gw)
         assert reg.current_future("NIFTY") is None
 
     def test_option_chain(self):
         gw = self._make_gateway()
-        reg = InstrumentRegistry(gw)
+        reg = CanonicalInstrumentRegistry(gw)
         chain = reg.option_chain("NIFTY", expiry="2026-07-30")
         assert len(chain) == 10
         assert all("strike" in s for s in chain)
 
     def test_future_chain(self):
         gw = self._make_gateway()
-        reg = InstrumentRegistry(gw)
+        reg = CanonicalInstrumentRegistry(gw)
         chain = reg.future_chain("NIFTY")
         assert len(chain) == 2
         assert all("expiry" in c for c in chain)
 
     def test_search_filters_by_exchange(self):
         gw = self._make_gateway()
-        reg = InstrumentRegistry(gw)
+        reg = CanonicalInstrumentRegistry(gw)
         results = reg.search("RELIANCE", exchange="NSE")
         assert all(i.exchange == "NSE" for i in results)
 
     def test_search_returns_all(self):
         gw = self._make_gateway()
-        reg = InstrumentRegistry(gw)
+        reg = CanonicalInstrumentRegistry(gw)
         results = reg.search("RELIANCE")
         assert len(results) == 2
 
     def test_to_canonical_maps_fields(self):
         gw = self._make_gateway()
-        reg = InstrumentRegistry(gw)
+        reg = CanonicalInstrumentRegistry(gw)
         raw = {
             "symbol": "NIFTY 25000 CE", "exchange": "NFO",
             "type": "OPTION", "option_type": "CE",
@@ -193,7 +193,7 @@ class TestInstrumentRegistry:
 
     def test_load_instruments_called_once(self):
         gw = self._make_gateway()
-        reg = InstrumentRegistry(gw)
+        reg = CanonicalInstrumentRegistry(gw)
         reg.resolve("RELIANCE")
         reg.resolve("RELIANCE")
         assert gw.load_instruments.call_count == 1
@@ -202,6 +202,6 @@ class TestInstrumentRegistry:
         gw = self._make_gateway()
         gw.load_instruments.side_effect = Exception("API down")
         gw.search.return_value = []  # no results when load fails
-        reg = InstrumentRegistry(gw)
+        reg = CanonicalInstrumentRegistry(gw)
         inst = reg.resolve("RELIANCE")
         assert inst is None  # doesn't raise, returns None

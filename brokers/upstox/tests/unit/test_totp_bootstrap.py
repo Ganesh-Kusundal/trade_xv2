@@ -32,7 +32,7 @@ class TestTotpBootstrap:
     """Test TOTP bootstrap flow."""
 
     @patch("brokers.upstox.auth.token_manager.UpstoxTotpClient")
-    @patch("brokers.upstox.auth.token_manager.UpstoxJwtExpiry")
+    @patch("brokers.upstox.auth.token_manager.JwtExpiry")
     def test_bootstrap_totp_reuses_persisted_token(self, mock_jwt_expiry, mock_totp_client_class):
         """Persisted valid token should skip TOTP generation."""
         settings = _make_settings()
@@ -54,7 +54,7 @@ class TestTotpBootstrap:
         mock_totp_client_class.assert_not_called()
 
     @patch("brokers.upstox.auth.token_manager.UpstoxTotpClient")
-    @patch("brokers.upstox.auth.token_manager.UpstoxJwtExpiry")
+    @patch("brokers.upstox.auth.token_manager.JwtExpiry")
     def test_bootstrap_totp_success(self, mock_jwt_expiry, mock_totp_client_class):
         """Test successful TOTP bootstrap."""
         settings = _make_settings()

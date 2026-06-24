@@ -14,7 +14,7 @@ import pytest
 from hypothesis import given, settings, strategies as st
 
 from domain import OrderStatus, Side, OrderType
-from brokers.common.status_mapper import StatusMapperRegistry
+from domain.status_mapper import StatusMapperRegistry
 from domain.entities import Order, Position, Trade
 
 # Order limits (inline since not in constants yet)

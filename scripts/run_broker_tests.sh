@@ -58,29 +58,40 @@ check_venv() {
     echo_info "Using ${PYTHON}"
 }
 
-# Run unit tests
+# Run unit tests (path-based — excludes live integration directories)
 run_unit_tests() {
     echo_info "Running unit tests (parallel)..."
-    "$PYTHON" -m pytest -m "unit" -n auto -v --tb=short
+    "$PYTHON" -m pytest -m "not integration and not sandbox and not live_readonly" \
+        -n auto -v --tb=short \
+        --ignore=brokers/dhan/tests/integration \
+        --ignore=brokers/upstox/tests/integration
 }
 
-# Run contract tests
+# Run contract tests (path-based contract suites)
 run_contract_tests() {
     echo_info "Running broker contract tests..."
-    "$PYTHON" -m pytest -m "contract" -v --tb=short
+    "$PYTHON" -m pytest \
+        brokers/dhan/tests/contract \
+        brokers/upstox/tests/contract \
+        brokers/paper/tests/contract \
+        -v --tb=short
 }
 
-# Run integration tests
+# Run integration tests (Dhan sandbox path + marker-based suites)
 run_integration_tests() {
     echo_info "Running integration tests..."
     
     # Check for environment variables
     if [ -z "$DHAN_INTEGRATION" ] && [ -z "$UPSTOX_INTEGRATION" ]; then
-        echo_warn "No broker integration enabled. Running Paper broker tests only."
-        echo_info "Set DHAN_INTEGRATION=1 or UPSTOX_INTEGRATION=1 to enable live tests."
+        echo_warn "No broker integration enabled. Running marker-based integration tests only."
+        echo_info "Set DHAN_INTEGRATION=1 or UPSTOX_INTEGRATION=1 to enable live broker paths."
     fi
     
-    "$PYTHON" -m pytest -m "integration" -v --tb=short
+    args=(-m "integration" -v --tb=short)
+    if [ "${DHAN_INTEGRATION:-}" = "1" ]; then
+        args+=(brokers/dhan/tests/integration/)
+    fi
+    "$PYTHON" -m pytest "${args[@]}"
 }
 
 # Auth integration — TOTP bootstrap (when creds present) + WS reconnect
@@ -221,7 +232,8 @@ case "${1:-}" in
         echo "Commands:"
         echo "  unit          Run all unit tests (parallel)"
         echo "  contract      Run broker contract tests"
-        echo "  integration   Run integration tests"
+        echo "  integration   Run integration tests (set DHAN_INTEGRATION=1 for live Dhan sandbox)"
+        echo "  auth-integration  TOTP bootstrap + WebSocket reconnect regression"
         echo "  performance   Run performance benchmarks"
         echo "  stress        Run stress tests (30-60 min)"
         echo "  e2e           Run E2E tests (Paper broker)"

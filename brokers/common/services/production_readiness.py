@@ -121,7 +121,7 @@ class ProductionReadinessChecker:
         return report
 
     def _checks(self) -> list[tuple[str, Callable[[], tuple[bool, str]]]]:
-        return [
+        checks = [
             ("reconciliation_wired", self._check_reconciliation),
             ("eventlog_wired", self._check_eventlog),
             ("websocket_market_feed_wired", self._check_market_feed),
@@ -136,6 +136,17 @@ class ProductionReadinessChecker:
             ("lifecycle_started", self._check_lifecycle),
             ("ssl_hardening", self._check_ssl_hardening),
         ]
+        if getattr(self._svc, "_upstox_gateway", None) is not None or getattr(
+            self._svc, "upstox_authenticated", False
+        ):
+            checks.extend(
+                [
+                    ("upstox_credentials_present", self._check_upstox_credentials),
+                    ("upstox_token_present", self._check_upstox_token),
+                    ("upstox_websocket_lifecycle", self._check_upstox_websocket_lifecycle),
+                ]
+            )
+        return checks
 
     # ── Individual checks ─────────────────────────────────────────────
 
@@ -286,6 +297,41 @@ class ProductionReadinessChecker:
                 "DHAN_ACCESS_TOKEN is empty AND no TOTP credentials are available"
             )
         return True, "DHAN_ACCESS_TOKEN is set"
+
+    def _check_upstox_credentials(self) -> tuple[bool, str]:
+        cid = (
+            os.environ.get("UPSTOX_CLIENT_ID", "").strip()
+            or os.environ.get("UPSTOX_API_KEY", "").strip()
+        )
+        if not cid:
+            return False, "UPSTOX_CLIENT_ID / UPSTOX_API_KEY is empty"
+        return True, f"Upstox client id is set ({cid[:4]}…)"
+
+    def _check_upstox_token(self) -> tuple[bool, str]:
+        token = os.environ.get("UPSTOX_ACCESS_TOKEN", "").strip()
+        if not token:
+            auth_mode = os.environ.get("UPSTOX_AUTH_MODE", "STATIC").strip().upper()
+            if auth_mode == "TOTP":
+                mobile = os.environ.get("UPSTOX_MOBILE", "").strip()
+                pin = os.environ.get("UPSTOX_PIN", "").strip()
+                secret = os.environ.get("UPSTOX_TOTP_SECRET", "").strip()
+                if mobile and pin and secret:
+                    return True, (
+                        "UPSTOX_ACCESS_TOKEN unset but TOTP credentials present"
+                    )
+            return False, "UPSTOX_ACCESS_TOKEN is empty and no TOTP path configured"
+        return True, "UPSTOX_ACCESS_TOKEN is set"
+
+    def _check_upstox_websocket_lifecycle(self) -> tuple[bool, str]:
+        lifecycle = self._svc.lifecycle
+        names = lifecycle.service_names() if lifecycle else []
+        required = ("upstox.websocket", "upstox.portfolio_stream")
+        missing = [n for n in required if n not in names]
+        if missing:
+            return False, (
+                f"Upstox WebSocket services not lifecycle-registered: {missing}"
+            )
+        return True, "Upstox WebSocket services are lifecycle-owned"
 
     def _check_http_observability(self) -> tuple[bool, str]:
         http = getattr(self._svc, "_http_observability", None)

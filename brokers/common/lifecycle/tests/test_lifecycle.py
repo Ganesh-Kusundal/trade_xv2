@@ -7,7 +7,7 @@ from typing import ClassVar
 
 import pytest
 
-from brokers.common.lifecycle import (
+from infrastructure.lifecycle import (
     HealthState,
     HealthStatus,
     LifecycleManager,

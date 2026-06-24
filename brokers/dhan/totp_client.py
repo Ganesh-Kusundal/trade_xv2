@@ -103,8 +103,3 @@ def _read_secret(env_key: str, file_key: str) -> str | None:
     if file_path and Path(file_path).exists():
         return Path(file_path).read_text().strip()
     return None
-
-
-def generate_totp_token(settings: DhanConnectionSettings | None = None) -> str | None:
-    """Backward-compatible entry point for Dhan TOTP generation."""
-    return DhanTotpClient(settings).generate()

@@ -48,7 +48,7 @@ import threading
 import time
 from datetime import datetime, timezone
 
-from brokers.common.lifecycle import HealthState, ManagedService, build_health
+from infrastructure.lifecycle import HealthState, ManagedService, build_health
 
 logger = logging.getLogger(__name__)
 

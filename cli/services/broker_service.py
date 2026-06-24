@@ -9,7 +9,7 @@ from typing import Any, cast
 
 from brokers.common.connection_pool import get_connection_pool
 from brokers.common.gateway import MarketDataGateway
-from brokers.common.lifecycle import LifecycleManager
+from infrastructure.lifecycle import LifecycleManager
 from application.oms.capital_provider import CapitalProvider, GatewayCapitalProvider
 from application.oms.context import TradingContext
 from brokers.common.observability.http_server import HttpObservabilityServer
@@ -22,7 +22,7 @@ from cli.services.broker_registry import bootstrap_gateway, create_gateway, reso
 from brokers.common.connection.errors import BrokerNotReadyError
 from cli.services.capital_provider import TrackedCapitalProvider
 from cli.services.observability_setup import start_http_observability
-from cli.services.websocket_wiring import start_websocket_services
+
 from cli.services.oms_setup import build_risk_manager, register_oms_services
 
 logger = logging.getLogger(__name__)
@@ -91,6 +91,8 @@ class BrokerService:
         # B4: OMS-only gateway access enforcement proxy.
         # Wraps the real gateway so ALL order operations check kill switch.
         self._oms_proxy: OMSGatewayProxy | None = None
+        self._upstox_oms_proxy: OMSGatewayProxy | None = None
+        self._oms_risk_manager: Any = None
         # I-14: accept load_instruments + event_bus from main() so the
         # CLI can control instrument loading and share the event bus.
         self._load_instruments = load_instruments
@@ -152,6 +154,7 @@ class BrokerService:
         if _ENV_PATH.exists():
             self._live_intent = True
             oms_risk_manager, capital_provider = self._build_oms_risk_manager()
+            self._oms_risk_manager = oms_risk_manager
             try:
                 bootstrap = bootstrap_gateway(
                     "dhan",
@@ -256,6 +259,15 @@ class BrokerService:
                 self._upstox_bootstrap = bootstrap
                 if bootstrap.live_ready:
                     self._upstox_gateway = bootstrap.gateway
+                    rm = self._oms_risk_manager
+                    if rm is None:
+                        rm, _ = self._build_oms_risk_manager()
+                        self._oms_risk_manager = rm
+                    self._upstox_oms_proxy = OMSGatewayProxy(
+                        real_gateway=self._upstox_gateway,
+                        risk_manager=rm,
+                        strict_mode=True,
+                    )
                     logger.info(
                         "Upstox BrokerGateway created (probe=%s refreshed=%s)",
                         bootstrap.probe_name,
@@ -272,12 +284,14 @@ class BrokerService:
                 logger.warning("Failed to create Upstox gateway: %s", exc)
 
     def _start_websocket_services(self) -> None:
-        """B-4: lazily create the market feed and order stream services.
-        
-        Delegates to websocket_wiring.start_websocket_services()
-        for separation of concerns.
+        """B-4: WebSocket services are wired by the broker factory.
+
+        Dhan's BrokerFactory._wire_websocket_services and Upstox's
+        UpstoxBrokerFactory both create and register WebSocket services
+        with the lifecycle during factory.create(). This method is a
+        no-op kept for backward compatibility.
         """
-        start_websocket_services(self._gateway, self._lifecycle)
+        pass
 
     def _build_oms_risk_manager(self) -> tuple[Any, Any]:
         """B7: build a RiskManager for the OMS that the live path will consult.
@@ -333,13 +347,16 @@ class BrokerService:
         self._ensure_initialized()
         if self._active_name == "paper" and self._paper is not None:
             return self._paper
-        if self._active_name == "upstox" and self._upstox_gateway is not None:
-            return self._upstox_gateway
-        # B4: Return the OMS-enforced proxy for live gateway
-        if self._oms_proxy is not None:
-            return self._oms_proxy
-        if self._gateway is not None:
-            return self._gateway
+        if self._active_name == "upstox":
+            if self._upstox_oms_proxy is not None:
+                return self._upstox_oms_proxy
+            if self._upstox_gateway is not None:
+                return self._upstox_gateway
+        if self._active_name == "dhan":
+            if self._oms_proxy is not None:
+                return self._oms_proxy
+            if self._gateway is not None:
+                return self._gateway
         if self._paper is not None:
             return self._paper
         if self._mock is not None:
@@ -368,6 +385,11 @@ class BrokerService:
         Tests and internal code can use this to verify enforcement state.
         """
         return self._oms_proxy
+
+    @property
+    def upstox_oms_proxy(self) -> OMSGatewayProxy | None:
+        """OMS gateway proxy for Upstox (kill switch on order ops)."""
+        return self._upstox_oms_proxy
 
     @property
     def live_actionable(self) -> bool:
@@ -515,7 +537,7 @@ class BrokerService:
             except Exception as exc:
                 logger.debug("upstox_gateway_close_failed: %s", exc)
             self._upstox_gateway = None
-        
+        self._upstox_oms_proxy = None
         # Close connection pool to release all HTTP connection pools
         try:
             pool = get_connection_pool()

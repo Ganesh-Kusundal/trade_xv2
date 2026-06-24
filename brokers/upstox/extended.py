@@ -48,6 +48,7 @@ class UpstoxExtendedCapabilities:
             broker: The UpstoxBroker instance providing adapter access
         """
         self._broker = broker
+        broker._ensure_extended()
 
     # ── IPO ────────────────────────────────────────────────────────────
 

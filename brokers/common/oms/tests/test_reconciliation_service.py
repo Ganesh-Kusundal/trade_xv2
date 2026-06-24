@@ -5,7 +5,7 @@ import time
 from unittest.mock import MagicMock
 
 from infrastructure.event_bus import DomainEvent, EventBus
-from brokers.common.lifecycle import HealthState, LifecycleManager
+from infrastructure.lifecycle import HealthState, LifecycleManager
 from brokers.common.observability.event_metrics import EventMetrics
 from application.oms.context import TradingContext
 from application.oms.reconciliation_service import ReconciliationService

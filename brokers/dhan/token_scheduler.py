@@ -17,7 +17,7 @@ from brokers.common.auth import AuthManager, JsonTokenStateStore
 from brokers.common.auth.token_persistence import TokenPersistence
 from brokers.common.auth.token_policy import should_generate_token
 from brokers.common.auth.totp_cooldown import TotpRateLimitError
-from brokers.common.lifecycle import HealthState, ManagedService, build_health
+from infrastructure.lifecycle import HealthState, ManagedService, build_health
 from domain.constants import (
     DEFAULT_STOP_TIMEOUT_SECONDS,
     DHAN_TOKEN_REFRESH_BUFFER_SECONDS,

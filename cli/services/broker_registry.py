@@ -129,7 +129,7 @@ def bootstrap_gateway(
             probe_name="structural_only" if broker != "paper" else "paper_skip",
         )
 
-    auth_result = authenticated_readiness_probe(gateway, broker)
+    auth_result = authenticated_readiness_probe(gateway, broker, env_path=env_path)
     if auth_result.ok:
         return BootstrapResult(
             status=BootstrapStatus.READY,

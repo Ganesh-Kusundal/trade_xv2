@@ -71,7 +71,6 @@ def test_enable_retry_removed():
     """enable_retry parameter was removed (no callers, pre-v1.0)."""
     session = MagicMock()
     settings = UpstoxConnectionSettings(client_id="CID")
-    # Passing enable_retry should raise TypeError — parameter is gone.
     with pytest.raises(TypeError):
         UpstoxHttpClient(
             token_provider=lambda: "TOK",
@@ -79,3 +78,36 @@ def test_enable_retry_removed():
             session=session,
             enable_retry=True,
         )
+
+
+def test_read_circuit_breaker_does_not_block_write():
+    from brokers.common.resilience.circuit_breaker import CircuitBreaker, CircuitState
+    from brokers.common.resilience.errors import CircuitBreakerOpenError
+
+    session = MagicMock()
+    settings = UpstoxConnectionSettings(client_id="CID")
+    client = UpstoxHttpClient(
+        token_provider=lambda: "TOK",
+        settings=settings,
+        session=session,
+    )
+    assert client._read_circuit_breaker is not None
+    assert client._write_circuit_breaker is not None
+    for _ in range(12):
+        client._read_circuit_breaker.on_failure()
+    assert client._read_circuit_breaker.state == CircuitState.OPEN
+
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.text = '{"status": "success", "data": {}}'
+    session.request.return_value = resp
+
+    client.post_json(
+        "https://api.upstox.com/v2/order/place",
+        {"quantity": 1},
+    )
+    session.request.assert_called_once()
+    assert client._write_circuit_breaker.state != CircuitState.OPEN
+
+    with pytest.raises(CircuitBreakerOpenError):
+        client.get_json("https://api.upstox.com/v2/market-quote/ltp")

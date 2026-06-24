@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.common.lifecycle import HealthState, LifecycleManager
+from infrastructure.lifecycle import HealthState, LifecycleManager
 from brokers.dhan.token_scheduler import TokenRefreshScheduler
 
 
