@@ -129,6 +129,7 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
         self._callback_lock = threading.Lock()
 
         self._ws = None
+        self._ws_loop: asyncio.AbstractEventLoop | None = None
         self._thread: threading.Thread | None = None
         # Plan §7.2: shared reconnect / message-tracking state from the
         # ReconnectingServiceMixin. The mixin replaces the duplicated
@@ -272,10 +273,7 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
             thread = self._thread
 
         if ws:
-            try:
-                ws.close()
-            except Exception as exc:
-                logger.warning("Error closing %s WebSocket: %s", self.DEPTH_TYPE, exc)
+            self._close_active_websocket(ws, loop=getattr(self, "_ws_loop", None))
 
         if thread and thread.is_alive():
             thread.join(timeout=timeout_seconds)
@@ -348,22 +346,29 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
             logger.error("websockets package not installed: pip install websockets")
             return
 
-        url = f"{self.ENDPOINT}?token={self._access_token}&clientId={self._client_id}&authType=2"
-
         logger.info("%s_connecting", self.DEPTH_TYPE.lower(), extra={"endpoint": self.ENDPOINT})
 
         # Run async WebSocket in a new event loop
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
+        self._ws_loop = loop
 
         try:
-            loop.run_until_complete(self._websocket_handler(url))
+            loop.run_until_complete(self._websocket_handler())
         finally:
             loop.close()
             with self._lock:
+                self._ws_loop = None
                 self._is_connected = False
 
-    async def _websocket_handler(self, url: str) -> None:
+    def _build_ws_url(self) -> str:
+        """Build the authenticated WebSocket URL using the current token."""
+        return (
+            f"{self.ENDPOINT}?token={self._access_token}"
+            f"&clientId={self._client_id}&authType=2"
+        )
+
+    async def _websocket_handler(self) -> None:
         """Async WebSocket handler with auto-reconnect."""
         import websockets
 
@@ -371,6 +376,7 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
         max_backoff = 30.0
 
         while not self._stop_event.is_set():
+            url = self._build_ws_url()
             try:
                 async with websockets.connect(url) as ws:
                     with self._lock:
@@ -658,6 +664,34 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
                     "%s_event_publish_error: %s", self.DEPTH_TYPE.lower(), exc
                 )
 
+    def _close_active_websocket(
+        self,
+        ws: Any,
+        *,
+        loop: asyncio.AbstractEventLoop | None = None,
+    ) -> None:
+        """Close the live socket from a synchronous caller."""
+        close = getattr(ws, "close", None)
+        if not callable(close):
+            return
+        try:
+            if loop is not None and loop.is_running():
+                future = asyncio.run_coroutine_threadsafe(close(), loop)
+                future.result(timeout=2.0)
+                return
+            result = close()
+            if asyncio.iscoroutine(result):
+                logger.debug(
+                    "%s_auth_reconnect_close_skipped_no_loop",
+                    self.DEPTH_TYPE.lower(),
+                )
+        except Exception as exc:
+            logger.debug(
+                "%s_auth_reconnect_close_failed: %s",
+                self.DEPTH_TYPE.lower(),
+                exc,
+            )
+
     def update_token(self, new_token: str) -> None:
         """Token-refresh hook called by ``DhanConnection.register_token_receiver``.
 
@@ -673,11 +707,7 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
         """Close the active WebSocket so ``_websocket_loop`` reconnects with fresh auth."""
         with self._lock:
             ws = self._ws
+            loop = self._ws_loop
         if ws is None:
             return
-        try:
-            close = getattr(ws, "close", None)
-            if callable(close):
-                close()
-        except Exception as exc:
-            logger.debug("%s_auth_reconnect_close_failed: %s", self.DEPTH_TYPE.lower(), exc)
+        self._close_active_websocket(ws, loop=loop)

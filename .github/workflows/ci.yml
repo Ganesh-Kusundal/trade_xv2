@@ -192,6 +192,11 @@ jobs:
           DHAN_INTEGRATION: "1"
         run: |
           pytest -m "integration and sandbox" -v
+      - name: Auth integration regression (TOTP + WebSocket reconnect)
+        run: |
+          pytest -m "auth_integration" -v --tb=short \
+            tests/integration/test_auth_totp_live.py \
+            tests/integration/test_websocket_reconnect_failure.py
 
   frontend:
     name: Frontend Tests

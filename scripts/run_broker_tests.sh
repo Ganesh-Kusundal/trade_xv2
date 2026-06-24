@@ -83,6 +83,14 @@ run_integration_tests() {
     "$PYTHON" -m pytest -m "integration" -v --tb=short
 }
 
+# Auth integration — TOTP bootstrap (when creds present) + WS reconnect
+run_auth_integration_tests() {
+    echo_info "Running auth integration regression (TOTP + WebSocket reconnect)..."
+    "$PYTHON" -m pytest -m "auth_integration" -v --tb=short \
+        tests/integration/test_auth_totp_live.py \
+        tests/integration/test_websocket_reconnect_failure.py
+}
+
 # Run performance tests
 run_performance_tests() {
     echo_info "Running performance benchmarks..."
@@ -171,6 +179,10 @@ case "${1:-}" in
     integration)
         check_venv
         run_integration_tests
+        ;;
+    auth-integration)
+        check_venv
+        run_auth_integration_tests
         ;;
     performance)
         check_venv

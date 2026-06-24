@@ -34,7 +34,7 @@ def test_dhan_connection() -> dict:
     
     try:
         from brokers.common.env_loader import load_env_file
-        from cli.services.broker_registry import create_gateway
+        from cli.services.broker_registry import bootstrap_gateway
         
         # Load .env.local
         env_path = PROJECT_ROOT / '.env.local'
@@ -49,7 +49,12 @@ def test_dhan_connection() -> dict:
         console.print("\n[cyan]Creating Dhan gateway...[/cyan]")
         t0 = time.time()
         try:
-            gateway = create_gateway("dhan", env_path=env_path, load_instruments=True)
+            bootstrap = bootstrap_gateway(
+                "dhan",
+                env_path=env_path,
+                load_instruments=True,
+                require_authenticated=True,
+            )
         except Exception as e:
             console.print(f"[red]✗ Dhan gateway creation failed: {e}[/red]")
             console.print("[yellow]⚠ Dhan broker package may not be installed. Run: pip install dhanhq[/yellow]")
@@ -57,11 +62,23 @@ def test_dhan_connection() -> dict:
         
         latency = (time.time() - t0) * 1000
         
-        if not gateway:
-            console.print("[red]✗ Failed to create Dhan gateway[/red]")
-            return {'status': 'FAIL', 'error': 'Gateway creation returned None'}
+        if not bootstrap.live_ready or bootstrap.gateway is None:
+            console.print(
+                f"[red]✗ Dhan bootstrap failed: status={bootstrap.status.value} "
+                f"error={bootstrap.error}[/red]"
+            )
+            return {
+                'status': 'FAIL',
+                'error': bootstrap.error or bootstrap.status.value,
+                'bootstrap_status': bootstrap.status.value,
+            }
         
-        console.print(f"[green]✓ Dhan gateway created ({latency:.0f}ms)[/green]")
+        gateway = bootstrap.gateway
+        console.print(
+            f"[green]✓ Dhan gateway ready ({latency:.0f}ms) "
+            f"status={bootstrap.status.value} probe={bootstrap.probe_name} "
+            f"refreshed={bootstrap.refreshed_token}[/green]"
+        )
         results['gateway_creation'] = {'status': 'PASS', 'latency_ms': latency}
         
         # Test 1: Portfolio/Balance
@@ -200,7 +217,7 @@ def test_upstox_connection() -> dict:
     
     try:
         from brokers.common.env_loader import load_env_file
-        from cli.services.broker_registry import create_gateway
+        from cli.services.broker_registry import bootstrap_gateway
         
         # Load .env.upstox
         env_path = PROJECT_ROOT / '.env.upstox'
@@ -214,14 +231,31 @@ def test_upstox_connection() -> dict:
         # Create gateway
         console.print("\n[cyan]Creating Upstox gateway...[/cyan]")
         t0 = time.time()
-        gateway = create_gateway("upstox", env_path=env_path, load_instruments=True)
+        bootstrap = bootstrap_gateway(
+            "upstox",
+            env_path=env_path,
+            load_instruments=True,
+            require_authenticated=True,
+        )
         latency = (time.time() - t0) * 1000
         
-        if not gateway:
-            console.print("[red]✗ Failed to create Upstox gateway[/red]")
-            return {'status': 'FAIL', 'error': 'Gateway creation returned None'}
+        if not bootstrap.live_ready or bootstrap.gateway is None:
+            console.print(
+                f"[red]✗ Upstox bootstrap failed: status={bootstrap.status.value} "
+                f"error={bootstrap.error}[/red]"
+            )
+            return {
+                'status': 'FAIL',
+                'error': bootstrap.error or bootstrap.status.value,
+                'bootstrap_status': bootstrap.status.value,
+            }
         
-        console.print(f"[green]✓ Upstox gateway created ({latency:.0f}ms)[/green]")
+        gateway = bootstrap.gateway
+        console.print(
+            f"[green]✓ Upstox gateway ready ({latency:.0f}ms) "
+            f"status={bootstrap.status.value} probe={bootstrap.probe_name} "
+            f"refreshed={bootstrap.refreshed_token}[/green]"
+        )
         results['gateway_creation'] = {'status': 'PASS', 'latency_ms': latency}
         
         # Test 1: Portfolio/Balance (check if available)

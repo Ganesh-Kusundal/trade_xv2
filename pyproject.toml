@@ -65,6 +65,7 @@ markers = [
     "upstox_sdk_compat: SDK compatibility tests",
     "stress: long-running concurrency stress tests",
     "pre_prod: tests required on pre-prod gate (run only when PRE_PROD_GATE=1)",
+    "auth_integration: live TOTP bootstrap and WebSocket reconnect regression (auto-skips without creds)",
     "cli_endpoint: offline subprocess smoke for a registered CLI endpoint",
     "cli_endpoint_live: live_readonly subprocess smoke — requires .env.local Dhan creds",
     "cli_endpoint_sandbox: sandbox order placement — requires DHAN_INTEGRATION=1",
