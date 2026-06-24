@@ -121,7 +121,7 @@ class TickTranslatorAdapter:
                 ask=ask,
                 timestamp=ts,
             )
-        except Exception:
+        except (ValueError, KeyError, TypeError):
             logger.debug(
                 "Upstox tick translation failed; forwarding raw payload",
                 exc_info=True,
@@ -208,7 +208,7 @@ class TickTranslatorAdapter:
                 return datetime.fromisoformat(ts_raw)
             else:
                 return ts_raw
-        except Exception:
+        except (ValueError, KeyError, TypeError):
             return None
     
     @staticmethod

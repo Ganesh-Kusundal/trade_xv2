@@ -17,8 +17,9 @@ from decimal import Decimal
 from typing import Any
 
 from infrastructure.event_bus import DomainEvent, EventBus
-from domain import OrderRequest, OrderResponse
-from application.oms.risk_manager import RiskManager
+from brokers.common.dtos import BrokerOrderPayload
+from domain import OrderResponse
+from application.oms._internal.risk_manager import RiskManager
 from config.endpoints import Dhan
 from domain import (
     Order,
@@ -30,7 +31,7 @@ from domain import (
     Validity,
 )
 from brokers.dhan.domain import Exchange
-from brokers.dhan.exceptions import OrderError
+from brokers.dhan.exceptions import DhanError, OrderError
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, DhanInstrumentRef, coerce_identity_provider
 from brokers.dhan.invariants import assert_dhan_payload
@@ -141,7 +142,8 @@ class OrdersAdapter:
         # Resolve instrument for lot size and segment checks
         try:
             inst = self._identity.resolver.resolve(symbol, exchange)
-        except Exception:
+        except (DhanError, ValueError, KeyError) as exc:
+            logger.warning("instrument_resolve_failed", extra={"symbol": symbol, "exchange": exchange, "error": str(exc)})
             errors.append(f"Instrument not found: {symbol} on {exchange}")
             return errors
 
@@ -179,13 +181,13 @@ class OrdersAdapter:
 
     # ── Order lifecycle ───────────────────────────────────────────────
 
-    def place_order(self, request: OrderRequest) -> Order:
+    def place_order(self, request: BrokerOrderPayload) -> Order:
         """Place an order via the Dhan API.
 
         Args:
-            request: Canonical :class:`OrderRequest` with symbol, exchange,
-                     quantity, side, order_type, product_type, validity, price,
-                     trigger_price, and correlation_id.
+            request: :class:`BrokerOrderPayload` with canonical order fields
+                     plus broker-transport metadata (exchange_segment,
+                     transport_only, etc.).
 
         Returns:
             The placed :class:`Order` domain object.
@@ -332,7 +334,8 @@ class OrdersAdapter:
         # The Dhan modify endpoint returns the updated order details.
         try:
             return Order.from_broker_dict(result, field_mapping=_DHAN_MAPPING)
-        except Exception:
+        except (DhanError, ValueError) as exc:
+            logger.warning("modify_order_parse_fallback", extra={"order_id": order_id, "error": str(exc)})
             # Fallback: if the response doesn't have full order details,
             # construct from the payload + order_id
             return Order(

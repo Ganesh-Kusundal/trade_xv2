@@ -11,8 +11,9 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from brokers.common.api.ports import CoverOrderProvider
-from domain import Order, OrderRequest
+from brokers.common.gateway_interfaces import CoverOrderProvider
+from brokers.common.dtos import BrokerOrderPayload
+from domain import Order
 from brokers.upstox.orders.order_client import UpstoxRestOrderClient
 
 
@@ -20,7 +21,7 @@ class UpstoxCoverOrderAdapter(CoverOrderProvider):
     def __init__(self, order_client: UpstoxRestOrderClient) -> None:
         self._order_client = order_client
 
-    def place_cover_order(self, request: OrderRequest, stop_loss_price: Decimal) -> Order:
+    def place_cover_order(self, request: BrokerOrderPayload, stop_loss_price: Decimal) -> Order:
         if request.trigger_price is None or request.trigger_price <= 0:
             request.trigger_price = stop_loss_price
         from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper

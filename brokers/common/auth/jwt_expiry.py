@@ -28,12 +28,24 @@ class JwtExpiry:
             return -1
 
     @staticmethod
-    def parse_expiry_datetime(jwt: str | None) -> datetime | None:
-        """Return naive UTC datetime for the JWT ``exp`` claim, or None."""
+    def is_expired(jwt: str | None, clock_skew_ms: int = 0) -> bool:
+        """Check whether *jwt* has expired (or will within *clock_skew_ms*)."""
         exp_ms = JwtExpiry.parse_expiry_epoch_ms(jwt)
-        if exp_ms <= 0:
-            return None
-        return datetime.fromtimestamp(exp_ms / 1000, tz=timezone.utc).replace(tzinfo=None)
+        if exp_ms < 0:
+            return True
+        now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        return now_ms >= (exp_ms - clock_skew_ms)
+
+    @staticmethod
+    def remaining_seconds(jwt: str | None, clock_skew_s: int = 30) -> int:
+        """Seconds until the token expires, or 0 if already expired."""
+        exp_ms = JwtExpiry.parse_expiry_epoch_ms(jwt)
+        if exp_ms < 0:
+            return 0
+        now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+        remaining_ms = exp_ms - now_ms
+        remaining_s = max(0, remaining_ms // 1000 - clock_skew_s)
+        return remaining_s
 
 
 def _pad(value: str) -> str:

@@ -182,7 +182,7 @@ skip-magic-trailing-comma = false
 
 # ─── Coding Standards ─────────────────────────────────────
 # These rules enforce architectural invariants and team conventions.
-# See docs/CODING_STANDARDS.md for the full guide.
+# See docs/IMPORT_DIRECTION_RULES.md for the full guide.
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
 # Domain types must come from brokers.common, not broker-specific packages

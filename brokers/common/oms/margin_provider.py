@@ -20,7 +20,6 @@ import logging
 from decimal import Decimal
 
 from brokers.common.api import MarginCalculationError, MarginProvider, MarginResult
-from brokers.common.api.ports import MarginProvider as BrokerMarginPort
 
 logger = logging.getLogger(__name__)
 

@@ -1,4 +1,10 @@
-"""Execution mode adapters — unify live, paper, and replay fill paths through OMS."""
+"""Execution mode adapters — unify paper and replay fill paths through OMS.
+
+Live mode is inlined directly in :class:`ExecutionService` and no longer
+needs a dedicated adapter (the previous ``LiveOMSAdapter`` was a pure
+pass-through). Paper and replay modes remain here because they supply
+their own simulated fill callbacks.
+"""
 
 from __future__ import annotations
 
@@ -6,9 +12,9 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any
 
-from application.execution.simulated_fill import make_simulated_submit_fn
-from application.oms.context import TradingContext
-from application.oms.order_manager import OmsOrderCommand, OrderManager, OrderResult
+from brokers.common.execution.simulated_fill import make_simulated_submit_fn
+from brokers.common.oms.context import TradingContext
+from brokers.common.oms.order_manager import OmsOrderCommand, OrderResult
 
 logger = logging.getLogger(__name__)
 
@@ -23,24 +29,6 @@ class ExecutionModeAdapter(ABC):
         submit_fn: Any | None = None,
     ) -> OrderResult:
         """Place an order using the mode-appropriate execution path."""
-
-
-class LiveOMSAdapter(ExecutionModeAdapter):
-    """Live trading — routes through OMS + broker gateway."""
-
-    def __init__(self, trading_context: TradingContext) -> None:
-        self._ctx = trading_context
-
-    @property
-    def order_manager(self) -> OrderManager:
-        return self._ctx.order_manager
-
-    def place_order(
-        self,
-        command: OmsOrderCommand,
-        submit_fn: Any | None = None,
-    ) -> OrderResult:
-        return self._ctx.order_manager.place_order(command, submit_fn=submit_fn)
 
 
 class PaperOMSAdapter(ExecutionModeAdapter):
@@ -77,12 +65,16 @@ def create_execution_adapter(
     mode: str,
     trading_context: TradingContext,
 ) -> ExecutionModeAdapter:
-    """Factory for execution mode adapters."""
+    """Factory for execution mode adapters.
+
+    Note: ``"live"`` mode is NOT handled here — it is inlined directly
+    in :class:`~brokers.common.execution.execution_service.ExecutionService`.
+    Callers that need a live adapter should call
+    ``OrderManager.place_order`` directly.
+    """
     mode = mode.lower()
-    if mode == "live":
-        return LiveOMSAdapter(trading_context)
     if mode == "paper":
         return PaperOMSAdapter(trading_context)
     if mode in ("replay", "backtest"):
         return ReplayOMSAdapter(trading_context)
-    raise ValueError(f"Unknown execution mode: {mode}")
+    raise ValueError(f"Unknown execution mode: {mode}. For live mode, call OrderManager.place_order directly.")

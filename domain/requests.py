@@ -3,6 +3,11 @@
 These dataclasses represent the *input* side of broker operations —
 order placement, modification, preview, and historical data queries.
 They are distinct from the *output* models in ``models.py``.
+
+Transport-only fields (``exchange_segment``, ``is_amo``, ``algo_name``,
+``market_protection``, ``transport_only``) have been moved to
+:class:`brokers.common.dtos.BrokerOrderPayload`, which extends
+``OrderRequest`` with broker-transport metadata.
 """
 
 from __future__ import annotations
@@ -12,7 +17,6 @@ from datetime import datetime
 from decimal import Decimal
 
 from domain.types import (
-    ExchangeSegment,
     OrderType,
     ProductType,
     Side,
@@ -22,12 +26,18 @@ from domain.types import (
 
 @dataclass(slots=True, frozen=False)
 class OrderRequest:
-    """Input model for placing an order."""
+    """Input model for placing an order — domain fields only.
+
+    Broker-transport fields (exchange_segment, is_amo, etc.) have been
+    moved to :class:`brokers.common.dtos.BrokerOrderPayload`.  Domain-level
+    consumers (``OrderManager``, ``RiskManager``, ``OrderRepository``)
+    should accept ``OrderRequest``; broker adapters that need transport
+    metadata should accept ``BrokerOrderPayload``.
+    """
 
     security_id: str = ""
     symbol: str = ""
     exchange: str = "NSE"
-    exchange_segment: ExchangeSegment = ExchangeSegment.NSE
     transaction_type: Side = Side.BUY
     quantity: int = 0
     price: Decimal = Decimal("0")
@@ -38,10 +48,6 @@ class OrderRequest:
     correlation_id: str | None = None
     tag: str | None = None
     slice: bool = False
-    is_amo: bool = False
-    market_protection: int = -1
-    algo_name: str | None = None
-    transport_only: bool = False
 
 
 @dataclass(slots=True, frozen=False)

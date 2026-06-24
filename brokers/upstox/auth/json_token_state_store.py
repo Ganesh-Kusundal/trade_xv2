@@ -9,10 +9,13 @@ from __future__ import annotations
 
 import contextlib
 import json
+import logging
 import os
 import tempfile
 import threading
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 class JsonTokenStateStore:
@@ -50,7 +53,7 @@ class JsonTokenStateStore:
                 with os.fdopen(tmp_fd, "w") as fp:
                     json.dump(state, fp, indent=2)
                 os.replace(tmp_path, self._path)
-            except Exception:
+            except (OSError, ValueError):
                 with contextlib.suppress(OSError):
                     os.unlink(tmp_path)
                 raise

@@ -12,14 +12,13 @@ from decimal import Decimal
 import pytest
 
 from application.execution.execution_mode_adapter import (
-    LiveOMSAdapter,
     PaperOMSAdapter,
     ReplayOMSAdapter,
     create_execution_adapter,
 )
 from application.oms.context import TradingContext
 from application.oms.order_manager import OmsOrderCommand, OrderResult
-from application.oms.risk_manager import RiskConfig
+from application.oms._internal.risk_manager import RiskConfig
 from domain import OrderStatus, OrderType, ProductType, Side
 
 
@@ -68,8 +67,8 @@ class TestOrderResultParity:
     """All adapters must return OrderResult with the same structural shape."""
 
     def test_live_returns_order_result(self, trading_context, base_command):
-        adapter = LiveOMSAdapter(trading_context)
-        result = _place_via_adapter(adapter, base_command)
+        # Live mode is inlined in ExecutionService — test via OrderManager directly
+        result = trading_context.order_manager.place_order(base_command)
         assert isinstance(result, OrderResult)
 
     def test_paper_returns_order_result(self, trading_context, base_command):
@@ -83,58 +82,84 @@ class TestOrderResultParity:
         assert isinstance(result, OrderResult)
 
     def test_all_adapters_set_success(self, trading_context, base_command):
-        """All three adapters should succeed with a permissive risk config."""
-        for mode in ("live", "paper", "replay"):
+        """All adapters should succeed with a permissive risk config."""
+        for mode in ("paper", "replay"):
             adapter = create_execution_adapter(mode, trading_context)
             result = _place_via_adapter(adapter, base_command)
             assert result.success is True, f"{mode} adapter failed: {result.error}"
+        # Live path via OrderManager directly
+        live_result = trading_context.order_manager.place_order(base_command)
+        assert live_result.success is True, f"live path failed: {live_result.error}"
 
     def test_all_adapters_return_order(self, trading_context, base_command):
         """All adapters must populate result.order on success."""
-        for mode in ("live", "paper", "replay"):
+        for mode in ("paper", "replay"):
             adapter = create_execution_adapter(mode, trading_context)
             result = _place_via_adapter(adapter, base_command)
             assert result.order is not None, f"{mode} adapter returned no order"
+        # Live path
+        live_result = trading_context.order_manager.place_order(base_command)
+        assert live_result.order is not None, "live path returned no order"
 
     def test_all_adapters_have_order_id(self, trading_context, base_command):
         """All adapters must assign an order_id."""
-        for mode in ("live", "paper", "replay"):
+        for mode in ("paper", "replay"):
             adapter = create_execution_adapter(mode, trading_context)
             result = _place_via_adapter(adapter, base_command)
             assert result.order is not None
             assert len(result.order.order_id) > 0
+        # Live path
+        live_result = trading_context.order_manager.place_order(base_command)
+        assert live_result.order is not None
+        assert len(live_result.order.order_id) > 0
 
     def test_all_adapters_preserve_symbol(self, trading_context, base_command):
         """Order symbol must match the command symbol."""
-        for mode in ("live", "paper", "replay"):
+        for mode in ("paper", "replay"):
             adapter = create_execution_adapter(mode, trading_context)
             result = _place_via_adapter(adapter, base_command)
             assert result.order is not None
             assert result.order.symbol == base_command.symbol
+        # Live path
+        live_result = trading_context.order_manager.place_order(base_command)
+        assert live_result.order is not None
+        assert live_result.order.symbol == base_command.symbol
 
     def test_all_adapters_preserve_side(self, trading_context, base_command):
         """Order side must match the command side."""
-        for mode in ("live", "paper", "replay"):
+        for mode in ("paper", "replay"):
             adapter = create_execution_adapter(mode, trading_context)
             result = _place_via_adapter(adapter, base_command)
             assert result.order is not None
             assert result.order.side == base_command.side
+        # Live path
+        live_result = trading_context.order_manager.place_order(base_command)
+        assert live_result.order is not None
+        assert live_result.order.side == base_command.side
 
     def test_all_adapters_preserve_quantity(self, trading_context, base_command):
         """Order quantity must match the command quantity."""
-        for mode in ("live", "paper", "replay"):
+        for mode in ("paper", "replay"):
             adapter = create_execution_adapter(mode, trading_context)
             result = _place_via_adapter(adapter, base_command)
             assert result.order is not None
             assert result.order.quantity == base_command.quantity
+        # Live path
+        live_result = trading_context.order_manager.place_order(base_command)
+        assert live_result.order is not None
+        assert live_result.order.quantity == base_command.quantity
 
     def test_all_adapters_preserve_exchange(self, trading_context, base_command):
         """Order exchange must match the command exchange."""
-        for mode in ("live", "paper", "replay"):
+        for mode in ("paper", "replay"):
             adapter = create_execution_adapter(mode, trading_context)
             result = _place_via_adapter(adapter, base_command)
             assert result.order is not None
             assert result.order.exchange == base_command.exchange
+        # Live path
+        live_result = trading_context.order_manager.place_order(base_command)
+        assert live_result.order is not None
+        assert live_result.order.exchange == base_command.exchange
 
 
 # ---------------------------------------------------------------------------
@@ -158,12 +183,17 @@ class TestSellSideParity:
         )
 
     def test_all_adapters_handle_sell(self, trading_context, sell_command):
-        for mode in ("live", "paper", "replay"):
+        for mode in ("paper", "replay"):
             adapter = create_execution_adapter(mode, trading_context)
             result = _place_via_adapter(adapter, sell_command)
             assert result.success is True, f"{mode} sell failed: {result.error}"
             assert result.order is not None
             assert result.order.side == Side.SELL
+        # Live path
+        live_result = trading_context.order_manager.place_order(sell_command)
+        assert live_result.success is True, f"live sell failed: {live_result.error}"
+        assert live_result.order is not None
+        assert live_result.order.side == Side.SELL
 
 
 # ---------------------------------------------------------------------------
@@ -171,11 +201,12 @@ class TestSellSideParity:
 # ---------------------------------------------------------------------------
 
 class TestAdapterFactory:
-    """create_execution_adapter must return the correct adapter type."""
-
-    def test_live_adapter_type(self, trading_context):
-        adapter = create_execution_adapter("live", trading_context)
-        assert isinstance(adapter, LiveOMSAdapter)
+    """create_execution_adapter must return the correct adapter type.
+    
+    Note: ``"live"`` mode is no longer handled by the factory — it is
+    inlined in :class:`ExecutionService`. The factory returns paper
+    and replay adapters only.
+    """
 
     def test_paper_adapter_type(self, trading_context):
         adapter = create_execution_adapter("paper", trading_context)
@@ -188,6 +219,10 @@ class TestAdapterFactory:
     def test_backtest_adapter_type(self, trading_context):
         adapter = create_execution_adapter("backtest", trading_context)
         assert isinstance(adapter, ReplayOMSAdapter)
+
+    def test_live_raises_value_error(self, trading_context):
+        with pytest.raises(ValueError, match="live"):
+            create_execution_adapter("live", trading_context)
 
     def test_unknown_mode_raises(self, trading_context):
         with pytest.raises(ValueError, match="Unknown execution mode"):

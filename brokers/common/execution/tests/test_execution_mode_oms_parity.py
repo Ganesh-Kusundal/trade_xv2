@@ -10,7 +10,6 @@ import pytest
 from domain import OrderStatus, Side
 from domain.entities import OrderResponse
 from application.execution.execution_mode_adapter import (
-    LiveOMSAdapter,
     PaperOMSAdapter,
     ReplayOMSAdapter,
 )
@@ -60,10 +59,10 @@ def test_live_mode_uses_submit_fn_and_records_in_oms(trading_context) -> None:
     gateway = MagicMock()
     gateway.place_order.return_value = OrderResponse.ok(order_id="LIVE-001")
 
-    adapter = LiveOMSAdapter(trading_context)
+    # Test the inlined live path (same as ExecutionService.place_order for mode="live")
     cmd = _command("test:parity:live")
     submit_fn = make_gateway_submit_fn(gateway, transport_only=True)
-    result = adapter.place_order(cmd, submit_fn=submit_fn)
+    result = trading_context.order_manager.place_order(cmd, submit_fn=submit_fn)
 
     assert result.success
     assert result.order is not None
@@ -82,11 +81,6 @@ def test_all_modes_publish_same_initial_order_status(trading_context) -> None:
     cases = [
         ("paper", PaperOMSAdapter(trading_context), None),
         ("replay", ReplayOMSAdapter(trading_context), None),
-        (
-            "live",
-            LiveOMSAdapter(trading_context),
-            make_gateway_submit_fn(gateway, transport_only=True),
-        ),
     ]
     statuses: list[OrderStatus] = []
     for mode, adapter, submit_fn in cases:
@@ -94,6 +88,15 @@ def test_all_modes_publish_same_initial_order_status(trading_context) -> None:
         result = adapter.place_order(cmd, submit_fn=submit_fn)
         assert result.success, mode
         statuses.append(result.order.status)
+
+    # Live path: OrderManager.place_order directly
+    gateway = MagicMock()
+    gateway.place_order.return_value = OrderResponse.ok(order_id="LIVE-002")
+    live_cmd = _command("test:parity:status:live")
+    live_submit_fn = make_gateway_submit_fn(gateway, transport_only=True)
+    live_result = trading_context.order_manager.place_order(live_cmd, submit_fn=live_submit_fn)
+    assert live_result.success
+    statuses.append(live_result.order.status)
 
     assert statuses == [OrderStatus.OPEN, OrderStatus.OPEN, OrderStatus.OPEN]
 

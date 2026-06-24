@@ -19,31 +19,6 @@ from infrastructure.event_bus import DomainEvent, EventBus, EventType
 logger = logging.getLogger(__name__)
 
 
-class _ReentrancyGuard:
-    """Context manager for handler-depth re-entrancy protection.
-
-    Shared with :class:`~application.oms.order_manager.OrderManager`.
-    See the docstring in that module for usage.
-    """
-
-    __slots__ = ("_lock", "_owner", "reentered")
-
-    def __init__(self, lock, owner) -> None:
-        self._lock = lock
-        self._owner = owner
-        self.reentered = False
-
-    def __enter__(self):
-        with self._lock:
-            self.reentered = self._owner._handler_depth > 0
-            self._owner._handler_depth += 1
-        return self
-
-    def __exit__(self, *args) -> None:
-        with self._lock:
-            self._owner._handler_depth -= 1
-
-
 class PositionManager:
     """Thread-safe position book updated via trades and LTP ticks.
 
@@ -244,14 +219,24 @@ class PositionManager:
 
     # ── Event handlers ───────────────────────────────────────────────────────
 
+    def on_trade(self, event: DomainEvent) -> None:
+        """Handle broker trade events from the event bus.
+
+        Uses ``_reentrancy_guard()`` to prevent recursive handler
+        invocation when the manager publishes events internally.
+        """
+        with self._reentrancy_guard() as guard:
+            if guard.reentered:
+                return
+            trade = event.payload.get("trade")
+            if isinstance(trade, Trade):
+                self.apply_trade(trade)
+
     def on_trade_applied(self, event: DomainEvent) -> None:
         """Apply a trade that has been verified by the OMS.
 
-        This is the ONLY entry point for position updates from trade events.
-        The OMS guarantees idempotency before publishing TRADE_APPLIED, so
-        duplicate fills cannot reach this handler.
-
-        Uses ``_reentrancy_guard()`` to prevent recursive handler invocation.
+        Uses ``_reentrancy_guard()`` to prevent recursive handler
+        invocation.
         """
         with self._reentrancy_guard() as guard:
             if guard.reentered:

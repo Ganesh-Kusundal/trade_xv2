@@ -416,7 +416,7 @@ class UpstoxTokenManager:
                     "source": state.source,
                 }
             )
-        except OSError as exc:
+        except (OSError, ValueError, TypeError) as exc:
             logger.warning("Failed to persist Upstox token state: %s", exc)
 
     def _valid_persisted(self, persisted: dict) -> bool:

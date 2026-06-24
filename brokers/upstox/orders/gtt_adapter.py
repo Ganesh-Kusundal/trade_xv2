@@ -8,7 +8,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
-from brokers.common.api.ports import GttOrderProvider
+from brokers.common.gateway_interfaces import GttOrderProvider
 from domain import (
     ConditionalAlert,
     ConditionalAlertRequest,

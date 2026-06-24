@@ -204,7 +204,7 @@ class UpstoxInstrumentLoader:
             cache_mtime = json_gz_path.stat().st_mtime
             source_mtime = json_path.stat().st_mtime
             return cache_mtime >= source_mtime
-        except Exception:
+        except (ConnectionError, TimeoutError, ValueError):
             return False
 
     def iter_definitions(self, path: Path) -> Iterator[UpstoxInstrumentDefinition]:
@@ -231,7 +231,7 @@ class UpstoxInstrumentLoader:
                 continue
             try:
                 yield self._build_definition(record)
-            except Exception:
+            except (ValueError, KeyError, TypeError):
                 logger.debug("Skipping malformed record", exc_info=True)
                 continue
 
@@ -251,7 +251,7 @@ class UpstoxInstrumentLoader:
             from datetime import datetime, timezone
             try:
                 expiry_val = datetime.fromtimestamp(expiry_val / 1000, tz=timezone.utc).strftime("%Y-%m-%d")
-            except Exception:
+            except (ValueError, OSError):
                 expiry_val = None
 
         return UpstoxInstrumentDefinition(

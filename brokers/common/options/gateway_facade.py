@@ -2,9 +2,9 @@
 ``get_expiries`` / ``get_option_chain`` interface on every gateway.
 
 Both Dhan and Upstox gateways now expose ``self.options`` returning an
-instance implementing :class:`brokers.common.api.ports.OptionsProvider`.
+instance of this facade wrapping the broker's native options adapter.
 The facade normalizes exchange-segment strings and returns the canonical
-:class:`~brokers.common.core.models.OptionChain` shape.
+:class:`~domain.entities.OptionChain` shape.
 """
 
 from __future__ import annotations

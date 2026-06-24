@@ -162,8 +162,8 @@ class UpstoxReconciliationService:
         if on_drift is not None and drift.items:
             try:
                 on_drift(report)
-            except Exception:
-                logger.exception("on_drift callback failed")
+            except (ValueError, KeyError, ConnectionError, TimeoutError) as exc:
+                logger.exception("on_drift callback failed: %s", exc)
 
         return report
 
@@ -175,7 +175,7 @@ class UpstoxReconciliationService:
             return []
         try:
             return method()
-        except Exception:
+        except (ValueError, KeyError, ConnectionError, TimeoutError):
             return []
 
     def _oms_positions(self) -> list[dict[str, Any]]:
@@ -206,7 +206,7 @@ class UpstoxReconciliationService:
                     for p in result
                 ]
             return result
-        except Exception:
+        except (ValueError, KeyError, ConnectionError, TimeoutError):
             return []
 
     def _repair_missing_order(self, payload: dict[str, Any]) -> int:
@@ -218,7 +218,7 @@ class UpstoxReconciliationService:
         try:
             method(payload)
             return 1
-        except Exception:
+        except (ValueError, KeyError, ConnectionError, TimeoutError):
             return 0
 
     def _repair_position_drift(self, payload: dict[str, Any]) -> int:
@@ -231,5 +231,5 @@ class UpstoxReconciliationService:
             upstox = payload.get("upstox") or {}
             method(upstox)
             return 1
-        except Exception:
+        except (ValueError, KeyError, ConnectionError, TimeoutError):
             return 0

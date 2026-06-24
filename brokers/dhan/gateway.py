@@ -12,13 +12,13 @@ import pandas as pd
 
 from brokers.common.batch_mixin import BatchFetchMixin
 from brokers.common.gateway import BrokerCapabilities, MarketDataGateway, ObservabilityProvider
+from brokers.common.dtos import BrokerOrderPayload
 from domain import (
     Balance,
     ExchangeSegment,
     FutureChain,
     MarketDepth,
     OptionChain,
-    OrderRequest,
     OrderResponse,
     OrderStatus,
     OrderType,
@@ -123,7 +123,7 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         exchange_segment = parse_segment(exchange)
         if exchange_segment is None:
             raise ValueError(f"Unknown exchange segment: {exchange!r}")
-        request = OrderRequest(
+        request = BrokerOrderPayload(
             symbol=symbol,
             exchange=exchange,
             exchange_segment=exchange_segment,
@@ -518,8 +518,8 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
                                 change=data.get("change", Decimal("0")),
                             )
                             _cb(q)
-                        except Exception:
-                            logger.debug("tick_quote_wrap_failed", exc_info=True)
+                        except (ValueError, KeyError, TypeError) as exc:
+                            logger.warning("tick_quote_wrap_failed", extra={"symbol": _sym, "error": str(exc)})
                             _cb(data)
 
                     feed.on_quote(_wrap)

@@ -8,7 +8,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-from brokers.common.api.ports import MarketDataProvider
+from brokers.common.api import MarketDataProvider
 from domain import MarketDepth, OptionContract, Quote
 from domain import HistoricalCandle
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from brokers.common.api.ports import StaticIPPort
+from brokers.common.gateway_interfaces import StaticIPPort
 from brokers.upstox.static_ip.client import UpstoxStaticIpClient
 
 

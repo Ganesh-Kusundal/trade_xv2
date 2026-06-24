@@ -11,7 +11,7 @@ Orchestration contract
 2. ``on_order_update`` / ``on_trade`` — event-bus handlers for broker feeds;
    delegate validation to ``OrderStateValidator``, audit to ``OrderAuditLogger``,
    fill math to ``OrderPositionUpdater``.
-3. Collaborators live in ``application.oms._internal`` and are not part of
+3. Collaborators live in ``brokers.common.oms._internal`` and are not part of
    the public API surface.
 """
 
@@ -45,41 +45,6 @@ if TYPE_CHECKING:
     from application.oms.persistence.sqlite_order_store import SqliteOrderStore
 
 logger = logging.getLogger(__name__)
-
-
-class _ReentrancyGuard:
-    """Context manager that atomically checks and increments a handler-depth counter.
-
-    Eliminates the duplicated try/finally pattern from event handlers
-    in :class:`OrderManager` and :class:`PositionManager`.  On ``__enter__``
-    the ``reentered`` flag records whether a handler was already active
-    (``_handler_depth > 0`` before incrementing).  The caller checks
-    ``guard.reentered`` to decide whether to bail out.
-
-    Usage::
-
-        with self._reentrancy_guard() as guard:
-            if guard.reentered:
-                return       # re-entered, skip
-            # ... process event ...
-    """
-
-    __slots__ = ("_lock", "_owner", "reentered")
-
-    def __init__(self, lock, owner) -> None:
-        self._lock = lock
-        self._owner = owner
-        self.reentered = False
-
-    def __enter__(self):
-        with self._lock:
-            self.reentered = self._owner._handler_depth > 0
-            self._owner._handler_depth += 1
-        return self
-
-    def __exit__(self, *args) -> None:
-        with self._lock:
-            self._owner._handler_depth -= 1
 
 
 @dataclass(frozen=True)
@@ -172,14 +137,10 @@ class OrderManager:
         state_validator: OrderStateValidator | None = None,
         audit_logger: OrderAuditLogger | None = None,
         position_updater: OrderPositionUpdater | None = None,
-        order_store: SqliteOrderStore | None = None,
-        placement_gate: Callable[[], tuple[bool, str | None]] | None = None,
     ) -> None:
         self._lock = threading.RLock()
         self._orders: dict[str, Order] = {}
         self._orders_by_correlation: dict[str, Order] = {}
-        self._order_store = order_store
-        self._placement_gate = placement_gate
         self._event_bus = event_bus
         self._risk_manager = risk_manager
         self._processed_trades = processed_trade_repository or ProcessedTradeRepository()
@@ -203,15 +164,6 @@ class OrderManager:
         )
         self._audit_logger = audit_logger or OrderAuditLogger()
         self._position_updater = position_updater or OrderPositionUpdater()
-        if self._order_store is not None:
-            for order in self._order_store.load_all():
-                self._orders[order.order_id] = order
-                if order.correlation_id:
-                    self._orders_by_correlation[order.correlation_id] = order
-
-    def _persist_order(self, order: Order) -> None:
-        if self._order_store is not None:
-            self._order_store.upsert(order)
 
     @property
     def risk_manager(self) -> RiskManager | None:
@@ -220,12 +172,6 @@ class OrderManager:
     @property
     def processed_trade_repository(self) -> ProcessedTradeRepository:
         return self._processed_trades
-
-    def set_placement_gate(
-        self, gate: Callable[[], tuple[bool, str | None]] | None
-    ) -> None:
-        """Optional gate evaluated before risk checks (e.g. reconciliation)."""
-        self._placement_gate = gate
 
     def check_order(self, order: Order) -> bool:
         """Return True if the order passes the configured risk checks."""
@@ -256,16 +202,6 @@ class OrderManager:
                 return OrderResult(success=False, error="Order already in-flight")
             self._pending_correlation.add(request.correlation_id)
             order_id = f"OM-{uuid.uuid4().hex[:12]}"
-
-        if self._placement_gate is not None:
-            allowed, reason = self._placement_gate()
-            if not allowed:
-                with self._lock:
-                    self._pending_correlation.discard(request.correlation_id)
-                return OrderResult(
-                    success=False,
-                    error=reason or "Order placement blocked by gate",
-                )
 
         # ── Phase 2: Build order + risk check (no lock) ──
         try:
@@ -343,7 +279,6 @@ class OrderManager:
             self._pending_correlation.discard(request.correlation_id)
             self._orders[order.order_id] = order
             self._orders_by_correlation[request.correlation_id] = order
-        self._persist_order(order)
 
         self._audit_logger.log_new_order(
             order.order_id,
@@ -386,7 +321,6 @@ class OrderManager:
                 )
             
             self._publish(EventType.ORDER_UPDATED.value, order)
-        self._persist_order(order)
 
     def record_trade(self, trade: Trade) -> bool:
         """Record a trade and update the parent order.
@@ -460,7 +394,6 @@ class OrderManager:
             
             self._publish(EventType.ORDER_UPDATED.value, updated)
             self._publish_trade_applied(trade)
-            self._persist_order(updated)
             return True
 
     def _publish_trade_applied(self, trade: Trade) -> None:
@@ -560,7 +493,6 @@ class OrderManager:
             )
             
             self._publish(EventType.ORDER_CANCELLED.value, updated)
-            self._persist_order(updated)
             return OrderResult(success=True, order=updated)
 
     # ── Event handlers ──────────────────────────────────────────────────────

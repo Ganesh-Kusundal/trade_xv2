@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from brokers.common.api.ports import NewsProvider
+from brokers.common.gateway_interfaces import NewsProvider
 from brokers.upstox.news.client import UpstoxNewsClient
 
 

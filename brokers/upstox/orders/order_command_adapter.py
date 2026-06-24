@@ -9,16 +9,16 @@ import logging
 from decimal import Decimal
 from typing import Any
 
-from brokers.common.api.ports import IdempotencyCachePort, OrderCommand
+from brokers.common.gateway_interfaces import IdempotencyCachePort, OrderCommand
 from domain import (
     Order,
     OrderPreview,
-    OrderRequest,
     OrderResponse,
 )
 from domain import Side as OrderSide
-from infrastructure.event_bus import EventBus
-from application.oms.risk_manager import RiskManager
+from brokers.common.dtos import BrokerOrderPayload
+from infrastructure.event_bus import DomainEvent, EventBus
+from application.oms._internal.risk_manager import RiskManager
 from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from brokers.upstox.orders.idempotency import InMemoryIdempotencyCache
@@ -49,7 +49,7 @@ class UpstoxOrderCommandAdapter(OrderCommand):
         self._event_bus = event_bus
         self._risk_manager = risk_manager
 
-    def place_order(self, request: OrderRequest) -> OrderResponse:
+    def place_order(self, request: BrokerOrderPayload) -> OrderResponse:
         # NOTE: Exception policy divergence (F-20, P1) -- this adapter
         # returns OrderResponse.fail() on errors; Dhan's OrdersAdapter
         # raises OrderError. The gateway layer unifies both.
@@ -85,10 +85,12 @@ class UpstoxOrderCommandAdapter(OrderCommand):
                 result = self._order_client.place_order_v3(payload)
             else:
                 result = self._order_client.place_order_v2(payload)
-        except Exception as exc:
+        except (RuntimeError, OSError) as exc:
             return OrderResponse.fail(str(exc))
 
         response = UpstoxDomainMapper.to_order_response(result)
+        if response.success:
+            self._publish_order_placed(request, response)
         if request.correlation_id and self._idempotency_cache is not None and response.success:
             self._idempotency_cache.put(request.correlation_id, response)
         return response
@@ -110,8 +112,8 @@ class UpstoxOrderCommandAdapter(OrderCommand):
                     data = body.get("data")
                     if isinstance(data, list) and data:
                         instrument_key = data[0].get("instrument_token", "")
-            except Exception:
-                pass
+            except (ValueError, KeyError):
+                logger.debug("Failed to look up order %s for instrument_key", order_id, exc_info=True)
         if not instrument_key:
             logger.warning(
                 "modify_order_missing_instrument_key",
@@ -132,7 +134,7 @@ class UpstoxOrderCommandAdapter(OrderCommand):
 
         try:
             result = self._order_client.cancel_order_v3(order_id)
-        except Exception as exc:
+        except (RuntimeError, OSError) as exc:
             return OrderResponse.fail(
                 message=f"network error: {exc}",
                 error_code="BRO_ERR_CONNECTION_FAILED",
@@ -193,7 +195,7 @@ class UpstoxOrderCommandAdapter(OrderCommand):
             errors.append("SL/SL-M orders require trigger_price > 0")
         return OrderPreview(valid=not errors, errors=errors)
 
-    def _resolve_instrument_key(self, request: OrderRequest) -> str | None:
+    def _resolve_instrument_key(self, request: BrokerOrderPayload) -> str | None:
         # Prefer instrument_key if caller already set one
         if request.security_id and request.security_id != "":
             seg_wire = UpstoxDomainMapper.segment_to_wire(request.exchange_segment)
@@ -207,7 +209,7 @@ class UpstoxOrderCommandAdapter(OrderCommand):
         # Last resort: assume symbol is the bare instrument_key
         return request.symbol or None
 
-    def _to_domain_order(self, request: OrderRequest) -> Order:
+    def _to_domain_order(self, request: BrokerOrderPayload) -> Order:
         from datetime import datetime, timezone
 
         from domain import OrderStatus, OrderType, ProductType, Validity
@@ -226,4 +228,26 @@ class UpstoxOrderCommandAdapter(OrderCommand):
             status=OrderStatus.OPEN,
             timestamp=datetime.now(timezone.utc),
             correlation_id=request.correlation_id,
+        )
+
+    def _publish_order_placed(self, request: BrokerOrderPayload, response: OrderResponse) -> None:
+        if self._event_bus is None:
+            return
+
+        try:
+            from dataclasses import replace
+            order = replace(
+                self._to_domain_order(request),
+                order_id=response.order_id or "",
+                status=response.status or self._to_domain_order(request).status,
+            )
+        except (RuntimeError, OSError):
+            return
+        self._event_bus.publish(
+            DomainEvent.now(
+                "ORDER_PLACED",
+                {"order": order},
+                symbol=order.symbol,
+                source="UpstoxOrderCommandAdapter",
+            )
         )

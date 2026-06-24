@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from brokers.common.api.ports import MarketIntelligencePort
+from brokers.common.gateway_interfaces import MarketIntelligencePort
 from brokers.upstox.market_intelligence.client import UpstoxMarketIntelligenceClient
 
 
