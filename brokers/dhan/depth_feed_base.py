@@ -32,7 +32,7 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from config.endpoints import Dhan as _DhanEndpoints
+from endpoints import Dhan as _DhanEndpoints
 
 from domain import DepthLevel, MarketDepth
 from infrastructure.event_bus import DomainEvent, EventBus

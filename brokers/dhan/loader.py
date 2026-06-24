@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from config.endpoints import Dhan
+from endpoints import Dhan
 from brokers.dhan.segments import _COMPACT_SEGMENT_MAP
 
 logger = logging.getLogger(__name__)

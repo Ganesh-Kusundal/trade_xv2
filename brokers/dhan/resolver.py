@@ -11,7 +11,7 @@ import logging
 import threading
 from collections.abc import Iterable
 
-from config.indices import is_index, get_index_entry
+from indices import is_index, get_index_entry
 from brokers.dhan.domain import Exchange, Instrument, InstrumentType, OptionType
 from brokers.dhan.exceptions import InstrumentNotFoundError
 from brokers.dhan.segments import SEGMENT_TO_EXCHANGE

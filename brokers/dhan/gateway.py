@@ -669,7 +669,7 @@ def _dhan_normalize_exchange(symbol: str, exchange: str) -> str:
     ``"NSE"`` / ``"BSE"``. The integration suite uses ``"INDEX"`` for index
     underlyings (NIFTY, BANKNIFTY); we keep that convention.
     """
-    from config.indices import dhan_index_exchange, is_index
+    from indices import dhan_index_exchange, is_index
 
     if is_index(symbol):
         return dhan_index_exchange(symbol) or exchange

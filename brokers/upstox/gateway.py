@@ -700,7 +700,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         Returns:
             Upstox instrument_key string (e.g., "NSE_EQ|INE002A01018")
         """
-        from config.indices import index_upstox_key
+        from indices import index_upstox_key
         from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
         
         # 1. Check hardcoded index mapping first
@@ -741,7 +741,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         Returns:
             Canonical ExchangeSegment enum value
         """
-        from config.indices import index_upstox_key
+        from indices import index_upstox_key
         from domain.exchange_segments import parse_segment
         
         # Index symbols use a dedicated segment

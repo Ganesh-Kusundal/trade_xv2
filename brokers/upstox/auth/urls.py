@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from config.endpoints import _UpstoxUrls
+from endpoints import _UpstoxUrls
 
 
 class UpstoxApiUrlResolver:

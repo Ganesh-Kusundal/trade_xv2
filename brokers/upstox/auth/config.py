@@ -213,7 +213,7 @@ class UpstoxSettingsLoader(SettingsLoaderBase):
         refresh_buffer_minutes = cls._get_int(prefix, "REFRESH_BUFFER_MINUTES", default=30)
 
         # TOTP configuration
-        from config.secrets_manager import SecretsManager
+        from secrets_manager import SecretsManager
 
         secrets = SecretsManager()
         mobile = cls._get(prefix, "MOBILE", default="")

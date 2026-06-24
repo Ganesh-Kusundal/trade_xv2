@@ -22,7 +22,7 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
-from config.endpoints import Dhan
+from endpoints import Dhan
 from brokers.common.settings import BrokerSettings, SettingsLoaderBase
 
 logger = logging.getLogger(__name__)
@@ -122,7 +122,7 @@ class DhanSettingsLoader(SettingsLoaderBase):
         """
         cls._load_default_env(env_path)
 
-        from config.secrets_manager import SecretsManager
+        from secrets_manager import SecretsManager
 
         secrets = SecretsManager()
 

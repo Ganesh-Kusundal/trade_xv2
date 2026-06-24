@@ -10,7 +10,7 @@ from typing import Any
 
 import requests
 
-from config.endpoints import Dhan
+from endpoints import Dhan
 from brokers.common.resilience.circuit_breaker import CircuitBreaker, CircuitState
 from brokers.dhan.exceptions import AuthenticationError, DhanError, RateLimitError
 

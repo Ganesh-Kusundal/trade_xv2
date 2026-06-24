@@ -20,7 +20,7 @@ from infrastructure.event_bus import DomainEvent, EventBus
 from brokers.common.dtos import BrokerOrderPayload
 from domain import OrderResponse
 from application.oms._internal.risk_manager import RiskManager
-from config.endpoints import Dhan
+from endpoints import Dhan
 from domain import (
     Order,
     OrderStatus,

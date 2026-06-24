@@ -90,7 +90,6 @@ Trade_XV2/
 ├── strategy/                 # Strategy engine (placeholder)
 ├── backtesting/              # Backtesting engine (placeholder)
 ├── replay/                   # Replay engine (placeholder)
-├── config/                   # Secret files (dhan-pin.txt, dhan-totp-secret.txt) — gitignored
 ├── runtime/                  # Runtime state (token JSON) — gitignored
 ├── tests/                    # Top-level test suites
 │   ├── e2e/                  # End-to-end tests
@@ -350,20 +349,15 @@ DHAN_ENVIRONMENT=LIVE
 DHAN_REST_BASE_URL=
 DHAN_PIN=
 DHAN_TOTP_SECRET=
-DHAN_PIN_FILE=config/dhan-pin.txt
-DHAN_TOTP_SECRET_FILE=config/dhan-totp-secret.txt
 DHAN_TOKEN_STATE_FILE=runtime/dhan-token-state.json
 DHAN_REFRESH_BUFFER_MINUTES=10
 ```
 
 ### 9.2 Secret Files (gitignored)
-- `config/dhan-pin.txt` — Dhan PIN for TOTP auth
-- `config/dhan-totp-secret.txt` — Base32 TOTP secret
 - `runtime/dhan-token-state.json` — Persisted token state
 
 ### 9.3 .gitignore Coverage
 - `.env`, `.env.local`, `.env.*` (except `.env.example`)
-- `config/dhan-pin.txt`, `config/dhan-totp-secret.txt`
 - `runtime/`, `runtime-dev/`
 
 ---
