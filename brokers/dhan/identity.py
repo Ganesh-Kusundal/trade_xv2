@@ -21,7 +21,7 @@ three problems:
 
 This module fixes all three by:
 
-* Owning the ``SymbolResolver`` and the ``config/indices.py`` hardcoded
+* Owning the ``SymbolResolver`` and the ``indices.py`` hardcoded
   table behind a single ``DhanIdentityProvider`` factory.
 * Wrapping every successful resolution in an immutable ``DhanInstrumentRef``
   that structurally cannot carry an Upstox identifier (the

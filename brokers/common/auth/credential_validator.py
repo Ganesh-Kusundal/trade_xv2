@@ -130,16 +130,8 @@ class CredentialValidator:
         auth_mode = os.environ.get("UPSTOX_AUTH_MODE", "STATIC").upper()
 
         has_pin = bool(pin) or (pin_file and Path(pin_file).exists())
-        if not has_pin and not pin:
-            default_pin = Path("config/upstox-pin.txt")
-            if default_pin.exists():
-                has_pin = True
 
         has_totp_secret = bool(totp_secret) or (totp_file and Path(totp_file).exists())
-        if not has_totp_secret and not totp_secret:
-            default_totp = Path("config/upstox-totp-secret.txt")
-            if default_totp.exists():
-                has_totp_secret = True
 
         has_static = bool(access_token) or bool(analytics_token) or bool(refresh_token)
         has_totp = bool(mobile and has_pin and has_totp_secret)
