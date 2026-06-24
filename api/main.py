@@ -10,7 +10,7 @@ Creates and configures the FastAPI application with:
 
 Usage:
     from api.main import create_app
-    
+
     app = create_app()
     # Or with services:
     app = create_app(
@@ -30,7 +30,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.config import APIConfig
-from api.deps import initialize_all_services, get_container
+from api.deps import get_container, initialize_all_services
 
 logger = logging.getLogger(__name__)
 
@@ -41,16 +41,16 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("TradeXV2 API server starting...")
     logger.info("OpenAPI docs available at %s%s", app.docs_url or "/docs", "")
-    
+
     # Start TradingContext lifecycle (reconciliation, DLQ monitor, daily PnL reset)
-    from infrastructure.lifecycle import LifecycleManager
-    from api.ws.market import market_manager
     from api.ws.bridge import MarketBridge
-    
+    from api.ws.market import market_manager
+    from infrastructure.lifecycle import LifecycleManager
+
     lifecycle: LifecycleManager | None = None
     market_bridge: MarketBridge | None = None
     lifecycle_started = False
-    
+
     try:
         container = get_container()
     except Exception as exc:
@@ -62,7 +62,7 @@ async def lifespan(app: FastAPI):
         yield
         await _shutdown_cleanup(market_bridge, lifecycle, lifecycle_started)
         return
-    
+
     ctx = container.trading_context
     if ctx is None:
         logger.warning(
@@ -72,7 +72,7 @@ async def lifespan(app: FastAPI):
         yield
         await _shutdown_cleanup(market_bridge, lifecycle, lifecycle_started)
         return
-    
+
     # Build and start lifecycle
     lifecycle = LifecycleManager()
     try:
@@ -80,7 +80,7 @@ async def lifespan(app: FastAPI):
         lifecycle.start_all()
         lifecycle_started = True
         logger.info("TradingContext lifecycle started")
-        
+
         # Start MarketBridge for WebSocket market data
         market_bridge = MarketBridge(
             event_bus=ctx.event_bus,
@@ -89,21 +89,21 @@ async def lifespan(app: FastAPI):
         await market_bridge.start()
         logger.info("MarketBridge started")
     except Exception as exc:
-        logger.error(
+        logger.exception(
             "TradingContext lifecycle setup failed: %s: %s. "
             "OMS may be partially functional. Check logs for details.",
             type(exc).__name__,
             exc,
-            exc_info=True,
         )
         # Don't yield yet — let the server start with degraded OMS
-    
+
     yield
-    
+
     # Shutdown
     await _shutdown_cleanup(market_bridge, lifecycle, lifecycle_started)
-    
+
     from datalake.duckdb_utils import close_all_connections
+
     close_all_connections()
     logger.info("TradeXV2 API server shutting down...")
 
@@ -114,7 +114,7 @@ async def _shutdown_cleanup(
     lifecycle_started: bool,
 ) -> None:
     """Clean shutdown of MarketBridge and LifecycleManager.
-    
+
     Parameters
     ----------
     market_bridge:
@@ -131,7 +131,7 @@ async def _shutdown_cleanup(
             logger.info("MarketBridge stopped")
         except Exception as exc:
             logger.warning("MarketBridge shutdown failed: %s", exc)
-    
+
     # Stop sync lifecycle services
     if lifecycle_started and lifecycle:
         try:
@@ -151,10 +151,12 @@ def create_app(
     event_bus: Any = None,
     broker_service: Any = None,
     trading_context: Any = None,
+    market_data_composer: Any = None,
+    execution_composer: Any = None,
     **additional_services: Any,
 ) -> FastAPI:
     """Create and configure the FastAPI application.
-    
+
     Parameters
     ----------
     config:
@@ -169,9 +171,15 @@ def create_app(
         EventBus instance for real-time events.
     broker_service:
         BrokerService instance for live broker connections.
+    trading_context:
+        TradingContext instance for OMS orchestration.
+    market_data_composer:
+        MarketDataComposer instance for unified multi-broker historical/streaming data.
+    execution_composer:
+        ExecutionComposer instance for multi-broker order routing and execution.
     **additional_services:
         Additional services to register in DI container.
-    
+
     Returns
     -------
     Configured FastAPI application instance.
@@ -181,21 +189,29 @@ def create_app(
     validate_production_config(surface="api")
 
     cfg = config or APIConfig()
-    
+
     # Auto-build TradingContext if not provided but event_bus is available
     if trading_context is None and event_bus is not None:
         from api.lifecycle import build_trading_context
-        trading_context = build_trading_context(event_bus=event_bus)
-    
+
+        try:
+            trading_context = build_trading_context(event_bus=event_bus)
+        except Exception as exc:
+            logger.warning(
+                "TradingContext creation failed: %s. OMS will be unavailable.",
+                exc,
+            )
+            trading_context = None
+
     # Register domain runtime hooks for analytics engines
+    from application.execution.factory import create_oms_backtest_adapter
+    from application.oms.factory import create_trading_context
     from domain.runtime_hooks import (
-        register_oms_backtest_factory,
         register_domain_event_factory,
+        register_oms_backtest_factory,
         register_trading_context_factory,
     )
-    from application.execution.factory import create_oms_backtest_adapter
     from infrastructure.event_bus.factory import create_domain_event
-    from application.oms.factory import create_trading_context
 
     register_oms_backtest_factory(create_oms_backtest_adapter)
     register_domain_event_factory(create_domain_event)
@@ -211,7 +227,7 @@ def create_app(
         trading_context=trading_context,
         **additional_services,
     )
-    
+
     # Create FastAPI app
     app = FastAPI(
         title="TradeXV2 API",
@@ -234,12 +250,16 @@ def create_app(
             {"name": "Backtest", "description": "Backtest execution and results"},
             {"name": "Portfolio", "description": "Positions and PnL"},
             {"name": "Orders", "description": "Order management"},
-            {"name": "Live Broker", "description": "Live broker-backed reads and extended features"},
+            {
+                "name": "Live Broker",
+                "description": "Live broker-backed reads and extended features",
+            },
         ],
     )
-    
+
     # Request logging + correlation ID middleware
     from api.middleware import RequestLoggingMiddleware
+
     app.add_middleware(RequestLoggingMiddleware)
 
     # CORS middleware
@@ -250,68 +270,83 @@ def create_app(
         allow_methods=cfg.cors_allow_methods,
         allow_headers=cfg.cors_allow_headers,
     )
-    
+
     # ── Register Routers (imported lazily to avoid circular dependencies) ──
-    
+
     # Health endpoints
     from api.routers.health import router as health_router
+
     app.include_router(health_router, prefix=f"{cfg.api_prefix}/health", tags=["Health"])
-    
+
     # Symbol endpoints
     from api.routers.symbols import router as symbols_router
+
     app.include_router(symbols_router, prefix=f"{cfg.api_prefix}/symbols", tags=["Symbols"])
-    
+
     # Market data endpoints
     from api.routers.market import router as market_router
+
     app.include_router(market_router, prefix=f"{cfg.api_prefix}/market", tags=["Market Data"])
-    
+
     # Analytics endpoints
     from api.routers.analytics import router as analytics_router
+
     app.include_router(analytics_router, prefix=f"{cfg.api_prefix}/analytics", tags=["Analytics"])
-    
+
     # Scanner endpoints
     from api.routers.scanner import router as scanner_router
+
     app.include_router(scanner_router, prefix=f"{cfg.api_prefix}/scanner", tags=["Scanner"])
-    
+
     # Strategy endpoints
     from api.routers.strategy import router as strategy_router
+
     app.include_router(strategy_router, prefix=f"{cfg.api_prefix}/strategy", tags=["Strategy"])
-    
+
     # Options endpoints
     from api.routers.options import router as options_router
+
     app.include_router(options_router, prefix=f"{cfg.api_prefix}/options", tags=["Options"])
-    
+
     # Replay endpoints
     from api.routers.replay import router as replay_router
+
     app.include_router(replay_router, prefix=f"{cfg.api_prefix}/replay", tags=["Replay"])
-    
+
     # Backtest endpoints
     from api.routers.backtest import router as backtest_router
+
     app.include_router(backtest_router, prefix=f"{cfg.api_prefix}/backtest", tags=["Backtest"])
-    
+
     # Portfolio endpoints
     from api.routers.portfolio import router as portfolio_router
+
     app.include_router(portfolio_router, prefix=f"{cfg.api_prefix}/portfolio", tags=["Portfolio"])
-    
+
     # Orders endpoints
     from api.routers.orders import router as orders_router
+
     app.include_router(orders_router, prefix=f"{cfg.api_prefix}/orders", tags=["Orders"])
-    
+
     # Risk endpoints
     from api.routers.risk import router as risk_router
+
     app.include_router(risk_router, prefix=f"{cfg.api_prefix}/risk", tags=["Risk"])
 
     # Live broker endpoints (dual API — explicit live_broker provenance)
     from api.routers.live.router import router as live_router
+
     app.include_router(live_router, prefix=f"{cfg.api_prefix}/live", tags=["Live Broker"])
-    
+
     # WebSocket endpoints (mounted separately)
     from api.ws.market import router as ws_market_router
+
     app.include_router(ws_market_router, prefix="/ws", tags=["WebSocket - Market"])
-    
+
     from api.ws.replay import router as ws_replay_router
+
     app.include_router(ws_replay_router, prefix="/ws", tags=["WebSocket - Replay"])
-    
+
     logger.info("TradeXV2 API app created with %d routers", len(app.routes))
 
     return app

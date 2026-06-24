@@ -6,35 +6,35 @@ import logging
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from api.deps import get_order_repository, get_broker_service
 from api.auth import require_auth
+from api.deps import get_execution_composer, get_order_repository
 from api.schemas import (
-    OrdersResponse,
-    TradesResponse,
-    Trade,
     OrderRequest,
     OrderResponse,
+    OrdersResponse,
+    Trade,
+    TradesResponse,
 )
-from domain.repositories import OrderRepository
-from domain import Order, OrderStatus, Side, OrderType, ProductType
+from domain import OrderStatus, OrderType, ProductType, Side
 from domain.requests import OrderRequest as DomainOrderRequest
-from application.oms.order_repository_adapter import request_to_command
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(dependencies=[Depends(require_auth)])
 
+
 @router.get("", response_model=OrdersResponse)
 async def get_orders(
-    status_filter: Optional[str] = Query(None, alias="status", description="Filter: pending, complete, cancelled, all"),
-    from_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
-    to_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    status_filter: str | None = Query(
+        None, alias="status", description="Filter: pending, complete, cancelled, all"
+    ),
+    from_date: str | None = Query(None, description="Start date (YYYY-MM-DD)"),
+    to_date: str | None = Query(None, description="End date (YYYY-MM-DD)"),
     limit: int = Query(100, ge=1, le=1000, description="Max orders"),
-    repo = Depends(get_order_repository),
+    repo=Depends(get_order_repository),
 ):
     """Get order history from OMS."""
     # Parse optional status filter
@@ -43,7 +43,9 @@ async def get_orders(
         try:
             status = OrderStatus(status_filter.upper())
         except ValueError:
-            raise HTTPException(status_code=400, detail=f"Invalid status: {status_filter}")
+            raise HTTPException(
+                status_code=400, detail=f"Invalid status: {status_filter}"
+            ) from None
 
     orders = repo.get_orders(status=status)
 
@@ -81,10 +83,10 @@ async def get_orders(
 
 @router.get("/trades", response_model=TradesResponse)
 async def get_trades(
-    from_date: Optional[str] = Query(None, description="Start date (YYYY-MM-DD)"),
-    to_date: Optional[str] = Query(None, description="End date (YYYY-MM-DD)"),
+    from_date: str | None = Query(None, description="Start date (YYYY-MM-DD)"),
+    to_date: str | None = Query(None, description="End date (YYYY-MM-DD)"),
     limit: int = Query(100, ge=1, le=1000, description="Max trades"),
-    repo = Depends(get_order_repository),
+    repo=Depends(get_order_repository),
 ):
     """Get trade/executed order history.
 
@@ -94,7 +96,7 @@ async def get_trades(
     try:
         # Get all orders and filter for filled/completed ones
         orders = repo.get_orders(status=OrderStatus.FILLED)
-        
+
         # Apply date filters if provided
         if from_date:
             from_dt = datetime.fromisoformat(from_date)
@@ -102,25 +104,27 @@ async def get_trades(
         if to_date:
             to_dt = datetime.fromisoformat(to_date)
             orders = [o for o in orders if o.timestamp and o.timestamp <= to_dt]
-        
+
         # Limit results
         orders = orders[:limit]
-        
+
         # Convert filled orders to trades
         trades = []
         for order in orders:
             if order.filled_quantity > 0:
-                trades.append(Trade(
-                    trade_id=f"trade-{order.order_id}",
-                    order_id=order.order_id,
-                    symbol=order.symbol,
-                    exchange=order.exchange,
-                    transaction_type=order.side.value,
-                    quantity=order.filled_quantity,
-                    price=float(order.average_price) if order.average_price else 0.0,
-                    timestamp=order.timestamp or datetime.now(),
-                ))
-        
+                trades.append(
+                    Trade(
+                        trade_id=f"trade-{order.order_id}",
+                        order_id=order.order_id,
+                        symbol=order.symbol,
+                        exchange=order.exchange,
+                        transaction_type=order.side.value,
+                        quantity=order.filled_quantity,
+                        price=float(order.average_price) if order.average_price else 0.0,
+                        timestamp=order.timestamp or datetime.now(),
+                    )
+                )
+
         return TradesResponse(
             trades=trades,
             count=len(trades),
@@ -131,15 +135,15 @@ async def get_trades(
         logger.error("Trades fetch failed: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Trades fetch failed: {str(exc)}",
-        )
+            detail=f"Trades fetch failed: {exc!s}",
+        ) from exc
 
 
 @router.get("/tradebook", response_model=dict)
 async def get_tradebook(
-    from_date: Optional[str] = Query(None, description="Start date"),
-    to_date: Optional[str] = Query(None, description="End date"),
-    repo = Depends(get_order_repository),
+    from_date: str | None = Query(None, description="Start date"),
+    to_date: str | None = Query(None, description="End date"),
+    repo=Depends(get_order_repository),
 ):
     """Get complete tradebook with P&L analysis.
 
@@ -149,7 +153,7 @@ async def get_tradebook(
     try:
         # Get all completed orders
         orders = repo.get_orders(status=OrderStatus.FILLED)
-        
+
         # Apply date filters
         if from_date:
             from_dt = datetime.fromisoformat(from_date)
@@ -157,16 +161,16 @@ async def get_tradebook(
         if to_date:
             to_dt = datetime.fromisoformat(to_date)
             orders = [o for o in orders if o.timestamp and o.timestamp <= to_dt]
-        
+
         # Calculate tradebook metrics
         total_trades = len(orders)
         filled_orders = [o for o in orders if o.filled_quantity > 0]
-        
+
         # Calculate P&L (simplified - in production would use position manager)
         total_pnl = 0.0
         winning_trades = 0
         losing_trades = 0
-        
+
         for order in filled_orders:
             if order.average_price and order.filled_quantity:
                 # Simplified P&L calculation
@@ -176,9 +180,9 @@ async def get_tradebook(
                     winning_trades += 1
                 elif pnl < 0:
                     losing_trades += 1
-        
+
         win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0.0
-        
+
         return {
             "trades": [
                 {
@@ -208,14 +212,14 @@ async def get_tradebook(
         logger.error("Tradebook fetch failed: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Tradebook fetch failed: {str(exc)}",
-        )
+            detail=f"Tradebook fetch failed: {exc!s}",
+        ) from exc
 
 
 @router.get("/{order_id}", response_model=OrderResponse)
 async def get_order(
     order_id: str,
-    repo = Depends(get_order_repository),
+    repo=Depends(get_order_repository),
 ):
     """Get specific order details from OMS."""
     order = repo.get_order(order_id)
@@ -242,48 +246,31 @@ async def get_order(
 @router.post("", response_model=OrderResponse)
 async def place_order(
     req: OrderRequest,
-    repo = Depends(get_order_repository),
+    composer=Depends(get_execution_composer),
 ):
-    """Place a new order through the OMS.
+    """Place a new order through the multi-broker ExecutionComposer.
 
     Supports market, limit, SL, SL-M order types.
     Returns order ID for tracking.
-    
-    Graceful degradation:
-    - Returns 503 if broker service is unavailable
-    - Includes Retry-After header for client backoff
-    - Orders are NEVER accepted without broker connectivity
+
+    Multi-broker features:
+    - Automatic broker routing via BrokerRouter
+    - Quota management to prevent rate limit violations
+    - Full provenance tracking for audit compliance
+    - Returns 503 if composer not initialized
     """
-    # Check broker availability before accepting order
-    broker_service = get_broker_service()
-    if broker_service is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Broker service not configured. Cannot place orders.",
-            headers={"Retry-After": "30"},
-        )
-    
-    # Check if broker is connected
-    if hasattr(broker_service, "is_connected") and not broker_service.is_connected():
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Broker disconnected. Order placement unavailable.",
-            headers={
-                "Retry-After": "30",
-                "X-Service-Degraded": "broker-disconnected",
-            },
-        )
-    
-    # Convert HTTP request to OMS command
+    # Convert HTTP request to domain request
     try:
         side = Side(req.transaction_type.upper())
         order_type = OrderType(req.order_type.upper())
-        product_type = ProductType(req.product_type.upper()) if req.product_type else ProductType.INTRADAY
+        product_type = (
+            ProductType(req.product_type.upper()) if req.product_type else ProductType.INTRADAY
+        )
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid order parameter: {exc}",
-        )
+        ) from exc
 
     domain_req = DomainOrderRequest(
         symbol=req.symbol,
@@ -296,24 +283,13 @@ async def place_order(
         correlation_id=req.correlation_id or f"http-{uuid.uuid4().hex}",
     )
 
-    # Call OMS with broker submission function
-    execution_svc = getattr(broker_service, "execution_service", None)
-    if execution_svc is not None:
-        result = execution_svc.place_order(request_to_command(domain_req))
-    else:
-        submit_fn = getattr(broker_service, "submit_order", None)
-        if submit_fn is None:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Broker order submission unavailable.",
-                headers={"Retry-After": "60"},
-            )
-        result = repo.place_command(request_to_command(domain_req), submit_fn=submit_fn)
+    # Execute via composer (handles routing, quota, provenance)
+    result = await composer.place_order(domain_req)
 
     if not result.success:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=result.error or "Order rejected by risk manager",
+            detail=result.error or "Order rejected by broker",
         )
 
     order = result.order
@@ -336,22 +312,25 @@ async def place_order(
 async def modify_order(
     order_id: str,
     req: OrderRequest,
-    repo = Depends(get_order_repository),
+    composer=Depends(get_execution_composer),
+    repo=Depends(get_order_repository),
 ):
-    """Modify an existing order.
+    """Modify an existing order via ExecutionComposer.
 
     Updates price, quantity, or order type for pending orders.
-    Uses real broker connectivity for order modification.
+    Uses multi-broker routing and quota management.
     """
     try:
         side = Side(req.transaction_type.upper())
         order_type = OrderType(req.order_type.upper())
-        product_type = ProductType(req.product_type.upper()) if req.product_type else ProductType.INTRADAY
+        product_type = (
+            ProductType(req.product_type.upper()) if req.product_type else ProductType.INTRADAY
+        )
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid order parameter: {exc}",
-        )
+        ) from exc
 
     existing = repo.get_order(order_id)
     if existing is None:
@@ -364,36 +343,12 @@ async def modify_order(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Cannot modify order in terminal state: {existing.status.value}",
         )
-    
-    # Check broker availability for modify
-    broker_service = get_broker_service()
-    if broker_service is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Broker service not configured. Cannot modify orders.",
-            headers={"Retry-After": "30"},
-        )
-    
-    # Get broker cancel and submit functions
-    cancel_fn = getattr(broker_service, "cancel_order", None)
-    submit_fn = getattr(broker_service, "submit_order", None)
-    
-    if cancel_fn is None or submit_fn is None:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Broker order modification unavailable.",
-            headers={"Retry-After": "60"},
-        )
 
-    # Cancel existing, place new (as a pending-modify pattern)
-    cancel_result = repo.cancel_with_fn(order_id, cancel_fn=cancel_fn)
-    if not cancel_result.success:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=cancel_result.error or "Modify: cancel failed",
-        )
+    # Build modify request
+    from domain.requests import ModifyOrderRequest
 
-    modify_req = DomainOrderRequest(
+    modify_req = ModifyOrderRequest(
+        order_id=order_id,
         symbol=req.symbol or existing.symbol,
         exchange=req.exchange or existing.exchange,
         transaction_type=side,
@@ -404,11 +359,13 @@ async def modify_order(
         correlation_id=f"http-modify-{datetime.now().isoformat()}",
     )
 
-    result = repo.place_command(request_to_command(modify_req), submit_fn=submit_fn)
+    # Execute via composer
+    result = await composer.modify_order(modify_req)
+
     if not result.success:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=result.error or "Modify: replace failed",
+            detail=result.error or "Order modification rejected",
         )
 
     order = result.order
@@ -430,21 +387,17 @@ async def modify_order(
 @router.delete("/{order_id}", response_model=OrderResponse)
 async def cancel_order(
     order_id: str,
-    repo = Depends(get_order_repository),
+    composer=Depends(get_execution_composer),
+    repo=Depends(get_order_repository),
 ):
-    """Cancel a pending order.
+    """Cancel a pending order via ExecutionComposer.
 
     Only works for orders in PENDING or TRIGGER_PENDING status.
-    Uses real broker connectivity for order cancellation.
+    Uses multi-broker routing and quota management.
     """
-    # Check broker availability
-    broker_service = get_broker_service()
-    if broker_service is not None:
-        cancel_fn = getattr(broker_service, "cancel_order", None)
-    else:
-        cancel_fn = None
-    
-    result = repo.cancel_with_fn(order_id, cancel_fn=cancel_fn)
+    # Execute via composer
+    result = await composer.cancel_order(order_id)
+
     if not result.success:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

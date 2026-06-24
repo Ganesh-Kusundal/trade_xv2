@@ -13,38 +13,38 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from api.main import create_app
 from api.config import APIConfig
 from api.deps import reset_container
+from api.main import create_app
 from domain import Balance, Quote
 
 
 class MockDuckDBConnection:
     """DuckDB connection mock that returns empty results for any query."""
-    
+
     def execute(self, query: str, params: list | None = None):
         return self
-    
+
     def fetchone(self):
         return None
-    
+
     def fetchall(self):
         return []
-    
+
     def description(self):
         return []
 
 
 class MockDataCatalog:
     """Mock DataCatalog that returns empty results gracefully."""
-    
+
     def __init__(self):
         self._conn = MockDuckDBConnection()
-    
+
     @property
     def conn(self):
         return self._conn
-    
+
     def close(self):
         pass
 
@@ -59,7 +59,7 @@ def app():
         max_page_size=1000,
         default_page_size=100,
     )
-    
+
     # Register mock services so endpoints return gracefully
     # instead of crashing with 'NoneType has no attribute'
     mock_catalog = MockDataCatalog()
@@ -70,15 +70,14 @@ def app():
     class _StubViewManager:
         """Minimal stub so readiness check sees a non-None view_manager."""
 
-    class _StubEventBus:
-        """Minimal stub so readiness check sees a non-None event_bus."""
-
+    # Don't pass event_bus - tests don't need OMS initialization
+    # This avoids triggering full TradingContext creation
     return create_app(
         config=config,
         data_catalog=mock_catalog,
         datalake_gateway=_StubGateway(),
         view_manager=_StubViewManager(),
-        event_bus=_StubEventBus(),
+        # event_bus removed - prevents unnecessary TradingContext initialization
     )
 
 
@@ -110,6 +109,7 @@ def test_timeframe():
 def test_date_range():
     """Test date range (last 7 days in milliseconds)."""
     import time
+
     now_ms = int(time.time() * 1000)
     seven_days_ms = 7 * 24 * 60 * 60 * 1000
     return {

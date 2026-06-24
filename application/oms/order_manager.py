@@ -26,8 +26,12 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
+from application.oms._internal.order_audit_logger import OrderAuditLogger
+from application.oms._internal.order_position_updater import OrderPositionUpdater
+from application.oms._internal.order_state_validator import OrderStateValidator
+from application.oms._internal.risk_manager import RiskManager
+from brokers.common.oms._internal.reentrancy_guard import _ReentrancyGuard
 from domain.entities import Order, OrderStatus, OrderType, ProductType, Side, Trade
-from infrastructure.state_machine import IllegalTransitionError
 from domain.types import ORDER_STATUS_TRANSITIONS
 from infrastructure.event_bus import (
     DomainEvent,
@@ -36,13 +40,9 @@ from infrastructure.event_bus import (
     ProcessedTradeRepository,
     TradeIdKey,
 )
-from application.oms._internal.order_audit_logger import OrderAuditLogger
-from application.oms._internal.order_position_updater import OrderPositionUpdater
-from application.oms._internal.order_state_validator import OrderStateValidator
-from application.oms._internal.risk_manager import RiskManager
 
 if TYPE_CHECKING:
-    from application.oms.persistence.sqlite_order_store import SqliteOrderStore
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -71,10 +71,9 @@ class OmsOrderCommand:
         object.__setattr__(self, "price", Decimal(str(self.price)))
         if not self.correlation_id:
             import os
+
             if os.getenv("PYTEST_CURRENT_TEST"):
-                object.__setattr__(
-                    self, "correlation_id", f"test:{uuid.uuid4().hex[:12]}"
-                )
+                object.__setattr__(self, "correlation_id", f"test:{uuid.uuid4().hex[:12]}")
             else:
                 raise ValueError(
                     "correlation_id is required for OMS idempotency. "
@@ -137,6 +136,7 @@ class OrderManager:
         state_validator: OrderStateValidator | None = None,
         audit_logger: OrderAuditLogger | None = None,
         position_updater: OrderPositionUpdater | None = None,
+        order_store: Any | None = None,
     ) -> None:
         self._lock = threading.RLock()
         self._orders: dict[str, Order] = {}
@@ -156,7 +156,7 @@ class OrderManager:
         # recurse forever. Set true at the entry of every event handler
         # and reset on the way out.
         self._handler_depth: int = 0
-        
+
         # P4-3: Extracted collaborators
         self._state_validator = state_validator or OrderStateValidator(
             transitions=ORDER_STATUS_TRANSITIONS,
@@ -164,6 +164,7 @@ class OrderManager:
         )
         self._audit_logger = audit_logger or OrderAuditLogger()
         self._position_updater = position_updater or OrderPositionUpdater()
+        self._order_store = order_store
 
     @property
     def risk_manager(self) -> RiskManager | None:
@@ -238,7 +239,8 @@ class OrderManager:
                             )
                         )
                     self._publish(
-                        EventType.ORDER_REJECTED.value, order,
+                        EventType.ORDER_REJECTED.value,
+                        order,
                         reason=risk_result.reason,
                     )
                     with self._lock:
@@ -262,7 +264,8 @@ class OrderManager:
                     order = submit_fn(request)
                 except Exception as exc:
                     self._publish(
-                        EventType.ORDER_REJECTED.value, order,
+                        EventType.ORDER_REJECTED.value,
+                        order,
                         reason=str(exc),
                     )
                     with self._lock:
@@ -295,7 +298,7 @@ class OrderManager:
 
     def upsert_order(self, order: Order) -> None:
         """Update or insert an order (used by broker event handlers).
-        
+
         P4-3: Delegates state validation to OrderStateValidator.
         """
         with self._lock:
@@ -307,11 +310,11 @@ class OrderManager:
                     existing.status,
                     order.status,
                 )
-            
+
             self._orders[order.order_id] = order
             if order.correlation_id:
                 self._orders_by_correlation[order.correlation_id] = order
-            
+
             # P4-3: Log state change if order existed
             if existing is not None and existing.status != order.status:
                 self._audit_logger.log_state_change(
@@ -319,7 +322,7 @@ class OrderManager:
                     existing.status,
                     order.status,
                 )
-            
+
             self._publish(EventType.ORDER_UPDATED.value, order)
 
     def record_trade(self, trade: Trade) -> bool:
@@ -341,9 +344,7 @@ class OrderManager:
             referenced an unknown order.
         """
         if trade.trade_id is None or not str(trade.trade_id).strip():
-            raise ValueError(
-                "OrderManager.record_trade requires a non-empty trade.trade_id"
-            )
+            raise ValueError("OrderManager.record_trade requires a non-empty trade.trade_id")
         key = TradeIdKey.from_trade(trade)
         with self._lock:
             if self._processed_trades.is_processed(key):
@@ -371,15 +372,15 @@ class OrderManager:
 
             # P4-3: Delegate to position updater
             updated = self._position_updater.apply_trade(order, trade)
-            
+
             self._orders[order.order_id] = updated
             if order.correlation_id:
                 self._orders_by_correlation[order.correlation_id] = updated
-            
+
             self._trades_processed += 1
             if self._metrics is not None:
                 self._metrics.inc(EventType.TRADE.value, "trade_processed")
-            
+
             # P4-3: Log audit trail
             self._audit_logger.log_trade_applied(
                 order.order_id,
@@ -391,7 +392,7 @@ class OrderManager:
                     "status": updated.status.value,
                 },
             )
-            
+
             self._publish(EventType.ORDER_UPDATED.value, updated)
             self._publish_trade_applied(trade)
             return True
@@ -441,14 +442,20 @@ class OrderManager:
                     "symbol": o.symbol,
                     "exchange": o.exchange,
                     "side": o.side.value if hasattr(o.side, "value") else str(o.side),
-                    "order_type": o.order_type.value if hasattr(o.order_type, "value") else str(o.order_type),
+                    "order_type": o.order_type.value
+                    if hasattr(o.order_type, "value")
+                    else str(o.order_type),
                     "quantity": o.quantity,
                     "filled_quantity": o.filled_quantity,
                     "price": str(o.price),
                     "avg_price": str(o.avg_price),
-                    "product_type": o.product_type.value if hasattr(o.product_type, "value") else str(o.product_type),
+                    "product_type": o.product_type.value
+                    if hasattr(o.product_type, "value")
+                    else str(o.product_type),
                     "status": o.status.value if hasattr(o.status, "value") else str(o.status),
-                    "timestamp": o.timestamp.isoformat() if hasattr(o.timestamp, "isoformat") else str(o.timestamp),
+                    "timestamp": o.timestamp.isoformat()
+                    if hasattr(o.timestamp, "isoformat")
+                    else str(o.timestamp),
                 }
                 for o in self._orders.values()
             ]
@@ -483,7 +490,7 @@ class OrderManager:
             self._orders[order_id] = updated
             if order.correlation_id:
                 self._orders_by_correlation[order.correlation_id] = updated
-            
+
             # P4-3: Log audit trail
             self._audit_logger.log_state_change(
                 order_id,
@@ -491,7 +498,7 @@ class OrderManager:
                 OrderStatus.CANCELLED,
                 details={"reason": "User requested"},
             )
-            
+
             self._publish(EventType.ORDER_CANCELLED.value, updated)
             return OrderResult(success=True, order=updated)
 
@@ -543,8 +550,11 @@ class OrderManager:
     # ── Helpers ─────────────────────────────────────────────────────────────
 
     def _publish(
-        self, event_type: str, obj: Order | Trade,
-        *, reason: str | None = None,
+        self,
+        event_type: str,
+        obj: Order | Trade,
+        *,
+        reason: str | None = None,
     ) -> None:
         if self._event_bus is None:
             return
@@ -555,7 +565,8 @@ class OrderManager:
             payload["reason"] = reason
         self._event_bus.publish(
             DomainEvent.now(
-                event_type, payload,
+                event_type,
+                payload,
                 symbol=symbol,
                 source="OrderManager",
                 correlation_id=correlation_id,
