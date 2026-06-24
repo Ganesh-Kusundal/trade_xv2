@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/upstox/auth/config.py
+# hypothesis_version: 6.155.7
+
+[10.0, 18080, '#', '.', '.env.upstox', '/', '=', 'ACCESS_TOKEN', 'ALGO_NAME', 'ALLOW_LIVE_ORDERS', 'ANALYTICS_ONLY', 'ANALYTICS_TOKEN', 'AUTH_MODE', 'CLIENT_ID', 'CLIENT_SECRET', 'ENVIRONMENT', 'EXTENDED', 'EXTENDED_TOKEN', 'INSTRUMENT_CACHE', 'INTERACTIVE', 'LIVE', 'MOBILE', 'OAUTH', 'PIN', 'REDIRECT_PORT', 'REDIRECT_URI', 'REFRESH_TOKEN', 'REST_BASE_URL', 'SANDBOX', 'SANDBOX_ACCESS_TOKEN', 'SANDBOX_CLIENT_ID', 'SLICE_DEFAULT', 'STATIC', 'STATIC_IP', 'TOKEN_STATE_FILE', 'TOTP', 'TOTP_REFRESH_HOUR', 'TOTP_REFRESH_MINUTE', 'TOTP_SECRET', 'UPSTOX', 'WEBHOOK', 'WS_PLUS_PLAN', '_', 'access_token', 'client.clientId', 'client_id', 'client_secret', 'upstox', 'upstox.environment']

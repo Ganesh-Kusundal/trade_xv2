@@ -19,39 +19,11 @@ Never import broker-specific types from ``brokers`` top-level. This
 prevents shotgun surgery when adding new brokers.
 """
 
-from domain import (
-    Holding,
-    Order,
-    OrderResponse,
-    OrderStatus,
-    OrderType,
-    Position,
-    ProductType,
-    Side,
-    Trade,
-    Validity,
-)
-
 # Canonical interfaces (not broker-specific)
 from brokers.common.gateway import MarketDataGateway
 from brokers.common.factory import BrokerProviderFactory
 
-# Backward-compatibility alias — some code uses OrderSide instead of Side.
-OrderSide = Side
-
 __all__ = [
-    # Broker-agnostic domain types
-    "Holding",
-    "Order",
-    "OrderResponse",
-    "OrderStatus",
-    "OrderType",
-    "OrderSide",  # Backward-compat alias for Side
-    "Position",
-    "ProductType",
-    "Side",
-    "Trade",
-    "Validity",
     # Abstract interfaces
     "MarketDataGateway",
     "BrokerProviderFactory",

@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/dhan/domain.py
+# hypothesis_version: 6.155.7
+
+['0.05', 'BFO', 'BSE', 'CALL', 'CDS', 'COMMODITY', 'DAY', 'EQUITY', 'FUTURE', 'Holding', 'INDEX', 'MCX', 'NFO', 'NSE', 'ONCE', 'OPTION', 'Order', 'OrderSide', 'OrderStatus', 'OrderType', 'PUT', 'Position', 'ProductType', 'Side', 'Trade', 'Validity']

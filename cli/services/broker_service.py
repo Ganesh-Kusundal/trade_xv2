@@ -9,6 +9,7 @@ from typing import Any, cast
 
 from brokers.common.connection_pool import get_connection_pool
 from brokers.common.gateway import MarketDataGateway
+from brokers.common.infrastructure import BrokerInfrastructure
 from infrastructure.lifecycle import LifecycleManager
 from application.oms.capital_provider import CapitalProvider, GatewayCapitalProvider
 from application.oms.context import TradingContext
@@ -19,6 +20,8 @@ from application.execution.execution_service import ExecutionService
 from application.oms.order_manager import OmsOrderCommand, OrderResult
 from application.oms.oms_gateway_proxy import OMSGatewayProxy
 from cli.services.broker_registry import bootstrap_gateway, create_gateway, resolve_env_path
+from brokers.common.bootstrap import bootstrap_from_gateways, policy_from_env
+from brokers.common.async_compat import run_async_compat
 from brokers.common.connection.errors import BrokerNotReadyError
 from cli.services.capital_provider import TrackedCapitalProvider
 from cli.services.observability_setup import start_http_observability
@@ -101,6 +104,7 @@ class BrokerService:
         self._live_intent = False  # set True when .env.local exists at init
         self._dhan_bootstrap: Any = None
         self._upstox_bootstrap: Any = None
+        self._broker_infra: BrokerInfrastructure | None = None
 
     @property
     def lifecycle(self) -> LifecycleManager:
@@ -141,6 +145,9 @@ class BrokerService:
 
         # Initialise Upstox gateway (best-effort, non-blocking).
         self._ensure_upstox_initialized()
+
+        # Build federated broker infrastructure from available gateways.
+        self._ensure_broker_infrastructure()
 
     def _ensure_dhan_initialized(self) -> None:
         """Create and wire the Dhan gateway.
@@ -282,6 +289,42 @@ class BrokerService:
             except Exception as exc:
                 self._upstox_load_error = str(exc)
                 logger.warning("Failed to create Upstox gateway: %s", exc)
+
+    def _ensure_broker_infrastructure(self) -> None:
+        """Bootstrap BrokerInfrastructure from live legacy gateways."""
+        if self._broker_infra is not None:
+            return
+        gateways: list[tuple[str, MarketDataGateway]] = []
+        if self._gateway is not None:
+            gateways.append(("dhan", self._gateway))
+        if self._upstox_gateway is not None:
+            gateways.append(("upstox", self._upstox_gateway))
+        if self._paper is not None:
+            gateways.append(("paper", self._paper))
+        if not gateways:
+            return
+        try:
+            exec_broker = "dhan" if self._gateway is not None else gateways[0][0]
+            policy = policy_from_env(execution_account=exec_broker)
+            self._broker_infra = run_async_compat(
+                bootstrap_from_gateways(gateways, policy=policy),
+                fire_and_forget=False,
+            )
+            logger.info(
+                "BrokerInfrastructure ready with brokers: %s",
+                [bid for bid, _ in gateways],
+            )
+        except Exception as exc:
+            logger.warning("BrokerInfrastructure bootstrap failed: %s", exc)
+            self._broker_infra = None
+
+    @property
+    def broker_infrastructure(self) -> BrokerInfrastructure | None:
+        """Federated routing, quota, historical, and stream infrastructure."""
+        self._ensure_initialized()
+        if self._broker_infra is None:
+            self._ensure_broker_infrastructure()
+        return self._broker_infra
 
     def _start_websocket_services(self) -> None:
         """B-4: WebSocket services are wired by the broker factory.
@@ -438,6 +481,7 @@ class BrokerService:
                     raise ValueError("Paper gateway not available.")
                 self._paper = paper_gw
             self._active_name = "paper"
+            self._ensure_broker_infrastructure()
         elif name_lower == "dhan":
             if self._gateway is None:
                 raise ValueError("Dhan broker not available. Check .env.local credentials.")
@@ -510,6 +554,16 @@ class BrokerService:
         process exit to reap leaked daemon threads; this version makes
         shutdown deterministic.
         """
+        # Drain federated broker infrastructure (stream orchestrator).
+        if self._broker_infra is not None:
+            try:
+                run_async_compat(
+                    self._broker_infra.streams.stop(),
+                    fire_and_forget=False,
+                )
+            except Exception as exc:
+                logger.debug("broker_infra_stop_failed: %s", exc)
+            self._broker_infra = None
         # 1. Drain every ManagedService via the LifecycleManager.
         try:
             self._lifecycle.stop_all()

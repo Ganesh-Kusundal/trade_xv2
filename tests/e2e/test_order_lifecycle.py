@@ -26,7 +26,7 @@ from domain import (
 )
 from infrastructure.event_bus import DomainEvent, EventBus
 from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
-from brokers.common.event_log import EventLog
+from infrastructure.event_log import EventLog
 from brokers.common.observability.event_metrics import EventMetrics
 from application.oms import (
     PositionManager,

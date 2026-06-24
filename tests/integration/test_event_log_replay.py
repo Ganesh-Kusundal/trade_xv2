@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from infrastructure.event_bus import DomainEvent, EventType
-from brokers.common.event_log import EventLog
+from infrastructure.event_log import EventLog
 
 
 def _event(event_type: str, ts: datetime) -> DomainEvent:

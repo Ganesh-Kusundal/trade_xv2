@@ -278,10 +278,27 @@ def test_daily_loss_check_blocks_after_reset_clears_the_block(
     Capital is set high enough that the per-position percentage check
     (20% of capital) does not fire before the daily-loss check (5% of
     capital) — otherwise the test would exercise the wrong code path.
+    
+    B1: Loss CB threshold is set high (10%) so it doesn't interfere with
+    this test which is specifically testing the daily-loss check.
     """
+    from application.oms._internal.loss_circuit_breaker import LossCircuitBreakerConfig
+    
     order = _make_order(price=Decimal("50"))  # notional = 10 * 50 = 500
     capital_fn.return_value = Decimal("100000")  # 500/100000*100 = 0.5% < 20%
-    rm = RiskManager(position_manager, RiskConfig(), capital_fn=capital_fn)
+    
+    # Set loss CB threshold high so it doesn't trip before daily loss check
+    loss_cb_config = LossCircuitBreakerConfig(
+        loss_threshold_pct=Decimal("10.0"),
+        cooldown_seconds=5,
+        window_seconds=86400,
+    )
+    rm = RiskManager(
+        position_manager, 
+        RiskConfig(), 
+        capital_fn=capital_fn,
+        loss_cb_config=loss_cb_config,
+    )
 
     # -5% of 100000 = -5000
     rm.update_daily_pnl(Decimal("-5000"))

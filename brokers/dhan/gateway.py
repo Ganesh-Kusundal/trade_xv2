@@ -94,7 +94,7 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         """Place an order with explicit parameters matching MarketDataGateway ABC.
 
         If *correlation_id* is not provided, the current thread's active
-        correlation ID (set via :func:`brokers.common.correlation.with_correlation`)
+        correlation ID (set via :func:`infrastructure.correlation.with_correlation`)
         is used.  This enables automatic end-to-end tracing from CLI
         commands through to the broker API.
 
@@ -115,7 +115,7 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         """
         if correlation_id is None:
             try:
-                from brokers.common.correlation import get_current_correlation_id
+                from infrastructure.correlation import get_current_correlation_id
                 correlation_id = get_current_correlation_id()
             except ImportError:
                 pass

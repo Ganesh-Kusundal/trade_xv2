@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/application/oms/oms_gateway_proxy.py
+# hypothesis_version: 6.155.7
+
+['0', 'ALLOWED', 'ALLOWED_AUDIT_ONLY', 'BLOCKED', 'BUY', 'DAY', 'INTRADAY', 'Kill switch active', 'MARKET', 'N/A', 'NSE', 'audit_logger_failed', 'blocked_count', 'cancel_order', 'gateway', 'kill_switch_active', 'modify_order', 'operation', 'operation_count', 'outcome', 'place_order', 'real_gateway', 'reason', 'strict_mode', 'symbol', 'timestamp', 'unknown']

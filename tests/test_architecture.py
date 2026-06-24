@@ -201,7 +201,6 @@ class TestImportDirection:
         """
         INTERNAL_PATTERNS = [
             "brokers.common.event_bus.event_bus",
-            "brokers.common.event_bus.async_event_bus",
             "brokers.common.event_bus.dead_letter_queue",
             "brokers.common.event_bus.factory",
             "brokers.common.event_bus.models",

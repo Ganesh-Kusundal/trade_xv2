@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/cli/services/oms_setup.py
+# hypothesis_version: 6.155.7
+
+[300.0, '_conn', 'runtime/event-log']

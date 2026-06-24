@@ -9,7 +9,6 @@ from typing import Any
 
 from domain.constants import RECONCILIATION_INTERVAL_SECONDS
 from infrastructure.event_bus import EventBus, ProcessedTradeRepository
-from infrastructure.event_bus.async_event_bus import AsyncEventBus
 from infrastructure.event_log import EventLog
 from application.oms.context import TradingContext
 from application.oms.order_manager import OrderManager
@@ -25,7 +24,7 @@ def create_trading_context(
     reconciliation_interval_seconds: float = RECONCILIATION_INTERVAL_SECONDS,
     risk_config: RiskConfig | None = None,
     capital_fn: Callable[[], Decimal] | None = None,
-    event_bus: EventBus | AsyncEventBus | None = None,
+    event_bus: EventBus | None = None,
     order_manager: OrderManager | None = None,
     position_manager: PositionManager | None = None,
     risk_manager: RiskManager | None = None,
@@ -54,8 +53,7 @@ def create_trading_context(
     """
     ctx = TradingContext(
         event_log=event_log,
-        event_bus=event_bus if isinstance(event_bus, EventBus) and not isinstance(event_bus, AsyncEventBus) else None,
-        async_bus=event_bus if isinstance(event_bus, AsyncEventBus) else None,
+        event_bus=event_bus,
         order_manager=order_manager,
         position_manager=position_manager,
         risk_manager=risk_manager,

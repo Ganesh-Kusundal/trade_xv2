@@ -15,7 +15,7 @@ from unittest.mock import patch
 import pytest
 
 from infrastructure.event_bus import DomainEvent, EventBus
-from brokers.common.event_log import EventLog
+from infrastructure.event_log import EventLog
 
 
 @pytest.fixture

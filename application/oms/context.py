@@ -17,12 +17,6 @@ from infrastructure.event_bus import (
     EventType,
     ProcessedTradeRepository,
 )
-from infrastructure.event_bus.async_event_bus import AsyncEventBus
-from infrastructure.event_bus.factory import (
-    AsyncEventBusFactory,
-    AsyncPublishAdapter,
-    async_publish_wrapper,
-)
 from infrastructure.event_bus.persistent_dead_letter_queue import (
     create_default_dead_letter_queue,
 )
@@ -97,7 +91,6 @@ class TradingContext:
         metrics: EventMetrics | None = None,
         dead_letter_queue: DeadLetterQueue | None = None,
         orchestrator: Any | None = None,  # P1-Phase 1: Optional TradingOrchestrator
-        async_bus: AsyncEventBus | None = None,  # AsyncEventBus integration
         durable_order_store: SqliteOrderStore | None = None,
         enable_durable_orders: bool | None = None,
     ) -> None:
@@ -116,24 +109,6 @@ class TradingContext:
             )
         else:
             self._event_bus = event_bus
-
-        # AsyncEventBus integration (Phase 1: opt-in via async_bus parameter)
-        # Migration Guide:
-        #   Phase 1: Pass async_bus explicitly for async event processing
-        #   Phase 2: Factory creates async bus based on USE_ASYNC_EVENT_BUS env var
-        #   Phase 3: Async becomes default, sync available via force_sync=True
-        self._async_bus = async_bus
-        self._is_async_bus = async_bus is not None
-        
-        # Create async publish wrapper if async bus is available
-        # This provides a uniform async publish() API for gradual migration
-        if self._is_async_bus:
-            self._async_publisher = async_publish_wrapper(
-                self._async_bus, is_async=True
-            )
-            logger.info("TradingContext: AsyncEventBus enabled")
-        else:
-            self._async_publisher = None
 
         self._processed_trades = (
             processed_trade_repository or ProcessedTradeRepository()
@@ -278,33 +253,6 @@ class TradingContext:
         """Access the TradingOrchestrator if configured."""
         return self._orchestrator
 
-    @property
-    def async_bus(self) -> AsyncEventBus | None:
-        """Access the AsyncEventBus if configured.
-        
-        Returns None if sync EventBus is being used.
-        Check is_async_bus before using this property.
-        """
-        return self._async_bus
-
-    @property
-    def is_async_bus(self) -> bool:
-        """True if AsyncEventBus is configured, False if using sync EventBus."""
-        return self._is_async_bus
-
-    @property
-    def async_publisher(self) -> AsyncPublishAdapter | None:
-        """Access the async publish adapter if async bus is configured.
-        
-        This provides a uniform async publish() API that works with both
-        sync and async buses. Returns None if only sync bus is available.
-        
-        Usage:
-            if ctx.async_publisher:
-                await ctx.async_publisher.publish("ORDER_PLACED", payload)
-        """
-        return self._async_publisher
-
     def health(self) -> dict[str, Any]:
         """Snapshot of observability state for the SRE / alerting layer."""
         order_store = getattr(self._order_manager, "_order_store", None)
@@ -348,71 +296,6 @@ class TradingContext:
         if self._reconciliation_service is None:
             return
         self._reconciliation_service.stop()
-
-    async def start_async_bus(self) -> None:
-        """Start the AsyncEventBus dispatch worker.
-        
-        This must be called before publishing events to the async bus.
-        Typically called during application startup after all handlers
-        are subscribed.
-        
-        No-op if async bus is not configured.
-        
-        Usage:
-            ctx = TradingContext(async_bus=async_bus)
-            # ... subscribe handlers ...
-            await ctx.start_async_bus()
-        """
-        if self._async_bus is not None:
-            await self._async_bus.start()
-            logger.info("TradingContext: AsyncEventBus started")
-
-    async def stop_async_bus(self, timeout_seconds: float = 10.0) -> None:
-        """Stop the AsyncEventBus dispatch worker.
-        
-        Waits for pending events to be processed before returning.
-        Call this during graceful shutdown.
-        
-        No-op if async bus is not configured.
-        
-        Parameters
-        ----------
-        timeout_seconds:
-            Maximum time to wait for worker to stop (default 10s).
-        """
-        if self._async_bus is not None:
-            await self._async_bus.stop()
-            logger.info("TradingContext: AsyncEventBus stopped")
-
-    async def wait_async_bus_completion(
-        self, timeout_seconds: float | None = None
-    ) -> bool:
-        """Wait for all queued async events to be processed.
-        
-        Parameters
-        ----------
-        timeout_seconds:
-            Maximum time to wait (seconds). None = wait forever.
-        
-        Returns
-        -------
-        bool:
-            True if all events processed, False if timeout.
-        """
-        if self._async_bus is not None:
-            return await self._async_bus.wait_for_completion(
-                timeout=timeout_seconds
-            )
-        return True
-
-    def get_async_bus_stats(self) -> dict | None:
-        """Get AsyncEventBus statistics.
-        
-        Returns None if async bus is not configured.
-        """
-        if self._async_bus is not None:
-            return self._async_bus.get_stats()
-        return None
 
     def _register_daily_pnl_reset(self, lifecycle: LifecycleManager) -> None:
         """Auto-wire a DailyPnlResetScheduler so daily PnL is always reset.
@@ -541,8 +424,8 @@ class TradingContext:
         replay_was_enabled = self._event_bus.replay_mode
         self._event_bus.set_replay_mode(True)
         # Prevent re-logging events while rebuilding state.
-        logging_was_enabled = getattr(self._event_bus, '_logging_enabled', True)
-        self._event_bus._logging_enabled = False
+        logging_was_enabled = self._event_bus.logging_enabled
+        self._event_bus.set_logging_enabled(False)
         try:
             for event in self._event_log.replay(event_types={EventType.ORDER_UPDATED.value, EventType.TRADE.value}):  # P1-3: Migrated to EventType enum
                 if event.event_type == EventType.ORDER_UPDATED.value:  # P1-3: Migrated to EventType enum
@@ -555,9 +438,7 @@ class TradingContext:
                     self._position_manager.on_trade_applied(event)
                 count += 1
         finally:
-            # A3: Defensive cleanup - use hasattr() to prevent crashes
-            if hasattr(self._event_bus, '_logging_enabled'):
-                self._event_bus._logging_enabled = logging_was_enabled
+            self._event_bus.set_logging_enabled(logging_was_enabled)
             self._event_bus.set_replay_mode(replay_was_enabled)
         logger.info("Replayed %d events into OMS", count)
 
@@ -646,20 +527,7 @@ class TradingContext:
                     "TradingContext: event_log flush/close failed: %s", exc
                 )
 
-        # Step 4: Stop async bus workers
-        try:
-            import asyncio
-            try:
-                loop = asyncio.get_running_loop()
-                if loop.is_running():
-                    asyncio.create_task(self.stop_async_bus())
-            except RuntimeError:
-                if self._async_bus is not None:
-                    pass
-        except Exception as exc:
-            logger.debug("TradingContext: async_bus stop failed: %s", exc)
-
-        # Step 5: Emit SYSTEM_SHUTDOWN event
+        # Step 4: Emit SYSTEM_SHUTDOWN event
         try:
             self._event_bus.publish(
                 DomainEvent.now(

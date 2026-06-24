@@ -400,7 +400,7 @@ def test_replay_mode_restored_after_exception(tmp_path) -> None:
 
     # Verify replay_mode was restored to False after exception
     assert bus.replay_mode is False, "Replay mode must be restored after exception"
-    assert bus._logging_enabled is True, "Logging must be restored after exception"
+    assert bus.logging_enabled is True, "Logging must be restored after exception"
 
 
 def test_replay_does_not_double_count_positions(tmp_path) -> None:

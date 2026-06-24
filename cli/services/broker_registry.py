@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 from brokers.common.auth.credential_resolver import CANONICAL_ENV_FILES, CredentialResolver
 from brokers.common.auth.credential_validator import CredentialValidator
@@ -289,3 +289,20 @@ def _create_paper(
     from brokers.paper import PaperGateway
 
     return PaperGateway()
+
+
+async def bootstrap_infrastructure(
+    broker_names: Sequence[str] | None = None,
+    *,
+    policy: Any | None = None,
+    **bootstrap_kwargs: Any,
+) -> Any:
+    """Bootstrap full BrokerInfrastructure from named brokers."""
+    from brokers.common.bootstrap import bootstrap_from_broker_registry, policy_from_env
+
+    names = list(broker_names) if broker_names is not None else ["dhan", "upstox", "paper"]
+    return await bootstrap_from_broker_registry(
+        names,
+        policy=policy or policy_from_env(),
+        **bootstrap_kwargs,
+    )

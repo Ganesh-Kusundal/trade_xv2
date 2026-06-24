@@ -123,7 +123,7 @@ def _build_event_log() -> Any:
         EventLog instance or None if construction fails
     """
     try:
-        from brokers.common.event_log import EventLog
+        from infrastructure.event_log import EventLog
         event_log = EventLog(events_dir=Path("runtime/event-log"))
         return event_log
     except Exception as exc:

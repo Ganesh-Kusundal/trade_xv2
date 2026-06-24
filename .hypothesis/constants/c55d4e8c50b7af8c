@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/infrastructure/event_bus/async_event_bus.py
+# hypothesis_version: 6.155.7
+
+[0.1, 1.0, 5.0, 10.0, 1000, '<event_log>', 'AsyncEventBus', 'AsyncEventBusWorker', 'BLOCK', 'BackpressurePolicy', 'DROP', 'ERROR', '__name__', 'consecutive_restarts', 'correlation_id', 'dropped_count', 'error_count', 'event_count', 'is_full', 'is_running', 'not running', 'payload', 'queue_size', 'restart_count', 'running normally', 'source', 'subscriber_count', 'symbol', 'worker_task_alive']

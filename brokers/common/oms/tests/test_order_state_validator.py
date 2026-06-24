@@ -15,7 +15,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from brokers.common.state_machine import IllegalTransitionError
+from infrastructure.state_machine import IllegalTransitionError
 from domain.types import ORDER_STATUS_TRANSITIONS, OrderStatus
 from application.oms.order_state_validator import OrderStateValidator
 
@@ -145,12 +145,11 @@ class TestInvalidTransitions:
                 "order-13", OrderStatus.EXPIRED, OrderStatus.FILLED
             )
 
-    def test_open_to_filled_skipping_partial_raises(self, validator_enforce: OrderStateValidator) -> None:
-        """OPEN → FILLED (skipping PARTIALLY_FILLED) should raise."""
-        with pytest.raises(IllegalTransitionError):
-            validator_enforce.validate_transition(
-                "order-14", OrderStatus.OPEN, OrderStatus.FILLED
-            )
+    def test_open_to_filled_is_allowed(self, validator_enforce: OrderStateValidator) -> None:
+        """OPEN → FILLED is valid per ORDER_STATUS_TRANSITIONS."""
+        validator_enforce.validate_transition(
+            "order-14", OrderStatus.OPEN, OrderStatus.FILLED
+        )
 
 
 # ── Audit Mode ─────────────────────────────────────────────────────────────

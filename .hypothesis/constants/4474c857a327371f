@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/dhan/status_mapper.py
+# hypothesis_version: 6.155.7
+
+['OPEN_PENDING', 'PARTIALLY_CANCELLED', 'PENDING', 'PLACED', 'TRANSIT', 'TRIGGERED', 'TRIGGER_PENDING', 'dhan']

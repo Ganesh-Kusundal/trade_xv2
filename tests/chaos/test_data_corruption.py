@@ -42,7 +42,7 @@ class TestCorruptedDataFrame:
         from analytics.replay.engine import ReplayEngine
         from analytics.replay.models import ReplayConfig
 
-        engine = ReplayEngine(config=ReplayConfig(window_size=20))
+        engine = ReplayEngine(config=ReplayConfig(window_size=20), oms_adapter=MagicMock())
         result = engine.run(pd.DataFrame(), symbol="TEST")
 
         assert result.bars_processed == 0, (
@@ -59,7 +59,7 @@ class TestCorruptedDataFrame:
             # Missing: open, high, low, close, volume
         })
 
-        engine = ReplayEngine(config=ReplayConfig(window_size=5))
+        engine = ReplayEngine(config=ReplayConfig(window_size=5), oms_adapter=MagicMock())
         # Should not crash — defaults to 0 for missing numeric columns
         result = engine.run(df, symbol="TEST")
         # Bars may be processed with zero values; the key is no crash
@@ -75,7 +75,7 @@ class TestCorruptedDataFrame:
             "close": [101.0],
         })
 
-        engine = ReplayEngine(config=ReplayConfig())
+        engine = ReplayEngine(config=ReplayConfig(), oms_adapter=MagicMock())
 
         with pytest.raises(ValueError, match="'timestamp' or 'date' column"):
             engine.run(df, symbol="TEST")
@@ -98,6 +98,7 @@ class TestCorruptedDataFrame:
         engine = ReplayEngine(
             pipeline=FeaturePipeline(),
             config=ReplayConfig(window_size=5, warmup_bars=0),
+            oms_adapter=MagicMock(),
         )
         # Should not crash — FeaturePipeline should handle NaN gracefully
         result = engine.run(df, symbol="TEST")
@@ -121,6 +122,7 @@ class TestCorruptedDataFrame:
         engine = ReplayEngine(
             pipeline=FeaturePipeline(),
             config=ReplayConfig(window_size=5, warmup_bars=0),
+            oms_adapter=MagicMock(),
         )
         result = engine.run(df, symbol="TEST")
         assert result.bars_processed == 5, (
@@ -151,6 +153,7 @@ class TestCorruptedDataFrame:
         engine = ReplayEngine(
             pipeline=FeaturePipeline(),
             config=ReplayConfig(window_size=5, warmup_bars=0),
+            oms_adapter=MagicMock(),
         )
         result = engine.run(df, symbol="TEST")
         assert result.bars_processed == 5, (
@@ -175,6 +178,7 @@ class TestCorruptedDataFrame:
         engine = ReplayEngine(
             pipeline=FeaturePipeline(),
             config=ReplayConfig(window_size=3, warmup_bars=0),
+            oms_adapter=MagicMock(),
         )
         # Should not raise overflow
         result = engine.run(df, symbol="TEST")
@@ -475,7 +479,7 @@ class TestInvalidStateTransitions:
 
     def test_event_bus_correlation_id_auto_injection(self):
         """Events without correlation_id should get one injected from context."""
-        from brokers.common.correlation import with_correlation
+        from infrastructure.correlation import with_correlation
 
         bus = EventBus(fail_fast=False)
         captured = []

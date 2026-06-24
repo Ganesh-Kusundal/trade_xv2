@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/domain/positions.py
+# hypothesis_version: 6.155.7
+
+['-1', '0', '1', 'CLOSED', 'FLAT', 'OPEN', 'REDUCING', 'REVERSED']

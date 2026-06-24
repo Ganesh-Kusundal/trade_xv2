@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/upstox/gateway.py
+# hypothesis_version: 6.155.7
+
+[200, 365, '0', '15m', '1D', '1h', '1m', '30m', '5m', 'BANKNIFTY', 'BFO', 'BSE', 'BSE_EQ', 'BUY', 'CNC', 'DAY', 'FINNIFTY', 'INTRADAY', 'IOC', 'LIMIT', 'LTP', 'MARGIN', 'MARKET', 'NFO', 'NIFTY', 'NSE', 'NSE_EQ', 'Order modified', 'SENSEX', 'STOP_LOSS', 'STOP_LOSS_MARKET', 'Upstox', 'available', 'broker', 'cached', 'contracts', 'correlation_id', 'count', 'error', 'exchange', 'expiries', 'expiry', 'futures', 'historical', 'instruments_loaded', 'is_loaded', 'load_time_s', 'lot_size', 'market_data', 'memory_time_s', 'message', 'modify failed', 'options', 'order_id', 'order_placed', 'search', 'side', 'source', 'status', 'streaming', 'success', 'symbol', 'trading_symbol', 'underlying']

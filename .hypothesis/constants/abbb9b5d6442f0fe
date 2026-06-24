@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/domain/status_mapper.py
+# hypothesis_version: 6.155.7
+
+['AMO', 'CANCELLED', 'COMPLETE', 'EXECUTED', 'EXPIRED', 'FILLED', 'MARGIN_TRADED', 'OPEN', 'PARTIAL', 'PARTIALLY_EXECUTED', 'PARTIALLY_FILLED', 'PENDING', 'QUEUED', 'REJECTED', 'TRADED', 'TRANSIT', 'TRIGGER_PENDING', 'UNKNOWN', '_', 'common']

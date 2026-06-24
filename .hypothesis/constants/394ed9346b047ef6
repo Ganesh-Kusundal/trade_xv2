@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/application/execution/execution_mode_adapter.py
+# hypothesis_version: 6.155.7
+
+['backtest', 'bt', 'live', 'paper', 'replay']

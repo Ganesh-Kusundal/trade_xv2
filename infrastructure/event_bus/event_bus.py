@@ -30,7 +30,7 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
-from infrastructure.event_bus.models import EventType
+from domain.events.types import EventType
 from infrastructure.correlation import get_current_correlation_id
 
 if TYPE_CHECKING:
@@ -212,6 +212,24 @@ class EventBus:
         self._replay_mode = enabled
 
     @property
+    def logging_enabled(self) -> bool:
+        """True if event persistence to the event log is enabled."""
+        return self._logging_enabled
+
+    def set_logging_enabled(self, enabled: bool) -> None:
+        """Enable or disable event persistence to the event log.
+
+        During crash-recovery replay this is used to suppress recursive
+        log writes that would corrupt the event stream.  All callers
+        (including TradingContext._replay_log_into_oms) must use this
+        method instead of touching ``_logging_enabled`` directly.
+
+        Args:
+            enabled: True to persist events, False to suppress persistence.
+        """
+        self._logging_enabled = enabled
+
+    @property
     def alerting_engine(self) -> AlertingEnginePort | None:
         """The alerting engine instance, if configured."""
         return self._alerting_engine
@@ -339,7 +357,7 @@ class EventBus:
 
         If the event has no ``correlation_id``, the current thread's
         active correlation ID (set via
-        :func:`brokers.common.correlation.with_correlation`) is injected
+        :func:`infrastructure.correlation.with_correlation`) is injected
         before dispatch.  This ensures every published event carries a
         traceable ID without requiring explicit propagation at every
         call site.

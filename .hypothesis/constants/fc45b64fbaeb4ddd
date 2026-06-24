@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/common/services/instrument_registry.py
+# hypothesis_version: 6.155.7
+
+[0.0, 0.05, '9999', 'CALL', 'CE', 'EQUITY', 'FUTURE', 'NFO', 'NSE', 'OPTION', 'PE', 'PUT', 'call', 'call_ltp', 'canonical_symbol', 'ce_ltp', 'contracts', 'exchange', 'expiry', 'future_chain', 'instrument_key', 'instrument_type', 'lot_size', 'name', 'option_chain', 'option_type', 'pe_ltp', 'put', 'put_ltp', 'search', 'security_id', 'strike', 'strike_price', 'strikes', 'symbol', 'tick_size', 'type', 'underlying']

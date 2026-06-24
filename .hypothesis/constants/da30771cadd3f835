@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/upstox/auth/holders.py
+# hypothesis_version: 6.155.7
+
+[1000, 'STATIC', 'Upstox token']

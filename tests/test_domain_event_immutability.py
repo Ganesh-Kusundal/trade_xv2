@@ -23,7 +23,7 @@ from dataclasses import FrozenInstanceError
 
 from infrastructure.event_bus.event_bus import DomainEvent, EventBus
 from infrastructure.event_log import EventLog
-from brokers.common.correlation import with_correlation
+from infrastructure.correlation import with_correlation
 
 
 # ──────────────────────────────────────────────────────────────────────

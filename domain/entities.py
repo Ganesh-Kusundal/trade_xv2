@@ -61,5 +61,6 @@ from domain.enums import (  # noqa: F401
     Validity,
 )
 from domain.market import DepthLevel, Instrument, MarketDepth, Quote  # noqa: F401
-from domain.orders import FieldMapping, Order, OrderResponse, Trade  # noqa: F401
+from domain.entities.order import FieldMapping, Order, OrderResponse  # noqa: F401
+from domain.entities.trade import Trade  # noqa: F401
 from domain.positions import Holding, Position  # noqa: F401

@@ -717,52 +717,6 @@ class TestEventBusIntegration:
         bus.stop_alerting()
 
 
-class TestAsyncEventBusIntegration:
-    """Tests for alerting integration with AsyncEventBus."""
-
-    @pytest.mark.asyncio
-    async def test_async_bus_with_alerting(self) -> None:
-        import asyncio
-        from infrastructure.event_bus.async_event_bus import AsyncEventBus
-
-        metrics = EventMetrics()
-        engine = AlertingEngine(metrics, cooldown_seconds=0)
-        rule = AlertRule(
-            name="handler_errors",
-            metric_pattern="*/handler_error*",
-            threshold=0.0,
-            level=AlertLevel.CRITICAL,
-            description="Handler errors",
-        )
-        engine.register_rule(rule)
-
-        async_bus = AsyncEventBus(
-            maxsize=100,
-            metrics=metrics,
-            dead_letter_queue=DeadLetterQueue(),
-            alerting_engine=engine,
-            alerting_interval_seconds=0.2,
-        )
-
-        async def failing_handler(event: DomainEvent) -> None:
-            raise RuntimeError("async error")
-
-        async_bus.subscribe("TEST", failing_handler)
-        await async_bus.start()
-
-        # Publish event.
-        await async_bus.publish("TEST", {"data": "test"})
-
-        # Wait for dispatch and alerting.
-        await asyncio.sleep(0.5)
-
-        # Evaluate alerts manually (async alerting loop runs periodically).
-        alerts = engine.evaluate_all()
-        assert len(alerts) >= 1
-
-        await async_bus.stop()
-
-
 class TestThreadSafety:
     """Tests for thread safety under concurrent access."""
 

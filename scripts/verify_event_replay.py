@@ -37,7 +37,7 @@ from infrastructure.event_bus import (
     ProcessedTradeRepository,
     TradeIdKey,
 )
-from brokers.common.event_log import EventLog
+from infrastructure.event_log import EventLog
 from brokers.common.observability.event_metrics import EventMetrics
 from application.oms.context import TradingContext
 from application.oms.order_manager import OrderManager

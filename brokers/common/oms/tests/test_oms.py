@@ -230,7 +230,7 @@ def test_order_manager_risk_gate_allows_order(bus: EventBus) -> None:
 
 
 def test_trading_context_replays_event_log(tmp_path) -> None:
-    from brokers.common.event_log import EventLog
+    from infrastructure.event_log import EventLog
     from application.oms.context import TradingContext
 
     log = EventLog(events_dir=tmp_path / "events")

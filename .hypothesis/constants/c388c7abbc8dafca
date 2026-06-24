@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/config/secrets_manager.py
+# hypothesis_version: 6.155.7
+
+['API_KEY', 'DHAN_PIN', 'DHAN_PIN_FILE', 'DHAN_TOTP_SECRET', 'UPSTOX_PIN', 'UPSTOX_PIN_FILE', 'UPSTOX_TOTP_SECRET', 'config/dhan-pin.txt', 'utf-8']

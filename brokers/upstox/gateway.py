@@ -532,7 +532,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         risk checks, idempotency, and payload construction.
 
         If *correlation_id* is not provided, the current thread's active
-        correlation ID (set via :func:`brokers.common.correlation.with_correlation`)
+        correlation ID (set via :func:`infrastructure.correlation.with_correlation`)
         is used for tracing.
         """
         # Security guard: prevent live orders if disabled or analytics-only
@@ -547,7 +547,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         
         if correlation_id is None:
             try:
-                from brokers.common.correlation import get_current_correlation_id
+                from infrastructure.correlation import get_current_correlation_id
                 correlation_id = get_current_correlation_id()
             except ImportError:
                 pass

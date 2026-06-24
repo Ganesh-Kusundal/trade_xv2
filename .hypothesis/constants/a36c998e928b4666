@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/api/freshness.py
+# hypothesis_version: 6.155.7
+
+['15m', '1d', '1h', '1m', '1w', '30m', '3m', '4h', '5m', 'FRESH', 'MISSING', 'STALE', 'timestamp']

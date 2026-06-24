@@ -8,7 +8,21 @@ import math
 import pandas as pd
 
 from analytics.core.models import AnalysisResult
-from analytics.indicators.technical import iv_percentile, iv_rank
+# IV helper functions — migrated from deprecated analytics.indicators.technical
+
+def _iv_rank(current_iv: float, iv_low: float, iv_high: float) -> float:
+    """Calculate IV Rank (position of current IV in historical range)."""
+    if iv_high <= iv_low:
+        return 50.0
+    return max(0.0, min(100.0, (current_iv - iv_low) / (iv_high - iv_low) * 100))
+
+
+def _iv_percentile(current_iv: float, history: list[float] | pd.Series) -> float:
+    """Calculate IV Percentile (percentage of historical values below current)."""
+    values = pd.Series(history, dtype="float64").dropna()
+    if values.empty:
+        return 50.0
+    return float((values <= current_iv).mean() * 100)
 
 logger = logging.getLogger(__name__)
 
@@ -188,8 +202,8 @@ class IVAnalytics:
         current_iv = float(iv.mean()) if not iv.empty else 0.0
         iv_low = float(iv.min()) if not iv.empty else 0.0
         iv_high = float(iv.max()) if not iv.empty else current_iv
-        ivr = iv_rank(current_iv, iv_low, iv_high)
-        ivp = iv_percentile(current_iv, history) if history is not None else 50.0
+        ivr = _iv_rank(current_iv, iv_low, iv_high)
+        ivp = _iv_percentile(current_iv, history) if history is not None else 50.0
         expansion = current_iv > iv_low * 1.25 if iv_low > 0 else False
         contraction = current_iv < iv_high * 0.75 if iv_high > 0 else False
         regime = "High" if ivr >= 70 else "Low" if ivr <= 30 else "Normal"

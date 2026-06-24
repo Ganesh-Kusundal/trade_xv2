@@ -9,7 +9,26 @@ import pandas as pd
 
 from analytics.core.feature_builder import FeatureBuilder
 from analytics.core.models import AnalysisResult
-from analytics.indicators.technical import historical_volatility, realized_volatility
+# Volatility helpers — migrated from deprecated analytics.indicators.technical
+
+def _historical_volatility(
+    prices: pd.Series,
+    periods: int = 20,
+    annualization: int = 252,
+) -> pd.Series:
+    """Calculate historical volatility (annualized)."""
+    import math
+    returns = prices.apply(math.log).diff()
+    return returns.rolling(window=periods, min_periods=periods).std() * math.sqrt(annualization) * 100
+
+
+def _realized_volatility(returns: pd.Series, annualization: int = 252) -> float:
+    """Calculate realized volatility from returns series."""
+    import math
+    clean = returns.dropna()
+    if clean.empty:
+        return 0.0
+    return float(clean.std() * math.sqrt(annualization) * 100)
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +51,8 @@ class VolatilityAnalytics:
             return AnalysisResult(name="volatility", symbol=symbol, summary="No price data")
 
         features = feature_set.data
-        hv = historical_volatility(features["close"], periods=lookback)
-        rv = realized_volatility(features["close"].pct_change().dropna(), annualization=252)
+        hv = _historical_volatility(features["close"], periods=lookback)
+        rv = _realized_volatility(features["close"].pct_change().dropna(), annualization=252)
         current_hv = float(hv.iloc[-1]) if not hv.empty and pd.notna(hv.iloc[-1]) else 0.0
         current_iv = float(implied_volatility) if implied_volatility is not None else current_hv
 

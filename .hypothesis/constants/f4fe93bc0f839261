@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/common/gateway_interfaces.py
+# hypothesis_version: 6.155.7
+
+['0', '1D', 'BUY', 'DAY', 'DerivativesProvider', 'INTRADAY', 'InstrumentProvider', 'LTP', 'LifecycleAware', 'MARKET', 'MarketDataProvider', 'NFO', 'NSE', 'PortfolioReader', 'StreamProvider', 'TradingExecutor']

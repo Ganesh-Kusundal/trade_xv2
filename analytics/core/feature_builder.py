@@ -8,7 +8,8 @@ import pandas as pd
 
 from analytics.core.models import FeatureSet, normalize_ohlcv
 from analytics.indicators.market_structure import MarketStructureAnalyzer
-from analytics.indicators.technical import acceleration, atr, momentum, roc, rsi
+from analytics.pipeline.features import ATR, RSI, ROC, Momentum
+from analytics.pipeline.pipeline import FeaturePipeline
 
 logger = logging.getLogger(__name__)
 
@@ -50,16 +51,19 @@ class FeatureBuilder:
 
         features = df.copy()
         close = features["close"]
-        high = features["high"]
-        low = features["low"]
         volume = features["volume"]
 
+        # Use FeaturePipeline for canonical indicator computations (migrated from deprecated indicators.technical)
+        pipeline = FeaturePipeline()
+        pipeline.add(RSI(period=self._rsi_period))
+        pipeline.add(ATR(period=self._atr_period))
+        pipeline.add(ROC(period=1))
+        pipeline.add(Momentum(period=1))
+        features = pipeline.run(features)
+
         features["returns"] = close.pct_change().fillna(0)
-        features["momentum"] = momentum(close)
-        features["roc"] = roc(close)
-        features["acceleration"] = acceleration(close)
-        features["rsi"] = rsi(close, self._rsi_period)
-        features["atr"] = atr(high, low, close, self._atr_period)
+        # acceleration = second derivative of returns (no direct Feature class equivalent)
+        features["acceleration"] = features["close"].pct_change().diff().fillna(0)
 
         rolling_volume = volume.rolling(self._volume_bars, min_periods=1).mean()
         rolling_volume_std = volume.rolling(self._volume_bars, min_periods=2).std().fillna(0)

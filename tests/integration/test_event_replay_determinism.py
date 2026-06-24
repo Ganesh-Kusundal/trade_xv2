@@ -19,8 +19,8 @@ from domain import (
     Trade,
 )
 from infrastructure.event_bus import DomainEvent, ProcessedTradeRepository
-from infrastructure.event_bus.models import EventType  # P1-3: EventType enum
-from brokers.common.event_log import EventLog
+from domain.events.types import EventType  # P1-3: EventType enum
+from infrastructure.event_log import EventLog
 from brokers.common.observability.event_metrics import EventMetrics
 from application.oms.context import TradingContext
 from application.oms.order_manager import OrderManager
@@ -29,16 +29,15 @@ from application.oms.position_manager import PositionManager
 
 def _bootstrap_context(
     events_dir: Path, repo_path: Path | None = None
-) -> tuple[TradingContext, ProcessedTradeRepository]:
+) -> tuple[TradingContext, ProcessedTradeRepository, EventLog]:
     metrics = EventMetrics()
     from infrastructure.event_bus import DeadLetterQueue
 
     dlq = DeadLetterQueue()
     from infrastructure.event_bus import EventBus
 
-    bus = EventBus(metrics=metrics, dead_letter_queue=dlq)
     log = EventLog(events_dir=events_dir)
-    bus._event_log = log  # ensure bus persists
+    bus = EventBus(metrics=metrics, dead_letter_queue=dlq, event_log=log)
     from infrastructure.event_bus import ProcessedTradeRepository
 
     # Use a persistent repo when one is requested so that two sessions
@@ -60,7 +59,7 @@ def _bootstrap_context(
         dead_letter_queue=dlq,
         replay_events=False,
     )
-    return ctx, repo
+    return ctx, repo, log
 
 
 def _order_event(o: Order) -> DomainEvent:
@@ -90,7 +89,7 @@ def test_synthetic_session_replays_deterministically(tmp_path: Path) -> None:
     # Session 1 — write a known stream of orders and trades.
     # The ledger is in-memory; we only need it to be persisted if we
     # want to survive a process restart.
-    ctx, _ = _bootstrap_context(events_dir)
+    ctx, _, log = _bootstrap_context(events_dir)
     order = Order(
         order_id="O1",
         symbol="RELIANCE",
@@ -126,7 +125,7 @@ def test_synthetic_session_replays_deterministically(tmp_path: Path) -> None:
     ctx.event_bus.publish(_order_event(order))
     ctx.event_bus.publish(_trade_event(trade1))
     ctx.event_bus.publish(_trade_event(trade2))
-    ctx.event_bus._event_log.close()
+    log.close()
 
     # Verify file was written
     files = list(events_dir.glob("*.jsonl"))
@@ -153,7 +152,8 @@ def test_synthetic_session_replays_deterministically(tmp_path: Path) -> None:
 
     metrics2 = EventMetrics()
     dlq2 = DeadLetterQueue()
-    bus2 = EventBus(metrics=metrics2, dead_letter_queue=dlq2, event_log=EventLog(events_dir=events_dir))
+    log2 = EventLog(events_dir=events_dir)
+    bus2 = EventBus(metrics=metrics2, dead_letter_queue=dlq2, event_log=log2)
     repo2 = ProcessedTradeRepository()
     om2 = OrderManager(event_bus=bus2, processed_trade_repository=repo2, metrics=metrics2)
     pm2 = PositionManager(event_bus=bus2)
@@ -166,8 +166,7 @@ def test_synthetic_session_replays_deterministically(tmp_path: Path) -> None:
         dead_letter_queue=dlq2,
         replay_events=False,
     )
-
-    replayed = bus2._event_log.replay(event_types={EventType.ORDER_UPDATED.value, EventType.TRADE.value})  # P1-3: Migrated to EventType enum
+    replayed = log2.replay(event_types={EventType.ORDER_UPDATED.value, EventType.TRADE.value})  # P1-3: Migrated to EventType enum
     for event in replayed:
         ctx2.event_bus.publish(event)
 
@@ -199,7 +198,7 @@ def test_duplicate_trade_does_not_double_position(tmp_path: Path) -> None:
     repo_path = tmp_path / "processed_trades.jsonl"
 
     # Session 1 — record the order + one trade + the *same* trade again.
-    ctx, _ = _bootstrap_context(events_dir, repo_path=repo_path)
+    ctx, _, log = _bootstrap_context(events_dir, repo_path=repo_path)
     order = Order(
         order_id="O1",
         symbol="TCS",
@@ -223,7 +222,7 @@ def test_duplicate_trade_does_not_double_position(tmp_path: Path) -> None:
     ctx.event_bus.publish(_order_event(order))
     ctx.event_bus.publish(_trade_event(trade))
     ctx.event_bus.publish(_trade_event(trade))  # duplicate websocket event
-    ctx.event_bus._event_log.close()
+    log.close()
 
     # Session 2 — replay
     from infrastructure.event_bus import (
@@ -234,7 +233,8 @@ def test_duplicate_trade_does_not_double_position(tmp_path: Path) -> None:
 
     metrics2 = EventMetrics()
     dlq2 = DeadLetterQueue()
-    bus2 = EventBus(metrics=metrics2, dead_letter_queue=dlq2, event_log=EventLog(events_dir=events_dir))
+    log2 = EventLog(events_dir=events_dir)
+    bus2 = EventBus(metrics=metrics2, dead_letter_queue=dlq2, event_log=log2)
     repo2 = ProcessedTradeRepository()
     om2 = OrderManager(event_bus=bus2, processed_trade_repository=repo2, metrics=metrics2)
     pm2 = PositionManager(event_bus=bus2)
@@ -247,7 +247,7 @@ def test_duplicate_trade_does_not_double_position(tmp_path: Path) -> None:
         dead_letter_queue=dlq2,
         replay_events=False,
     )
-    for event in bus2._event_log.replay(event_types={EventType.ORDER_UPDATED.value, EventType.TRADE.value}):  # P1-3: Migrated to EventType enum
+    for event in log2.replay(event_types={EventType.ORDER_UPDATED.value, EventType.TRADE.value}):  # P1-3: Migrated to EventType enum
         ctx2.event_bus.publish(event)
 
     o = ctx2.order_manager.get_order("O1")
@@ -268,7 +268,7 @@ def test_verify_event_replay_script_runs(tmp_path: Path) -> None:
     events_dir.mkdir()
 
     # Build a session and persist the log
-    ctx, _ = _bootstrap_context(events_dir)
+    ctx, _, log = _bootstrap_context(events_dir)
     order = Order(
         order_id="O1",
         symbol="INFY",
@@ -291,7 +291,7 @@ def test_verify_event_replay_script_runs(tmp_path: Path) -> None:
     )
     ctx.event_bus.publish(_order_event(order))
     ctx.event_bus.publish(_trade_event(trade))
-    ctx.event_bus._event_log.close()
+    log.close()
 
     # Run the verifier with --record-snapshot to create a baseline.
     # parents[0]=integration, parents[1]=tests, parents[2]=project root.

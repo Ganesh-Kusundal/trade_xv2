@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/application/oms/persistence/sqlite_order_store.py
+# hypothesis_version: 6.155.7
+
+['.lock', 'PYTEST_CURRENT_TEST', 'SELECT * FROM orders', 'avg_price', 'correlation_id', 'exchange', 'filled_quantity', 'order_id', 'order_type', 'price', 'product_type', 'quantity', 'reject_reason', 'side', 'status', 'symbol', 'timestamp', 'utf-8', 'w']

@@ -33,7 +33,7 @@ from domain import (
     Trade,
 )
 from infrastructure.event_bus import EventBus
-from brokers.common.event_log import EventLog
+from infrastructure.event_log import EventLog
 from application.oms.context import TradingContext
 from application.oms.factory import create_trading_context
 from application.oms.order_manager import OrderRequest

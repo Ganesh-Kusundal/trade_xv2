@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/dhan/depth_feed_base.py
+# hypothesis_version: 6.155.7
+
+[1.0, 2.0, 5.0, 30.0, '%s_connected', '%s_connecting', '%s_connection_closed', '%s_error: %s', '%s_parse_error: %s', '%s_started', '%s_stopped', '%s_subscribe', '%s_unsubscribe', '%s_unsubscribe_all', '<I', '<d', 'ExchangeSegment', 'InstrumentCount', 'InstrumentList', 'RequestCode', 'SecurityId', '_ws_loop', 'asks', 'bids', 'close', 'correlation_id', 'count', 'depth', 'depth_type', 'dropped_depths', 'endpoint', 'header_value', 'levels', 'not started', 'published_depths', 'reconnect_count', 'side', 'subscriptions', 'total', 'websockets']

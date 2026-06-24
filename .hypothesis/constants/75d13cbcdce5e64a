@@ -1,0 +1,4 @@
+# file: /Users/apple/Downloads/Trade_XV2/brokers/dhan/depth_200.py
+# hypothesis_version: 6.155.7
+
+[200, 'DEPTH_200', 'DhanDepth200Feed', 'asks', 'bids', 'depth_200_subscribe', 'dhan.depth_200', 'instrument']
