@@ -186,7 +186,7 @@ class TestDhanWriteOperationGuards:
         """Dhan modify_order must check allow_live_orders."""
         from unittest.mock import Mock
         from brokers.dhan.orders import OrdersAdapter
-        from brokers.common.core import OrderError
+        from brokers.dhan.exceptions import OrderError
 
         mock_client = Mock()
         adapter = OrdersAdapter(
@@ -194,7 +194,9 @@ class TestDhanWriteOperationGuards:
             identity=Mock(),
             event_bus=None,
             allow_live_orders=False,
-            idempotency=Mock(),
+            idempotency_cache=None,
+            risk_manager=None,
+            allow_duck_identity=True,
         )
 
         try:
@@ -207,7 +209,7 @@ class TestDhanWriteOperationGuards:
         """Dhan cancel_order must check allow_live_orders."""
         from unittest.mock import Mock
         from brokers.dhan.orders import OrdersAdapter
-        from brokers.common.core import OrderError
+        from brokers.dhan.exceptions import OrderError
 
         mock_client = Mock()
         adapter = OrdersAdapter(
@@ -215,7 +217,9 @@ class TestDhanWriteOperationGuards:
             identity=Mock(),
             event_bus=None,
             allow_live_orders=False,
-            idempotency=Mock(),
+            idempotency_cache=None,
+            risk_manager=None,
+            allow_duck_identity=True,
         )
 
         try:
@@ -228,7 +232,7 @@ class TestDhanWriteOperationGuards:
         """Dhan cancel_all_orders must check allow_live_orders."""
         from unittest.mock import Mock
         from brokers.dhan.orders import OrdersAdapter
-        from brokers.common.core import OrderError
+        from brokers.dhan.exceptions import OrderError
 
         mock_client = Mock()
         adapter = OrdersAdapter(
@@ -236,7 +240,9 @@ class TestDhanWriteOperationGuards:
             identity=Mock(),
             event_bus=None,
             allow_live_orders=False,
-            idempotency=Mock(),
+            idempotency_cache=None,
+            risk_manager=None,
+            allow_duck_identity=True,
         )
 
         try:
@@ -249,7 +255,7 @@ class TestDhanWriteOperationGuards:
         """Dhan kill_switch must check allow_live_orders."""
         from unittest.mock import Mock
         from brokers.dhan.orders import OrdersAdapter
-        from brokers.common.core import OrderError
+        from brokers.dhan.exceptions import OrderError
 
         mock_client = Mock()
         adapter = OrdersAdapter(
@@ -257,7 +263,9 @@ class TestDhanWriteOperationGuards:
             identity=Mock(),
             event_bus=None,
             allow_live_orders=False,
-            idempotency=Mock(),
+            idempotency_cache=None,
+            risk_manager=None,
+            allow_duck_identity=True,
         )
 
         try:
@@ -270,7 +278,7 @@ class TestDhanWriteOperationGuards:
         """Dhan place_slice_order must check allow_live_orders."""
         from unittest.mock import Mock
         from brokers.dhan.orders import OrdersAdapter
-        from brokers.common.core import OrderError
+        from brokers.dhan.exceptions import OrderError
 
         mock_client = Mock()
         mock_identity = Mock()
@@ -281,7 +289,9 @@ class TestDhanWriteOperationGuards:
             identity=mock_identity,
             event_bus=None,
             allow_live_orders=False,
-            idempotency=Mock(),
+            idempotency_cache=None,
+            risk_manager=None,
+            allow_duck_identity=True,
         )
 
         try:

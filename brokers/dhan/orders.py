@@ -100,13 +100,14 @@ class OrdersAdapter:
         event_bus: EventBus | None = None,
         risk_manager: RiskManager | None = None,
         allow_live_orders: bool = False,
+        allow_duck_identity: bool = False,
     ):
         self._client = client
         # Accept either a DhanIdentityProvider (production path) or a raw
         # SymbolResolver (legacy test fixtures). ``coerce_identity_provider``
         # guarantees the adapter holds a provider-shaped object so the
         # Dhan-internal contract is enforced end-to-end.
-        self._identity = coerce_identity_provider(identity)
+        self._identity = coerce_identity_provider(identity, allow_duck=allow_duck_identity)
         # Backward-compat shim for tests/code that still asks the adapter
         # for its underlying resolver. The resolver is owned by the
         # DhanIdentityProvider; this property delegates to it.

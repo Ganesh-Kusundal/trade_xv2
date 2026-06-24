@@ -12,9 +12,9 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any
 
-from brokers.common.execution.simulated_fill import make_simulated_submit_fn
-from brokers.common.oms.context import TradingContext
-from brokers.common.oms.order_manager import OmsOrderCommand, OrderResult
+from application.execution.simulated_fill import make_simulated_submit_fn
+from application.oms.context import TradingContext
+from application.oms.order_manager import OmsOrderCommand, OrderResult
 
 logger = logging.getLogger(__name__)
 
@@ -78,3 +78,22 @@ def create_execution_adapter(
     if mode in ("replay", "backtest"):
         return ReplayOMSAdapter(trading_context)
     raise ValueError(f"Unknown execution mode: {mode}. For live mode, call OrderManager.place_order directly.")
+
+
+class LiveOMSAdapter(ExecutionModeAdapter):
+    """Stub for backward compatibility — live mode is inlined in ExecutionService.
+    
+    This class exists only for test compatibility. Do not use in new code.
+    """
+    
+    def __init__(self, trading_context: TradingContext):
+        self._ctx = trading_context
+    
+    def place_order(
+        self,
+        command: OmsOrderCommand,
+        submit_fn: Any | None = None,
+    ) -> OrderResult:
+        raise NotImplementedError(
+            "LiveOMSAdapter is deprecated. Call OrderManager.place_order() directly."
+        )
