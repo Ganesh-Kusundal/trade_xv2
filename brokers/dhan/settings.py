@@ -53,6 +53,7 @@ class DhanConnectionSettings(BrokerSettings):
     """
 
     # Dhan-specific fields
+    environment: str = "LIVE"
     base_url: str = _BASE_URL
     pin: str = ""
     totp_secret: str = ""
@@ -62,6 +63,16 @@ class DhanConnectionSettings(BrokerSettings):
     allow_live_orders: bool = False
 
     # ── Derived properties ────────────────────────────────────────────
+
+    @property
+    def is_sandbox(self) -> bool:
+        """Check if environment is SANDBOX."""
+        return self.environment.upper() == "SANDBOX"
+
+    @property
+    def is_live(self) -> bool:
+        """Check if environment is LIVE."""
+        return self.environment.upper() == "LIVE"
 
     @property
     def has_access_token(self) -> bool:
@@ -88,6 +99,7 @@ class DhanSettingsLoader(SettingsLoaderBase):
     """
 
     PREFIX = DHAN_PREFIX
+    VALID_ENVIRONMENTS = ("LIVE", "SANDBOX")
 
     @classmethod
     def from_env(
@@ -116,6 +128,10 @@ class DhanSettingsLoader(SettingsLoaderBase):
 
         # Support SANDBOX environment override
         environment = cls._get(prefix, "ENVIRONMENT", default="LIVE").upper()
+        if environment not in cls.VALID_ENVIRONMENTS:
+            raise ValueError(
+                f"DHAN_ENVIRONMENT must be one of {cls.VALID_ENVIRONMENTS}, got {environment!r}"
+            )
         is_sandbox = environment == "SANDBOX"
 
         client_id = (
@@ -135,10 +151,21 @@ class DhanSettingsLoader(SettingsLoaderBase):
         pin = cls._get(prefix, "PIN", default="") or secrets.get_dhan_pin()
         totp_secret = cls._get(prefix, "TOTP_SECRET", default="") or secrets.get_dhan_totp_secret()
 
+        # Auto-switch base_url for sandbox environment
+        if is_sandbox:
+            base_url = (
+                cls._get(prefix, "SANDBOX_REST_BASE_URL")
+                or cls._get(prefix, "BASE_URL")
+                or Dhan.sandbox()
+            )
+        else:
+            base_url = cls._get(prefix, "BASE_URL", default=_BASE_URL)
+
         return DhanConnectionSettings(
             client_id=client_id,
             access_token=access_token,
-            base_url=cls._get(prefix, "BASE_URL", default=_BASE_URL),
+            environment=environment,
+            base_url=base_url,
             http_timeout=cls._get_float(prefix, "HTTP_TIMEOUT", default=15.0),
             enable_retry=cls._get_bool(prefix, "ENABLE_RETRY", default=True),
             pool_connections=cls._get_int(prefix, "POOL_CONNECTIONS", default=50),

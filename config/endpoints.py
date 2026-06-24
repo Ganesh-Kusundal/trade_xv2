@@ -45,6 +45,17 @@ class Dhan:
 
     # ── REST API ────────────────────────────────────────────────────────
     REST_BASE: str = "https://api.dhan.co/v2"
+    SANDBOX_REST_BASE: str = "https://sandbox.dhan.co/v2"
+
+    @classmethod
+    def production(cls) -> str:
+        """Return production REST base URL."""
+        return cls.REST_BASE
+
+    @classmethod
+    def sandbox(cls) -> str:
+        """Return sandbox REST base URL."""
+        return cls.SANDBOX_REST_BASE
 
     # ── Auth ────────────────────────────────────────────────────────────
     GENERATE_TOKEN_URL: str = "https://auth.dhan.co/app/generateAccessToken"

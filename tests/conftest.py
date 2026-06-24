@@ -160,3 +160,19 @@ def pytest_configure(config):
         "markers",
         "live_api: mark test as requiring live API credentials and open market"
     )
+    config.addinivalue_line(
+        "markers",
+        "sandbox: test requires sandbox environment (write operations)"
+    )
+    config.addinivalue_line(
+        "markers",
+        "live_read: test requires live environment (read-only operations)"
+    )
+    config.addinivalue_line(
+        "markers",
+        "live_write: test requires live environment with order execution enabled"
+    )
+    config.addinivalue_line(
+        "markers",
+        "split_env: test uses split read/write routing (reads live, writes sandbox)"
+    )

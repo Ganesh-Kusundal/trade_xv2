@@ -618,11 +618,31 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
             ``success=False`` with a diagnostic error code; this method
             never raises.
         """
+        # Safety guard: prevent live order cancellations if disabled
+        if self._broker.settings.analytics_only:
+            return OrderResponse.fail(
+                "Analytics-only mode: live orders are blocked."
+            )
+        if not self._broker.settings.allow_live_orders:
+            return OrderResponse.fail(
+                "Live orders are disabled. Set allow_live_orders=True in configuration."
+            )
+        
         return self._order_command.cancel_order(order_id)
 
     def modify_order(self, order_id: str, **changes: Any) -> OrderResponse:
         """Modify an order via Upstox V3 API."""
         from domain.entities import OrderResponse
+
+        # Safety guard: prevent live order modifications if disabled
+        if self._broker.settings.analytics_only:
+            return OrderResponse.fail(
+                "Analytics-only mode: live orders are blocked."
+            )
+        if not self._broker.settings.allow_live_orders:
+            return OrderResponse.fail(
+                "Live orders are disabled. Set allow_live_orders=True in configuration."
+            )
 
         try:
             result = self._order_command.modify_order(order_id, **changes)

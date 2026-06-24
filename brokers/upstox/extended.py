@@ -77,6 +77,9 @@ class UpstoxExtendedCapabilities:
         Raises:
             RuntimeError: If live orders are disabled
         """
+        # Safety guard: check analytics-only mode
+        if self._broker.settings.analytics_only:
+            raise RuntimeError("Analytics-only mode: live payouts are blocked.")
         if not self._broker.settings.allow_live_orders:
             raise RuntimeError("Live payouts are disabled. Set allow_live_orders=True in configuration.")
         return self._broker.payments.initiate_payout(payload)
@@ -134,6 +137,9 @@ class UpstoxExtendedCapabilities:
         Raises:
             RuntimeError: If live orders are disabled
         """
+        # Safety guard: check analytics-only mode
+        if self._broker.settings.analytics_only:
+            raise RuntimeError("Analytics-only mode: live mutual fund orders are blocked.")
         if not self._broker.settings.allow_live_orders:
             raise RuntimeError("Live mutual fund orders are disabled. Set allow_live_orders=True in configuration.")
         return self._broker.mutual_funds.place_order(payload)

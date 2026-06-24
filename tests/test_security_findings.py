@@ -96,6 +96,7 @@ class TestAllowLiveOrdersGuards:
 
         mock_settings = Mock()
         mock_settings.allow_live_orders = False
+        mock_settings.analytics_only = False
         mock_broker = Mock()
         mock_broker.settings = mock_settings
 
@@ -112,6 +113,7 @@ class TestAllowLiveOrdersGuards:
 
         mock_settings = Mock()
         mock_settings.allow_live_orders = False
+        mock_settings.analytics_only = False
         mock_broker = Mock()
         mock_broker.settings = mock_settings
 
@@ -121,6 +123,23 @@ class TestAllowLiveOrdersGuards:
         assert result.success is False, f"cancel_order should be blocked: {result.message}"
         assert 'disabled' in str(result.message).lower()
 
+    def test_modify_order_has_guard(self):
+        """modify_order must check allow_live_orders."""
+        from unittest.mock import Mock
+        from brokers.upstox.gateway import UpstoxBrokerGateway
+
+        mock_settings = Mock()
+        mock_settings.allow_live_orders = False
+        mock_settings.analytics_only = False
+        mock_broker = Mock()
+        mock_broker.settings = mock_settings
+
+        gateway = UpstoxBrokerGateway(mock_broker)
+        
+        result = gateway.modify_order('ORD123', quantity=20)
+        assert result.success is False, f"modify_order should be blocked: {result.message}"
+        assert 'disabled' in str(result.message).lower()
+
     def test_initiate_payout_has_guard(self):
         """initiate_payout must check allow_live_orders."""
         from unittest.mock import Mock
@@ -128,6 +147,7 @@ class TestAllowLiveOrdersGuards:
 
         mock_settings = Mock()
         mock_settings.allow_live_orders = False
+        mock_settings.analytics_only = False
         mock_broker = Mock()
         mock_broker.settings = mock_settings
 
@@ -146,6 +166,7 @@ class TestAllowLiveOrdersGuards:
 
         mock_settings = Mock()
         mock_settings.allow_live_orders = False
+        mock_settings.analytics_only = False
         mock_broker = Mock()
         mock_broker.settings = mock_settings
 
@@ -155,6 +176,118 @@ class TestAllowLiveOrdersGuards:
             extended.place_mutual_fund_order({'scheme': 'TEST'})
             assert False, "Should have raised RuntimeError"
         except RuntimeError as e:
+            assert 'disabled' in str(e).lower()
+
+
+class TestDhanWriteOperationGuards:
+    """Verify ALL Dhan write operations respect allow_live_orders guard."""
+
+    def test_dhan_modify_order_has_guard(self):
+        """Dhan modify_order must check allow_live_orders."""
+        from unittest.mock import Mock
+        from brokers.dhan.orders import OrdersAdapter
+        from brokers.common.core import OrderError
+
+        mock_client = Mock()
+        adapter = OrdersAdapter(
+            client=mock_client,
+            identity=Mock(),
+            event_bus=None,
+            allow_live_orders=False,
+            idempotency=Mock(),
+        )
+
+        try:
+            adapter.modify_order('ORD123', quantity=20)
+            assert False, "Should have raised OrderError"
+        except OrderError as e:
+            assert 'disabled' in str(e).lower()
+
+    def test_dhan_cancel_order_has_guard(self):
+        """Dhan cancel_order must check allow_live_orders."""
+        from unittest.mock import Mock
+        from brokers.dhan.orders import OrdersAdapter
+        from brokers.common.core import OrderError
+
+        mock_client = Mock()
+        adapter = OrdersAdapter(
+            client=mock_client,
+            identity=Mock(),
+            event_bus=None,
+            allow_live_orders=False,
+            idempotency=Mock(),
+        )
+
+        try:
+            adapter.cancel_order('ORD123')
+            assert False, "Should have raised OrderError"
+        except OrderError as e:
+            assert 'disabled' in str(e).lower()
+
+    def test_dhan_cancel_all_orders_has_guard(self):
+        """Dhan cancel_all_orders must check allow_live_orders."""
+        from unittest.mock import Mock
+        from brokers.dhan.orders import OrdersAdapter
+        from brokers.common.core import OrderError
+
+        mock_client = Mock()
+        adapter = OrdersAdapter(
+            client=mock_client,
+            identity=Mock(),
+            event_bus=None,
+            allow_live_orders=False,
+            idempotency=Mock(),
+        )
+
+        try:
+            adapter.cancel_all_orders()
+            assert False, "Should have raised OrderError"
+        except OrderError as e:
+            assert 'disabled' in str(e).lower()
+
+    def test_dhan_kill_switch_has_guard(self):
+        """Dhan kill_switch must check allow_live_orders."""
+        from unittest.mock import Mock
+        from brokers.dhan.orders import OrdersAdapter
+        from brokers.common.core import OrderError
+
+        mock_client = Mock()
+        adapter = OrdersAdapter(
+            client=mock_client,
+            identity=Mock(),
+            event_bus=None,
+            allow_live_orders=False,
+            idempotency=Mock(),
+        )
+
+        try:
+            adapter.kill_switch(True)
+            assert False, "Should have raised OrderError"
+        except OrderError as e:
+            assert 'disabled' in str(e).lower()
+
+    def test_dhan_place_slice_order_has_guard(self):
+        """Dhan place_slice_order must check allow_live_orders."""
+        from unittest.mock import Mock
+        from brokers.dhan.orders import OrdersAdapter
+        from brokers.common.core import OrderError
+
+        mock_client = Mock()
+        mock_identity = Mock()
+        mock_identity.resolve_ref = Mock()
+        
+        adapter = OrdersAdapter(
+            client=mock_client,
+            identity=mock_identity,
+            event_bus=None,
+            allow_live_orders=False,
+            idempotency=Mock(),
+        )
+
+        try:
+            adapter.place_slice_order('TCS', 'NSE', side='BUY', quantity=10, order_type='MARKET')
+            assert False, "Should have raised OrderError"
+        except OrderError as e:
             assert 'disabled' in str(e).lower()
 
 

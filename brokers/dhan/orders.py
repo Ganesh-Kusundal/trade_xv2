@@ -317,6 +317,12 @@ class OrdersAdapter:
         Raises:
             OrderError: If the API returns an error or response cannot be parsed.
         """
+        # Safety guard: prevent live order modifications if disabled
+        if not self._allow_live_orders:
+            raise OrderError(
+                "Live orders are disabled. Set DHAN_ALLOW_LIVE_ORDERS=1 to enable."
+            )
+
         payload = {k: v for k, v in changes.items() if v is not None}
         result = self._client.put(f"/orders/{order_id}", json=payload)
 
@@ -373,6 +379,12 @@ class OrdersAdapter:
         """
         from domain.entities import OrderResponse
 
+        # Safety guard: prevent live order cancellations if disabled
+        if not self._allow_live_orders:
+            raise OrderError(
+                "Live orders are disabled. Set DHAN_ALLOW_LIVE_ORDERS=1 to enable."
+            )
+
         try:
             data = self._client.delete(f"/orders/{order_id}")
         except Exception as exc:  # pragma: no cover - network path
@@ -413,6 +425,12 @@ class OrdersAdapter:
         )
 
     def cancel_all_orders(self) -> list[tuple[str, bool]]:
+        # Safety guard: prevent live order cancellations if disabled
+        if not self._allow_live_orders:
+            raise OrderError(
+                "Live orders are disabled. Set DHAN_ALLOW_LIVE_ORDERS=1 to enable."
+            )
+
         data = self._client.delete("/orders")
         items = data.get("data", []) if isinstance(data, dict) else []
         result = [(str(i.get("orderId", i)), True) for i in (items if isinstance(items, list) else [])]
@@ -443,6 +461,12 @@ class OrdersAdapter:
         return order.status
 
     def kill_switch(self, enable: bool) -> bool:
+        # Safety guard: prevent kill switch activation if live orders disabled
+        if not self._allow_live_orders:
+            raise OrderError(
+                "Live orders are disabled. Set DHAN_ALLOW_LIVE_ORDERS=1 to enable."
+            )
+
         action = "ACTIVATE" if enable else "DEACTIVATE"
         data = self._client.post(f"/killswitch?killSwitchStatus={action}", json={})
         success = isinstance(data, dict) and data.get("status", "").lower() == "success"
@@ -557,6 +581,11 @@ class OrdersAdapter:
         Uses POST /orders/slicing endpoint instead of POST /orders.
         Same payload structure as regular place_order.
         """
+        # Safety guard: prevent live slice orders if disabled
+        if not self._allow_live_orders:
+            raise OrderError(
+                "Live orders are disabled. Set DHAN_ALLOW_LIVE_ORDERS=1 to enable."
+            )
 
         side = kwargs.get("side", "BUY")
         quantity: int = kwargs["quantity"]

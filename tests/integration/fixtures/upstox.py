@@ -84,7 +84,7 @@ class MockWebsocket:
 def make_mock_broker(
     *,
     ws_connected: bool = False,
-    allow_live_orders: bool = True,
+    allow_live_orders: bool = False,  # Safe default: live orders disabled
     resolver_defn: Any = None,
 ) -> MagicMock:
     """Create a fully mocked UpstoxBroker with all adapters configured.

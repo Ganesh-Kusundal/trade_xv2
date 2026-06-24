@@ -14,5 +14,5 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
         if _INTEGRATION_DIR not in Path(str(item.fspath)).resolve().parents:
             continue
         item.add_marker(pytest.mark.integration)
-        item.add_marker(pytest.mark.live_readonly)
+        item.add_marker(pytest.mark.sandbox)
 
