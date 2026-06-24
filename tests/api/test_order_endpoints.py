@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 from datetime import datetime
 from decimal import Decimal
 
-from brokers.common.oms.order_manager import OrderManager
+from application.oms.order_manager import OrderManager
 from domain import Order, OrderStatus, Side, OrderType, ProductType
 
 

@@ -139,6 +139,23 @@ def make_mock_broker(
     # Order command adapter
     broker.order_command = MagicMock()
 
+    # Options adapter for option_chain ABC
+    broker.options = MagicMock()
+    broker.options.get_option_chain.return_value = []
+    broker.options.get_expiries.return_value = []
+
+    # Futures adapter (ABC future_chain contract)
+    broker.futures = MagicMock()
+    broker.futures.get_contracts.return_value = [
+        {
+            "expiry": "2025-06-26",
+            "symbol": "NIFTY25JUNFUT",
+            "lot_size": 25,
+            "underlying": "NIFTY",
+        }
+    ]
+    broker.futures.get_expiries.return_value = ["2025-06-26"]
+
     # Disconnect
     broker.disconnect = MagicMock()
 

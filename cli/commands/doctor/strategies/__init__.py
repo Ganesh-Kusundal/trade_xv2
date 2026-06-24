@@ -1,6 +1,7 @@
 """Check strategy implementations for doctor diagnostics."""
 
 from cli.commands.doctor.strategies.active_broker import ActiveBrokerCheck
+from cli.commands.doctor.strategies.authenticated_readiness import AuthenticatedReadinessCheck
 from cli.commands.doctor.strategies.broker_registry import BrokerRegistryCheck
 from cli.commands.doctor.strategies.gateway_creation import GatewayCreationCheck
 from cli.commands.doctor.strategies.http_observability import HTTPObservabilityCheck
@@ -13,6 +14,7 @@ from cli.commands.doctor.strategies.portfolio import PortfolioCheck
 
 __all__ = [
     "ActiveBrokerCheck",
+    "AuthenticatedReadinessCheck",
     "BrokerRegistryCheck",
     "GatewayCreationCheck",
     "HTTPObservabilityCheck",

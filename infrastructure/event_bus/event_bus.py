@@ -26,25 +26,18 @@ import time
 import traceback
 import uuid
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from infrastructure.event_bus.models import EventType
+from infrastructure.correlation import get_current_correlation_id
 
 if TYPE_CHECKING:
     from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
-    from brokers.common.observability.event_metrics import EventMetrics
-    from brokers.common.observability.alerting import AlertingEngine
+    from domain.ports.observability import AlertingEnginePort, EventMetricsPort
 
 logger = logging.getLogger(__name__)
-
-# Optional correlation ID support — always available but guarded so the
-# event bus is usable even if brokers/common/correlation.py is removed.
-try:
-    from brokers.common.correlation import get_current_correlation_id
-except ImportError:  # pragma: no cover
-    get_current_correlation_id = lambda: None
 
 
 @dataclass(frozen=True)
@@ -66,10 +59,13 @@ class DomainEvent:
     sequence_number: int = 0  # P4: Monotonic counter for deterministic ordering
 
     def __post_init__(self) -> None:
-        # Ensure timestamps are timezone-aware for deterministic ordering.
+        # Fail-fast on naive timestamps — callers must provide timezone-aware datetimes.
+        # Normalization responsibility moved to DomainEvent.now() factory.
         if self.timestamp.tzinfo is None:
-            object.__setattr__(
-                self, "timestamp", self.timestamp.replace(tzinfo=timezone.utc)
+            raise ValueError(
+                f"DomainEvent requires timezone-aware timestamps. "
+                f"Got naive datetime: {self.timestamp}. "
+                f"Use DomainEvent.now() factory or provide tzinfo explicitly."
             )
 
     @classmethod
@@ -85,7 +81,7 @@ class DomainEvent:
         """Factory using UTC now.
 
         If *correlation_id* is not provided, the current thread's active
-        correlation ID (set via :func:`brokers.common.correlation.with_correlation`)
+        correlation ID (set via :func:`infrastructure.correlation.with_correlation`)
         is used.  This enables automatic end-to-end tracing without
         passing ``correlation_id=`` at every call site.
 
@@ -104,7 +100,7 @@ class DomainEvent:
         return cls(
             event_type=event_type,
             timestamp=datetime.now(timezone.utc),
-            payload=payload,
+            payload=dict(payload),  # Defensive shallow copy — prevents handler mutation
             symbol=symbol,
             source=source,
             correlation_id=correlation_id,
@@ -176,11 +172,11 @@ class EventBus:
         self,
         event_log: Any | None = None,
         dead_letter_queue: DeadLetterQueue | None = None,
-        metrics: EventMetrics | None = None,
+        metrics: EventMetricsPort | None = None,
         logging_enabled: bool = True,
         fail_fast: bool = False,
         replay_mode: bool = False,  # P4
-        alerting_engine: AlertingEngine | None = None,
+        alerting_engine: AlertingEnginePort | None = None,
         alerting_interval_seconds: float = 10.0,
     ) -> None:
         self._lock = threading.RLock()
@@ -207,7 +203,7 @@ class EventBus:
         return self._replay_mode
 
     @property
-    def alerting_engine(self) -> AlertingEngine | None:
+    def alerting_engine(self) -> AlertingEnginePort | None:
         """The alerting engine instance, if configured."""
         return self._alerting_engine
 
@@ -293,6 +289,40 @@ class EventBus:
         with self._lock:
             self._subscribers.clear()
 
+    # ── Internal helpers ──────────────────────────────────────────────────
+
+    def _prepare_event(self, event: DomainEvent) -> DomainEvent:
+        """Create a new event with infrastructure fields injected immutably.
+
+        This is the copy-on-publish pattern: instead of mutating the frozen
+        DomainEvent via object.__setattr__, we use dataclasses.replace() to
+        create a new instance with injected correlation_id and sequence_number.
+
+        Returns the original event if no changes are needed (optimization).
+        """
+        replacements: dict[str, Any] = {}
+
+        # Inject correlation_id from thread-local context if missing
+        if event.correlation_id is None:
+            cid = get_current_correlation_id()
+            if cid is not None:
+                replacements["correlation_id"] = cid
+
+        # P4: Assign sequence number in live mode only
+        if not self._replay_mode:
+            with self._lock:
+                self._sequence_counter += 1
+                seq_num = self._sequence_counter
+            if event.sequence_number == 0:
+                replacements["sequence_number"] = seq_num
+        # Replay mode: preserve original sequence_number (no assignment)
+
+        # Optimization: return original if no replacements needed
+        if not replacements:
+            return event
+
+        return replace(event, **replacements)
+
     # ── Publishing ────────────────────────────────────────────────────────
 
     def publish(self, event: DomainEvent) -> None:
@@ -311,23 +341,8 @@ class EventBus:
         Handler failures are logged, counted, and dead-lettered — they
         never disappear silently.
         """
-        # Auto-inject correlation_id from thread-local context if missing.
-        if event.correlation_id is None:
-            cid = get_current_correlation_id()
-            if cid is not None:
-                # DomainEvent is frozen, so use object.__setattr__
-                object.__setattr__(event, "correlation_id", cid)
-        
-        # P4: Assign sequence number for deterministic ordering
-        if not self._replay_mode:
-            # Live mode: assign monotonically increasing sequence number
-            with self._lock:
-                self._sequence_counter += 1
-                seq_num = self._sequence_counter
-            # Patch the event with sequence number (frozen dataclass workaround)
-            if event.sequence_number == 0:
-                object.__setattr__(event, "sequence_number", seq_num)
-        # Replay mode: preserve original sequence_number (no assignment)
+        # Prepare event: inject infrastructure fields immutably
+        event = self._prepare_event(event)
 
         if self._metrics is not None:
             self._metrics.add_timestamped_counter(event.event_type, "published")
@@ -360,6 +375,11 @@ class EventBus:
                     raise
 
         # 2. Dispatch (snapshot handlers to be lock-safe).
+        # A3: Skip handler dispatch during replay to prevent TRADE_APPLIED re-publishing
+        # which causes PositionManager to double-count trades.
+        if self._replay_mode:
+            return
+
         with self._lock:
             handlers = list(self._subscribers.get(event.event_type, {}).items())
 
@@ -376,8 +396,6 @@ class EventBus:
     def publish_sync(self, event: DomainEvent) -> None:
         """Alias for :meth:`publish`; kept for explicit synchronous semantics."""
         self.publish(event)
-
-    # ── Internal helpers ──────────────────────────────────────────────────
 
     def _handle_handler_failure(
         self, event: DomainEvent, handler_id: str, exc: BaseException

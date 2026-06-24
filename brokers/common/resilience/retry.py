@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from domain.constants import MAX_RETRY_ATTEMPTS, MAX_RETRY_DELAY_MS
@@ -22,12 +22,23 @@ from brokers.common.resilience.errors import (
 from brokers.common.resilience.rate_limiter import MultiBucketRateLimiter
 
 
+#: Default exception types considered transient/retryable.
+DEFAULT_RETRYABLE_EXCEPTIONS: tuple[type[Exception], ...] = (
+    ConnectionError,
+    TimeoutError,
+    OSError,
+)
+
+
 @dataclass
 class RetryConfig:
     """Configuration for retry behavior."""
 
     max_attempts: int = MAX_RETRY_ATTEMPTS
     max_retry_delay_ms: int = MAX_RETRY_DELAY_MS
+    retryable_exceptions: tuple[type[Exception], ...] = field(
+        default_factory=lambda: DEFAULT_RETRYABLE_EXCEPTIONS
+    )
 
     def __post_init__(self):
         if self.max_attempts <= 0:
@@ -128,13 +139,29 @@ class RetryExecutor:
                     raise
 
             except Exception as e:
-                # Plain exceptions are NOT retried by default
-                last_exception = e
-                if self.circuit_breaker:
-                    self.circuit_breaker.on_failure()
-                if self._on_failure:
-                    self._on_failure(e)
-                raise
+                # Check if this exception type is retryable
+                if isinstance(e, self.config.retryable_exceptions):
+                    last_exception = e
+                    if self.circuit_breaker:
+                        self.circuit_breaker.on_failure()
+
+                    if attempt < self.config.max_attempts - 1:
+                        delay = self.backoff.delay(attempt)
+                        time.sleep(delay)
+                        if self._on_retry:
+                            self._on_retry(attempt, e)
+                    else:
+                        if self._on_failure:
+                            self._on_failure(e)
+                        raise
+                else:
+                    # Non-retryable — fail immediately
+                    last_exception = e
+                    if self.circuit_breaker:
+                        self.circuit_breaker.on_failure()
+                    if self._on_failure:
+                        self._on_failure(e)
+                    raise
 
         # Should not reach here, but just in case
         if last_exception:

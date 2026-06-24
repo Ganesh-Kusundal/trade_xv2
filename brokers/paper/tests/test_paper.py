@@ -188,7 +188,7 @@ class TestMockBroker:
         assert q.ltp > 0
 
     def test_trading_context_populates_oms(self):
-        from brokers.common.oms.context import TradingContext
+        from application.oms.context import TradingContext
         ctx = TradingContext()
         broker = MockBroker(trading_context=ctx)
         broker.place_order("RELIANCE", "NSE", "BUY", 10, price=Decimal("2500"))
@@ -200,7 +200,7 @@ class TestMockBroker:
         assert positions[0].symbol == "RELIANCE"
 
     def test_paper_gateway_shares_context(self):
-        from brokers.common.oms.context import TradingContext
+        from application.oms.context import TradingContext
         ctx = TradingContext()
         gw = PaperGateway(trading_context=ctx)
         gw.place_order("RELIANCE", "NSE", "BUY", 5)
@@ -209,8 +209,8 @@ class TestMockBroker:
     def test_paper_gateway_risk_gate_rejects_excessive_order(self):
         from decimal import Decimal
 
-        from brokers.common.oms.context import TradingContext
-        from brokers.common.oms.risk_manager import RiskConfig
+        from application.oms.context import TradingContext
+        from application.oms.risk_manager import RiskConfig
         ctx = TradingContext(
             risk_config=RiskConfig(max_position_pct=Decimal("1")),
             capital_fn=lambda: Decimal("100000"),

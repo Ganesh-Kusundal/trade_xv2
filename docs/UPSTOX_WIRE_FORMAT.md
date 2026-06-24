@@ -39,9 +39,8 @@ elsewhere in the codebase.
 | Method | Endpoint                                          | Resolver method                       |
 | ------ | ------------------------------------------------- | ------------------------------------- |
 | GET    | `/v2/market-quote/ltp`                            | `market_quote_ltp_url`                |
-| GET    | `/v2/market-quote/quotes`                         | `market_quote_full_url`               |
-| GET    | `/v2/market-quote/ohlc`                           | `market_quote_ohlc_url`               |
-| GET    | `/v2/market-quote/depth`                          | `market_quote_order_book_url`         |
+| GET    | `/v2/market-quote/quotes?quote=BEST_FIVE`          | `market_quote_full_url` (depth: 5 levels) |
+| GET    | `/v2/market-quote/depth`                          | `market_quote_order_book_url` (unused — returns 404 on some plans) |
 | GET    | `/v2/historical-candle/{instrument_key}/{interval}/{to_date}/{from_date}` | `historical_candle_url`   |
 | GET    | `/v2/market/status/{exchange}`                    | `market_status_url`                   |
 | GET    | `/v2/market/holidays`                             | `market_holidays_url`                 |

@@ -18,6 +18,8 @@ from typing import Any
 
 import pytest
 
+pytestmark = pytest.mark.e2e
+
 from domain import OrderResponse, OrderStatus
 from brokers.common.observability.event_metrics import EventMetrics
 from brokers.common.resilience.broker_health_monitor import BrokerHealthMonitor

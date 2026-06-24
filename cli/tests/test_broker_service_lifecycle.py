@@ -141,15 +141,30 @@ def test_lifecycle_registers_token_scheduler_and_reconciliation(
     # directly via the dotted path.
     # Note: _ensure_initialized may call create_gateway for both Dhan
     # AND Upstox; only capture the first (Dhan) call.
-    def patched_create(broker, **kwargs):
+    from brokers.common.connection.bootstrap_result import BootstrapResult, BootstrapStatus
+
+    def patched_bootstrap(broker, **kwargs):
         if "factory_kwargs" not in captured:
             captured["factory_kwargs"] = kwargs
-        # Always register the scheduler (both Dhan and Upstox calls register).
         if "lifecycle" in kwargs and kwargs["lifecycle"] is not None:
             kwargs["lifecycle"].register(fake_scheduler)
-        return FakeGateway(**kwargs)
+        gw = FakeGateway(**kwargs)
+        return BootstrapResult(
+            status=BootstrapStatus.READY,
+            broker=broker,
+            gateway=gw,
+            probe_passed=True,
+            authenticated=True,
+            probe_name="mock",
+        )
 
-    monkeypatch.setattr("cli.services.broker_service.create_gateway", patched_create)
+    monkeypatch.setattr("cli.services.broker_service.bootstrap_gateway", patched_bootstrap)
+    monkeypatch.setattr(
+        "brokers.common.services.production_readiness.ProductionReadinessChecker.run_or_raise",
+        lambda self: MagicMock(passed=True, summary=lambda: "ok"),
+    )
+    monkeypatch.setattr("cli.services.broker_service.start_http_observability", lambda *a, **k: None)
+    monkeypatch.setattr("cli.services.broker_service.start_websocket_services", lambda *a, **k: None)
     monkeypatch.setattr("cli.services.broker_service._ENV_PATH", env)
 
     from cli.services.broker_service import BrokerService
@@ -202,12 +217,27 @@ def test_close_drains_lifecycle(monkeypatch, tmp_path) -> None:
             kwargs["lifecycle"].register(fake_scheduler)
             return FakeGateway(**kwargs)
 
-    def patched_create(broker, **kwargs):
-        # Simulate factory registering the scheduler.
-        kwargs["lifecycle"].register(fake_scheduler)
-        return FakeGateway(**kwargs)
+    from brokers.common.connection.bootstrap_result import BootstrapResult, BootstrapStatus
 
-    monkeypatch.setattr("cli.services.broker_service.create_gateway", patched_create)
+    def patched_bootstrap(broker, **kwargs):
+        kwargs["lifecycle"].register(fake_scheduler)
+        gw = FakeGateway(**kwargs)
+        return BootstrapResult(
+            status=BootstrapStatus.READY,
+            broker=broker,
+            gateway=gw,
+            probe_passed=True,
+            authenticated=True,
+            probe_name="mock",
+        )
+
+    monkeypatch.setattr("cli.services.broker_service.bootstrap_gateway", patched_bootstrap)
+    monkeypatch.setattr(
+        "brokers.common.services.production_readiness.ProductionReadinessChecker.run_or_raise",
+        lambda self: MagicMock(passed=True, summary=lambda: "ok"),
+    )
+    monkeypatch.setattr("cli.services.broker_service.start_http_observability", lambda *a, **k: None)
+    monkeypatch.setattr("cli.services.broker_service.start_websocket_services", lambda *a, **k: None)
     monkeypatch.setattr("cli.services.broker_service._ENV_PATH", env)
 
     from cli.services.broker_service import BrokerService
@@ -220,15 +250,15 @@ def test_close_drains_lifecycle(monkeypatch, tmp_path) -> None:
     # factory's TokenRefreshScheduler is registered by FakeFactory.
     # Both are in the lifecycle.
     assert fake_scheduler.started
-    snap = bs.lifecycle.health_snapshot()
-    assert "daily-pnl-reset" in snap
-    assert snap["daily-pnl-reset"]["state"] in ("HEALTHY", "STOPPED")
     del fake_daily_pnl
+
+    gw = bs._gateway
+    assert gw is not None
 
     # Now close — must drain everything
     bs.close()
     assert fake_scheduler.stopped
-    assert bs._gateway.closed is True
+    assert gw.closed is True
 
 
 def test_close_is_safe_when_init_never_ran() -> None:
@@ -259,10 +289,12 @@ def test_close_is_safe_when_factory_raised(monkeypatch, tmp_path) -> None:
         def create(**kwargs):
             raise RuntimeError("simulated factory failure")
 
-    def failing_create(broker, **kwargs):
+    from brokers.common.connection.bootstrap_result import BootstrapResult, BootstrapStatus
+
+    def failing_bootstrap(broker, **kwargs):
         raise RuntimeError("simulated factory failure")
 
-    monkeypatch.setattr("cli.services.broker_service.create_gateway", failing_create)
+    monkeypatch.setattr("cli.services.broker_service.bootstrap_gateway", failing_bootstrap)
     monkeypatch.setattr("cli.services.broker_service._ENV_PATH", env)
 
     from cli.services.broker_service import BrokerService

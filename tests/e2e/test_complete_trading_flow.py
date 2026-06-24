@@ -21,6 +21,8 @@ from typing import Any
 
 import pytest
 
+pytestmark = pytest.mark.e2e
+
 from domain import (
     Order,
     OrderStatus,
@@ -32,10 +34,10 @@ from domain import (
 from infrastructure.event_bus import DomainEvent, EventBus
 from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
 from brokers.common.observability.event_metrics import EventMetrics
-from brokers.common.oms.context import TradingContext
-from brokers.common.oms.order_manager import OmsOrderCommand, OrderResult
-from brokers.common.oms.position_manager import PositionManager
-from brokers.common.oms.risk_manager import RiskConfig, RiskManager
+from application.oms.context import TradingContext
+from application.oms.order_manager import OmsOrderCommand, OrderResult
+from application.oms.position_manager import PositionManager
+from application.oms.risk_manager import RiskConfig, RiskManager
 
 from tests.e2e.fixtures.event_capturer import EventCapturer
 from tests.e2e.fixtures.trading_context_factory import (

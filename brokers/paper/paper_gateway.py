@@ -22,9 +22,7 @@ from domain import (
     Trade,
 )
 from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
-from brokers.common.oms.context import TradingContext
-from brokers.common.oms.risk_manager import RiskConfig
-from domain.constants.defaults import PAPER_INITIAL_CAPITAL, PAPER_MAX_POSITION_PCT
+from domain.constants.defaults import PAPER_INITIAL_CAPITAL
 
 from .paper_market_data import PaperMarketData
 from .paper_orders import PaperOrders
@@ -49,26 +47,27 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway):
     def __init__(
         self,
         initial_capital: Decimal = PAPER_INITIAL_CAPITAL,
-        trading_context: TradingContext | None = None,
+        *,
+        order_manager: Any | None = None,
+        position_manager: Any | None = None,
+        trading_context: Any | None = None,
     ) -> None:
-        if trading_context is None:
-            # Internal default context: paper trading is unrestricted unless the
-            # caller supplies an explicit TradingContext with real risk limits.
-            trading_context = TradingContext(
-                capital_fn=lambda: initial_capital,
-                risk_config=RiskConfig(
-                    max_position_pct=PAPER_MAX_POSITION_PCT,
-                    max_gross_exposure_pct=PAPER_MAX_POSITION_PCT,
-                    max_daily_loss_pct=PAPER_MAX_POSITION_PCT,
-                ),
+        # ``trading_context`` is a backward-compatible injection path; composition
+        # roots should prefer explicit order_manager / position_manager.
+        if trading_context is not None:
+            order_manager = order_manager or getattr(
+                trading_context, "order_manager", None
+            )
+            position_manager = position_manager or getattr(
+                trading_context, "position_manager", None
             )
         self._trading_context = trading_context
         self._market_data = PaperMarketData()
         self._orders = PaperOrders(
             self._market_data,
             {},
-            order_manager=self._trading_context.order_manager,
-            position_manager=self._trading_context.position_manager,
+            order_manager=order_manager,
+            position_manager=position_manager,
         )
         self._portfolio = PaperPortfolio(self._orders, initial_capital)
 
@@ -81,7 +80,7 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway):
         return self._orders
 
     @property
-    def trading_context(self) -> TradingContext:
+    def trading_context(self) -> Any | None:
         return self._trading_context
 
     @property

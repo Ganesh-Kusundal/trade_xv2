@@ -173,11 +173,37 @@ class TestOrderPayloadValidation:
 class TestSecretsNotLogged:
     """Verify secrets are not logged in plain text (SEC-05)."""
 
-    def test_no_token_in_log_messages(self):
-        """Log messages should not contain token patterns."""
-        # This is a static analysis check
-        # A more comprehensive check would require runtime testing
-        pass
+    def test_query_token_redacted_in_logs(self):
+        """WebSocket URL query tokens must be redacted."""
+        from brokers.common.logging_config import _redact
+
+        raw = "connecting wss://api.upstox.com/v2/feed?token=eyJhbGciOiJIUzI1NiJ9.secret"
+        redacted = _redact(raw)
+        assert "eyJhbGciOiJIUzI1NiJ9" not in redacted
+        assert "<REDACTED>" in redacted
+
+    def test_api_auth_does_not_log_generated_key(self):
+        """api/auth.py must not format API_KEY into warning logs."""
+        source = Path("api/auth.py").read_text()
+        assert "Generated temporary key: %s" not in source
+
+    def test_no_token_equals_in_logger_format_strings(self):
+        """Static scan: no logger calls with token= in brokers/ production code."""
+        violations: list[str] = []
+        for py_file in Path("brokers").rglob("*.py"):
+            if "test" in py_file.parts:
+                continue
+            if py_file.name == "logging_config.py":
+                continue
+            text = py_file.read_text()
+            for lineno, line in enumerate(text.splitlines(), 1):
+                stripped = line.strip()
+                if stripped.startswith("#"):
+                    continue
+                if "logger." in line and ("token=%s" in line or 'token="{}"' in line):
+                    if "REDACTED" not in line:
+                        violations.append(f"{py_file}:{lineno}")
+        assert not violations, f"Potential token logging: {violations}"
 
 
 class TestFilePermissions:

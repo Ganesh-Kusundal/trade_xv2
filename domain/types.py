@@ -12,7 +12,7 @@ narrow submodules:
 * :mod:`domain.market_enums` — ``ExchangeSegment``, ``InstrumentType``
 * :mod:`domain.capabilities` — ``Capability``, ``ConnectionStatus``
 * :mod:`domain.positions` — ``PositionState``, ``POSITION_STATE_TRANSITIONS``
-* :mod:`domain.orders` — ``ORDER_STATUS_TRANSITIONS``
+* :mod:`domain.entities.order_lifecycle` — ``ORDER_STATUS_TRANSITIONS``
 
 Usage remains unchanged::
 
@@ -30,6 +30,6 @@ from domain.enums import (  # noqa: F401
     Validity,
 )
 from domain.market_enums import ExchangeSegment, InstrumentType  # noqa: F401
-from domain.orders import ORDER_STATUS_TRANSITIONS  # noqa: F401
+from domain.entities.order_lifecycle import ORDER_STATUS_TRANSITIONS  # noqa: F401
 from domain.positions import POSITION_STATE_TRANSITIONS, PositionState  # noqa: F401
 

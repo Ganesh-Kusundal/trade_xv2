@@ -54,16 +54,17 @@ import traceback
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
+from domain.lifecycle_health import HealthState, HealthStatus
 from infrastructure.event_bus.event_bus import DomainEvent
+from infrastructure.lifecycle.lifecycle import build_health
 
 if TYPE_CHECKING:
     from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
-    from brokers.common.observability.event_metrics import EventMetrics
-    from brokers.common.observability.alerting import AlertingEngine
+    from domain.ports.observability import AlertingEnginePort, EventMetricsPort
 
 logger = logging.getLogger(__name__)
 
@@ -163,9 +164,9 @@ class AsyncEventBus:
         maxsize: int = 1000,
         backpressure_policy: BackpressurePolicy = BackpressurePolicy.BLOCK,
         event_log: Any | None = None,
-        metrics: EventMetrics | None = None,
+        metrics: EventMetricsPort | None = None,
         dead_letter_queue: DeadLetterQueue | None = None,
-        alerting_engine: AlertingEngine | None = None,
+        alerting_engine: AlertingEnginePort | None = None,
         alerting_interval_seconds: float = 10.0,
     ) -> None:
         self._queue: asyncio.Queue[tuple[str, dict[str, Any]] | None] = asyncio.Queue(
@@ -187,10 +188,18 @@ class AsyncEventBus:
         
         self._worker_task: asyncio.Task | None = None
         self._alerting_task: asyncio.Task | None = None
+        self._supervisor_task: asyncio.Task | None = None
         self._running = False
         self._event_count = 0
         self._error_count = 0
         self._dropped_count = 0
+        
+        # Supervisor state (A7: supervisor pattern)
+        self._restart_count = 0
+        self._consecutive_restarts = 0
+        self._last_restart_at: datetime | None = None
+        self._max_consecutive_restarts = 5
+        self._restart_cooldown_seconds = 5.0
     
     @property
     def queue_size(self) -> int:
@@ -208,24 +217,43 @@ class AsyncEventBus:
         return self._running
     
     @property
-    def alerting_engine(self) -> AlertingEngine | None:
+    def name(self) -> str:
+        """ManagedService protocol: service name for LifecycleManager."""
+        return "AsyncEventBus"
+    
+    @property
+    def alerting_engine(self) -> AlertingEnginePort | None:
         """The alerting engine instance, if configured."""
         return self._alerting_engine
     
     async def start(self) -> None:
-        """Start the dispatch worker and alerting task.
+        """Start the dispatch worker, supervisor, and alerting task.
         
         Must be called before publish(). Creates a background task that
-        continuously processes events from the queue.
+        continuously processes events from the queue, monitored by a
+        supervisor task that restarts the worker on crash.
         """
         if self._running:
             logger.warning("AsyncEventBus already running")
             return
         
+        # Reset supervisor state
+        self._restart_count = 0
+        self._consecutive_restarts = 0
+        self._last_restart_at = None
+        
         self._running = True
+        
+        # Create worker task FIRST
         self._worker_task = asyncio.create_task(
             self._dispatch_worker(),
             name=self._config.worker_name,
+        )
+        
+        # Create supervisor task (monitors worker)
+        self._supervisor_task = asyncio.create_task(
+            self._supervisor_loop(),
+            name="AsyncEventBus-Supervisor",
         )
         
         # Start alerting task if engine is provided.
@@ -242,7 +270,7 @@ class AsyncEventBus:
         )
     
     async def stop(self) -> None:
-        """Stop the dispatch worker and alerting task.
+        """Stop the dispatch worker, supervisor, and alerting task.
         
         Waits for all pending events to be processed before returning.
         Call this during graceful shutdown.
@@ -263,6 +291,14 @@ class AsyncEventBus:
                 logger.error("AsyncEventBus worker did not stop within timeout")
                 self._worker_task.cancel()
         
+        # Cancel supervisor task
+        if self._supervisor_task is not None:
+            self._supervisor_task.cancel()
+            try:
+                await asyncio.wait_for(self._supervisor_task, timeout=5.0)
+            except (asyncio.TimeoutError, asyncio.CancelledError):
+                pass
+        
         # Wait for alerting task to finish
         if self._alerting_task is not None:
             self._alerting_task.cancel()
@@ -272,10 +308,11 @@ class AsyncEventBus:
                 pass
         
         logger.info(
-            "AsyncEventBus stopped: events=%d, errors=%d, dropped=%d",
+            "AsyncEventBus stopped: events=%d, errors=%d, dropped=%d, restarts=%d",
             self._event_count,
             self._error_count,
             self._dropped_count,
+            self._restart_count,
         )
     
     async def _alerting_loop(self) -> None:
@@ -417,45 +454,296 @@ class AsyncEventBus:
         
         This runs as a background task and continuously pulls events from
         the queue, dispatching them to all subscribed handlers.
+        
+        A7 Fix: Wrapped in outer try-except so supervisor can detect
+        crashes outside the inner event-processing loop.
         """
         logger.info("AsyncEventBus dispatch worker started")
         
+        try:
+            while self._running:
+                try:
+                    # Get next event (blocks until available)
+                    item = await self._queue.get()
+                    
+                    # Sentinel received: stop worker
+                    if item is None:
+                        self._queue.task_done()
+                        break
+                    
+                    event_type, event_data = item
+                    
+                    # Create DomainEvent
+                    event = DomainEvent.now(
+                        event_type=event_type,
+                        payload=event_data["payload"],
+                        symbol=event_data.get("symbol"),
+                        source=event_data.get("source"),
+                        correlation_id=event_data.get("correlation_id"),
+                    )
+                    
+                    # P2: Persist FIRST (crash recovery) — mirror sync bus pattern
+                    if self._event_log is not None:
+                        try:
+                            self._event_log.append(event)
+                        except Exception as log_exc:
+                            logger.error(
+                                "AsyncEventBus: failed to persist %s to log: %s",
+                                event.event_type,
+                                log_exc,
+                                exc_info=True,
+                            )
+                            if self._metrics is not None:
+                                self._metrics.add_timestamped_counter(
+                                    event.event_type, f"log_error:{type(log_exc).__name__}"
+                                )
+                            if self._dead_letter_queue is not None:
+                                import traceback as _tb
+                                self._dead_letter_queue.push_failure(
+                                    event=event,
+                                    handler_id="<event_log>",
+                                    exc=log_exc,
+                                    traceback=_tb.format_exc(),
+                                )
+                    
+                    # Dispatch to handlers
+                    await self._dispatch_event(event)
+                    
+                    self._event_count += 1
+                    self._queue.task_done()
+                
+                except Exception as exc:
+                    logger.error(
+                        "AsyncEventBus dispatch worker error: %s",
+                        exc,
+                        exc_info=True,
+                    )
+                    self._error_count += 1
+        except asyncio.CancelledError:
+            # Clean shutdown requested
+            logger.info("AsyncEventBus dispatch worker cancelled")
+            raise
+        except Exception as exc:
+            # CRITICAL: Worker crash outside inner loop - supervisor will restart
+            logger.critical(
+                "AsyncEventBus dispatch worker CRASH: %s",
+                exc,
+                exc_info=True,
+            )
+            raise
+        finally:
+            logger.info("AsyncEventBus dispatch worker stopped")
+    
+    # ── Supervisor Pattern (A7 Fix) ──────────────────────────────────────
+    
+    async def _supervisor_loop(self) -> None:
+        """Monitor dispatch worker and restart on crash.
+        
+        Implements exponential backoff with crash-loop detection:
+        - Backoff: 0.1s → 5s max
+        - Crash loop: 5 restarts within 5s window → suppress and log CRITICAL
+        
+        A7 Fix: Eliminates single point of failure in dispatch worker.
+        """
+        logger.info("AsyncEventBus supervisor started")
+        
         while self._running:
             try:
-                # Get next event (blocks until available)
-                item = await self._queue.get()
+                # Wait for worker task to complete (crash or stop)
+                if self._worker_task is not None:
+                    try:
+                        await self._worker_task
+                    except Exception:
+                        # Worker crashed - exception is expected, we'll restart below
+                        pass
                 
-                # Sentinel received: stop worker
-                if item is None:
-                    self._queue.task_done()
+                # Worker completed - check if we should restart
+                if not self._running:
+                    # Clean shutdown requested
+                    logger.info("AsyncEventBus supervisor: clean shutdown, not restarting")
                     break
                 
-                event_type, event_data = item
+                # Worker crashed - decide whether to restart
+                now = datetime.now(timezone.utc)
                 
-                # Create DomainEvent
-                event = DomainEvent.now(
-                    event_type=event_type,
-                    payload=event_data["payload"],
-                    symbol=event_data.get("symbol"),
-                    source=event_data.get("source"),
-                    correlation_id=event_data.get("correlation_id"),
+                if self._should_suppress_restart(now):
+                    logger.critical(
+                        "AsyncEventBus supervisor: CRASH LOOP DETECTED - "
+                        "%d restarts in %.1fs window, suppressing restart",
+                        self._consecutive_restarts,
+                        self._restart_cooldown_seconds,
+                    )
+                    # Wait for stop or external intervention
+                    while self._running:
+                        await asyncio.sleep(1.0)
+                    break
+                
+                # Calculate backoff delay
+                delay = self._calculate_restart_delay()
+                logger.warning(
+                    "AsyncEventBus supervisor: worker crashed, restarting in %.2fs "
+                    "(restart #%d, consecutive #%d)",
+                    delay,
+                    self._restart_count + 1,
+                    self._consecutive_restarts + 1,
                 )
                 
-                # Dispatch to handlers
-                await self._dispatch_event(event)
+                await asyncio.sleep(delay)
                 
-                self._event_count += 1
-                self._queue.task_done()
+                if not self._running:
+                    break
+                
+                # Restart worker
+                self._restart_count += 1
+                self._consecutive_restarts += 1
+                self._last_restart_at = now
+                
+                logger.info(
+                    "AsyncEventBus supervisor: restarting worker (attempt #%d)",
+                    self._restart_count,
+                )
+                
+                self._worker_task = asyncio.create_task(
+                    self._dispatch_worker(),
+                    name=f"{self._config.worker_name}-restart-{self._restart_count}",
+                )
             
+            except asyncio.CancelledError:
+                logger.info("AsyncEventBus supervisor cancelled")
+                raise
             except Exception as exc:
-                logger.error(
-                    "AsyncEventBus dispatch worker error: %s",
+                logger.critical(
+                    "AsyncEventBus supervisor error: %s",
                     exc,
                     exc_info=True,
                 )
-                self._error_count += 1
+                # Don't let supervisor crash - wait and retry
+                await asyncio.sleep(1.0)
         
-        logger.info("AsyncEventBus dispatch worker stopped")
+        logger.info("AsyncEventBus supervisor stopped")
+    
+    def _should_suppress_restart(self, now: datetime) -> bool:
+        """Check if we should suppress restart due to crash loop.
+        
+        Parameters
+        ----------
+        now:
+            Current timestamp.
+        
+        Returns
+        -------
+        bool:
+            True if restart should be suppressed (crash loop detected).
+        """
+        if self._consecutive_restarts < self._max_consecutive_restarts:
+            return False
+        
+        if self._last_restart_at is None:
+            return False
+        
+        # Check if we're still within the cooldown window
+        time_since_last = (now - self._last_restart_at).total_seconds()
+        return time_since_last < self._restart_cooldown_seconds
+    
+    def _calculate_restart_delay(self) -> float:
+        """Calculate exponential backoff delay for restart.
+        
+        Returns
+        -------
+        float:
+            Delay in seconds (0.1s → 5.0s max).
+        """
+        # Exponential backoff: 0.1 * 2^(consecutive_restarts)
+        delay = 0.1 * (2 ** self._consecutive_restarts)
+        return min(delay, 5.0)  # Cap at 5 seconds
+    
+    # ── Health Check (ManagedService protocol) ───────────────────────────
+    
+    def health(self) -> HealthStatus:
+        """Return a point-in-time health snapshot.
+        
+        Implements ManagedService protocol for LifecycleManager integration.
+        
+        Returns
+        -------
+        HealthStatus:
+            - STOPPED: Not running
+            - HEALTHY: Running, no recent restarts
+            - DEGRADED: Running but has restarted recently
+            - UNHEALTHY: Running but in crash loop (suppressed)
+            - FAILED: Supervisor or worker task not alive
+        """
+        if not self._running:
+            return build_health(
+                self.name,
+                HealthState.STOPPED,
+                detail="not running",
+                metrics=self._health_metrics(),
+            )
+        
+        # Check if tasks are alive
+        supervisor_alive = (
+            self._supervisor_task is not None
+            and not self._supervisor_task.done()
+        )
+        worker_alive = (
+            self._worker_task is not None
+            and not self._worker_task.done()
+        )
+        
+        if not supervisor_alive or not worker_alive:
+            return build_health(
+                self.name,
+                HealthState.FAILED,
+                detail=f"supervisor_alive={supervisor_alive}, worker_alive={worker_alive}",
+                metrics=self._health_metrics(),
+            )
+        
+        # Check for crash loop
+        if self._consecutive_restarts >= self._max_consecutive_restarts:
+            return build_health(
+                self.name,
+                HealthState.UNHEALTHY,
+                detail=f"crash loop detected ({self._consecutive_restarts} consecutive restarts)",
+                metrics=self._health_metrics(),
+            )
+        
+        # Check if degraded (recent restarts)
+        if self._consecutive_restarts > 0:
+            return build_health(
+                self.name,
+                HealthState.DEGRADED,
+                detail=f"running with {self._consecutive_restarts} consecutive restart(s)",
+                metrics=self._health_metrics(),
+            )
+        
+        # Healthy
+        return build_health(
+            self.name,
+            HealthState.HEALTHY,
+            detail="running normally",
+            metrics=self._health_metrics(),
+        )
+    
+    def _health_metrics(self) -> dict[str, Any]:
+        """Collect metrics for health snapshot."""
+        return {
+            "restart_count": self._restart_count,
+            "consecutive_restarts": self._consecutive_restarts,
+            "queue_size": self._queue.qsize(),
+            "event_count": self._event_count,
+            "error_count": self._error_count,
+            "dropped_count": self._dropped_count,
+            "is_running": self._running,
+            "supervisor_task_alive": (
+                self._supervisor_task is not None
+                and not self._supervisor_task.done()
+            ),
+            "worker_task_alive": (
+                self._worker_task is not None
+                and not self._worker_task.done()
+            ),
+        }
     
     async def _dispatch_event(self, event: DomainEvent) -> None:
         """Dispatch an event to all subscribed handlers.
@@ -537,7 +825,14 @@ class AsyncEventBus:
         
         # DLQ (if available)
         if self._dead_letter_queue is not None:
-            self._dead_letter_queue.push(event, exc)
+            import traceback as _tb
+            handler_id = handler.__name__ if hasattr(handler, "__name__") else str(handler)
+            self._dead_letter_queue.push_failure(
+                event=event,
+                handler_id=handler_id,
+                exc=exc,
+                traceback=_tb.format_exc(),
+            )
     
     async def wait_for_completion(self, timeout: float | None = None) -> bool:
         """Wait for all queued events to be processed.

@@ -21,13 +21,14 @@ class UpstoxTokenExpiry:
     def next_expiry_epoch_ms(now: datetime | None = None) -> int:
         if now is None:
             now = datetime.now(IST)
+        elif now.tzinfo is None:
+            now = now.replace(tzinfo=IST)
         else:
-            if now.tzinfo is None:
-                now = now.replace(tzinfo=IST)
-        expiry_today = datetime.combine(now.date(), EXPIRY_TIME, tzinfo=IST)
-        if not now < expiry_today:
-            expiry_today = expiry_today.replace(day=expiry_today.day + 1)
-            from datetime import timedelta
+            now = now.astimezone(IST)
 
-            expiry_today = expiry_today + timedelta(days=0)
+        from datetime import timedelta
+
+        expiry_today = datetime.combine(now.date(), EXPIRY_TIME, tzinfo=IST)
+        if now >= expiry_today:
+            expiry_today = expiry_today + timedelta(days=1)
         return int(expiry_today.timestamp() * 1000)

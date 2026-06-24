@@ -104,7 +104,7 @@ class TestIdempotency:
 # ---------------------------------------------------------------------------
 
 class TestUnknownStatusFallback:
-    """Unknown status strings must fall back to OPEN (DM-009 contract)."""
+    """Unknown status strings must map to UNKNOWN (not OPEN)."""
 
     @pytest.mark.parametrize(
         "raw",
@@ -117,11 +117,17 @@ class TestUnknownStatusFallback:
             "UNKNOWN_REJECTED",
         ],
     )
-    def test_unknown_falls_back_to_open(self, raw: str):
+    def test_unknown_maps_to_unknown(self, raw: str):
         result = StatusMapperRegistry.normalize(raw)
-        assert result == OrderStatus.OPEN, (
-            f"normalize({raw!r}) should fall back to OPEN, got {result}"
+        assert result == OrderStatus.UNKNOWN, (
+            f"normalize({raw!r}) should be UNKNOWN, got {result}"
         )
+
+    def test_normalize_strict_raises(self):
+        from domain.status_mapper import UnmappedBrokerStatusError
+
+        with pytest.raises(UnmappedBrokerStatusError):
+            StatusMapperRegistry.normalize_strict("BOGUS_STATUS")
 
 
 # ---------------------------------------------------------------------------

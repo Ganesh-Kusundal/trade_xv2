@@ -9,9 +9,9 @@ import pytest
 from fastapi.testclient import TestClient
 
 from domain import Side, Trade
-from brokers.common.oms.context import TradingContext
-from brokers.common.oms.order_manager import OrderManager
-from brokers.common.oms.position_manager import PositionManager
+from application.oms.context import TradingContext
+from application.oms.order_manager import OrderManager
+from application.oms.position_manager import PositionManager
 from infrastructure.event_bus.event_bus import EventBus
 from api.config import APIConfig
 from api.deps import get_trade_journal, reset_container

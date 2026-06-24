@@ -113,6 +113,8 @@ class UpstoxTokenManager:
 
     def ensure_valid(self) -> None:
         with self._lock:
+            if self._settings.is_totp:
+                return
             now_ms = int(time.time() * 1000)
             exp_ms = self._holder.expiry_epoch_ms()
             buffer_ms = getattr(self._settings, "refresh_buffer_minutes", 30) * 60 * 1000
@@ -128,18 +130,24 @@ class UpstoxTokenManager:
 
     def force_refresh(self) -> TokenSnapshot | None:
         with self._lock:
+            if self._settings.is_totp:
+                return self.refresh_totp()
             if not self._state or not self._state.refresh_token:
                 raise UpstoxAuthError("Cannot force_refresh: no refresh token available")
             self._refresh_now()
             return self._state
 
+    def refresh_totp(self) -> TokenSnapshot:
+        """Regenerate token via TOTP (no refresh_token required)."""
+        with self._lock:
+            return self._bootstrap_totp()
+
     def bootstrap(self) -> TokenSnapshot:
         """Acquire the initial state from settings or the persisted JSON file."""
         with self._lock:
-            # TOTP mode: generate token automatically
             if self._settings.is_totp:
-                return self._bootstrap_totp()
-            
+                return self._bootstrap_totp_if_needed()
+
             if self._state_store is not None:
                 persisted = self._state_store.load()
                 if persisted and self._valid_persisted(persisted):
@@ -153,6 +161,49 @@ class UpstoxTokenManager:
                     )
                     return self._state
             return self._acquire_initial()
+
+    def _bootstrap_totp_if_needed(self) -> TokenSnapshot:
+        """Load persisted/env token first; generate TOTP only when missing or expired."""
+        if self._state_store is not None:
+            persisted = self._state_store.load()
+            if persisted and self._valid_persisted(persisted):
+                self._state = self._from_persisted(persisted)
+                self._holder.replace(
+                    UpstoxStaticTokenHolder(
+                        self._state.access_token,
+                        analytics_only=False,
+                        label="Upstox token (persisted TOTP)",
+                    )
+                )
+                logger.debug("Upstox TOTP bootstrap: reusing persisted token")
+                return self._state
+
+        if self._settings.access_token:
+            exp = UpstoxJwtExpiry.parse_expiry_epoch_ms(self._settings.access_token)
+            now_ms = int(time.time() * 1000)
+            if exp <= 0 or exp > now_ms:
+                if exp <= 0:
+                    exp = UpstoxTokenExpiry.next_expiry_epoch_ms()
+                state = TokenSnapshot(
+                    access_token=self._settings.access_token,
+                    refresh_token=None,
+                    expires_at_ms=exp,
+                    issued_at_ms=now_ms,
+                    source="TOTP",
+                )
+                self._state = state
+                self._holder.replace(
+                    UpstoxStaticTokenHolder(
+                        self._settings.access_token,
+                        analytics_only=False,
+                        label="Upstox token (env TOTP)",
+                    )
+                )
+                self._persist(state)
+                logger.debug("Upstox TOTP bootstrap: reusing env token")
+                return state
+
+        return self._bootstrap_totp()
 
     def perform_interactive_oauth(
         self,

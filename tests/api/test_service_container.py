@@ -18,7 +18,7 @@ import pytest
 from fastapi import HTTPException
 
 from infrastructure.event_bus import EventBus
-from brokers.common.oms.context import TradingContext
+from application.oms.context import TradingContext
 from api.deps import (
     ServiceContainer,
     get_broker_service,

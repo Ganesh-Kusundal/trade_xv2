@@ -95,11 +95,40 @@ class TestAuthManagerIntegration:
         assert loaded is not None
         assert loaded.access_token == fresh_token
 
-    def test_ensure_valid_refreshes_when_needed(self, tmp_path):
+    def test_ensure_valid_does_not_proactively_refresh(self, tmp_path):
         from datetime import datetime, timedelta
         store = JsonTokenStateStore(tmp_path / "token.json")
-        # Store a token expiring in 4 minutes (within 5-min buffer)
-        # But total lifetime must be > buffer for normal refresh logic
+        issued_at = datetime.now() - timedelta(hours=23, minutes=55)
+        expires_at = datetime.now() + timedelta(minutes=4)
+        store.save(TokenState(
+            access_token="expiring_token",
+            source=TokenSource.TOTP,
+            issued_at=issued_at,
+            expires_at=expires_at,
+        ))
+
+        refresh_called = {"count": 0}
+
+        def on_refresh():
+            refresh_called["count"] += 1
+            return "fresh_token"
+
+        auth = AuthManager(
+            client_id="test_client",
+            token_store=store,
+            token_source=TokenSource.TOTP,
+            on_refresh=on_refresh,
+        )
+        auth.acquire()
+
+        result = auth.ensure_valid(buffer_seconds=300)
+        assert result is True
+        assert auth.state.access_token == "expiring_token"
+        assert refresh_called["count"] == 0
+
+    def test_ensure_fresh_refreshes_when_needed(self, tmp_path):
+        from datetime import datetime, timedelta
+        store = JsonTokenStateStore(tmp_path / "token.json")
         issued_at = datetime.now() - timedelta(hours=23, minutes=55)
         expires_at = datetime.now() + timedelta(minutes=4)
         store.save(TokenState(
@@ -118,8 +147,7 @@ class TestAuthManagerIntegration:
         )
         auth.acquire()
 
-        # ensure_valid should trigger refresh because token is within buffer
-        result = auth.ensure_valid(buffer_seconds=300)
+        result = auth.ensure_fresh(buffer_seconds=300)
         assert result is True
         assert auth.state.access_token == fresh_token
 

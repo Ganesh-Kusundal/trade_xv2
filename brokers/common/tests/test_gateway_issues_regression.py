@@ -117,9 +117,17 @@ class TestUpstoxNotImplementedErrors:
         assert isinstance(result, OptionChain)
         assert result.underlying == "NIFTY"
 
-    def test_upstox_future_chain_raises(self, upstox_gateway):
-        with pytest.raises(NotImplementedError, match="future chain"):
-            upstox_gateway.future_chain("NIFTY", exchange="NFO")
+    def test_upstox_future_chain_returns_future_chain(self, upstox_gateway):
+        """Upstox future_chain delegates to broker futures adapter."""
+        upstox_gateway._broker.futures.get_contracts.return_value = [
+            {"expiry": "2026-06-26", "symbol": "NIFTY26JUNFUT", "lot_size": 75, "underlying": "NIFTY"},
+        ]
+        upstox_gateway._broker.futures.get_expiries.return_value = ["2026-06-26"]
+        result = upstox_gateway.future_chain("NIFTY", exchange="NFO")
+        from domain import FutureChain
+        assert isinstance(result, FutureChain)
+        assert result.underlying == "NIFTY"
+        assert len(result.contracts) == 1
 
     def test_upstox_get_trade_book_delegates_to_order_query(self, upstox_gateway):
         """Upstox get_trade_book delegates to PortfolioAdapter.get_trades()."""

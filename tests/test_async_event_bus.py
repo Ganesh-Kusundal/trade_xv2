@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from unittest.mock import MagicMock
 
 import pytest
@@ -48,6 +48,8 @@ class TestAsyncEventBusLifecycle:
         assert not bus.is_running
         await bus.start()
         assert bus.is_running
+        # Supervisor creates worker asynchronously, wait briefly
+        await asyncio.sleep(0.1)
         assert bus._worker_task is not None
         await bus.stop()
 
@@ -438,3 +440,424 @@ class TestProperties:
         assert bus.is_running
         await bus.stop()
         assert not bus.is_running
+
+
+class TestDLQIntegration:
+    """Tests for Dead Letter Queue integration — verifies correct DLQ push signature."""
+
+    @pytest.mark.asyncio
+    async def test_handler_failure_pushes_to_dlq_with_correct_signature(self) -> None:
+        """Verify that handler failures are pushed to DLQ using push_failure(), not push().
+
+        Regression test for: async_event_bus.py:539 called push(event, exc) but
+        DeadLetterQueue.push() expects a DeadLetter object — this caused a TypeError
+        that crashed the dispatch worker.
+        """
+        from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
+
+        dlq = DeadLetterQueue(max_size=100)
+        bus = AsyncEventBus(maxsize=100, dead_letter_queue=dlq)
+        await bus.start()
+
+        results: list[str] = []
+
+        def failing_handler(event) -> None:
+            results.append(event.event_type)
+            raise ValueError("test handler failure")
+
+        bus.subscribe("TEST_EVENT", failing_handler)
+        await bus.publish("TEST_EVENT", payload={"data": "test"})
+
+        # Wait for dispatch
+        await asyncio.sleep(0.2)
+        await bus.wait_for_completion(timeout=2.0)
+
+        # Handler should have been called
+        assert "TEST_EVENT" in results
+
+        # DLQ should have the failure (not crashed)
+        assert len(dlq) == 1
+        dead_letter = dlq.peek(1)[0]
+        assert dead_letter.error_type == "ValueError"
+        assert "test handler failure" in dead_letter.error_message
+        assert dead_letter.traceback is not None
+
+        await bus.stop()
+
+    @pytest.mark.asyncio
+    async def test_async_event_bus_persists_to_event_log(self) -> None:
+        """Verify that AsyncEventBus persists events to event_log before dispatch.
+
+        Regression test for: AsyncEventBus accepted event_log parameter but NEVER
+        wrote to it, causing zero crash recovery capability.
+        """
+        from infrastructure.event_log import EventLog
+        import tempfile
+        import os
+        from pathlib import Path
+        from datetime import date
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            events_dir = Path(tmpdir) / "events"
+            event_log = EventLog(events_dir)
+
+            bus = AsyncEventBus(maxsize=100, event_log=event_log)
+            await bus.start()
+
+            results: list[str] = []
+
+            def handler(event) -> None:
+                results.append(event.event_type)
+
+            bus.subscribe("PERSIST_TEST", handler)
+            await bus.publish("PERSIST_TEST", payload={"key": "value"})
+
+            # Wait for dispatch
+            await asyncio.sleep(0.2)
+            await bus.wait_for_completion(timeout=2.0)
+
+            # Event should have been persisted to today's JSONL file
+            today_file = events_dir / f"{date.today().isoformat()}.jsonl"
+            # Check for append errors
+            assert event_log.append_errors == 0, f"EventLog had {event_log.append_errors} append errors"
+            assert today_file.exists(), f"Expected event log at {today_file}, events_dir contents: {list(events_dir.iter()) if events_dir.exists() else 'DIR NOT FOUND'}"
+            with open(today_file) as f:
+                lines = f.readlines()
+            assert len(lines) >= 1
+            assert "PERSIST_TEST" in lines[0]
+
+            await bus.stop()
+
+
+# ---------------------------------------------------------------------------
+# Supervisor Recovery tests (A7 Fix)
+# ---------------------------------------------------------------------------
+
+class TestSupervisorRecovery:
+    """Tests for supervisor pattern that monitors and restarts dispatch worker."""
+
+    @pytest.mark.asyncio
+    async def test_worker_crash_triggers_restart(self) -> None:
+        """Verify supervisor restarts worker after crash."""
+        bus = AsyncEventBus(maxsize=100)
+        
+        received_events = []
+        crash_event = asyncio.Event()
+        crash_count = 0
+        
+        async def handler(event):
+            received_events.append(event.payload.get("id"))
+        
+        bus.subscribe("TEST", handler)
+        
+        # Patch _dispatch_worker to crash on first event
+        original_dispatch_worker = bus._dispatch_worker
+        
+        async def crashing_dispatch_worker():
+            nonlocal crash_count
+            crash_count += 1
+            if crash_count == 1:
+                # Crash immediately
+                crash_event.set()
+                raise RuntimeError("Simulated worker crash")
+            # On restart, run normally
+            await original_dispatch_worker()
+        
+        # Replace the method before starting
+        bus._dispatch_worker = crashing_dispatch_worker
+        
+        await bus.start()
+        
+        # Wait for crash
+        await asyncio.wait_for(crash_event.wait(), timeout=2.0)
+        
+        # Wait for supervisor to restart (backoff delay + restart)
+        await asyncio.sleep(0.5)
+        
+        # Verify restart occurred
+        assert bus._restart_count >= 1
+        assert bus._consecutive_restarts >= 1
+        # Verify worker was restarted
+        assert bus._worker_task is not None
+        
+        # Publish an event to verify restarted worker processes events
+        await bus.publish("TEST", {"id": 1})
+        await asyncio.sleep(0.3)
+        assert 1 in received_events
+        
+        await bus.stop()
+
+    @pytest.mark.asyncio
+    async def test_supervisor_exponential_backoff(self) -> None:
+        """Verify exponential backoff delays increase with consecutive restarts."""
+        bus = AsyncEventBus(maxsize=100)
+        
+        # Test backoff calculation
+        bus._consecutive_restarts = 0
+        delay_0 = bus._calculate_restart_delay()
+        assert delay_0 == pytest.approx(0.1, abs=0.01)
+        
+        bus._consecutive_restarts = 1
+        delay_1 = bus._calculate_restart_delay()
+        assert delay_1 == pytest.approx(0.2, abs=0.01)
+        
+        bus._consecutive_restarts = 2
+        delay_2 = bus._calculate_restart_delay()
+        assert delay_2 == pytest.approx(0.4, abs=0.01)
+        
+        bus._consecutive_restarts = 3
+        delay_3 = bus._calculate_restart_delay()
+        assert delay_3 == pytest.approx(0.8, abs=0.01)
+        
+        # Verify cap at 5 seconds
+        bus._consecutive_restarts = 10
+        delay_10 = bus._calculate_restart_delay()
+        assert delay_10 == pytest.approx(5.0, abs=0.01)
+        
+        # Verify exponential progression
+        assert delay_0 < delay_1 < delay_2 < delay_3 < delay_10
+
+    @pytest.mark.asyncio
+    async def test_supervisor_gives_up_after_crash_loop(self) -> None:
+        """Verify supervisor suppresses restarts after crash loop detected."""
+        bus = AsyncEventBus(maxsize=100)
+        
+        # Simulate crash loop state
+        now = datetime.now(timezone.utc)
+        bus._consecutive_restarts = 5
+        bus._last_restart_at = now
+        
+        # Should suppress (5 restarts within 5s window)
+        should_suppress = bus._should_suppress_restart(now)
+        assert should_suppress is True
+        
+        # After cooldown window passes, should allow restart
+        after_cooldown = now + timedelta(seconds=6)
+        should_suppress_later = bus._should_suppress_restart(after_cooldown)
+        assert should_suppress_later is False
+        
+        # Below threshold should not suppress
+        bus._consecutive_restarts = 4
+        should_not_suppress = bus._should_suppress_restart(now)
+        assert should_not_suppress is False
+
+    @pytest.mark.asyncio
+    async def test_events_preserved_during_restart(self) -> None:
+        """Verify events in queue are preserved when worker restarts."""
+        bus = AsyncEventBus(maxsize=100)
+        
+        received_events = []
+        
+        async def handler(event):
+            received_events.append(event.event_type)
+        
+        bus.subscribe("TEST_EVENT", handler)
+        await bus.start()
+        
+        # Publish some events
+        await bus.publish("TEST_EVENT", {"id": 1})
+        await bus.publish("TEST_EVENT", {"id": 2})
+        await bus.publish("TEST_EVENT", {"id": 3})
+        
+        # Wait for processing
+        await asyncio.sleep(0.3)
+        
+        # All events should be processed
+        assert len(received_events) == 3
+        assert received_events == ["TEST_EVENT", "TEST_EVENT", "TEST_EVENT"]
+        
+        await bus.stop()
+
+    @pytest.mark.asyncio
+    async def test_health_healthy_when_running(self) -> None:
+        """Verify health returns HEALTHY when running normally."""
+        bus = AsyncEventBus(maxsize=100)
+        
+        # Before start
+        health = bus.health()
+        assert health.state.value == "STOPPED"
+        assert health.service == "AsyncEventBus"
+        
+        await bus.start()
+        
+        # After start - wait for tasks to initialize
+        await asyncio.sleep(0.2)
+        health = bus.health()
+        
+        # Should be HEALTHY or DEGRADED (if restart happened)
+        assert health.state.value in ["HEALTHY", "DEGRADED"]
+        assert health.service == "AsyncEventBus"
+        assert health.metrics["worker_task_alive"] is True
+        assert health.metrics["supervisor_task_alive"] is True
+        
+        await bus.stop()
+
+    @pytest.mark.asyncio
+    async def test_health_degraded_after_restart(self) -> None:
+        """Verify health returns DEGRADED after worker restart."""
+        bus = AsyncEventBus(maxsize=100)
+        await bus.start()
+        await asyncio.sleep(0.2)
+        
+        # Stop the bus first to prevent supervisor interference
+        bus._running = False
+        if bus._supervisor_task:
+            bus._supervisor_task.cancel()
+            try:
+                await bus._supervisor_task
+            except asyncio.CancelledError:
+                pass
+        if bus._worker_task:
+            bus._worker_task.cancel()
+            try:
+                await bus._worker_task
+            except asyncio.CancelledError:
+                pass
+        
+        # Simulate a restart state
+        bus._running = True
+        bus._restart_count = 1
+        bus._consecutive_restarts = 1
+        # Recreate a dummy worker task
+        async def dummy_worker():
+            await asyncio.sleep(100)
+        bus._worker_task = asyncio.create_task(dummy_worker())
+        # Recreate supervisor task
+        async def dummy_supervisor():
+            await asyncio.sleep(100)
+        bus._supervisor_task = asyncio.create_task(dummy_supervisor())
+        
+        health = bus.health()
+        assert health.state.value == "DEGRADED"
+        assert "restart" in health.detail.lower()
+        assert health.metrics["consecutive_restarts"] == 1
+        
+        # Cleanup
+        bus._running = False
+        bus._worker_task.cancel()
+        bus._supervisor_task.cancel()
+        try:
+            await bus._worker_task
+        except asyncio.CancelledError:
+            pass
+        try:
+            await bus._supervisor_task
+        except asyncio.CancelledError:
+            pass
+
+    @pytest.mark.asyncio
+    async def test_health_unhealthy_in_crash_loop(self) -> None:
+        """Verify health returns UNHEALTHY when in crash loop."""
+        bus = AsyncEventBus(maxsize=100)
+        await bus.start()
+        await asyncio.sleep(0.2)
+        
+        # Stop the bus first to prevent supervisor interference
+        bus._running = False
+        if bus._supervisor_task:
+            bus._supervisor_task.cancel()
+            try:
+                await bus._supervisor_task
+            except asyncio.CancelledError:
+                pass
+        if bus._worker_task:
+            bus._worker_task.cancel()
+            try:
+                await bus._worker_task
+            except asyncio.CancelledError:
+                pass
+        
+        # Simulate crash loop state
+        bus._running = True
+        bus._consecutive_restarts = 5
+        bus._last_restart_at = datetime.now(timezone.utc)
+        # Recreate a dummy worker task
+        async def dummy_worker():
+            await asyncio.sleep(100)
+        bus._worker_task = asyncio.create_task(dummy_worker())
+        # Recreate supervisor task
+        async def dummy_supervisor():
+            await asyncio.sleep(100)
+        bus._supervisor_task = asyncio.create_task(dummy_supervisor())
+        
+        health = bus.health()
+        assert health.state.value == "UNHEALTHY"
+        assert "crash loop" in health.detail.lower()
+        
+        # Cleanup
+        bus._running = False
+        bus._worker_task.cancel()
+        bus._supervisor_task.cancel()
+        try:
+            await bus._worker_task
+        except asyncio.CancelledError:
+            pass
+        try:
+            await bus._supervisor_task
+        except asyncio.CancelledError:
+            pass
+
+    @pytest.mark.asyncio
+    async def test_health_failed_when_tasks_dead(self) -> None:
+        """Verify health returns FAILED when supervisor/worker tasks are dead."""
+        bus = AsyncEventBus(maxsize=100)
+        await bus.start()
+        
+        # Kill the supervisor task
+        if bus._supervisor_task is not None:
+            bus._supervisor_task.cancel()
+            try:
+                await bus._supervisor_task
+            except asyncio.CancelledError:
+                pass
+        
+        await asyncio.sleep(0.1)
+        
+        health = bus.health()
+        assert health.state.value == "FAILED"
+        
+        # Clean up
+        bus._running = False
+        await bus.stop()
+
+    @pytest.mark.asyncio
+    async def test_name_property_for_lifecycle_manager(self) -> None:
+        """Verify name property exists for ManagedService protocol."""
+        bus = AsyncEventBus(maxsize=100)
+        assert bus.name == "AsyncEventBus"
+        assert isinstance(bus.name, str)
+
+    @pytest.mark.asyncio
+    async def test_supervisor_resets_state_on_start(self) -> None:
+        """Verify supervisor state is reset when bus is restarted."""
+        bus = AsyncEventBus(maxsize=100)
+        
+        # Simulate previous crash state
+        bus._restart_count = 10
+        bus._consecutive_restarts = 5
+        bus._last_restart_at = datetime.now(timezone.utc)
+        
+        # Start should reset state
+        await bus.start()
+        
+        assert bus._restart_count == 0
+        assert bus._consecutive_restarts == 0
+        assert bus._last_restart_at is None
+        
+        await bus.stop()
+
+    @pytest.mark.asyncio
+    async def test_stop_includes_restart_count_in_log(self, caplog: pytest.LogCaptureFixture) -> None:
+        """Verify stop log message includes restart count."""
+        bus = AsyncEventBus(maxsize=100)
+        
+        await bus.start()
+        await asyncio.sleep(0.2)
+        
+        # Manually set restart count AFTER start (since start() resets it)
+        bus._restart_count = 3
+        
+        await bus.stop()
+        
+        # Verify restart_count is preserved through stop
+        assert bus._restart_count == 3

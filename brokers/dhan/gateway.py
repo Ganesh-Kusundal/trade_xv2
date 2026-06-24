@@ -59,7 +59,7 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         # Broker-agnostic options facade — CLI/tests use ``gateway.options``.
         from brokers.common.options.gateway_facade import GatewayOptionsFacade
         self.options = GatewayOptionsFacade(
-            _DhanOptionsAdapterShim(self._conn.options),
+            self._conn.options,
             exchange_normalize=_dhan_normalize_exchange,
         )
 
@@ -660,25 +660,6 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
             logger.debug("token_refresh_metrics_failed: %s", exc)
             return {"refresh_count": 0, "error_count": 0}
 
-
-class _DhanOptionsAdapterShim:
-    """Bridges :class:`brokers.dhan.options.OptionsAdapter` to the
-    :class:`GatewayOptionsFacade` interface.
-
-    Dhan's adapter has ``get_expiries(underlying, exchange)`` and
-    ``get_option_chain(underlying, exchange, expiry, *, security_id=None)``
-    returning a Dhan-canonical dict. This shim strips ``security_id`` for
-    the facade and passes through everything else.
-    """
-
-    def __init__(self, adapter) -> None:
-        self._adapter = adapter
-
-    def get_expiries(self, underlying: str, exchange: str) -> list[str]:
-        return self._adapter.get_expiries(underlying, exchange)
-
-    def get_option_chain(self, underlying: str, exchange: str, expiry: str) -> dict:
-        return self._adapter.get_option_chain(underlying, exchange, expiry)
 
 
 def _dhan_normalize_exchange(symbol: str, exchange: str) -> str:

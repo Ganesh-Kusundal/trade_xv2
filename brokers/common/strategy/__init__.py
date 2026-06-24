@@ -1,5 +1,5 @@
-"""Multi-strategy runtime."""
+"""Shim — use :mod:`application.trading.multi_strategy_runtime`."""
 
-from brokers.common.strategy.multi_strategy_runtime import MultiStrategyRuntime
+from application.trading.multi_strategy_runtime import MultiStrategyRuntime
 
 __all__ = ["MultiStrategyRuntime"]

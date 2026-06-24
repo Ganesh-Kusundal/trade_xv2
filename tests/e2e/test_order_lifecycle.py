@@ -14,6 +14,8 @@ from decimal import Decimal
 
 import pytest
 
+pytestmark = pytest.mark.e2e
+
 from domain import (
     Order,
     OrderStatus,
@@ -26,7 +28,7 @@ from infrastructure.event_bus import DomainEvent, EventBus
 from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
 from brokers.common.event_log import EventLog
 from brokers.common.observability.event_metrics import EventMetrics
-from brokers.common.oms import (
+from application.oms import (
     PositionManager,
     RiskConfig,
     RiskManager,
@@ -106,7 +108,7 @@ def _make_open_submit_fn(fill_price: Decimal = Decimal("2500")):
 
 class TestOrderLifecycleE2E:
     def test_place_order_creates_order_in_oms(self, trading_context):
-        from brokers.common.oms.order_manager import OmsOrderCommand
+        from application.oms.order_manager import OmsOrderCommand
 
         tc = trading_context
         cmd = OmsOrderCommand(
@@ -128,7 +130,7 @@ class TestOrderLifecycleE2E:
 
     def test_fill_event_updates_position(self, trading_context):
         tc = trading_context
-        from brokers.common.oms.order_manager import OmsOrderCommand
+        from application.oms.order_manager import OmsOrderCommand
 
         cmd = OmsOrderCommand(
             symbol="RELIANCE",
@@ -152,7 +154,7 @@ class TestOrderLifecycleE2E:
 
     def test_idempotent_fill_does_not_double_position(self, trading_context):
         tc = trading_context
-        from brokers.common.oms.order_manager import OmsOrderCommand
+        from application.oms.order_manager import OmsOrderCommand
 
         cmd = OmsOrderCommand(
             symbol="RELIANCE",
@@ -176,7 +178,7 @@ class TestOrderLifecycleE2E:
         tc = trading_context
         tc.risk_manager.set_kill_switch(True)
 
-        from brokers.common.oms.order_manager import OmsOrderCommand
+        from application.oms.order_manager import OmsOrderCommand
 
         cmd = OmsOrderCommand(
             symbol="RELIANCE",
@@ -194,7 +196,7 @@ class TestOrderLifecycleE2E:
 
     def test_concurrent_order_placement(self, trading_context):
         tc = trading_context
-        from brokers.common.oms.order_manager import OmsOrderCommand
+        from application.oms.order_manager import OmsOrderCommand
 
         results = []
         errors = []
@@ -234,7 +236,7 @@ class TestOrderLifecycleE2E:
 
         tc.event_bus.subscribe("ORDER_PLACED", on_event)
 
-        from brokers.common.oms.order_manager import OmsOrderCommand
+        from application.oms.order_manager import OmsOrderCommand
 
         cmd = OmsOrderCommand(
             symbol="RELIANCE",
@@ -253,7 +255,7 @@ class TestOrderLifecycleE2E:
 
     def test_full_lifecycle_place_fill_position(self, trading_context):
         tc = trading_context
-        from brokers.common.oms.order_manager import OmsOrderCommand
+        from application.oms.order_manager import OmsOrderCommand
 
         cmd = OmsOrderCommand(
             symbol="RELIANCE",
@@ -290,7 +292,7 @@ class TestOrderModificationLifecycle:
 
     def test_modify_order_price(self, trading_context):
         """Order price should be modifiable before fill."""
-        from brokers.common.oms.order_manager import OmsOrderCommand
+        from application.oms.order_manager import OmsOrderCommand
         
         cmd = OmsOrderCommand(
             symbol="RELIANCE",
@@ -322,7 +324,7 @@ class TestOrderModificationLifecycle:
 
     def test_cancel_order_lifecycle(self, trading_context):
         """Order cancellation should transition through correct states."""
-        from brokers.common.oms.order_manager import OmsOrderCommand
+        from application.oms.order_manager import OmsOrderCommand
         
         cmd = OmsOrderCommand(
             symbol="RELIANCE",
@@ -349,7 +351,7 @@ class TestOrderModificationLifecycle:
 
     def test_cancel_already_filled_order_fails(self, trading_context):
         """Cancelling a filled order should fail gracefully."""
-        from brokers.common.oms.order_manager import OmsOrderCommand
+        from application.oms.order_manager import OmsOrderCommand
         
         cmd = OmsOrderCommand(
             symbol="RELIANCE",
@@ -385,7 +387,7 @@ class TestOrderStateTransitions:
 
     def test_open_to_pending_to_filled(self, trading_context):
         """Order should transition: OPEN → PENDING → FILLED."""
-        from brokers.common.oms.order_manager import OmsOrderCommand
+        from application.oms.order_manager import OmsOrderCommand
         
         cmd = OmsOrderCommand(
             symbol="RELIANCE",
@@ -432,7 +434,7 @@ class TestOrderStateTransitions:
 
     def test_open_to_cancelled(self, trading_context):
         """Order should transition: OPEN → CANCELLED."""
-        from brokers.common.oms.order_manager import OmsOrderCommand
+        from application.oms.order_manager import OmsOrderCommand
         
         cmd = OmsOrderCommand(
             symbol="RELIANCE",
@@ -456,7 +458,7 @@ class TestOrderStateTransitions:
 
     def test_rejected_order_never_opens(self, trading_context):
         """Rejected order should never enter OPEN state."""
-        from brokers.common.oms.order_manager import OmsOrderCommand
+        from application.oms.order_manager import OmsOrderCommand
         
         # Activate kill switch to trigger rejection
         trading_context.risk_manager.set_kill_switch(True)
@@ -488,7 +490,7 @@ class TestComplexMultiOrderScenarios:
 
     def test_bracket_order_simulation(self, trading_context):
         """Simulate bracket order: entry + target + stop-loss."""
-        from brokers.common.oms.order_manager import OmsOrderCommand
+        from application.oms.order_manager import OmsOrderCommand
         
         # Entry order
         entry_cmd = OmsOrderCommand(
@@ -541,7 +543,7 @@ class TestComplexMultiOrderScenarios:
 
     def test_cover_order_simulation(self, trading_context):
         """Simulate cover order: short entry + buy-to-cover."""
-        from brokers.common.oms.order_manager import OmsOrderCommand
+        from application.oms.order_manager import OmsOrderCommand
         
         # Short entry
         short_cmd = OmsOrderCommand(
@@ -579,7 +581,7 @@ class TestComplexMultiOrderScenarios:
 
     def test_legged_order_execution(self, trading_context):
         """Simulate multi-leg order (spread trading)."""
-        from brokers.common.oms.order_manager import OmsOrderCommand
+        from application.oms.order_manager import OmsOrderCommand
         
         # Leg 1: Buy RELIANCE
         leg1_cmd = OmsOrderCommand(
@@ -624,7 +626,7 @@ class TestOrderEdgeCases:
 
     def test_zero_quantity_order_rejected(self, trading_context):
         """Zero quantity order should be rejected."""
-        from brokers.common.oms.order_manager import OmsOrderCommand
+        from application.oms.order_manager import OmsOrderCommand
         
         cmd = OmsOrderCommand(
             symbol="RELIANCE",
@@ -642,7 +644,7 @@ class TestOrderEdgeCases:
 
     def test_negative_price_order_rejected(self, trading_context):
         """Negative price order should be rejected."""
-        from brokers.common.oms.order_manager import OmsOrderCommand
+        from application.oms.order_manager import OmsOrderCommand
         
         cmd = OmsOrderCommand(
             symbol="RELIANCE",
@@ -660,7 +662,7 @@ class TestOrderEdgeCases:
 
     def test_duplicate_correlation_id_is_idempotent(self, trading_context):
         """Same correlation_id should return existing order."""
-        from brokers.common.oms.order_manager import OmsOrderCommand
+        from application.oms.order_manager import OmsOrderCommand
         
         cmd = OmsOrderCommand(
             symbol="RELIANCE",
@@ -681,7 +683,7 @@ class TestOrderEdgeCases:
 
     def test_order_expiry_simulation(self, trading_context):
         """Orders should expire after configured TTL."""
-        from brokers.common.oms.order_manager import OmsOrderCommand
+        from application.oms.order_manager import OmsOrderCommand
         
         cmd = OmsOrderCommand(
             symbol="RELIANCE",

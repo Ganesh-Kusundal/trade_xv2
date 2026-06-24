@@ -193,7 +193,7 @@ class TestOrderManagerBenchmarks:
         """Create a fresh OrderManager for testing."""
         from infrastructure.event_bus import DeadLetterQueue, EventBus
         from brokers.common.observability.event_metrics import EventMetrics
-        from brokers.common.oms.order_manager import OrderManager
+        from application.oms.order_manager import OrderManager
 
         metrics = EventMetrics()
         dlq = DeadLetterQueue()
@@ -234,8 +234,8 @@ class TestRiskManagerBenchmarks:
     @pytest.fixture
     def risk_manager(self):
         """Create a fresh RiskManager for testing."""
-        from brokers.common.oms.position_manager import PositionManager
-        from brokers.common.oms.risk_manager import RiskConfig, RiskManager
+        from application.oms.position_manager import PositionManager
+        from application.oms.risk_manager import RiskConfig, RiskManager
 
         config = RiskConfig(
             max_position_pct=Decimal("10"),

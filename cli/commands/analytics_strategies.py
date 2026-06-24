@@ -5,7 +5,7 @@ from __future__ import annotations
 from rich.console import Console
 from rich.table import Table
 
-from brokers.common.strategy.multi_strategy_runtime import MultiStrategyRuntime
+from application.trading.multi_strategy_runtime import MultiStrategyRuntime
 
 
 def run_strategies(args: list[str], console: Console) -> None:

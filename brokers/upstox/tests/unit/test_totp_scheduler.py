@@ -55,22 +55,26 @@ class TestTotpRefreshSchedulerRefresh:
     def test_refresh_now_success(self):
         """Test immediate refresh succeeds."""
         mock_token_manager = MagicMock()
-        mock_token_manager.force_refresh.return_value = MagicMock()
-        
+        mock_token_manager.settings.is_totp = True
+        mock_token_manager.current_state.return_value = None
+        mock_token_manager.refresh_totp.return_value = MagicMock()
+
         scheduler = TotpRefreshScheduler(mock_token_manager)
         result = scheduler.refresh_now()
-        
+
         assert result is True
         assert scheduler.refresh_count == 1
 
     def test_refresh_now_failure(self):
         """Test immediate refresh failure."""
         mock_token_manager = MagicMock()
-        mock_token_manager.force_refresh.side_effect = Exception("Token error")
-        
+        mock_token_manager.settings.is_totp = True
+        mock_token_manager.current_state.return_value = None
+        mock_token_manager.refresh_totp.side_effect = Exception("Token error")
+
         scheduler = TotpRefreshScheduler(mock_token_manager)
         result = scheduler.refresh_now()
-        
+
         assert result is False
         assert scheduler.refresh_count == 0
 
@@ -89,22 +93,24 @@ class TestTotpRefreshSchedulerHealth:
     def test_health_healthy_after_refresh(self):
         """Test health reports healthy after successful refresh."""
         mock_token_manager = MagicMock()
+        mock_token_manager.settings.is_totp = True
+        mock_token_manager.current_state.return_value = None
+        mock_token_manager.refresh_totp.return_value = MagicMock()
         scheduler = TotpRefreshScheduler(mock_token_manager)
         scheduler.refresh_now()
-        
-        health = scheduler.health()
-        # Note: Health will be STOPPED since thread not started
-        # But refresh_count should be 1
+
         assert scheduler.refresh_count == 1
 
     def test_health_degraded_after_error(self):
         """Test health reports degraded after error."""
         mock_token_manager = MagicMock()
-        mock_token_manager.force_refresh.side_effect = Exception("Error")
-        
+        mock_token_manager.settings.is_totp = True
+        mock_token_manager.current_state.return_value = None
+        mock_token_manager.refresh_totp.side_effect = Exception("Error")
+
         scheduler = TotpRefreshScheduler(mock_token_manager)
         scheduler.refresh_now()
-        
+
         assert scheduler._last_error is not None
 
 
@@ -114,26 +120,31 @@ class TestTotpRefreshSchedulerCallbacks:
     def test_on_success_callback(self):
         """Test success callback is called."""
         mock_token_manager = MagicMock()
+        mock_token_manager.settings.is_totp = True
+        mock_token_manager.current_state.return_value = None
+        mock_token_manager.refresh_totp.return_value = MagicMock()
         callback = MagicMock()
-        
+
         scheduler = TotpRefreshScheduler(
             mock_token_manager,
             on_refresh_success=callback,
         )
         scheduler.refresh_now()
-        
+
         callback.assert_called_once()
 
     def test_on_error_callback(self):
         """Test error callback is called on failure."""
         mock_token_manager = MagicMock()
-        mock_token_manager.force_refresh.side_effect = Exception("Error")
+        mock_token_manager.settings.is_totp = True
+        mock_token_manager.current_state.return_value = None
+        mock_token_manager.refresh_totp.side_effect = Exception("Error")
         callback = MagicMock()
-        
+
         scheduler = TotpRefreshScheduler(
             mock_token_manager,
             on_refresh_error=callback,
         )
         scheduler.refresh_now()
-        
+
         callback.assert_called_once()

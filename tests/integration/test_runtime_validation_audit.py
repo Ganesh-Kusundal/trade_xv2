@@ -9,7 +9,7 @@ from analytics.strategy.models import Signal, SignalType
 from analytics.strategy.pipeline import StrategyPipeline
 from infrastructure.event_bus import DomainEvent, EventType
 from brokers.common.lifecycle import LifecycleManager
-from brokers.common.oms.factory import create_trading_context
+from application.oms.factory import create_trading_context
 from runtime.trading_runtime_factory import TradingRuntimeFactory
 
 

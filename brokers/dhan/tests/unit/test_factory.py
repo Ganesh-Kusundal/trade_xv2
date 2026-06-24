@@ -3,7 +3,7 @@
 import os
 
 from brokers.common.env_loader import load_env_file
-from brokers.dhan.factory import _update_env_token
+from brokers.dhan.token_manager import update_env_token as _update_env_token
 
 
 def test_load_dotenv(tmp_path):

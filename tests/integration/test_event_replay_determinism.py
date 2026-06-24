@@ -22,9 +22,9 @@ from infrastructure.event_bus import DomainEvent, ProcessedTradeRepository
 from infrastructure.event_bus.models import EventType  # P1-3: EventType enum
 from brokers.common.event_log import EventLog
 from brokers.common.observability.event_metrics import EventMetrics
-from brokers.common.oms.context import TradingContext
-from brokers.common.oms.order_manager import OrderManager
-from brokers.common.oms.position_manager import PositionManager
+from application.oms.context import TradingContext
+from application.oms.order_manager import OrderManager
+from application.oms.position_manager import PositionManager
 
 
 def _bootstrap_context(

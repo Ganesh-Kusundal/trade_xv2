@@ -1,4 +1,4 @@
-"""Tests for brokers.dhan.factory._update_env_token — atomic env update."""
+"""Tests for brokers.dhan.token_manager.update_env_token — atomic env update."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import pytest
 
 pytest.importorskip("fcntl")
 
-from brokers.dhan.factory import _update_env_token
+from brokers.dhan.token_manager import update_env_token
 
 
 class TestUpdateEnvToken:
@@ -24,7 +24,7 @@ class TestUpdateEnvToken:
             encoding="utf-8",
         )
 
-        _update_env_token(env_file, "new_token")
+        update_env_token(env_file, "new_token")
 
         lines = env_file.read_text(encoding="utf-8").splitlines()
         assert any(line == "DHAN_ACCESS_TOKEN=new_token" for line in lines)
@@ -39,7 +39,7 @@ class TestUpdateEnvToken:
             encoding="utf-8",
         )
 
-        _update_env_token(env_file, "fresh_token")
+        update_env_token(env_file, "fresh_token")
 
         lines = env_file.read_text(encoding="utf-8").splitlines()
         assert any(line == "DHAN_ACCESS_TOKEN=fresh_token" for line in lines)
@@ -60,7 +60,7 @@ class TestUpdateEnvToken:
         )
         env_file.write_text(original, encoding="utf-8")
 
-        _update_env_token(env_file, "new_token")
+        update_env_token(env_file, "new_token")
 
         content = env_file.read_text(encoding="utf-8")
         assert "# Dhan credentials" in content
@@ -71,7 +71,7 @@ class TestUpdateEnvToken:
 
     def test_noop_when_env_file_missing(self, tmp_path: Path) -> None:
         env_file = tmp_path / ".env.local"
-        _update_env_token(env_file, "token")
+        update_env_token(env_file, "token")
         assert not env_file.exists()
 
     def test_uses_atomic_rename(self, tmp_path: Path) -> None:
@@ -85,8 +85,8 @@ class TestUpdateEnvToken:
             observed_tmp.append(Path(src))
             original_replace(src, dst)
 
-        with patch("brokers.dhan.factory.os.replace", side_effect=_tracking_replace):
-            _update_env_token(env_file, "new")
+        with patch("brokers.dhan.token_manager.os.replace", side_effect=_tracking_replace):
+            update_env_token(env_file, "new")
 
         assert len(observed_tmp) == 1
         assert observed_tmp[0].suffix == ".tmp"
@@ -96,8 +96,8 @@ class TestUpdateEnvToken:
         env_file = tmp_path / ".env.local"
         env_file.write_text("DHAN_ACCESS_TOKEN=old\n", encoding="utf-8")
 
-        with patch("brokers.dhan.factory.os.replace", side_effect=RuntimeError("disk full")):
-            _update_env_token(env_file, "new")
+        with patch("brokers.dhan.token_manager.os.replace", side_effect=RuntimeError("disk full")):
+            update_env_token(env_file, "new")
 
         assert not (tmp_path / ".env.local.tmp").exists()
 
@@ -110,7 +110,7 @@ class TestUpdateEnvToken:
 
         def _worker(token: str) -> None:
             try:
-                _update_env_token(env_file, token)
+                update_env_token(env_file, token)
             except Exception as exc:  # pragma: no cover
                 errors.append(exc)
 

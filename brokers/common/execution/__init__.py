@@ -1,17 +1,16 @@
-"""Execution mode adapters."""
+"""Execution mode adapters (shim — canonical code in application.execution)."""
 
-from brokers.common.execution.execution_mode_adapter import (
+from application.execution.execution_mode_adapter import (
     ExecutionModeAdapter,
     LiveOMSAdapter,
     PaperOMSAdapter,
     ReplayOMSAdapter,
     create_execution_adapter,
 )
-from brokers.common.execution.execution_service import ExecutionService
-
-from brokers.common.execution.cancel_order_use_case import CancelOrderUseCase
-from brokers.common.execution.place_order_use_case import PlaceOrderUseCase
-from brokers.common.execution.trading_orchestrator import OrchestratorConfig, TradingOrchestrator
+from application.execution.execution_service import ExecutionService
+from application.execution.cancel_order_use_case import CancelOrderUseCase
+from application.execution.place_order_use_case import PlaceOrderUseCase
+from application.trading.trading_orchestrator import OrchestratorConfig, TradingOrchestrator
 
 __all__ = [
     "CancelOrderUseCase",

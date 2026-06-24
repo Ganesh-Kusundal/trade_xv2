@@ -27,6 +27,7 @@ class UpstoxInstrumentResolver:
         # The upstream /v2/option/expiry endpoint is DEPRECATED, so we derive
         # expiries from the in-memory instrument master instead.
         self._expiries_by_underlying: dict[str, set[str]] = defaultdict(set)
+        self._future_expiries_by_underlying: dict[str, set[str]] = defaultdict(set)
         self._lock = threading.RLock()
         self._loaded = False
 
@@ -40,6 +41,7 @@ class UpstoxInstrumentResolver:
             self._by_symbol_segment.clear()
             self._by_symbol_index.clear()
             self._expiries_by_underlying.clear()
+            self._future_expiries_by_underlying.clear()
             self._loaded = False
 
     def register(self, definition: UpstoxInstrumentDefinition) -> None:
@@ -82,6 +84,10 @@ class UpstoxInstrumentResolver:
                 # deprecated /v2/option/expiry endpoint.
                 if definition.is_option and definition.expiry and definition.underlying_symbol:
                     self._expiries_by_underlying[definition.underlying_symbol.strip().upper()].add(
+                        definition.expiry[:10]
+                    )
+                if definition.is_future and definition.expiry and definition.underlying_symbol:
+                    self._future_expiries_by_underlying[definition.underlying_symbol.strip().upper()].add(
                         definition.expiry[:10]
                     )
             self._loaded = True
@@ -190,6 +196,42 @@ class UpstoxInstrumentResolver:
             exps = self._expiries_by_underlying.get(underlying.strip().upper(), set())
             today = date.today().isoformat()
             return sorted(e for e in exps if e >= today)
+
+    def list_future_expiries(self, underlying: str) -> list[str]:
+        """Return sorted, future-dated futures expiry strings for *underlying*."""
+        from datetime import date
+
+        with self._lock:
+            if not self._loaded:
+                raise RuntimeError(
+                    "Upstox instruments not loaded; cannot derive future expiries"
+                )
+            exps = self._future_expiries_by_underlying.get(underlying.strip().upper(), set())
+            today = date.today().isoformat()
+            return sorted(e for e in exps if e >= today)
+
+    def list_future_contracts(self, underlying: str) -> list[UpstoxInstrumentDefinition]:
+        """Return active future instrument definitions for *underlying*."""
+        from datetime import date
+
+        und = underlying.strip().upper()
+        today = date.today().isoformat()
+        with self._lock:
+            if not self._loaded:
+                raise RuntimeError(
+                    "Upstox instruments not loaded; cannot list future contracts"
+                )
+            contracts: list[UpstoxInstrumentDefinition] = []
+            for defs in self._by_symbol_index.values():
+                for d in defs:
+                    if not d.is_future:
+                        continue
+                    if (d.underlying_symbol or "").strip().upper() != und:
+                        continue
+                    if d.expiry and d.expiry[:10] < today:
+                        continue
+                    contracts.append(d)
+            return sorted(contracts, key=lambda c: (c.expiry or "", c.trading_symbol or ""))
 
     def __len__(self) -> int:
         with self._lock:

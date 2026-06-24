@@ -19,8 +19,8 @@ from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from brokers.common.oms import PositionManager, RiskConfig, RiskManager
-from brokers.common.oms.capital_provider import GatewayCapitalProvider
+from application.oms import PositionManager, RiskConfig, RiskManager
+from application.oms.capital_provider import GatewayCapitalProvider
 from cli.services.capital_provider import TrackedCapitalProvider
 from domain.constants.defaults import RISK_FALLBACK_CAPITAL
 
@@ -100,6 +100,19 @@ def _build_reconciliation_service(gateway: Any) -> Any:
     return None
 
 
+def _build_processed_trade_repository() -> Any:
+    """Build durable ProcessedTradeRepository for crash-safe trade dedup."""
+    try:
+        from infrastructure.event_bus import ProcessedTradeRepository
+
+        path = Path("runtime/processed-trades.jsonl")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return ProcessedTradeRepository.get_instance(persistence_path=path)
+    except Exception as exc:
+        logger.error("processed_trade_repository_build_failed: %s", exc)
+        return None
+
+
 def _build_event_log() -> Any:
     """Build EventLog for crash recovery and OMS replay.
     
@@ -137,14 +150,15 @@ def register_oms_services(
         service: BrokerService instance
         risk_manager: RiskManager instance
     """
-    from brokers.common.oms import create_trading_context
+    from application.oms import create_trading_context
     
     # B-1: Build reconciliation service
     dhan_reconciliation = _build_reconciliation_service(service._gateway)
     
     # B-2: Build EventLog for crash recovery
     event_log = _build_event_log()
-    
+    processed_trades = _build_processed_trade_repository()
+
     # Build TradingContext with shared risk_manager, reconciliation, and event_log
     try:
         service._trading_context = create_trading_context(
@@ -154,6 +168,7 @@ def register_oms_services(
             event_log=event_log,
             event_bus=service._event_bus,
             replay_events=event_log is not None,
+            processed_trade_repository=processed_trades,
         )
         
         # Attach lifecycle (registers reconciliation service, etc.)

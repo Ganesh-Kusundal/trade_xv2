@@ -28,7 +28,7 @@ from infrastructure.event_bus import (
     ProcessedTradeRepository,
 )
 from brokers.common.observability.event_metrics import EventMetrics
-from brokers.common.oms.order_manager import OrderManager, OrderRequest
+from application.oms.order_manager import OrderManager, OrderRequest
 
 
 def _make_order(symbol: str = "RELIANCE", quantity: int = 10) -> Order:

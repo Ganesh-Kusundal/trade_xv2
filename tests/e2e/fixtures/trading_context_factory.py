@@ -14,8 +14,8 @@ from infrastructure.event_bus import EventBus
 from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
 from brokers.common.event_log import EventLog
 from brokers.common.observability.event_metrics import EventMetrics
-from brokers.common.oms.context import TradingContext
-from brokers.common.oms.risk_manager import RiskConfig, RiskManager
+from application.oms.context import TradingContext
+from application.oms.risk_manager import RiskConfig, RiskManager
 
 
 def create_test_trading_context(
@@ -55,7 +55,7 @@ def create_test_trading_context(
     risk_manager = kwargs.pop("risk_manager", None)
 
     if risk_manager is None:
-        from brokers.common.oms.position_manager import PositionManager
+        from application.oms.position_manager import PositionManager
         if position_manager is None:
             position_manager = PositionManager(
                 event_bus=event_bus,

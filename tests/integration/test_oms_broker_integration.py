@@ -18,8 +18,8 @@ from domain import (
     ProductType,
     Side,
 )
-from brokers.common.oms.order_manager import OrderManager
-from brokers.common.oms.risk_manager import RiskConfig, RiskManager
+from application.oms.order_manager import OrderManager
+from application.oms.risk_manager import RiskConfig, RiskManager
 from brokers.paper.paper_gateway import PaperGateway
 from tests.integration.fixtures.domain import make_order, make_position
 from tests.integration.fixtures.event_bus import event_bus_with_capturer

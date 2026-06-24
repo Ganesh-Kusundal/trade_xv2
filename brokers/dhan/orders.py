@@ -18,7 +18,7 @@ from typing import Any
 
 from infrastructure.event_bus import DomainEvent, EventBus
 from domain import OrderRequest, OrderResponse
-from brokers.common.oms.risk_manager import RiskManager
+from application.oms.risk_manager import RiskManager
 from config.endpoints import Dhan
 from domain import (
     Order,

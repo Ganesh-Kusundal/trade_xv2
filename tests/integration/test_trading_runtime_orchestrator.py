@@ -9,9 +9,9 @@ import pytest
 
 from analytics.strategy.models import Signal, SignalType
 from analytics.strategy.pipeline import StrategyPipeline
+from application.oms.factory import create_trading_context
 from infrastructure.event_bus import DomainEvent, EventType
-from brokers.common.lifecycle import LifecycleManager
-from brokers.common.oms.factory import create_trading_context
+from infrastructure.lifecycle import LifecycleManager
 from runtime.trading_runtime_factory import TradingRuntimeFactory
 
 
@@ -62,10 +62,10 @@ def test_candidate_generated_increments_orchestrator_counter(mock_broker_service
     assert orch is not None
 
     orch._feature_fetcher = _StaticFeatureFetcher()
-    orch._strategy_pipeline = StrategyPipeline(strategies=[_AlwaysBuyStrategy()])
+    orch._strategy_evaluator = StrategyPipeline(strategies=[_AlwaysBuyStrategy()])
 
     event = DomainEvent.now(
-        EventType.CANDIDATE_GENERATED,
+        EventType.CANDIDATE_GENERATED.value,
         {"symbol": "RELIANCE", "score": 85.0},
         correlation_id="test-corr-1",
     )

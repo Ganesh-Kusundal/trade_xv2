@@ -1,12 +1,8 @@
-"""Token refresh scheduler — background thread that proactively refreshes tokens.
+"""Token refresh scheduler — background thread for expired-token refresh only.
 
-Runs a daemon thread that calls AuthManager.ensure_valid() at regular intervals,
-pushing fresh tokens to DhanHttpClient and WebSocket connections via callbacks.
-
-This service is a :class:`brokers.common.lifecycle.ManagedService`. It is
-owned by a :class:`LifecycleManager` so that the process can drain it
-deterministically on shutdown, and so that two TokenRefreshScheduler
-instances can share a single lock without module-level globals.
+Runs a daemon thread that checks token validity at regular intervals.
+TOTP generation is triggered only when the token is missing or expired —
+never when a valid token is still within its JWT lifetime.
 """
 
 from __future__ import annotations
@@ -15,44 +11,27 @@ import logging
 import threading
 import time
 from collections.abc import Callable
+from pathlib import Path
 
-from brokers.common.auth import AuthManager
+from brokers.common.auth import AuthManager, JsonTokenStateStore
+from brokers.common.auth.token_persistence import TokenPersistence
+from brokers.common.auth.token_policy import should_generate_token
+from brokers.common.auth.totp_cooldown import TotpRateLimitError
+from brokers.common.lifecycle import HealthState, ManagedService, build_health
 from domain.constants import (
     DEFAULT_STOP_TIMEOUT_SECONDS,
     DHAN_TOKEN_REFRESH_BUFFER_SECONDS,
     DHAN_TOKEN_SCHEDULER_INTERVAL_SECONDS,
 )
-from brokers.common.lifecycle import HealthState, ManagedService, build_health
 
 logger = logging.getLogger(__name__)
 
-# Defaults — re-exported from core.constants for callers that want
-# the raw values without importing core.constants directly.
 _DEFAULT_INTERVAL_SECONDS = DHAN_TOKEN_SCHEDULER_INTERVAL_SECONDS
 _DEFAULT_BUFFER_SECONDS = DHAN_TOKEN_REFRESH_BUFFER_SECONDS
 
 
 class TokenRefreshScheduler(ManagedService):
-    """Background scheduler that proactively refreshes broker tokens.
-
-    Usage::
-
-        auth = AuthManager(...)
-        scheduler = TokenRefreshScheduler(
-            auth,
-            refresh_lock=my_lock,         # shared with HTTP 401 handler
-            on_refresh=my_update_fn,
-        )
-        lifecycle.register(scheduler)
-        lifecycle.start_all()
-
-    Parameters
-    ----------
-    refresh_lock:
-        Optional threading.Lock shared with the HTTP 401 handler so
-        that scheduler refreshes and on-demand refreshes do not race.
-        If omitted, a private lock is used (single-scheduler mode).
-    """
+    """Background scheduler that refreshes broker tokens only when expired."""
 
     name: str = "dhan.token_refresh_scheduler"
 
@@ -64,26 +43,26 @@ class TokenRefreshScheduler(ManagedService):
         refresh_lock: threading.Lock | None = None,
         on_refresh: Callable[[str], None] | None = None,
         on_error: Callable[[Exception], None] | None = None,
+        token_store: JsonTokenStateStore | None = None,
+        env_file: Path | None = None,
     ):
         self._auth = auth
         self._interval = interval_seconds
         self._buffer = buffer_seconds
-        # Local lock by default. Pass an explicit lock when sharing
-        # with another component (e.g. the HTTP 401 handler). This
-        # replaces the previous module-global _token_refresh_lock.
         self._refresh_lock = refresh_lock or threading.Lock()
         self._on_refresh = on_refresh
         self._on_error = on_error
+        self._token_store = token_store
+        self._env_file = env_file
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
         self._refresh_count = 0
         self._last_refresh_at: float | None = None
         self._last_error: str | None = None
-
-    # ── ManagedService contract ──────────────────────────────────────────
+        self._backoff_until: float | None = None
+        self._backoff_seconds = 120
 
     def start(self) -> None:
-        """Start the background refresh thread. Idempotent."""
         if self._thread and self._thread.is_alive():
             logger.debug("Token refresh scheduler already running")
             return
@@ -95,13 +74,11 @@ class TokenRefreshScheduler(ManagedService):
         )
         self._thread.start()
         logger.info(
-            "Token refresh scheduler started (interval=%ds, buffer=%.0fs)",
+            "Token refresh scheduler started (interval=%ds, expired-only)",
             self._interval,
-            self._buffer,
         )
 
     def stop(self, timeout_seconds: float = DEFAULT_STOP_TIMEOUT_SECONDS) -> None:
-        """Stop the background refresh thread. Idempotent."""
         self._stop_event.set()
         if self._thread:
             self._thread.join(timeout=timeout_seconds)
@@ -139,10 +116,7 @@ class TokenRefreshScheduler(ManagedService):
             },
         )
 
-    # ── Public helpers ───────────────────────────────────────────────────
-
     def refresh_now(self) -> bool:
-        """Trigger an immediate refresh check. Returns True if refreshed."""
         return self._do_refresh()
 
     @property
@@ -155,10 +129,7 @@ class TokenRefreshScheduler(ManagedService):
 
     @property
     def refresh_lock(self) -> threading.Lock:
-        """Lock shared with the HTTP 401 handler for token refresh coordination."""
         return self._refresh_lock
-
-    # ── Background loop ──────────────────────────────────────────────────
 
     def _run(self) -> None:
         while not self._stop_event.is_set():
@@ -175,15 +146,14 @@ class TokenRefreshScheduler(ManagedService):
             self._stop_event.wait(timeout=self._interval)
 
     def _do_refresh(self) -> bool:
-        # Check if we're in backoff period due to rate limiting
-        if hasattr(self, '_backoff_until') and time.monotonic() < self._backoff_until:
+        if self._backoff_until is not None and time.monotonic() < self._backoff_until:
             remaining = self._backoff_until - time.monotonic()
             logger.debug(
                 "token_scheduler_backoff",
-                extra={"remaining_seconds": round(remaining, 1)}
+                extra={"remaining_seconds": round(remaining, 1)},
             )
             return False
-            
+
         if not self._refresh_lock.acquire(blocking=False):
             logger.debug(
                 "Token refresh already in progress (from HTTP handler); "
@@ -191,36 +161,42 @@ class TokenRefreshScheduler(ManagedService):
             )
             return False
         try:
-            if self._auth.ensure_valid(buffer_seconds=self._buffer):
-                state = self._auth.state
-                if state and self._on_refresh:
-                    self._on_refresh(state.access_token)
-                self._refresh_count += 1
-                self._last_refresh_at = time.monotonic()
+            state = self._auth.state
+            if state and state.is_valid():
+                logger.debug("token valid, skipping generation")
                 self._last_error = None
-                # Clear backoff on success
-                if hasattr(self, '_backoff_until'):
-                    delattr(self, '_backoff_until')
-                logger.debug("Token refresh check passed (count=%d)", self._refresh_count)
                 return True
+
+            if not should_generate_token(state, allow_proactive=False):
+                return bool(state and state.is_valid())
+
+            previous_token = state.access_token if state else None
+            refreshed = self._auth.acquire()
+            if refreshed and refreshed.is_valid():
+                if refreshed.access_token != previous_token:
+                    if self._token_store is not None:
+                        TokenPersistence.save(refreshed, self._token_store, self._env_file)
+                    if self._on_refresh:
+                        self._on_refresh(refreshed.access_token)
+                    self._refresh_count += 1
+                    self._last_refresh_at = time.monotonic()
+                    logger.info("Token refreshed via scheduler (count=%d)", self._refresh_count)
+                self._last_error = None
+                self._backoff_until = None
+                return True
+
             self._last_error = "no valid token available"
             logger.warning("Token refresh check failed — no valid token available")
             return False
-        except RuntimeError as exc:
-            # Handle rate limit errors specifically
+        except (RuntimeError, TotpRateLimitError) as exc:
             error_msg = str(exc)
-            if "rate limit" in error_msg.lower() or "once every 2 minutes" in error_msg:
-                # Exponential backoff: start with 2 minutes, double each time
-                backoff_seconds = getattr(self, '_backoff_seconds', 120)
-                self._backoff_until = time.monotonic() + backoff_seconds
-                self._backoff_seconds = min(backoff_seconds * 2, 600)  # Cap at 10 minutes
+            if "rate limit" in error_msg.lower() or "cooldown" in error_msg.lower():
+                self._backoff_until = time.monotonic() + self._backoff_seconds
+                self._backoff_seconds = min(self._backoff_seconds * 2, 600)
                 self._last_error = f"Rate limited: {error_msg}"
                 logger.warning(
                     "Token rate limited - backing off",
-                    extra={
-                        "backoff_seconds": backoff_seconds,
-                        "next_attempt_in": f"{backoff_seconds:.0f}s"
-                    }
+                    extra={"backoff_seconds": self._backoff_seconds},
                 )
             else:
                 self._last_error = f"{type(exc).__name__}: {exc}"

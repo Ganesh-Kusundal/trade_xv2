@@ -43,7 +43,7 @@ async def lifespan(app: FastAPI):
     logger.info("OpenAPI docs available at %s%s", app.docs_url or "/docs", "")
     
     # Start TradingContext lifecycle (reconciliation, DLQ monitor, daily PnL reset)
-    from brokers.common.lifecycle import LifecycleManager
+    from infrastructure.lifecycle import LifecycleManager
     from api.ws.market import market_manager
     from api.ws.bridge import MarketBridge
     
@@ -176,6 +176,10 @@ def create_app(
     -------
     Configured FastAPI application instance.
     """
+    from runtime.production_config import validate_production_config
+
+    validate_production_config(surface="api")
+
     cfg = config or APIConfig()
     
     # Auto-build TradingContext if not provided but event_bus is available
@@ -189,9 +193,9 @@ def create_app(
         register_domain_event_factory,
         register_trading_context_factory,
     )
-    from brokers.common.execution.factory import create_oms_backtest_adapter
+    from application.execution.factory import create_oms_backtest_adapter
     from infrastructure.event_bus.factory import create_domain_event
-    from brokers.common.oms.factory import create_trading_context
+    from application.oms.factory import create_trading_context
 
     register_oms_backtest_factory(create_oms_backtest_adapter)
     register_domain_event_factory(create_domain_event)
@@ -230,6 +234,7 @@ def create_app(
             {"name": "Backtest", "description": "Backtest execution and results"},
             {"name": "Portfolio", "description": "Positions and PnL"},
             {"name": "Orders", "description": "Order management"},
+            {"name": "Live Broker", "description": "Live broker-backed reads and extended features"},
         ],
     )
     
@@ -295,6 +300,10 @@ def create_app(
     # Risk endpoints
     from api.routers.risk import router as risk_router
     app.include_router(risk_router, prefix=f"{cfg.api_prefix}/risk", tags=["Risk"])
+
+    # Live broker endpoints (dual API — explicit live_broker provenance)
+    from api.routers.live.router import router as live_router
+    app.include_router(live_router, prefix=f"{cfg.api_prefix}/live", tags=["Live Broker"])
     
     # WebSocket endpoints (mounted separately)
     from api.ws.market import router as ws_market_router

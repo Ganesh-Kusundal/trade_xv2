@@ -13,13 +13,13 @@ class UpstoxFuturesAdapter(FuturesProvider):
         self._client = client
 
     def get_contracts(self, underlying: str, exchange_segment: Any) -> list[Any]:
-        return self._client.get_contracts(underlying)
+        return self._client.get_contracts(underlying, str(exchange_segment))
 
     def get_nearest_contract(self, underlying: str, exchange_segment: Any) -> Any:
-        return self._client.get_nearest_contract(underlying)
+        return self._client.get_nearest_contract(underlying, str(exchange_segment))
 
     def get_expiries(self, underlying: str, exchange_segment: Any) -> list[Any]:
-        return self._client.get_expiries(underlying)
+        return self._client.get_expiries(underlying, str(exchange_segment))
 
     def is_commodity(self, underlying: str) -> bool:
         return self._client.is_commodity(underlying)

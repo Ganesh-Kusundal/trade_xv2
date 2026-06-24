@@ -19,6 +19,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+pytestmark = pytest.mark.e2e
+
 from analytics.pipeline.pipeline import FeaturePipeline
 from analytics.pipeline import RSI, ROC, SMA, ATR, Momentum
 from analytics.strategy.pipeline import StrategyPipeline, MomentumStrategy

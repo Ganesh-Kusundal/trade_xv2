@@ -7,10 +7,11 @@ import threading
 from collections.abc import Callable
 from datetime import datetime, timezone
 from decimal import Decimal
+from typing import TYPE_CHECKING, Any
 
-from dhanhq import marketfeed as sdk_marketfeed
-from dhanhq.marketfeed import MarketFeed as SDKMarketFeed
-from dhanhq.orderupdate import OrderUpdate as SDKOrderUpdate
+if TYPE_CHECKING:
+    from dhanhq.marketfeed import MarketFeed as SDKMarketFeed
+    from dhanhq.orderupdate import OrderUpdate as SDKOrderUpdate
 
 from domain import (
     DepthLevel,
@@ -36,16 +37,33 @@ from brokers.dhan.reconnecting_service import ReconnectingServiceMixin
 logger = logging.getLogger(__name__)
 
 from brokers.dhan.segments import to_sdk_int
-# SDK subscription type constants (now class attributes on MarketFeed in v2.2.0)
-# v2 SDK supports: Ticker (15), Quote (17), Full (21).
-# Depth (19) is NOT supported in v2 — falls back to Quote.
-_MODE_MAP: dict[str, int] = {
-    "LTP": SDKMarketFeed.Ticker,
-    "TICKER": SDKMarketFeed.Ticker,
-    "QUOTE": SDKMarketFeed.Quote,
-    "FULL": SDKMarketFeed.Full,
-    "DEPTH": SDKMarketFeed.Quote,  # v2 does not support Depth (19)
-}
+
+
+def _sdk_market_feed_class() -> type:
+    """Lazy import so ``import brokers.dhan.gateway`` does not require dhanhq at import time."""
+    from dhanhq.marketfeed import MarketFeed
+
+    return MarketFeed
+
+
+def _sdk_order_update_class() -> type:
+    from dhanhq.orderupdate import OrderUpdate
+
+    return OrderUpdate
+
+
+def _mode_map() -> dict[str, int]:
+    mf = _sdk_market_feed_class()
+    return {
+        "LTP": mf.Ticker,
+        "TICKER": mf.Ticker,
+        "QUOTE": mf.Quote,
+        "FULL": mf.Full,
+        "DEPTH": mf.Quote,  # v2 does not support Depth (19)
+    }
+
+
+# SDK subscription type constants (lazy via _mode_map)
 
 
 def _to_sdk_instruments(instruments: list[tuple]) -> list[tuple]:
@@ -84,7 +102,7 @@ def _to_sdk_instruments(instruments: list[tuple]) -> list[tuple]:
             logger.warning("Unknown exchange: %s", exchange)
             continue
         sid_int = int(security_id)
-        mode_int = _MODE_MAP.get(str(mode).upper(), SDKMarketFeed.Ticker) if isinstance(mode, str) else int(mode)
+        mode_int = _mode_map().get(str(mode).upper(), _sdk_market_feed_class().Ticker) if isinstance(mode, str) else int(mode)
         sdk_instruments.append((exch_int, sid_int, mode_int))
     return sdk_instruments
 
@@ -185,7 +203,7 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
         self._resolver = resolver
         self._event_bus = event_bus
         self._backfill_callback = backfill_callback
-        self._feed: SDKMarketFeed | None = None
+        self._feed: Any | None = None
         self._thread: threading.Thread | None = None
         self._lock = threading.RLock()
         self._quote_callbacks: list[Callable[[dict], None]] = []
@@ -233,7 +251,7 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
 
             self._stop_event.clear()
             self._is_connected = True
-            self._feed = SDKMarketFeed(
+            self._feed = _sdk_market_feed_class()(
                 dhan_context=self._context,
                 instruments=self._instruments,
                 on_connect=self._on_connect,
@@ -781,11 +799,13 @@ class DhanOrderStream(ReconnectingServiceMixin, ManagedService):
             access_token=access_token,
             access_token_fn=access_token_fn,
         )
-        self._order_update: SDKOrderUpdate | None = None
+        self._order_update: Any | None = None
         self._thread: threading.Thread | None = None
         self._lock = threading.RLock()
         self._order_callbacks: list[Callable[[dict], None]] = []
         self._event_bus = event_bus
+        # Cumulative filledQty per order — OMS expects incremental TRADE qty.
+        self._last_cumulative_filled: dict[str, int] = {}
         # Initialise the shared reconnect / message-tracking state
         # owned by the mixin (single source of truth across all
         # Dhan WS services).
@@ -810,7 +830,7 @@ class DhanOrderStream(ReconnectingServiceMixin, ManagedService):
                 return
             self._stop_event.clear()
             self._is_connected = True
-            self._order_update = SDKOrderUpdate(dhan_context=self._context)
+            self._order_update = _sdk_order_update_class()(dhan_context=self._context)
             self._order_update.on_update = self._on_order_update
             self._thread = threading.Thread(
                 target=self._run,
@@ -987,17 +1007,23 @@ class DhanOrderStream(ReconnectingServiceMixin, ManagedService):
                 DomainEvent.now("ORDER_UPDATED", {"order": order}, symbol=order.symbol, source="DhanOrderStream", correlation_id=correlation_id)
             )
             # If the update indicates a fill, also publish a TRADE event so the
-            # PositionManager can update. Trade id is derived deterministically.
-            filled = int(data.get("filled_quantity", 0))
+            # PositionManager can update. Dhan sends cumulative filledQty; OMS
+            # expects incremental trade quantity per event.
+            cumulative_filled = int(data.get("filled_quantity", 0))
             avg = data.get("average_price", Decimal("0"))
-            if filled > 0 and avg > 0:
+            order_id = order.order_id
+            previous_filled = self._last_cumulative_filled.get(order_id, 0)
+            incremental = cumulative_filled - previous_filled
+            if cumulative_filled > previous_filled:
+                self._last_cumulative_filled[order_id] = cumulative_filled
+            if incremental > 0 and avg > 0:
                 trade = Trade(
-                    trade_id=f"{order.order_id}:{filled}",
+                    trade_id=f"{order.order_id}:{cumulative_filled}",
                     order_id=order.order_id,
                     symbol=order.symbol,
                     exchange=order.exchange,
                     side=side,
-                    quantity=filled,
+                    quantity=incremental,
                     price=avg,
                     timestamp=datetime.now(timezone.utc),
                     product_type=product_type,

@@ -57,7 +57,7 @@ class TestScannerRunIntegration:
         client = TestClient(app)
 
         from infrastructure.event_bus.event_bus import EventBus
-        from brokers.common.oms.context import TradingContext
+        from application.oms.context import TradingContext
 
         reset_container()
         app = create_app(

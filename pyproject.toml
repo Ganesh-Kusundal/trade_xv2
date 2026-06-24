@@ -44,12 +44,12 @@ dev = [
 # paper = "brokers.paper:PaperBroker"
 
 [tool.setuptools.packages.find]
-include = ["brokers*", "cli*", "analytics*", "datalake*", "config*", "domain*", "runtime*", "market_data*", "oms*", "event_bus*", "portfolio*", "risk*", "strategy*", "backtesting*", "replay*"]
+include = ["brokers*", "cli*", "analytics*", "datalake*", "config*", "domain*", "runtime*", "application*", "infrastructure*", "market_data*", "oms*", "event_bus*", "portfolio*", "risk*", "strategy*", "backtesting*", "replay*"]
 
 # ─── pytest ────────────────────────────────────────────────
 [tool.pytest.ini_options]
 minversion = "7.0"
-testpaths = ["tests", "brokers", "analytics", "cli", "datalake"]
+testpaths = ["tests", "brokers", "analytics", "cli", "datalake", "application", "domain", "infrastructure"]
 markers = [
     "unit: module-owned unit tests",
     "contract: broker/module contract tests",
@@ -88,7 +88,7 @@ python_functions = ["test_*"]
 
 # ─── coverage ─────────────────────────────────────────────
 [tool.coverage.run]
-source = ["brokers", "analytics", "cli", "datalake", "tests/chaos"]
+source = ["brokers", "analytics", "cli", "datalake", "application", "domain", "infrastructure", "tests/chaos"]
 omit = [
     "*/tests/*",
     "*/__init__.py",
@@ -108,7 +108,7 @@ show_missing = true
 
 # Mutation testing configuration (mutmut)
 [tool.mutmut]
-paths_to_mutate = "brokers,analytics,datalake,domain"
+paths_to_mutate = "brokers,analytics,datalake,domain,application,infrastructure"
 mutation_operators = [
     "uop",
     "aod",
@@ -200,13 +200,19 @@ skip-magic-trailing-comma = false
 # Run: lint-imports --config pyproject.toml
 
 [tool.importlinter]
-root_packages = ["domain", "brokers", "analytics", "datalake", "cli"]
+root_packages = ["domain", "brokers", "analytics", "datalake", "cli", "api", "application", "infrastructure"]
 
 [[tool.importlinter.contracts]]
 name = "Domain independence"
 type = "forbidden"
 source_modules = ["domain"]
-forbidden_modules = ["brokers", "analytics", "datalake", "cli"]
+forbidden_modules = ["brokers", "analytics", "datalake", "cli", "application", "api"]
+
+[[tool.importlinter.contracts]]
+name = "Infrastructure independence"
+type = "forbidden"
+source_modules = ["infrastructure"]
+forbidden_modules = ["brokers", "analytics", "cli", "application", "api"]
 
 [[tool.importlinter.contracts]]
 name = "Analytics broker-adapter isolation"
@@ -218,10 +224,17 @@ forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper"]
 name = "Broker common isolation"
 type = "forbidden"
 source_modules = ["brokers.common"]
-forbidden_modules = ["brokers.dhan", "brokers.upstox"]
+forbidden_modules = ["brokers.dhan", "brokers.upstox", "analytics"]
 
 [[tool.importlinter.contracts]]
-name = "Analytics OMS isolation"
+name = "Application broker isolation"
 type = "forbidden"
-source_modules = ["analytics"]
-forbidden_modules = ["brokers.common.oms"]
+source_modules = ["application"]
+forbidden_modules = ["brokers"]
+ignore_imports = [
+    "application.execution.tests.test_execution_service -> brokers.paper.paper_gateway",
+    "application.trading.tests.test_trading_orchestrator_e2e -> brokers.paper.paper_gateway",
+    "application.oms.tests.test_oms_e2e -> brokers.common.resilience.circuit_breaker",
+    "application.oms.tests.test_oms_e2e -> brokers.dhan.exceptions",
+    "application.oms.tests.test_oms_e2e -> brokers.dhan.http_client",
+]

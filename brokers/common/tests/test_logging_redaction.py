@@ -138,9 +138,22 @@ class TestFilterIntegration:
         assert TokenRedactionFilter().filter(record) is True
 
     def test_filter_handles_record_with_args_safely(self, logger_with_filter):
-        # If args are present (lazy formatting), the filter must
-        # still replace the formatted output and not blow up.
         logger_with_filter.info("token=%s", "abcdefghij" * 4)
         output = logger_with_filter.handlers[0].stream.getvalue()
-        # 40-char threshold means this WILL be redacted.
         assert "abcdefghijabcdefghijabcdefghijabcdefghij" not in output
+
+    def test_filter_redacts_sensitive_extra_fields(self):
+        record = logging.LogRecord(
+            name="x",
+            level=logging.INFO,
+            pathname=__file__,
+            lineno=1,
+            msg="token_refresh",
+            args=(),
+            exc_info=None,
+        )
+        record.access_token = "supersecretvalue1234567890"
+        record.client_id = "1106"
+        TokenRedactionFilter().filter(record)
+        assert record.access_token == "<REDACTED>"
+        assert record.client_id == "1106"

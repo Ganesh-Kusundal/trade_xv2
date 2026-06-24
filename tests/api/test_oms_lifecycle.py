@@ -20,7 +20,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from infrastructure.event_bus import EventBus
-from brokers.common.oms.context import TradingContext
+from application.oms.context import TradingContext
 from api.config import APIConfig
 from api.deps import (
     ServiceContainer,

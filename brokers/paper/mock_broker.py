@@ -6,7 +6,7 @@ import random
 from decimal import Decimal
 
 from domain import Balance, Holding, OrderResponse, Position
-from brokers.common.oms.context import TradingContext
+from application.oms.context import TradingContext
 from domain.constants.defaults import PAPER_INITIAL_CAPITAL
 
 from .paper_gateway import PaperGateway

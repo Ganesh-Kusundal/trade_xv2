@@ -247,10 +247,7 @@ def modify_order(
         if new_quantity is not None:
             console.print(f"[cyan]  New quantity: {new_quantity}[/cyan]")
 
-        # Note: OMS modify_order implementation may vary by broker
-        # This assumes the gateway supports modification
-        gw = broker_service.active_broker
-        success = gw.modify_order(
+        success = oms_service.modify_order(
             order_id=order_id,
             price=new_price,
             quantity=new_quantity,

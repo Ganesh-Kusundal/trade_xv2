@@ -53,7 +53,7 @@ class UpstoxConnectionSettings(BrokerSettings):
     redirect_port: int = 18080
     algo_name: str = ""
     static_ip: str = ""
-    allow_live_orders: bool = True
+    allow_live_orders: bool = False
     market_protection_default: int = -1
     slice_default: bool = False
     ws_plus_plan: bool = False
@@ -157,7 +157,7 @@ class UpstoxSettingsLoader(SettingsLoaderBase):
     """
 
     PREFIX = UPSTOX_PREFIX
-    DEFAULT_ENV_PATHS = (Path(".env.local"), Path(".env"))
+    DEFAULT_ENV_PATHS = (Path(".env.upstox"),)
 
     @classmethod
     def from_env(
@@ -205,7 +205,7 @@ class UpstoxSettingsLoader(SettingsLoaderBase):
         algo_name = cls._get(prefix, "ALGO_NAME") or ""
         static_ip = cls._get(prefix, "STATIC_IP") or ""
         analytics_only = cls._get_bool(prefix, "ANALYTICS_ONLY", default=False)
-        allow_live_orders = cls._get_bool(prefix, "ALLOW_LIVE_ORDERS", default=True)
+        allow_live_orders = cls._get_bool(prefix, "ALLOW_LIVE_ORDERS", default=False)
         ws_plus_plan = cls._get_bool(prefix, "WS_PLUS_PLAN", default=False)
         slice_default = cls._get_bool(prefix, "SLICE_DEFAULT", default=False)
         market_protection_default = cls._get_int(prefix, "MARKET_PROTECTION_DEFAULT", default=-1)
@@ -299,7 +299,7 @@ class UpstoxSettingsLoader(SettingsLoaderBase):
             redirect_port=cls._parse_int(values.get(f"{prefix}.redirectPort"), 18080),
             algo_name=values.get(f"{prefix}.algoName", ""),
             static_ip=values.get(f"{prefix}.staticIp", ""),
-            allow_live_orders=cls._parse_bool(values.get(f"{prefix}.allowLiveOrders"), True),
+            allow_live_orders=cls._parse_bool(values.get(f"{prefix}.allowLiveOrders"), False),
             ws_plus_plan=cls._parse_bool(values.get(f"{prefix}.wsPlusPlan"), False),
             market_protection_default=cls._parse_int(
                 values.get(f"{prefix}.marketProtectionDefault"), -1

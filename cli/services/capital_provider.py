@@ -15,12 +15,12 @@ import logging
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from brokers.common.oms.capital_provider import CapitalProvider
+from application.oms.capital_provider import CapitalProvider
 from domain.constants.defaults import RISK_FAIL_OPEN_THRESHOLD
 
 if TYPE_CHECKING:
     from cli.services.broker_service import BrokerService
-    from brokers.common.oms.capital_provider import GatewayCapitalProvider
+    from application.oms.capital_provider import GatewayCapitalProvider
 
 logger = logging.getLogger(__name__)
 

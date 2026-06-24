@@ -15,7 +15,7 @@ from typing import Any
 
 from domain import Capability, ConnectionStatus
 from infrastructure.event_bus import EventBus
-from brokers.common.oms.risk_manager import RiskManager
+from application.oms.risk_manager import RiskManager
 from brokers.common.services.historical_data import HistoricalDataService
 from brokers.upstox.auth.config import UpstoxConnectionSettings
 from brokers.upstox.auth.context import UpstoxAdapterContext
@@ -70,6 +70,7 @@ from brokers.upstox.static_ip.adapter import UpstoxStaticIpAdapter
 from brokers.upstox.static_ip.client import UpstoxStaticIpClient
 from brokers.upstox.websocket.feed_authorizer import UpstoxFeedAuthorizer
 from brokers.upstox.websocket.market_data_v3 import UpstoxMarketDataV3Multiplexer
+from brokers.upstox.websocket.portfolio_stream import UpstoxPortfolioStream
 from brokers.upstox.websocket.v3_auto_reconnect import UpstoxAutoReconnect
 from brokers.upstox.websocket.v3_decoder import UpstoxV3Decoder
 from brokers.upstox.websocket.v3_subscription_manager import UpstoxV3SubscriptionLimits
@@ -163,10 +164,17 @@ class UpstoxBroker:
         for name, client_cls, adapter_cls, capability in _ADAPTER_REGISTRY:
             client = client_cls(self.context.http_client, self.context.url_resolver)
             setattr(self, f"{name}_client", client)
-            
-            # Options adapter needs instrument_resolver
-            if name == 'options':
+
+            if name == "options":
                 adapter = adapter_cls(client, self.instrument_resolver)
+            elif name == "futures":
+                futures_client = UpstoxFuturesClient(
+                    self.context.http_client,
+                    self.context.url_resolver,
+                    self.instrument_resolver,
+                )
+                setattr(self, "futures_client", futures_client)
+                adapter = adapter_cls(futures_client)
             else:
                 adapter = adapter_cls(client)
             
@@ -222,10 +230,14 @@ class UpstoxBroker:
             event_bus=self._event_bus,
             backfill_callback=self._backfill_callback,
         )
+        self.portfolio_stream = UpstoxPortfolioStream(
+            authorizer=self.feed_authorizer,
+            event_bus=self._event_bus,
+        )
 
-        # Shared historical data service
+        # Shared historical data service (V2 historical client)
         self.historical_service = HistoricalDataService(
-            self.market_data_v2,
+            self.historical_v2,
             parquet_cache_path=settings.instrument_cache_path,
         )
 
@@ -303,7 +315,7 @@ class UpstoxBroker:
         self._register_capability(Capability.COVER_ORDER, self.cover)
         self._register_capability(Capability.ALERTS, self.alert)
         self._register_capability(Capability.WEBSOCKET, self.market_data_websocket)
-        self._register_capability(Capability.PORTFOLIO_STREAM, self.market_data_websocket)
+        self._register_capability(Capability.PORTFOLIO_STREAM, self.portfolio_stream)
         self._register_capability(Capability.IDEMPOTENCY, self.idempotency_cache)
         self._register_capability(Capability.WEBHOOKS, self.feed_authorizer)
         self._register_capability(Capability.OPTION_GREEKS, self.intelligence)

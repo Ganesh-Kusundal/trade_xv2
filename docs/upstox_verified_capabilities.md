@@ -1,7 +1,17 @@
 # Upstox Verified Capabilities
 
-**Last Verified:** 2026-06-15
-**Source:** Official Upstox API Documentation (https://upstox.com/developer/api-documentation/)
+**Last Verified:** 2026-06-24
+
+---
+
+## Market Depth (REST)
+
+| Feature | Endpoint | Levels | Status | Verified Date |
+|---------|----------|--------|--------|---------------|
+| Best five bid/ask | `GET /v2/market-quote/quotes?quote=BEST_FIVE` | 5 | ✅ VERIFIED | 2026-06-24 |
+| Dedicated depth | `GET /v2/market-quote/depth` | — | ❌ NOT USED | 2026-06-24 |
+
+Gateway `depth()` resolves instrument key then maps `BEST_FIVE` quote rows to canonical `MarketDepth`.
 
 ---
 

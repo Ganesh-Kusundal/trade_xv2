@@ -7,8 +7,8 @@ from unittest.mock import MagicMock
 from infrastructure.event_bus import DomainEvent, EventBus
 from brokers.common.lifecycle import HealthState, LifecycleManager
 from brokers.common.observability.event_metrics import EventMetrics
-from brokers.common.oms.context import TradingContext
-from brokers.common.oms.reconciliation_service import ReconciliationService
+from application.oms.context import TradingContext
+from application.oms.reconciliation_service import ReconciliationService
 
 
 class _StubReconciliation:

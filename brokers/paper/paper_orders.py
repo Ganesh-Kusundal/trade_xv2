@@ -108,7 +108,7 @@ class PaperOrders:
         correlation_id: str | None,
     ) -> Order:
         """Route through OrderManager.place_order for idempotency + risk + events."""
-        from brokers.common.oms.order_manager import OmsOrderCommand
+        from application.oms.order_manager import OmsOrderCommand
 
         self._order_seq += 1
         seq = self._order_seq
@@ -187,8 +187,6 @@ class PaperOrders:
                 symbol, exchange, side, quantity, fill_price, product_type,
             )
         self._order_manager.record_trade(trade)
-        if self._position_manager is not None:
-            self._position_manager.apply_trade(trade)
 
         return result.order
 

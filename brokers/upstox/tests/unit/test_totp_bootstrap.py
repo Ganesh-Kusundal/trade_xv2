@@ -33,6 +33,28 @@ class TestTotpBootstrap:
 
     @patch("brokers.upstox.auth.token_manager.UpstoxTotpClient")
     @patch("brokers.upstox.auth.token_manager.UpstoxJwtExpiry")
+    def test_bootstrap_totp_reuses_persisted_token(self, mock_jwt_expiry, mock_totp_client_class):
+        """Persisted valid token should skip TOTP generation."""
+        settings = _make_settings()
+        mock_jwt_expiry.parse_expiry_epoch_ms.return_value = 9999999999999
+
+        mock_store = MagicMock()
+        mock_store.load.return_value = {
+            "access_token": "persisted-token",
+            "refresh_token": None,
+            "expires_at_ms": 9999999999999,
+            "issued_at_ms": 1000,
+            "source": "TOTP",
+        }
+
+        token_manager = UpstoxTokenManager(settings, state_store=mock_store)
+        state = token_manager.bootstrap()
+
+        assert state.access_token == "persisted-token"
+        mock_totp_client_class.assert_not_called()
+
+    @patch("brokers.upstox.auth.token_manager.UpstoxTotpClient")
+    @patch("brokers.upstox.auth.token_manager.UpstoxJwtExpiry")
     def test_bootstrap_totp_success(self, mock_jwt_expiry, mock_totp_client_class):
         """Test successful TOTP bootstrap."""
         settings = _make_settings()

@@ -60,7 +60,7 @@ from infrastructure.event_bus.event_bus import DomainEvent, EventBus
 if TYPE_CHECKING:
     from infrastructure.event_bus.async_event_bus import AsyncEventBus
     from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
-    from brokers.common.observability.event_metrics import EventMetrics
+    from domain.ports.observability import EventMetricsPort
 
 logger = logging.getLogger(__name__)
 

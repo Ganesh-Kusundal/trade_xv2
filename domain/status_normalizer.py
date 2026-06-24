@@ -36,7 +36,7 @@ def normalize_status(broker_status: str) -> "OrderStatus":  # type: ignore[name-
     """Normalize a broker-specific status string to canonical OrderStatus.
 
     Delegates to :class:`~domain.status_mapper.StatusMapperRegistry.normalize`,
-    which tries all registered broker mappings and falls back to OPEN.
+    which tries all registered broker mappings and returns UNKNOWN when unmapped.
 
     Args:
         broker_status: Raw status string from broker API (e.g. "TRANSIT", "EXECUTED").

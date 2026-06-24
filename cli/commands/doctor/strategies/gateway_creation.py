@@ -7,7 +7,8 @@ registered broker.
 from __future__ import annotations
 
 from cli.commands.doctor.checks import CheckResult, CheckStrategy
-from cli.services.broker_registry import create_gateway, list_available_brokers
+from cli.services.broker_registry import bootstrap_gateway, list_available_brokers
+from brokers.common.connection.bootstrap_result import BootstrapStatus
 from cli.services.broker_service import BrokerService
 
 
@@ -37,13 +38,32 @@ class GatewayCreationCheck(CheckStrategy):
                 continue
 
             try:
-                gw = create_gateway(name, load_instruments=False)
-                if gw is not None:
+                result = bootstrap_gateway(name, load_instruments=False)
+                if result.ok:
+                    detail = f"Gateway ready ({result.status.value})"
+                    if result.probe_name:
+                        detail += f", probe={result.probe_name}"
                     results.append(
                         CheckResult(
                             f"  {name.title()}",
                             "PASS",
-                            f"Gateway created via create_gateway('{name}')",
+                            detail,
+                        )
+                    )
+                elif result.status == BootstrapStatus.REAUTH_REQUIRED:
+                    results.append(
+                        CheckResult(
+                            f"  {name.title()}",
+                            "FAIL",
+                            f"Reauth required: {result.error or 'token rejected'}",
+                        )
+                    )
+                elif result.status == BootstrapStatus.DEGRADED:
+                    results.append(
+                        CheckResult(
+                            f"  {name.title()}",
+                            "WARN",
+                            f"Degraded: {result.error or 'structural probe failed'}",
                         )
                     )
                 else:
@@ -51,7 +71,7 @@ class GatewayCreationCheck(CheckStrategy):
                         CheckResult(
                             f"  {name.title()}",
                             "FAIL",
-                            f"create_gateway('{name}') returned None",
+                            result.error or f"bootstrap failed: {result.status.value}",
                         )
                     )
             except Exception as exc:
@@ -59,7 +79,7 @@ class GatewayCreationCheck(CheckStrategy):
                     CheckResult(
                         f"  {name.title()}",
                         "FAIL",
-                        f"create_gateway('{name}') raised: {exc}",
+                        f"bootstrap_gateway('{name}') raised: {exc}",
                     )
                 )
 

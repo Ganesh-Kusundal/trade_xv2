@@ -8,6 +8,10 @@
 config/dhan-pin.txt
 config/dhan-totp-secret.txt
 
+# Upstox secret files
+config/upstox-pin.txt
+config/upstox-totp-secret.txt
+
 # Dhan credential properties (templates are committed; values are gitignored)
 config/dhan-local.properties
 config/dhan-sandbox.properties

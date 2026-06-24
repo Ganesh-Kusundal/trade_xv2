@@ -17,8 +17,8 @@ from domain import (
     OrderResponse,
 )
 from domain import Side as OrderSide
-from infrastructure.event_bus import DomainEvent, EventBus
-from brokers.common.oms.risk_manager import RiskManager
+from infrastructure.event_bus import EventBus
+from application.oms.risk_manager import RiskManager
 from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from brokers.upstox.orders.idempotency import InMemoryIdempotencyCache
@@ -89,8 +89,6 @@ class UpstoxOrderCommandAdapter(OrderCommand):
             return OrderResponse.fail(str(exc))
 
         response = UpstoxDomainMapper.to_order_response(result)
-        if response.success:
-            self._publish_order_placed(request, response)
         if request.correlation_id and self._idempotency_cache is not None and response.success:
             self._idempotency_cache.put(request.correlation_id, response)
         return response
@@ -228,27 +226,4 @@ class UpstoxOrderCommandAdapter(OrderCommand):
             status=OrderStatus.OPEN,
             timestamp=datetime.now(timezone.utc),
             correlation_id=request.correlation_id,
-        )
-
-    def _publish_order_placed(self, request: OrderRequest, response: OrderResponse) -> None:
-        if self._event_bus is None:
-            return
-
-        try:
-            from dataclasses import replace
-            order = replace(
-                self._to_domain_order(request),
-                order_id=response.order_id or "",
-                status=response.status or self._to_domain_order(request).status,
-            )
-        except Exception:
-            # Defensive: do not let event publishing break order placement.
-            return
-        self._event_bus.publish(
-            DomainEvent.now(
-                "ORDER_PLACED",
-                {"order": order},
-                symbol=order.symbol,
-                source="UpstoxOrderCommandAdapter",
-            )
         )

@@ -28,6 +28,7 @@ class OrderStatus(str, Enum):
     CANCELLED = "CANCELLED"
     REJECTED = "REJECTED"
     EXPIRED = "EXPIRED"
+    UNKNOWN = "UNKNOWN"
 
     @classmethod
     def normalize(cls, raw: str) -> OrderStatus:

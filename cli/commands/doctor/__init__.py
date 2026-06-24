@@ -38,6 +38,7 @@ from cli.commands.doctor.orchestrator import CheckOrchestrator, SectionResult
 from cli.commands.doctor.renderer import ResultRenderer, _status_str
 from cli.commands.doctor.strategies import (
     ActiveBrokerCheck,
+    AuthenticatedReadinessCheck,
     BrokerRegistryCheck,
     GatewayCreationCheck,
     HTTPObservabilityCheck,
@@ -228,6 +229,9 @@ def run_doctor(
     broker_results = BrokerRegistryCheck().execute(None)
     renderer.render_section("⚙️  Broker Registration & Environment", broker_results)
 
+    auth_results = AuthenticatedReadinessCheck().execute(broker_service)
+    renderer.render_section("🔐 Authenticated Readiness", auth_results)
+
     # Define independent checks with their display titles
     check_strategies: list[tuple[str, str, Any]] = [
         ("Gateway Creation", "🔧 Gateway Creation (create_gateway)", GatewayCreationCheck()),
@@ -299,6 +303,7 @@ def run_doctor(
     # Summary row
     all_results = (
         broker_results
+        + auth_results
         + gw_results
         + active_results
         + inst_results

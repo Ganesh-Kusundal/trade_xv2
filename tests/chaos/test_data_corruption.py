@@ -189,17 +189,15 @@ class TestCorruptedEvents:
     """Verify event bus handles corrupted or malformed events."""
 
     def test_domain_event_rejects_naive_timestamp(self):
-        """DomainEvent should auto-convert naive timestamps to UTC-aware."""
+        """DomainEvent should reject naive timestamps with ValueError (B5)."""
         naive_ts = datetime(2024, 1, 1, 12, 0, 0)
-        event = DomainEvent(
-            event_type="TICK",
-            timestamp=naive_ts,
-            payload={"price": 100.0},
-        )
 
-        assert event.timestamp.tzinfo is not None, (
-            "DomainEvent should ensure timezone-aware timestamps"
-        )
+        with pytest.raises(ValueError, match="timezone-aware"):
+            DomainEvent(
+                event_type="TICK",
+                timestamp=naive_ts,
+                payload={"price": 100.0},
+            )
 
     def test_event_bus_handles_corrupted_payload(self):
         """Handler receiving corrupted payload should not crash the bus."""
@@ -299,12 +297,6 @@ class TestDuplicateEvents:
     def test_replay_mode_preserves_original_sequence_numbers(self):
         """In replay mode, original sequence numbers should be preserved."""
         bus = EventBus(fail_fast=False, replay_mode=True)
-        seq_numbers = []
-
-        def seq_collector(event):
-            seq_numbers.append(event.sequence_number)
-
-        bus.subscribe("TICK", seq_collector)
 
         # Events with pre-assigned sequence numbers
         events = [
@@ -313,8 +305,9 @@ class TestDuplicateEvents:
             DomainEvent("TICK", datetime(2024, 1, 3, tzinfo=timezone.utc), {}, sequence_number=8),
         ]
 
-        for event in events:
-            bus.publish(event)
+        # _prepare_event handles sequence number logic (replay mode skips dispatch)
+        prepared = [bus._prepare_event(e) for e in events]
+        seq_numbers = [e.sequence_number for e in prepared]
 
         assert seq_numbers == [5, 3, 8], (
             "Replay mode should preserve original sequence numbers"

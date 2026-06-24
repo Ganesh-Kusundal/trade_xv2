@@ -585,3 +585,34 @@ class TestMarketDataErrorHandling:
 
         # Should not raise even if unsubscribe fails
         gateway.unstream("RELIANCE", exchange="NSE", on_tick=on_tick)
+
+
+# ─── Live read-only depth (gated) ─────────────────────────────────────────
+
+import os
+from pathlib import Path
+
+_LIVE_ENV = Path(__file__).resolve().parents[2] / ".env.upstox"
+_live_loaded = False
+if _LIVE_ENV.exists() and _LIVE_ENV.stat().st_size > 0:
+    from dotenv import load_dotenv
+
+    load_dotenv(_LIVE_ENV, override=True)
+    _live_loaded = bool(os.environ.get("UPSTOX_API_KEY") and os.environ.get("UPSTOX_ACCESS_TOKEN"))
+
+
+@pytest.mark.upstox_live_readonly
+@pytest.mark.skipif(not _live_loaded, reason="Requires .env.upstox credentials")
+class TestUpstoxDepthLive:
+    def test_depth_live_levels(self):
+        from brokers.upstox.factory import UpstoxBrokerFactory
+
+        gw = UpstoxBrokerFactory().create(env_path=_LIVE_ENV, load_instruments=True, analytics_only=True)
+        try:
+            depth = gw.depth("RELIANCE", "NSE")
+            assert len(depth.bids) >= 1
+            assert len(depth.asks) >= 1
+            assert len(depth.bids) <= 5
+            assert len(depth.asks) <= 5
+        finally:
+            gw.close()

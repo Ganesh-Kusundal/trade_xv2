@@ -31,7 +31,7 @@ from domain import (
     Trade,
 )
 from infrastructure.event_bus import EventBus
-from brokers.common.oms.order_manager import OrderManager, OmsOrderCommand
+from application.oms.order_manager import OrderManager, OmsOrderCommand
 from brokers.upstox.gateway import UpstoxBrokerGateway
 
 from tests.integration.fixtures.upstox import (

@@ -44,6 +44,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from datetime import date
 from decimal import Decimal
+from dataclasses import dataclass
 from typing import Any, Generic, Protocol, TypeVar
 
 from domain import (
@@ -245,12 +246,68 @@ class OptionsProvider(ABC):
         ...
 
 
+class MarginCalculationError(Exception):
+    """Raised when margin calculation fails (API error, network issue, etc.)."""
+    pass
+
+
+@dataclass(frozen=True)
+class MarginResult:
+    """Result of a margin calculation for an order.
+
+    Attributes:
+        required_margin: Total margin required for the order.
+        available_margin: Available margin in the account.
+        span_margin: SPAN margin component (may be None for non-F&O).
+        exposure_margin: Exposure margin component (may be None for non-F&O).
+        is_sufficient: Whether available margin meets the requirement.
+    """
+
+    required_margin: Decimal
+    available_margin: Decimal
+    span_margin: Decimal | None = None
+    exposure_margin: Decimal | None = None
+
+    @property
+    def is_sufficient(self) -> bool:
+        """True if available margin covers the required margin."""
+        return self.available_margin >= self.required_margin
+
+
 class MarginProvider(ABC):
     """Margin calculations. No direct gateway method; used internally by broker adapters."""
 
     @abstractmethod
     def calculate_margin(self, payload: dict[str, Any]) -> dict[str, Any]:
         """Submit a margin-calculator request."""
+        ...
+
+    @abstractmethod
+    def calculate_margin_for_order(
+        self,
+        symbol: str,
+        exchange: str,
+        quantity: int,
+        price: Decimal,
+        product_type: str,
+        order_type: str,
+    ) -> "MarginResult":
+        """Calculate margin required for a specific order.
+
+        Args:
+            symbol: Instrument symbol.
+            exchange: Exchange segment (e.g. "NFO", "CDS").
+            quantity: Order quantity.
+            price: Order price.
+            product_type: Product type (e.g. "MIS", "NRML").
+            order_type: Order type (e.g. "LIMIT", "MARKET").
+
+        Returns:
+            MarginResult with required and available margin details.
+
+        Raises:
+            MarginCalculationError: If the margin API call fails.
+        """
         ...
 
 

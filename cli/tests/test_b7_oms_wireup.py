@@ -37,7 +37,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.common.oms import (
+from application.oms import (
     PositionManager,
     RiskConfig,
     RiskManager,
@@ -303,12 +303,12 @@ def test_oms_capital_fn_caches_position_pct_against_real_balance() -> None:
         ProductType,
         Side,
     )
-    from brokers.common.oms import (
+    from application.oms import (
         PositionManager,
         RiskConfig,
         RiskManager,
     )
-    from brokers.common.oms.capital_provider import GatewayCapitalProvider
+    from application.oms.capital_provider import GatewayCapitalProvider
 
     # Build a RiskManager with explicit capital provider that reads
     # from a fake gateway returning 100k (not the default 1M).
@@ -345,7 +345,7 @@ def test_production_readiness_checker_fails_when_reconciliation_unwired() -> Non
     PRODUCTION UNSAFE when the OMS ReconciliationService has no
     broker-specific implementation.
     """
-    from brokers.common.oms.context import TradingContext
+    from application.oms.context import TradingContext
     from brokers.common.services.production_readiness import (
         ProductionReadinessChecker,
     )

@@ -6,7 +6,11 @@ from brokers.common.resilience.backoff import ExponentialBackoff
 from brokers.common.resilience.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
 from brokers.common.resilience.errors import NonRetryableError, RetryableError
 from brokers.common.resilience.rate_limiter import MultiBucketRateLimiter, RateLimitConfig
-from brokers.common.resilience.retry import RetryConfig, RetryExecutor
+from brokers.common.resilience.retry import (
+    DEFAULT_RETRYABLE_EXCEPTIONS,
+    RetryConfig,
+    RetryExecutor,
+)
 
 
 class TestRetryConfig:
@@ -14,6 +18,19 @@ class TestRetryConfig:
         config = RetryConfig()
         assert config.max_attempts == 3
         assert config.max_retry_delay_ms == 30000
+
+    def test_default_retryable_exceptions(self):
+        """Default retryable_exceptions should include ConnectionError, TimeoutError, OSError."""
+        config = RetryConfig()
+        assert ConnectionError in config.retryable_exceptions
+        assert TimeoutError in config.retryable_exceptions
+        assert OSError in config.retryable_exceptions
+
+    def test_custom_retryable_exceptions(self):
+        """Should allow overriding retryable_exceptions."""
+        config = RetryConfig(retryable_exceptions=(ValueError,))
+        assert config.retryable_exceptions == (ValueError,)
+        assert ConnectionError not in config.retryable_exceptions
 
     def test_validation_zero_attempts(self):
         with pytest.raises(ValueError):
@@ -80,6 +97,131 @@ class TestRetryExecutorBasic:
         with pytest.raises(ValueError):
             executor.execute(fail)
         assert call_count[0] == 1
+
+
+class TestTransientExceptionRetries:
+    """Tests for default transient exception retry behavior (A8 fix)."""
+
+    def test_connection_error_is_retried(self):
+        """ConnectionError should be retried by default."""
+        call_count = [0]
+
+        def fail_twice_then_succeed():
+            call_count[0] += 1
+            if call_count[0] < 3:
+                raise ConnectionError("connection refused")
+            return "connected"
+
+        config = RetryConfig(max_attempts=4)
+        executor = RetryExecutor(
+            config, backoff=ExponentialBackoff(base_delay_ms=10, max_delay_ms=50)
+        )
+        result = executor.execute(fail_twice_then_succeed)
+        assert result == "connected"
+        assert call_count[0] == 3
+
+    def test_timeout_error_is_retried(self):
+        """TimeoutError should be retried by default."""
+        call_count = [0]
+
+        def fail_once_then_succeed():
+            call_count[0] += 1
+            if call_count[0] < 2:
+                raise TimeoutError("request timed out")
+            return "timely"
+
+        config = RetryConfig(max_attempts=3)
+        executor = RetryExecutor(
+            config, backoff=ExponentialBackoff(base_delay_ms=10, max_delay_ms=50)
+        )
+        result = executor.execute(fail_once_then_succeed)
+        assert result == "timely"
+        assert call_count[0] == 2
+
+    def test_os_error_is_retried(self):
+        """OSError should be retried by default."""
+        call_count = [0]
+
+        def fail_then_succeed():
+            call_count[0] += 1
+            if call_count[0] < 2:
+                raise OSError("network unreachable")
+            return "ok"
+
+        config = RetryConfig(max_attempts=3)
+        executor = RetryExecutor(
+            config, backoff=ExponentialBackoff(base_delay_ms=10, max_delay_ms=50)
+        )
+        result = executor.execute(fail_then_succeed)
+        assert result == "ok"
+        assert call_count[0] == 2
+
+    def test_value_error_still_not_retried(self):
+        """ValueError should NOT be retried (backward compatibility)."""
+        call_count = [0]
+
+        def fail():
+            call_count[0] += 1
+            raise ValueError("invalid argument")
+
+        executor = RetryExecutor()
+        with pytest.raises(ValueError):
+            executor.execute(fail)
+        assert call_count[0] == 1
+
+    def test_transient_exception_max_attempts_exceeded(self):
+        """Transient exception that never succeeds should exhaust retries."""
+        call_count = [0]
+
+        def always_fail():
+            call_count[0] += 1
+            raise ConnectionError("permanent disconnect")
+
+        config = RetryConfig(max_attempts=3)
+        executor = RetryExecutor(
+            config, backoff=ExponentialBackoff(base_delay_ms=10, max_delay_ms=50)
+        )
+        with pytest.raises(ConnectionError):
+            executor.execute(always_fail)
+        assert call_count[0] == 3
+
+    def test_custom_exceptions_can_override_defaults(self):
+        """Should allow custom retryable_exceptions to override defaults."""
+        call_count = [0]
+
+        def fail_with_custom():
+            call_count[0] += 1
+            if call_count[0] < 2:
+                raise RuntimeError("custom transient")
+            return "ok"
+
+        config = RetryConfig(
+            max_attempts=3,
+            retryable_exceptions=(RuntimeError,),
+        )
+        executor = RetryExecutor(
+            config, backoff=ExponentialBackoff(base_delay_ms=10, max_delay_ms=50)
+        )
+        result = executor.execute(fail_with_custom)
+        assert result == "ok"
+        assert call_count[0] == 2
+
+    def test_default_exceptions_not_retried_when_overridden(self):
+        """When retryable_exceptions is overridden, defaults should NOT be retried."""
+        call_count = [0]
+
+        def fail_with_connection_error():
+            call_count[0] += 1
+            raise ConnectionError("should not retry")
+
+        config = RetryConfig(
+            max_attempts=3,
+            retryable_exceptions=(RuntimeError,),  # ConnectionError NOT in this tuple
+        )
+        executor = RetryExecutor(config)
+        with pytest.raises(ConnectionError):
+            executor.execute(fail_with_connection_error)
+        assert call_count[0] == 1  # no retry
 
 
 class TestRetryExecutorWithCircuitBreaker:

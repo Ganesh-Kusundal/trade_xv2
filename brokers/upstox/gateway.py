@@ -3,14 +3,17 @@
 This class acts as a facade, delegating all operations to specialized adapters:
 - MarketDataAdapter: HTTP market data (LTP, Quote, Depth)
 - HistoricalAdapter: Historical candle fetching
-- SymbolResolverAdapter: Instrument key resolution
 - StreamManagerAdapter: WebSocket stream management
-- OrderAdapter: Order placement and cancellation
 - PortfolioAdapter: Portfolio, positions, holdings, funds
+- OrderCommandAdapter: Order placement, cancellation, modification (via broker.order_command)
 
 Thread Safety:
     All adapters are thread-safe. The facade itself is stateless except for
     delegating to the StreamManagerAdapter which manages subscription state.
+
+Note:
+    OrderAdapter was removed as a hollow shim. Gateway now directly calls
+    broker.order_command for all order operations.
 """
 
 from __future__ import annotations
@@ -33,20 +36,23 @@ from domain import (
     Holding,
     MarketDepth,
     Order,
+    OrderRequest,
     OrderResponse,
+    OrderType,
     Position,
+    ProductType,
     Quote,
+    Side,
     Trade,
+    Validity,
 )
 from infrastructure.event_bus import EventBus
 from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
 from brokers.upstox.adapters import (
     HistoricalAdapter,
     MarketDataAdapter,
-    OrderAdapter,
     PortfolioAdapter,
     StreamManagerAdapter,
-    SymbolResolverAdapter,
 )
 from brokers.upstox.broker import UpstoxBroker
 from brokers.upstox.extended import UpstoxExtendedCapabilities
@@ -83,10 +89,10 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         # Initialize specialized adapters
         self._market_data = MarketDataAdapter(broker)
         self._historical = HistoricalAdapter(broker)
-        self._symbol_resolver = SymbolResolverAdapter(broker)
         self._stream_manager = StreamManagerAdapter(broker, broker.instrument_resolver)
-        self._order_adapter = OrderAdapter(broker)
         self._portfolio = PortfolioAdapter(broker)
+        # Direct access to order command — OrderAdapter was a hollow shim
+        self._order_command = broker.order_command
 
         # Broker-agnostic options facade for CLI / tests.
         from brokers.common.options.gateway_facade import GatewayOptionsFacade
@@ -126,7 +132,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         Returns:
             Last traded price as Decimal
         """
-        key = self._symbol_resolver.resolve_key(symbol, exchange)
+        key = self._resolve_instrument_key(symbol, exchange)
         return self._market_data.get_ltp(symbol, exchange, key)
 
     def quote(self, symbol: str, exchange: str = "NSE") -> Quote:
@@ -139,7 +145,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         Returns:
             Quote dataclass with OHLCV data
         """
-        key = self._symbol_resolver.resolve_key(symbol, exchange)
+        key = self._resolve_instrument_key(symbol, exchange)
         return self._market_data.get_quote(symbol, exchange, key)
 
     def depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
@@ -152,7 +158,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         Returns:
             MarketDepth with bid/ask levels
         """
-        key = self._symbol_resolver.resolve_key(symbol, exchange)
+        key = self._resolve_instrument_key(symbol, exchange)
         return self._market_data.get_depth(symbol, exchange, key)
 
     def get_orderbook(self) -> list[Order]:
@@ -285,7 +291,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         Returns:
             DataFrame with OHLCV data
         """
-        key = self._symbol_resolver.resolve_key(symbol, exchange)
+        key = self._resolve_instrument_key(symbol, exchange)
         return self._historical.fetch_candles(
             symbol, exchange, key, from_date, to_date, unit, interval
         )
@@ -324,14 +330,30 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         underlying: str,
         exchange: str = "NFO",
     ) -> FutureChain:
-        """Get the future chain for an underlying.
-        
-        Raises:
-            NotImplementedError: Upstox future chain is not supported
-        """
-        raise NotImplementedError(
-            "Upstox future chain is not supported. Use Dhan for future chains."
-        )
+        """Get the future chain for an underlying."""
+        nfo_map = {"NIFTY": "NFO", "BANKNIFTY": "NFO", "FINNIFTY": "NFO", "SENSEX": "BFO"}
+        segment = nfo_map.get(underlying.upper(), exchange)
+        futures = getattr(self._broker, "futures", None)
+        if futures is None:
+            return FutureChain.from_dict({"underlying": underlying, "exchange": segment})
+        contracts = futures.get_contracts(underlying, segment)
+        expiries = futures.get_expiries(underlying, segment)
+        chain = []
+        for c in contracts:
+            if not isinstance(c, dict):
+                continue
+            chain.append({
+                "expiry": c.get("expiry", ""),
+                "symbol": c.get("symbol", c.get("trading_symbol", "")),
+                "lot_size": c.get("lot_size", 1),
+                "underlying": c.get("underlying", underlying),
+            })
+        return FutureChain.from_dict({
+            "underlying": underlying,
+            "exchange": segment,
+            "expiries": expiries,
+            "contracts": chain,
+        })
 
     def funds(self) -> Balance:
         """Fetch account fund limits.
@@ -513,20 +535,79 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         correlation ID (set via :func:`brokers.common.correlation.with_correlation`)
         is used for tracing.
         """
-        return self._order_adapter.place_order(
+        # Security guard: prevent live orders if disabled or analytics-only
+        if self._broker.settings.analytics_only:
+            return OrderResponse.fail(
+                "Analytics-only mode: live orders are blocked."
+            )
+        if not self._broker.settings.allow_live_orders:
+            return OrderResponse.fail(
+                "Live orders are disabled. Set allow_live_orders=True in configuration."
+            )
+        
+        if correlation_id is None:
+            try:
+                from brokers.common.correlation import get_current_correlation_id
+                correlation_id = get_current_correlation_id()
+            except ImportError:
+                pass
+        
+        exchange_segment = self._resolve_exchange_segment(exchange, symbol)
+        request = OrderRequest(
             symbol=symbol,
             exchange=exchange,
-            side=side,
+            exchange_segment=exchange_segment,
+            transaction_type=Side(side.upper()),
             quantity=quantity,
             price=price,
-            order_type=order_type,
-            product_type=product_type,
-            validity=validity,
-            trigger_price=trigger_price,
+            trigger_price=trigger_price if trigger_price > Decimal("0") else None,
+            order_type=OrderType(order_type.upper()),
+            product_type=ProductType(product_type.upper()),
+            validity=Validity(validity.upper()),
             correlation_id=correlation_id,
             is_amo=is_amo,
             transport_only=transport_only,
         )
+        
+        try:
+            response = self._order_command.place_order(request)
+        except Exception as e:
+            logger.warning(
+                "order_placement_failed",
+                extra={
+                    "correlation_id": correlation_id,
+                    "symbol": symbol,
+                    "side": side,
+                    "error": str(e),
+                },
+            )
+            return OrderResponse.fail(str(e))
+        
+        # Log failed responses from adapter (risk checks, validation, etc.)
+        if not response.success:
+            logger.warning(
+                "order_placement_rejected",
+                extra={
+                    "correlation_id": correlation_id,
+                    "symbol": symbol,
+                    "side": side,
+                    "error": response.message,
+                },
+            )
+            return response
+        
+        if response.success and correlation_id:
+            logger.info(
+                "order_placed",
+                extra={
+                    "correlation_id": correlation_id,
+                    "order_id": response.order_id,
+                    "symbol": symbol,
+                    "side": side,
+                },
+            )
+        
+        return response
 
     def cancel_order(self, order_id: str) -> OrderResponse:
         """Cancel an order via Upstox.
@@ -537,14 +618,14 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
             ``success=False`` with a diagnostic error code; this method
             never raises.
         """
-        return self._order_adapter.cancel_order(order_id)
+        return self._order_command.cancel_order(order_id)
 
     def modify_order(self, order_id: str, **changes: Any) -> OrderResponse:
         """Modify an order via Upstox V3 API."""
         from domain.entities import OrderResponse
 
         try:
-            result = self._order_adapter.modify_order(order_id, **changes)
+            result = self._order_command.modify_order(order_id, **changes)
             if isinstance(result, dict) and result.get("status") == "success":
                 return OrderResponse.ok(order_id=order_id, message="Order modified")
             message = result.get("message", "modify failed") if isinstance(result, dict) else "modify failed"
@@ -583,6 +664,75 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         """
         from brokers.upstox.adapters.tick_translator import TickTranslatorAdapter
         return TickTranslatorAdapter._canonical_symbol_for_defn(defn, fallback_key)
+
+    def _resolve_instrument_key(self, symbol: str, exchange: str) -> str:
+        """Resolve canonical symbol to Upstox instrument_key.
+        
+        Resolution priority:
+        1. Hardcoded index mapping (NIFTY, BANKNIFTY, etc.) → NSE_INDEX segment
+        2. Instrument master lookup (returns ISIN for equities)
+        3. Fallback: construct key from segment|symbol
+        
+        Args:
+            symbol: Canonical trading symbol (e.g., "RELIANCE", "NIFTY")
+            exchange: Exchange segment (e.g., "NSE", "NFO")
+            
+        Returns:
+            Upstox instrument_key string (e.g., "NSE_EQ|INE002A01018")
+        """
+        from config.indices import index_upstox_key
+        from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
+        
+        # 1. Check hardcoded index mapping first
+        idx_key = index_upstox_key(symbol)
+        if idx_key is not None:
+            defn = self._broker.instrument_resolver.resolve(instrument_key=idx_key)
+            if defn:
+                return defn.instrument_key
+            return idx_key
+        
+        # 2. Try instrument master lookup
+        segment = UpstoxDomainMapper.segment_to_wire(exchange)
+        if segment == 'NSE':
+            segment = 'NSE_EQ'
+        elif segment == 'BSE':
+            segment = 'BSE_EQ'
+        
+        defn = self._broker.instrument_resolver.resolve(
+            symbol=symbol,
+            exchange_segment=segment,
+        )
+        if defn:
+            return defn.instrument_key
+        
+        # 3. Fallback: construct key
+        return f"{segment}|{symbol}"
+
+    def _resolve_exchange_segment(self, exchange: str, symbol: str = "") -> ExchangeSegment:
+        """Map user-facing exchange string to canonical ExchangeSegment.
+        
+        For recognised index symbols (NIFTY, BANKNIFTY, etc.) the segment is
+        set to IDX_I regardless of the exchange string.
+        
+        Args:
+            exchange: User-facing exchange string (e.g., "NSE", "NFO")
+            symbol: Optional symbol for index detection
+            
+        Returns:
+            Canonical ExchangeSegment enum value
+        """
+        from config.indices import index_upstox_key
+        from domain.exchange_segments import parse_segment
+        
+        # Index symbols use a dedicated segment
+        if symbol:
+            if index_upstox_key(symbol) is not None:
+                return ExchangeSegment.IDX_I
+        
+        parsed = parse_segment(exchange)
+        if parsed is None:
+            raise ValueError(f"Unknown exchange segment: {exchange!r}")
+        return parsed
 
 
 def _upstox_normalize_exchange(symbol: str, exchange: str) -> str:

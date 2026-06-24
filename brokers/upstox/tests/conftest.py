@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-from brokers.upstox.adapters.symbol_resolver import SymbolResolver
+from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
 
 # ---------------------------------------------------------------------------
 # Fake HTTP client — sync mock replacing Upstox HTTP client
@@ -203,7 +203,7 @@ def sample_instruments():
 
 @pytest.fixture
 def resolver(sample_instruments):
-    """Provide a SymbolResolver loaded with sample instruments."""
-    r = SymbolResolver()
+    """Provide a UpstoxInstrumentResolver loaded with sample instruments."""
+    r = UpstoxInstrumentResolver()
     r.load_from_instruments(sample_instruments)
     return r

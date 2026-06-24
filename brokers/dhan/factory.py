@@ -6,23 +6,24 @@ Implements BrokerProviderFactory for polymorphic factory pattern.
 from __future__ import annotations
 
 import logging
-import os
 import threading
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlencode
 
-from brokers.common.auth import AuthManager, JsonTokenStateStore, TokenSource, TokenState
-from brokers.common.env_loader import load_env_file
+from brokers.common.auth import AuthManager, JsonTokenStateStore, TokenSource
+from brokers.common.auth.token_persistence import TokenPersistence, token_state_from_access_token
+from brokers.common.auth.token_policy import should_generate_token
 from brokers.common.factory import BrokerProviderFactory
 from brokers.common.gateway import MarketDataGateway
 from brokers.dhan.connection import DhanConnection
 from brokers.dhan.gateway import BrokerGateway
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.settings import DhanConnectionSettings, DhanSettingsLoader
+from brokers.dhan.token_manager import update_env_token
 from brokers.dhan.token_scheduler import TokenRefreshScheduler
+from brokers.dhan.totp_client import DhanTotpClient
 
 logger = logging.getLogger(__name__)
 
@@ -39,22 +40,15 @@ class BrokerFactory(BrokerProviderFactory):
         backfill_callback: Callable[[str, datetime, datetime], list[dict]] | None = None,
         reconciliation_service: object | None = None,
     ) -> MarketDataGateway:
-        # ── Load settings ──────────────────────────────────────────
         settings = DhanSettingsLoader.from_env(env_path=env_path)
         cid = settings.client_id
+        env_file = env_path or Path(".env.local")
 
-        # ── Auth & token ───────────────────────────────────────────
-        auth, token = self._create_auth(settings, env_path or Path(".env.local"))
+        auth, token = self._create_auth(settings, env_file)
 
-        # ── Per-instance refresh lock shared between the HTTP 401 handler and
-        # the scheduler.  Created here (the natural owner) rather than inside
-        # a helper so it does not need to be threaded through return values.
         refresh_lock = threading.Lock()
+        client = self._create_http_client(settings, auth, cid, token, env_file, refresh_lock)
 
-        # ── HTTP client ────────────────────────────────────────────
-        client = self._create_http_client(settings, auth, cid, token, env_path or Path(".env.local"), refresh_lock)
-
-        # ── Connection + Gateway ───────────────────────────────────
         gateway = self._create_connection_and_gateway(
             client, auth, settings, event_bus, risk_manager, reconciliation_service,
             backfill_callback, lifecycle,
@@ -63,31 +57,27 @@ class BrokerFactory(BrokerProviderFactory):
         if load_instruments:
             gateway.load_instruments()
 
-        # ── WebSocket auto-wiring ──────────────────────────────────
         self._wire_websocket_services(gateway, client, token, lifecycle, event_bus)
-
-        # ── Token refresh scheduler ────────────────────────────────
         self._setup_token_refresh_scheduler(
-            gateway, auth, client, settings, env_path or Path(".env.local"), lifecycle, refresh_lock,
+            gateway, auth, client, settings, env_file, lifecycle, refresh_lock,
         )
 
         return gateway
-
-    # ── Bootstrapper helpers ──────────────────────────────────────────────
 
     def _create_auth(
         self,
         settings: DhanConnectionSettings,
         env_file: Path,
     ) -> tuple[AuthManager, str]:
-        """Create AuthManager and acquire an access token."""
+        """Create AuthManager and acquire an access token without redundant TOTP."""
         cid = settings.client_id
         token_state_dir = Path("runtime")
         token_state_dir.mkdir(parents=True, exist_ok=True)
         token_store = JsonTokenStateStore(token_state_dir / "dhan-token-state.json")
+        totp_client = DhanTotpClient(settings)
 
         def _generate_token() -> str | None:
-            return _generate_totp_token(settings)
+            return totp_client.generate()
 
         auth = AuthManager(
             client_id=cid,
@@ -98,33 +88,39 @@ class BrokerFactory(BrokerProviderFactory):
             token_lifetime_seconds=settings.token_lifetime_seconds,
         )
 
-        token = settings.access_token
-        if not token:
-            state = auth.acquire()
-            if not state or not state.is_valid():
-                fresh = _generate_totp_token(settings)
-                if fresh:
-                    from datetime import datetime, timedelta
-                    now = datetime.now()
-                    state = TokenState(
-                        access_token=fresh,
-                        source=TokenSource.TOTP,
-                        issued_at=now,
-                        expires_at=_next_token_expiry(now, settings.token_lifetime_seconds),
-                    )
-                    auth._state = state
-                    if auth._store:
-                        auth._store.save(state)
-                else:
-                    state = None
+        now = datetime.now()
+        fallback_expiry = _next_token_expiry(now, settings.token_lifetime_seconds)
+        state = TokenPersistence.load_canonical(
+            token_store,
+            settings.access_token,
+            fallback_expires_at=fallback_expiry,
+        )
 
-            if not state or not state.access_token:
-                from brokers.dhan.exceptions import ConfigurationError
-                raise ConfigurationError("DHAN_ACCESS_TOKEN not configured and TOTP refresh failed")
-
+        if state and state.is_valid() and not should_generate_token(state):
+            auth._state = state
             token = state.access_token
-            if env_file.exists():
-                _update_env_token(env_file, token)
+            logger.debug("dhan_auth: reusing valid persisted token")
+        elif should_generate_token(state):
+            fresh = totp_client.generate()
+            if not fresh:
+                from brokers.dhan.exceptions import ConfigurationError
+
+                raise ConfigurationError(
+                    "DHAN_ACCESS_TOKEN not configured and TOTP refresh failed"
+                )
+            state = token_state_from_access_token(
+                fresh,
+                source=TokenSource.TOTP,
+                fallback_expires_at=fallback_expiry,
+            )
+            auth._state = state
+            TokenPersistence.save(state, token_store, env_file)
+            token = fresh
+            logger.info("dhan_auth: generated new TOTP token")
+        else:
+            from brokers.dhan.exceptions import ConfigurationError
+
+            raise ConfigurationError("DHAN_ACCESS_TOKEN not configured and no valid token in store")
 
         return auth, token
 
@@ -137,7 +133,6 @@ class BrokerFactory(BrokerProviderFactory):
         env_file: Path,
         refresh_lock: threading.Lock,
     ) -> DhanHttpClient:
-        """Create DhanHttpClient with per-category circuit breakers."""
         from brokers.common.resilience.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
 
         cb_read = CircuitBreaker(
@@ -159,7 +154,7 @@ class BrokerFactory(BrokerProviderFactory):
             base_url=settings.base_url,
             timeout=settings.http_timeout,
             enable_retry=settings.enable_retry,
-            token_refresh_fn=lambda: _refresh_via_auth(auth, env_file, refresh_lock),
+            token_refresh_fn=lambda: _refresh_via_auth(auth, env_file, refresh_lock, token_store_path=Path("runtime/dhan-token-state.json")),
             read_circuit_breaker=cb_read,
             write_circuit_breaker=cb_write,
             admin_circuit_breaker=cb_admin,
@@ -176,7 +171,6 @@ class BrokerFactory(BrokerProviderFactory):
         backfill_callback: Callable[[str, datetime, datetime], list[dict]] | None,
         lifecycle: Any | None,
     ) -> BrokerGateway:
-        """Create DhanConnection + BrokerGateway."""
         connection = DhanConnection(
             client=client,
             event_bus=event_bus,
@@ -186,7 +180,7 @@ class BrokerFactory(BrokerProviderFactory):
             lifecycle=lifecycle,
             allow_live_orders=settings.allow_live_orders,
         )
-        connection._auth = auth  # Store auth manager on connection
+        connection._auth = auth
         return BrokerGateway(connection)
 
     def _wire_websocket_services(
@@ -197,7 +191,6 @@ class BrokerFactory(BrokerProviderFactory):
         lifecycle: Any | None,
         event_bus: Any | None,
     ) -> None:
-        """Auto-create and register WebSocket services when lifecycle is provided."""
         if lifecycle is None or event_bus is None:
             return
 
@@ -231,11 +224,11 @@ class BrokerFactory(BrokerProviderFactory):
         lifecycle: Any | None,
         refresh_lock: threading.Lock,
     ) -> None:
-        """Create and register the token refresh scheduler."""
+        token_store = JsonTokenStateStore(Path("runtime/dhan-token-state.json"))
+
         def _on_token_refresh(new_token: str) -> None:
             client.update_token(new_token)
-            if env_file.exists():
-                _update_env_token(env_file, new_token)
+            update_env_token(env_file, new_token)
             delivered = gateway._conn.broadcast_token(new_token)
             logger.info(
                 "dhan_token_refreshed",
@@ -251,6 +244,8 @@ class BrokerFactory(BrokerProviderFactory):
             buffer_seconds=settings.refresh_buffer_seconds,
             refresh_lock=refresh_lock,
             on_refresh=_on_token_refresh,
+            token_store=token_store,
+            env_file=env_file,
         )
         if lifecycle is not None:
             lifecycle.register(scheduler)
@@ -264,23 +259,19 @@ def _refresh_via_auth(
     auth: AuthManager,
     env_file: Path,
     refresh_lock: threading.Lock,
+    *,
+    token_store_path: Path | None = None,
 ) -> str | None:
-    """Refresh token via AuthManager and persist to .env.local.
-
-    Uses the lock shared with the scheduler to prevent concurrent
-    refresh from the HTTP 401 handler and the background scheduler.
-    If a refresh is already in progress, waits up to 5 seconds for it
-    to complete rather than silently skipping — the in-flight refresh
-    may produce a valid token.
-    """
+    """Refresh token via AuthManager when broker rejects the current token."""
     acquired = refresh_lock.acquire(timeout=5.0)
     if not acquired:
         logger.debug("Token refresh timed out waiting for in-flight refresh")
         return None
     try:
-        state = auth.acquire()
+        state = auth.force_refresh()
         if state and state.access_token:
-            _update_env_token(env_file, state.access_token)
+            store = JsonTokenStateStore(token_store_path or Path("runtime/dhan-token-state.json"))
+            TokenPersistence.save(state, store, env_file)
             return state.access_token
         return None
     finally:
@@ -288,14 +279,9 @@ def _refresh_via_auth(
 
 
 def _next_token_expiry(now: Any, lifetime_seconds: int) -> Any:
-    """Compute token expiry aligned to the next trading session end.
+    """Compute token expiry aligned to the next trading session end."""
+    from datetime import timedelta, timezone
 
-    Dhan tokens expire at the start of the next trading day (~06:00 IST /
-    00:30 UTC).  If the current time is before today's 00:30 UTC, the
-    expiry is today's 00:30; otherwise tomorrow's.  Falls back to a
-    simple timedelta if the calculation fails.
-    """
-    from datetime import datetime, timedelta, timezone
     try:
         if now.tzinfo is None:
             utc_now = datetime.now(timezone.utc)
@@ -303,155 +289,16 @@ def _next_token_expiry(now: Any, lifetime_seconds: int) -> Any:
             utc_now = now.astimezone(timezone.utc)
         session_end_today = utc_now.replace(hour=0, minute=30, second=0, microsecond=0)
         if utc_now < session_end_today:
-            return session_end_today
-        return session_end_today + timedelta(days=1)
+            expiry = session_end_today
+        else:
+            expiry = session_end_today + timedelta(days=1)
+        return expiry.replace(tzinfo=None)
     except Exception:
-        return now + timedelta(seconds=lifetime_seconds)
+        base = now.replace(tzinfo=None) if getattr(now, "tzinfo", None) else now
+        return base + timedelta(seconds=lifetime_seconds)
 
 
-def _generate_totp_token(settings: DhanConnectionSettings | None = None) -> str | None:
-    """Generate a fresh access token via TOTP. Returns None on failure.
-    
-    Raises RuntimeError with descriptive message if Dhan's rate limit
-    is hit ("Token can be generated once every 2 minutes").
+# Backward-compatible re-exports for tests and authenticated_readiness
+from brokers.dhan.token_manager import update_env_token as _update_env_token  # noqa: E402
 
-    Uses secrets from *settings* if provided, otherwise falls back to
-    environment variables ``DHAN_PIN`` / ``DHAN_TOTP_SECRET``.
-    """
-    if settings and settings.has_totp:
-        pin = settings.pin
-        totp_secret = settings.totp_secret
-        token_url = settings.generate_token_url
-    else:
-        pin = _read_secret("DHAN_PIN", "DHAN_PIN_FILE")
-        totp_secret = _read_secret("DHAN_TOTP_SECRET", "DHAN_TOTP_SECRET_FILE")
-        from brokers.dhan.settings import _GENERATE_TOKEN_URL
-        token_url = _GENERATE_TOKEN_URL
-    if not pin or not totp_secret:
-        return None
-    try:
-        import pyotp
-        import requests as _requests
-        totp_code = pyotp.TOTP(totp_secret).now()
-        client_id = settings.client_id if settings else os.environ.get("DHAN_CLIENT_ID", "")
-        params = {"dhanClientId": client_id, "pin": pin, "totp": totp_code}
-        url = f"{token_url}?{urlencode(params)}"
-        resp = _requests.post(url, timeout=15)
-        
-        # Parse response body regardless of status code
-        try:
-            body = resp.json()
-        except Exception:
-            body = {}
-        
-        # Check for rate limit error (even on HTTP 200)
-        message = body.get("message", "")
-        status = body.get("status", "")
-        if "once every 2 minutes" in message or status == "error":
-            error_msg = f"Dhan token rate limit: {message}"
-            logger.warning(error_msg)
-            raise RuntimeError(error_msg)
-        
-        if resp.status_code != 200:
-            logger.warning("TOTP token generation failed: HTTP %d", resp.status_code)
-            return None
-            
-        data = body.get("data", body)
-        result: str = data.get("accessToken") or data.get("access_token") or ""
-        return result or None
-    except RuntimeError:
-        # Re-raise rate limit errors
-        raise
-    except Exception as exc:
-        logger.warning("TOTP token generation failed: %s", exc)
-        return None
-
-
-def _read_secret(env_key: str, file_key: str) -> str | None:
-    """Read a secret from env var or file."""
-    val = os.environ.get(env_key, "")
-    if val:
-        return val
-    file_path = os.environ.get(file_key, "")
-    if file_path and Path(file_path).exists():
-        return Path(file_path).read_text().strip()
-    return None
-
-
-def _update_env_token(env_path: Path, token: str) -> None:
-    """Update DHAN_ACCESS_TOKEN in the env file atomically.
-
-    Uses ``fcntl.flock`` for cross-process exclusion and a temp-file +
-    ``os.replace`` so readers never see a partially-written file. If the
-    token key is missing, it is appended while preserving all other keys,
-    comments, and blank lines.
-    """
-    if not env_path.exists():
-        return
-
-    try:
-        import fcntl
-    except Exception as exc:  # pragma: no cover - non-Unix fallback
-        logger.warning("fcntl unavailable, env update unprotected: %s", exc)
-        return
-
-    fd: int | None = None
-    tmp_path = env_path.with_suffix(f"{env_path.suffix}.tmp")
-    try:
-        # Hold an exclusive lock on the env file while we read and replace it.
-        fd = os.open(str(env_path), os.O_RDWR | os.O_CREAT, 0o600)
-        fcntl.flock(fd, fcntl.LOCK_EX)
-
-        with os.fdopen(fd, "r", encoding="utf-8", closefd=False) as fh:
-            content = fh.read()
-
-        lines = content.splitlines()
-        updated = False
-        for i, line in enumerate(lines):
-            if line.startswith("DHAN_ACCESS_TOKEN="):
-                lines[i] = f"DHAN_ACCESS_TOKEN={token}"
-                updated = True
-                break
-        if not updated:
-            # Preserve a trailing blank line when appending if the file ends
-            # without a newline; otherwise just append the new key.
-            if lines and not content.endswith("\n"):
-                lines.append("")
-            lines.append(f"DHAN_ACCESS_TOKEN={token}")
-
-        new_content = "\n".join(lines)
-        if not new_content.endswith("\n"):
-            new_content += "\n"
-
-        tmp_path.write_text(new_content, encoding="utf-8")
-        # fsync temp file contents before the atomic rename.
-        with open(tmp_path, "rb") as tmp_fh:
-            os.fsync(tmp_fh.fileno())
-        # fsync the directory so the rename is durable.
-        dir_fd = os.open(env_path.parent, os.O_RDONLY | os.O_DIRECTORY)
-        try:
-            os.fsync(dir_fd)
-        finally:
-            os.close(dir_fd)
-
-        os.replace(tmp_path, env_path)
-    except PermissionError:
-        # Env file is read-only (e.g. credentials managed externally). Persist
-        # the new token via the JsonTokenStateStore instead and continue.
-        logger.info("Env file is read-only; token persisted to state store only.")
-    except Exception as exc:
-        logger.warning("Failed to update env token: %s", exc)
-        if tmp_path.exists():
-            tmp_path.unlink()
-    finally:
-        if fd is not None:
-            try:
-                fcntl.flock(fd, fcntl.LOCK_UN)
-            except Exception as exc:
-                logger.debug("file_unlock_failed: %s", exc)
-            try:
-                os.close(fd)
-            except Exception as exc:
-                logger.debug("file_close_failed: %s", exc)
-
-
+__all__ = ["BrokerFactory", "_update_env_token", "_next_token_expiry", "_refresh_via_auth"]

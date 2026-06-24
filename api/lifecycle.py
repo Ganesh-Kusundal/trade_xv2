@@ -8,8 +8,8 @@ import logging
 from typing import Any
 
 from infrastructure.event_bus import EventBus
-from brokers.common.oms.context import TradingContext
-from brokers.common.oms.risk_manager import RiskConfig
+from application.oms.context import TradingContext
+from application.oms.risk_manager import RiskConfig
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ def build_trading_context(
         logger.info("Using pre-built TradingContext from runtime factory")
         return trading_context
 
-    from brokers.common.oms.factory import create_trading_context
+    from application.oms.factory import create_trading_context
 
     ctx = create_trading_context(
         event_bus=event_bus,

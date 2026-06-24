@@ -6,17 +6,14 @@ nor ``cli/main.py`` duplicate them.
 
 Usage::
 
-    from cli.services.broker_registry import create_gateway, list_available_brokers
+    from cli.services.broker_registry import bootstrap_gateway, create_gateway
 
-    # With auto-detected env path
+    result = bootstrap_gateway("dhan")
+    if result.ok:
+        gw = result.gateway
+
+    # Backward-compatible helper (returns gateway or None)
     gw = create_gateway("dhan")
-
-    # With explicit env path
-    gw = create_gateway("upstox", env_path=Path("/path/to/.env.upstox"))
-
-    # List registered brokers
-    brokers = list_available_brokers()
-    # -> [{"name": "dhan", "env_file": ".env.local", "available": True}, ...]
 """
 
 from __future__ import annotations
@@ -25,31 +22,140 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from brokers.common.auth.credential_resolver import CANONICAL_ENV_FILES, CredentialResolver
+from brokers.common.auth.credential_validator import CredentialValidator
+from brokers.common.connection.bootstrap_result import (
+    BootstrapResult,
+    BootstrapStatus,
+    classify_exception,
+    structural_readiness_probe,
+)
+from brokers.common.connection.errors import BrokerNotReadyError
+from brokers.common.connection.authenticated_readiness import authenticated_readiness_probe
+
 logger = logging.getLogger(__name__)
 
-# ── Default env file paths (convention over configuration) ──────────────────
-# Each broker looks for its env file relative to the project root.
-# ``None`` means the broker has no env file (e.g. paper).
-ENV_FILES: dict[str, str | None] = {
-    "dhan": ".env.local",
-    "upstox": ".env.upstox",
-    "paper": None,
-}
+# Re-export for backward compatibility
+ENV_FILES = CANONICAL_ENV_FILES
 
 
 def resolve_env_path(broker: str, env_path: str | Path | None = None) -> Path | None:
-    """Resolve the environment file path for *broker*.
+    """Resolve the environment file path for *broker*."""
+    return CredentialResolver.resolve_env_path(broker, env_path)
 
-    If *env_path* is provided it is returned as-is.  Otherwise the
-    default convention from :const:`ENV_FILES` is used.  Returns
-    ``None`` when the broker has no env file (e.g. ``paper``).
-    """
-    if env_path is not None:
-        return Path(env_path)
-    default = ENV_FILES.get(broker)
-    if default is not None:
-        return Path(default)
-    return None
+
+def bootstrap_gateway(
+    broker: str = "dhan",
+    env_path: str | Path | None = None,
+    load_instruments: bool = True,
+    event_bus: Any | None = None,
+    lifecycle: Any | None = None,
+    risk_manager: Any | None = None,
+    *,
+    analytics_only: bool = False,
+    skip_credential_check: bool = False,
+    require_authenticated: bool = True,
+) -> BootstrapResult:
+    """Create a gateway with typed success/failure semantics."""
+    broker = broker.lower().strip()
+
+    if not skip_credential_check and broker != "paper":
+        ok, issues = CredentialValidator.validate_broker(broker, env_path)
+        if not ok:
+            messages = "; ".join(i.message for i in issues if i.severity == "error")
+            return BootstrapResult(
+                status=BootstrapStatus.REAUTH_REQUIRED,
+                broker=broker,
+                error=messages or "credential validation failed",
+            )
+
+    builders = {
+        "dhan": _create_dhan,
+        "upstox": _create_upstox,
+        "paper": _create_paper,
+    }
+    builder = builders.get(broker)
+    if builder is None:
+        msg = f"Unknown broker: {broker} (expected one of {list(builders)})"
+        logger.error(msg)
+        return BootstrapResult(status=BootstrapStatus.FAILED, broker=broker, error=msg)
+
+    try:
+        gateway = builder(
+            env_path,
+            load_instruments=load_instruments,
+            event_bus=event_bus,
+            lifecycle=lifecycle,
+            risk_manager=risk_manager,
+            analytics_only=analytics_only,
+        )
+    except ImportError as exc:
+        logger.warning("%s broker not installed: %s", broker, exc)
+        return BootstrapResult(
+            status=BootstrapStatus.FAILED,
+            broker=broker,
+            error=str(exc),
+        )
+    except Exception as exc:
+        status = classify_exception(exc)
+        logger.error("Failed to create %s gateway: %s", broker, exc)
+        return BootstrapResult(status=status, broker=broker, error=str(exc))
+
+    if gateway is None:
+        return BootstrapResult(
+            status=BootstrapStatus.FAILED,
+            broker=broker,
+            error="factory returned None",
+        )
+
+    probe_ok, probe_err = structural_readiness_probe(gateway, broker)
+    if not probe_ok:
+        return BootstrapResult(
+            status=BootstrapStatus.DEGRADED,
+            broker=broker,
+            gateway=gateway,
+            error=probe_err,
+            probe_passed=False,
+            authenticated=False,
+        )
+
+    if broker == "paper" or not require_authenticated:
+        return BootstrapResult(
+            status=BootstrapStatus.READY,
+            broker=broker,
+            gateway=gateway,
+            probe_passed=True,
+            authenticated=(broker == "paper"),
+            probe_name="structural_only" if broker != "paper" else "paper_skip",
+        )
+
+    auth_result = authenticated_readiness_probe(gateway, broker)
+    if auth_result.ok:
+        return BootstrapResult(
+            status=BootstrapStatus.READY,
+            broker=broker,
+            gateway=gateway,
+            probe_passed=True,
+            authenticated=True,
+            probe_name=auth_result.probe_name,
+            refreshed_token=auth_result.refreshed_token,
+        )
+
+    status = (
+        BootstrapStatus.REAUTH_REQUIRED
+        if auth_result.token_rejected
+        else BootstrapStatus.FAILED
+    )
+    return BootstrapResult(
+        status=status,
+        broker=broker,
+        gateway=gateway,
+        error=auth_result.error or "authenticated readiness probe failed",
+        probe_passed=True,
+        authenticated=False,
+        probe_name=auth_result.probe_name,
+        refreshed_token=auth_result.refreshed_token,
+    )
 
 
 def create_gateway(
@@ -59,63 +165,69 @@ def create_gateway(
     event_bus: Any | None = None,
     lifecycle: Any | None = None,
     risk_manager: Any | None = None,
+    *,
+    analytics_only: bool = False,
+    require_authenticated: bool = True,
+    raise_on_failure: bool = False,
 ) -> Any | None:
     """Create a gateway for the specified broker.
 
-    Parameters
-    ----------
-    broker : str
-        Broker name: ``"dhan"``, ``"upstox"``, or ``"paper"``.
-    env_path : str or Path or None
-        Path to the broker's environment file.  If ``None`` the
-        conventional default (``.env.local`` for Dhan, ``.env.upstox``
-        for Upstox) is used.
-    load_instruments : bool
-        Whether to load instrument master data on creation.
-    event_bus : Any or None
-        Optional :class:`~brokers.common.event_bus.EventBus`.
-    lifecycle : Any or None
-        Optional :class:`~brokers.common.lifecycle.LifecycleManager`.
-    risk_manager : Any or None
-        Optional :class:`~brokers.common.oms.risk_manager.RiskManager`.
-
-    Returns
-    -------
-    :class:`~brokers.common.gateway.MarketDataGateway` or ``None`` on failure.
+    Prefer :func:`bootstrap_gateway` for typed outcomes. When
+    *raise_on_failure* is ``True``, raises :class:`BrokerNotReadyError`
+    instead of returning ``None``.
     """
-    broker = broker.lower().strip()
-
-    # Pass the env_path directly — builders handle None internally
-    # by falling back to their default env file convention.
-    builders = {
-        "dhan": _create_dhan,
-        "upstox": _create_upstox,
-        "paper": _create_paper,
-    }
-    builder = builders.get(broker)
-    if builder is None:
-        logger.error("Unknown broker: %s (expected one of %s)", broker, list(builders))
-        return None
-
-    return builder(
-        env_path,
+    result = bootstrap_gateway(
+        broker,
+        env_path=env_path,
         load_instruments=load_instruments,
         event_bus=event_bus,
         lifecycle=lifecycle,
         risk_manager=risk_manager,
+        analytics_only=analytics_only,
+        require_authenticated=require_authenticated,
+    )
+    if not result.ok:
+        if raise_on_failure:
+            raise BrokerNotReadyError.from_bootstrap(result)
+        if result.error:
+            logger.debug("create_gateway(%s) failed: %s", broker, result.error)
+        return None
+    return result.gateway
+
+
+def require_gateway(
+    broker: str = "dhan",
+    env_path: str | Path | None = None,
+    load_instruments: bool = True,
+    event_bus: Any | None = None,
+    lifecycle: Any | None = None,
+    risk_manager: Any | None = None,
+    *,
+    analytics_only: bool = False,
+    require_authenticated: bool = True,
+) -> Any:
+    """Create a gateway or raise :class:`BrokerNotReadyError` with bootstrap details."""
+    return create_gateway(
+        broker,
+        env_path=env_path,
+        load_instruments=load_instruments,
+        event_bus=event_bus,
+        lifecycle=lifecycle,
+        risk_manager=risk_manager,
+        analytics_only=analytics_only,
+        require_authenticated=require_authenticated,
+        raise_on_failure=True,
     )
 
 
 def list_available_brokers() -> list[dict[str, Any]]:
-    """Return a list of registered brokers with their status.
-
-    Each entry: ``{"name": ..., "env_file": ..., "available": bool}``.
-    """
+    """Return registered brokers with credential-aware availability."""
     result: list[dict[str, Any]] = []
     for name, env_file in ENV_FILES.items():
-        available = True
-        if env_file is not None:
-            available = Path(env_file).exists()
+        if name == "paper":
+            available = True
+        else:
+            available = CredentialValidator.broker_available(name)
         result.append({
             "name": name,
             "env_file": env_file,
@@ -134,25 +246,18 @@ def _create_dhan(
     event_bus: Any | None = None,
     lifecycle: Any | None = None,
     risk_manager: Any | None = None,
-) -> Any | None:
-    """Create a Dhan gateway via :class:`BrokerFactory`."""
-    try:
-        from brokers.dhan.factory import BrokerFactory
+    analytics_only: bool = False,  # noqa: ARG001
+) -> Any:
+    from brokers.dhan.factory import BrokerFactory
 
-        resolved = Path(env_path) if env_path is not None else None
-        return BrokerFactory().create(
-            env_path=resolved,
-            load_instruments=load_instruments,
-            event_bus=event_bus,
-            lifecycle=lifecycle,
-            risk_manager=risk_manager,
-        )
-    except ImportError:
-        logger.warning("Dhan broker not installed")
-        return None
-    except Exception as exc:
-        logger.error("Failed to create Dhan gateway: %s", exc)
-        return None
+    resolved = Path(env_path) if env_path is not None else None
+    return BrokerFactory().create(
+        env_path=resolved,
+        load_instruments=load_instruments,
+        event_bus=event_bus,
+        lifecycle=lifecycle,
+        risk_manager=risk_manager,
+    )
 
 
 def _create_upstox(
@@ -162,36 +267,25 @@ def _create_upstox(
     event_bus: Any | None = None,
     lifecycle: Any | None = None,
     risk_manager: Any | None = None,
-) -> Any | None:
-    """Create an Upstox gateway via :class:`UpstoxBrokerFactory`."""
-    try:
-        from brokers.upstox.factory import UpstoxBrokerFactory
+    analytics_only: bool = False,
+) -> Any:
+    from brokers.upstox.factory import UpstoxBrokerFactory
 
-        resolved = Path(env_path) if env_path is not None else None
-        return UpstoxBrokerFactory().create(
-            env_path=resolved,
-            load_instruments=load_instruments,
-            event_bus=event_bus,
-            lifecycle=lifecycle,
-            risk_manager=risk_manager,
-        )
-    except ImportError:
-        logger.warning("Upstox broker not installed")
-        return None
-    except Exception as exc:
-        logger.error("Failed to create Upstox gateway: %s", exc)
-        return None
+    resolved = Path(env_path) if env_path is not None else None
+    return UpstoxBrokerFactory().create(
+        env_path=resolved,
+        load_instruments=load_instruments,
+        event_bus=event_bus,
+        lifecycle=lifecycle,
+        risk_manager=risk_manager,
+        analytics_only=analytics_only,
+    )
 
 
 def _create_paper(
     env_path: Path | None = None,  # noqa: ARG001
     **kwargs: Any,  # noqa: ARG001
-) -> Any | None:
-    """Create a Paper gateway (no broker connection needed)."""
-    try:
-        from brokers.paper import PaperGateway
+) -> Any:
+    from brokers.paper import PaperGateway
 
-        return PaperGateway()
-    except ImportError:
-        logger.warning("Paper gateway not available")
-        return None
+    return PaperGateway()

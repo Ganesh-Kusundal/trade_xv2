@@ -42,6 +42,7 @@ class CliEndpoint:
     expect_stdout_substr: str | None = None
     timeout_s: int = 30
     description: str = ""
+    capability_id: str | None = None
     # Some endpoints must run with mocked brokers (handler-level T2
     # tests) — flag here to opt them out of the live subprocess tier
     # even though their top-level command is on the dispatch table.
@@ -57,7 +58,8 @@ OFFLINE_ENDPOINTS: list[CliEndpoint] = [
     CliEndpoint("analytics_missing_sub", ["analytics"], "offline", 1, "analytics", 10),
     CliEndpoint("analytics_unknown_sub", ["analytics", "bogus"], "offline", 1, None, 15),
     CliEndpoint("validate_no_args", ["validate"], "offline", 0, "validate", 10),
-    CliEndpoint("doctor_quick", ["doctor", "--quick"], "offline", 0, None, 30),
+    CliEndpoint("doctor_quick", ["doctor", "--quick"], "offline", 0, None, 30,
+                capability_id="monitoring.api_health"),
     CliEndpoint("journal_list", ["journal", "list"], "offline", 0, None, 15),
     CliEndpoint("journal_no_args", ["journal"], "offline", 0, "Trade Journal", 10),
     CliEndpoint("views_list", ["views", "list"], "offline", 0, None, 15),
@@ -78,51 +80,70 @@ OFFLINE_ENDPOINTS: list[CliEndpoint] = [
 
 # ── live_readonly endpoints (require .env.local + valid Dhan token) ─
 LIVE_READONLY_ENDPOINTS: list[CliEndpoint] = [
-    CliEndpoint("account", ["account"], "live_readonly", 0, None, 30),
-    CliEndpoint("funds_alias", ["funds"], "live_readonly", 0, None, 30),
-    CliEndpoint("holdings", ["holdings"], "live_readonly", 0, None, 30),
-    CliEndpoint("positions", ["positions"], "live_readonly", 0, None, 30),
-    CliEndpoint("orders", ["orders"], "live_readonly", 0, None, 30),
-    CliEndpoint("trades", ["trades"], "live_readonly", 0, None, 30),
-    CliEndpoint("oms", ["oms"], "live_readonly", 0, None, 30),
-    CliEndpoint("quote", ["quote", "RELIANCE"], "live_readonly", 0, None, 30),
-    CliEndpoint("depth", ["depth", "RELIANCE"], "live_readonly", 0, None, 30),
-    CliEndpoint("historical", ["historical", "RELIANCE", "--days", "5"], "live_readonly", 0, None, 30),
-    CliEndpoint("history_alias", ["history", "RELIANCE", "--days", "5"], "live_readonly", 0, None, 30),
-    CliEndpoint("option_chain", ["option-chain", "RELIANCE"], "live_readonly", 0, None, 45),
-    CliEndpoint("futures", ["futures", "RELIANCE"], "live_readonly", 0, None, 30),
-    CliEndpoint("search", ["search", "RELIANCE"], "live_readonly", 0, None, 30),
-    CliEndpoint("instrument", ["instrument", "RELIANCE"], "live_readonly", 0, None, 30),
-    CliEndpoint("instrument_info_alias", ["instrument-info", "RELIANCE"], "live_readonly", 0, None, 30),
-    CliEndpoint("instruments_lookup", ["instruments", "lookup", "RELIANCE"], "live_readonly", 0, None, 30),
-    CliEndpoint("validate_broker", ["validate", "broker"], "live_readonly", 0, None, 30),
-    CliEndpoint("validate_symbol", ["validate", "RELIANCE"], "live_readonly", 0, None, 30),
-    CliEndpoint("validate_history_sym", ["validate-history", "RELIANCE"], "live_readonly", 0, None, 30),
-    CliEndpoint("validate_option_chain_sym", ["validate-option-chain", "RELIANCE"], "live_readonly", 0, None, 45),
-    CliEndpoint("news", ["news", "--limit", "5"], "live_readonly", 0, None, 30),
-    CliEndpoint("websocket_once", ["websocket", "--once"], "live_readonly", 0, None, 30),
-    CliEndpoint("compare_quote", ["compare", "quote", "RELIANCE"], "live_readonly", 0, None, 30),
-    CliEndpoint("benchmark", ["benchmark"], "live_readonly", 0, None, 60),
-    CliEndpoint("quality_report", ["quality-report"], "live_readonly", 0, None, 60),
-    CliEndpoint("dashboard", ["dashboard"], "live_readonly", 0, None, 60),
-    CliEndpoint("doctor_full", ["doctor"], "live_readonly", 0, None, 60),
+    CliEndpoint("account", ["account"], "live_readonly", 0, None, 30, capability_id="portfolio.funds"),
+    CliEndpoint("funds_alias", ["funds"], "live_readonly", 0, None, 30, capability_id="portfolio.funds"),
+    CliEndpoint("holdings", ["holdings"], "live_readonly", 0, None, 30, capability_id="portfolio.holdings"),
+    CliEndpoint("positions", ["positions"], "live_readonly", 0, None, 30, capability_id="portfolio.positions"),
+    CliEndpoint("orders", ["orders"], "live_readonly", 0, None, 30, capability_id="orders.query_orderbook"),
+    CliEndpoint("trades", ["trades"], "live_readonly", 0, None, 30, capability_id="orders.query_trades"),
+    CliEndpoint("oms", ["oms"], "live_readonly", 0, None, 30, capability_id="orders.query_orderbook"),
+    CliEndpoint("quote", ["quote", "RELIANCE"], "live_readonly", 0, None, 30, capability_id="market_data.quote"),
+    CliEndpoint("depth", ["depth", "RELIANCE"], "live_readonly", 0, None, 30, capability_id="market_data.depth"),
+    CliEndpoint("historical", ["historical", "RELIANCE", "--days", "5"], "live_readonly", 0, None, 30,
+                capability_id="market_data.history"),
+    CliEndpoint("history_alias", ["history", "RELIANCE", "--days", "5"], "live_readonly", 0, None, 30,
+                capability_id="market_data.history"),
+    CliEndpoint("option_chain", ["option-chain", "RELIANCE"], "live_readonly", 0, None, 45,
+                capability_id="derivatives.option_chain"),
+    CliEndpoint("futures", ["futures", "RELIANCE"], "live_readonly", 0, None, 30,
+                capability_id="derivatives.future_chain"),
+    CliEndpoint("search", ["search", "RELIANCE"], "live_readonly", 0, None, 30,
+                capability_id="instruments.search"),
+    CliEndpoint("instrument", ["instrument", "RELIANCE"], "live_readonly", 0, None, 30,
+                capability_id="api.symbols"),
+    CliEndpoint("instrument_info_alias", ["instrument-info", "RELIANCE"], "live_readonly", 0, None, 30,
+                capability_id="api.symbols"),
+    CliEndpoint("instruments_lookup", ["instruments", "lookup", "RELIANCE"], "live_readonly", 0, None, 30,
+                capability_id="instruments.search"),
+    CliEndpoint("validate_broker", ["validate", "broker"], "live_readonly", 0, None, 30,
+                capability_id="market_data.quote"),
+    CliEndpoint("validate_symbol", ["validate", "RELIANCE"], "live_readonly", 0, None, 30,
+                capability_id="market_data.history"),
+    CliEndpoint("validate_history_sym", ["validate-history", "RELIANCE"], "live_readonly", 0, None, 30,
+                capability_id="market_data.history"),
+    CliEndpoint("validate_option_chain_sym", ["validate-option-chain", "RELIANCE"], "live_readonly", 0, None, 30,
+                capability_id="derivatives.option_chain"),
+    CliEndpoint("news", ["news", "--limit", "5"], "live_readonly", 0, None, 30, capability_id="capability.news"),
+    CliEndpoint("websocket_once", ["websocket", "--once"], "live_readonly", 0, None, 30,
+                capability_id="streaming.websocket"),
+    CliEndpoint("compare_quote", ["compare", "quote", "RELIANCE"], "live_readonly", 0, None, 30,
+                capability_id="market_data.quote"),
+    CliEndpoint("benchmark", ["benchmark"], "live_readonly", 0, None, 60, capability_id="market_data.history"),
+    CliEndpoint("quality_report", ["quality-report"], "live_readonly", 0, None, 60,
+                capability_id="api.analytics"),
+    CliEndpoint("dashboard", ["dashboard"], "live_readonly", 0, None, 60, capability_id="market_data.ltp"),
+    CliEndpoint("doctor_full", ["doctor"], "live_readonly", 0, None, 60, capability_id="monitoring.api_health"),
     # Analytics subcommands with RELIANCE-based data
-    CliEndpoint("analytics_breadth", ["analytics", "breadth"], "live_readonly", 0, None, 60),
-    CliEndpoint("analytics_replay", ["analytics", "replay", "--symbol", "RELIANCE"], "live_readonly", 0, None, 60),
+    CliEndpoint("analytics_breadth", ["analytics", "breadth"], "live_readonly", 0, None, 60,
+                capability_id="api.analytics"),
+    CliEndpoint("analytics_replay", ["analytics", "replay", "--symbol", "RELIANCE"], "live_readonly", 0, None, 60,
+                capability_id="api.replay"),
     # Load tests (offline category but real broker) — keep short
     CliEndpoint("load_test_historical", ["load-test", "historical"], "live_readonly", 0, None, 30,
-                no_subprocess=True),  # very chatty; T2 mocked only
+                capability_id="market_data.history", no_subprocess=True),
     CliEndpoint("load_test_quotes", ["load-test", "quotes"], "live_readonly", 0, None, 30,
-                no_subprocess=True),
+                capability_id="market_data.quote", no_subprocess=True),
 ]
 
 
 # ── sandbox endpoints (place/cancel — opt-in DHAN_INTEGRATION=1) ──────
 SANDBOX_ENDPOINTS: list[CliEndpoint] = [
     CliEndpoint("place_order_market", ["place-order", "RELIANCE", "BUY", "1", "--type", "MARKET"],
-                "sandbox", 0, None, 30),
-    CliEndpoint("cancel_order_dummy", ["cancel-order", "TEST-NOT-EXIST"], "sandbox", 1, None, 30),
-    CliEndpoint("modify_order_dummy", ["modify-order", "TEST-NOT-EXIST"], "sandbox", 1, None, 30),
+                "sandbox", 0, None, 30, capability_id="orders.place"),
+    CliEndpoint("cancel_order_dummy", ["cancel-order", "TEST-NOT-EXIST"], "sandbox", 1, None, 30,
+                capability_id="orders.cancel"),
+    CliEndpoint("modify_order_dummy", ["modify-order", "TEST-NOT-EXIST"], "sandbox", 1, None, 30,
+                capability_id="orders.modify"),
 ]
 
 

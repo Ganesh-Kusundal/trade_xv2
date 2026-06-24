@@ -32,7 +32,8 @@ class _FakeOrderClient(UpstoxRestOrderClient):
         return {"status": "success", "data": {"order_id": "UPSTOX-ORD-1"}}
 
 
-def test_place_order_publishes_event() -> None:
+def test_place_order_does_not_publish_order_placed() -> None:
+    """OMS is the sole publisher of ORDER_PLACED; adapter is transport-only."""
     bus = EventBus()
     received = []
     bus.subscribe("ORDER_PLACED", lambda e: received.append(e))
@@ -60,10 +61,7 @@ def test_place_order_publishes_event() -> None:
     response = adapter.place_order(request)
 
     assert response.success
-    assert len(received) == 1
-    order = received[0].payload["order"]
-    assert order.order_id == "UPSTOX-ORD-1"
-    assert order.symbol == "RELIANCE"
+    assert len(received) == 0
 
 
 def test_place_order_failure_does_not_publish() -> None:
@@ -99,8 +97,8 @@ def test_place_order_failure_does_not_publish() -> None:
 
 
 def test_place_order_risk_check_blocks_order() -> None:
-    from brokers.common.oms.position_manager import PositionManager
-    from brokers.common.oms.risk_manager import RiskConfig, RiskManager
+    from application.oms.position_manager import PositionManager
+    from application.oms.risk_manager import RiskConfig, RiskManager
 
     resolver = MagicMock()
     resolver.resolve.return_value = MagicMock(instrument_key="NSE_EQ|RELIANCE")

@@ -230,14 +230,14 @@ def get_risk_manager() -> Any:
 
 def get_order_repository() -> Any:
     """Get OrderRepository adapter backed by OrderManager."""
-    from brokers.common.oms.order_repository_adapter import OrderManagerRepository
+    from application.oms.order_repository_adapter import OrderManagerRepository
 
     return OrderManagerRepository(get_order_manager())
 
 
 def get_position_repository() -> Any:
     """Get PositionRepository adapter backed by PositionManager."""
-    from brokers.common.oms.position_repository_adapter import PositionManagerRepository
+    from application.oms.position_repository_adapter import PositionManagerRepository
 
     return PositionManagerRepository(get_position_manager())
 
@@ -245,6 +245,27 @@ def get_position_repository() -> Any:
 def get_broker_service() -> Any:
     """Get BrokerService instance for live broker connections."""
     return get_container().broker_service
+
+
+def require_live_broker() -> Any:
+    """Return the active broker gateway or raise 503 when unavailable."""
+    svc = get_broker_service()
+    gw = getattr(svc, "active_broker", None) if svc is not None else None
+    if gw is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Live broker not configured",
+            headers={"Retry-After": "30"},
+        )
+    return gw
+
+
+def get_live_broker_name() -> str:
+    """Active broker name for response provenance headers."""
+    svc = get_broker_service()
+    if svc is None:
+        return "unknown"
+    return str(getattr(svc, "active_broker_name", "unknown"))
 
 
 def get_trade_journal() -> Any:

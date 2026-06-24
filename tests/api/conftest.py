@@ -6,11 +6,17 @@ Provides an in-memory mock DataCatalog so that symbol endpoints return
 
 from __future__ import annotations
 
+from decimal import Decimal
+from types import SimpleNamespace
+from unittest.mock import MagicMock
+
 import pytest
 from fastapi.testclient import TestClient
 
 from api.main import create_app
 from api.config import APIConfig
+from api.deps import reset_container
+from domain import Balance, Quote
 
 
 class MockDuckDBConnection:
@@ -110,3 +116,98 @@ def test_date_range():
         "from_ts": now_ms - seven_days_ms,
         "to_ts": now_ms,
     }
+
+
+class StubLiveGateway:
+    """Minimal gateway stub for /api/v1/live/* contract tests."""
+
+    def quote(self, symbol: str, exchange: str = "NSE") -> Quote:
+        return Quote(
+            symbol="RELIANCE",
+            ltp=Decimal("100.00"),
+            open=Decimal("99.00"),
+            high=Decimal("101.00"),
+            low=Decimal("98.00"),
+            close=Decimal("100.00"),
+            volume=1000,
+        )
+
+    def ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:
+        return Decimal("100.00")
+
+    def depth(self, symbol: str, exchange: str = "NSE"):
+        from domain import DepthLevel, MarketDepth
+
+        return MarketDepth(
+            symbol=symbol,
+            bids=[DepthLevel(price=Decimal("99.5"), quantity=10, orders=1)],
+            asks=[DepthLevel(price=Decimal("100.5"), quantity=10, orders=1)],
+        )
+
+    def history(self, symbol, timeframe, start, end):
+        import pandas as pd
+
+        return pd.DataFrame([{"open": 1.0, "high": 2.0, "low": 0.5, "close": 1.5, "volume": 10}])
+
+    def positions(self):
+        return []
+
+    def holdings(self):
+        return []
+
+    def funds(self) -> Balance:
+        return Balance(
+            available_balance=Decimal("50000"),
+            used_margin=Decimal("0"),
+            total_balance=Decimal("50000"),
+        )
+
+    def get_orderbook(self):
+        return []
+
+    def get_trade_book(self):
+        return []
+
+    def option_chain(self, underlying: str, exchange: str = "NFO", expiry=None):
+        from domain.derivatives import OptionChain
+
+        return OptionChain(underlying=underlying, exchange=exchange)
+
+    def future_chain(self, underlying: str, exchange: str = "NFO"):
+        from domain import FutureChain
+
+        return FutureChain(underlying=underlying, exchange=exchange)
+
+    def describe(self):
+        return {"broker": "stub", "connected": True}
+
+    def capabilities(self):
+        from brokers.common.gateway import BrokerCapabilities
+
+        return BrokerCapabilities(websocket=True)
+
+    @property
+    def extended(self):
+        ext = MagicMock()
+        ext.get_user_profile.return_value = {"name": "stub"}
+        ext.get_ledger.return_value = []
+        ext.get_ip.return_value = {"ip": "127.0.0.1"}
+        return ext
+
+
+@pytest.fixture
+def stub_live_gateway() -> StubLiveGateway:
+    return StubLiveGateway()
+
+
+@pytest.fixture
+def live_client(stub_live_gateway: StubLiveGateway):
+    reset_container()
+    broker_service = SimpleNamespace(
+        active_broker=stub_live_gateway,
+        active_broker_name="dhan",
+    )
+    app = create_app(config=APIConfig(auth_mode="none"), broker_service=broker_service)
+    client = TestClient(app)
+    yield client
+    reset_container()

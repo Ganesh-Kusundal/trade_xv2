@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 import os
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -15,7 +16,7 @@ from brokers.common.env_loader import load_env_file
 from infrastructure.event_bus import EventBus
 from brokers.common.factory import BrokerProviderFactory
 from brokers.common.gateway import MarketDataGateway
-from brokers.common.oms.risk_manager import RiskManager
+from application.oms.risk_manager import RiskManager
 from brokers.upstox.auth.config import UpstoxConnectionSettings, UpstoxSettingsLoader
 from brokers.upstox.broker import UpstoxBroker
 from brokers.upstox.gateway import UpstoxBrokerGateway
@@ -38,7 +39,8 @@ class UpstoxBrokerFactory(BrokerProviderFactory):
     ) -> MarketDataGateway:
         # Use the canonical settings loader instead of manual env reads.
         settings = UpstoxSettingsLoader.from_env(env_path=env_path)
-        analytics_only = analytics_only or settings.analytics_only
+        if analytics_only or settings.analytics_only:
+            settings = replace(settings, analytics_only=True)
 
         broker = UpstoxBroker(
             settings=settings,
@@ -62,19 +64,43 @@ class UpstoxBrokerFactory(BrokerProviderFactory):
         # as a ManagedService so it participates in deterministic
         # start/stop. This mirrors the Dhan factory pattern.
         if lifecycle is not None:
-            from brokers.upstox.websocket.lifecycle_wrapper import UpstoxWebSocketService
+            from brokers.upstox.websocket.lifecycle_wrapper import (
+                UpstoxPortfolioStreamService,
+                UpstoxWebSocketService,
+            )
             ws_service = UpstoxWebSocketService(
                 multiplexer=broker.market_data_websocket,
                 name="upstox.websocket",
             )
+            portfolio_service = UpstoxPortfolioStreamService(
+                stream=broker.portfolio_stream,
+                name="upstox.portfolio_stream",
+            )
             try:
                 lifecycle.register(ws_service)
+                lifecycle.register(portfolio_service)
                 logger.info("upstox_websocket_wired", extra={
                     "service": "upstox.websocket",
                     "lifecycle_services": lifecycle.service_names(),
                 })
             except Exception as exc:
                 logger.debug("upstox_websocket_register_failed: %s", exc)
+
+            if settings.is_totp:
+                from brokers.upstox.auth.totp_scheduler import TotpRefreshScheduler
+
+                scheduler = TotpRefreshScheduler(
+                    broker.token_manager,
+                    refresh_hour=settings.totp_refresh_hour,
+                    refresh_minute=settings.totp_refresh_minute,
+                )
+                lifecycle.register(scheduler)
+                logger.info(
+                    "upstox_totp_scheduler_wired",
+                    extra={
+                        "refresh_time": f"{settings.totp_refresh_hour:02d}:{settings.totp_refresh_minute:02d}",
+                    },
+                )
 
         return gateway
 

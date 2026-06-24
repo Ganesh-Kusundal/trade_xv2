@@ -661,7 +661,23 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
     def update_token(self, new_token: str) -> None:
         """Token-refresh hook called by ``DhanConnection.register_token_receiver``.
 
-        ``BinaryDepthFeed`` caches the token; the next reconnect cycle will
-        pick it up via ``_connect_and_run``.
+        Updates the cached token and closes the live socket so the reconnect
+        loop picks up the new credentials immediately.
         """
+        if not new_token or new_token == self._access_token:
+            return
         self._access_token = new_token
+        self.request_auth_reconnect()
+
+    def request_auth_reconnect(self) -> None:
+        """Close the active WebSocket so ``_websocket_loop`` reconnects with fresh auth."""
+        with self._lock:
+            ws = self._ws
+        if ws is None:
+            return
+        try:
+            close = getattr(ws, "close", None)
+            if callable(close):
+                close()
+        except Exception as exc:
+            logger.debug("%s_auth_reconnect_close_failed: %s", self.DEPTH_TYPE.lower(), exc)

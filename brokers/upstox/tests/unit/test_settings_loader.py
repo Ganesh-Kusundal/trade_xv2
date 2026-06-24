@@ -113,7 +113,7 @@ class TestUpstoxSettingsLoaderFromEnv:
         assert s.refresh_buffer_minutes == 30
         assert s.redirect_uri == "http://localhost:18080"
         assert s.redirect_port == 18080
-        assert s.allow_live_orders is True
+        assert s.allow_live_orders is False
         assert s.ws_plus_plan is False
         assert s.slice_default is False
         assert s.market_protection_default == -1
@@ -280,7 +280,7 @@ class TestUpstoxSettingsLoaderFromProperties:
             UpstoxSettingsLoader.from_properties(path)
 
     def test_default_env_file(self, tmp_path: Path, monkeypatch):
-        env_file = tmp_path / ".env.local"
+        env_file = tmp_path / ".env.upstox"
         env_file.write_text("UPSTOX_CLIENT_ID=auto-detected\n")
         monkeypatch.chdir(tmp_path)
         s = UpstoxSettingsLoader.from_env()

@@ -2,21 +2,24 @@
 
 from __future__ import annotations
 
+import uuid
 from decimal import Decimal
+from typing import Any
 
-from domain import Order, OrderStatus, OrderType, Side, Trade
-from brokers.common.execution.execution_service import ExecutionService
+from domain import Order, OrderStatus, Side, Trade
+from application.execution.execution_service import ExecutionService
 from brokers.common.gateway import MarketDataGateway
-from brokers.common.oms.context import TradingContext
-from brokers.common.oms.order_manager import OmsOrderCommand
+from application.oms.context import TradingContext
+from application.oms.order_manager import OmsOrderCommand
 
 
 class OmsService:
     """Interfaces with broker gateway order book and monitors OMS flows.
 
-    When a ``TradingContext`` is supplied, the service reads from and writes to
-    the central ``OrderManager``. Otherwise it falls back to the gateway's
-    order book for backward compatibility.
+    Requires a ``TradingContext`` for order placement and cancellation so
+    every write goes through risk checks, idempotency, and event publishing.
+    Read-only diagnostics fall back to the gateway order book when no context
+    is wired.
     """
 
     def __init__(
@@ -117,64 +120,78 @@ class OmsService:
         callers do not bypass risk checks, idempotency, or
         event-bus publishing.
         """
-        if self._ctx is not None:
-            from domain import OrderType as Ot, ProductType as Pt
-
-            try:
-                ot = Ot(order_type)
-            except ValueError:
-                ot = Ot.MARKET
-            req = OmsOrderCommand(
-                symbol=symbol,
-                exchange=exchange,
-                side=Side(side) if isinstance(side, str) else side,
-                quantity=quantity,
-                price=price if price is not None else Decimal("0"),
-                order_type=ot,
-                product_type=Pt.INTRADAY,
-                correlation_id=f"cli:{symbol}:{exchange}",
+        if self._ctx is None:
+            raise RuntimeError(
+                "TradingContext is required for order placement. "
+                "Configure BrokerService with a live trading context."
             )
-            gw = self._gw
-            if gw is None:
-                raise RuntimeError(
-                    "No broker gateway available. Configure .env.local with valid credentials."
-                )
 
-            svc = ExecutionService(
-                trading_context=self._ctx,
-                gateway=gw,
-                mode="live",
-            )
-            result = svc.place_order(req)
-            if not result.success:
-                raise RuntimeError(f"OMS rejected order: {result.error}")
-            return result.order
-        gw = self._ensure_gateway()
-        response = gw.place_order(
+        from domain import OrderType as Ot, ProductType as Pt
+
+        try:
+            ot = Ot(order_type)
+        except ValueError:
+            ot = Ot.MARKET
+        req = OmsOrderCommand(
             symbol=symbol,
             exchange=exchange,
-            side=side.value if isinstance(side, Side) else str(side),
-            quantity=quantity,
-            price=price if price is not None else Decimal("0"),
-            order_type=order_type,
-        )
-        if not response.success:
-            raise RuntimeError(response.message or "Order rejected by broker")
-        return Order(
-            order_id=response.order_id,
-            symbol=symbol.upper(),
-            exchange=exchange.upper(),
             side=Side(side) if isinstance(side, str) else side,
-            order_type=OrderType.MARKET,
             quantity=quantity,
             price=price if price is not None else Decimal("0"),
-            status=response.status,
+            order_type=ot,
+            product_type=Pt.INTRADAY,
+            correlation_id=f"cli:{uuid.uuid4().hex}",
         )
+        gw = self._gw
+        if gw is None:
+            raise RuntimeError(
+                "No broker gateway available. Configure .env.local with valid credentials."
+            )
+
+        svc = ExecutionService(
+            trading_context=self._ctx,
+            gateway=gw,
+            mode="live",
+        )
+        result = svc.place_order(req)
+        if not result.success:
+            raise RuntimeError(f"OMS rejected order: {result.error}")
+        return result.order
 
     def cancel_order(self, order_id: str) -> bool:
         """Cancel an open order."""
-        if self._ctx is not None:
-            result = self._ctx.order_manager.cancel_order(order_id)
-            return result.success
-        gw = self._ensure_gateway()
-        return gw.cancel_order(order_id)
+        if self._ctx is None:
+            raise RuntimeError(
+                "TradingContext is required for order cancellation. "
+                "Configure BrokerService with a live trading context."
+            )
+        result = self._ctx.order_manager.cancel_order(order_id)
+        return result.success
+
+    def modify_order(
+        self,
+        order_id: str,
+        *,
+        price: Decimal | None = None,
+        quantity: int | None = None,
+    ) -> bool:
+        """Modify an open order via the OMS-enforced gateway path."""
+        if self._ctx is None:
+            raise RuntimeError(
+                "TradingContext is required for order modification. "
+                "Configure BrokerService with a live trading context."
+            )
+        gw = self._gw
+        if gw is None:
+            raise RuntimeError(
+                "No broker gateway available. Configure .env.local with valid credentials."
+            )
+        changes: dict[str, Any] = {}
+        if price is not None:
+            changes["price"] = price
+        if quantity is not None:
+            changes["quantity"] = quantity
+        if not changes:
+            raise ValueError("No modifications specified")
+        response = gw.modify_order(order_id, **changes)
+        return bool(getattr(response, "success", True))

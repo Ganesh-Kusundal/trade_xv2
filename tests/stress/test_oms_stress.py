@@ -13,8 +13,8 @@ from unittest.mock import MagicMock
 import pytest
 
 from domain import OrderStatus, OrderType, ProductType, Side
-from brokers.common.oms.order_manager import OrderManager
-from brokers.common.oms.risk_manager import RiskConfig, RiskManager
+from application.oms.order_manager import OrderManager
+from application.oms.risk_manager import RiskConfig, RiskManager
 
 
 @pytest.mark.stress
@@ -157,7 +157,7 @@ class TestPositionManagerStress:
         from infrastructure.event_bus import EventBus
         from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
         from brokers.common.observability.event_metrics import EventMetrics
-        from brokers.common.oms.position_manager import PositionManager
+        from application.oms.position_manager import PositionManager
 
         metrics = EventMetrics()
         dlq = DeadLetterQueue(max_size=1000)

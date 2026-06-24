@@ -48,14 +48,14 @@ def test_dhan_domain_has_no_static_canonical_reexports():
 
 
 def test_order_manager_documents_orchestration_contract():
-    om_path = REPO_ROOT / "brokers/common/oms/order_manager.py"
+    om_path = REPO_ROOT / "application/oms/order_manager.py"
     text = om_path.read_text(encoding="utf-8")
     assert "Orchestration contract" in text
     assert "_internal" in text
 
 
 def test_api_orders_router_uses_oms_submit_fn():
-    orders_path = REPO_ROOT / "datalake/api/routers/orders.py"
+    orders_path = REPO_ROOT / "api/routers/orders.py"
     text = orders_path.read_text(encoding="utf-8")
     assert "order_manager.place_order" in text or "execution_svc.place_order" in text
     assert "execution_service" in text or "submit_fn" in text
@@ -71,7 +71,7 @@ def test_broker_service_exposes_oms_transport_submit():
 
 def test_no_broker_specific_constants_in_common_package():
     """REF-4: UPSTOX operational constants belong in adapter packages."""
-    constants_path = REPO_ROOT / "brokers/common/core/constants/__init__.py"
+    constants_path = REPO_ROOT / "domain/constants/__init__.py"
     text = constants_path.read_text(encoding="utf-8")
     assert "UPSTOX_DEFAULT_RATE_PER_SECOND" not in text
     assert "UPSTOX_WS_PING_INTERVAL_SECONDS" not in text

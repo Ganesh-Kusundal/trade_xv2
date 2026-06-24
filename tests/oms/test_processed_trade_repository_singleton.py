@@ -261,7 +261,7 @@ class TestProcessedTradeRepositoryBackwardCompatibility:
 
     def test_order_manager_with_explicit_repo(self) -> None:
         """OrderManager should accept explicit repository instance."""
-        from brokers.common.oms.order_manager import OrderManager
+        from application.oms.order_manager import OrderManager
 
         repo = ProcessedTradeRepository()
         om = OrderManager(processed_trade_repository=repo)
@@ -271,7 +271,7 @@ class TestProcessedTradeRepositoryBackwardCompatibility:
 
     def test_order_manager_without_repo_creates_default(self) -> None:
         """OrderManager without repo should create a default instance."""
-        from brokers.common.oms.order_manager import OrderManager
+        from application.oms.order_manager import OrderManager
 
         # Clear any existing default instance
         ProcessedTradeRepository._instances.clear()

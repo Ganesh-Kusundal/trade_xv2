@@ -17,7 +17,7 @@ import pytest
 
 from brokers.common.state_machine import IllegalTransitionError
 from domain.types import ORDER_STATUS_TRANSITIONS, OrderStatus
-from brokers.common.oms.order_state_validator import OrderStateValidator
+from application.oms.order_state_validator import OrderStateValidator
 
 
 @pytest.fixture

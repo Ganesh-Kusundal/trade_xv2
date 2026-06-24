@@ -8,9 +8,12 @@ Thread-safe: All methods are stateless and thread-safe.
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+from zoneinfo import ZoneInfo
 
 import pandas as pd
+
+from domain.parsing import parse_timestamp
 
 if TYPE_CHECKING:
     from brokers.upstox.broker import UpstoxBroker
@@ -30,7 +33,6 @@ _INTERVAL_MAP: dict[str, tuple[str, str]] = {
     "MON": ("months", "1"), "MONTH": ("months", "1"),
 }
 
-# V3 API date range limits (in days)
 _MAX_DAYS_BY_UNIT: dict[str, int] = {
     "minutes": 30,
     "hours": 90,
@@ -38,6 +40,17 @@ _MAX_DAYS_BY_UNIT: dict[str, int] = {
     "weeks": 3650,
     "months": 3650,
 }
+
+
+def _to_ist_timestamp(value: Any) -> Any:
+    """Normalize candle timestamps to Asia/Kolkata."""
+    ts = parse_timestamp(value)
+    if ts is None:
+        return pd.NaT
+    ist = ZoneInfo("Asia/Kolkata")
+    if ts.tzinfo is None:
+        return ts.replace(tzinfo=ist)
+    return ts.astimezone(ist)
 
 
 class HistoricalAdapter:
@@ -156,7 +169,7 @@ class HistoricalAdapter:
         for c in candles:
             if isinstance(c, list) and len(c) >= 6:
                 records.append({
-                    "timestamp": pd.to_datetime(c[0]),
+                    "timestamp": _to_ist_timestamp(c[0]),
                     "open": float(c[1]),
                     "high": float(c[2]),
                     "low": float(c[3]),

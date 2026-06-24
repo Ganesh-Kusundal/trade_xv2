@@ -38,7 +38,7 @@ from brokers.common.resilience.rate_limiter import (
     RateLimitConfig,
     TokenBucketRateLimiter,
 )
-from brokers.common.resilience.retry import RetryConfig, RetryExecutor
+from brokers.common.resilience.retry import DEFAULT_RETRYABLE_EXCEPTIONS, RetryConfig, RetryExecutor
 
 __all__ = [
     "AuthenticationError",
@@ -53,6 +53,7 @@ __all__ = [
     "CircuitState",
     "ConfigError",
     "DataError",
+    "DEFAULT_RETRYABLE_EXCEPTIONS",
     "ExponentialBackoff",
     "FixedBackoff",
     "InstrumentNotFoundError",

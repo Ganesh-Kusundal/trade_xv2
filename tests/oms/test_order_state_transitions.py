@@ -25,7 +25,7 @@ import pytest
 from domain import Order, OrderStatus, OrderType, ProductType, Side
 from brokers.common.state_machine import IllegalTransitionError
 from infrastructure.event_bus import EventBus
-from brokers.common.oms.order_manager import OmsOrderCommand, OrderManager
+from application.oms.order_manager import OmsOrderCommand, OrderManager
 
 
 def _make_order(

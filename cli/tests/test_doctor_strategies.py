@@ -177,40 +177,56 @@ class TestGatewayCreationCheck:
     """Tests for GatewayCreationCheck strategy."""
 
     def test_success(self):
+        from brokers.common.connection.bootstrap_result import BootstrapResult, BootstrapStatus
+
         with patch("cli.commands.doctor.strategies.gateway_creation.list_available_brokers") as mock_list, \
-             patch("cli.commands.doctor.strategies.gateway_creation.create_gateway") as mock_create:
+             patch("cli.commands.doctor.strategies.gateway_creation.bootstrap_gateway") as mock_boot:
             mock_list.return_value = [
                 {"name": "dhan", "env_file": ".env.local", "available": True},
             ]
-            mock_create.return_value = MagicMock()
-            
+            mock_boot.return_value = BootstrapResult(
+                status=BootstrapStatus.READY,
+                broker="dhan",
+                gateway=MagicMock(),
+                probe_passed=True,
+                authenticated=True,
+                probe_name="dhan.funds",
+            )
+
             strategy = GatewayCreationCheck()
             results = strategy.execute(None)
-            
+
             assert any(r.status == "PASS" for r in results)
 
     def test_failure_raises_exception(self):
         with patch("cli.commands.doctor.strategies.gateway_creation.list_available_brokers") as mock_list, \
-             patch("cli.commands.doctor.strategies.gateway_creation.create_gateway", side_effect=Exception("Config error")):
+             patch("cli.commands.doctor.strategies.gateway_creation.bootstrap_gateway", side_effect=Exception("Config error")):
             mock_list.return_value = [
                 {"name": "dhan", "env_file": ".env.local", "available": True},
             ]
-            
+
             strategy = GatewayCreationCheck()
             results = strategy.execute(None)
-            
+
             assert any(r.status == "FAIL" for r in results)
 
-    def test_returns_none(self):
+    def test_bootstrap_failed(self):
+        from brokers.common.connection.bootstrap_result import BootstrapResult, BootstrapStatus
+
         with patch("cli.commands.doctor.strategies.gateway_creation.list_available_brokers") as mock_list, \
-             patch("cli.commands.doctor.strategies.gateway_creation.create_gateway", return_value=None):
+             patch("cli.commands.doctor.strategies.gateway_creation.bootstrap_gateway") as mock_boot:
             mock_list.return_value = [
                 {"name": "dhan", "env_file": ".env.local", "available": True},
             ]
-            
+            mock_boot.return_value = BootstrapResult(
+                status=BootstrapStatus.FAILED,
+                broker="dhan",
+                error="credential validation failed",
+            )
+
             strategy = GatewayCreationCheck()
             results = strategy.execute(None)
-            
+
             assert any(r.status == "FAIL" for r in results)
 
     def test_paper_broker_skipped(self):

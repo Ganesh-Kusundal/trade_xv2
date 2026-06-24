@@ -171,10 +171,37 @@ class TotpRefreshScheduler(ManagedService):
                         logger.debug("error_callback_failed: %s", exc2)
     
     def _do_refresh(self) -> bool:
-        """Perform token refresh via TOTP."""
+        """Perform token refresh via TOTP or OAuth refresh grant when needed."""
         try:
+            if self._token_manager.settings.is_totp:
+                state = self._token_manager.current_state()
+                now_ms = int(time.time() * 1000)
+                try:
+                    buffer_minutes = int(
+                        getattr(self._token_manager.settings, "refresh_buffer_minutes", 30) or 30
+                    )
+                except (TypeError, ValueError):
+                    buffer_minutes = 30
+                buffer_ms = buffer_minutes * 60 * 1000
+                exp_ms = 0
+                if state is not None:
+                    try:
+                        exp_ms = int(getattr(state, "expires_at_ms", 0) or 0)
+                    except (TypeError, ValueError):
+                        exp_ms = 0
+                if exp_ms > now_ms + buffer_ms:
+                    logger.info(
+                        "Upstox token still valid (expires=%d), skipping daily TOTP refresh",
+                        state.expires_at_ms,
+                    )
+                    self._last_error = None
+                    return True
+
             logger.info("Starting daily TOTP token refresh...")
-            self._token_manager.force_refresh()
+            if self._token_manager.settings.is_totp:
+                self._token_manager.refresh_totp()
+            else:
+                self._token_manager.force_refresh()
             
             self._refresh_count += 1
             self._last_refresh_at = time.monotonic()

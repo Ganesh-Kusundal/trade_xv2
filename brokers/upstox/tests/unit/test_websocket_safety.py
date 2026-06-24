@@ -134,8 +134,21 @@ class TestUpstoxMarketDataV3MultiplexerSafety:
         assert event_type == "market_info"
         assert payload.get("exchange") == "NSE"
 
+    async def test_connect_awaits_coroutine_socket_factory(self):
+        """Production websockets.connect returns an awaitable; connect() must await it."""
 
-class TestUpstoxV3SubscriptionManagerSafety:
+        async def factory(_url: str) -> _FakeSocket:
+            return _FakeSocket(['{"type":"market_info","exchange":"NSE"}'])
+
+        mux = UpstoxMarketDataV3Multiplexer(
+            authorizer=_fake_authorizer(),
+            socket_factory=factory,
+        )
+        await mux.connect()
+        assert mux.is_connected
+        assert hasattr(mux._socket, "recv")
+        await mux.disconnect()
+
     def test_concurrent_subscribe_unsubscribe_stays_consistent(self):
         manager = UpstoxV3SubscriptionManager()
         keys = [f"NSE_EQ|INFY{i}" for i in range(100)]
@@ -293,4 +306,27 @@ class TestUpstoxPortfolioStreamSafety:
 
         assert len(received) == 1
         assert received[0].event_type == "ORDER_UPDATED"
-        assert received[0].payload["payload"].get("order_id") == "O1"
+        order = received[0].payload["order"]
+        assert order.order_id == "O1"
+        assert order.symbol == "INFY"
+
+    async def test_read_loop_publishes_incremental_trade_on_partial_fill(self):
+        from infrastructure.event_bus import EventBus
+
+        bus = EventBus()
+        trades = []
+        bus.subscribe("TRADE", lambda e: trades.append(e))
+        stream = UpstoxPortfolioStream(
+            authorizer=_fake_authorizer(),
+            socket_factory=lambda _url: _FakeSocket([
+                '{"type":"order","data":{"order_id":"O1","trading_symbol":"INFY","exchange":"NSE","transaction_type":"BUY","quantity":100,"filled_quantity":40,"average_price":"1500","order_type":"MARKET","product":"I","validity":"DAY","status":"open"}}',
+                '{"type":"order","data":{"order_id":"O1","trading_symbol":"INFY","exchange":"NSE","transaction_type":"BUY","quantity":100,"filled_quantity":100,"average_price":"1500","order_type":"MARKET","product":"I","validity":"DAY","status":"complete"}}',
+            ]),
+            event_bus=bus,
+        )
+        await stream.connect()
+        await asyncio.sleep(0.15)
+        await stream.disconnect()
+        assert len(trades) == 2
+        assert trades[0].payload["trade"].quantity == 40
+        assert trades[1].payload["trade"].quantity == 60

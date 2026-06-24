@@ -106,7 +106,7 @@ def _create_upstox_authenticator(
 ) -> BrokerAuthenticator:
     """Create an Upstox authenticator (dynamic import to avoid static analysis violations)."""
     import importlib
-    module = importlib.import_module("brokers.upstox.auth")
+    module = importlib.import_module("brokers.upstox.auth.authenticator")
     authenticator_cls = getattr(module, "UpstoxAuthenticator")
     return authenticator_cls(env_path=env_path, on_token_refresh=on_token_refresh)
 

@@ -26,8 +26,8 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
+from brokers.common.auth.jwt_expiry import JwtExpiry
 from domain.constants import (
-    DHAN_TOKEN_LIFETIME_SECONDS,
     TOKEN_CLOCK_SKEW_SECONDS,
     TOKEN_REFRESH_RECOMMENDED_BUFFER_SECONDS,
 )
@@ -363,19 +363,35 @@ class AuthManager:
         return None
 
     def ensure_valid(self, buffer_seconds: float = TOKEN_REFRESH_RECOMMENDED_BUFFER_SECONDS) -> bool:
-        """Ensure the current token is valid, refreshing if needed.
+        """Ensure the current token is present and not expired.
 
-        Maps to TokenLifecycleService.ensureValid().
-        Uses double-check pattern (matching Trade_J's thread-safe design).
+        Does **not** proactively refresh tokens that are still valid.
+        Use :meth:`ensure_fresh` for OAuth-style proactive refresh.
         """
+        del buffer_seconds  # validity-only; buffer ignored
+        if self._state and self._state.is_valid():
+            return True
+        result = self.acquire()
+        return result is not None and result.is_valid()
+
+    def ensure_fresh(self, buffer_seconds: float = TOKEN_REFRESH_RECOMMENDED_BUFFER_SECONDS) -> bool:
+        """Ensure token is valid; proactively refresh when within *buffer* of expiry."""
         if self._state and self._state.is_valid():
             if not self._state.refresh_recommended(buffer_seconds):
                 return True
-            # Token is valid but refresh is recommended
             return self._do_refresh()
-        # Token is missing or expired — try acquire
         result = self.acquire()
         return result is not None
+
+    def force_refresh(self) -> TokenState | None:
+        """Force token regeneration via ``on_refresh``, bypassing persisted store.
+
+        Used when the broker rejects a locally-valid token (401/DH-906) and
+        ``acquire()`` would reload the same stale value from disk.
+        """
+        if self._do_refresh():
+            return self._state
+        return None
 
     def revoke(self) -> None:
         """Revoke the current token and clear the store.
@@ -400,14 +416,10 @@ class AuthManager:
     # ── Internal ─────────────────────────────────────────────────
 
     def _make_token_state(self, token_str: str) -> TokenState:
-        """Create a TokenState with proper timestamps.
-
-        If ``token_lifetime_seconds`` is configured, automatically sets
-        ``issued_at`` and ``expires_at`` so expiry tracking works.
-        """
+        """Create a TokenState with JWT-derived expiry when available."""
         issued_at = datetime.now()
-        expires_at = None
-        if self._token_lifetime_seconds is not None:
+        expires_at = JwtExpiry.parse_expiry_datetime(token_str)
+        if expires_at is None and self._token_lifetime_seconds is not None:
             expires_at = issued_at + timedelta(seconds=self._token_lifetime_seconds)
         return TokenState(
             access_token=token_str,

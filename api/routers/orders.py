@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional
@@ -21,7 +22,7 @@ from api.schemas import (
 from domain.repositories import OrderRepository
 from domain import Order, OrderStatus, Side, OrderType, ProductType
 from domain.requests import OrderRequest as DomainOrderRequest
-from brokers.common.oms.order_repository_adapter import request_to_command
+from application.oms.order_repository_adapter import request_to_command
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +93,7 @@ async def get_trades(
     """
     try:
         # Get all orders and filter for filled/completed ones
-        orders = repo.get_orders(status=OrderStatus.COMPLETE)
+        orders = repo.get_orders(status=OrderStatus.FILLED)
         
         # Apply date filters if provided
         if from_date:
@@ -147,7 +148,7 @@ async def get_tradebook(
     """
     try:
         # Get all completed orders
-        orders = repo.get_orders(status=OrderStatus.COMPLETE)
+        orders = repo.get_orders(status=OrderStatus.FILLED)
         
         # Apply date filters
         if from_date:
@@ -292,7 +293,7 @@ async def place_order(
         quantity=req.quantity,
         price=Decimal(str(req.price)) if req.price else Decimal("0"),
         product_type=product_type,
-        correlation_id=f"http-{datetime.now().isoformat()}",
+        correlation_id=req.correlation_id or f"http-{uuid.uuid4().hex}",
     )
 
     # Call OMS with broker submission function

@@ -19,9 +19,11 @@ from decimal import Decimal
 import pandas as pd
 import pytest
 
+pytestmark = pytest.mark.e2e
+
 from domain import OrderStatus, Side, Trade
-from brokers.common.oms.order_manager import OmsOrderCommand
-from brokers.common.oms.risk_manager import RiskConfig
+from application.oms.order_manager import OmsOrderCommand
+from application.oms.risk_manager import RiskConfig
 
 from analytics.scanner.scanners import MomentumScanner, VolumeScanner
 from analytics.scanner.models import Candidate, ScanResult

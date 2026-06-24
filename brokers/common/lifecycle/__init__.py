@@ -1,5 +1,6 @@
-"""Public re-exports for the lifecycle package."""
-from brokers.common.lifecycle.lifecycle import (
+"""Shim — use :mod:`infrastructure.lifecycle`."""
+
+from infrastructure.lifecycle import (
     HealthState,
     HealthStatus,
     LifecycleManager,

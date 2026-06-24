@@ -43,8 +43,8 @@ API_KEY = os.getenv("API_KEY", "")
 if AUTH_MODE == "api_key" and not API_KEY:
     API_KEY = secrets.token_urlsafe(32)
     logger.warning(
-        "AUTH_MODE=api_key but API_KEY not set. Generated temporary key: %s",
-        API_KEY,
+        "AUTH_MODE=api_key but API_KEY not set. "
+        "A temporary key was generated; set API_KEY explicitly in production."
     )
 
 # ── Security Scheme ───────────────────────────────────────────────────────────

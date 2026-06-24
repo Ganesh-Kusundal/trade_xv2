@@ -356,7 +356,7 @@ async def get_market_breadth():
 @router.get("/strategies")
 async def list_strategies():
     """List registered strategy names."""
-    from brokers.common.strategy.multi_strategy_runtime import MultiStrategyRuntime
+    from application.trading.multi_strategy_runtime import MultiStrategyRuntime
 
     runtime = MultiStrategyRuntime()
     return {"strategies": runtime.list_strategies(), "count": len(runtime.list_strategies())}
@@ -366,7 +366,7 @@ async def list_strategies():
 async def run_strategies(body: dict):
     """Build a multi-strategy pipeline for the given strategy names."""
     from analytics.strategy.registry import StrategyRegistry
-    from brokers.common.strategy.multi_strategy_runtime import MultiStrategyRuntime
+    from application.trading.multi_strategy_runtime import MultiStrategyRuntime
 
     names = body.get("names") or body.get("strategies") or []
     if not names:

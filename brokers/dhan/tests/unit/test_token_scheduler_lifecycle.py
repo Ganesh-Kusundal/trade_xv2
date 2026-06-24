@@ -18,19 +18,16 @@ class _FakeAuth:
         self._valid = valid
         self._state = MagicMock()
         self._state.access_token = "TOKEN"
-        self._state.is_valid.return_value = True
-        self.refresh_calls = 0
+        self._state.is_valid.return_value = valid
+        self.acquire_calls = 0
 
     def acquire(self):
-        return self._state
-
-    def ensure_valid(self, buffer_seconds: float = 300.0) -> bool:
-        self.refresh_calls += 1
-        return self._valid
+        self.acquire_calls += 1
+        return self._state if self._valid else None
 
     @property
     def state(self):
-        return self._state
+        return self._state if self._valid else None
 
 
 @pytest.fixture
@@ -114,16 +111,10 @@ def test_scheduler_stop_drains_quickly(fake_auth: _FakeAuth) -> None:
     assert elapsed < 1.0
 
 
-def test_scheduler_refresh_now_invokes_auth(fake_auth: _FakeAuth) -> None:
+def test_scheduler_refresh_now_skips_when_token_valid(fake_auth: _FakeAuth) -> None:
     scheduler = TokenRefreshScheduler(
         auth=fake_auth,  # type: ignore[arg-type]
         interval_seconds=3600,
     )
-    mgr = LifecycleManager()
-    mgr.register(scheduler)
-    mgr.start_all()
-    try:
-        assert scheduler.refresh_now() is True
-        assert fake_auth.refresh_calls >= 1
-    finally:
-        mgr.stop_all()
+    assert scheduler.refresh_now() is True
+    assert fake_auth.acquire_calls == 0

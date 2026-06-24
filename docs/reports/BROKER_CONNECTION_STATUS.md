@@ -1,9 +1,19 @@
 # Broker Connection Status Report
 
-**Date:** June 22, 2026  
-**Test Script:** `test_broker_connections.py`  
-**Python Environment:** `/Users/apple/Downloads/Trade_XV2/venv/bin/python` (Python 3.13.5)  
+**Date:** June 24, 2026  
+**Test Script:** `test_broker_connections.py`, `scripts/revalidate_upstox_known_issues.py`  
+**Python Environment:** `/Users/apple/Downloads/Trade_XV2/venv/bin/python` (project venv — use for all CI/local tests)  
 **Status:** ✅ **ALL BROKERS OPERATIONAL**
+
+### Upstox revalidation (read-only, June 24 2026)
+
+| Area | Implementation | Notes |
+|------|----------------|-------|
+| Depth | `GET /v2/market-quote/quotes?quote=BEST_FIVE` | ≤5 bid/ask levels; `/v2/market-quote/depth` not used |
+| Option chain | Instrument master expiries + `/v2/option/chain` | Requires `load_instruments=True` |
+| Future chain | Instrument master FUT rows + resolved `instrument_key` | Expired API fallback for history only |
+| Historical | Gateway V3 via `HistoricalAdapter` | Timestamps normalized to `Asia/Kolkata` |
+| WebSocket V3 | `await websockets.connect` + reconnect resubscribe | See `UPSTOX_REVALIDATION_EVIDENCE.md` artifact |
 
 ---
 

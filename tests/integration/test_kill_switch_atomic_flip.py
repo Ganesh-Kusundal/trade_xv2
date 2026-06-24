@@ -23,7 +23,7 @@ from decimal import Decimal
 import pytest
 
 from domain import Order, OrderStatus, OrderType, ProductType, Side
-from brokers.common.oms import PositionManager, RiskConfig, RiskManager
+from application.oms import PositionManager, RiskConfig, RiskManager
 
 
 def _make_order() -> Order:

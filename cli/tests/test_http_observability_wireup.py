@@ -53,7 +53,7 @@ def test_lifecycle_starts_empty_and_http_observability_is_none() -> None:
 def test_extra_gauges_returns_daily_pnl_and_kill_switch() -> None:
     """The extra_gauges_fn returns the OMS risk state as Prometheus
     gauges. daily_pnl is a Decimal; kill_switch_active is 1/0."""
-    from brokers.common.oms import (
+    from application.oms import (
         PositionManager,
         RiskConfig,
         RiskManager,

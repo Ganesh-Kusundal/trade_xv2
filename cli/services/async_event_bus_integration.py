@@ -53,7 +53,7 @@ from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
 from brokers.common.observability.event_metrics import EventMetrics
 
 if TYPE_CHECKING:
-    from brokers.common.oms.context import TradingContext
+    from application.oms.context import TradingContext
 
 logger = logging.getLogger(__name__)
 
@@ -150,7 +150,7 @@ def wire_async_bus_into_context(
     ...     dead_letter_queue=my_dlq,
     ... )
     """
-    from brokers.common.oms.context import TradingContext
+    from application.oms.context import TradingContext
     
     ctx = TradingContext(
         async_bus=async_bus,

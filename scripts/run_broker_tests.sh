@@ -21,6 +21,15 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
 cd "$PROJECT_DIR"
 
+# Always use project venv Python (see README.md)
+PYTHON="${PROJECT_DIR}/venv/bin/python"
+if [ ! -x "$PYTHON" ]; then
+    echo_error "Project venv not found at ${PYTHON}"
+    echo_info "Run: python -m venv venv && venv/bin/pip install -e '.[dev]'"
+    exit 1
+fi
+export PYTHONPATH="${PROJECT_DIR}${PYTHONPATH:+:$PYTHONPATH}"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -44,24 +53,21 @@ echo_error() {
     echo -e "${RED}✗ $1${NC}"
 }
 
-# Check if virtual environment is activated
+# Ensure project venv Python is used for all pytest invocations
 check_venv() {
-    if [ -z "$VIRTUAL_ENV" ]; then
-        echo_warn "Virtual environment not activated. Using system Python."
-        echo_info "Recommended: source .venv/bin/activate"
-    fi
+    echo_info "Using ${PYTHON}"
 }
 
 # Run unit tests
 run_unit_tests() {
     echo_info "Running unit tests (parallel)..."
-    pytest -m "unit" -n auto -v --tb=short
+    "$PYTHON" -m pytest -m "unit" -n auto -v --tb=short
 }
 
 # Run contract tests
 run_contract_tests() {
     echo_info "Running broker contract tests..."
-    pytest -m "contract" -v --tb=short
+    "$PYTHON" -m pytest -m "contract" -v --tb=short
 }
 
 # Run integration tests
@@ -74,38 +80,38 @@ run_integration_tests() {
         echo_info "Set DHAN_INTEGRATION=1 or UPSTOX_INTEGRATION=1 to enable live tests."
     fi
     
-    pytest -m "integration" -v --tb=short
+    "$PYTHON" -m pytest -m "integration" -v --tb=short
 }
 
 # Run performance tests
 run_performance_tests() {
     echo_info "Running performance benchmarks..."
-    pytest -m "performance" -v --tb=short --benchmark-only
+    "$PYTHON" -m pytest -m "performance" -v --tb=short --benchmark-only
 }
 
 # Run stress tests
 run_stress_tests() {
     echo_warn "Stress tests may take 30-60 minutes to complete."
     echo_info "Running stress tests..."
-    pytest -m "stress" -v --tb=short
+    "$PYTHON" -m pytest -m "stress" -v --tb=short
 }
 
 # Run E2E tests
 run_e2e_tests() {
     echo_info "Running E2E tests (Paper broker only)..."
-    pytest -m "e2e" -v --tb=short
+    "$PYTHON" -m pytest -m "e2e" -v --tb=short
 }
 
 # Run all tests
 run_all_tests() {
     echo_info "Running all tests (excluding live integration)..."
-    pytest -m "not live_readonly and not sandbox" -n auto -v --tb=short
+    "$PYTHON" -m pytest -m "not live_readonly and not sandbox" -n auto -v --tb=short
 }
 
 # Run tests with coverage
 run_coverage() {
     echo_info "Running tests with coverage report..."
-    pytest -m "not integration and not sandbox and not live_readonly" \
+    "$PYTHON" -m pytest -m "not integration and not sandbox and not live_readonly" \
         -n auto \
         --cov=brokers \
         --cov=cli \
@@ -126,7 +132,7 @@ run_coverage() {
     # Show coverage summary
     echo_info ""
     echo_info "Coverage Summary:"
-    coverage report --fail-under=80
+    "$PYTHON" -m coverage report --fail-under=80
 }
 
 # Run specific broker tests
@@ -136,13 +142,13 @@ run_broker_tests() {
     
     case $broker in
         dhan)
-            pytest brokers/dhan/tests/ -v --tb=short
+            "$PYTHON" -m pytest brokers/dhan/tests/ -v --tb=short
             ;;
         upstox)
-            pytest brokers/upstox/tests/ -v --tb=short
+            "$PYTHON" -m pytest brokers/upstox/tests/ -v --tb=short
             ;;
         paper)
-            pytest brokers/paper/tests/ -v --tb=short
+            "$PYTHON" -m pytest brokers/paper/tests/ -v --tb=short
             ;;
         *)
             echo_error "Unknown broker: $broker"

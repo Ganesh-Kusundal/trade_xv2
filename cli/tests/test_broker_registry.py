@@ -13,6 +13,21 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _skip_credential_gate(monkeypatch):
+    """Registry unit tests mock factories; skip live credential validation."""
+    from brokers.common.connection.authenticated_readiness import AuthProbeResult
+
+    monkeypatch.setattr(
+        "cli.services.broker_registry.CredentialValidator.validate_broker",
+        lambda broker, env_path=None: (True, []),
+    )
+    monkeypatch.setattr(
+        "cli.services.broker_registry.authenticated_readiness_probe",
+        lambda gw, broker: AuthProbeResult(ok=True, probe_name="mock"),
+    )
+
+
 class TestCreateGatewayBasic:
     """Verify create_gateway() creates gateways for known brokers."""
 

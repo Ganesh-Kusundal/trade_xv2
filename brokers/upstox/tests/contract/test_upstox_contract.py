@@ -46,10 +46,9 @@ class TestUpstoxContract(BrokerContractSuite):
     def test_quote_returns_quote(self, gateway: UpstoxBrokerGateway) -> None:
         """Override to mock Upstox quote response."""
         # Mock the adapter's quote method
-        gateway._market_data_adapter.quote = MagicMock(
+        gateway._market_data.quote = MagicMock(
             return_value=Quote(
                 symbol="RELIANCE",
-                exchange="NSE",
                 ltp=Decimal("2550.00"),
                 open=Decimal("2540.00"),
                 high=Decimal("2560.00"),
@@ -65,17 +64,16 @@ class TestUpstoxContract(BrokerContractSuite):
 
     def test_ltp_returns_decimal(self, gateway: UpstoxBrokerGateway) -> None:
         """Override to mock Upstox LTP response."""
-        gateway._market_data_adapter.ltp = MagicMock(return_value=Decimal("2550.00"))
+        gateway._market_data.ltp = MagicMock(return_value=Decimal("2550.00"))
         result = gateway.ltp("RELIANCE", "NSE")
         assert isinstance(result, Decimal)
         assert result >= Decimal("0")
 
     def test_depth_returns_market_depth(self, gateway: UpstoxBrokerGateway) -> None:
         """Override to mock Upstox depth response."""
-        gateway._market_data_adapter.depth = MagicMock(
+        gateway._market_data.depth = MagicMock(
             return_value=MarketDepth(
                 symbol="RELIANCE",
-                exchange="NSE",
                 bids=[DepthLevel(price=Decimal("2550.00"), quantity=100, orders=5)],
                 asks=[DepthLevel(price=Decimal("2551.00"), quantity=150, orders=3)],
             )
@@ -89,25 +87,55 @@ class TestUpstoxContract(BrokerContractSuite):
 
     def test_positions_returns_list(self, gateway: UpstoxBrokerGateway) -> None:
         """Override to mock Upstox positions response."""
-        gateway._portfolio_adapter.get_positions = MagicMock(return_value=[])
+        gateway._portfolio.get_positions = MagicMock(return_value=[])
         result = gateway.positions()
         assert isinstance(result, list)
 
     def test_holdings_returns_list(self, gateway: UpstoxBrokerGateway) -> None:
         """Override to mock Upstox holdings response."""
-        gateway._portfolio_adapter.get_holdings = MagicMock(return_value=[])
+        gateway._portfolio.get_holdings = MagicMock(return_value=[])
         result = gateway.holdings()
         assert isinstance(result, list)
 
     def test_funds_returns_balance(self, gateway: UpstoxBrokerGateway) -> None:
         """Override to mock Upstox funds response."""
-        gateway._portfolio_adapter.get_fund_limits = MagicMock(
+        gateway._portfolio.get_funds = MagicMock(
             return_value=Balance(
                 available_balance=Decimal("100000.00"),
                 used_margin=Decimal("0.00"),
-                total_balance=Decimal("100000.00"),
             )
         )
         result = gateway.funds()
         assert isinstance(result, Balance)
         assert result.available_balance >= Decimal("0")
+
+    def test_option_chain_returns_dict(self, gateway: UpstoxBrokerGateway) -> None:
+        from domain import OptionChain
+
+        gateway._broker.options.get_option_chain.return_value = []
+        gateway._broker.options.get_expiries.return_value = ["2025-06-26"]
+        result = gateway.option_chain("NIFTY", "NFO")
+        if isinstance(result, OptionChain):
+            result = result.to_dict()
+        assert isinstance(result, dict)
+        assert "underlying" in result
+
+    def test_future_chain_returns_dict(self, gateway: UpstoxBrokerGateway) -> None:
+        """Override to mock Upstox futures adapter."""
+        gateway._broker.futures.get_contracts.return_value = [
+            {
+                "expiry": "2025-06-26",
+                "symbol": "NIFTY25JUNFUT",
+                "lot_size": 25,
+                "underlying": "NIFTY",
+            }
+        ]
+        gateway._broker.futures.get_expiries.return_value = ["2025-06-26"]
+        result = gateway.future_chain("NIFTY", "NFO")
+        from domain import FutureChain
+
+        if isinstance(result, FutureChain):
+            result = result.to_dict()
+        assert isinstance(result, dict)
+        assert result.get("underlying") == "NIFTY"
+        assert result.get("contracts")

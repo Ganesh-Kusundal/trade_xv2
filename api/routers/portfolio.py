@@ -347,7 +347,7 @@ async def square_off_positions(
                 quantity = abs(p.quantity)
                 
                 from domain.requests import OrderRequest as DomainOrderRequest
-                from brokers.common.oms.order_repository_adapter import request_to_command
+                from application.oms.order_repository_adapter import request_to_command
 
                 domain_req = DomainOrderRequest(
                     symbol=p.symbol,

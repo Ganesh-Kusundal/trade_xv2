@@ -38,7 +38,7 @@ from domain.constants import (
     PROCESSED_TRADE_CLEANUP_INTERVAL_SECONDS,
     PROCESSED_TRADE_RETENTION_SECONDS,
 )
-from brokers.common.lifecycle.lifecycle import HealthState, HealthStatus
+from domain.lifecycle_health import HealthState, HealthStatus
 
 logger = logging.getLogger(__name__)
 

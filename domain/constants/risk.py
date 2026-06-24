@@ -18,6 +18,18 @@ RISK_POSITION_PERCENT: float = 20.0
 #: Gross exposure cap (percent of capital) — RiskManager default.
 RISK_GROSS_PERCENT: float = 100.0
 
+#: Loss-based circuit breaker threshold (percent of capital).
+RISK_LOSS_CIRCUIT_BREAKER_PERCENT: float = 2.0
+
+#: Cooldown period after circuit breaker trips (seconds).
+RISK_LOSS_CB_COOLDOWN_SECONDS: int = 1800  # 30 minutes
+
+#: Rolling loss window for the loss-based circuit breaker (seconds).
+RISK_LOSS_CB_WINDOW_SECONDS: int = 86400  # 24 hours
+
+#: Safety multiplier for margin check (20% buffer for intraday price movement).
+RISK_MARGIN_SAFETY_MULTIPLIER: float = 1.2
+
 #: Phantom capital (INR) used when ``capital_fn`` is not configured. This
 #: MUST be replaced with a real capital source before live trading; the
 #: production-readiness check (REF-17) fails closed if the operator
@@ -34,5 +46,9 @@ __all__ = [
     "PHANTOM_CAPITAL_INR",
     "RISK_DAILY_LOSS_PERCENT",
     "RISK_GROSS_PERCENT",
+    "RISK_LOSS_CB_COOLDOWN_SECONDS",
+    "RISK_LOSS_CB_WINDOW_SECONDS",
+    "RISK_LOSS_CIRCUIT_BREAKER_PERCENT",
+    "RISK_MARGIN_SAFETY_MULTIPLIER",
     "RISK_POSITION_PERCENT",
 ]

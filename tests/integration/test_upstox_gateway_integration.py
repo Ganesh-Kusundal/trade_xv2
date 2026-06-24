@@ -550,12 +550,21 @@ class TestErrorHandling:
 
         mock_broker.disconnect.assert_called()
 
-    def test_future_chain_raises_not_implemented(self, mock_broker):
-        """future_chain() should raise NotImplementedError."""
+    def test_future_chain_returns_future_chain(self, mock_broker):
+        """future_chain() should return a FutureChain from broker futures adapter."""
+        from domain import FutureChain
+
+        mock_broker.futures.get_contracts.return_value = [
+            {"expiry": "2026-06-26", "symbol": "RELIANCE26JUNFUT", "lot_size": 250, "underlying": "RELIANCE"},
+        ]
+        mock_broker.futures.get_expiries.return_value = ["2026-06-26"]
         gateway = UpstoxBrokerGateway(mock_broker)
 
-        with pytest.raises(NotImplementedError):
-            gateway.future_chain("RELIANCE", "NFO")
+        result = gateway.future_chain("RELIANCE", "NFO")
+
+        assert isinstance(result, FutureChain)
+        assert result.underlying == "RELIANCE"
+        assert len(result.contracts) == 1
 
 
 # ─── Thread Safety ────────────────────────────────────────────────────────

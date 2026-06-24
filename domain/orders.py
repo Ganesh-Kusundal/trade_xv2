@@ -12,33 +12,11 @@ from decimal import Decimal
 from typing import Any, Protocol
 
 from domain.enums import OrderStatus, OrderType, ProductType, Side, Validity
+from domain.entities.order import FieldMapping
 from domain.status_mapper import StatusMapperRegistry  # P2-Phase 2: Import for status normalization
 
 
-class FieldMapping(Protocol):
-    """Broker-specific field name mapping for Order parsing.
-
-    Implement this protocol to define how broker-specific API responses
-    map to canonical Order fields. Each broker adapter should provide
-    its own implementation.
-
-    Example::
-
-        from domain.field_mapping import DefaultFieldMapping
-        mapping = DefaultFieldMapping()
-    """
-
-    def map_order_id(self, data: dict) -> str: ...
-    def map_symbol(self, data: dict) -> str: ...
-    def map_exchange(self, data: dict) -> str: ...
-    def map_side(self, data: dict) -> str: ...
-    def map_order_type(self, data: dict) -> str: ...
-    def map_status(self, data: dict) -> str: ...
-    def map_quantity(self, data: dict) -> int: ...
-    def map_filled_quantity(self, data: dict) -> int: ...
-    def map_price(self, data: dict) -> str | None: ...
-    def map_avg_price(self, data: dict) -> str | None: ...
-    def map_reject_reason(self, data: dict) -> str: ...
+# FieldMapping canonical definition: domain.entities.order.FieldMapping
 
 
 @dataclass(slots=True, frozen=True)
@@ -264,25 +242,7 @@ class OrderResponse:
 
 
 # ---------------------------------------------------------------------------
-# Order Status Transitions (P2-Phase 2)
+# Order Status Transitions (P2-Phase 2) — canonical table in order_lifecycle
 # ---------------------------------------------------------------------------
 
-# Order state machine transition table
-# Used by OrderManager to validate status updates
-ORDER_STATUS_TRANSITIONS: dict[OrderStatus, frozenset[OrderStatus]] = {
-    OrderStatus.OPEN: frozenset({
-        OrderStatus.PARTIALLY_FILLED,
-        OrderStatus.CANCELLED,
-        OrderStatus.REJECTED,
-        OrderStatus.EXPIRED,
-    }),
-    OrderStatus.PARTIALLY_FILLED: frozenset({
-        OrderStatus.FILLED,
-        OrderStatus.CANCELLED,
-        OrderStatus.REJECTED,
-    }),
-    OrderStatus.FILLED: frozenset(),  # Terminal
-    OrderStatus.CANCELLED: frozenset(),  # Terminal
-    OrderStatus.REJECTED: frozenset(),  # Terminal
-    OrderStatus.EXPIRED: frozenset(),  # Terminal
-}
+from domain.entities.order_lifecycle import ORDER_STATUS_TRANSITIONS  # noqa: F401

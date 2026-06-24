@@ -369,6 +369,44 @@ class TestDhanOrderStream:
         assert received[0].payload["order"].order_id == "999"
         assert received[1].event_type == "TRADE"
 
+    def test_partial_fill_publishes_incremental_trade_qty(self):
+        """Cumulative filledQty from Dhan must map to incremental TRADE qty."""
+        from infrastructure.event_bus import EventBus
+
+        bus = EventBus()
+        trades = []
+        bus.subscribe("TRADE", lambda e: trades.append(e))
+        stream = DhanOrderStream(
+            client_id="CLIENT",
+            access_token="TOKEN",
+            event_bus=bus,
+        )
+        base_data = {
+            "Type": "order_alert",
+            "Data": {
+                "orderNo": "ORD-1",
+                "status": "PARTIALLY_FILLED",
+                "tradingSymbol": "INFY",
+                "exchangeSegment": "NSE_EQ",
+                "transactionType": "BUY",
+                "quantity": 100,
+                "price": "1500.00",
+                "averagePrice": "1500.00",
+                "productType": "INTRADAY",
+                "orderType": "MARKET",
+                "validity": "DAY",
+            },
+        }
+        first = {**base_data, "Data": {**base_data["Data"], "filledQty": 40}}
+        stream._on_order_update(first)
+        assert len(trades) == 1
+        assert trades[0].payload["trade"].quantity == 40
+
+        second = {**base_data, "Data": {**base_data["Data"], "filledQty": 100}}
+        stream._on_order_update(second)
+        assert len(trades) == 2
+        assert trades[1].payload["trade"].quantity == 60
+
     def test_on_order_update_increments_mix_message_count(self):
         """Plan §7.2: DhanOrderStream must use the mixin _note_message_received
         so health() reports the same freshness as every other Dhan WS

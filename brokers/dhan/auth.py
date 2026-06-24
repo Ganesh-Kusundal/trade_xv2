@@ -26,7 +26,7 @@ class DhanAuthenticator:
         from brokers.dhan.settings import DhanSettingsLoader
 
         self._env_path = env_path
-        self._store_path = Path("runtime/dhan-token.json")
+        self._store_path = Path("runtime/dhan-token-state.json")
         self._store_path.parent.mkdir(parents=True, exist_ok=True)
         self._refresh_callbacks: list[Callable[[str], None]] = []
         if on_token_refresh is not None:

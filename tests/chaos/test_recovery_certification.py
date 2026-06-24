@@ -34,11 +34,11 @@ from domain import (
 )
 from infrastructure.event_bus import EventBus
 from brokers.common.event_log import EventLog
-from brokers.common.oms.context import TradingContext
-from brokers.common.oms.factory import create_trading_context
-from brokers.common.oms.order_manager import OrderRequest
-from brokers.common.oms.position_manager import PositionManager
-from brokers.common.oms.risk_manager import RiskConfig, RiskManager
+from application.oms.context import TradingContext
+from application.oms.factory import create_trading_context
+from application.oms.order_manager import OrderRequest
+from application.oms.position_manager import PositionManager
+from application.oms.risk_manager import RiskConfig, RiskManager
 
 # ── helpers ──────────────────────────────────────────────────────────
 

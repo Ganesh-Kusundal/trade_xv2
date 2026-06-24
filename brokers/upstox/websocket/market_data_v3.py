@@ -165,11 +165,52 @@ class UpstoxMarketDataV3Multiplexer:
         url = self._authorizer.authorize_market_data_v3()
         if not url:
             raise RuntimeError("Upstox V3 feed authorize did not return a URL")
-        self._socket = self._socket_factory(url)
+        self._socket = await self._open_socket(url)
         await self._maybe_send_initial_subscriptions()
         self._stopped = False
         self._connected = True
+        try:
+            from brokers.upstox.metrics import upstox_ws_connected
+
+            upstox_ws_connected.set(1)
+        except Exception:
+            pass
         self._task = asyncio.create_task(self._read_loop())
+
+    async def _open_socket(self, url: str) -> Any:
+        socket_or_awaitable = self._socket_factory(url)
+        if asyncio.iscoroutine(socket_or_awaitable):
+            return await socket_or_awaitable
+        return socket_or_awaitable
+
+    async def _reconnect_socket(self) -> bool:
+        """Re-authorize, open a new socket, and replay subscriptions."""
+        try:
+            if self._socket is not None:
+                close = getattr(self._socket, "close", None)
+                if close is not None:
+                    result = close()
+                    if asyncio.iscoroutine(result):
+                        await result
+                self._socket = None
+            url = self._authorizer.authorize_market_data_v3()
+            if not url:
+                return False
+            self._socket = await self._open_socket(url)
+            await self._maybe_send_initial_subscriptions()
+            self._connected = True
+            try:
+                from brokers.upstox.metrics import upstox_ws_reconnects, upstox_ws_connected
+
+                upstox_ws_reconnects.inc()
+                upstox_ws_connected.set(1)
+            except Exception:
+                pass
+            return True
+        except Exception as exc:
+            logger.warning("Upstox V3 reconnect failed: %s", exc)
+            self._connected = False
+            return False
 
     async def disconnect(self) -> None:
         self._stopped = True
@@ -191,6 +232,12 @@ class UpstoxMarketDataV3Multiplexer:
             except Exception as exc:
                 logger.debug("websocket_close_failed: %s", exc)
             self._socket = None
+        try:
+            from brokers.upstox.metrics import upstox_ws_connected
+
+            upstox_ws_connected.set(0)
+        except Exception:
+            pass
         self._reconnect.reset()
 
     async def _maybe_send_initial_subscriptions(self) -> None:
@@ -240,6 +287,8 @@ class UpstoxMarketDataV3Multiplexer:
                 delay = self._reconnect.next_delay()
                 self._reconnect.record_failure()
                 await asyncio.sleep(delay)
+                if await self._reconnect_socket():
+                    was_disconnected = True
                 continue
             # Successfully received — check if we just reconnected
             if was_disconnected and self._backfill_callback is not None:

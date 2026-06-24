@@ -1,0 +1,20 @@
+{
+  "agents": {
+    "directory": ".qoder/agents",
+    "enabled": true
+  },
+  "skills": {
+    "directory": ".qoder/skills",
+    "enabled": true
+  },
+  "plans": {
+    "directory": ".qoder/plans"
+  },
+  "repowiki": {
+    "directory": ".qoder/repowiki"
+  },
+  "project": {
+    "root": ".",
+    "name": "Trade_XV2"
+  }
+}

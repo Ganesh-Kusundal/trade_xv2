@@ -206,8 +206,8 @@ def test_place_order_idempotency_does_not_publish_duplicate(fake_client, resolve
 def test_place_order_risk_check_blocks_order(fake_client, resolver):
     from decimal import Decimal
 
-    from brokers.common.oms.position_manager import PositionManager
-    from brokers.common.oms.risk_manager import RiskConfig, RiskManager
+    from application.oms.position_manager import PositionManager
+    from application.oms.risk_manager import RiskConfig, RiskManager
 
     fake_client.set_response("POST", "/orders", {"data": {"orderId": "ORD123"}})
     position_manager = PositionManager()
@@ -224,8 +224,8 @@ def test_place_order_transport_only_skips_risk_check(fake_client, resolver):
     from decimal import Decimal
 
     from domain import OrderRequest
-    from brokers.common.oms.position_manager import PositionManager
-    from brokers.common.oms.risk_manager import RiskConfig, RiskManager
+    from application.oms.position_manager import PositionManager
+    from application.oms.risk_manager import RiskConfig, RiskManager
 
     fake_client.set_response("POST", "/orders", {"data": {"orderId": "ORD123"}})
     position_manager = PositionManager()

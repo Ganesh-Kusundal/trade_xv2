@@ -16,7 +16,7 @@ from analytics.replay.engine import ReplayEngine
 from analytics.replay.models import ReplayConfig
 from analytics.strategy.models import Signal, SignalType
 from analytics.strategy.pipeline import StrategyPipeline
-from brokers.common.oms.factory import create_trading_context
+from application.oms.factory import create_trading_context
 
 
 def _sample_ohlcv(rows: int = 80) -> pd.DataFrame:

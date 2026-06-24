@@ -17,15 +17,12 @@ from rich.console import Console
 
 # Initialize centralized logging BEFORE any other imports that log
 from brokers.common.logging_config import setup_logging
-from brokers.common.env_loader import load_env_file
+from brokers.common.auth.environment_bootstrap import bootstrap_environment
+
 setup_logging()
 
-logger = logging.getLogger(__name__)
-
-# Load environment variables once at startup so every subcommand sees them.
-_ENV_PATH = Path(".env.local")
-if _ENV_PATH.exists() and _ENV_PATH.stat().st_size > 0:
-    load_env_file(_ENV_PATH)
+# Load canonical broker env files once at startup.
+bootstrap_environment(Path(__file__).resolve().parent.parent)
 
 from cli.commands import (
     account as cmd_account,
@@ -46,6 +43,7 @@ from cli.commands import (
     options_sync as cmd_options_sync,
     order_composition as cmd_order_composition,
     order_placement as cmd_order_placement,
+    extended_orders as cmd_extended_orders,
     portfolio as cmd_portfolio,
     quality_report as cmd_quality_report,
     risk_controls as cmd_risk_controls,
@@ -225,6 +223,24 @@ _DISPATCH: list[tuple[str, Any]] = [
     ("bracket-order",     lambda a, bs, c: cmd_order_composition.place_bracket_order(a, bs, c)),
     ("oco-order",         lambda a, bs, c: cmd_order_composition.place_oco_order(a, bs, c)),
     ("basket-order",      lambda a, bs, c: cmd_order_composition.place_basket_order(a, bs, c)),
+    # Extended broker features
+    ("super-order",       lambda a, bs, c: cmd_extended_orders.super_order(a, bs, c)),
+    ("forever-order",     lambda a, bs, c: cmd_extended_orders.forever_order(a, bs, c)),
+    ("trigger",           lambda a, bs, c: cmd_extended_orders.trigger(a, bs, c)),
+    ("margin",            lambda a, bs, c: cmd_extended_orders.margin(a, bs, c)),
+    ("exit-all",          lambda a, bs, c: cmd_extended_orders.exit_all(a, bs, c)),
+    ("ledger",            lambda a, bs, c: cmd_extended_orders.ledger(a, bs, c)),
+    ("edis",              lambda a, bs, c: cmd_extended_orders.edis(a, bs, c)),
+    ("ip",                lambda a, bs, c: cmd_extended_orders.ip(a, bs, c)),
+    ("profile",           lambda a, bs, c: cmd_extended_orders.profile(a, bs, c)),
+    ("gtt-order",         lambda a, bs, c: cmd_extended_orders.gtt_order(a, bs, c)),
+    ("cover-order",       lambda a, bs, c: cmd_extended_orders.cover_order(a, bs, c)),
+    ("slice-order",       lambda a, bs, c: cmd_extended_orders.slice_order(a, bs, c)),
+    ("broker-kill-switch", lambda a, bs, c: cmd_extended_orders.broker_kill_switch(a, bs, c)),
+    ("ipo",               lambda a, bs, c: cmd_extended_orders.ipo(a, bs, c)),
+    ("mf",                lambda a, bs, c: cmd_extended_orders.mf(a, bs, c)),
+    ("payout",            lambda a, bs, c: cmd_extended_orders.payout(a, bs, c)),
+    ("fundamentals",      lambda a, bs, c: cmd_extended_orders.fundamentals(a, bs, c)),
     # Risk management commands (Agent 2)
     ("risk",              lambda a, bs, c: cmd_risk_controls.run(a, bs, c)),
     # Cache management (Agent 4)

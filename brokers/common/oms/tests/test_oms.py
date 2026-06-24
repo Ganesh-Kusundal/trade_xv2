@@ -9,7 +9,7 @@ import pytest
 
 from domain import Order, OrderStatus, OrderType, ProductType, Side, Trade
 from infrastructure.event_bus import DomainEvent, EventBus, EventType
-from brokers.common.oms import (
+from application.oms import (
     OrderManager,
     OrderRequest,
     PositionManager,
@@ -231,7 +231,7 @@ def test_order_manager_risk_gate_allows_order(bus: EventBus) -> None:
 
 def test_trading_context_replays_event_log(tmp_path) -> None:
     from brokers.common.event_log import EventLog
-    from brokers.common.oms.context import TradingContext
+    from application.oms.context import TradingContext
 
     log = EventLog(events_dir=tmp_path / "events")
     bus = EventBus(event_log=log)

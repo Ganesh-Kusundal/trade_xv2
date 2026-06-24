@@ -20,7 +20,7 @@ from brokers.common.resilience.errors import (
     RetryableError,
 )
 from brokers.common.resilience.rate_limiter import MultiBucketRateLimiter
-from brokers.common.resilience.retry import RetryConfig
+from brokers.common.resilience.retry import DEFAULT_RETRYABLE_EXCEPTIONS, RetryConfig
 
 T = TypeVar("T")
 
@@ -119,13 +119,29 @@ class AsyncRetryExecutor(Generic[T]):
                     raise
 
             except Exception as e:
-                # Plain exceptions are NOT retried by default
-                last_exception = e
-                if self.circuit_breaker:
-                    self.circuit_breaker.on_failure()
-                if self._on_failure:
-                    self._on_failure(e)
-                raise
+                # Check if this exception type is retryable
+                if isinstance(e, self.config.retryable_exceptions):
+                    last_exception = e
+                    if self.circuit_breaker:
+                        self.circuit_breaker.on_failure()
+
+                    if attempt < self.config.max_attempts - 1:
+                        delay = self.backoff.delay(attempt)
+                        await asyncio.sleep(delay)
+                        if self._on_retry:
+                            self._on_retry(attempt, e)
+                    else:
+                        if self._on_failure:
+                            self._on_failure(e)
+                        raise
+                else:
+                    # Non-retryable — fail immediately
+                    last_exception = e
+                    if self.circuit_breaker:
+                        self.circuit_breaker.on_failure()
+                    if self._on_failure:
+                        self._on_failure(e)
+                    raise
 
         # Should not reach here, but just in case
         if last_exception:

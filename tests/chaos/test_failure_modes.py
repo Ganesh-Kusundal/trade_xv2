@@ -63,7 +63,7 @@ from brokers.common.lifecycle.lifecycle import (
     ManagedService,
 )
 from brokers.common.observability.event_metrics import EventMetrics
-from brokers.common.oms import (
+from application.oms import (
     DailyPnlResetScheduler,
     PositionManager,
     RiskConfig,
