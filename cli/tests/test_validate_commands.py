@@ -16,7 +16,6 @@ from rich.console import Console
 
 from cli.commands import validate as cmd_validate
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -38,19 +37,19 @@ def mock_broker_service():
 def mock_gateway():
     """Create a mock gateway with all required methods."""
     gw = MagicMock()
-    
+
     # Mock quote
     quote = MagicMock()
     quote.ltp = 2450.50
     quote.volume = 1500000
     gw.quote.return_value = quote
-    
+
     # Mock depth
     depth = MagicMock()
     depth.bids = [MagicMock(), MagicMock()]
     depth.asks = [MagicMock(), MagicMock()]
     gw.depth.return_value = depth
-    
+
     # Mock history
     dates = pd.date_range("2026-01-01", periods=20, freq="D")
     gw.history.return_value = pd.DataFrame(
@@ -67,7 +66,7 @@ def mock_gateway():
             "timeframe": ["1D"] * 20,
         }
     )
-    
+
     return gw
 
 
@@ -99,9 +98,9 @@ class TestSymbolValidation:
     """Tests for symbol validation."""
 
     def test_validate_symbol_success(self, console, mock_broker_service, mock_gateway):
-        with patch("cli.commands.validate.create_gateway", return_value=mock_gateway):
+        with patch("cli.services.broker_registry.create_gateway", return_value=mock_gateway):
             cmd_validate.run(["RELIANCE"], mock_broker_service, console)
-            
+
             output = console.export_text()
             assert "RELIANCE" in output
             assert "VALIDATION SUMMARY" in output
@@ -110,24 +109,24 @@ class TestSymbolValidation:
 
     def test_validate_symbol_historical_error(self, console, mock_broker_service, mock_gateway):
         mock_gateway.history.side_effect = Exception("API error")
-        
-        with patch("cli.commands.validate.create_gateway", return_value=mock_gateway):
+
+        with patch("cli.services.broker_registry.create_gateway", return_value=mock_gateway):
             cmd_validate.run(["RELIANCE"], mock_broker_service, console)
-            
+
             output = console.export_text()
             assert "ERROR" in output or "Error" in output
 
     def test_validate_gateway_creation_failure(self, console, mock_broker_service):
-        with patch("cli.commands.validate.create_gateway", side_effect=Exception("Config error")):
+        with patch("cli.services.broker_registry.create_gateway", side_effect=Exception("Config error")):
             cmd_validate.run(["RELIANCE"], mock_broker_service, console)
-            
+
             output = console.export_text()
             assert "Error creating gateway" in output
 
     def test_validate_no_gateway(self, console, mock_broker_service):
-        with patch("cli.commands.validate.create_gateway", return_value=None):
+        with patch("cli.services.broker_registry.create_gateway", return_value=None):
             cmd_validate.run(["RELIANCE"], mock_broker_service, console)
-            
+
             output = console.export_text()
             assert "No broker gateway" in output
 
@@ -141,9 +140,9 @@ class TestBrokerValidation:
     """Tests for broker health validation."""
 
     def test_validate_broker(self, console, mock_broker_service, mock_gateway):
-        with patch("cli.commands.validate.create_gateway", return_value=mock_gateway):
+        with patch("cli.services.broker_registry.create_gateway", return_value=mock_gateway):
             cmd_validate.run(["broker"], mock_broker_service, console)
-            
+
             output = console.export_text()
             # Should run broker health checks
             assert output is not None
@@ -159,13 +158,13 @@ class TestDataValidation:
 
     def test_validate_data_valid_csv(self, console, mock_broker_service, valid_ohlcv_csv):
         cmd_validate.run(["data", str(valid_ohlcv_csv)], mock_broker_service, console)
-        
+
         output = console.export_text()
-        assert "Data Validation" in output or "validation" in output.lower()
+        assert "Validating" in output or "validating" in output.lower()
 
     def test_validate_data_missing_file(self, console, mock_broker_service):
         cmd_validate.run(["data", "/nonexistent.csv"], mock_broker_service, console)
-        
+
         output = console.export_text()
         assert "Error" in output or "not found" in output.lower()
 
@@ -175,9 +174,9 @@ class TestDataValidation:
         with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
             df.to_csv(f, index=False)
             invalid_csv = Path(f.name)
-        
+
         cmd_validate.run(["data", str(invalid_csv)], mock_broker_service, console)
-        
+
         output = console.export_text()
         # Should report schema issues
         assert output is not None
@@ -193,7 +192,7 @@ class TestValidateRouter:
 
     def test_validate_no_args(self, console, mock_broker_service):
         cmd_validate.run([], mock_broker_service, console)
-        
+
         output = console.export_text()
         assert "Usage" in output
 
@@ -203,13 +202,13 @@ class TestValidateRouter:
         assert output is not None
 
     def test_validate_broker_subcommand(self, console, mock_broker_service, mock_gateway):
-        with patch("cli.commands.validate.create_gateway", return_value=mock_gateway):
+        with patch("cli.services.broker_registry.create_gateway", return_value=mock_gateway):
             cmd_validate.run(["broker"], mock_broker_service, console)
             output = console.export_text()
             assert output is not None
 
     def test_validate_symbol_subcommand(self, console, mock_broker_service, mock_gateway):
-        with patch("cli.commands.validate.create_gateway", return_value=mock_gateway):
+        with patch("cli.services.broker_registry.create_gateway", return_value=mock_gateway):
             cmd_validate.run(["symbol", "RELIANCE"], mock_broker_service, console)
             output = console.export_text()
             assert output is not None

@@ -25,7 +25,6 @@ from cli.commands.analytics_utils import (
     print_scan_result,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -284,6 +283,9 @@ class TestPaperTradingCommand:
             mock_engine = MagicMock()
             mock_result = MagicMock()
             mock_result.summary = {"total_return": "10.0%", "sharpe": 1.0}
+            mock_result.session.positions = []
+            mock_result.session.open_positions = []
+            mock_result.session.trades = []
             mock_engine.run.return_value = mock_result
             mock_engine_cls.return_value = mock_engine
 
@@ -332,13 +334,19 @@ class TestSectorCommand:
     """Tests for analytics sector command."""
 
     def test_sector_with_valid_data(self, console):
-        # Mock the Analytics.sectors method to avoid complex data requirements
         with patch("cli.commands.analytics_sector.Analytics") as mock_analytics:
             mock_result = MagicMock()
+            mock_result.summary = "Sector analysis complete"
+            mock_result.name = "Sector Analysis"
+            mock_result.symbol = None
+            mock_result.metrics = {"it": 1.8, "bank": -0.4}
+            mock_result.scores = {"momentum": 0.75}
+            mock_result.signals = ["bullish", "rotation"]
             mock_analytics.return_value.sectors.return_value = mock_result
-            
+
             with patch("cli.commands.analytics_sector.load_dataframe") as mock_load:
                 import pandas as pd
+
                 mock_load.return_value = pd.DataFrame(
                     {
                         "sector": ["BANK", "IT", "Pharma"],
@@ -349,14 +357,18 @@ class TestSectorCommand:
                 mock_analytics.return_value.sectors.assert_called_once()
 
     def test_sector_without_data(self, console):
-        # Mock the Analytics.sectors method
         with patch("cli.commands.analytics_sector.Analytics") as mock_analytics:
             mock_result = MagicMock()
+            mock_result.summary = "Sector analysis complete"
+            mock_result.name = "Sector Analysis"
+            mock_result.symbol = None
+            mock_result.metrics = {"it": 1.8, "bank": -0.4}
+            mock_result.scores = {"momentum": 0.75}
+            mock_result.signals = ["bullish"]
             mock_analytics.return_value.sectors.return_value = mock_result
-            
+
             with patch("cli.commands.analytics_sector.load_dataframe", return_value=None):
                 run_sector([], console)
-                # Should use demo data
                 mock_analytics.return_value.sectors.assert_called_once()
 
 

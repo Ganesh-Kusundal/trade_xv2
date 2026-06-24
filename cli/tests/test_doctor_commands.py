@@ -17,7 +17,6 @@ from rich.console import Console
 from cli.commands import doctor as cmd_doctor
 from cli.commands.doctor import CheckResult
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -45,44 +44,45 @@ def mock_broker_service():
 def mock_gateway():
     """Create a comprehensive mock gateway."""
     gw = MagicMock()
-    
+
     # Market data
     quote = MagicMock()
     quote.ltp = 2450.50
     quote.volume = 1500000
     gw.market_data.get_quote.return_value = quote
-    
+
     depth = MagicMock()
     depth.bids = [MagicMock()]
     depth.asks = [MagicMock()]
     gw.market_data.get_depth.return_value = depth
-    
+
     import pandas as pd
+
     gw.historical.get_historical.return_value = pd.DataFrame(
         {"timestamp": pd.date_range("2026-01-01", periods=10, freq="D")}
     )
-    
+
     # Options
     gw.options.get_expiries.return_value = ["2026-06-25"]
     gw.options.get_option_chain.return_value = {"strikes": [], "spot": 24600}
-    
+
     # Futures
     gw.futures.get_contracts.return_value = []
-    
+
     # Orders & Trades
     gw.orders.get_orderbook.return_value = []
     gw.orders.get_trade_book.return_value = []
-    
+
     # Portfolio
     gw.portfolio.get_holdings.return_value = []
     gw.portfolio.get_positions.return_value = []
-    
+
     # Funds
     funds = MagicMock()
     funds.available_balance = 100000.0
     funds.used_margin = 0.0
     gw.funds.return_value = funds
-    
+
     return gw
 
 
@@ -160,9 +160,9 @@ class TestDoctorCommand:
 
     def test_doctor_success(self, console, mock_broker_service, mock_gateway):
         mock_broker_service.active_broker = mock_gateway
-        
+
         cmd_doctor.run([], mock_broker_service, console)
-        
+
         output = console.export_text()
         assert "Diagnostics" in output or "Doctor" in output
         # Should show multiple check categories
@@ -170,9 +170,9 @@ class TestDoctorCommand:
 
     def test_doctor_no_gateway(self, console, mock_broker_service):
         mock_broker_service.active_broker = None
-        
+
         cmd_doctor.run([], mock_broker_service, console)
-        
+
         output = console.export_text()
         # Should still run and report issues
         assert output is not None
@@ -183,7 +183,7 @@ class TestDoctorCommand:
         mock_gateway.quote.side_effect = Exception("API down")
         mock_gateway.funds.side_effect = Exception("API down")
         mock_broker_service.active_broker = mock_gateway
-        
+
         # Should not crash
         cmd_doctor.run([], mock_broker_service, console)
         output = console.export_text()
@@ -199,7 +199,9 @@ class TestBrokerRegistryCheck:
     """Tests for broker registry diagnostic checks."""
 
     def test_check_broker_registry_with_brokers(self):
-        with patch("cli.commands.doctor.strategies.broker_registry.list_available_brokers") as mock_list:
+        with patch(
+            "cli.commands.doctor.strategies.broker_registry.list_available_brokers"
+        ) as mock_list:
             mock_list.return_value = [
                 {"name": "dhan", "env_file": ".env.local", "available": True},
                 {"name": "paper", "env_file": None, "available": True},
@@ -209,7 +211,9 @@ class TestBrokerRegistryCheck:
             assert any(r.name == "Registered Brokers" for r in results)
 
     def test_check_broker_registry_empty(self):
-        with patch("cli.commands.doctor.strategies.broker_registry.list_available_brokers", return_value=[]):
+        with patch(
+            "cli.commands.doctor.strategies.broker_registry.list_available_brokers", return_value=[]
+        ):
             results = cmd_doctor._check_broker_registry()
             assert any(r.status == "FAIL" for r in results)
 
@@ -218,18 +222,38 @@ class TestGatewayCreationCheck:
     """Tests for gateway creation smoke test."""
 
     def test_gateway_creation_success(self):
-        with patch("cli.commands.doctor.strategies.gateway_creation.list_available_brokers") as mock_list, \
-             patch("cli.commands.doctor.strategies.gateway_creation.create_gateway") as mock_create:
+        with (
+            patch(
+                "cli.commands.doctor.strategies.gateway_creation.list_available_brokers"
+            ) as mock_list,
+            patch("cli.commands.doctor.strategies.gateway_creation.bootstrap_gateway") as mock_bootstrap,
+        ):
+            from brokers.common.connection.bootstrap_result import BootstrapResult, BootstrapStatus
+
             mock_list.return_value = [
                 {"name": "dhan", "env_file": ".env.local", "available": True},
             ]
-            mock_create.return_value = MagicMock()
+            mock_bootstrap.return_value = BootstrapResult(
+                status=BootstrapStatus.READY,
+                broker="dhan",
+                gateway=MagicMock(),
+                probe_passed=True,
+                authenticated=True,
+                probe_name="mock",
+            )
             results = cmd_doctor._check_gateway_creation()
             assert any(r.status == "PASS" for r in results)
 
     def test_gateway_creation_failure(self):
-        with patch("cli.commands.doctor.strategies.gateway_creation.list_available_brokers") as mock_list, \
-             patch("cli.commands.doctor.strategies.gateway_creation.create_gateway", side_effect=Exception("Config error")):
+        with (
+            patch(
+                "cli.commands.doctor.strategies.gateway_creation.list_available_brokers"
+            ) as mock_list,
+            patch(
+                "cli.commands.doctor.strategies.gateway_creation.bootstrap_gateway",
+                side_effect=Exception("Config error"),
+            ),
+        ):
             mock_list.return_value = [
                 {"name": "dhan", "env_file": ".env.local", "available": True},
             ]
@@ -327,7 +351,7 @@ class TestDoctorEdgeCases:
         mock_gateway.depth.side_effect = Exception("Depth API down")
         mock_gateway.funds.return_value = MagicMock(available_balance=50000)
         mock_broker_service.active_broker = mock_gateway
-        
+
         # Should not crash, should report mixed results
         cmd_doctor.run([], mock_broker_service, console)
         output = console.export_text()
@@ -336,16 +360,17 @@ class TestDoctorEdgeCases:
     def test_doctor_timeout_handling(self, console, mock_broker_service):
         """Gateway calls hang indefinitely."""
         import time
+
         mock_gateway = MagicMock()
-        
+
         def slow_call(*args, **kwargs):
             time.sleep(0.1)  # Simulate slow call
             return MagicMock()
-        
+
         mock_gateway.quote.side_effect = slow_call
         mock_gateway.funds.side_effect = slow_call
         mock_broker_service.active_broker = mock_gateway
-        
+
         # Should complete within reasonable time
         cmd_doctor.run([], mock_broker_service, console)
         output = console.export_text()
