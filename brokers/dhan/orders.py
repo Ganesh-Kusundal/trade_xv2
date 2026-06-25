@@ -16,7 +16,7 @@ from contextlib import contextmanager
 from decimal import Decimal
 from typing import Any
 
-from application.oms._internal.risk_manager import RiskManager
+from application.oms.risk_manager import RiskManager
 from brokers.common.dtos import BrokerOrderPayload
 from brokers.dhan.domain import Exchange
 from brokers.dhan.exceptions import DhanError, OrderError

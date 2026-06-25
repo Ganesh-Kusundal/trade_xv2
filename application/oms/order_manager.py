@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING, Any
 from application.oms._internal.order_audit_logger import OrderAuditLogger
 from application.oms._internal.order_position_updater import OrderPositionUpdater
 from application.oms._internal.order_state_validator import OrderStateValidator
-from application.oms._internal.risk_manager import RiskManager
+from application.oms.risk_manager import RiskManager
 from application.oms._internal.reentrancy_guard import _ReentrancyGuard
 from domain.entities import Order, OrderStatus, OrderType, ProductType, Side, Trade
 from domain.types import ORDER_STATUS_TRANSITIONS

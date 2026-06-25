@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import logging
 import threading
+from cachetools import TTLCache
 from collections.abc import Callable
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -14,7 +15,7 @@ if TYPE_CHECKING:
     pass
 
 from brokers.dhan.reconnecting_service import ReconnectingServiceMixin
-from brokers.dhan.segments import to_sdk_int
+from brokers.dhan.segments import EXCHANGE_TO_SEGMENT, to_sdk_int
 from domain import (
     DepthLevel,
     MarketDepth,
@@ -50,18 +51,41 @@ def _sdk_order_update_class() -> type:
     return OrderUpdate
 
 
+# Module-level cache for the mode map (computed once, lazily on first access).
+# Avoids rebuilding the dict and re-importing MarketFeed on every call.
+_MODE_MAP: dict[str, int] | None = None
+
+
 def _mode_map() -> dict[str, int]:
-    mf = _sdk_market_feed_class()
-    return {
-        "LTP": mf.Ticker,
-        "TICKER": mf.Ticker,
-        "QUOTE": mf.Quote,
-        "FULL": mf.Full,
-        "DEPTH": mf.Quote,  # v2 does not support Depth (19)
-    }
+    """Return the mode-name -> SDK constant mapping (cached at module level)."""
+    global _MODE_MAP
+    if _MODE_MAP is None:
+        mf = _sdk_market_feed_class()
+        _MODE_MAP = {
+            "LTP": mf.Ticker,
+            "TICKER": mf.Ticker,
+            "QUOTE": mf.Quote,
+            "FULL": mf.Full,
+            "DEPTH": mf.Quote,  # v2 does not support Depth (19)
+        }
+    return _MODE_MAP
 
 
-# SDK subscription type constants (lazy via _mode_map)
+def _to_decimal(value: Any, default: str = "0") -> Decimal:
+    """Convert a value to Decimal, avoiding redundant conversion if already Decimal.
+
+    Task 2.4: _transform_quote already produces Decimal values. This helper
+    ensures _publish_tick does not re-convert them through str() unnecessarily,
+    while still handling non-Decimal inputs from the backfill path.
+    """
+    if isinstance(value, Decimal):
+        return value
+    if value is None:
+        return Decimal(default)
+    return Decimal(str(value))
+
+
+# SDK subscription type constants (lazy via _mode_map, cached)
 
 
 def _to_sdk_instruments(instruments: list[tuple]) -> list[tuple]:
@@ -76,6 +100,9 @@ def _to_sdk_instruments(instruments: list[tuple]) -> list[tuple]:
         e.g. [(5, 466583, 15)]
     """
     sdk_instruments = []
+    # Task 1.6: resolve mode map once before the loop (was called per instrument).
+    mode_map = _mode_map()
+    default_mode = _sdk_market_feed_class().Ticker
     for item in instruments:
         if len(item) != 3:
             logger.warning("Skipping malformed instrument: %s", item)
@@ -101,7 +128,7 @@ def _to_sdk_instruments(instruments: list[tuple]) -> list[tuple]:
             continue
         sid_int = int(security_id)
         mode_int = (
-            _mode_map().get(str(mode).upper(), _sdk_market_feed_class().Ticker)
+            mode_map.get(str(mode).upper(), default_mode)
             if isinstance(mode, str)
             else int(mode)
         )
@@ -740,7 +767,9 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
         try:
             ltp_raw = quote.get("ltp")
             symbol = quote.get("symbol", "")
-            if ltp_raw is None or Decimal(str(ltp_raw)) == Decimal("0"):
+            # Task 2.4: use _to_decimal to avoid redundant Decimal(str(Decimal()))
+            ltp = _to_decimal(ltp_raw)
+            if ltp_raw is None or ltp == 0:
                 self._dropped_ticks += 1
                 logger.warning("tick_dropped_missing_or_zero_ltp: symbol=%s", symbol or "<unknown>")
                 return
@@ -750,15 +779,17 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
                 return
 
             # All critical fields present — build the Quote and publish.
+            # Task 2.4: values from _transform_quote are already Decimal;
+            # _to_decimal is a no-op for Decimal, converting only for backfill raw data.
             q = Quote(
                 symbol=symbol,
-                ltp=Decimal(str(ltp_raw)),
-                open=Decimal(str(quote.get("open", Decimal("0")))),
-                high=Decimal(str(quote.get("high", Decimal("0")))),
-                low=Decimal(str(quote.get("low", Decimal("0")))),
-                close=Decimal(str(quote.get("close", Decimal("0")))),
+                ltp=ltp,
+                open=_to_decimal(quote.get("open")),
+                high=_to_decimal(quote.get("high")),
+                low=_to_decimal(quote.get("low")),
+                close=_to_decimal(quote.get("close")),
                 volume=quote.get("volume", 0),
-                change=Decimal(str(quote.get("change", Decimal("0")))),
+                change=_to_decimal(quote.get("change")),
             )
             self._event_bus.publish(
                 DomainEvent.now(
@@ -896,7 +927,7 @@ class DhanOrderStream(ReconnectingServiceMixin, ManagedService):
         self._order_callbacks: list[Callable[[dict], None]] = []
         self._event_bus = event_bus
         # Cumulative filledQty per order — OMS expects incremental TRADE qty.
-        self._last_cumulative_filled: dict[str, int] = {}
+        self._last_cumulative_filled: TTLCache = TTLCache(maxsize=10000, ttl=3600)  # 1-hour TTL, bounds memory
         # Initialise the shared reconnect / message-tracking state
         # owned by the mixin (single source of truth across all
         # Dhan WS services).
@@ -1249,46 +1280,88 @@ class PollingMarketFeed(ReconnectingServiceMixin, ManagedService):
     def is_connected(self) -> bool:
         return self._is_connected
 
+    # Dhan batch LTP API supports up to 1000 symbols per request.
+    _BATCH_SIZE = 1000
+
     def _poll_loop(self) -> None:
-        """Poll each instrument and dispatch callbacks."""
+        """Poll instruments using batch LTP API and dispatch callbacks.
+
+        Task 2.6: replaced per-instrument POST loop with a single batch
+        POST per segment (up to 1000 symbols per request). This reduces
+        HTTP overhead from N requests per cycle to ceil(N/1000).
+        """
         while not self._stop_event.is_set():
-            for exchange, security_id, _mode in self._instruments:
-                if self._stop_event.is_set():
-                    break
+            try:
+                self._poll_batch()
+            except Exception as exc:
+                logger.warning("Polling batch error: %s", exc)
+            self._stop_event.wait(timeout=self._interval)
+
+    def _poll_batch(self) -> None:
+        """Execute a single batch poll cycle across all instruments."""
+        from collections import defaultdict
+
+        # Group instruments by segment for batch requests
+        segment_groups: dict[str, list[tuple[str, int]]] = defaultdict(list)
+        for exchange, security_id, _mode in self._instruments:
+            if self._stop_event.is_set():
+                return
+            segment = EXCHANGE_TO_SEGMENT.get(str(exchange).upper(), "NSE_EQ")
+            sid = int(security_id)
+            segment_groups[segment].append((str(security_id), sid))
+
+        for segment, sid_list in segment_groups.items():
+            if self._stop_event.is_set():
+                return
+            # Chunk into batches of _BATCH_SIZE (Dhan API limit)
+            for chunk_start in range(0, len(sid_list), self._BATCH_SIZE):
+                chunk = sid_list[chunk_start : chunk_start + self._BATCH_SIZE]
+                sids = [sid for _, sid in chunk]
+                sid_lookup = {sid: sec_id for sec_id, sid in chunk}
                 try:
-                    from brokers.dhan.segments import EXCHANGE_TO_SEGMENT
-
-                    segment = EXCHANGE_TO_SEGMENT.get(str(exchange).upper(), "NSE_EQ")
-                    sid = int(security_id)
-                    data = self._client.post("/marketfeed/ltp", json={segment: [sid]})
-                    raw = data.get("data", {}).get(segment, {}).get(str(sid), {})
-                    ltp = raw.get("last_price", 0)
-
-                    symbol = str(security_id)
-                    if self._resolver:
-                        inst = self._resolver.get_by_security_id(str(security_id))
-                        if inst:
-                            symbol = inst.symbol
-
-                    quote = {
-                        "symbol": symbol,
-                        "security_id": str(security_id),
-                        "ltp": Decimal(str(ltp)),
-                        "open": Decimal("0"),
-                        "high": Decimal("0"),
-                        "low": Decimal("0"),
-                        "close": Decimal("0"),
-                        "volume": 0,
-                        "change": Decimal("0"),
-                    }
-                    for cb in self._snapshot_callbacks(self._quote_callbacks):
-                        try:
-                            cb(quote)
-                        except Exception as exc:
-                            logger.error("Polling callback error: %s", exc)
+                    data = self._client.post(
+                        "/marketfeed/ltp", json={segment: sids}
+                    )
+                    segment_data = data.get("data", {}).get(segment, {})
+                    self._dispatch_batch_results(segment_data, sid_lookup)
                     # Plan §7.2: shared message-tracking through the mixin.
                     self._note_message_received()
                 except Exception as exc:
-                    logger.warning("Polling error for %s: %s", security_id, exc)
+                    logger.warning(
+                        "Polling batch error for segment %s: %s", segment, exc
+                    )
 
-            self._stop_event.wait(timeout=self._interval)
+    def _dispatch_batch_results(
+        self, segment_data: dict, sid_lookup: dict[int, str]
+    ) -> None:
+        """Parse batch response and dispatch quotes to callbacks."""
+        callbacks = self._snapshot_callbacks(self._quote_callbacks)
+        for sid, raw in segment_data.items():
+            sec_id = sid_lookup.get(int(sid))
+            if sec_id is None:
+                continue
+            ltp = raw.get("last_price", 0)
+            symbol = sec_id
+            if self._resolver:
+                try:
+                    inst = self._resolver.get_by_security_id(sec_id)
+                    if inst:
+                        symbol = inst.symbol
+                except Exception as exc:
+                    logger.warning("Polling resolver error for %s: %s", sec_id, exc)
+            quote = {
+                "symbol": symbol,
+                "security_id": sec_id,
+                "ltp": Decimal(str(ltp)),
+                "open": Decimal("0"),
+                "high": Decimal("0"),
+                "low": Decimal("0"),
+                "close": Decimal("0"),
+                "volume": 0,
+                "change": Decimal("0"),
+            }
+            for cb in callbacks:
+                try:
+                    cb(quote)
+                except Exception as exc:
+                    logger.error("Polling callback error: %s", exc)

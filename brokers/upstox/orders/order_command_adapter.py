@@ -9,7 +9,7 @@ import logging
 from decimal import Decimal
 from typing import Any
 
-from application.oms._internal.risk_manager import RiskManager
+from application.oms.risk_manager import RiskManager
 from brokers.common.dtos import BrokerOrderPayload
 from brokers.common.gateway_interfaces import IdempotencyCachePort, OrderCommand
 from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver

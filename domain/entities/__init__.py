@@ -9,9 +9,9 @@ The individual sub-modules are::
     domain.entities.order      — Order, OrderResponse, FieldMapping
     domain.entities.order_lifecycle — ORDER_STATUS_TRANSITIONS
     domain.entities.trade      — Trade
-    domain.entities.position   — Position, Holding
+    domain.entities.position   — Position, Holding, PositionState, POSITION_STATE_TRANSITIONS
     domain.entities.account    — Balance, FundLimits (alias)
-    domain.entities.market     — Quote, MarketDepth, DepthLevel
+    domain.entities.market     — Quote, MarketDepth, DepthLevel, DepthKind, MarketTick, QuoteSnapshot
     domain.entities.options    — OptionChain, OptionStrike, OptionLeg, FutureChain, FutureContract, OptionContract
     domain.entities.instrument — Instrument
     domain.entities.alerts     — ConditionalAlert, ConditionalAlertRequest, MarketIntelligenceSnapshot, PnlExitPolicy, PnlExitResult
@@ -39,9 +39,12 @@ from domain.entities.instrument import Instrument
 
 # Market data
 from domain.entities.market import (
+    DepthKind,
     DepthLevel,
     MarketDepth,
+    MarketTick,
     Quote,
+    QuoteSnapshot,
 )
 
 # Options / Futures
@@ -64,6 +67,8 @@ from domain.entities.order_lifecycle import ORDER_STATUS_TRANSITIONS
 
 # Position / Holding
 from domain.entities.position import (
+    POSITION_STATE_TRANSITIONS,
+    PositionState,
     Holding,
     Position,
 )
@@ -87,6 +92,7 @@ __all__ = [
     "Balance",
     "ConditionalAlert",
     "ConditionalAlertRequest",
+    "DepthKind",
     "DepthLevel",
     "FieldMapping",
     "FundLimits",
@@ -96,10 +102,13 @@ __all__ = [
     "Instrument",
     "MarketDepth",
     "MarketIntelligenceSnapshot",
+    "MarketTick",
     "OptionChain",
     "OptionContract",
     "OptionLeg",
     "OptionStrike",
+    "POSITION_STATE_TRANSITIONS",
+    "PositionState",
     "Order",
     "OrderResponse",
     "OrderStatus",
@@ -109,6 +118,7 @@ __all__ = [
     "Position",
     "ProductType",
     "Quote",
+    "QuoteSnapshot",
     "Side",
     "Trade",
     "Validity",

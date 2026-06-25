@@ -36,7 +36,7 @@ class PositionManager:
         event_bus: EventBus | None = None,
         processed_trade_repository: Any | None = None,
         metrics: Any | None = None,
-        enforce_state_transitions: bool = False,  # P2-Phase 2: Audit-only by default
+        enforce_state_transitions: bool = True,  # P2-Phase 2: Enforce valid state transitions
     ) -> None:
         self._lock = threading.RLock()
         self._positions: dict[str, Position] = {}

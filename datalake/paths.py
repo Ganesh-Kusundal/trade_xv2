@@ -179,6 +179,41 @@ def migrate_legacy_to_curated(
     raise NotImplementedError("Use scripts/migration/migrate_to_curated_layout.py instead")
 
 
+def get_candle_path(
+    symbol: str,
+    timeframe: str,
+    root: str = DEFAULT_DATA_ROOT,
+) -> Path:
+    """Return the legacy hive-partition path for a symbol's candle file.
+
+    This is the canonical single-location helper used by
+    :mod:`datalake.cache_utils` and :mod:`datalake.gateway` to locate
+    a symbol's parquet file without constructing the path inline.
+
+    Layout: ``{root}/equities/candles/timeframe={timeframe}/symbol={symbol}/data.parquet``
+
+    Parameters
+    ----------
+    symbol:
+        Instrument symbol (will be normalized).
+    timeframe:
+        Candle timeframe (e.g. ``"1m"``, ``"5m"``).
+    root:
+        Datalake root directory.  Defaults to :data:`DEFAULT_DATA_ROOT`.
+    """
+    from datalake.symbols import normalize_symbol
+
+    symbol = normalize_symbol(symbol)
+    return (
+        Path(root)
+        / "equities"
+        / "candles"
+        / f"timeframe={timeframe}"
+        / f"symbol={symbol}"
+        / "data.parquet"
+    )
+
+
 def option_partition_path(
     root: str,
     expiry: str,
@@ -238,6 +273,7 @@ __all__ = [
     "PARTITION_UNDERLYING",
     "SUPPORTED_TIMEFRAMES",
     "curated_equity_glob",
+    "get_candle_path",
     "curated_equity_path",
     "legacy_symbol_partition_path",
     "migrate_legacy_to_curated",

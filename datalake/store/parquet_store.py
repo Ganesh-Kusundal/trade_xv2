@@ -8,13 +8,19 @@ from pathlib import Path
 
 import duckdb
 import pandas as pd
-from cachetools import TTLCache
+from cachetools import TTLCache, cached
 
 from datalake.cache_utils import generate_cache_key
 from datalake.paths import CURATED_ROOT, curated_equity_glob, curated_equity_path
 from datalake.symbols import normalize_symbol, symbol_to_path
 
 logger = logging.getLogger(__name__)
+
+# Module-level TTL cache for curated candle loads.
+# Keyed by (curated_root, symbol, timeframe) so different store roots
+# (e.g. in tests) do not collide.
+_curated_cache: TTLCache = TTLCache(maxsize=1000, ttl=300)  # 5-minute TTL
+_curated_cache_lock = threading.Lock()
 
 
 class ParquetStore:
@@ -60,8 +66,16 @@ class ParquetStore:
             return "legacy"
         return "none"
 
+    @cached(
+        cache=_curated_cache,
+        key=lambda self, symbol, timeframe: (str(self._curated_root), symbol, timeframe),
+        lock=_curated_cache_lock,
+    )
     def load_curated_candles(self, symbol: str, timeframe: str) -> pd.DataFrame | None:
-        """Load candles from the date-partitioned curated layout using DuckDB."""
+        """Load candles from the date-partitioned curated layout using DuckDB.
+
+        Results are cached with a 5-minute TTL via ``_curated_cache``.
+        """
         symbol = normalize_symbol(symbol)
         glob_pattern = curated_equity_glob(root=str(self._curated_root))
         try:
@@ -79,6 +93,14 @@ class ParquetStore:
         except Exception as exc:
             logger.error("Failed to read curated candles for %s: %s", symbol, exc)
             return None
+
+    def invalidate_curated_cache(self) -> None:
+        """Clear the curated candles cache.
+
+        Call this when underlying parquet data is refreshed or updated.
+        """
+        with _curated_cache_lock:
+            _curated_cache.clear()
 
     def load_candles(self, symbol: str, timeframe: str) -> pd.DataFrame | None:
         """Load candles for *symbol* at *timeframe*, resampling from 1m when needed.

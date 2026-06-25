@@ -112,18 +112,18 @@ def _build_processed_trade_repository() -> Any:
 
 
 def _build_event_log() -> Any:
-    """Build EventLog for crash recovery and OMS replay.
+    """Build BufferedEventLog for crash recovery and OMS replay.
 
-    Creates an EventLog for crash recovery and OMS replay on startup.
+    Creates a BufferedEventLog for crash recovery and OMS replay on startup.
     The TradingContext wires this into the EventBus.
 
     Returns:
-        EventLog instance or None if construction fails
+        BufferedEventLog instance or None if construction fails
     """
     try:
-        from infrastructure.event_log import EventLog
+        from infrastructure.event_log import BufferedEventLog
 
-        event_log = EventLog(events_dir=Path("runtime/event-log"))
+        event_log = BufferedEventLog(events_dir=Path("runtime/event-log"))
         return event_log
     except Exception as exc:
         logger.error("event_log_build_failed: %s", exc)

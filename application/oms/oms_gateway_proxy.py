@@ -41,7 +41,7 @@ from typing import TYPE_CHECKING, Any
 from domain.entities import OrderResponse
 
 if TYPE_CHECKING:
-    from application.oms._internal.risk_manager import RiskManager
+    from application.oms.risk_manager import RiskManager
     from brokers.common.gateway import MarketDataGateway
 
 logger = logging.getLogger(__name__)

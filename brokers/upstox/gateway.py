@@ -626,10 +626,16 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         return response
 
     def get_order(self, order_id: str) -> Order | None:
-        """Query a single order by ID from the orderbook.
+        """Query a single order by ID via direct lookup.
+
+        Uses the UpstoxOrderQueryAdapter.get_order() method which calls
+        the order details endpoint directly, avoiding a full orderbook
+        fetch. This halves API calls in cancel_order() verification.
 
         H1 Critical Fix: Enables post-cancellation verification by allowing
         lookup of individual orders.
+
+        Performance: O(1) single-order fetch instead of O(n) orderbook scan.
 
         Args:
             order_id: Broker order ID to look up
@@ -637,6 +643,10 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         Returns:
             Order if found, None if not in orderbook
         """
+        order_query = getattr(self._broker, "order_query", None)
+        if order_query is not None:
+            return order_query.get_order(order_id)
+        # Fallback: scan orderbook (backward compat with minimal test mocks)
         orderbook = self.get_orderbook()
         for order in orderbook:
             if order.order_id == order_id:

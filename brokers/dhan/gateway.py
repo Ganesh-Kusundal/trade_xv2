@@ -179,22 +179,29 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         return response
 
     def get_order(self, order_id: str) -> Order | None:
-        """Query a single order by ID from the orderbook.
+        """Query a single order by ID via direct lookup.
+
+        Uses the OrdersAdapter.get_order() method which calls
+        GET /orders/{order_id} directly, avoiding a full orderbook
+        fetch. This halves API calls in cancel_order() verification.
 
         H1 Critical Fix: Enables post-cancellation verification by allowing
         lookup of individual orders.
+
+        Performance: O(1) single-order fetch instead of O(n) orderbook scan.
 
         Args:
             order_id: Broker order ID to look up
 
         Returns:
-            Order if found, None if not in orderbook
+            Order if found, None if not in orderbook or on error
         """
-        orderbook = self._conn.orders.get_orderbook()
-        for order in orderbook:
-            if order.order_id == order_id:
-                return order
-        return None
+        try:
+            return self._conn.orders.get_order(order_id)
+        except Exception:
+            # Order not found or API error — return None to maintain
+            # the Order | None contract expected by callers.
+            return None
 
     def modify_order(self, order_id: str, **changes: Any) -> OrderResponse:
         from domain.entities import OrderResponse

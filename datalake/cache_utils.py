@@ -206,6 +206,7 @@ def load_candles_fast(
 def get_last_candle_fast(
     symbol: str,
     timeframe: str,
+    root: str | None = None,
 ) -> dict | None:
     """Get last candle efficiently using DuckDB ORDER BY + LIMIT.
 
@@ -216,6 +217,10 @@ def get_last_candle_fast(
     Args:
         symbol: Instrument symbol
         timeframe: Candle timeframe
+        root: Optional datalake root directory.  When *None* the
+            default layout (``market_data``) is used.  Pass the
+            gateway's own root to resolve paths correctly when the
+            datalake lives elsewhere.
 
     Returns:
         Last candle as dict, or None if no data
@@ -228,7 +233,7 @@ def get_last_candle_fast(
     from datalake.duckdb_utils import duckdb_connection
     from datalake.paths import get_candle_path
 
-    path = get_candle_path(symbol, timeframe)
+    path = get_candle_path(symbol, timeframe, root=root) if root else get_candle_path(symbol, timeframe)
     if not path.exists():
         return None
 

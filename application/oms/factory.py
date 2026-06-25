@@ -13,13 +13,13 @@ from application.oms.position_manager import PositionManager
 from application.oms.risk_manager import RiskConfig, RiskManager
 from domain.constants import RECONCILIATION_INTERVAL_SECONDS
 from infrastructure.event_bus import EventBus, ProcessedTradeRepository
-from infrastructure.event_log import EventLog
+from infrastructure.event_log import BufferedEventLog, EventLog
 
 logger = logging.getLogger(__name__)
 
 
 def create_trading_context(
-    event_log: EventLog | None = None,
+    event_log: BufferedEventLog | EventLog | None = None,
     reconciliation_service: Any = None,
     reconciliation_interval_seconds: float = RECONCILIATION_INTERVAL_SECONDS,
     risk_config: RiskConfig | None = None,
@@ -37,7 +37,7 @@ def create_trading_context(
     when wiring reconciliation into the broker gateway creation flow.
 
     Args:
-        event_log: Persistent event log for replay and audit.
+        event_log: Persistent event log for replay and audit. Use BufferedEventLog for production.
         reconciliation_service: Broker-specific reconciliation service that
             exposes a ``reconcile(local_orders, local_positions)`` method.
             When provided, periodic reconciliation starts automatically.

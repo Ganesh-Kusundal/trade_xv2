@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import threading
+import warnings
 from collections.abc import Callable
 from datetime import date, datetime, timezone
 from decimal import Decimal
@@ -121,6 +122,13 @@ class EventLog:
     """
 
     def __init__(self, events_dir: str | Path | None = None) -> None:
+        if type(self) is EventLog:
+            warnings.warn(
+                "EventLog is deprecated; use BufferedEventLog instead. "
+                "EventLog will be removed in a future version.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         self._events_dir = Path(events_dir) if events_dir else DEFAULT_EVENTS_DIR
         self._events_dir.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()

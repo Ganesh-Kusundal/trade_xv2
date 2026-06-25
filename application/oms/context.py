@@ -25,7 +25,7 @@ from infrastructure.event_bus import (
 from infrastructure.event_bus.persistent_dead_letter_queue import (
     create_default_dead_letter_queue,
 )
-from infrastructure.event_log import EventLog
+from infrastructure.event_log import BufferedEventLog, EventLog
 from infrastructure.lifecycle import LifecycleManager
 from infrastructure.observability.event_metrics import EventMetrics
 
@@ -79,7 +79,7 @@ class TradingContext:
     def __init__(
         self,
         event_bus: EventBus | None = None,
-        event_log: EventLog | None = None,
+        event_log: BufferedEventLog | EventLog | None = None,
         order_manager: OrderManager | None = None,
         position_manager: PositionManager | None = None,
         risk_manager: RiskManager | None = None,
@@ -223,7 +223,7 @@ class TradingContext:
         return self._event_bus
 
     @property
-    def event_log(self) -> EventLog | None:
+    def event_log(self) -> BufferedEventLog | EventLog | None:
         return self._event_log
 
     @property
