@@ -30,7 +30,7 @@ from application.oms._internal.order_audit_logger import OrderAuditLogger
 from application.oms._internal.order_position_updater import OrderPositionUpdater
 from application.oms._internal.order_state_validator import OrderStateValidator
 from application.oms._internal.risk_manager import RiskManager
-from brokers.common.oms._internal.reentrancy_guard import _ReentrancyGuard
+from application.oms._internal.reentrancy_guard import _ReentrancyGuard
 from domain.entities import Order, OrderStatus, OrderType, ProductType, Side, Trade
 from domain.types import ORDER_STATUS_TRANSITIONS
 from infrastructure.event_bus import (
@@ -180,6 +180,30 @@ class OrderManager:
             return True
         return self._risk_manager.check_order(order).allowed
 
+    def set_placement_gate(self, gate_fn: Callable[[], tuple[bool, str | None]]) -> None:
+        """Set a callable that gates order placement.
+
+        The gate function is called before placing an order. If it returns
+        ``(False, reason)``, the order is rejected with the given reason.
+
+        Parameters
+        ----------
+        gate_fn:
+            Callable returning (allowed, reason). Example:
+            ``lambda: (True, None)`` always allows placement.
+        """
+        self._placement_gate = gate_fn
+
+    def _check_placement_gate(self) -> str | None:
+        """Check if order placement is allowed. Returns rejection reason or None."""
+        gate_fn = getattr(self, "_placement_gate", None)
+        if gate_fn is None:
+            return None
+        allowed, reason = gate_fn()
+        if allowed:
+            return None
+        return reason or "Order placement blocked by gate"
+
     # ── Public API ──────────────────────────────────────────────────────────
 
     def place_order(
@@ -206,6 +230,30 @@ class OrderManager:
 
         # ── Phase 2: Build order + risk check (no lock) ──
         try:
+            # Check placement gate first
+            gate_reason = self._check_placement_gate()
+            if gate_reason is not None:
+                self._publish(
+                    EventType.ORDER_REJECTED.value,
+                    Order(
+                        order_id=order_id,
+                        symbol=request.symbol,
+                        exchange=request.exchange,
+                        side=request.side,
+                        order_type=request.order_type,
+                        quantity=request.quantity,
+                        price=request.price,
+                        product_type=request.product_type,
+                        status=OrderStatus.REJECTED,
+                        timestamp=datetime.now(timezone.utc),
+                        correlation_id=request.correlation_id,
+                    ),
+                    reason=gate_reason,
+                )
+                with self._lock:
+                    self._pending_correlation.discard(request.correlation_id)
+                return OrderResult(success=False, error=gate_reason)
+
             order = Order(
                 order_id=order_id,
                 symbol=request.symbol,

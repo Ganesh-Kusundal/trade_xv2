@@ -12,6 +12,22 @@ from typing import Any
 from domain.entities import OrderResponse
 
 
+class _FakeExtendedCapabilities:
+    """Minimal extended capabilities stub for FakeBrokerGateway."""
+
+    def get_ipos(self) -> list:
+        return []
+
+    def get_pnl(self, isin: str) -> dict:
+        return {}
+
+    def get_mutual_fund_holdings(self) -> list:
+        return []
+
+    def initiate_payout(self, **kwargs: Any) -> dict:
+        return {}
+
+
 class FakeBrokerGateway:
     """In-memory fake broker gateway for testing.
 
@@ -24,6 +40,7 @@ class FakeBrokerGateway:
         self._order_counter: int = 0
         self._default_response: OrderResponse | None = None
         self._responses: dict[str, OrderResponse] = {}
+        self.extended = _FakeExtendedCapabilities()
 
     def place_order(
         self,
