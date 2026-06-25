@@ -52,8 +52,12 @@ class TestGatewayImportHygiene:
                 pytest.fail(f"Local import of {node.module} found inside function")
 
     def test_dhan_gateway_no_local_websocket_imports(self):
-        """DhanMarketFeed must be imported at module level in dhan/gateway.py."""
-        with open(GATEWAY_DIR / "dhan" / "gateway.py") as f:
+        """DhanMarketFeed must be imported at module level in dhan/connection.py.
+
+        Note: The gateway delegates WebSocket creation to the connection layer,
+        so we check connection.py instead of gateway.py.
+        """
+        with open(GATEWAY_DIR / "dhan" / "connection.py") as f:
             tree = ast.parse(f.read())
 
         top_imports = set()
@@ -62,7 +66,7 @@ class TestGatewayImportHygiene:
                 for alias in node.names:
                     top_imports.add(alias.asname or alias.name)
 
-        assert "DhanMarketFeed" in top_imports, "DhanMarketFeed must be imported at module level"
+        assert "DhanMarketFeed" in top_imports, "DhanMarketFeed must be imported at module level in connection.py"
 
 
 class TestGatewaySegmentConstants:

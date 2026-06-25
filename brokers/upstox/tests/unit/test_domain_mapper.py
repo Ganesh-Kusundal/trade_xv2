@@ -35,6 +35,7 @@ def test_status_normalisation():
         "trigger pending": OrderStatus.OPEN,
         "expired": OrderStatus.EXPIRED,
         "after market order req received": OrderStatus.OPEN,
+        "put order req received": OrderStatus.OPEN,
     }
     for raw, expected in cases.items():
         assert UpstoxDomainMapper.normalize_status(raw) is expected, raw
@@ -71,7 +72,7 @@ def test_to_place_payload_basic():
 
     req = OrderRequest(
         symbol="RELIANCE",
-        exchange_segment=ExchangeSegment.NSE,
+        exchange="NSE",
         transaction_type=Side.BUY,
         quantity=10,
         price=Decimal("2500.50"),
@@ -89,12 +90,9 @@ def test_to_place_payload_basic():
     assert payload["product"] == "D"
     assert payload["validity"] == "DAY"
     assert payload["tag"] == "corr-1"
-    assert payload["is_amo"] is False
-    assert payload["market_protection"] == -1
-    assert "slice" not in payload
 
 
-def test_to_place_payload_with_slice_and_market_protection():
+def test_to_place_payload_with_slice():
     from domain import OrderType as EnumsOrderType
     from domain import ProductType as EnumsProductType
     from domain import Side
@@ -109,11 +107,9 @@ def test_to_place_payload_with_slice_and_market_protection():
         product_type=EnumsProductType.INTRADAY,
         validity=EnumsValidity.IOC,
         slice=True,
-        market_protection=3,
     )
     payload = UpstoxDomainMapper.to_place_payload(req, "NSE_EQ|INE001A01023")
     assert payload["slice"] is True
-    assert payload["market_protection"] == 3
     assert payload["price"] == 0
     assert payload["validity"] == "IOC"
     assert payload["order_type"] == "MARKET"

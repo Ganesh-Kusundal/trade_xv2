@@ -199,73 +199,62 @@ class TestUpstoxFundamentalsAdapter:
 
 
 class TestUpstoxGatewayNewFeatures:
-    def test_gateway_ipo_property(self):
+    def _make_mock_broker(self):
         from unittest.mock import MagicMock
-
         from brokers.upstox.broker import UpstoxBroker
-        from brokers.upstox.gateway import UpstoxBrokerGateway
 
         mock_broker = MagicMock(spec=UpstoxBroker)
-        mock_broker.ipo = MagicMock()
         mock_broker.instrument_resolver = MagicMock()
-        mock_broker.order_command = MagicMock()  # Required by gateway __init__
+        mock_broker.order_command = MagicMock()
+        mock_broker.market_data_v2 = MagicMock()
+        mock_broker.market_data_v3 = MagicMock()
+        mock_broker.historical_v2 = MagicMock()
+        return mock_broker
+
+    def test_gateway_ipo_property(self):
+        from brokers.upstox.gateway import UpstoxBrokerGateway
+
+        mock_broker = self._make_mock_broker()
+        mock_broker.ipo = MagicMock()
 
         gateway = UpstoxBrokerGateway(mock_broker)
         assert gateway.extended is not None
         assert hasattr(gateway.extended, "get_ipos")
 
     def test_gateway_payments_property(self):
-        from unittest.mock import MagicMock
-
-        from brokers.upstox.broker import UpstoxBroker
         from brokers.upstox.gateway import UpstoxBrokerGateway
 
-        mock_broker = MagicMock(spec=UpstoxBroker)
+        mock_broker = self._make_mock_broker()
         mock_broker.payments = MagicMock()
-        mock_broker.instrument_resolver = MagicMock()
-        mock_broker.order_command = MagicMock()  # Required by gateway __init__
 
         gateway = UpstoxBrokerGateway(mock_broker)
         assert gateway.extended is not None
         assert hasattr(gateway.extended, "initiate_payout")
 
     def test_gateway_mutual_funds_property(self):
-        from unittest.mock import MagicMock
-
-        from brokers.upstox.broker import UpstoxBroker
         from brokers.upstox.gateway import UpstoxBrokerGateway
 
-        mock_broker = MagicMock(spec=UpstoxBroker)
+        mock_broker = self._make_mock_broker()
         mock_broker.mutual_funds = MagicMock()
-        mock_broker.instrument_resolver = MagicMock()
-        mock_broker.order_command = MagicMock()  # Required by gateway __init__
 
         gateway = UpstoxBrokerGateway(mock_broker)
         assert gateway.extended is not None
         assert hasattr(gateway.extended, "get_mutual_fund_holdings")
 
     def test_gateway_fundamentals_property(self):
-        from unittest.mock import MagicMock
-
-        from brokers.upstox.broker import UpstoxBroker
         from brokers.upstox.gateway import UpstoxBrokerGateway
 
-        mock_broker = MagicMock(spec=UpstoxBroker)
+        mock_broker = self._make_mock_broker()
         mock_broker.fundamentals = MagicMock()
-        mock_broker.instrument_resolver = MagicMock()
-        mock_broker.order_command = MagicMock()  # Required by gateway __init__
 
         gateway = UpstoxBrokerGateway(mock_broker)
         assert gateway.extended is not None
         assert hasattr(gateway.extended, "get_pnl")
 
     def test_gateway_capabilities_includes_new_features(self):
-        from unittest.mock import MagicMock
-
-        from brokers.upstox.broker import UpstoxBroker
         from brokers.upstox.gateway import UpstoxBrokerGateway
 
-        mock_broker = MagicMock(spec=UpstoxBroker)
+        mock_broker = self._make_mock_broker()
         mock_broker.portfolio = MagicMock()
         mock_broker.portfolio.get_fund_limits.return_value = MagicMock()
         mock_broker.portfolio.get_positions.return_value = []
@@ -276,9 +265,7 @@ class TestUpstoxGatewayNewFeatures:
         gateway = UpstoxBrokerGateway(mock_broker)
         caps = gateway.capabilities()
 
-        assert caps.ipo is True
-        assert caps.mutual_funds is True
-        assert caps.fundamentals is True
-        assert caps.payments is True
-        assert caps.user_profile is True
-        assert caps.convert_position is True
+        assert caps.supports_news is True
+        assert caps.supports_fundamentals is True
+        assert caps.supports_forever_order is True
+        assert caps.supports_portfolio_stream is True

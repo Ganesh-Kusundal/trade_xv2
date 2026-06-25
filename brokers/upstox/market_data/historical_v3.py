@@ -14,9 +14,15 @@ logger = logging.getLogger(__name__)
 
 
 class UpstoxHistoricalV3Client:
-    def __init__(self, http_client: Any) -> None:
+    def __init__(self, http_client: Any, url_resolver: Any = None) -> None:
         self._http = http_client
-        self._base_url = "https://api.upstox.com/v3"
+        self._urls = url_resolver
+        self._base_url = "https://api.upstox.com/v3" if url_resolver is None else None
+
+    def _get_base_url(self) -> str:
+        if self._urls is not None:
+            return self._urls._v3()
+        return self._base_url
 
     def get_candles(
         self,
@@ -37,7 +43,8 @@ class UpstoxHistoricalV3Client:
         """
         # URL-encode the instrument key (contains pipe character)
         encoded_key = quote(instrument_key, safe="")
-        url = f"{self._base_url}/historical-candle/{encoded_key}/{unit}/{interval}/{to_date.isoformat()}"
+        base = self._get_base_url()
+        url = f"{base}/historical-candle/{encoded_key}/{unit}/{interval}/{to_date.isoformat()}"
         if from_date:
             url += f"/{from_date.isoformat()}"
 
@@ -53,5 +60,6 @@ class UpstoxHistoricalV3Client:
     ) -> dict[str, Any]:
         """Fetch intraday candles using V3 API."""
         encoded_key = quote(instrument_key, safe="")
-        url = f"{self._base_url}/intraday-candle/{encoded_key}/{unit}/{interval}/{to_date.isoformat()}"
+        base = self._get_base_url()
+        url = f"{base}/intraday-candle/{encoded_key}/{unit}/{interval}/{to_date.isoformat()}"
         return self._http.get_json(url)

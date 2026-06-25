@@ -61,8 +61,22 @@ class DhanConnectionSettings(BrokerSettings):
     scheduler_interval_seconds: int = _SCHEDULER_INTERVAL_SECONDS
     refresh_buffer_seconds: int = _REFRESH_BUFFER_SECONDS
     allow_live_orders: bool = False
+    token_state_dir: str = ""
 
     # ── Derived properties ────────────────────────────────────────────
+
+    @property
+    def resolved_token_state_dir(self) -> Path:
+        """Absolute path to the token state directory.
+
+        Uses ``token_state_dir`` if set (via env or constructor), otherwise
+        derives an absolute path from the project root so the directory is
+        stable regardless of CWD.
+        """
+        if self.token_state_dir:
+            return Path(self.token_state_dir)
+        # brokers/dhan/settings.py → brokers/dhan → brokers → project root (Trade_XV2/)
+        return Path(__file__).resolve().parents[2] / "runtime"
 
     @property
     def is_sandbox(self) -> bool:
@@ -180,6 +194,7 @@ class DhanSettingsLoader(SettingsLoaderBase):
                 prefix, "REFRESH_BUFFER_SECONDS", default=_REFRESH_BUFFER_SECONDS
             ),
             allow_live_orders=cls._get_bool(prefix, "ALLOW_LIVE_ORDERS", default=False),
+            token_state_dir=cls._get(prefix, "TOKEN_STATE_DIR", default=""),
         )
 
     @classmethod

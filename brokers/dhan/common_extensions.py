@@ -142,3 +142,9 @@ def register_dhan_extensions(gateway: MarketDataGateway) -> ExtensionBundle:
     bundle.register(ForeverOrderProvider, DhanForeverOrderExtension(gateway))
     bundle.register(NativeSliceOrderProvider, DhanNativeSliceExtension(gateway))
     return bundle
+
+
+# Register factory so brokers.common.adapters can find it without importing us
+from brokers.common.extensions import register_extension_factory
+
+register_extension_factory("dhan", register_dhan_extensions)

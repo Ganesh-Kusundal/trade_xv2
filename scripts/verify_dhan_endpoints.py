@@ -10,7 +10,10 @@ import time
 import traceback
 from decimal import Decimal
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add project root to path
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 PASS = "PASS"
 FAIL = "FAIL"
@@ -153,14 +156,24 @@ def test_gateway():
     ]:
         try:
             chain = gw.option_chain(underlying, exchange)
-            if chain and isinstance(chain, dict):
-                data = chain.get("data", chain.get("contracts", []))
-                count = len(data) if isinstance(data, list) else len(data) if data else 0
+            # OptionChain is a domain entity with strikes dict or contracts list
+            if chain:
+                # Check for domain entity attributes
+                if hasattr(chain, 'strikes'):
+                    count = len(chain.strikes) if chain.strikes else 0
+                elif hasattr(chain, 'contracts'):
+                    count = len(chain.contracts) if chain.contracts else 0
+                elif isinstance(chain, dict):
+                    data = chain.get("data", chain.get("contracts", []))
+                    count = len(data) if isinstance(data, list) else 0
+                else:
+                    count = 0
+                
                 record(
                     "option_chain",
                     f"{exchange}({label})",
                     PASS,
-                    f"underlying={underlying}, contracts={count}",
+                    f"underlying={underlying}, contracts/strikes={count}",
                 )
             else:
                 record("option_chain", f"{exchange}({label})", FAIL, f"got {type(chain)}")
@@ -171,8 +184,8 @@ def test_gateway():
     # MCX option chain
     try:
         chain = gw.option_chain("GOLD", "MCX")
-        if chain and isinstance(chain, dict):
-            record("option_chain", "MCX(GOLD)", PASS, f"got chain data")
+        if chain:
+            record("option_chain", "MCX(GOLD)", PASS, f"got chain data (type={type(chain).__name__})")
         else:
             record("option_chain", "MCX(GOLD)", FAIL, f"got {type(chain)}")
     except Exception as e:
@@ -184,7 +197,17 @@ def test_gateway():
     for underlying, exchange, label in [("NIFTY", "NFO", "NFO NIFTY"), ("GOLD", "MCX", "MCX GOLD")]:
         try:
             chain = gw.future_chain(underlying, exchange)
-            if chain and isinstance(chain, dict):
+            # FutureChain is a domain entity, check if it has data
+            if chain and hasattr(chain, 'contracts'):
+                contracts = chain.contracts if chain.contracts else []
+                expiries = chain.expiries if chain.expiries else []
+                record(
+                    "future_chain",
+                    f"{exchange}({label})",
+                    PASS,
+                    f"contracts={len(contracts)}, expiries={len(expiries)}",
+                )
+            elif chain and isinstance(chain, dict):
                 contracts = chain.get("contracts", [])
                 expiries = chain.get("expiries", [])
                 record(

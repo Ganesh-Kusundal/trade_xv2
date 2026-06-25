@@ -202,7 +202,9 @@ class UpstoxBroker:
         self.historical_v2 = UpstoxHistoricalV2Client(
             self.context.http_client, self.context.url_resolver
         )
-        self.historical_v3 = UpstoxHistoricalV3Client(self.context.http_client)
+        self.historical_v3 = UpstoxHistoricalV3Client(
+            self.context.http_client, url_resolver=self.context.url_resolver
+        )
         self.order_client = UpstoxRestOrderClient(
             self.context.http_client, self.context.url_resolver
         )

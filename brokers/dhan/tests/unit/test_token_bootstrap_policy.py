@@ -6,6 +6,7 @@ import base64
 import json
 import time
 from datetime import datetime, timedelta
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -23,15 +24,21 @@ def _make_jwt(payload: dict) -> str:
 
 @pytest.fixture
 def env_file(tmp_path):
+    runtime = tmp_path / "runtime"
+    runtime.mkdir()
     path = tmp_path / ".env.local"
-    path.write_text("DHAN_CLIENT_ID=TEST_CLIENT\nDHAN_PIN=1234\nDHAN_TOTP_SECRET=JBSWY3DPEHPK3PXP\n")
+    path.write_text(
+        f"DHAN_CLIENT_ID=TEST_CLIENT\n"
+        f"DHAN_PIN=1234\n"
+        f"DHAN_TOTP_SECRET=JBSWY3DPEHPK3PXP\n"
+        f"DHAN_TOKEN_STATE_DIR={runtime}\n"
+        f"DHAN_ACCESS_TOKEN=\n"
+    )
     return path
 
 
-def test_bootstrap_reuses_valid_json_token_without_totp(env_file, tmp_path, monkeypatch):
+def test_bootstrap_reuses_valid_json_token_without_totp(env_file, tmp_path):
     runtime = tmp_path / "runtime"
-    runtime.mkdir()
-    monkeypatch.chdir(tmp_path)
 
     valid_token = _make_jwt({"exp": int(time.time()) + 7200})
     store = JsonTokenStateStore(runtime / "dhan-token-state.json")
@@ -64,10 +71,8 @@ def test_bootstrap_reuses_valid_json_token_without_totp(env_file, tmp_path, monk
     assert auth.state.access_token == valid_token
 
 
-def test_bootstrap_generates_once_when_token_expired(env_file, tmp_path, monkeypatch):
+def test_bootstrap_generates_once_when_token_expired(env_file, tmp_path):
     runtime = tmp_path / "runtime"
-    runtime.mkdir()
-    monkeypatch.chdir(tmp_path)
 
     expired_token = _make_jwt({"exp": int(time.time()) - 60})
     store = JsonTokenStateStore(runtime / "dhan-token-state.json")

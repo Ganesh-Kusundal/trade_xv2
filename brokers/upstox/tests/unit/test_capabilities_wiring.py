@@ -93,11 +93,13 @@ def test_capability_groups_reference_same_adapters_as_broker() -> None:
 
 
 def test_orders_capability_place_delegates_to_order_command() -> None:
+    from brokers.common.dtos import BrokerOrderPayload
+
     broker = _broker()
     mock_response = OrderResponse.ok(order_id="CAP-001")
     broker.order_command.place_order = MagicMock(return_value=mock_response)
 
-    request = OrderRequest(
+    request = BrokerOrderPayload(
         symbol="RELIANCE",
         exchange="NSE",
         exchange_segment=ExchangeSegment.NSE,

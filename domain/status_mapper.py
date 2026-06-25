@@ -104,6 +104,8 @@ COMMON_STATUS_MAP: dict[str, OrderStatus] = {
     "TRIGGER_PENDING": OrderStatus.OPEN,
     "PENDING": OrderStatus.OPEN,
     "QUEUED": OrderStatus.OPEN,
+    "PUT_ORDER_REQ_RECEIVED": OrderStatus.OPEN,
+    "OPEN_PENDING": OrderStatus.OPEN,
 }
 
 # Register common mappings at module load

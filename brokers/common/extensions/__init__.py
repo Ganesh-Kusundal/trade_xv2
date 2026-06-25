@@ -21,6 +21,7 @@ Usage::
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING, TypeVar
 
 from brokers.common.errors import UnsupportedExtensionError
@@ -29,6 +30,30 @@ if TYPE_CHECKING:
     pass
 
 T = TypeVar("T")
+
+# ── Extension factory registry (replaces lazy imports in adapters/) ──────
+# Broker modules register their bundle-building functions here at import
+# time.  ``build_extension_bundle`` in adapters/extensions.py looks up
+# this dict instead of importing broker-specific code directly.
+
+_extension_factories: dict[str, Callable[..., "ExtensionBundle"]] = {}
+
+
+def register_extension_factory(
+    broker_id: str,
+    factory: Callable[..., "ExtensionBundle"],
+) -> None:
+    """Register a broker's extension bundle factory.
+
+    Called by broker modules (e.g. brokers/dhan/common_extensions.py)
+    at module level so the factory is available when bootstrap runs.
+    """
+    _extension_factories[broker_id] = factory
+
+
+def get_extension_factory(broker_id: str) -> Callable[..., "ExtensionBundle"] | None:
+    """Return the registered factory for *broker_id*, or None."""
+    return _extension_factories.get(broker_id)
 
 
 class ExtensionBundle:

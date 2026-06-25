@@ -49,6 +49,9 @@ class UpstoxBrokerFactory(BrokerProviderFactory):
 
         gateway = UpstoxBrokerGateway(broker)
 
+        # Register extension factories so brokers.common can find them
+        import brokers.upstox.common_extensions  # noqa: F401
+
         if load_instruments:
             try:
                 gateway.load_instruments()

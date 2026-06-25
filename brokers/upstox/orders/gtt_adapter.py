@@ -90,6 +90,9 @@ class UpstoxGttAdapter(GttOrderProvider):
         return self.cancel_gtt(order_id)
 
     def get_forever_orders(self) -> list[Order]:
+        # TODO: Upstox API has no list-all endpoint for GTT orders.
+        # The client only supports fetching a single GTT by ID (get_gtt_orders),
+        # so there is no way to enumerate all active forever orders.
         return []
 
     def place_gtt_multi(
@@ -128,6 +131,9 @@ class UpstoxGttAdapter(GttOrderProvider):
             return False
 
     def get_gtt_orders(self) -> list[Order]:
+        # TODO: Upstox API has no list-all endpoint for GTT orders.
+        # The client only supports fetching a single GTT by ID (get_gtt_orders),
+        # so there is no way to enumerate all active GTT orders.
         return []
 
     def place_alert(self, request: ConditionalAlertRequest) -> str:
@@ -158,6 +164,9 @@ class UpstoxGttAdapter(GttOrderProvider):
         return ConditionalAlert(alert_id=alert_id)
 
     def list_alerts(self) -> list[ConditionalAlert]:
+        # TODO: Upstox API has no list-all endpoint for GTT orders.
+        # Alerts are implemented as GTT orders under the hood, so they share
+        # the same limitation — no enumeration endpoint exists.
         return []
 
     def delete_alert(self, alert_id: str) -> bool:

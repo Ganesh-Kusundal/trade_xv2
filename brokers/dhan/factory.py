@@ -67,6 +67,9 @@ class BrokerFactory(BrokerProviderFactory):
             lifecycle,
         )
 
+        # Register extension factories so brokers.common can find them
+        import brokers.dhan.common_extensions  # noqa: F401
+
         if load_instruments:
             gateway.load_instruments()
 
@@ -95,7 +98,7 @@ class BrokerFactory(BrokerProviderFactory):
     ) -> tuple[AuthManager, str]:
         """Create AuthManager and acquire an access token."""
         cid = settings.client_id
-        token_state_dir = Path("runtime")
+        token_state_dir = settings.resolved_token_state_dir
         token_state_dir.mkdir(parents=True, exist_ok=True)
         token_store = JsonTokenStateStore(token_state_dir / "dhan-token-state.json")
 

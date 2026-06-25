@@ -75,6 +75,8 @@ class TradingConfig:
     orchestrator_min_confidence: float = 0.7
     enable_intelligent_gateway: bool = False
     skip_parity_gate: bool = False
+    smart_routing: bool = True  # Enable intelligent routing by default
+    primary_broker: str = "dhan"
 
 
 def _get_bool(key: str, default: bool = False) -> bool:
@@ -167,4 +169,6 @@ def load_trading_config() -> TradingConfig:
         orchestrator_min_confidence=_get_float("ORCHESTRATOR_MIN_CONFIDENCE", 0.7),
         enable_intelligent_gateway=_get_bool("ENABLE_INTELLIGENT_GATEWAY"),
         skip_parity_gate=_get_bool("SKIP_PARITY_GATE"),
+        smart_routing=_get_bool("TRADEX_SMART_ROUTING", True),
+        primary_broker=os.environ.get("TRADEX_PRIMARY_BROKER", "dhan"),
     )

@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
-from brokers.common.extensions import ExtensionBundle
+from brokers.common.extensions import ExtensionBundle, get_extension_factory
 from brokers.common.gateway import MarketDataGateway
 
 
 def build_extension_bundle(broker_id: str, gateway: MarketDataGateway) -> ExtensionBundle:
-    """Build the extension bundle for a registered legacy gateway."""
-    if broker_id == "dhan":
-        from brokers.dhan.common_extensions import register_dhan_extensions  # noqa: TID251
+    """Build the extension bundle for a registered legacy gateway.
 
-        return register_dhan_extensions(gateway)
-    if broker_id == "upstox":
-        from brokers.upstox.common_extensions import register_upstox_extensions  # noqa: TID251
-
-        return register_upstox_extensions(gateway)
+    Uses the factory registry populated by broker modules at import time.
+    No broker-specific imports here — the registry decouples common from
+    broker-specific code.
+    """
+    factory = get_extension_factory(broker_id)
+    if factory is not None:
+        return factory(gateway)
     return ExtensionBundle(broker_id)

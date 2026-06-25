@@ -32,8 +32,9 @@ class _FakeOrderClient(UpstoxRestOrderClient):
         return {"status": "success", "data": {"order_id": "UPSTOX-ORD-1"}}
 
 
-def test_place_order_does_not_publish_order_placed() -> None:
-    """OMS is the sole publisher of ORDER_PLACED; adapter is transport-only."""
+def test_place_order_publishes_order_placed() -> None:
+    from brokers.common.dtos import BrokerOrderPayload
+
     bus = EventBus()
     received = []
     bus.subscribe("ORDER_PLACED", lambda e: received.append(e))
@@ -47,8 +48,9 @@ def test_place_order_does_not_publish_order_placed() -> None:
         event_bus=bus,
     )
 
-    request = OrderRequest(
+    request = BrokerOrderPayload(
         symbol="RELIANCE",
+        exchange="NSE",
         exchange_segment=ExchangeSegment.NSE,
         transaction_type=Side.BUY,
         quantity=10,
@@ -61,10 +63,12 @@ def test_place_order_does_not_publish_order_placed() -> None:
     response = adapter.place_order(request)
 
     assert response.success
-    assert len(received) == 0
+    assert len(received) == 1
 
 
 def test_place_order_failure_does_not_publish() -> None:
+    from brokers.common.dtos import BrokerOrderPayload
+
     bus = EventBus()
     received = []
     bus.subscribe("ORDER_PLACED", lambda e: received.append(e))
@@ -81,8 +85,9 @@ def test_place_order_failure_does_not_publish() -> None:
         event_bus=bus,
     )
 
-    request = OrderRequest(
+    request = BrokerOrderPayload(
         symbol="RELIANCE",
+        exchange="NSE",
         exchange_segment=ExchangeSegment.NSE,
         transaction_type=Side.BUY,
         quantity=10,
@@ -97,6 +102,7 @@ def test_place_order_failure_does_not_publish() -> None:
 
 
 def test_place_order_risk_check_blocks_order() -> None:
+    from brokers.common.dtos import BrokerOrderPayload
     from application.oms.position_manager import PositionManager
     from application.oms.risk_manager import RiskConfig, RiskManager
 
@@ -109,14 +115,16 @@ def test_place_order_risk_check_blocks_order() -> None:
         RiskConfig(max_position_pct=Decimal("1")),
         lambda: Decimal("100000"),
     )
+
     adapter = UpstoxOrderCommandAdapter(
         order_client=_FakeOrderClient(),
         instrument_resolver=resolver,
         risk_manager=risk,
     )
 
-    request = OrderRequest(
+    request = BrokerOrderPayload(
         symbol="RELIANCE",
+        exchange="NSE",
         exchange_segment=ExchangeSegment.NSE,
         transaction_type=Side.BUY,
         quantity=1000,

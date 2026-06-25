@@ -35,44 +35,24 @@ class UpstoxRestOrderClient:
         return self._http.get_json(self._urls.order_details_url(), params={"order_id": order_id})
 
     def get_order_list(self) -> list[dict[str, Any]]:
-        body = self._http.get_json(f"{self._urls._v2()}/order/retrieve-all")
+        body = self._http.get_json(self._urls.order_book_url())
         return _data_list(body)
 
     def get_trades_for_day(self) -> list[dict[str, Any]]:
-        """Get today's trades by fetching all orders and extracting filled ones.
+        """Get today's executed trades from the dedicated trades endpoint."""
+        body = self._http.get_json(self._urls.trades_for_day_url())
+        return _data_list(body)
 
-        Upstox V2 trades endpoint requires order_id per-call. Instead, we
-        fetch all orders and filter for those with trade activity.
-        """
-        body = self._http.get_json(f"{self._urls._v2()}/order/retrieve-all")
-        orders = _data_list(body)
-        # Filter orders that have been filled (have avg_price > 0 and status is COMPLETE)
-        trades = []
-        for order in orders:
-            if not isinstance(order, dict):
-                continue
-            status = str(order.get("order_status", "")).upper()
-            avg_price = order.get("average_price") or order.get("avg_price") or 0
-            if status == "COMPLETE" and float(avg_price or 0) > 0:
-                # Create a trade-like dict from the filled order
-                trade = {
-                    "trade_id": order.get("order_id", ""),
-                    "order_id": order.get("order_id", ""),
-                    "trading_symbol": order.get("trading_symbol", ""),
-                    "exchange": order.get("exchange", ""),
-                    "transaction_type": order.get("transaction_type", "BUY"),
-                    "quantity": order.get("filled_quantity") or order.get("quantity", 0),
-                    "price": avg_price,
-                    "average_price": avg_price,
-                    "trade_time": order.get("order_timestamp"),
-                    "product": order.get("product", "I"),
-                }
-                trades.append(trade)
-        return trades
+    def get_trades_by_order(self, order_id: str) -> list[dict[str, Any]]:
+        """Get trades for a specific order."""
+        body = self._http.get_json(
+            self._urls.trades_for_day_url(), params={"order_id": order_id}
+        )
+        return _data_list(body)
 
     def get_order_history(self, order_id: str) -> list[dict[str, Any]]:
         body = self._http.get_json(
-            f"{self._urls._v2()}/order/history", params={"order_id": order_id}
+            self._urls.order_history_url(), params={"order_id": order_id}
         )
         return _data_list(body)
 

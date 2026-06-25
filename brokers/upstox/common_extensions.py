@@ -152,3 +152,9 @@ def register_upstox_extensions(gateway: MarketDataGateway) -> ExtensionBundle:
     bundle.register(FundamentalsProvider, UpstoxFundamentalsExtension(gateway))
     bundle.register(ForeverOrderProvider, UpstoxForeverOrderExtension(gateway))
     return bundle
+
+
+# Register factory so brokers.common.adapters can find it without importing us
+from brokers.common.extensions import register_extension_factory
+
+register_extension_factory("upstox", register_upstox_extensions)

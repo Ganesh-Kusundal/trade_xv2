@@ -56,6 +56,7 @@ def bootstrap_gateway(
     analytics_only: bool = False,
     skip_credential_check: bool = False,
     require_authenticated: bool = True,
+    smart: bool = False,  # NEW: Enable intelligent gateway
 ) -> BootstrapResult:
     """Create a gateway with typed success/failure semantics."""
     broker = broker.lower().strip()
@@ -132,6 +133,24 @@ def bootstrap_gateway(
 
     auth_result = authenticated_readiness_probe(gateway, broker, env_path=env_path)
     if auth_result.ok:
+        # NEW: Wrap in intelligent gateway if requested
+        if smart:
+            try:
+                import asyncio
+                from brokers.common.bootstrap import create_intelligent_gateway
+                
+                # Create intelligent gateway with single broker
+                intelligent_gw = asyncio.run(create_intelligent_gateway(
+                    [(broker, gateway)],
+                    smart=True,
+                    primary_broker=broker
+                ))
+                logger.info("Created intelligent gateway for %s", broker)
+                gateway = intelligent_gw
+            except Exception as exc:
+                logger.warning("Failed to create intelligent gateway, using direct gateway: %s", exc)
+                # Fall back to direct gateway
+        
         return BootstrapResult(
             status=BootstrapStatus.READY,
             broker=broker,

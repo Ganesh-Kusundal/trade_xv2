@@ -23,9 +23,13 @@ class UpstoxOrderQueryAdapter(OrderQuery):
         if not isinstance(body, dict):
             return None
         data = body.get("data")
-        if not isinstance(data, list) or not data:
-            return None
-        return UpstoxDomainMapper.to_order(data[0])
+        if isinstance(data, list):
+            if not data:
+                return None
+            return UpstoxDomainMapper.to_order(data[0])
+        if isinstance(data, dict):
+            return UpstoxDomainMapper.to_order(data)
+        return None
 
     def get_order_by_correlation_id(self, correlation_id: str) -> Order | None:
         for row in self._order_client.get_order_list():
@@ -48,5 +52,5 @@ class UpstoxOrderQueryAdapter(OrderQuery):
         ]
 
     def get_trades_for_order(self, order_id: str) -> list[Trade]:
-        trades = self.get_trades()
-        return [t for t in trades if t.order_id == order_id]
+        trades = self._order_client.get_trades_by_order(order_id)
+        return [UpstoxDomainMapper.to_trade(t) for t in trades if isinstance(t, dict)]

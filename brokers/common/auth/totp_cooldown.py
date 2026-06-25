@@ -32,7 +32,7 @@ class TotpCooldownGuard:
     ) -> None:
         self._broker = broker.lower()
         self._cooldown_seconds = cooldown_seconds
-        self._state_path = state_path or Path("runtime") / f"{self._broker}-totp-cooldown.json"
+        self._state_path = state_path or Path(__file__).resolve().parents[2] / "runtime" / f"{self._broker}-totp-cooldown.json"
         self._last_attempt_at: float | None = None
         self._last_success_at: float | None = None
         self._load_state()

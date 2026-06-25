@@ -494,7 +494,16 @@ class UpstoxDomainMapper:
         data = payload.get("data") if "data" in payload else payload
         if not isinstance(data, dict):
             return MarketDepth()
-        depth = data.get("depth") or {}
+        # Handle nested key structure: {"data": {"NSE_EQ:RELIANCE": {"depth": {...}}}}
+        # or flat structure: {"depth": {...}}
+        depth = data.get("depth")
+        if depth is None:
+            # Try to find depth in nested keys
+            for key, value in data.items():
+                if isinstance(value, dict) and "depth" in value:
+                    depth = value.get("depth", {})
+                    break
+        depth = depth or {}
         bids = depth.get("buy") or []
         asks = depth.get("sell") or []
 

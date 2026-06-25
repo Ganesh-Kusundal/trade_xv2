@@ -10,6 +10,7 @@ from brokers.common.adapters import build_extension_bundle
 from brokers.common.adapters.market_data_gateway_adapter import wrap_market_gateway
 from brokers.common.gateway import MarketDataGateway
 from brokers.common.infrastructure import BrokerInfrastructure, build_infrastructure
+from brokers.common.intelligent_market_gateway import IntelligentMarketDataGateway
 from brokers.common.policy import (
     SourceSelectionPolicy,
     auto_dual_broker_policy,
@@ -72,3 +73,52 @@ async def bootstrap_from_broker_registry(
     if not wrapped:
         return None
     return await bootstrap_from_gateways(wrapped, policy=policy)
+
+
+async def create_intelligent_gateway(
+    gateways: Sequence[tuple[str, MarketDataGateway]],
+    *,
+    smart: bool = True,
+    policy: SourceSelectionPolicy | None = None,
+    primary_broker: str = "dhan",
+) -> IntelligentMarketDataGateway:
+    """Create an intelligent gateway with optional smart routing.
+
+    Parameters
+    ----------
+    gateways : Sequence[tuple[str, MarketDataGateway]]
+        List of (broker_id, gateway) tuples to include in the infrastructure.
+    smart : bool, default=True
+        Enable intelligent routing. When True, uses BrokerRouter for broker
+        selection and QuotaScheduler for quota management. When False, delegates
+        directly to primary_broker.
+    policy : SourceSelectionPolicy | None
+        Routing policy. If None, uses policy_from_env().
+    primary_broker : str, default="dhan"
+        The broker to use when smart=False or as the primary broker in smart mode.
+
+    Returns
+    -------
+    IntelligentMarketDataGateway
+        An intelligent gateway instance.
+
+    Example
+    -------
+    ::
+
+        # Smart mode (recommended)
+        gw = await create_intelligent_gateway(
+            [("dhan", dhan_gw), ("upstox", upstox_gw)],
+            smart=True
+        )
+        result = gw.ltp("NIFTY", "NSE")  # Uses intelligent routing
+
+        # Simple mode (backward compatible)
+        gw = await create_intelligent_gateway(
+            [("dhan", dhan_gw)],
+            smart=False
+        )
+        result = gw.ltp("NIFTY", "NSE")  # Direct call to Dhan
+    """
+    infra = await bootstrap_from_gateways(gateways, policy=policy)
+    return IntelligentMarketDataGateway(infra, smart=smart, primary_broker=primary_broker)

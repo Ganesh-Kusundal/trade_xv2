@@ -88,7 +88,9 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         self._broker = broker
 
         # Initialize specialized adapters
-        self._market_data = MarketDataAdapter(broker)
+        self._market_data = MarketDataAdapter(
+            broker.market_data_v2, broker.market_data_v3, broker.historical_v2
+        )
         self._historical = HistoricalAdapter(broker)
         self._stream_manager = StreamManagerAdapter(broker, broker.instrument_resolver)
         self._portfolio = PortfolioAdapter(broker)
@@ -133,7 +135,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
             Last traded price as Decimal
         """
         key = self._resolve_instrument_key(symbol, exchange)
-        return self._market_data.get_ltp(symbol, exchange, key)
+        return self._market_data.ltp(symbol, exchange)
 
     def quote(self, symbol: str, exchange: str = "NSE") -> Quote:
         """Fetch full quote with OHLCV for a symbol.
@@ -145,8 +147,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         Returns:
             Quote dataclass with OHLCV data
         """
-        key = self._resolve_instrument_key(symbol, exchange)
-        return self._market_data.get_quote(symbol, exchange, key)
+        return self._market_data.quote(symbol, exchange)
 
     def depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
         """Fetch order book depth for a symbol.
@@ -158,8 +159,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         Returns:
             MarketDepth with bid/ask levels
         """
-        key = self._resolve_instrument_key(symbol, exchange)
-        return self._market_data.get_depth(symbol, exchange, key)
+        return self._market_data.depth(symbol, exchange)
 
     def get_orderbook(self) -> list[Order]:
         """Fetch current order book.
@@ -192,6 +192,20 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
             pnl = gateway.extended.get_pnl("INE002A01018")
         """
         return UpstoxExtendedCapabilities(self._broker)
+
+    @property
+    def news(self) -> Any:
+        """Access news adapter for fetching market/instrument news.
+
+        Returns:
+            UpstoxNewsAdapter with get_news() method
+
+        Example::
+
+            items = gateway.news.get_news(category="holdings")
+            items = gateway.news.get_news(symbol="RELIANCE")
+        """
+        return self._broker.news
 
     # ── Lifecycle ──
 
@@ -521,7 +535,8 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
                 pass
 
         exchange_segment = self._resolve_exchange_segment(exchange, symbol)
-        request = OrderRequest(
+        from brokers.common.dtos import BrokerOrderPayload
+        request = BrokerOrderPayload(
             symbol=symbol,
             exchange=exchange,
             exchange_segment=exchange_segment,
@@ -533,7 +548,6 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
             product_type=ProductType(product_type.upper()),
             validity=Validity(validity.upper()),
             correlation_id=correlation_id,
-            is_amo=is_amo,
             transport_only=transport_only,
         )
 

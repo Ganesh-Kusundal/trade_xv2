@@ -2,11 +2,23 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 import pytest
 
 from brokers.dhan.resolver import SymbolResolver
+
+
+@pytest.fixture(autouse=True)
+def _clean_dhan_token_state_dir():
+    """Save and restore DHAN_TOKEN_STATE_DIR to prevent cross-test contamination."""
+    saved = os.environ.get("DHAN_TOKEN_STATE_DIR")
+    yield
+    if saved is None:
+        os.environ.pop("DHAN_TOKEN_STATE_DIR", None)
+    else:
+        os.environ["DHAN_TOKEN_STATE_DIR"] = saved
 
 # ---------------------------------------------------------------------------
 # Fake HTTP client — sync mock replacing DhanHttpClient
