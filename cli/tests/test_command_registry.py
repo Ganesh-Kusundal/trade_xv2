@@ -105,21 +105,17 @@ def test_main_module_populates_registry_on_import() -> None:
     (``DISPATCH_TABLE``) must contain every name. If either is
     missing an entry, the next test will catch the divergence.
     """
-    import cli.main  # noqa: F401 — triggers register() calls
+    import cli.main  # noqa: F401 — triggers registration
 
-    missing_from_commands = [
-        name for name in TOP_LEVEL_COMMANDS if name not in registry.COMMANDS
-    ]
+    missing_from_commands = [name for name in TOP_LEVEL_COMMANDS if name not in registry.COMMANDS]
     missing_from_dispatch = [
         name for name in TOP_LEVEL_COMMANDS if name not in registry.DISPATCH_TABLE
     ]
     assert not missing_from_commands, (
-        f"cli/main.py does not register these commands in COMMANDS: "
-        f"{missing_from_commands}"
+        f"cli/main.py does not register these commands in COMMANDS: {missing_from_commands}"
     )
     assert not missing_from_dispatch, (
-        f"cli/main.py does not register these commands in DISPATCH_TABLE: "
-        f"{missing_from_dispatch}"
+        f"cli/main.py does not register these commands in DISPATCH_TABLE: {missing_from_dispatch}"
     )
 
 
@@ -130,7 +126,6 @@ def test_commands_table_matches_dispatch_table() -> None:
     a discoverability aid. A drift between them means a command is
     either un-routable or un-discoverable — both are bugs.
     """
-    import cli.main  # noqa: F401
 
     in_commands_only = set(registry.COMMANDS) - set(registry.DISPATCH_TABLE)
     in_dispatch_only = set(registry.DISPATCH_TABLE) - set(registry.COMMANDS)
@@ -151,7 +146,6 @@ def test_no_unexpected_commands_in_dispatch() -> None:
     command being added to the router but forgotten in
     ``endpoint_manifest.py``.
     """
-    import cli.main  # noqa: F401
 
     extra = set(registry.DISPATCH_TABLE) - set(TOP_LEVEL_COMMANDS)
     assert not extra, (

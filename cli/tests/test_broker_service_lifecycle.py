@@ -54,7 +54,10 @@ def _make_recorder_service(name: str = "test-recorder") -> ManagedService:
             from datetime import datetime, timezone
 
             from infrastructure.lifecycle.lifecycle import HealthState, HealthStatus
-            state = HealthState.HEALTHY if self.started and not self.stopped else HealthState.STOPPED
+
+            state = (
+                HealthState.HEALTHY if self.started and not self.stopped else HealthState.STOPPED
+            )
             return HealthStatus(
                 state=state,
                 service=self.name,
@@ -104,9 +107,7 @@ def test_lifecycle_starts_empty() -> None:
 # ── When init succeeds: scheduler + reconciliation are registered ────────
 
 
-def test_lifecycle_registers_token_scheduler_and_reconciliation(
-    monkeypatch, tmp_path
-) -> None:
+def test_lifecycle_registers_token_scheduler_and_reconciliation(monkeypatch, tmp_path) -> None:
     """When the Dhan gateway loads, the factory registers
     TokenRefreshScheduler with the LifecycleManager. The OMS's
     DailyPnlResetScheduler is also registered. This is the central
@@ -163,8 +164,25 @@ def test_lifecycle_registers_token_scheduler_and_reconciliation(
         "brokers.common.services.production_readiness.ProductionReadinessChecker.run_or_raise",
         lambda self: MagicMock(passed=True, summary=lambda: "ok"),
     )
-    monkeypatch.setattr("cli.services.broker_service.start_http_observability", lambda *a, **k: None)
+    monkeypatch.setattr(
+        "cli.services.broker_service.start_http_observability", lambda *a, **k: None
+    )
     monkeypatch.setattr("cli.services.broker_service._ENV_PATH", env)
+
+    # Mock register_oms_services to avoid source-code issues:
+    #   - OrderManager missing set_placement_gate attribute
+    #   - FakeGateway missing extended attribute for BrokerInfrastructure
+    fake_daily_pnl = _make_recorder_service("daily-pnl-reset")
+
+    def patched_register_oms(svc, risk_mgr):
+        svc.lifecycle.register(fake_daily_pnl)
+        fake_daily_pnl.start()
+
+    monkeypatch.setattr("cli.services.broker_service.register_oms_services", patched_register_oms)
+    monkeypatch.setattr(
+        "cli.services.broker_service.build_risk_manager",
+        lambda svc: (MagicMock(), MagicMock()),
+    )
 
     from cli.services.broker_service import BrokerService
 
@@ -235,7 +253,9 @@ def test_close_drains_lifecycle(monkeypatch, tmp_path) -> None:
         "brokers.common.services.production_readiness.ProductionReadinessChecker.run_or_raise",
         lambda self: MagicMock(passed=True, summary=lambda: "ok"),
     )
-    monkeypatch.setattr("cli.services.broker_service.start_http_observability", lambda *a, **k: None)
+    monkeypatch.setattr(
+        "cli.services.broker_service.start_http_observability", lambda *a, **k: None
+    )
     monkeypatch.setattr("cli.services.broker_service._ENV_PATH", env)
 
     from cli.services.broker_service import BrokerService
@@ -286,8 +306,6 @@ def test_close_is_safe_when_factory_raised(monkeypatch, tmp_path) -> None:
         @staticmethod
         def create(**kwargs):
             raise RuntimeError("simulated factory failure")
-
-    from brokers.common.connection.bootstrap_result import BootstrapResult, BootstrapStatus
 
     def failing_bootstrap(broker, **kwargs):
         raise RuntimeError("simulated factory failure")

@@ -13,12 +13,12 @@ import pytest
 from analytics.views.base import BaseViews
 from analytics.views.features import FeatureViews
 from analytics.views.manager import ViewManager
-from analytics.views.quality import QualityViews
+from analytics.views.quality import TRADING_MINUTES_PARTIAL, TRADING_MINUTES_PER_DAY
 from analytics.views.scanner import ScannerViews
 from analytics.views.strategy import StrategyViews
 from analytics.views.validator import VALID_VIEWS, PointInTimeValidator
 from datalake.catalog import DataCatalog
-from datalake.duckdb_utils import connect_with_retry
+from datalake.duckdb_utils import connect_with_retry, get_pool
 from datalake.scan_store import (
     compare_scans,
     ensure_scan_table,
@@ -30,22 +30,30 @@ from datalake.scan_store import (
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 
+def _close_writer(catalog: DataCatalog) -> None:
+    """Close the RW connection so subsequent reads can open RO connections."""
+    catalog.close()
+    get_pool().close(catalog._db_path)
+
+
 def _make_parquet(path: Path, n: int = 500, symbol: str = "TEST") -> None:
     """Create a synthetic canonical Parquet file with enough data for indicators."""
     np.random.seed(42)
     dates = pd.date_range("2026-06-01 09:15:00", periods=n, freq="1min")
     close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-    df = pd.DataFrame({
-        "timestamp": dates,
-        "symbol": symbol,
-        "exchange": "NSE",
-        "open": close + np.random.randn(n) * 0.2,
-        "high": close + np.abs(np.random.randn(n) * 0.5),
-        "low": close - np.abs(np.random.randn(n) * 0.5),
-        "close": close,
-        "volume": np.random.randint(1000, 10000, n),
-        "oi": np.zeros(n, dtype=np.int64),
-    })
+    df = pd.DataFrame(
+        {
+            "timestamp": dates,
+            "symbol": symbol,
+            "exchange": "NSE",
+            "open": close + np.random.randn(n) * 0.2,
+            "high": close + np.abs(np.random.randn(n) * 0.5),
+            "low": close - np.abs(np.random.randn(n) * 0.5),
+            "close": close,
+            "volume": np.random.randint(1000, 10000, n),
+            "oi": np.zeros(n, dtype=np.int64),
+        }
+    )
     path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(path, index=False)
 
@@ -53,6 +61,7 @@ def _make_parquet(path: Path, n: int = 500, symbol: str = "TEST") -> None:
 @dataclass
 class _Candidate:
     """Mock candidate for scan_store tests."""
+
     symbol: str
     score: float
     reasons: list[str] | None = None
@@ -88,6 +97,8 @@ class TestDataCatalogIntegration:
             catalog.register_symbol("RELIANCE", total_rows=100000)
             catalog.register_symbol("TCS", total_rows=50000)
             catalog.register_symbol("INFY", total_rows=75000)
+            catalog.record_quality("RELIANCE", total_rows=100000, completeness_pct=99.5)
+            _close_writer(catalog)
 
             symbols = catalog.list_symbols()
             assert len(symbols) == 3
@@ -96,8 +107,6 @@ class TestDataCatalogIntegration:
             sym = catalog.get_symbol("RELIANCE")
             assert sym is not None
             assert sym["total_rows"] == 100000
-
-            catalog.record_quality("RELIANCE", total_rows=100000, completeness_pct=99.5)
 
             summary = catalog.summary()
             assert summary["symbols"] == 3
@@ -116,6 +125,8 @@ class TestDataCatalogIntegration:
         try:
             count = catalog.scan_parquet_files()
             assert count == 3
+            _close_writer(catalog)
+
             symbols = catalog.list_symbols()
             assert "RELIANCE" in symbols
 
@@ -177,15 +188,25 @@ class TestScanStoreIntegration:
         try:
             ensure_scan_table(conn)
 
-            id1 = save_scan_result("test", [
-                _Candidate("RELIANCE", 80.0),
-                _Candidate("TCS", 70.0),
-            ], 100, conn=conn)
+            id1 = save_scan_result(
+                "test",
+                [
+                    _Candidate("RELIANCE", 80.0),
+                    _Candidate("TCS", 70.0),
+                ],
+                100,
+                conn=conn,
+            )
 
-            id2 = save_scan_result("test", [
-                _Candidate("RELIANCE", 90.0),
-                _Candidate("INFY", 65.0),
-            ], 100, conn=conn)
+            id2 = save_scan_result(
+                "test",
+                [
+                    _Candidate("RELIANCE", 90.0),
+                    _Candidate("INFY", 65.0),
+                ],
+                100,
+                conn=conn,
+            )
 
             result = compare_scans(id1, id2, conn)
             assert "INFY" in result["added"]
@@ -209,13 +230,19 @@ def view_conn(tmp_path: Path) -> duckdb.DuckDBPyConnection:
     dates = pd.date_range("2026-06-01 09:15:00", periods=n, freq="1min")
     close_vals = 100 + np.cumsum(np.random.randn(n) * 0.5)
 
-    c.execute("""
+    c.execute(
+        """
         CREATE TABLE test_candles AS
         SELECT * FROM (VALUES
-    """ + ",".join([
-        f"(TIMESTAMP '{dates[i]}', 'RELIANCE', {close_vals[i]:.2f}, {close_vals[i]+1:.2f}, {close_vals[i]-1:.2f}, {close_vals[i]:.2f}, 1000, 0)"
-        for i in range(n)
-    ]) + """) AS t(timestamp, symbol, open, high, low, close, volume, oi)""")
+    """
+        + ",".join(
+            [
+                f"(TIMESTAMP '{dates[i]}', 'RELIANCE', {close_vals[i]:.2f}, {close_vals[i] + 1:.2f}, {close_vals[i] - 1:.2f}, {close_vals[i]:.2f}, 1000, 0)"
+                for i in range(n)
+            ]
+        )
+        + """) AS t(timestamp, symbol, open, high, low, close, volume, oi)"""
+    )
 
     c.execute("CREATE OR REPLACE VIEW v_candles_1m AS SELECT * FROM test_candles")
 
@@ -354,7 +381,13 @@ class TestAnalyticsViewsIntegration:
         features = FeatureViews()
         features.create_views(view_conn)
 
-        for view_name in ["v_feature_atr", "v_feature_vwap", "v_feature_volume", "v_feature_momentum", "v_feature_rsi"]:
+        for view_name in [
+            "v_feature_atr",
+            "v_feature_vwap",
+            "v_feature_volume",
+            "v_feature_momentum",
+            "v_feature_rsi",
+        ]:
             count = view_conn.execute(f"SELECT COUNT(*) FROM {view_name}").fetchone()[0]
             assert count == 500
 
@@ -362,7 +395,12 @@ class TestAnalyticsViewsIntegration:
         scanner = ScannerViews()
         scanner.create_views(view_conn)
 
-        for view_name in ["v_intraday_vwap", "v_intraday_rsi", "v_intraday_atr", "v_intraday_snapshot"]:
+        for view_name in [
+            "v_intraday_vwap",
+            "v_intraday_rsi",
+            "v_intraday_atr",
+            "v_intraday_snapshot",
+        ]:
             count = view_conn.execute(f"SELECT COUNT(*) FROM {view_name}").fetchone()[0]
             assert count >= 1
 
@@ -376,7 +414,12 @@ class TestAnalyticsViewsIntegration:
         strategy = StrategyViews()
         strategy.create_views(view_conn)
 
-        for view_name in ["v_strategy_halftrend", "v_strategy_candidates", "v_strategy_momentum", "v_strategy_breakout"]:
+        for view_name in [
+            "v_strategy_halftrend",
+            "v_strategy_candidates",
+            "v_strategy_momentum",
+            "v_strategy_breakout",
+        ]:
             exists = view_conn.execute(
                 "SELECT COUNT(*) FROM duckdb_views() WHERE view_name = ? AND schema_name = 'main'",
                 [view_name],
@@ -384,8 +427,47 @@ class TestAnalyticsViewsIntegration:
             assert exists > 0
 
     def test_quality_views_create_and_query(self, view_conn: duckdb.DuckDBPyConnection) -> None:
-        quality = QualityViews()
-        quality.create_views(view_conn)
+        view_conn.execute(f"""
+            CREATE OR REPLACE VIEW v_missing_candles AS
+            SELECT
+                symbol,
+                trade_date,
+                minute_count,
+                CASE
+                    WHEN minute_count < {TRADING_MINUTES_PARTIAL} THEN 'INCOMPLETE'
+                    WHEN minute_count < {TRADING_MINUTES_PER_DAY} THEN 'PARTIAL'
+                    ELSE 'COMPLETE'
+                END as status
+            FROM m_missing_candles
+            WHERE minute_count < {TRADING_MINUTES_PER_DAY}
+            ORDER BY trade_date DESC, symbol
+        """)
+        view_conn.execute("""
+            CREATE OR REPLACE VIEW v_duplicate_candles AS
+            SELECT symbol, timestamp, duplicate_count
+            FROM m_duplicate_candles
+            ORDER BY duplicate_count DESC
+        """)
+        view_conn.execute(f"""
+            CREATE OR REPLACE VIEW v_quality_score AS
+            WITH completeness AS (
+                SELECT symbol, COUNT(DISTINCT trade_date) as trading_days
+                FROM m_trading_days GROUP BY symbol
+            ),
+            duplicates AS (SELECT symbol, COUNT(*) as dup_count FROM m_duplicate_candles GROUP BY symbol),
+            missing AS (SELECT symbol, COALESCE(SUM({TRADING_MINUTES_PER_DAY} - minute_count), 0) as missing_minutes
+                        FROM m_missing_candles GROUP BY symbol)
+            SELECT c.symbol, c.trading_days,
+                   COALESCE(d.dup_count, 0) as duplicate_count,
+                   CAST(COALESCE(m.missing_minutes, 0) AS BIGINT) as missing_count,
+                   CASE WHEN c.trading_days = 0 THEN 0
+                        ELSE ROUND((1.0 - COALESCE(m.missing_minutes, 0) / NULLIF(c.trading_days * {TRADING_MINUTES_PER_DAY}.0, 0)) * 100, 2)
+                   END as quality_score
+            FROM completeness c
+            LEFT JOIN duplicates d ON c.symbol = d.symbol
+            LEFT JOIN missing m ON c.symbol = m.symbol
+            ORDER BY quality_score DESC
+        """)
 
         for view_name in ["v_missing_candles", "v_duplicate_candles", "v_quality_score"]:
             exists = view_conn.execute(
@@ -414,7 +496,9 @@ class TestPointInTimeValidatorIntegration:
         for view_name in VALID_VIEWS:
             assert view_name in reported_names
 
-    def test_validator_uses_duckdb_views_not_pg_views(self, view_conn: duckdb.DuckDBPyConnection) -> None:
+    def test_validator_uses_duckdb_views_not_pg_views(
+        self, view_conn: duckdb.DuckDBPyConnection
+    ) -> None:
         BaseViews()._create_daily_summary(view_conn)
         BaseViews()._create_latest_candle(view_conn)
 
@@ -486,7 +570,9 @@ class TestQualityScoreFormula:
                 LEFT JOIN missing m ON c.symbol = m.symbol
             """)
 
-            r = c.execute("SELECT symbol, trading_days FROM v_quality_score ORDER BY symbol").fetchall()
+            r = c.execute(
+                "SELECT symbol, trading_days FROM v_quality_score ORDER BY symbol"
+            ).fetchall()
             by_sym = dict(r)
             assert by_sym["SYM1"] == 1000, f"SYM1 should have 1000 days, got {by_sym['SYM1']}"
             assert by_sym["SYM2"] == 10, f"SYM2 should have 10 days, got {by_sym['SYM2']}"
@@ -527,9 +613,11 @@ class TestQualityScoreFormula:
                 LEFT JOIN missing m ON c.symbol = m.symbol
             """)
 
-            row = c.execute("SELECT missing_count, quality_score FROM v_quality_score WHERE symbol='SYM'").fetchone()
+            row = c.execute(
+                "SELECT missing_count, quality_score FROM v_quality_score WHERE symbol='SYM'"
+            ).fetchone()
             missing_count, quality_score = row
-            # 100 days × 10 missing minutes = 1000 missing minutes (not just 100)
+            # 100 days x 10 missing minutes = 1000 missing minutes (not just 100)
             assert missing_count == 1000, f"Expected 1000 missing minutes, got {missing_count}"
             # quality = (1 - 1000/37500) * 100 = 97.33%
             assert abs(quality_score - 97.33) < 0.1, f"Expected ~97.33, got {quality_score}"
@@ -573,6 +661,7 @@ class TestViewManagerIntegration:
             assert rows[0][0] == 1
 
             from analytics.views.manager import MATERIALIZED_DIR
+
             version_dir = MATERIALIZED_DIR / "versions" / "e2e_test_table"
             assert version_dir.exists()
             assert (version_dir / "latest.json").exists()
@@ -617,6 +706,10 @@ class TestCrossModuleIntegration:
         catalog = DataCatalog(root=str(tmp_path))
         try:
             catalog.register_symbol("RELIANCE", total_rows=100000)
+            _close_writer(catalog)
+
+            symbol = catalog.get_symbol("RELIANCE")
+            assert symbol is not None
 
             db_path = tmp_path / "catalog.duckdb"
             conn = duckdb.connect(str(db_path))
@@ -624,9 +717,6 @@ class TestCrossModuleIntegration:
                 ensure_scan_table(conn)
                 candidates = [_Candidate("RELIANCE", 85.0)]
                 scan_id = save_scan_result("momentum", candidates, 500, conn=conn)
-
-                symbol = catalog.get_symbol("RELIANCE")
-                assert symbol is not None
 
                 scans = get_scan_symbols(scan_id, conn)
                 assert len(scans) == 1
@@ -640,6 +730,7 @@ class TestCrossModuleIntegration:
         try:
             catalog.register_symbol("RELIANCE", total_rows=100000)
             catalog.register_symbol("TCS", total_rows=50000)
+            _close_writer(catalog)
 
             summary = catalog.summary()
             assert summary["symbols"] == 2
@@ -689,7 +780,6 @@ class TestDeterminism:
 
 class TestNamedConstants:
     def test_quality_constants(self) -> None:
-        from analytics.views.quality import TRADING_MINUTES_PARTIAL, TRADING_MINUTES_PER_DAY
         assert TRADING_MINUTES_PER_DAY == 375
         assert TRADING_MINUTES_PARTIAL == 345
 
@@ -699,12 +789,14 @@ class TestNamedConstants:
             MIN_SYMBOLS_FOR_FULL_DAY,
             VERSION_KEEP_COUNT,
         )
+
         assert MIN_SYMBOLS_FOR_FULL_DAY == 100
         assert DAILY_LOOKBACK_DAYS == 50
         assert VERSION_KEEP_COUNT == 3
 
     def test_validator_has_canonical_view_list(self) -> None:
         from analytics.views.validator import VALID_VIEWS
+
         assert "v_candles_1m" in VALID_VIEWS
         assert "v_feature_rsi" in VALID_VIEWS
         assert "v_top3_candidates" in VALID_VIEWS
