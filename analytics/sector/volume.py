@@ -27,14 +27,14 @@ class SectorVolumeProfile:
     """Volume profile for a single sector."""
 
     sector: str
-    total_volume: float           # Sum of volume over period
-    avg_daily_volume: float       # Average daily volume
-    volume_change_pct: float      # Volume change vs previous period (%)
-    relative_volume: float        # Volume vs market average (1.0 = average)
-    high_volume_days: int         # Days with > 1.5x average volume
-    volume_trend: str             # "increasing" / "decreasing" / "stable"
-    vwap_deviation: float         # Avg price deviation from VWAP (%)
-    score: float                  # Composite volume score 0-100
+    total_volume: float  # Sum of volume over period
+    avg_daily_volume: float  # Average daily volume
+    volume_change_pct: float  # Volume change vs previous period (%)
+    relative_volume: float  # Volume vs market average (1.0 = average)
+    high_volume_days: int  # Days with > 1.5x average volume
+    volume_trend: str  # "increasing" / "decreasing" / "stable"
+    vwap_deviation: float  # Avg price deviation from VWAP (%)
+    score: float  # Composite volume score 0-100
 
 
 @dataclass
@@ -93,6 +93,7 @@ class SectorVolumeAnalyzer:
         if sector_col not in df.columns:
             try:
                 from analytics.sector.mapping import SectorMapper
+
                 mapper = SectorMapper.default()
                 df = mapper.assign_sectors(df)
                 sector_col = "sector"
@@ -127,7 +128,9 @@ class SectorVolumeAnalyzer:
 
         # Volume concentration (HHI)
         if profiles:
-            shares = [p.total_volume / total_market_volume for p in profiles if total_market_volume > 0]
+            shares = [
+                p.total_volume / total_market_volume for p in profiles if total_market_volume > 0
+            ]
             volume_concentration = sum(s**2 for s in shares)
         else:
             volume_concentration = 0.0
@@ -183,7 +186,9 @@ class SectorVolumeAnalyzer:
         relative_volume = avg_per_symbol / market_avg if market_avg > 0 else 1.0
 
         # High volume days
-        high_vol_days = int((vol > avg_daily * self.high_vol_threshold).sum()) if avg_daily > 0 else 0
+        high_vol_days = (
+            int((vol > avg_daily * self.high_vol_threshold).sum()) if avg_daily > 0 else 0
+        )
 
         # Volume trend
         if len(vol) >= 10:
@@ -200,7 +205,11 @@ class SectorVolumeAnalyzer:
 
         # VWAP deviation
         if "close" in data.columns and "volume" in data.columns:
-            vwap = (data["close"] * data["volume"]).sum() / vol.sum() if vol.sum() > 0 else data["close"].mean()
+            vwap = (
+                (data["close"] * data["volume"]).sum() / vol.sum()
+                if vol.sum() > 0
+                else data["close"].mean()
+            )
             avg_price = data["close"].mean()
             vwap_dev = ((avg_price - vwap) / vwap * 100) if vwap > 0 else 0.0
         else:

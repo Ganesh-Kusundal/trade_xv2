@@ -10,7 +10,6 @@ import threading
 from collections.abc import Callable
 from typing import Any
 
-from infrastructure.event_bus import DomainEvent, EventBus
 from brokers.upstox.auth.config import (
     UPSTOX_WS_PING_INTERVAL_SECONDS,
     UPSTOX_WS_PING_TIMEOUT_SECONDS,
@@ -18,6 +17,7 @@ from brokers.upstox.auth.config import (
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from brokers.upstox.websocket.feed_authorizer import UpstoxFeedAuthorizer
 from brokers.upstox.websocket.v3_auto_reconnect import UpstoxAutoReconnect
+from infrastructure.event_bus import DomainEvent, EventBus
 
 logger = logging.getLogger(__name__)
 
@@ -142,11 +142,11 @@ class UpstoxPortfolioStream:
             if isinstance(raw, bytes):
                 try:
                     raw = raw.decode("utf-8")
-                except Exception:
+                except Exception:  # noqa: S112
                     continue
             try:
                 msg = json.loads(raw)
-            except Exception:
+            except Exception:  # noqa: S112
                 continue
             update_type = msg.get("type") or msg.get("update_type")
             payload = msg.get("data") if isinstance(msg, dict) else {}

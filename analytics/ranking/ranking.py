@@ -16,24 +16,39 @@ class RankingFacade:
         self._engine = engine
 
     def top_stocks(self, data: pd.DataFrame | None = None, *, limit: int = 10) -> AnalysisResult:
-        return self._result("top_stocks", self._engine.top_stocks(data, limit) if data is not None else [])
+        return self._result(
+            "top_stocks", self._engine.top_stocks(data, limit) if data is not None else []
+        )
 
     def top_futures(self, data: pd.DataFrame | None = None, *, limit: int = 10) -> AnalysisResult:
-        return self._result("top_futures", self._engine.top_futures(data, limit) if data is not None else [])
+        return self._result(
+            "top_futures", self._engine.top_futures(data, limit) if data is not None else []
+        )
 
     def top_options(self, data: pd.DataFrame | None = None, *, limit: int = 10) -> AnalysisResult:
-        return self._result("top_options", self._engine.top_options(data, limit) if data is not None else [])
+        return self._result(
+            "top_options", self._engine.top_options(data, limit) if data is not None else []
+        )
 
     def top_momentum(self, data: pd.DataFrame | None = None, *, limit: int = 10) -> AnalysisResult:
-        return self._result("top_momentum", self._engine.top_momentum(data, limit) if data is not None else [])
+        return self._result(
+            "top_momentum", self._engine.top_momentum(data, limit) if data is not None else []
+        )
 
-    def top_relative_strength(self, data: pd.DataFrame | None = None, *, limit: int = 10) -> AnalysisResult:
-        return self._result("top_relative_strength", self._engine.top_relative_strength(data, limit) if data is not None else [])
+    def top_relative_strength(
+        self, data: pd.DataFrame | None = None, *, limit: int = 10
+    ) -> AnalysisResult:
+        return self._result(
+            "top_relative_strength",
+            self._engine.top_relative_strength(data, limit) if data is not None else [],
+        )
 
     def _result(self, name: str, records: list[dict[str, object]]) -> AnalysisResult:
         return AnalysisResult(
             name=name,
-            summary="Ranking is ready. Pass a universe DataFrame to return ranked instruments." if not records else f"Ranked {len(records)} instruments.",
+            summary="Ranking is ready. Pass a universe DataFrame to return ranked instruments."
+            if not records
+            else f"Ranked {len(records)} instruments.",
             metrics={"count": len(records)},
             charts=[{"type": "ranking", "ranking": name, "data": records}],
         )
@@ -74,7 +89,9 @@ class RankingEngine:
             weight_total += weight
         return max(0.0, min(100.0, score / weight_total if weight_total else 50.0))
 
-    def rank_dataframe(self, data: pd.DataFrame, *, score_column: str = "composite_score", ascending: bool = False) -> pd.DataFrame:
+    def rank_dataframe(
+        self, data: pd.DataFrame, *, score_column: str = "composite_score", ascending: bool = False
+    ) -> pd.DataFrame:
         if data.empty:
             return data.copy()
         ranked = data.copy()
@@ -86,10 +103,14 @@ class RankingEngine:
         return ranked.sort_values(columns, ascending=order, kind="mergesort").reset_index(drop=True)
 
     def top_stocks(self, data: pd.DataFrame, limit: int = 10) -> list[dict[str, object]]:
-        return self.rank_dataframe(data, score_column="composite_score").head(limit).to_dict("records")
+        return (
+            self.rank_dataframe(data, score_column="composite_score").head(limit).to_dict("records")
+        )
 
     def top_futures(self, data: pd.DataFrame, limit: int = 10) -> list[dict[str, object]]:
-        return self.rank_dataframe(data, score_column="future_strength").head(limit).to_dict("records")
+        return (
+            self.rank_dataframe(data, score_column="future_strength").head(limit).to_dict("records")
+        )
 
     def top_options(self, data: pd.DataFrame, limit: int = 10) -> list[dict[str, object]]:
         return self.rank_dataframe(data, score_column="composite").head(limit).to_dict("records")
@@ -100,15 +121,25 @@ class RankingEngine:
             ranked["momentum"] = ranked.get("roc", 0)
         columns = ["momentum", "symbol"] if "symbol" in ranked.columns else ["momentum"]
         ascending = [False, True] if "symbol" in ranked.columns else [False]
-        return ranked.sort_values(columns, ascending=ascending, kind="mergesort").head(limit).to_dict("records")
+        return (
+            ranked.sort_values(columns, ascending=ascending, kind="mergesort")
+            .head(limit)
+            .to_dict("records")
+        )
 
     def top_relative_strength(self, data: pd.DataFrame, limit: int = 10) -> list[dict[str, object]]:
         ranked = data.copy()
         if "relative_strength" not in ranked:
             ranked["relative_strength"] = ranked.get("composite_score", 50)
-        columns = ["relative_strength", "symbol"] if "symbol" in ranked.columns else ["relative_strength"]
+        columns = (
+            ["relative_strength", "symbol"] if "symbol" in ranked.columns else ["relative_strength"]
+        )
         ascending = [False, True] if "symbol" in ranked.columns else [False]
-        return ranked.sort_values(columns, ascending=ascending, kind="mergesort").head(limit).to_dict("records")
+        return (
+            ranked.sort_values(columns, ascending=ascending, kind="mergesort")
+            .head(limit)
+            .to_dict("records")
+        )
 
     def analyze(self, data: pd.DataFrame, *, name: str = "ranking") -> AnalysisResult:
         ranked = self.rank_dataframe(data)

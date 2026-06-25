@@ -39,24 +39,28 @@ def _make_ohlcv(
     else:
         close = 100 + np.cumsum(np.random.randn(n) * 0.5)
 
-    return pd.DataFrame({
-        "timestamp": dates,
-        "symbol": symbol,
-        "exchange": "NSE",
-        "open": close + np.random.randn(n) * 0.2,
-        "high": close + np.abs(np.random.randn(n)) * 0.5,
-        "low": close - np.abs(np.random.randn(n)) * 0.5,
-        "close": close,
-        "volume": np.random.randint(1000, 10000, n),
-        "oi": np.zeros(n, dtype=np.int64),
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": dates,
+            "symbol": symbol,
+            "exchange": "NSE",
+            "open": close + np.random.randn(n) * 0.2,
+            "high": close + np.abs(np.random.randn(n)) * 0.5,
+            "low": close - np.abs(np.random.randn(n)) * 0.5,
+            "close": close,
+            "volume": np.random.randint(1000, 10000, n),
+            "oi": np.zeros(n, dtype=np.int64),
+        }
+    )
 
 
 def _setup_lake(tmp_path: Path, symbols: list[tuple[str, str]]) -> None:
     """Set up data lake with multiple symbols. symbols = [(name, trend), ...]"""
     for sym, trend in symbols:
         df = _make_ohlcv(n=500, symbol=sym, trend=trend)
-        parquet_path = tmp_path / "equities" / "candles" / "timeframe=1m" / f"symbol={sym}" / "data.parquet"
+        parquet_path = (
+            tmp_path / "equities" / "candles" / "timeframe=1m" / f"symbol={sym}" / "data.parquet"
+        )
         _write_parquet(parquet_path, df)
 
 
@@ -82,11 +86,14 @@ class TestDataLakeToScanner:
     """Test DataLake → Scanner connection."""
 
     def test_scan_universe(self, tmp_path: Path) -> None:
-        _setup_lake(tmp_path, [
-            ("RELIANCE", "up"),
-            ("TCS", "down"),
-            ("HDFCBANK", "neutral"),
-        ])
+        _setup_lake(
+            tmp_path,
+            [
+                ("RELIANCE", "up"),
+                ("TCS", "down"),
+                ("HDFCBANK", "neutral"),
+            ],
+        )
         api = ResearchAPI(root=str(tmp_path))
 
         # Load universe data
@@ -118,10 +125,13 @@ class TestDataLakeToStrategy:
     """Test DataLake → FeaturePipeline → StrategyPipeline connection."""
 
     def test_strategy_evaluates_candidates(self, tmp_path: Path) -> None:
-        _setup_lake(tmp_path, [
-            ("RELIANCE", "up"),
-            ("TCS", "down"),
-        ])
+        _setup_lake(
+            tmp_path,
+            [
+                ("RELIANCE", "up"),
+                ("TCS", "down"),
+            ],
+        )
         api = ResearchAPI(root=str(tmp_path))
 
         # Load and compute features per symbol
@@ -133,10 +143,7 @@ class TestDataLakeToStrategy:
                 features_by_symbol[sym] = pipeline.run(df)
 
         # Create candidates
-        candidates = [
-            Candidate(symbol=sym, score=50.0)
-            for sym in features_by_symbol
-        ]
+        candidates = [Candidate(symbol=sym, score=50.0) for sym in features_by_symbol]
 
         # Run strategy
         strategy_pipeline = StrategyPipeline(strategies=[MomentumStrategy()])
@@ -157,12 +164,15 @@ class TestFullChain:
 
     def test_full_research_chain(self, tmp_path: Path) -> None:
         # 1. Set up data lake
-        _setup_lake(tmp_path, [
-            ("RELIANCE", "up"),
-            ("TCS", "down"),
-            ("HDFCBANK", "neutral"),
-            ("INFY", "up"),
-        ])
+        _setup_lake(
+            tmp_path,
+            [
+                ("RELIANCE", "up"),
+                ("TCS", "down"),
+                ("HDFCBANK", "neutral"),
+                ("INFY", "up"),
+            ],
+        )
         api = ResearchAPI(root=str(tmp_path))
 
         # 2. Load universe
@@ -180,7 +190,9 @@ class TestFullChain:
         assert scan_result.count > 0
 
         # 4. Compute features per symbol for strategy
-        feature_pipeline = FeaturePipeline().add(RSI(14)).add(ROC(5)).add(ATR(14)).add(SMA(20)).add(Trend())
+        feature_pipeline = (
+            FeaturePipeline().add(RSI(14)).add(ROC(5)).add(ATR(14)).add(SMA(20)).add(Trend())
+        )
         features_by_symbol = {}
         for sym in universe_data:
             features_by_symbol[sym] = feature_pipeline.run(universe_data[sym])

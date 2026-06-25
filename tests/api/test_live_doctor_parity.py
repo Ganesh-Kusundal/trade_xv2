@@ -22,7 +22,9 @@ def test_readyz_check_names_are_structured_like_doctor() -> None:
     broker_service = SimpleNamespace(
         active_broker=gateway,
         active_broker_name="dhan",
-        lifecycle=MagicMock(service_names=MagicMock(return_value=[]), health_snapshot=MagicMock(return_value={})),
+        lifecycle=MagicMock(
+            service_names=MagicMock(return_value=[]), health_snapshot=MagicMock(return_value={})
+        ),
         _trading_context=None,
         _gateway=MagicMock(_conn=MagicMock(market_feed=MagicMock(), order_stream=MagicMock())),
         _http_observability=MagicMock(),
@@ -32,7 +34,10 @@ def test_readyz_check_names_are_structured_like_doctor() -> None:
     app = create_app(config=APIConfig(auth_mode="none"), broker_service=broker_service)
     client = TestClient(app)
 
-    doctor_names = {name for name, _status, _detail in DoctorDiagnostics(broker_service, gateway).run_all_checks()}
+    doctor_names = {
+        name
+        for name, _status, _detail in DoctorDiagnostics(broker_service, gateway).run_all_checks()
+    }
     assert doctor_names  # doctor always returns at least one check
 
     ready_report = ProductionReadinessChecker(broker_service).run()

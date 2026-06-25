@@ -3,7 +3,7 @@
 Covers:
 - Dict payload translation with instrument key
 - Dict payload with missing instrument key
-- Attribute/protobuf payload translation  
+- Attribute/protobuf payload translation
 - OHLC extraction from dict and object
 - Timestamp parsing (millis, ISO, None)
 - Canonical symbol resolution priority
@@ -16,10 +16,8 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from unittest.mock import MagicMock
 
-import pytest
-
-from domain import Quote
 from brokers.upstox.adapters.tick_translator import TickTranslatorAdapter
+from domain import Quote
 
 
 class TestTickTranslatorDictPayload:
@@ -31,9 +29,9 @@ class TestTickTranslatorDictPayload:
         defn.name = "RELIANCE"
         defn.symbol = "RELIANCE"
         defn.trading_symbol = ""
-        
+
         resolve = MagicMock(return_value=defn)
-        
+
         raw = {
             "frame_type": "ltpc",
             "payload": {
@@ -43,9 +41,9 @@ class TestTickTranslatorDictPayload:
                 "volume": 100000,
             },
         }
-        
+
         result = TickTranslatorAdapter.translate(raw, resolve_callback=resolve)
-        
+
         assert isinstance(result, Quote)
         assert result.symbol == "RELIANCE"
         assert result.ltp == Decimal("2500.5000")
@@ -58,15 +56,15 @@ class TestTickTranslatorDictPayload:
             "frame_type": "ltpc",
             "payload": {"last_price": 100.0},
         }
-        
+
         result = TickTranslatorAdapter.translate(raw)
-        
+
         assert result is raw
 
     def test_translate_dict_unresolvable_key_falls_back(self):
         """Unresolvable key extracts symbol from RHS."""
         resolve = MagicMock(return_value=None)
-        
+
         raw = {
             "frame_type": "ltpc",
             "payload": {
@@ -74,9 +72,9 @@ class TestTickTranslatorDictPayload:
                 "last_price": 2500.00,
             },
         }
-        
+
         result = TickTranslatorAdapter.translate(raw, resolve_callback=resolve)
-        
+
         assert isinstance(result, Quote)
         assert result.symbol == "RELIANCE"
         assert result.ltp == Decimal("2500.0000")
@@ -87,6 +85,7 @@ class TestTickTranslatorProtobufPayload:
 
     def test_translate_protobuf_object(self):
         """Protobuf object with attributes translates correctly."""
+
         # Create a simple class to simulate protobuf object (not a dict)
         class ProtobufPayload:
             def __init__(self):
@@ -107,15 +106,15 @@ class TestTickTranslatorProtobufPayload:
                 self.best_bid_price = 0
                 self.best_ask_price = 0
                 self.exchange_timestamp = None
-        
+
         defn = MagicMock()
         defn.name = "TCS"
         resolve = MagicMock(return_value=defn)
-        
+
         payload = ProtobufPayload()
         raw = {"frame_type": "ltpc", "payload": payload}
         result = TickTranslatorAdapter.translate(raw, resolve_callback=resolve)
-        
+
         assert isinstance(result, Quote)
         assert result.symbol == "TCS"
         assert result.ltp == Decimal("3500.0000")
@@ -129,7 +128,7 @@ class TestTickTranslatorOHLC:
         defn = MagicMock()
         defn.name = "NIFTY50"
         resolve = MagicMock(return_value=defn)
-        
+
         raw = {
             "frame_type": "full",
             "payload": {
@@ -145,9 +144,9 @@ class TestTickTranslatorOHLC:
                 "volume": 0,
             },
         }
-        
+
         q = TickTranslatorAdapter.translate(raw, resolve_callback=resolve)
-        
+
         assert q.open == Decimal("22100.0000")
         assert q.high == Decimal("22600.0000")
         assert q.low == Decimal("22050.0000")
@@ -162,9 +161,9 @@ class TestTickTranslatorTimestamp:
         defn = MagicMock()
         defn.name = "TCS"
         resolve = MagicMock(return_value=defn)
-        
+
         ts_ms = int(datetime(2025, 5, 20, 9, 15, 0, tzinfo=timezone.utc).timestamp() * 1000)
-        
+
         raw = {
             "frame_type": "ltpc",
             "payload": {
@@ -175,9 +174,9 @@ class TestTickTranslatorTimestamp:
                 "volume": 0,
             },
         }
-        
+
         q = TickTranslatorAdapter.translate(raw, resolve_callback=resolve)
-        
+
         assert q.timestamp is not None
         assert q.timestamp.year == 2025
         assert q.timestamp.month == 5
@@ -193,7 +192,7 @@ class TestCanonicalSymbolPriority:
         defn.name = "NIFTY 29 MAY 25 24800 CE"
         defn.symbol = "NIFTY2924800CE"
         defn.trading_symbol = "NIFTY2924800CE"
-        
+
         sym = TickTranslatorAdapter._canonical_symbol_for_defn(defn, "NSE_FO|NIFTY2924800CE")
         assert sym == "NIFTY 29 MAY 25 24800 CE"
 
@@ -203,7 +202,7 @@ class TestCanonicalSymbolPriority:
         defn.name = ""
         defn.symbol = "RELIANCE"
         defn.trading_symbol = "RELIANCE-EQ"
-        
+
         sym = TickTranslatorAdapter._canonical_symbol_for_defn(defn, "NSE_EQ|RELIANCE")
         assert sym == "RELIANCE"
 
@@ -213,7 +212,7 @@ class TestCanonicalSymbolPriority:
         defn.name = ""
         defn.symbol = ""
         defn.trading_symbol = "TCS-EQ"
-        
+
         sym = TickTranslatorAdapter._canonical_symbol_for_defn(defn, "NSE_EQ|TCS")
         assert sym == "TCS-EQ"
 

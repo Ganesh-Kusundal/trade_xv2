@@ -9,20 +9,21 @@ import logging
 from decimal import Decimal
 from typing import Any
 
-from brokers.common.gateway_interfaces import IdempotencyCachePort, OrderCommand
-from domain import (
-    Order,
-    OrderPreview,
-    OrderResponse,
-)
-from domain import Side as OrderSide
-from brokers.common.dtos import BrokerOrderPayload
-from infrastructure.event_bus import DomainEvent, EventBus
 from application.oms._internal.risk_manager import RiskManager
+from brokers.common.dtos import BrokerOrderPayload
+from brokers.common.gateway_interfaces import IdempotencyCachePort, OrderCommand
 from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from brokers.upstox.orders.idempotency import InMemoryIdempotencyCache
 from brokers.upstox.orders.order_client import UpstoxRestOrderClient
+from domain import (
+    Order,
+    OrderPreview,
+    OrderRequest,
+    OrderResponse,
+)
+from domain import Side as OrderSide
+from infrastructure.event_bus import DomainEvent, EventBus
 
 logger = logging.getLogger(__name__)
 
@@ -113,7 +114,9 @@ class UpstoxOrderCommandAdapter(OrderCommand):
                     if isinstance(data, list) and data:
                         instrument_key = data[0].get("instrument_token", "")
             except (ValueError, KeyError):
-                logger.debug("Failed to look up order %s for instrument_key", order_id, exc_info=True)
+                logger.debug(
+                    "Failed to look up order %s for instrument_key", order_id, exc_info=True
+                )
         if not instrument_key:
             logger.warning(
                 "modify_order_missing_instrument_key",
@@ -236,6 +239,7 @@ class UpstoxOrderCommandAdapter(OrderCommand):
 
         try:
             from dataclasses import replace
+
             order = replace(
                 self._to_domain_order(request),
                 order_id=response.order_id or "",

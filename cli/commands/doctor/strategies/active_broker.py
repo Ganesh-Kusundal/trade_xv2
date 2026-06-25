@@ -17,9 +17,7 @@ class ActiveBrokerCheck(CheckStrategy):
         results: list[CheckResult] = []
 
         if broker_service is None:
-            results.append(
-                CheckResult("Active Broker", "FAIL", "No broker service available")
-            )
+            results.append(CheckResult("Active Broker", "FAIL", "No broker service available"))
             return results
 
         try:

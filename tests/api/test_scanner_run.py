@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
@@ -23,18 +21,18 @@ def scanner_app(tmp_path):
     universe_dir.mkdir(parents=True)
     (universe_dir / "nifty50.txt").write_text("RELIANCE\n")
 
-    candles_dir = (
-        market_root / "equities" / "candles" / "timeframe=1m" / "symbol=RELIANCE"
-    )
+    candles_dir = market_root / "equities" / "candles" / "timeframe=1m" / "symbol=RELIANCE"
     candles_dir.mkdir(parents=True)
-    df = pd.DataFrame({
-        "timestamp": pd.date_range("2024-01-15 09:15", periods=5, freq="1min"),
-        "open": [100.0, 101.0, 102.0, 103.0, 104.0],
-        "high": [101.0, 102.0, 103.0, 104.0, 105.0],
-        "low": [99.0, 100.0, 101.0, 102.0, 103.0],
-        "close": [100.5, 101.5, 102.5, 103.5, 104.5],
-        "volume": [1000, 1100, 1200, 1300, 1400],
-    })
+    df = pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2024-01-15 09:15", periods=5, freq="1min"),
+            "open": [100.0, 101.0, 102.0, 103.0, 104.0],
+            "high": [101.0, 102.0, 103.0, 104.0, 105.0],
+            "low": [99.0, 100.0, 101.0, 102.0, 103.0],
+            "close": [100.5, 101.5, 102.5, 103.5, 104.5],
+            "volume": [1000, 1100, 1200, 1300, 1400],
+        }
+    )
     df.to_parquet(candles_dir / "data.parquet")
 
     gateway = DataLakeGateway(root=str(market_root))
@@ -56,8 +54,8 @@ class TestScannerRunIntegration:
         monkeypatch.chdir(tmp_path)
         client = TestClient(app)
 
-        from infrastructure.event_bus.event_bus import EventBus
         from application.oms.context import TradingContext
+        from infrastructure.event_bus.event_bus import EventBus
 
         reset_container()
         app = create_app(

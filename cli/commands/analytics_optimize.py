@@ -55,7 +55,9 @@ def run_optimize(args: list[str], console: Console) -> None:
             index += 1
 
     if not file_path:
-        console.print("[yellow]Usage: tradex analytics optimize --file ohlcv.csv [--rsi 7,10,14,21] [--sma 10,20,30] [--top 10][/yellow]")
+        console.print(
+            "[yellow]Usage: tradex analytics optimize --file ohlcv.csv [--rsi 7,10,14,21] [--sma 10,20,30] [--top 10][/yellow]"
+        )
         console.print("[dim]Quick modes:[/dim]")
         console.print("[dim]  tradex analytics optimize --file ohlcv.csv --rsi-only[/dim]")
         console.print("[dim]  tradex analytics optimize --file ohlcv.csv --sma-only[/dim]")
@@ -101,9 +103,14 @@ def run_optimize(args: list[str], console: Console) -> None:
 
     # Results table
     if result.results:
-        sorted_results = sorted(result.results, key=lambda x: x.get("sharpe_ratio", 0), reverse=True)
+        sorted_results = sorted(
+            result.results, key=lambda x: x.get("sharpe_ratio", 0), reverse=True
+        )
 
-        table = Table(title=f"Top {min(top_n, len(sorted_results))} Parameter Combinations", header_style="bold cyan")
+        table = Table(
+            title=f"Top {min(top_n, len(sorted_results))} Parameter Combinations",
+            header_style="bold cyan",
+        )
         table.add_column("#", style="dim", width=4)
         table.add_column("Parameters", style="bold white")
         table.add_column("Return", style="green")
@@ -121,7 +128,7 @@ def run_optimize(args: list[str], console: Console) -> None:
                 f"{row['sharpe_ratio']:.2f}",
                 f"{row['max_drawdown_pct']:.1f}%",
                 str(row["total_trades"]),
-                f"{row['win_rate']*100:.0f}%",
+                f"{row['win_rate'] * 100:.0f}%",
             )
 
         console.print(table)

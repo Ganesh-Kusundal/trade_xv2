@@ -4,12 +4,10 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from domain.field_mapping import DefaultFieldMapping
-from domain.status_mapper import StatusMapperRegistry
 from domain.types import OrderStatus
 
 
@@ -32,8 +30,12 @@ def test_status_normalize_idempotent(raw: str) -> None:
             "status": st.sampled_from(["OPEN", "FILLED", "CANCELLED"]),
             "quantity": st.integers(min_value=1, max_value=1000),
             "filled_quantity": st.integers(min_value=0, max_value=1000),
-            "price": st.one_of(st.none(), st.decimals(min_value=0, max_value=10000, places=2).map(str)),
-            "avg_price": st.one_of(st.none(), st.decimals(min_value=0, max_value=10000, places=2).map(str)),
+            "price": st.one_of(
+                st.none(), st.decimals(min_value=0, max_value=10000, places=2).map(str)
+            ),
+            "avg_price": st.one_of(
+                st.none(), st.decimals(min_value=0, max_value=10000, places=2).map(str)
+            ),
             "reject_reason": st.text(max_size=64),
         }
     )

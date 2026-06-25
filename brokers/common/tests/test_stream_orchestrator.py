@@ -2,7 +2,6 @@
 
 import pytest
 
-from domain.stream_health import FreshnessState, SubscriptionState, TransportState
 from brokers.common.capabilities import dhan_capabilities, upstox_capabilities
 from brokers.common.policy import auto_dual_broker_policy
 from brokers.common.registry import BrokerRegistry
@@ -13,6 +12,7 @@ from brokers.common.stream_orchestrator import (
     SubscriptionRequest,
 )
 from brokers.common.tests.fixtures.in_memory_gateway import InMemoryBrokerGateway
+from domain.stream_health import FreshnessState, SubscriptionState, TransportState
 
 
 class _RecordingConsumer:
@@ -91,14 +91,14 @@ class TestStreamOrchestrator:
             )
         )
         session = orchestrator.all_sessions()[0]
-        tick = orchestrator._normalize_tick(  # noqa: SLF001
+        tick = orchestrator._normalize_tick(
             {"symbol": "RELIANCE", "exchange": "NSE", "ltp": 2500.0, "volume": 100},
             session.session_id,
             session.broker_id,
             __import__("datetime").datetime.now(__import__("datetime").timezone.utc),
         )
         assert tick is not None
-        await orchestrator._deliver_tick(session.session_id, tick)  # noqa: SLF001
+        await orchestrator._deliver_tick(session.session_id, tick)
         assert consumer.ticks
         health = orchestrator.session_health(session.session_id)
         assert health is not None

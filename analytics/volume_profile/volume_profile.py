@@ -30,10 +30,24 @@ class VolumeProfileBuilder:
         sorted_profile = profile.sort_values("volume", ascending=False)
         cumulative = sorted_profile["volume"].cumsum()
         value_area = sorted_profile.loc[cumulative <= value_area_volume]
-        vah = float(value_area["price_high"].max()) if not value_area.empty else float(poc["price_high"])
-        val = float(value_area["price_low"].min()) if not value_area.empty else float(poc["price_low"])
-        hvn = profile.loc[profile["volume"] >= profile["volume"].quantile(0.75), ["price_low", "price_high", "volume"]].to_dict("records")
-        lvn = profile.loc[profile["volume"] <= profile["volume"].quantile(0.25), ["price_low", "price_high", "volume"]].to_dict("records")
+        vah = (
+            float(value_area["price_high"].max())
+            if not value_area.empty
+            else float(poc["price_high"])
+        )
+        val = (
+            float(value_area["price_low"].min())
+            if not value_area.empty
+            else float(poc["price_low"])
+        )
+        hvn = profile.loc[
+            profile["volume"] >= profile["volume"].quantile(0.75),
+            ["price_low", "price_high", "volume"],
+        ].to_dict("records")
+        lvn = profile.loc[
+            profile["volume"] <= profile["volume"].quantile(0.25),
+            ["price_low", "price_high", "volume"],
+        ].to_dict("records")
 
         return AnalysisResult(
             name="volume_profile",
@@ -68,5 +82,7 @@ class VolumeProfileBuilder:
             )
             .reset_index(drop=True)
         )
-        profile["price_mid"] = profile.apply(lambda row: (row["price_low"] + row["price_high"]) / 2, axis=1)
+        profile["price_mid"] = profile.apply(
+            lambda row: (row["price_low"] + row["price_high"]) / 2, axis=1
+        )
         return profile[profile["volume"] > 0].reset_index(drop=True)

@@ -27,7 +27,9 @@ def test_live_actionable_false_when_auth_probe_fails(monkeypatch, tmp_path):
         )
 
     monkeypatch.setattr("cli.services.broker_service.bootstrap_gateway", failing_bootstrap)
-    monkeypatch.setattr("cli.services.broker_service.start_http_observability", lambda *a, **k: None)
+    monkeypatch.setattr(
+        "cli.services.broker_service.start_http_observability", lambda *a, **k: None
+    )
 
     from cli.services.broker_service import BrokerService
 
@@ -44,7 +46,6 @@ def test_lifecycle_not_started_when_auth_fails(monkeypatch, tmp_path):
     monkeypatch.setattr("cli.services.broker_service._ENV_PATH", env)
 
     started = {"count": 0}
-    original_start = None
 
     def failing_bootstrap(broker, **kwargs):
         return BootstrapResult(
@@ -106,7 +107,8 @@ def test_active_broker_raises_when_dhan_bootstrap_fails(monkeypatch, tmp_path):
 
 
 def test_active_broker_raises_for_upstox_when_selected_and_unavailable(
-    monkeypatch, tmp_path,
+    monkeypatch,
+    tmp_path,
 ):
     env = tmp_path / ".env.local"
     env.write_text("DHAN_CLIENT_ID=ABC\nDHAN_ACCESS_TOKEN=TOK\n")

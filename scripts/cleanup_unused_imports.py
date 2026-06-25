@@ -25,7 +25,17 @@ from typing import Any
 def run_ruff_check(select: str = "F401", output_format: str = "concise") -> str:
     """Run ruff check and return output."""
     result = subprocess.run(
-        [sys.executable, "-m", "ruff", "check", ".", "--select", select, "--output-format", output_format],
+        [
+            sys.executable,
+            "-m",
+            "ruff",
+            "check",
+            ".",
+            "--select",
+            select,
+            "--output-format",
+            output_format,
+        ],
         capture_output=True,
         text=True,
         cwd=Path(__file__).parent.parent,
@@ -56,12 +66,14 @@ def parse_unused_imports(output: str) -> dict[str, list[dict[str, Any]]]:
         if "`" in details:
             import_name = details.split("`")[1]
 
-        issues_by_file[file_path].append({
-            "line": line_num,
-            "col": col_num,
-            "import": import_name,
-            "details": details,
-        })
+        issues_by_file[file_path].append(
+            {
+                "line": line_num,
+                "col": col_num,
+                "import": import_name,
+                "details": details,
+            }
+        )
 
     return dict(issues_by_file)
 
@@ -94,7 +106,9 @@ def categorize_files(issues: dict[str, list[dict[str, Any]]]) -> dict[str, dict[
     return categories
 
 
-def generate_report(issues: dict[str, list[dict[str, Any]]], categories: dict[str, dict[str, Any]]) -> str:
+def generate_report(
+    issues: dict[str, list[dict[str, Any]]], categories: dict[str, dict[str, Any]]
+) -> str:
     """Generate a detailed cleanup report."""
     total_issues = sum(len(v) for v in issues.values())
 
@@ -111,7 +125,9 @@ def generate_report(issues: dict[str, list[dict[str, Any]]], categories: dict[st
     report.append("CATEGORY SUMMARY")
     report.append("-" * 80)
     for cat_name, cat_data in categories.items():
-        report.append(f"\n{cat_name.upper()}: {cat_data['count']} issues in {len(cat_data['files'])} files")
+        report.append(
+            f"\n{cat_name.upper()}: {cat_data['count']} issues in {len(cat_data['files'])} files"
+        )
         if cat_data["safe_to_auto_fix"]:
             report.append(f"  ✓ Safe to auto-fix")
         else:

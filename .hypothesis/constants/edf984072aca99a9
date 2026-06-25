@@ -1,4 +1,0 @@
-# file: /workspaces/trade_xv2/brokers/upstox/auth/token_manager.py
-# hypothesis_version: 6.155.7
-
-[1000, 'OAUTH', 'S256', 'STATIC', 'TOTP', 'Upstox access token', 'Upstox token', 'Upstox token (TOTP)', 'WEBHOOK', 'access_token', 'client_id', 'code', 'code_challenge', 'expires_at_ms', 'issued_at_ms', 'placeholder-no-token', 'redirect_uri', 'refresh_token', 'response_type', 'source', 'token_state_file']

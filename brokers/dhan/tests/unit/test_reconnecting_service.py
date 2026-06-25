@@ -12,8 +12,6 @@ import threading
 import time
 from datetime import datetime, timezone
 
-import pytest
-
 from brokers.dhan.reconnecting_service import ReconnectingServiceMixin
 
 

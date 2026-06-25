@@ -182,9 +182,14 @@ class StubLiveGateway:
         return {"broker": "stub", "connected": True}
 
     def capabilities(self):
-        from brokers.common.gateway import BrokerCapabilities
+        from brokers.common.capabilities import BrokerCapabilities
 
-        return BrokerCapabilities(websocket=True)
+        return BrokerCapabilities(
+            broker_id="stub",
+            supports_place_order=True,
+            supports_historical_data=True,
+            supports_live_market_data=True,
+        )
 
     @property
     def extended(self):

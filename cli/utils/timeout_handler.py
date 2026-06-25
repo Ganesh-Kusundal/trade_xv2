@@ -14,8 +14,10 @@ Usage:
 from __future__ import annotations
 
 import logging
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
-from typing import Any, Callable
+from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeout
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +65,7 @@ def with_timeout(
         future = executor.submit(func, *args, **kwargs)
         try:
             return future.result(timeout=timeout_seconds)
-        except FuturesTimeout:
+        except FuturesTimeout as e:
             logger.error(
                 "timeout_exceeded",
                 extra={
@@ -71,9 +73,7 @@ def with_timeout(
                     "timeout_seconds": timeout_seconds,
                 },
             )
-            raise TimeoutError(
-                f"{func.__name__} timed out after {timeout_seconds}s"
-            )
+            raise TimeoutError(f"{func.__name__} timed out after {timeout_seconds}s") from e
 
 
 def with_timeout_async(

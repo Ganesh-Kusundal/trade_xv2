@@ -10,6 +10,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal
 
+from brokers.common.api.spi import (
+    BrokerSource,
+)
 from brokers.common.gateway_interfaces import (
     ConditionalAlertProvider,
     CoverOrderProvider,
@@ -25,9 +28,6 @@ from brokers.common.gateway_interfaces import (
     OrderQuery,
     PortfolioProvider,
     SliceOrderCommand,
-)
-from brokers.common.api.spi import (
-    BrokerSource,
 )
 
 
@@ -60,6 +60,7 @@ __all__ = [
     "MarginCalculationError",
     "MarginProvider",
     "MarginResult",
+    "MarketDataProvider",
     "MarketStatusProvider",
     "NewsProvider",
     "OptionsProvider",

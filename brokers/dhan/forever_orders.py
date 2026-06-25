@@ -5,13 +5,12 @@ from __future__ import annotations
 import logging
 from decimal import Decimal
 
-from domain.entities import OrderResponse
 from brokers.dhan.domain import ForeverOrder, ForeverOrderRequest
 from brokers.dhan.exceptions import ForeverOrderError
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 from brokers.dhan.invariants import assert_dhan_payload
-from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
+from domain.entities import OrderResponse
 
 logger = logging.getLogger(__name__)
 
@@ -45,11 +44,14 @@ class ForeverOrdersAdapter:
         errors = self._validate_forever_order(request)
         if errors:
             msg = "; ".join(errors)
-            logger.warning("forever_order_validation_failed", extra={
-                "symbol": request.symbol,
-                "order_flag": request.order_flag,
-                "errors": errors,
-            })
+            logger.warning(
+                "forever_order_validation_failed",
+                extra={
+                    "symbol": request.symbol,
+                    "order_flag": request.order_flag,
+                    "errors": errors,
+                },
+            )
             raise ValueError(f"Forever order validation failed: {msg}")
 
         # Resolve instrument via the identity provider. The carrier
@@ -99,12 +101,15 @@ class ForeverOrdersAdapter:
         order_data = data.get("data", data)
         order = self._parse_forever_order(order_data)
 
-        logger.info("forever_order_placed", extra={
-            "order_id": order.order_id,
-            "symbol": request.symbol,
-            "order_flag": request.order_flag,
-            "transaction_type": request.transaction_type,
-        })
+        logger.info(
+            "forever_order_placed",
+            extra={
+                "order_id": order.order_id,
+                "symbol": request.symbol,
+                "order_flag": request.order_flag,
+                "transaction_type": request.transaction_type,
+            },
+        )
 
         return order
 
@@ -160,9 +165,12 @@ class ForeverOrdersAdapter:
         order_data = data.get("data", data)
         order = self._parse_forever_order(order_data)
 
-        logger.info("forever_order_modified", extra={
-            "order_id": order_id,
-        })
+        logger.info(
+            "forever_order_modified",
+            extra={
+                "order_id": order_id,
+            },
+        )
 
         return order
 
@@ -208,9 +216,7 @@ class ForeverOrdersAdapter:
         )
         return OrderResponse.fail(
             message=str(
-                data.get("errorMessage")
-                or data.get("message")
-                or "Forever order cancel failed"
+                data.get("errorMessage") or data.get("message") or "Forever order cancel failed"
             ),
             error_code=str(data.get("errorCode", "")),
             raw_payload=data,
@@ -231,7 +237,9 @@ class ForeverOrdersAdapter:
             raise ForeverOrderError(f"Failed to fetch forever orders: {exc}") from exc
 
         items = data.get("data", []) if isinstance(data, dict) else []
-        orders = [self._parse_forever_order(item) for item in (items if isinstance(items, list) else [])]
+        orders = [
+            self._parse_forever_order(item) for item in (items if isinstance(items, list) else [])
+        ]
 
         logger.info("forever_orders_fetched", extra={"count": len(orders)})
         return orders

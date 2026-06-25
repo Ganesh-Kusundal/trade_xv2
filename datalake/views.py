@@ -22,10 +22,13 @@ def create_views(db_path: str | Path | None = None) -> None:
     if parquet_dir.exists():
         parquet_pattern = str(parquet_dir / "symbol=*" / "data.parquet")
 
-        conn.execute(f"""
+        conn.execute(
+            """
             CREATE OR REPLACE VIEW all_candles AS
-            SELECT * FROM read_parquet('{parquet_pattern}')
-        """)
+            SELECT * FROM read_parquet(?)
+        """,
+            [parquet_pattern],
+        )
 
         # Latest candle per symbol
         conn.execute("""

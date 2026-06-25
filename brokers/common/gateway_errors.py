@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 
-class UnsupportedGatewayOperation(NotImplementedError):
+class UnsupportedGatewayOperationError(NotImplementedError):
     """Raised when a gateway does not implement a contract method."""
 
     def __init__(self, gateway: str, operation: str) -> None:

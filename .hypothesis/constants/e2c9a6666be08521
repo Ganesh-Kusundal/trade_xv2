@@ -1,4 +1,0 @@
-# file: /workspaces/trade_xv2/analytics/views/validator.py
-# hypothesis_version: 6.155.7
-
-[100, 'FOLLOWING', 'LEAD(', 'ROWS BETWEEN', 'UNBOUNDED FOLLOWING', 'feature', 'intraday', 'invalid', 'issues', 'pass_rate', 'scanner', 'total_views', 'v_candles_1m', 'v_daily_summary', 'v_duplicate_candles', 'v_feature_atr', 'v_feature_momentum', 'v_feature_rsi', 'v_feature_volume', 'v_feature_vwap', 'v_intraday_atr', 'v_intraday_rsi', 'v_intraday_snapshot', 'v_intraday_vwap', 'v_iv_surface', 'v_latest_candle', 'v_max_pain', 'v_missing_candles', 'v_pcr', 'v_quality_score', 'v_strategy_breakout', 'v_strategy_halftrend', 'v_strategy_momentum', 'v_top10_candidates', 'v_top3_candidates', 'valid']

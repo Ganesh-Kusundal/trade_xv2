@@ -28,7 +28,6 @@ import pytest
 # ---------------------------------------------------------------------------
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 
-from domain import OrderStatus, MarketDepth, Quote
 from brokers.dhan.connection import DhanConnection
 from brokers.dhan.domain import (
     Exchange,
@@ -38,8 +37,7 @@ from brokers.dhan.factory import BrokerFactory
 from brokers.dhan.gateway import BrokerGateway
 from brokers.dhan.orders import IdempotencyCache
 from brokers.dhan.tests.conftest import SAMPLE_ROWS, FakeHttpClient
-
-from tests.market_hours import skip_off_market
+from domain import MarketDepth, OrderStatus, Quote
 
 # ---------------------------------------------------------------------------
 # Live-skip guard
@@ -48,8 +46,10 @@ ENV_PATH = Path(__file__).resolve().parent.parent.parent.parent.parent / ".env.l
 _live_env_loaded = False
 if ENV_PATH.exists() and ENV_PATH.stat().st_size > 0:
     from dotenv import load_dotenv
+
     load_dotenv(ENV_PATH, override=True)
     _live_env_loaded = bool(os.environ.get("DHAN_CLIENT_ID"))
+
 
 def _should_skip_live() -> bool:
     """Skip live tests if credentials missing, token expired, or market is closed."""
@@ -57,17 +57,21 @@ def _should_skip_live() -> bool:
         return True
     # Validate token is not expired by checking JWT exp claim
     token = os.environ.get("DHAN_ACCESS_TOKEN", "")
-    from brokers.common.auth.jwt_expiry import JwtExpiry
     import time as _time
+
+    from brokers.common.auth.jwt_expiry import JwtExpiry
+
     exp_ms = JwtExpiry.parse_expiry_epoch_ms(token)
     if exp_ms > 0 and exp_ms < _time.time() * 1000:
         return True
     from tests.market_hours import is_market_open
+
     return not is_market_open()
+
 
 skip_live = pytest.mark.skipif(
     _should_skip_live(),
-    reason="Live API tests require .env.local credentials and open market hours"
+    reason="Live API tests require .env.local credentials and open market hours",
 )
 
 
@@ -177,9 +181,7 @@ class DhanBrokerContractSuite:
         assert OrderStatus.normalize("TRIGGER PENDING") == OrderStatus.OPEN
         assert OrderStatus.normalize("PARTIALLY_EXECUTED") == OrderStatus.PARTIALLY_FILLED
 
-    def test_order_validation_rejects_bad_lot(
-        self, offline_gateway: BrokerGateway
-    ) -> None:
+    def test_order_validation_rejects_bad_lot(self, offline_gateway: BrokerGateway) -> None:
         """validate_order with wrong lot size must return errors.
 
         NIFTY 26 JUN FUT has lot_size=75; quantity=10 is not a valid multiple.
@@ -194,9 +196,7 @@ class DhanBrokerContractSuite:
         assert len(errors) > 0, "Expected validation errors for non-lot-aligned quantity"
         assert any("lot size" in e.lower() or "multiple" in e.lower() for e in errors)
 
-    def test_order_validation_rejects_bad_product(
-        self, offline_gateway: BrokerGateway
-    ) -> None:
+    def test_order_validation_rejects_bad_product(self, offline_gateway: BrokerGateway) -> None:
         """validate_order with CNC on NFO must return errors.
 
         CNC is an equity-only product type and is not valid for derivatives (NSE_FNO).

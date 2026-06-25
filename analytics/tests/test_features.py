@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from analytics.core.feature_builder import FeatureBuilder
-from analytics.pipeline.features import ZScore, Correlation, Beta, PercentRank
+from analytics.pipeline.features import Beta, Correlation, PercentRank, ZScore
 
 from .helpers import prices
 
@@ -56,8 +56,8 @@ class TestBeta:
         df = prices(100)
         beta = Beta(asset_col="close", bench_col="benchmark", period=20)
         try:
-            result = beta.compute(df)
-            assert False, "Should have raised ValueError for missing benchmark column"
+            beta.compute(df)
+            raise AssertionError("Should have raised ValueError for missing benchmark column")
         except ValueError as e:
             assert "benchmark" in str(e)
 

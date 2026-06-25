@@ -51,16 +51,20 @@ def run_walkforward(args: list[str], console: Console) -> None:
             return
     else:
         console.print("[dim]No --file provided; generating synthetic OHLCV for demo[/dim]")
-        ts = pd.date_range("2026-01-02 09:15", periods=train_bars + test_bars + step_bars, freq="1min")
+        ts = pd.date_range(
+            "2026-01-02 09:15", periods=train_bars + test_bars + step_bars, freq="1min"
+        )
         price = 100 + pd.Series(range(len(ts))).astype(float) * 0.05
-        df = pd.DataFrame({
-            "timestamp": ts,
-            "open": price,
-            "high": price + 0.5,
-            "low": price - 0.5,
-            "close": price,
-            "volume": 10000,
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": ts,
+                "open": price,
+                "high": price + 0.5,
+                "low": price - 0.5,
+                "close": price,
+                "volume": 10000,
+            }
+        )
 
     pipeline = FeaturePipeline().add(RSI(14)).add(ATR(14)).add(SMA(20))
     strategy = StrategyPipeline(strategies=[MomentumStrategy()])

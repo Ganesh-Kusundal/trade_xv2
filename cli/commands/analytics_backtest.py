@@ -37,7 +37,9 @@ def run_backtest(args: list[str], console: Console) -> None:
             index += 1
 
     if not file_path:
-        console.print("[yellow]Usage: tradex analytics backtest --file ohlcv.csv [--benchmark nifty.csv] [--capital 100000] [--warmup 20][/yellow]")
+        console.print(
+            "[yellow]Usage: tradex analytics backtest --file ohlcv.csv [--benchmark nifty.csv] [--capital 100000] [--warmup 20][/yellow]"
+        )
         return
 
     try:
@@ -51,7 +53,9 @@ def run_backtest(args: list[str], console: Console) -> None:
     if benchmark_path:
         try:
             benchmark = pd.read_csv(benchmark_path)
-            console.print(f"[dim]Loaded benchmark: {len(benchmark)} bars from {benchmark_path}[/dim]")
+            console.print(
+                f"[dim]Loaded benchmark: {len(benchmark)} bars from {benchmark_path}[/dim]"
+            )
         except Exception as exc:
             console.print(f"[yellow]Warning: Could not load benchmark: {exc}[/yellow]")
 
@@ -73,10 +77,18 @@ def run_backtest(args: list[str], console: Console) -> None:
 
     ta = result.metrics.trade_analysis
     if ta.total_trades > 0:
-        console.print(f"\n[bold]Trades:[/bold] {ta.total_trades} | Win: {ta.winning_trades} | Loss: {ta.losing_trades}")
-        console.print(f"[bold]Win Rate:[/bold] {ta.win_rate*100:.1f}% | Profit Factor: {ta.profit_factor:.2f}")
-        console.print(f"[bold]Avg Win:[/bold] ₹{ta.avg_win:.2f} ({ta.avg_win_pct:+.1f}%) | Avg Loss: ₹{ta.avg_loss:.2f} ({ta.avg_loss_pct:+.1f}%)")
-        console.print(f"[bold]Max Consecutive:[/bold] {ta.max_consecutive_wins} wins / {ta.max_consecutive_losses} losses")
+        console.print(
+            f"\n[bold]Trades:[/bold] {ta.total_trades} | Win: {ta.winning_trades} | Loss: {ta.losing_trades}"
+        )
+        console.print(
+            f"[bold]Win Rate:[/bold] {ta.win_rate * 100:.1f}% | Profit Factor: {ta.profit_factor:.2f}"
+        )
+        console.print(
+            f"[bold]Avg Win:[/bold] ₹{ta.avg_win:.2f} ({ta.avg_win_pct:+.1f}%) | Avg Loss: ₹{ta.avg_loss:.2f} ({ta.avg_loss_pct:+.1f}%)"
+        )
+        console.print(
+            f"[bold]Max Consecutive:[/bold] {ta.max_consecutive_wins} wins / {ta.max_consecutive_losses} losses"
+        )
         if ta.trades_by_strategy:
             console.print(f"[bold]By Strategy:[/bold] {ta.trades_by_strategy}")
     else:
@@ -120,7 +132,9 @@ def run_paper(args: list[str], console: Console) -> None:
             index += 1
 
     if not file_path:
-        console.print("[yellow]Usage: tradex analytics paper --file ohlcv.csv [--capital 100000] [--positions 5] [--warmup 20] [--slippage 0.01] [--commission 0.0003] [--stop-loss 2.0][/yellow]")
+        console.print(
+            "[yellow]Usage: tradex analytics paper --file ohlcv.csv [--capital 100000] [--positions 5] [--warmup 20] [--slippage 0.01] [--commission 0.0003] [--stop-loss 2.0][/yellow]"
+        )
         return
 
     try:
@@ -147,7 +161,9 @@ def run_paper(args: list[str], console: Console) -> None:
         stop_loss_pct=stop_loss,
     )
 
-    console.print(f"[dim]Running paper trading: ₹{capital:,.0f} capital, {max_positions} max positions, {slippage}% slippage[/dim]")
+    console.print(
+        f"[dim]Running paper trading: ₹{capital:,.0f} capital, {max_positions} max positions, {slippage}% slippage[/dim]"
+    )
     engine = PaperTradingEngine(pipeline, strategy, config)
     result = engine.run(data, symbol="PAPER")
 
@@ -173,8 +189,11 @@ def run_paper(args: list[str], console: Console) -> None:
         for p in result.session.open_positions:
             pnl_style = "green" if p.unrealized_pnl >= 0 else "red"
             pos_table.add_row(
-                p.symbol, p.side.value, str(p.quantity),
-                f"₹{p.entry_price:.2f}", f"₹{p.current_price:.2f}",
+                p.symbol,
+                p.side.value,
+                str(p.quantity),
+                f"₹{p.entry_price:.2f}",
+                f"₹{p.current_price:.2f}",
                 f"[{pnl_style}]₹{p.unrealized_pnl:.2f}[/{pnl_style}]",
             )
         console.print(pos_table)
@@ -182,8 +201,10 @@ def run_paper(args: list[str], console: Console) -> None:
     if result.session.trades:
         wins = sum(1 for t in result.session.trades if t.pnl > 0)
         losses = sum(1 for t in result.session.trades if t.pnl <= 0)
-        console.print(f"\n[bold]Trades:[/bold] {len(result.session.trades)} | Win: {wins} | Loss: {losses}")
-        console.print(f"[bold]Win Rate:[/bold] {result.session.win_rate*100:.1f}%")
+        console.print(
+            f"\n[bold]Trades:[/bold] {len(result.session.trades)} | Win: {wins} | Loss: {losses}"
+        )
+        console.print(f"[bold]Win Rate:[/bold] {result.session.win_rate * 100:.1f}%")
         console.print(f"[bold]Total P&L:[/bold] ₹{result.session.total_pnl:.2f}")
         console.print(f"[bold]Commission:[/bold] ₹{result.session.total_commission:.2f}")
     else:

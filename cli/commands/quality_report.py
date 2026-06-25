@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import time
 
 from rich.console import Console
@@ -19,8 +20,8 @@ def run(args: list[str], broker_service, console: Console) -> None:
         from brokers.common.intelligent_gateway import IntelligentGateway
         from cli.services.broker_registry import create_gateway
 
-        dhan = create_gateway("dhan", env_path=Path('.env.local'), load_instruments=True)
-        upstox = create_gateway("upstox", env_path=Path('.env.upstox'), load_instruments=True)
+        dhan = create_gateway("dhan", env_path=Path(".env.local"), load_instruments=True)
+        upstox = create_gateway("upstox", env_path=Path(".env.upstox"), load_instruments=True)
         if dhan and upstox:
             gw = IntelligentGateway(dhan_gateway=dhan, upstox_gateway=upstox)
         elif dhan:
@@ -51,17 +52,33 @@ def run(args: list[str], broker_service, console: Console) -> None:
             table.add_row(name, "N/A", "-", "-", "-")
             continue
         try:
-            df = broker.history('TCS', timeframe='1D', lookback_days=30)
+            df = broker.history("TCS", timeframe="1D", lookback_days=30)
             rows = len(df)
-            duplicates = df.duplicated(subset=['timestamp']).sum() if not df.empty else 0
-            expected_cols = ['timestamp', 'open', 'high', 'low', 'close', 'volume', 'oi', 'symbol', 'exchange', 'timeframe']
+            duplicates = df.duplicated(subset=["timestamp"]).sum() if not df.empty else 0
+            expected_cols = [
+                "timestamp",
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "oi",
+                "symbol",
+                "exchange",
+                "timeframe",
+            ]
             schema_ok = list(df.columns) == expected_cols
             missing = df.isnull().sum().sum() if not df.empty else 0
             quality = 100 - (duplicates / rows * 100) if rows > 0 else 0
-            table.add_row(name, f"{quality:.2f}%", str(rows), str(duplicates), "PASS" if schema_ok else "FAIL")
+            table.add_row(
+                name, f"{quality:.2f}%", str(rows), str(duplicates), "PASS" if schema_ok else "FAIL"
+            )
             quality_data[name] = {
-                "rows": rows, "duplicates": duplicates, "missing": missing,
-                "quality": quality, "schema_ok": schema_ok,
+                "rows": rows,
+                "duplicates": duplicates,
+                "missing": missing,
+                "quality": quality,
+                "schema_ok": schema_ok,
             }
         except Exception as e:
             table.add_row(name, "ERROR", "-", "-", str(e)[:20])
@@ -78,7 +95,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
 
     for name, broker in [("Dhan", gw.dhan), ("Upstox", gw.upstox)]:
         try:
-            q = broker.quote('TCS')
+            q = broker.quote("TCS")
             table.add_row(name, "PASS", f"₹{q.ltp}", f"{q.volume:,}")
         except Exception as e:
             table.add_row(name, "ERROR", "-", str(e)[:20])
@@ -96,9 +113,9 @@ def run(args: list[str], broker_service, console: Console) -> None:
     for name, broker in [("Dhan", gw.dhan)]:
         try:
             t0 = time.time()
-            chain = broker.option_chain('NIFTY')
+            chain = broker.option_chain("NIFTY")
             latency = (time.time() - t0) * 1000
-            strikes = len(chain.get('strikes', []))
+            strikes = len(chain.get("strikes", []))
             table.add_row(name, "PASS", str(strikes), f"{latency:.0f}ms")
         except Exception as e:
             table.add_row(name, "ERROR", "-", str(e)[:20])
@@ -117,8 +134,8 @@ def run(args: list[str], broker_service, console: Console) -> None:
 
     for name, broker in [("Dhan", gw.dhan)]:
         try:
-            futures = broker.future_chain('NIFTY')
-            contracts = len(futures.get('contracts', []))
+            futures = broker.future_chain("NIFTY")
+            contracts = len(futures.get("contracts", []))
             table.add_row(name, "PASS", str(contracts))
         except Exception as e:
             table.add_row(name, "ERROR", str(e)[:20])
@@ -129,9 +146,9 @@ def run(args: list[str], broker_service, console: Console) -> None:
     console.print(table)
 
     # Overall Score — reuses quality data already fetched in Historical Quality
-    console.print("\n" + "="*50)
+    console.print("\n" + "=" * 50)
     console.print("[bold]OVERALL DATA QUALITY SCORE[/bold]")
-    console.print("="*50)
+    console.print("=" * 50)
 
     for broker_name, broker in [("Dhan", gw.dhan), ("Upstox", gw.upstox)]:
         if broker is None:
@@ -145,24 +162,20 @@ def run(args: list[str], broker_service, console: Console) -> None:
 
         # Detect capabilities (lightweight — only where historical already worked)
         capabilities = ["Historical"]
-        try:
-            broker.quote('TCS')
+        with contextlib.suppress(Exception):
+            broker.quote("TCS")
             capabilities.append("Quote")
-        except Exception:
-            pass
-        try:
-            broker.option_chain('NIFTY')
+        with contextlib.suppress(Exception):
+            broker.option_chain("NIFTY")
             capabilities.append("Option Chain")
-        except Exception:
-            pass
-        try:
-            broker.future_chain('NIFTY')
+        with contextlib.suppress(Exception):
+            broker.future_chain("NIFTY")
             capabilities.append("Futures")
-        except Exception:
-            pass
 
         console.print(f"  {broker_name}:")
-        console.print(f"    Quality: {qd['quality']:.1f}% ({qd['rows']} rows, {qd['duplicates']} duplicates, {qd['missing']} missing)")
+        console.print(
+            f"    Quality: {qd['quality']:.1f}% ({qd['rows']} rows, {qd['duplicates']} duplicates, {qd['missing']} missing)"
+        )
         console.print(f"    Schema: {'PASS' if qd['schema_ok'] else 'FAIL'}")
         console.print(f"    Capabilities: {', '.join(capabilities)}")
 

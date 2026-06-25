@@ -7,30 +7,34 @@ from brokers.dhan.portfolio import PortfolioAdapter
 
 
 def test_get_positions_parsing(fake_client, resolver):
-    fake_client.set_response("GET", "/positions", {
-        "data": [
-            {
-                "tradingSymbol": "RELIANCE",
-                "exchangeSegment": "NSE_EQ",
-                "netQuantity": 10,
-                "buyAveragePrice": 2440.0,
-                "lastPrice": 2455.0,
-                "unrealizedPnl": 150.0,
-                "realizedPnl": 0.0,
-                "productType": "INTRADAY",
-            },
-            {
-                "tradingSymbol": "NIFTY 26 JUN FUT",
-                "exchangeSegment": "NSE_FNO",
-                "netQuantity": -75,
-                "buyAveragePrice": 24600.0,
-                "lastPrice": 24550.0,
-                "unrealizedPnl": -3750.0,
-                "realizedPnl": 500.0,
-                "productType": "MARGIN",
-            },
-        ]
-    })
+    fake_client.set_response(
+        "GET",
+        "/positions",
+        {
+            "data": [
+                {
+                    "tradingSymbol": "RELIANCE",
+                    "exchangeSegment": "NSE_EQ",
+                    "netQuantity": 10,
+                    "buyAveragePrice": 2440.0,
+                    "lastPrice": 2455.0,
+                    "unrealizedPnl": 150.0,
+                    "realizedPnl": 0.0,
+                    "productType": "INTRADAY",
+                },
+                {
+                    "tradingSymbol": "NIFTY 26 JUN FUT",
+                    "exchangeSegment": "NSE_FNO",
+                    "netQuantity": -75,
+                    "buyAveragePrice": 24600.0,
+                    "lastPrice": 24550.0,
+                    "unrealizedPnl": -3750.0,
+                    "realizedPnl": 500.0,
+                    "productType": "MARGIN",
+                },
+            ]
+        },
+    )
     adapter = PortfolioAdapter(fake_client, resolver)
     positions = adapter.get_positions()
     assert len(positions) == 2
@@ -54,19 +58,23 @@ def test_get_positions_parsing(fake_client, resolver):
 
 def test_get_holdings_computes_pnl(fake_client, resolver):
     """When pnlValue is absent, PnL should be computed as (ltp - avg) * qty."""
-    fake_client.set_response("GET", "/holdings", {
-        "data": [
-            {
-                "tradingSymbol": "RELIANCE",
-                "exchangeSegment": "NSE_EQ",
-                "totalQty": 50,
-                "availableQty": 50,
-                "avgCostPrice": 2400.0,
-                "lastTradedPrice": 2450.0,
-                # No pnlValue — should be computed
-            },
-        ]
-    })
+    fake_client.set_response(
+        "GET",
+        "/holdings",
+        {
+            "data": [
+                {
+                    "tradingSymbol": "RELIANCE",
+                    "exchangeSegment": "NSE_EQ",
+                    "totalQty": 50,
+                    "availableQty": 50,
+                    "avgCostPrice": 2400.0,
+                    "lastTradedPrice": 2450.0,
+                    # No pnlValue — should be computed
+                },
+            ]
+        },
+    )
     adapter = PortfolioAdapter(fake_client, resolver)
     holdings = adapter.get_holdings()
     assert len(holdings) == 1
@@ -79,19 +87,23 @@ def test_get_holdings_computes_pnl(fake_client, resolver):
 
 def test_get_holdings_uses_dhan_field_names(fake_client, resolver):
     """Verify that Dhan-specific field names (totalQty, availableQty, avgCostPrice, lastTradedPrice) are used."""
-    fake_client.set_response("GET", "/holdings", {
-        "data": [
-            {
-                "tradingSymbol": "RELIANCE",
-                "exchangeSegment": "NSE_EQ",
-                "totalQty": 100,
-                "availableQty": 80,
-                "avgCostPrice": 2350.5,
-                "lastTradedPrice": 2450.75,
-                "pnlValue": 10025.0,
-            },
-        ]
-    })
+    fake_client.set_response(
+        "GET",
+        "/holdings",
+        {
+            "data": [
+                {
+                    "tradingSymbol": "RELIANCE",
+                    "exchangeSegment": "NSE_EQ",
+                    "totalQty": 100,
+                    "availableQty": 80,
+                    "avgCostPrice": 2350.5,
+                    "lastTradedPrice": 2450.75,
+                    "pnlValue": 10025.0,
+                },
+            ]
+        },
+    )
     adapter = PortfolioAdapter(fake_client, resolver)
     holdings = adapter.get_holdings()
     assert len(holdings) == 1
@@ -106,15 +118,19 @@ def test_get_holdings_uses_dhan_field_names(fake_client, resolver):
 
 def test_get_balance_dhan_typo(fake_client, resolver):
     """Dhan uses 'availabelBalance' (a typo) in their API response."""
-    fake_client.set_response("GET", "/fundlimit", {
-        "data": {
-            "availabelBalance": 500000.0,
-            "sodLimit": 1000000.0,
-            "collateralAmount": 200000.0,
-            "utilizedAmount": 300000.0,
-            "withdrawableBalance": 400000.0,
-        }
-    })
+    fake_client.set_response(
+        "GET",
+        "/fundlimit",
+        {
+            "data": {
+                "availabelBalance": 500000.0,
+                "sodLimit": 1000000.0,
+                "collateralAmount": 200000.0,
+                "utilizedAmount": 300000.0,
+                "withdrawableBalance": 400000.0,
+            }
+        },
+    )
     adapter = PortfolioAdapter(fake_client, resolver)
     balance = adapter.get_balance()
     assert balance.available_balance == Decimal("500000.0")

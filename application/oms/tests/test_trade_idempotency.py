@@ -8,10 +8,12 @@ The actual contract is:
   order surfaces.
 - A trade with no trade_id must be rejected, not silently dropped.
 """
+
 from __future__ import annotations
 
 import pytest
 
+from application.oms.order_manager import OrderManager, OrderRequest
 from domain import (
     Order,
     OrderStatus,
@@ -24,11 +26,9 @@ from infrastructure.event_bus import (
     DomainEvent,
     EventBus,
     EventType,
-    EventType,
     ProcessedTradeRepository,
 )
 from infrastructure.observability.event_metrics import EventMetrics
-from application.oms.order_manager import OrderManager, OrderRequest
 
 
 def _make_order(symbol: str = "RELIANCE", quantity: int = 10) -> Order:
@@ -160,7 +160,9 @@ def test_on_trade_event_is_idempotent(bus: EventBus, repo: ProcessedTradeReposit
     bus.subscribe(EventType.TRADE.value, om.on_trade)  # P1-3: Migrated to EventType enum
 
     trade = _make_trade("T1")
-    event = DomainEvent.now(EventType.TRADE.value, {"trade": trade}, symbol="RELIANCE")  # P1-3: Migrated to EventType enum
+    event = DomainEvent.now(
+        EventType.TRADE.value, {"trade": trade}, symbol="RELIANCE"
+    )  # P1-3: Migrated to EventType enum
     bus.publish(event)
     bus.publish(event)  # duplicate
     bus.publish(event)  # duplicate

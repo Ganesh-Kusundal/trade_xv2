@@ -19,6 +19,7 @@ from domain.types import OrderStatus
 # Common status strings
 # ---------------------------------------------------------------------------
 
+
 class TestCommonStatusNormalization:
     """All common status strings must normalize correctly."""
 
@@ -56,16 +57,20 @@ class TestCommonStatusNormalization:
 # Broker-specific registrations
 # ---------------------------------------------------------------------------
 
+
 class TestBrokerSpecificRegistration:
     """Broker adapters can register custom mappings that override common ones."""
 
     def setup_method(self):
         # Register a test broker mapping
-        StatusMapperRegistry.register("test_broker", {
-            "PLACED": OrderStatus.OPEN,
-            "TRIGGERED": OrderStatus.PARTIALLY_FILLED,
-            "SQUARE_OFF": OrderStatus.FILLED,
-        })
+        StatusMapperRegistry.register(
+            "test_broker",
+            {
+                "PLACED": OrderStatus.OPEN,
+                "TRIGGERED": OrderStatus.PARTIALLY_FILLED,
+                "SQUARE_OFF": OrderStatus.FILLED,
+            },
+        )
 
     def teardown_method(self):
         # Clean up to avoid leaking state into other tests
@@ -85,6 +90,7 @@ class TestBrokerSpecificRegistration:
 # Idempotency
 # ---------------------------------------------------------------------------
 
+
 class TestIdempotency:
     """Normalizing an already-normalized string must return the same result."""
 
@@ -103,6 +109,7 @@ class TestIdempotency:
 # Unknown status fallback
 # ---------------------------------------------------------------------------
 
+
 class TestUnknownStatusFallback:
     """Unknown status strings must map to UNKNOWN (not OPEN)."""
 
@@ -119,9 +126,7 @@ class TestUnknownStatusFallback:
     )
     def test_unknown_maps_to_unknown(self, raw: str):
         result = StatusMapperRegistry.normalize(raw)
-        assert result == OrderStatus.UNKNOWN, (
-            f"normalize({raw!r}) should be UNKNOWN, got {result}"
-        )
+        assert result == OrderStatus.UNKNOWN, f"normalize({raw!r}) should be UNKNOWN, got {result}"
 
     def test_normalize_strict_raises(self):
         from domain.status_mapper import UnmappedBrokerStatusError
@@ -133,6 +138,7 @@ class TestUnknownStatusFallback:
 # ---------------------------------------------------------------------------
 # Normalization rules
 # ---------------------------------------------------------------------------
+
 
 class TestNormalizationRules:
     """Status strings are uppercased, stripped, and spaces→underscores."""
@@ -150,4 +156,6 @@ class TestNormalizationRules:
         assert StatusMapperRegistry.normalize("PARTIALLY FILLED") == OrderStatus.PARTIALLY_FILLED
 
     def test_mixed_whitespace_and_case(self):
-        assert StatusMapperRegistry.normalize("  partially filled  ") == OrderStatus.PARTIALLY_FILLED
+        assert (
+            StatusMapperRegistry.normalize("  partially filled  ") == OrderStatus.PARTIALLY_FILLED
+        )

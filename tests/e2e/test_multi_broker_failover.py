@@ -14,20 +14,17 @@ Uses mock brokers to simulate failures deterministically.
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any
 
 import pytest
 
 pytestmark = pytest.mark.e2e
 
-from domain import OrderResponse, OrderStatus
-from brokers.common.observability.event_metrics import EventMetrics
-from brokers.common.resilience.broker_health_monitor import BrokerHealthMonitor
-from brokers.common.resilience.errors import BrokerDegradedError
-from brokers.common.intelligent_gateway import IntelligentGateway
+import contextlib  # noqa: E402
 
-from tests.e2e.fixtures.mock_brokers import MockBrokerGateway, MockFailingBroker
-
+from brokers.common.intelligent_gateway import IntelligentGateway  # noqa: E402
+from brokers.common.observability.event_metrics import EventMetrics  # noqa: E402
+from brokers.common.resilience.broker_health_monitor import BrokerHealthMonitor  # noqa: E402
+from tests.e2e.fixtures.mock_brokers import MockBrokerGateway, MockFailingBroker  # noqa: E402
 
 # ── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -73,7 +70,10 @@ def _make_gateway_with_health(
 
 class _RequestLike:
     """Simple object that looks like an order request."""
-    def __init__(self, symbol="RELIANCE", exchange="NSE", price=Decimal("100"), quantity=10, **kwargs):
+
+    def __init__(
+        self, symbol="RELIANCE", exchange="NSE", price=Decimal("100"), quantity=10, **kwargs
+    ):
         self.symbol = symbol
         self.exchange = exchange
         self.price = price
@@ -105,10 +105,8 @@ class TestBasicFailover:
         # Route through gateway - primary fails, fallback succeeds
         # First few calls fail on primary, then health monitor skips it
         for _ in range(3):
-            try:
-                gw.ltp("RELIANCE")
-            except RuntimeError:
-                pass  # Primary failing
+            with contextlib.suppress(RuntimeError):
+                gw.ltp("RELIANCE")  # Primary failing
 
         # After failures recorded, health monitor should skip primary
         result = gw.ltp("RELIANCE")
@@ -189,8 +187,10 @@ class TestHealthMonitorIntegration:
         fallback.set_ltp("RELIANCE", "NSE", Decimal("200.0"))
 
         gw = _make_gateway_with_health(
-            primary=primary, fallback=fallback,
-            health_monitor=health_monitor, metrics=metrics,
+            primary=primary,
+            fallback=fallback,
+            health_monitor=health_monitor,
+            metrics=metrics,
         )
 
         # Mark primary as unhealthy
@@ -214,8 +214,10 @@ class TestOrderExecutionDuringFailover:
         fallback = MockBrokerGateway(name="upstox")
 
         gw = _make_gateway_with_health(
-            primary=primary, fallback=fallback,
-            health_monitor=health_monitor, metrics=metrics,
+            primary=primary,
+            fallback=fallback,
+            health_monitor=health_monitor,
+            metrics=metrics,
         )
 
         # Try to place order - will fail on primary
@@ -224,8 +226,10 @@ class TestOrderExecutionDuringFailover:
         req = _RequestLike()
         try:
             result = gw._route(
-                "place_order", req,
-                primary="dhan", fallback="upstox",
+                "place_order",
+                req,
+                primary="dhan",
+                fallback="upstox",
             )
             # If we get here, fallback succeeded
             assert result is not None
@@ -294,8 +298,10 @@ class TestDegradedMode:
         fallback = MockBrokerGateway(name="upstox")
 
         gw = _make_gateway_with_health(
-            primary=primary, fallback=fallback,
-            health_monitor=health_monitor, metrics=metrics,
+            primary=primary,
+            fallback=fallback,
+            health_monitor=health_monitor,
+            metrics=metrics,
         )
 
         # First call succeeds and caches (LTP routes to upstox first per gateway design)
@@ -310,7 +316,7 @@ class TestDegradedMode:
 
         # Verify we're in degraded mode
         assert gw.degraded_mode is True
-        
+
         # The cache should still have the value (cache is separate from broker calls)
         # Gateway._cache_get should return it
         cached_value = gw._cache_get("ltp", "RELIANCE")
@@ -323,8 +329,10 @@ class TestDegradedMode:
         fallback = MockBrokerGateway(name="upstox")
 
         gw = _make_gateway_with_health(
-            primary=primary, fallback=fallback,
-            health_monitor=health_monitor, metrics=metrics,
+            primary=primary,
+            fallback=fallback,
+            health_monitor=health_monitor,
+            metrics=metrics,
         )
 
         # Mark both as unhealthy
@@ -334,7 +342,7 @@ class TestDegradedMode:
 
         # Verify degraded mode
         assert gw.degraded_mode is True
-        
+
         # place_order is a write operation - should fail in degraded mode
         # The gateway should either raise or return error
         try:
@@ -359,15 +367,15 @@ class TestMetricsDuringFailover:
         fallback = MockBrokerGateway(name="upstox")
 
         gw = _make_gateway_with_health(
-            primary=primary, fallback=fallback,
-            health_monitor=health_monitor, metrics=metrics,
+            primary=primary,
+            fallback=fallback,
+            health_monitor=health_monitor,
+            metrics=metrics,
         )
 
         # Trigger failure on primary
-        try:
+        with contextlib.suppress(RuntimeError):
             gw.ltp("RELIANCE")
-        except RuntimeError:
-            pass
 
         # Check metric was recorded
         snapshot = metrics.snapshot()
@@ -381,8 +389,10 @@ class TestMetricsDuringFailover:
         fallback = MockBrokerGateway(name="upstox")
 
         gw = _make_gateway_with_health(
-            primary=primary, fallback=fallback,
-            health_monitor=health_monitor, metrics=metrics,
+            primary=primary,
+            fallback=fallback,
+            health_monitor=health_monitor,
+            metrics=metrics,
         )
 
         # Cache some data
@@ -407,8 +417,10 @@ class TestMetricsDuringFailover:
         fallback = MockBrokerGateway(name="upstox")
 
         gw = _make_gateway_with_health(
-            primary=primary, fallback=fallback,
-            health_monitor=health_monitor, metrics=metrics,
+            primary=primary,
+            fallback=fallback,
+            health_monitor=health_monitor,
+            metrics=metrics,
         )
 
         # Mark primary unhealthy
@@ -434,8 +446,10 @@ class TestStateConsistencyDuringFailover:
         fallback = MockBrokerGateway(name="upstox")
 
         gw = _make_gateway_with_health(
-            primary=primary, fallback=fallback,
-            health_monitor=health_monitor, metrics=metrics,
+            primary=primary,
+            fallback=fallback,
+            health_monitor=health_monitor,
+            metrics=metrics,
         )
 
         # Cache via primary
@@ -457,16 +471,15 @@ class TestStateConsistencyDuringFailover:
         fallback = MockBrokerGateway(name="upstox")
 
         gw = _make_gateway_with_health(
-            primary=primary, fallback=fallback,
+            primary=primary,
+            fallback=fallback,
             health_monitor=health_monitor,
         )
 
         # Place order once
         req = _RequestLike()
-        try:
+        with contextlib.suppress(Exception):
             gw._route("place_order", req, primary="dhan", fallback="upstox")
-        except Exception:
-            pass
 
         # Verify orders were placed (may be on primary or fallback depending on timing)
         total_orders = len(primary.get_all_orders()) + len(fallback.get_all_orders())
@@ -494,20 +507,22 @@ class TestFailoverWithActivePositions:
         """Positions opened on primary should be accessible after failover."""
         primary = MockBrokerGateway(name="dhan")
         fallback = MockBrokerGateway(name="upstox")
-        
+
         gw = _make_gateway_with_health(
-            primary=primary, fallback=fallback,
-            health_monitor=health_monitor, metrics=metrics,
+            primary=primary,
+            fallback=fallback,
+            health_monitor=health_monitor,
+            metrics=metrics,
         )
-        
+
         # Verify positions() works initially
         positions = gw.positions()
         assert isinstance(positions, list)
-        
+
         # Fail primary
         for _ in range(5):
             health_monitor.record_failure("dhan")
-        
+
         # Positions should still be accessible via fallback
         positions_after = gw.positions()
         assert isinstance(positions_after, list)
@@ -516,19 +531,23 @@ class TestFailoverWithActivePositions:
         """Order placement should retry on fallback if primary fails mid-flow."""
         primary = MockFailingBroker(fail_operations={"place_order"})
         fallback = MockBrokerGateway(name="upstox")
-        
+
         gw = _make_gateway_with_health(
-            primary=primary, fallback=fallback,
-            health_monitor=health_monitor, metrics=metrics,
+            primary=primary,
+            fallback=fallback,
+            health_monitor=health_monitor,
+            metrics=metrics,
         )
-        
+
         # Try to place order - primary will fail, fallback should handle
         req = _RequestLike(correlation_id="failover-order-001")
-        
+
         try:
             result = gw._route(
-                "place_order", req,
-                primary="dhan", fallback="upstox",
+                "place_order",
+                req,
+                primary="dhan",
+                fallback="upstox",
             )
             # If successful, fallback handled it
             assert result is not None
@@ -542,27 +561,29 @@ class TestFailoverWithActivePositions:
         primary = MockBrokerGateway(name="dhan")
         fallback = MockBrokerGateway(name="upstox")
         fallback.set_ltp("RELIANCE", "NSE", Decimal("200.0"))
-        
+
         gw = _make_gateway_with_health(
-            primary=primary, fallback=fallback,
-            health_monitor=health_monitor, metrics=metrics,
+            primary=primary,
+            fallback=fallback,
+            health_monitor=health_monitor,
+            metrics=metrics,
         )
-        
+
         # Fail primary to trigger failover
         for _ in range(5):
             health_monitor.record_failure("dhan")
-        
+
         # Verify using fallback
         result1 = gw.ltp("RELIANCE")
         assert result1 == Decimal("200.0")
-        
+
         # Recover primary with success streak
         for _ in range(5):
             health_monitor.record_success("dhan")
-        
+
         # Primary should be healthy again
         assert health_monitor.is_healthy("dhan")
-        
+
         # Next request should try primary first
         primary.set_ltp("RELIANCE", "NSE", Decimal("100.0"))
         result2 = gw.ltp("RELIANCE")
@@ -580,26 +601,26 @@ class TestMetricsVerificationDuringFailover:
         """Each failover should increment fallback counter."""
         primary = MockFailingBroker(fail_operations={"ltp"})
         fallback = MockBrokerGateway(name="upstox")
-        
+
         gw = _make_gateway_with_health(
-            primary=primary, fallback=fallback,
-            health_monitor=health_monitor, metrics=metrics,
+            primary=primary,
+            fallback=fallback,
+            health_monitor=health_monitor,
+            metrics=metrics,
         )
-        
+
         # Trigger multiple failovers
-        initial_snapshot = metrics.snapshot()
-        
+        metrics.snapshot()
+
         for _ in range(3):
-            try:
+            with contextlib.suppress(RuntimeError):
                 gw.ltp("RELIANCE")
-            except RuntimeError:
-                pass
-        
+
         final_snapshot = metrics.snapshot()
-        
+
         # Verify metrics changed (fallback counter should increment)
         # Exact metric name depends on implementation
-        fallback_metrics = [k for k in final_snapshot if "fallback" in k.lower()]
+        [k for k in final_snapshot if "fallback" in k.lower()]
         # At minimum, verify metrics infrastructure works
         assert isinstance(final_snapshot, dict)
 
@@ -607,23 +628,23 @@ class TestMetricsVerificationDuringFailover:
         """Entering degraded mode should increment degraded counter."""
         primary = MockBrokerGateway(name="dhan")
         fallback = MockBrokerGateway(name="upstox")
-        
+
         gw = _make_gateway_with_health(
-            primary=primary, fallback=fallback,
-            health_monitor=health_monitor, metrics=metrics,
+            primary=primary,
+            fallback=fallback,
+            health_monitor=health_monitor,
+            metrics=metrics,
         )
-        
+
         # Fail both brokers
         for _ in range(5):
             health_monitor.record_failure("dhan")
             health_monitor.record_failure("upstox")
-        
+
         # Trigger degraded mode read
-        try:
+        with contextlib.suppress(Exception):
             gw.ltp("RELIANCE")
-        except Exception:
-            pass
-        
+
         snapshot = metrics.snapshot()
         degraded_metrics = [k for k in snapshot if "degraded" in k.lower()]
         assert len(degraded_metrics) >= 0  # Verify metrics exist or don't crash
@@ -632,19 +653,21 @@ class TestMetricsVerificationDuringFailover:
         """Skipping unhealthy broker should increment health_skip counter."""
         primary = MockBrokerGateway(name="dhan")
         fallback = MockBrokerGateway(name="upstox")
-        
+
         gw = _make_gateway_with_health(
-            primary=primary, fallback=fallback,
-            health_monitor=health_monitor, metrics=metrics,
+            primary=primary,
+            fallback=fallback,
+            health_monitor=health_monitor,
+            metrics=metrics,
         )
-        
+
         # Mark primary unhealthy
         for _ in range(5):
             health_monitor.record_failure("dhan")
-        
+
         # Make request - should skip primary
         gw.ltp("RELIANCE")
-        
+
         snapshot = metrics.snapshot()
         skip_metrics = [k for k in snapshot if "skip" in k.lower()]
         assert len(skip_metrics) >= 0
@@ -661,30 +684,32 @@ class TestComplexFailoverScenarios:
         primary = MockBrokerGateway(name="dhan")
         fallback = MockBrokerGateway(name="upstox")
         fallback.set_ltp("RELIANCE", "NSE", Decimal("200.0"))
-        
+
         gw = _make_gateway_with_health(
-            primary=primary, fallback=fallback,
-            health_monitor=health_monitor, metrics=metrics,
+            primary=primary,
+            fallback=fallback,
+            health_monitor=health_monitor,
+            metrics=metrics,
         )
-        
+
         # First failure cycle
         for _ in range(5):
             health_monitor.record_failure("dhan")
-        
+
         result1 = gw.ltp("RELIANCE")
         assert result1 == Decimal("200.0")  # Using fallback
-        
+
         # Recovery
         for _ in range(5):
             health_monitor.record_success("dhan")
-        
+
         primary.set_ltp("RELIANCE", "NSE", Decimal("100.0"))
-        result2 = gw.ltp("RELIANCE")
-        
+        gw.ltp("RELIANCE")
+
         # Second failure cycle
         for _ in range(5):
             health_monitor.record_failure("dhan")
-        
+
         result3 = gw.ltp("RELIANCE")
         assert result3 == Decimal("200.0")  # Back to fallback
 
@@ -692,26 +717,28 @@ class TestComplexFailoverScenarios:
         """System should recover when one broker comes back online."""
         primary = MockBrokerGateway(name="dhan")
         fallback = MockBrokerGateway(name="upstox")
-        
+
         gw = _make_gateway_with_health(
-            primary=primary, fallback=fallback,
-            health_monitor=health_monitor, metrics=metrics,
+            primary=primary,
+            fallback=fallback,
+            health_monitor=health_monitor,
+            metrics=metrics,
         )
-        
+
         # Fail both
         for _ in range(5):
             health_monitor.record_failure("dhan")
             health_monitor.record_failure("upstox")
-        
+
         assert gw.degraded_mode is True
-        
+
         # Recover fallback
         for _ in range(5):
             health_monitor.record_success("upstox")
-        
+
         # Should exit degraded mode
         assert gw.degraded_mode is False
-        
+
         fallback.set_ltp("RELIANCE", "NSE", Decimal("150.0"))
         result = gw.ltp("RELIANCE")
         assert result == Decimal("150.0")
@@ -720,18 +747,18 @@ class TestComplexFailoverScenarios:
         """Rapid fail/flap should be detected and handled."""
         # This test documents current behavior for flapping
         # Production systems may implement flapping detection
-        
+
         gw = _make_gateway_with_health(
             primary=MockBrokerGateway(name="dhan"),
             fallback=MockBrokerGateway(name="upstox"),
             health_monitor=health_monitor,
         )
-        
+
         # Rapid fail-recovery cycles
-        for cycle in range(10):
+        for _cycle in range(10):
             health_monitor.record_failure("dhan")
             health_monitor.record_success("dhan")
-        
+
         # System should still be functional
         # Flapping detection would track this pattern
         assert gw.degraded_mode is False  # Should not be in degraded mode

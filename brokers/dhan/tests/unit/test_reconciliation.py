@@ -3,8 +3,8 @@
 from decimal import Decimal
 from unittest.mock import MagicMock
 
-from domain import Order, OrderStatus, OrderType, Position, Side
 from brokers.dhan.reconciliation import DhanReconciliationService
+from domain import Order, OrderStatus, OrderType, Position, Side
 
 
 def _make_orders_adapter(orders=None):
@@ -38,8 +38,12 @@ def test_reconcile_detects_missing_order():
 
     local_orders = [
         Order(
-            order_id="ORD-001", symbol="RELIANCE", exchange="NSE",
-            side=Side.BUY, order_type=OrderType.LIMIT, quantity=10,
+            order_id="ORD-001",
+            symbol="RELIANCE",
+            exchange="NSE",
+            side=Side.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=10,
             status=OrderStatus.OPEN,
         ),
     ]
@@ -53,8 +57,12 @@ def test_reconcile_detects_missing_order():
 def test_reconcile_detects_status_mismatch():
     """Local says OPEN, broker says FILLED = MEDIUM drift."""
     broker_order = Order(
-        order_id="ORD-001", symbol="RELIANCE", exchange="NSE",
-        side=Side.BUY, order_type=OrderType.LIMIT, quantity=10,
+        order_id="ORD-001",
+        symbol="RELIANCE",
+        exchange="NSE",
+        side=Side.BUY,
+        order_type=OrderType.LIMIT,
+        quantity=10,
         status=OrderStatus.FILLED,
     )
     orders = _make_orders_adapter([broker_order])
@@ -63,8 +71,12 @@ def test_reconcile_detects_status_mismatch():
 
     local_orders = [
         Order(
-            order_id="ORD-001", symbol="RELIANCE", exchange="NSE",
-            side=Side.BUY, order_type=OrderType.LIMIT, quantity=10,
+            order_id="ORD-001",
+            symbol="RELIANCE",
+            exchange="NSE",
+            side=Side.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=10,
             status=OrderStatus.OPEN,
         ),
     ]
@@ -119,8 +131,12 @@ def test_reconcile_handles_fetch_error():
 def test_reconcile_no_drift_when_matching():
     """Matching local and broker state = no drift."""
     broker_order = Order(
-        order_id="ORD-001", symbol="RELIANCE", exchange="NSE",
-        side=Side.BUY, order_type=OrderType.LIMIT, quantity=10,
+        order_id="ORD-001",
+        symbol="RELIANCE",
+        exchange="NSE",
+        side=Side.BUY,
+        order_type=OrderType.LIMIT,
+        quantity=10,
         status=OrderStatus.FILLED,
     )
     orders = _make_orders_adapter([broker_order])
@@ -132,8 +148,12 @@ def test_reconcile_no_drift_when_matching():
 
     local_orders = [
         Order(
-            order_id="ORD-001", symbol="RELIANCE", exchange="NSE",
-            side=Side.BUY, order_type=OrderType.LIMIT, quantity=10,
+            order_id="ORD-001",
+            symbol="RELIANCE",
+            exchange="NSE",
+            side=Side.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=10,
             status=OrderStatus.FILLED,
         ),
     ]
@@ -147,8 +167,12 @@ def test_reconcile_no_drift_when_matching():
 def test_reconcile_auto_repair_upserts_missing_order():
     """auto_repair=True must upsert broker orders not in local OMS."""
     broker_order = Order(
-        order_id="ORD-002", symbol="INFY", exchange="NSE",
-        side=Side.BUY, order_type=OrderType.LIMIT, quantity=5,
+        order_id="ORD-002",
+        symbol="INFY",
+        exchange="NSE",
+        side=Side.BUY,
+        order_type=OrderType.LIMIT,
+        quantity=5,
         status=OrderStatus.FILLED,
     )
     orders = _make_orders_adapter([broker_order])
@@ -186,8 +210,12 @@ def test_reconcile_auto_repair_upserts_position():
 def test_reconcile_no_repair_when_auto_repair_false():
     """auto_repair=False must not call upsert methods."""
     broker_order = Order(
-        order_id="ORD-003", symbol="TCS", exchange="NSE",
-        side=Side.BUY, order_type=OrderType.LIMIT, quantity=5,
+        order_id="ORD-003",
+        symbol="TCS",
+        exchange="NSE",
+        side=Side.BUY,
+        order_type=OrderType.LIMIT,
+        quantity=5,
         status=OrderStatus.FILLED,
     )
     orders = _make_orders_adapter([broker_order])

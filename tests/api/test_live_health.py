@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
@@ -11,7 +10,6 @@ from fastapi.testclient import TestClient
 from api.config import APIConfig
 from api.deps import reset_container
 from api.main import create_app
-from domain import Balance
 
 
 class _HealthGateway:
@@ -19,9 +17,9 @@ class _HealthGateway:
         return {"connected": True}
 
     def capabilities(self):
-        from brokers.common.gateway import BrokerCapabilities
+        from brokers.common.capabilities import BrokerCapabilities
 
-        return BrokerCapabilities()
+        return BrokerCapabilities(broker_id="stub")
 
 
 @pytest.fixture

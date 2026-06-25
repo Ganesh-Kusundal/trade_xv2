@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
-from domain.ports import EventPublisher
 from application.oms.order_manager import OrderManager, OrderResult
+from domain.ports import EventPublisher
 
 
 class CancelOrderUseCase:

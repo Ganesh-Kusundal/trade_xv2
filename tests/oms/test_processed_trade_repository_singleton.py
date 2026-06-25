@@ -9,11 +9,9 @@ These tests verify that:
 
 from __future__ import annotations
 
-import threading
 import tempfile
+import threading
 from pathlib import Path
-
-import pytest
 
 from infrastructure.event_bus.processed_trade_repository import (
     ProcessedTradeRepository,
@@ -135,11 +133,11 @@ class TestProcessedTradeRepositorySingletonThreadSafety:
             t.join()
 
         # Each path should have a unique instance
-        path_to_instance = {path: inst for path, inst in instances}
+        path_to_instance = dict(instances)
         assert len(path_to_instance) == 5
 
         # Instances for different paths should be different
-        unique_instances = set(id(inst) for _, inst in instances)
+        unique_instances = {id(inst) for _, inst in instances}
         assert len(unique_instances) == 5
 
 
@@ -166,13 +164,13 @@ class TestProcessedTradeRepositorySingletonFunctionality:
     def test_different_paths_have_separate_ledgers(self) -> None:
         """Different persistence paths should have separate trade ledgers."""
         import os
-        
+
         # Clean up persistence files from previous runs
         for path in ["/tmp/ledger1.jsonl", "/tmp/ledger2.jsonl"]:
             ProcessedTradeRepository._instances.pop(path, None)
             if os.path.exists(path):
                 os.unlink(path)
-        
+
         repo1 = ProcessedTradeRepository.get_instance(persistence_path="/tmp/ledger1.jsonl")
         repo2 = ProcessedTradeRepository.get_instance(persistence_path="/tmp/ledger2.jsonl")
 

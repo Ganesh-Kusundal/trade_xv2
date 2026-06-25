@@ -11,6 +11,7 @@ Usage:
     python scripts/generate_dependency_graph.py --format json > graph.json
     python scripts/generate_dependency_graph.py --format table
 """
+
 from __future__ import annotations
 
 import argparse
@@ -84,13 +85,12 @@ def _build_graph() -> dict[str, set[str]]:
                     target = _module_of(alias.name)
                     if target and target != source_module:
                         graph[source_module].add(target)
-            elif isinstance(node, ast.ImportFrom):
-                if node.module:
-                    target = _module_of(node.module)
-                    if target and target != source_module:
-                        graph[source_module].add(target)
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                target = _module_of(node.module)
+                if target and target != source_module:
+                    graph[source_module].add(target)
 
-    return {k: v for k, v in sorted(graph.items())}
+    return dict(sorted(graph.items()))
 
 
 def _compute_metrics(graph: dict[str, set[str]]) -> list[dict[str, Any]]:
@@ -111,21 +111,27 @@ def _compute_metrics(graph: dict[str, set[str]]) -> list[dict[str, Any]]:
         elif stability > 0.3:
             risk = "🟡 Moderate"
 
-        rows.append({
-            "module": mod,
-            "Ca": ca,
-            "Ce": ce,
-            "I": round(stability, 2),
-            "risk": risk,
-            "depends_on": sorted(graph.get(mod, set())),
-        })
+        rows.append(
+            {
+                "module": mod,
+                "Ca": ca,
+                "Ce": ce,
+                "I": round(stability, 2),
+                "risk": risk,
+                "depends_on": sorted(graph.get(mod, set())),
+            }
+        )
 
     return rows
 
 
 def output_dot(graph: dict[str, set[str]]) -> str:
     """Generate DOT format."""
-    lines = ["digraph TradeXV2 {", "  rankdir=BT;", '  node [shape=box, style=filled, fillcolor="#f0f0f0"];']
+    lines = [
+        "digraph TradeXV2 {",
+        "  rankdir=BT;",
+        '  node [shape=box, style=filled, fillcolor="#f0f0f0"];',
+    ]
     for mod in sorted(set(graph.keys()) | {m for v in graph.values() for m in v}):
         lines.append(f'  "{mod}";')
     for mod, deps in sorted(graph.items()):

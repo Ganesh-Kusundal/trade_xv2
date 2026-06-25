@@ -1,39 +1,23 @@
-"""Intelligent Gateway — combines Dhan and Upstox for optimal performance.
+"""Intelligent Gateway — DEPRECATED. Use BrokerRouter + SourceSelectionPolicy.
 
-Routes requests to the fastest broker for each operation type.
-Supports parallel data fetching for batch operations.
+.. deprecated::
+    This module is deprecated. Use ``BrokerRouter`` with ``SourceSelectionPolicy``
+    for policy-driven broker selection, ``HistoricalDataCoordinator`` for federated
+    historical data, and ``StreamOrchestrator`` for WebSocket lifecycle management.
 
-Graceful degradation
---------------------
-When *all* brokers are down the gateway enters **degraded mode**:
+    Migration path::
 
-* Read operations (ltp, quote, history, …) return cached / stale data
-  if available. A warning is logged and the response is tagged with a
-  ``_degraded`` metadata flag when the return type supports it.
-* Write operations (order placement, modification, cancellation) raise
-  :class:`BrokerDegradedError` immediately — no silent failures.
+        # Before (deprecated):
+        gw = IntelligentGateway(dhan_gateway=dhan, upstox_gateway=upstox)
+        result = gw.ltp("NIFTY", "NSE")
 
-The :class:`BrokerHealthMonitor` tracks consecutive failures per broker.
-Once the failure threshold (default 5) is exceeded the broker is marked
-unhealthy and routing skips it in favour of a healthy fallback.
+        # After (correct):
+        infra = await bootstrap_from_gateways([("dhan", dhan_gw), ("upstox", upstox_gw)])
+        decision = infra.router.route(RoutingRequest(operation=OperationKind.GET_QUOTE, ...))
+        gateway = infra.registry.get_gateway(decision.primary_broker)
+        result = await gateway.get_quote_snapshot(InstrumentRef("NIFTY", "NSE"), quota=token)
 
-Observability contract
-----------------------
-Every silent ``except Exception: pass`` from the previous version has been
-replaced with a call to :meth:`IntelligentGateway._log_fallback`. Each
-fallback:
-
-1. Logs at WARNING level with the operation, the failing broker, and the
-   exception type / message.
-2. Increments the ``intelligent_gateway_fallback`` counter on the
-   attached :class:`EventMetrics` instance (keyed by operation, broker,
-   and exception class name) so an SRE can alert on systemic broker
-   outages.
-3. Returns the fallback broker's response (or an empty default), so
-   callers do not need to handle a new exception type.
-
-The metrics instance is optional; if not supplied, an isolated instance
-is created. Tests inject a fresh instance to assert counters.
+Original docstring below.
 """
 
 from __future__ import annotations
@@ -41,40 +25,41 @@ from __future__ import annotations
 import logging
 import threading
 import time
+import warnings
+from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
 
-from collections.abc import Callable
-
 import pandas as pd
 
-from domain import FundLimits, MarketDepth, Quote, FutureChain, OptionChain
+from brokers.common.observability.event_metrics import EventMetrics
+from brokers.common.resilience.broker_health_monitor import BrokerHealthMonitor
+from domain import FundLimits, FutureChain, MarketDepth, OptionChain, Quote
 from domain.constants.timeouts import (
     HISTORY_CACHE_TTL_SECONDS,
     QUOTE_CACHE_TTL_SECONDS,
 )
-from brokers.common.observability.event_metrics import EventMetrics
-from brokers.common.resilience.broker_health_monitor import BrokerHealthMonitor
-from brokers.common.resilience.errors import BrokerDegradedError
 
 logger = logging.getLogger(__name__)
 
 _RAISE = object()  # sentinel for _route() default="raise RuntimeError"
 
 # Write operations that must NEVER return stale data
-_WRITE_OPERATIONS = frozenset({
-    "place_order",
-    "modify_order",
-    "cancel_order",
-    "place_slice_order",
-    "delete_slice_order",
-})
+_WRITE_OPERATIONS = frozenset(
+    {
+        "place_order",
+        "modify_order",
+        "cancel_order",
+        "place_slice_order",
+        "delete_slice_order",
+    }
+)
 
 
 class _CacheEntry:
     """Single cache entry with TTL awareness."""
 
-    __slots__ = ("value", "expires_at", "operation", "symbol")
+    __slots__ = ("expires_at", "operation", "symbol", "value")
 
     def __init__(
         self,
@@ -126,6 +111,13 @@ class IntelligentGateway:
         metrics: EventMetrics | None = None,
         health_monitor: BrokerHealthMonitor | None = None,
     ) -> None:
+        warnings.warn(
+            "IntelligentGateway is deprecated. Use BrokerRouter with "
+            "SourceSelectionPolicy for policy-driven broker selection. "
+            "See brokers.common.bootstrap for the migration path.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self._dhan = dhan_gateway
         self._upstox = upstox_gateway
         self._metrics = metrics or EventMetrics()
@@ -181,7 +173,7 @@ class IntelligentGateway:
         ttl: float,
     ) -> None:
         """Store *value* in the cache with the given TTL.
-        
+
         Thread-safe: acquires _cache_lock before mutating _cache.
         """
         key = self._cache_key(operation, symbol)
@@ -194,7 +186,7 @@ class IntelligentGateway:
         symbol: str,
     ) -> Any | None:
         """Return cached value if present and not expired, else None.
-        
+
         Thread-safe: acquires _cache_lock before reading _cache.
         """
         key = self._cache_key(operation, symbol)
@@ -240,7 +232,7 @@ class IntelligentGateway:
         primary / fallback / default:
             Routing controls (unchanged).
         """
-        primary_gw = getattr(self, f"_{primary}", None)
+        getattr(self, f"_{primary}", None)
         fallback_gw = getattr(self, f"_{fallback}", None) if fallback else None
 
         # --- Health-aware routing -----------------------------------
@@ -277,9 +269,7 @@ class IntelligentGateway:
                     self._health_monitor.record_success(effective_primary)
                 # Cache the successful result for read operations
                 if symbol is not None:
-                    self._cache_put(
-                        operation, symbol, result, self._cache_ttl_for(operation)
-                    )
+                    self._cache_put(operation, symbol, result, self._cache_ttl_for(operation))
                 return result
             except Exception as exc:
                 self._log_fallback(operation, effective_primary, exc)
@@ -300,9 +290,7 @@ class IntelligentGateway:
                     result = action(fallback_gw)
                     self._health_monitor.record_success(effective_fallback)
                     if symbol is not None:
-                        self._cache_put(
-                            operation, symbol, result, self._cache_ttl_for(operation)
-                        )
+                        self._cache_put(operation, symbol, result, self._cache_ttl_for(operation))
                     return result
                 except Exception as exc:
                     fallback_exc = exc
@@ -372,9 +360,7 @@ class IntelligentGateway:
 
         if default is not _RAISE:
             return default
-        raise RuntimeError(
-            f"No broker available and no cached data for {operation}({symbol})"
-        )
+        raise RuntimeError(f"No broker available and no cached data for {operation}({symbol})")
 
     # ── Observability helpers ────────────────────────────────────────────
 
@@ -414,7 +400,9 @@ class IntelligentGateway:
         return self._route(
             "ltp",
             action=lambda gw: gw.ltp(symbol, exchange),
-            symbol=symbol, primary="upstox", fallback="dhan",
+            symbol=symbol,
+            primary="upstox",
+            fallback="dhan",
         )
 
     def ltp_batch(self, symbols: list[str], exchange: str = "NSE") -> dict[str, Decimal]:
@@ -422,14 +410,17 @@ class IntelligentGateway:
             "ltp_batch",
             action=lambda gw: gw.ltp_batch(symbols, exchange),
             symbol=symbols[0] if symbols else None,
-            primary="upstox", fallback="dhan",
+            primary="upstox",
+            fallback="dhan",
         )
 
     def quote(self, symbol: str, exchange: str = "NSE") -> Quote:
         return self._route(
             "quote",
             action=lambda gw: gw.quote(symbol, exchange),
-            symbol=symbol, primary="upstox", fallback="dhan",
+            symbol=symbol,
+            primary="upstox",
+            fallback="dhan",
         )
 
     def quote_batch(self, symbols: list[str], exchange: str = "NSE") -> dict[str, Quote]:
@@ -437,7 +428,8 @@ class IntelligentGateway:
             "quote_batch",
             action=lambda gw: gw.quote_batch(symbols, exchange),
             symbol=symbols[0] if symbols else None,
-            primary="upstox", fallback="dhan",
+            primary="upstox",
+            fallback="dhan",
         )
 
     def history(
@@ -453,10 +445,16 @@ class IntelligentGateway:
         return self._route(
             "history",
             action=lambda gw: gw.history(
-                symbol, exchange, timeframe, lookback_days,
-                from_date=from_date, to_date=to_date,
+                symbol,
+                exchange,
+                timeframe,
+                lookback_days,
+                from_date=from_date,
+                to_date=to_date,
             ),
-            symbol=cache_sym, primary="dhan", fallback="upstox",
+            symbol=cache_sym,
+            primary="dhan",
+            fallback="upstox",
         )
 
     def history_batch(
@@ -470,14 +468,17 @@ class IntelligentGateway:
             "history_batch",
             action=lambda gw: gw.history_batch(symbols, exchange, timeframe, lookback_days),
             symbol=symbols[0] if symbols else None,
-            primary="dhan", fallback="upstox",
+            primary="dhan",
+            fallback="upstox",
         )
 
     def depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
         return self._route(
             "depth",
             action=lambda gw: gw.depth(symbol, exchange),
-            symbol=symbol, primary="dhan", fallback="upstox",
+            symbol=symbol,
+            primary="dhan",
+            fallback="upstox",
         )
 
     def option_chain(
@@ -489,7 +490,9 @@ class IntelligentGateway:
         return self._route(
             "option_chain",
             action=lambda gw: gw.option_chain(underlying, exchange, expiry),
-            symbol=underlying, primary="dhan", fallback="upstox",
+            symbol=underlying,
+            primary="dhan",
+            fallback="upstox",
         )
 
     def future_chain(
@@ -500,13 +503,16 @@ class IntelligentGateway:
         return self._route(
             "future_chain",
             action=lambda gw: gw.future_chain(underlying, exchange),
-            symbol=underlying, primary="dhan",
-            default=FutureChain.from_dict({
-                "underlying": underlying,
-                "exchange": exchange,
-                "expiries": [],
-                "contracts": [],
-            }),
+            symbol=underlying,
+            primary="dhan",
+            default=FutureChain.from_dict(
+                {
+                    "underlying": underlying,
+                    "exchange": exchange,
+                    "expiries": [],
+                    "contracts": [],
+                }
+            ),
         )
 
     def stream(
@@ -519,35 +525,45 @@ class IntelligentGateway:
         return self._route(
             "stream",
             action=lambda gw: gw.stream(symbol, exchange, mode, on_tick),
-            symbol=symbol, primary="dhan", fallback="upstox",
+            symbol=symbol,
+            primary="dhan",
+            fallback="upstox",
         )
 
     def positions(self) -> list[Any]:
         return self._route(
             "positions",
             action=lambda gw: gw.positions(),
-            primary="dhan", fallback="upstox", default=[],
+            primary="dhan",
+            fallback="upstox",
+            default=[],
         )
 
     def holdings(self) -> list[Any]:
         return self._route(
             "holdings",
             action=lambda gw: gw.holdings(),
-            primary="dhan", fallback="upstox", default=[],
+            primary="dhan",
+            fallback="upstox",
+            default=[],
         )
 
     def funds(self) -> FundLimits:
         return self._route(
             "funds",
             action=lambda gw: gw.funds(),
-            primary="dhan", fallback="upstox", default=FundLimits(),
+            primary="dhan",
+            fallback="upstox",
+            default=FundLimits(),
         )
 
     def trades(self) -> list[Any]:
         return self._route(
             "trades",
             action=lambda gw: gw.trades(),
-            primary="dhan", fallback="upstox", default=[],
+            primary="dhan",
+            fallback="upstox",
+            default=[],
         )
 
     def describe(self) -> dict:
@@ -567,12 +583,15 @@ class IntelligentGateway:
                 "option_chain": "Dhan (more complete)",
                 "future_chain": "Dhan (Upstox doesn't support)",
                 "stream": "Dhan",
-            }
+            },
         }
 
     def search(self, query: str) -> list[dict]:
         return self._route(
             "search",
             action=lambda gw: gw.search(query),
-            symbol=query, primary="dhan", fallback="upstox", default=[],
+            symbol=query,
+            primary="dhan",
+            fallback="upstox",
+            default=[],
         )

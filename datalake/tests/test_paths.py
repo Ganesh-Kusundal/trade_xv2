@@ -6,6 +6,7 @@ the partition string inline, these tests should still pass — but
 a smoke test that walks every datalake reader/writer to check they
 import from :mod:`datalake.paths` should be added separately.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -13,6 +14,8 @@ from pathlib import Path
 import pytest
 
 from datalake.paths import (
+    CURATED_EQUITY_CANDLES,
+    CURATED_ROOT,
     DEFAULT_DATA_ROOT,
     DEFAULT_TIMEFRAME,
     PARTITION_EXPIRY,
@@ -20,6 +23,9 @@ from datalake.paths import (
     PARTITION_TIMEFRAME,
     PARTITION_UNDERLYING,
     SUPPORTED_TIMEFRAMES,
+    curated_equity_glob,
+    curated_equity_path,
+    legacy_symbol_partition_path,
     option_partition_path,
     partition_path_to_dict,
     symbol_partition_glob,
@@ -112,3 +118,60 @@ def test_partition_keys_are_canonical():
     assert PARTITION_SYMBOL == "symbol"
     assert PARTITION_EXPIRY == "expiry"
     assert PARTITION_UNDERLYING == "underlying"
+
+
+def test_curated_root_default():
+    assert CURATED_ROOT == "market_data/curated"
+
+
+def test_curated_equity_candles_default():
+    assert CURATED_EQUITY_CANDLES == "equities/candles"
+
+
+def test_curated_equity_path_no_args():
+    assert curated_equity_path() == Path("market_data/curated/equities/candles")
+
+
+def test_curated_equity_path_with_year():
+    assert curated_equity_path(year=2024) == Path(
+        "market_data/curated/equities/candles/year=2024"
+    )
+
+
+def test_curated_equity_path_with_year_month():
+    path = curated_equity_path(year=2024, month=6)
+    assert path == Path("market_data/curated/equities/candles/year=2024/month=06")
+
+
+def test_curated_equity_path_custom_root():
+    path = curated_equity_path(root="/data/lake", year=2024, month=1)
+    assert path == Path("/data/lake/equities/candles/year=2024/month=01")
+
+
+def test_curated_equity_glob_default():
+    assert curated_equity_glob() == (
+        "market_data/curated/equities/candles/year=*/month=*/data_*.parquet"
+    )
+
+
+def test_curated_equity_glob_same_year():
+    assert curated_equity_glob(from_year=2024, to_year=2024) == (
+        "market_data/curated/equities/candles/year=2024/month=*/data_*.parquet"
+    )
+
+
+def test_curated_equity_glob_custom_root():
+    assert curated_equity_glob(root="/custom/curated") == (
+        "/custom/curated/equities/candles/year=*/month=*/data_*.parquet"
+    )
+
+
+def test_legacy_symbol_partition_path():
+    assert legacy_symbol_partition_path("market_data", "RELIANCE") == symbol_partition_path(
+        "market_data", "RELIANCE"
+    )
+
+
+def test_curated_equity_path_with_custom_root():
+    path = curated_equity_path(root="custom_root", year=2023, month=12)
+    assert path == Path("custom_root/equities/candles/year=2023/month=12")

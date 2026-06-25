@@ -96,7 +96,9 @@ class HalfTrend:
             if direction[i - 1] == 1:  # Was uptrend
                 # Update upper band (trailing stop for uptrend)
                 new_high = high[i] - atr_dev
-                next_high[i] = max(next_high[i - 1], new_high) if not np.isnan(next_high[i - 1]) else new_high
+                next_high[i] = (
+                    max(next_high[i - 1], new_high) if not np.isnan(next_high[i - 1]) else new_high
+                )
 
                 # Lower band follows price up
                 new_low = low[i] + atr_dev
@@ -120,7 +122,9 @@ class HalfTrend:
             else:  # Was downtrend
                 # Update lower band (trailing stop for downtrend)
                 new_low = low[i] + atr_dev
-                next_low[i] = min(next_low[i - 1], new_low) if not np.isnan(next_low[i - 1]) else new_low
+                next_low[i] = (
+                    min(next_low[i - 1], new_low) if not np.isnan(next_low[i - 1]) else new_low
+                )
 
                 # Upper band follows price down
                 new_high = high[i] - atr_dev
@@ -160,7 +164,9 @@ class HalfTrend:
 
         return df
 
-    def _compute_atr(self, high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int) -> np.ndarray:
+    def _compute_atr(
+        self, high: np.ndarray, low: np.ndarray, close: np.ndarray, period: int
+    ) -> np.ndarray:
         """Compute Average True Range."""
         n = len(high)
         tr = np.zeros(n)

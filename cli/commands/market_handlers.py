@@ -15,7 +15,6 @@ from typing import Any
 from rich.console import Console
 from rich.table import Table
 
-from domain import DepthLevel, MarketDepth
 from cli.commands import market as cmd_market
 from cli.commands import oms as cmd_oms
 from cli.commands import validate as cmd_validate
@@ -23,9 +22,12 @@ from cli.commands import validate_history as cmd_validate_history
 from cli.commands import validate_option_chain as cmd_validate_option_chain
 from cli.commands.registry import CommandResult
 from cli.services.broker_service import BrokerService
+from domain import DepthLevel, MarketDepth
 
 
-def handle_quote(args: list[str], broker_service: BrokerService, console: Console) -> CommandResult | None:
+def handle_quote(
+    args: list[str], broker_service: BrokerService, console: Console
+) -> CommandResult | None:
     if not args:
         console.print("[yellow]Usage: tradex quote <symbol>[/yellow]")
         return CommandResult(success=False, error="Missing symbol")
@@ -47,14 +49,24 @@ def handle_quote(args: list[str], broker_service: BrokerService, console: Consol
     table.add_row("Volume", f"{quote.volume:,}")
     table.add_row("Change", f"\u20b9{quote.change:,.2f}")
     console.print(table)
-    return CommandResult(success=True, data={
-        "symbol": symbol, "ltp": str(quote.ltp), "open": str(quote.open),
-        "high": str(quote.high), "low": str(quote.low), "close": str(quote.close),
-        "volume": quote.volume, "change": str(quote.change),
-    })
+    return CommandResult(
+        success=True,
+        data={
+            "symbol": symbol,
+            "ltp": str(quote.ltp),
+            "open": str(quote.open),
+            "high": str(quote.high),
+            "low": str(quote.low),
+            "close": str(quote.close),
+            "volume": quote.volume,
+            "change": str(quote.change),
+        },
+    )
 
 
-def handle_depth(args: list[str], broker_service: BrokerService, console: Console) -> CommandResult | None:
+def handle_depth(
+    args: list[str], broker_service: BrokerService, console: Console
+) -> CommandResult | None:
     if not args:
         console.print("[yellow]Usage: tradex depth <symbol>[/yellow]")
         return CommandResult(success=False, error="Missing symbol")
@@ -89,7 +101,9 @@ def handle_depth(args: list[str], broker_service: BrokerService, console: Consol
     return CommandResult(success=True)
 
 
-def handle_history(args: list[str], broker_service: BrokerService, console: Console) -> CommandResult | None:
+def handle_history(
+    args: list[str], broker_service: BrokerService, console: Console
+) -> CommandResult | None:
     if not args:
         console.print("[yellow]Usage: tradex history <symbol>[/yellow]")
         return CommandResult(success=False, error="Missing symbol")
@@ -106,7 +120,8 @@ def handle_history(args: list[str], broker_service: BrokerService, console: Cons
     to_date = date.today()
     from_date = to_date - timedelta(days=10)
     df = history_fn(
-        symbol, "NSE",
+        symbol,
+        "NSE",
         from_date=from_date.strftime("%Y-%m-%d"),
         to_date=to_date.strftime("%Y-%m-%d"),
         timeframe="1D",
@@ -127,6 +142,7 @@ def handle_history(args: list[str], broker_service: BrokerService, console: Cons
         df["low"].tail(5),
         df["close"].tail(5),
         df["volume"].tail(5),
+        strict=False,
     ):
         date_str = ts.strftime("%Y-%m-%d") if hasattr(ts, "strftime") else str(ts)
         table.add_row(
@@ -142,7 +158,9 @@ def handle_history(args: list[str], broker_service: BrokerService, console: Cons
     return CommandResult(success=True, data={"symbol": symbol, "candles": len(df)})
 
 
-def handle_option_chain(args: list[str], broker_service: BrokerService, console: Console) -> CommandResult | None:
+def handle_option_chain(
+    args: list[str], broker_service: BrokerService, console: Console
+) -> CommandResult | None:
     if not args:
         console.print("[yellow]Usage: tradex option-chain <symbol> [--expiry <date>][/yellow]")
         return CommandResult(success=False, error="Missing symbol")
@@ -156,7 +174,9 @@ def handle_option_chain(args: list[str], broker_service: BrokerService, console:
     return CommandResult(success=True)
 
 
-def handle_futures(args: list[str], broker_service: BrokerService, console: Console) -> CommandResult | None:
+def handle_futures(
+    args: list[str], broker_service: BrokerService, console: Console
+) -> CommandResult | None:
     if not args:
         console.print("[yellow]Usage: tradex futures <symbol>[/yellow]")
         return CommandResult(success=False, error="Missing symbol")
@@ -165,7 +185,9 @@ def handle_futures(args: list[str], broker_service: BrokerService, console: Cons
     return CommandResult(success=True)
 
 
-def handle_stream(args: list[str], broker_service: BrokerService, console: Console) -> CommandResult | None:
+def handle_stream(
+    args: list[str], broker_service: BrokerService, console: Console
+) -> CommandResult | None:
     if not args:
         console.print("[yellow]Usage: tradex stream <symbol>[/yellow]")
         return CommandResult(success=False, error="Missing symbol")
@@ -174,13 +196,17 @@ def handle_stream(args: list[str], broker_service: BrokerService, console: Conso
     return CommandResult(success=True)
 
 
-def handle_orders(args: list[str], broker_service: BrokerService, console: Console) -> CommandResult | None:
+def handle_orders(
+    args: list[str], broker_service: BrokerService, console: Console
+) -> CommandResult | None:
     status_filter = args[0] if args else None
     cmd_oms.show_orders(broker_service, console, status_filter)
     return CommandResult(success=True)
 
 
-def handle_validate(args: list[str], broker_service: BrokerService, console: Console) -> CommandResult | None:
+def handle_validate(
+    args: list[str], broker_service: BrokerService, console: Console
+) -> CommandResult | None:
     if args and args[0] == "history":
         cmd_validate_history.run(args[1:], broker_service, console)
     elif args and args[0] == "option-chain":

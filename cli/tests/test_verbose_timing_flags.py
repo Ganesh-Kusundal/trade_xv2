@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import logging
-import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -42,17 +41,13 @@ class TestParseFlags:
     def test_verbose_flag(self):
         """Test --verbose flag enables debug logging."""
         with patch.object(logging.getLogger(), "setLevel") as mock_set_level:
-            broker, args, json_mode, verbose, show_timing = _parse_flags(
-                ["--verbose", "doctor"]
-            )
+            broker, args, json_mode, verbose, show_timing = _parse_flags(["--verbose", "doctor"])
             assert verbose is True
             mock_set_level.assert_called_once_with(logging.DEBUG)
 
     def test_timing_flag(self):
         """Test --timing flag."""
-        broker, args, json_mode, verbose, show_timing = _parse_flags(
-            ["--timing", "doctor"]
-        )
+        broker, args, json_mode, verbose, show_timing = _parse_flags(["--timing", "doctor"])
         assert show_timing is True
 
     def test_all_flags_together(self):
@@ -98,7 +93,7 @@ class TestVerboseFlag:
     def test_verbose_enables_debug_logging(self):
         """Test that --verbose sets logging level to DEBUG."""
         original_level = logging.getLogger().level
-        
+
         try:
             with patch.object(logging.getLogger(), "setLevel") as mock_set_level:
                 _parse_flags(["--verbose", "doctor"])
@@ -109,9 +104,7 @@ class TestVerboseFlag:
 
     def test_verbose_does_not_affect_other_flags(self):
         """Test that --verbose doesn't change other flag defaults."""
-        broker, args, json_mode, verbose, show_timing = _parse_flags(
-            ["--verbose", "doctor"]
-        )
+        broker, args, json_mode, verbose, show_timing = _parse_flags(["--verbose", "doctor"])
         assert broker == "dhan"
         assert json_mode is False
         assert show_timing is False
@@ -122,16 +115,12 @@ class TestTimingFlag:
 
     def test_timing_flag_sets_show_timing_true(self):
         """Test that --timing sets show_timing to True."""
-        broker, args, json_mode, verbose, show_timing = _parse_flags(
-            ["--timing", "doctor"]
-        )
+        broker, args, json_mode, verbose, show_timing = _parse_flags(["--timing", "doctor"])
         assert show_timing is True
 
     def test_timing_does_not_affect_other_flags(self):
         """Test that --timing doesn't change other flag defaults."""
-        broker, args, json_mode, verbose, show_timing = _parse_flags(
-            ["--timing", "doctor"]
-        )
+        broker, args, json_mode, verbose, show_timing = _parse_flags(["--timing", "doctor"])
         assert broker == "dhan"
         assert json_mode is False
         assert verbose is False
@@ -164,8 +153,8 @@ class TestFlagCombinations:
     def test_flag_combinations(self, flags, expected):
         """Test various flag combinations."""
         expected_broker, expected_json, expected_verbose, expected_timing = expected
-        broker, args, json_mode, verbose, show_timing = _parse_flags(flags + ["doctor"])
-        
+        broker, args, json_mode, verbose, show_timing = _parse_flags([*flags, "doctor"])
+
         assert broker == expected_broker
         assert json_mode == expected_json
         assert verbose == expected_verbose

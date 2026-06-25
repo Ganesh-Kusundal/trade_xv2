@@ -7,19 +7,18 @@ Subclasses BrokerContractSuite to inherit all 16 contract tests.
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 
 from brokers.common.contracts.broker_contract import BrokerContractSuite
+from brokers.upstox.gateway import UpstoxBrokerGateway
 from domain import (
     Balance,
     DepthLevel,
     MarketDepth,
     Quote,
 )
-from brokers.upstox.gateway import UpstoxBrokerGateway
 from tests.integration.fixtures.upstox import make_mock_broker
 
 

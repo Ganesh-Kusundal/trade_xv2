@@ -7,6 +7,7 @@ from datalake.schema import (
     CANONICAL_COLUMNS,
     HIVE_PARTITION_TEMPLATE,
     OPTIONAL_COLUMNS,
+    TEMPORAL_COLUMNS,
     TIMEFRAMES,
     TRADEJ_SCHEMA,
     UNIVERSE_DIR,
@@ -16,10 +17,21 @@ from datalake.schema import (
 
 class TestCanonicalColumns:
     def test_required_columns_count(self) -> None:
-        assert len(CANONICAL_COLUMNS) == 9
+        assert len(CANONICAL_COLUMNS) == 10
 
     def test_required_column_names(self) -> None:
-        expected = ["timestamp", "symbol", "exchange", "open", "high", "low", "close", "volume", "oi"]
+        expected = [
+            "timestamp",
+            "symbol",
+            "exchange",
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "oi",
+            "event_time",
+        ]
         assert expected == CANONICAL_COLUMNS
 
     def test_first_column_is_timestamp(self) -> None:
@@ -38,28 +50,38 @@ class TestOptionalColumns:
 
 class TestArrowSchema:
     def test_field_count(self) -> None:
-        assert len(ARROW_SCHEMA) == len(CANONICAL_COLUMNS)
+        assert len(ARROW_SCHEMA) == len(CANONICAL_COLUMNS) + len(TEMPORAL_COLUMNS) - 1  # event_time in both
 
-    def test_field_names_match_canonical(self) -> None:
+    def test_field_names_contain_canonical(self) -> None:
         field_names = [f.name for f in ARROW_SCHEMA]
-        assert field_names == CANONICAL_COLUMNS
+        for col in CANONICAL_COLUMNS:
+            assert col in field_names
+
+    def test_field_names_contain_temporal(self) -> None:
+        field_names = [f.name for f in ARROW_SCHEMA]
+        for col in TEMPORAL_COLUMNS:
+            assert col in field_names
 
     def test_timestamp_is_timestamp_type(self) -> None:
         import pyarrow as pa
+
         ts_field = ARROW_SCHEMA.field("timestamp")
         assert pa.types.is_timestamp(ts_field.type)
 
     def test_ohlcv_are_float64(self) -> None:
         import pyarrow as pa
+
         for col in ("open", "high", "low", "close"):
             assert pa.types.is_float64(ARROW_SCHEMA.field(col).type)
 
     def test_volume_is_int64(self) -> None:
         import pyarrow as pa
+
         assert pa.types.is_int64(ARROW_SCHEMA.field("volume").type)
 
     def test_oi_is_int64(self) -> None:
         import pyarrow as pa
+
         assert pa.types.is_int64(ARROW_SCHEMA.field("oi").type)
 
 

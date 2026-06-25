@@ -80,32 +80,34 @@ def test_exchange_normalization(resolver):
 
 def test_resolve_indices_additional():
     r = SymbolResolver()
-    r.load_from_rows([
-        {
-            "SEM_TRADING_SYMBOL": "NIFTY",
-            "SEM_SMST_SECURITY_ID": "13",
-            "SEM_EXM_EXCH_ID": "IDX_I",
-            "SEM_INSTRUMENT_NAME": "INDEX",
-            "SEM_LOT_UNITS": 1,
-            "SEM_TICK_SIZE": 0.05,
-        },
-        {
-            "SEM_TRADING_SYMBOL": "BANKNIFTY",
-            "SEM_SMST_SECURITY_ID": "25",
-            "SEM_EXM_EXCH_ID": "IDX_I",
-            "SEM_INSTRUMENT_NAME": "INDEX",
-            "SEM_LOT_UNITS": 1,
-            "SEM_TICK_SIZE": 0.05,
-        },
-        {
-            "SEM_TRADING_SYMBOL": "FINNIFTY",
-            "SEM_SMST_SECURITY_ID": "27",
-            "SEM_EXM_EXCH_ID": "IDX_I",
-            "SEM_INSTRUMENT_NAME": "INDEX",
-            "SEM_LOT_UNITS": 1,
-            "SEM_TICK_SIZE": 0.05,
-        },
-    ])
+    r.load_from_rows(
+        [
+            {
+                "SEM_TRADING_SYMBOL": "NIFTY",
+                "SEM_SMST_SECURITY_ID": "13",
+                "SEM_EXM_EXCH_ID": "IDX_I",
+                "SEM_INSTRUMENT_NAME": "INDEX",
+                "SEM_LOT_UNITS": 1,
+                "SEM_TICK_SIZE": 0.05,
+            },
+            {
+                "SEM_TRADING_SYMBOL": "BANKNIFTY",
+                "SEM_SMST_SECURITY_ID": "25",
+                "SEM_EXM_EXCH_ID": "IDX_I",
+                "SEM_INSTRUMENT_NAME": "INDEX",
+                "SEM_LOT_UNITS": 1,
+                "SEM_TICK_SIZE": 0.05,
+            },
+            {
+                "SEM_TRADING_SYMBOL": "FINNIFTY",
+                "SEM_SMST_SECURITY_ID": "27",
+                "SEM_EXM_EXCH_ID": "IDX_I",
+                "SEM_INSTRUMENT_NAME": "INDEX",
+                "SEM_LOT_UNITS": 1,
+                "SEM_TICK_SIZE": 0.05,
+            },
+        ]
+    )
 
     for symbol, sec_id in [("NIFTY", "13"), ("BANKNIFTY", "25"), ("FINNIFTY", "27")]:
         inst = r.resolve(symbol, "IDX_I")
@@ -116,4 +118,3 @@ def test_resolve_indices_additional():
         # Test direct INDEX exchange normalization
         inst_idx = r.resolve(symbol, "INDEX")
         assert inst_idx.security_id == sec_id
-

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Sequence
 
 import pandas as pd
 
@@ -13,10 +12,7 @@ from domain.provenance import DataProvenance
 
 
 def _parse_timestamp(value: object) -> datetime:
-    if isinstance(value, datetime):
-        ts = value
-    else:
-        ts = pd.Timestamp(value).to_pydatetime()
+    ts = value if isinstance(value, datetime) else pd.Timestamp(value).to_pydatetime()
     if ts.tzinfo is None:
         return ts.replace(tzinfo=timezone.utc)
     return ts.astimezone(timezone.utc)

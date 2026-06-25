@@ -10,7 +10,10 @@ import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import duckdb
 import pandas as pd
+
+from datalake.paths import CURATED_ROOT, curated_equity_glob, curated_equity_path
 
 logger = logging.getLogger(__name__)
 
@@ -18,8 +21,9 @@ logger = logging.getLogger(__name__)
 class ResearchAPI:
     """Fast local data access for research."""
 
-    def __init__(self, root: str = "market_data", catalog=None) -> None:
+    def __init__(self, root: str = "market_data", curated_root: str = CURATED_ROOT, catalog=None) -> None:
         self._root = Path(root)
+        self._curated_root = Path(curated_root)
         self._catalog = catalog
 
     def history(
@@ -49,12 +53,20 @@ class ResearchAPI:
         -------
         pd.DataFrame with canonical columns.
         """
-        parquet_path = self._root / "equities" / "candles" / f"timeframe={timeframe}" / f"symbol={symbol}" / "data.parquet"
-        if not parquet_path.exists():
-            logger.warning("No data for %s at %s", symbol, parquet_path)
-            return pd.DataFrame()
-
-        df = pd.read_parquet(parquet_path)
+        df = self._try_curated(symbol, timeframe)
+        if df is None:
+            parquet_path = (
+                self._root
+                / "equities"
+                / "candles"
+                / f"timeframe={timeframe}"
+                / f"symbol={symbol}"
+                / "data.parquet"
+            )
+            if not parquet_path.exists():
+                logger.warning("No data for %s at %s", symbol, parquet_path)
+                return pd.DataFrame()
+            df = pd.read_parquet(parquet_path)
 
         # Filter by date range
         if "timestamp" in df.columns:
@@ -72,11 +84,30 @@ class ResearchAPI:
 
         return df.reset_index(drop=True)
 
+    def _try_curated(self, symbol: str, timeframe: str) -> pd.DataFrame | None:
+        """Try reading from the curated date-partitioned layout."""
+        glob_pattern = curated_equity_glob(root=str(self._curated_root))
+        try:
+            query = """
+                SELECT *
+                FROM read_parquet(?)
+                WHERE symbol = ?
+            """
+            df = duckdb.execute(query, [glob_pattern, symbol]).fetchdf()
+            if df.empty:
+                return None
+            if "timestamp" in df.columns:
+                df = df.sort_values("timestamp").reset_index(drop=True)
+            return df
+        except Exception:
+            return None
+
     def universe(
         self,
         universe: str = "NIFTY500",
         lookback_days: int = 365,
         timeframe: str = "1m",
+        as_of_date: str | None = None,
     ) -> dict[str, pd.DataFrame]:
         """Load data for all symbols in a universe.
 
@@ -88,12 +119,14 @@ class ResearchAPI:
             Days of history to load.
         timeframe : str
             Candle timeframe.
+        as_of_date : str or None
+            Historical date (YYYY-MM-DD) for point-in-time universe membership.
 
         Returns
         -------
         Dict mapping symbol → DataFrame.
         """
-        symbols = self._load_universe_list(universe)
+        symbols = self._load_universe_list(universe, as_of_date=as_of_date)
         from_date = (datetime.now() - timedelta(days=lookback_days)).strftime("%Y-%m-%d")
 
         result = {}
@@ -104,12 +137,23 @@ class ResearchAPI:
 
         return result
 
-    def scan(self, universe: str = "NIFTY500") -> list[str]:
+    def scan(self, universe: str = "NIFTY500", as_of_date: str | None = None) -> list[str]:
         """List available symbols in a universe that have data."""
-        symbols = self._load_universe_list(universe)
+        symbols = self._load_universe_list(universe, as_of_date=as_of_date)
         available = []
         for symbol in symbols:
-            parquet_path = self._root / "equities" / "candles" / "timeframe=1m" / f"symbol={symbol}" / "data.parquet"
+            df = self._try_curated(symbol, "1m")
+            if df is not None and not df.empty:
+                available.append(symbol)
+                continue
+            parquet_path = (
+                self._root
+                / "equities"
+                / "candles"
+                / "timeframe=1m"
+                / f"symbol={symbol}"
+                / "data.parquet"
+            )
             if parquet_path.exists():
                 available.append(symbol)
         return available
@@ -121,10 +165,16 @@ class ResearchAPI:
             return df
         return df.tail(n).reset_index(drop=True)
 
-    def _load_universe_list(self, universe: str) -> list[str]:
+    def _load_universe_list(self, universe: str, as_of_date: str | None = None) -> list[str]:
         """Load symbol list — DuckDB first, CSV fallback (I-17)."""
+        from datetime import date
+
         from datalake.schema import load_universe
-        return load_universe(universe, catalog=self._catalog)
+
+        parsed: date | None = None
+        if as_of_date is not None:
+            parsed = date.fromisoformat(as_of_date)
+        return load_universe(universe, catalog=self._catalog, as_of_date=parsed)
 
     def list_available_symbols(self, timeframe: str = "1m") -> list[str]:
         """List all symbols that have Parquet data."""

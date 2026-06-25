@@ -15,12 +15,13 @@ from decimal import Decimal
 from typing import Any
 from unittest.mock import MagicMock
 
-from domain import Quote
 from brokers.upstox.gateway import UpstoxBrokerGateway
+from domain import Quote
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 class _MockWebsocket:
     def __init__(self, connected: bool = False) -> None:
@@ -79,6 +80,7 @@ def _make_defn(
 # Stream subscription wiring
 # ---------------------------------------------------------------------------
 
+
 class TestUpstoxGatewayStream:
     def test_stream_subscribes_when_already_connected(self):
         gateway, ws, _broker = _make_gateway(connected=True)
@@ -132,15 +134,18 @@ class TestUpstoxGatewayStream:
         gateway.stream("INFY", exchange="NSE", mode="LTP", on_tick=received.append)
 
         listener = ws.listeners[0]
-        listener("tick", {
-            "frame_type": "ltpc",
-            "payload": {
-                "instrument_key": "NSE_EQ|INFY",
-                "last_price": 1800.5,
-                "close_price": 1780.0,
-                "volume": 5000,
+        listener(
+            "tick",
+            {
+                "frame_type": "ltpc",
+                "payload": {
+                    "instrument_key": "NSE_EQ|INFY",
+                    "last_price": 1800.5,
+                    "close_price": 1780.0,
+                    "volume": 5000,
+                },
             },
-        })
+        )
 
         assert len(received) == 1
         q = received[0]
@@ -183,9 +188,12 @@ class TestUpstoxGatewayStream:
 # _translate_tick_to_quote
 # ---------------------------------------------------------------------------
 
+
 class TestTranslateTickToQuote:
     def test_dict_payload_with_instrument_key_resolved(self):
-        defn = _make_defn(name="NIFTY 22 MAY 25 24000 CE", instrument_key="NSE_FO|NIFTY22MAY2524000CE")
+        defn = _make_defn(
+            name="NIFTY 22 MAY 25 24000 CE", instrument_key="NSE_FO|NIFTY22MAY2524000CE"
+        )
         gateway, _ws, _broker = _make_gateway(resolver_defn=defn)
 
         raw = {
@@ -298,6 +306,7 @@ class TestTranslateTickToQuote:
         gateway, _ws, _broker = _make_gateway(resolver_defn=defn)
 
         from datetime import datetime, timezone
+
         ts_ms = int(datetime(2025, 5, 20, 9, 15, 0, tzinfo=timezone.utc).timestamp() * 1000)
 
         raw = {
@@ -322,9 +331,14 @@ class TestTranslateTickToQuote:
 # _canonical_symbol_for_defn
 # ---------------------------------------------------------------------------
 
+
 class TestCanonicalSymbolForDefn:
     def test_name_takes_priority(self):
-        defn = _make_defn(name="NIFTY 29 MAY 25 24800 CE", symbol="NIFTY2924800CE", trading_symbol="NIFTY2924800CE")
+        defn = _make_defn(
+            name="NIFTY 29 MAY 25 24800 CE",
+            symbol="NIFTY2924800CE",
+            trading_symbol="NIFTY2924800CE",
+        )
         sym = UpstoxBrokerGateway._canonical_symbol_for_defn(defn, "NSE_FO|NIFTY2924800CE")
         assert sym == "NIFTY 29 MAY 25 24800 CE"
 

@@ -26,9 +26,7 @@ from analytics.scanner.models import Candidate
 from analytics.strategy.models import Signal, SignalType
 
 
-def _generate_ohlcv(
-    symbol: str = "TEST", bars: int = 1000, seed: int = 42
-) -> pd.DataFrame:
+def _generate_ohlcv(symbol: str = "TEST", bars: int = 1000, seed: int = 42) -> pd.DataFrame:
     """Generate deterministic synthetic OHLCV data."""
     import numpy as np
 
@@ -39,18 +37,21 @@ def _generate_ohlcv(
     returns = rng.normal(0.0001, 0.002, bars)
     price = 100.0 * (1 + returns).cumprod()
 
-    return pd.DataFrame({
-        "timestamp": timestamps,
-        "open": price * (1 + rng.uniform(-0.001, 0.001, bars)),
-        "high": price * (1 + rng.uniform(0, 0.003, bars)),
-        "low": price * (1 - rng.uniform(0, 0.003, bars)),
-        "close": price,
-        "volume": rng.integers(1000, 100000, bars),
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": timestamps,
+            "open": price * (1 + rng.uniform(-0.001, 0.001, bars)),
+            "high": price * (1 + rng.uniform(0, 0.003, bars)),
+            "low": price * (1 - rng.uniform(0, 0.003, bars)),
+            "close": price,
+            "volume": rng.integers(1000, 100000, bars),
+        }
+    )
 
 
 def _create_simple_strategy():
     """Create a simple strategy for testing."""
+
     class SimpleRSIStrategy:
         """Simple RSI-based strategy."""
 
@@ -100,6 +101,7 @@ def _create_simple_strategy():
             )
 
     from analytics.strategy.pipeline import StrategyPipeline
+
     return StrategyPipeline(strategies=[SimpleRSIStrategy()])
 
 
@@ -254,8 +256,7 @@ class TestReplayMemoryBounded:
 
         # Bounded should use less memory
         assert peak_bounded < peak_unlimited * 1.5, (
-            f"Bounded ({peak_bounded:.0f}KB) not better than unlimited "
-            f"({peak_unlimited:.0f}KB)"
+            f"Bounded ({peak_bounded:.0f}KB) not better than unlimited ({peak_unlimited:.0f}KB)"
         )
 
 

@@ -129,9 +129,7 @@ class DataQualityValidator:
 
         return report
 
-    def check_missing_candles(
-        self, df: pd.DataFrame, timeframe: str = "1d"
-    ) -> list[Issue]:
+    def check_missing_candles(self, df: pd.DataFrame, timeframe: str = "1d") -> list[Issue]:
         """Check for missing candles based on expected timeframe."""
         report = ValidationReport()
         self._check_missing_candles(df, timeframe, report)
@@ -143,25 +141,19 @@ class DataQualityValidator:
         self._check_duplicates(df, report)
         return report.issues
 
-    def check_oi_anomalies(
-        self, df: pd.DataFrame, z_threshold: float = 3.0
-    ) -> list[Issue]:
+    def check_oi_anomalies(self, df: pd.DataFrame, z_threshold: float = 3.0) -> list[Issue]:
         """Check for open interest anomalies using z-score."""
         report = ValidationReport()
         self._check_oi_anomalies(df, z_threshold, report)
         return report.issues
 
-    def check_volume_anomalies(
-        self, df: pd.DataFrame, z_threshold: float = 3.0
-    ) -> list[Issue]:
+    def check_volume_anomalies(self, df: pd.DataFrame, z_threshold: float = 3.0) -> list[Issue]:
         """Check for volume anomalies using z-score."""
         report = ValidationReport()
         self._check_volume_anomalies(df, z_threshold, report)
         return report.issues
 
-    def check_timestamps(
-        self, df: pd.DataFrame, timeframe: str = "1d"
-    ) -> list[Issue]:
+    def check_timestamps(self, df: pd.DataFrame, timeframe: str = "1d") -> list[Issue]:
         """Check for timestamp issues (out of order, missing, non-trading hours)."""
         report = ValidationReport()
         self._check_timestamps(df, timeframe, report)
@@ -173,13 +165,23 @@ class DataQualityValidator:
         self, df: pd.DataFrame, timeframe: str, report: ValidationReport
     ) -> None:
         if "timestamp" not in df.columns:
-            report.add(Issue("missing", "warning", "No timestamp column — cannot check for missing candles"))
+            report.add(
+                Issue(
+                    "missing", "warning", "No timestamp column — cannot check for missing candles"
+                )
+            )
             return
 
         ts = pd.to_datetime(df["timestamp"], errors="coerce")
         delta = TIMEFRAME_DELTAS.get(timeframe)
         if delta is None:
-            report.add(Issue("missing", "info", f"Unknown timeframe '{timeframe}' — skipping missing candle check"))
+            report.add(
+                Issue(
+                    "missing",
+                    "info",
+                    f"Unknown timeframe '{timeframe}' — skipping missing candle check",
+                )
+            )
             return
 
         gaps = []
@@ -194,11 +196,14 @@ class DataQualityValidator:
                 gaps.append((i, ts.iloc[i - 1], ts.iloc[i], missed))
 
         for idx, prev, curr, missed in gaps:
-            report.add(Issue(
-                "missing", "critical",
-                f"Missing {missed} candle(s) between {prev} and {curr}",
-                row_index=idx,
-            ))
+            report.add(
+                Issue(
+                    "missing",
+                    "critical",
+                    f"Missing {missed} candle(s) between {prev} and {curr}",
+                    row_index=idx,
+                )
+            )
 
     def _check_duplicates(self, df: pd.DataFrame, report: ValidationReport) -> None:
         if "timestamp" not in df.columns:
@@ -207,28 +212,34 @@ class DataQualityValidator:
         dup_mask = df.duplicated(subset=["timestamp"], keep="first")
         dup_count = dup_mask.sum()
         if dup_count > 0:
-            report.add(Issue(
-                "duplicate", "critical",
-                f"{dup_count} duplicate timestamp(s) found",
-                column="timestamp",
-            ))
+            report.add(
+                Issue(
+                    "duplicate",
+                    "critical",
+                    f"{dup_count} duplicate timestamp(s) found",
+                    column="timestamp",
+                )
+            )
 
         # Check for OHLC consistency
         if all(c in df.columns for c in ["open", "high", "low", "close"]):
             bad_ohlc = (
-                (df["high"] < df["low"]) |
-                (df["high"] < df["open"]) |
-                (df["high"] < df["close"]) |
-                (df["low"] > df["open"]) |
-                (df["low"] > df["close"])
+                (df["high"] < df["low"])
+                | (df["high"] < df["open"])
+                | (df["high"] < df["close"])
+                | (df["low"] > df["open"])
+                | (df["low"] > df["close"])
             )
             bad_count = bad_ohlc.sum()
             if bad_count > 0:
-                report.add(Issue(
-                    "duplicate", "critical",
-                    f"{bad_count} row(s) with OHLC inconsistency (high < low or open/close outside range)",
-                    column="high/low",
-                ))
+                report.add(
+                    Issue(
+                        "duplicate",
+                        "critical",
+                        f"{bad_count} row(s) with OHLC inconsistency (high < low or open/close outside range)",
+                        column="high/low",
+                    )
+                )
 
     def _check_oi_anomalies(
         self, df: pd.DataFrame, z_threshold: float, report: ValidationReport
@@ -243,11 +254,14 @@ class DataQualityValidator:
         # Check for negative OI
         neg_oi = (oi < 0).sum()
         if neg_oi > 0:
-            report.add(Issue(
-                "oi", "critical",
-                f"{neg_oi} row(s) with negative open interest",
-                column="oi",
-            ))
+            report.add(
+                Issue(
+                    "oi",
+                    "critical",
+                    f"{neg_oi} row(s) with negative open interest",
+                    column="oi",
+                )
+            )
 
         # Z-score anomaly detection on OI changes
         oi_changes = oi.diff().dropna()
@@ -262,21 +276,29 @@ class DataQualityValidator:
         z_scores = (oi_changes - mean_change) / std_change
         anomalies = z_scores[z_scores.abs() > z_threshold]
         for idx in anomalies.index:
-            report.add(Issue(
-                "oi", "warning",
-                f"OI anomaly at row {idx}: z-score={anomalies[idx]:.2f}, change={oi_changes[idx]:.0f}",
-                row_index=idx, column="oi",
-            ))
+            report.add(
+                Issue(
+                    "oi",
+                    "warning",
+                    f"OI anomaly at row {idx}: z-score={anomalies[idx]:.2f}, change={oi_changes[idx]:.0f}",
+                    row_index=idx,
+                    column="oi",
+                )
+            )
 
         # Check for sudden OI wipe (>90% drop in single bar)
         oi_pct = oi.pct_change()
         wipes = oi_pct[oi_pct < -0.9]
         for idx in wipes.index:
-            report.add(Issue(
-                "oi", "critical",
-                f"Sudden OI wipe at row {idx}: {oi_pct[idx]*100:.1f}% drop",
-                row_index=idx, column="oi",
-            ))
+            report.add(
+                Issue(
+                    "oi",
+                    "critical",
+                    f"Sudden OI wipe at row {idx}: {oi_pct[idx] * 100:.1f}% drop",
+                    row_index=idx,
+                    column="oi",
+                )
+            )
 
     def _check_volume_anomalies(
         self, df: pd.DataFrame, z_threshold: float, report: ValidationReport
@@ -291,11 +313,14 @@ class DataQualityValidator:
         # Check for zero volume
         zero_vol = (vol == 0).sum()
         if zero_vol > 0:
-            report.add(Issue(
-                "volume", "warning",
-                f"{zero_vol} row(s) with zero volume",
-                column="volume",
-            ))
+            report.add(
+                Issue(
+                    "volume",
+                    "warning",
+                    f"{zero_vol} row(s) with zero volume",
+                    column="volume",
+                )
+            )
 
         # Z-score anomaly detection
         mean_vol = vol.mean()
@@ -306,15 +331,17 @@ class DataQualityValidator:
         z_scores = (vol - mean_vol) / std_vol
         anomalies = z_scores[z_scores.abs() > z_threshold]
         for idx in anomalies.index:
-            report.add(Issue(
-                "volume", "warning",
-                f"Volume anomaly at row {idx}: z-score={anomalies[idx]:.2f}, volume={vol[idx]:.0f}",
-                row_index=idx, column="volume",
-            ))
+            report.add(
+                Issue(
+                    "volume",
+                    "warning",
+                    f"Volume anomaly at row {idx}: z-score={anomalies[idx]:.2f}, volume={vol[idx]:.0f}",
+                    row_index=idx,
+                    column="volume",
+                )
+            )
 
-    def _check_timestamps(
-        self, df: pd.DataFrame, timeframe: str, report: ValidationReport
-    ) -> None:
+    def _check_timestamps(self, df: pd.DataFrame, timeframe: str, report: ValidationReport) -> None:
         if "timestamp" not in df.columns:
             report.add(Issue("timestamp", "warning", "No timestamp column"))
             return
@@ -324,11 +351,14 @@ class DataQualityValidator:
         # Check for NaT timestamps
         nat_count = ts.isna().sum()
         if nat_count > 0:
-            report.add(Issue(
-                "timestamp", "critical",
-                f"{nat_count} row(s) with invalid/unparseable timestamps",
-                column="timestamp",
-            ))
+            report.add(
+                Issue(
+                    "timestamp",
+                    "critical",
+                    f"{nat_count} row(s) with invalid/unparseable timestamps",
+                    column="timestamp",
+                )
+            )
 
         # Check for out-of-order timestamps
         valid_ts = ts.dropna()
@@ -338,21 +368,27 @@ class DataQualityValidator:
         diffs = valid_ts.diff().dropna()
         backward = (diffs < timedelta(0)).sum()
         if backward > 0:
-            report.add(Issue(
-                "timestamp", "critical",
-                f"{backward} timestamp(s) out of order (decreasing)",
-                column="timestamp",
-            ))
+            report.add(
+                Issue(
+                    "timestamp",
+                    "critical",
+                    f"{backward} timestamp(s) out of order (decreasing)",
+                    column="timestamp",
+                )
+            )
 
         # Check for future timestamps
         now = pd.Timestamp.now()
         future = (valid_ts > now).sum()
         if future > 0:
-            report.add(Issue(
-                "timestamp", "warning",
-                f"{future} timestamp(s) in the future",
-                column="timestamp",
-            ))
+            report.add(
+                Issue(
+                    "timestamp",
+                    "warning",
+                    f"{future} timestamp(s) in the future",
+                    column="timestamp",
+                )
+            )
 
         # Check for non-trading hours (intraday only)
         if timeframe in ("1m", "5m", "15m", "30m", "1h"):
@@ -363,24 +399,38 @@ class DataQualityValidator:
             # Weekend
             weekends = (weekday >= 5).sum()
             if weekends > 0:
-                report.add(Issue(
-                    "timestamp", "warning",
-                    f"{weekends} timestamp(s) on weekends",
-                    column="timestamp",
-                ))
+                report.add(
+                    Issue(
+                        "timestamp",
+                        "warning",
+                        f"{weekends} timestamp(s) on weekends",
+                        column="timestamp",
+                    )
+                )
 
             # Pre-market / post-market (simplified — market hours 9:15-15:30 IST)
-            pre_market = ((hours < NSE_OPEN_HOUR) | ((hours == NSE_OPEN_HOUR) & (minutes < NSE_OPEN_MINUTE))).sum()
-            post_market = ((hours > NSE_CLOSE_HOUR) | ((hours == NSE_CLOSE_HOUR) & (minutes > NSE_CLOSE_MINUTE))).sum()
+            pre_market = (
+                (hours < NSE_OPEN_HOUR) | ((hours == NSE_OPEN_HOUR) & (minutes < NSE_OPEN_MINUTE))
+            ).sum()
+            post_market = (
+                (hours > NSE_CLOSE_HOUR)
+                | ((hours == NSE_CLOSE_HOUR) & (minutes > NSE_CLOSE_MINUTE))
+            ).sum()
             if pre_market > 0:
-                report.add(Issue(
-                    "timestamp", "info",
-                    f"{pre_market} timestamp(s) before market open (9:15 IST)",
-                    column="timestamp",
-                ))
+                report.add(
+                    Issue(
+                        "timestamp",
+                        "info",
+                        f"{pre_market} timestamp(s) before market open (9:15 IST)",
+                        column="timestamp",
+                    )
+                )
             if post_market > 0:
-                report.add(Issue(
-                    "timestamp", "info",
-                    f"{post_market} timestamp(s) after market close (15:30 IST)",
-                    column="timestamp",
-                ))
+                report.add(
+                    Issue(
+                        "timestamp",
+                        "info",
+                        f"{post_market} timestamp(s) after market close (15:30 IST)",
+                        column="timestamp",
+                    )
+                )

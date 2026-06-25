@@ -19,6 +19,7 @@ from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver, _gener
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _defn(
     instrument_key: str,
     symbol: str = "",
@@ -48,10 +49,16 @@ def _defn(
 # Basic resolution
 # ---------------------------------------------------------------------------
 
+
 class TestResolverBasicLookup:
     def test_resolve_by_instrument_key(self):
         resolver = UpstoxInstrumentResolver()
-        d = _defn("NSE_EQ|RELIANCE", symbol="RELIANCE", exchange_segment="NSE_EQ", instrument_type="EQUITY")
+        d = _defn(
+            "NSE_EQ|RELIANCE",
+            symbol="RELIANCE",
+            exchange_segment="NSE_EQ",
+            instrument_type="EQUITY",
+        )
         resolver.register(d)
 
         result = resolver.resolve(instrument_key="NSE_EQ|RELIANCE")
@@ -137,6 +144,7 @@ class TestResolverBasicLookup:
 # Alternate key generation
 # ---------------------------------------------------------------------------
 
+
 class TestGenerateAlternateKeys:
     def test_equity_produces_basic_keys(self):
         keys = _generate_alternate_keys(
@@ -219,11 +227,16 @@ class TestGenerateAlternateKeys:
 # Search
 # ---------------------------------------------------------------------------
 
+
 class TestResolverSearch:
     def test_prefix_search(self):
         resolver = UpstoxInstrumentResolver()
         for sym in ("RELIANCE", "RELIANCEETF", "TCS", "TATA"):
-            resolver.register(_defn(f"NSE_EQ|{sym}", symbol=sym, exchange_segment="NSE_EQ", instrument_type="EQUITY"))
+            resolver.register(
+                _defn(
+                    f"NSE_EQ|{sym}", symbol=sym, exchange_segment="NSE_EQ", instrument_type="EQUITY"
+                )
+            )
 
         results = resolver.search("RELIAN")
         syms = {r.symbol for r in results}
@@ -233,22 +246,32 @@ class TestResolverSearch:
 
     def test_search_with_segment_filter(self):
         resolver = UpstoxInstrumentResolver()
-        resolver.register(_defn("NSE_EQ|TCS", symbol="TCS", exchange_segment="NSE_EQ", instrument_type="EQUITY"))
-        resolver.register(_defn("BSE_EQ|TCS", symbol="TCS", exchange_segment="BSE_EQ", instrument_type="EQUITY"))
+        resolver.register(
+            _defn("NSE_EQ|TCS", symbol="TCS", exchange_segment="NSE_EQ", instrument_type="EQUITY")
+        )
+        resolver.register(
+            _defn("BSE_EQ|TCS", symbol="TCS", exchange_segment="BSE_EQ", instrument_type="EQUITY")
+        )
 
         results = resolver.search("TCS", exchange_segment="NSE_EQ")
         assert all(r.exchange_segment.upper() == "NSE_EQ" for r in results)
 
     def test_search_empty_prefix(self):
         resolver = UpstoxInstrumentResolver()
-        resolver.register(_defn("NSE_EQ|X", symbol="X", exchange_segment="NSE_EQ", instrument_type="EQUITY"))
+        resolver.register(
+            _defn("NSE_EQ|X", symbol="X", exchange_segment="NSE_EQ", instrument_type="EQUITY")
+        )
         assert resolver.search("") == []
 
     def test_search_limit(self):
         resolver = UpstoxInstrumentResolver()
         for i in range(20):
             sym = f"STOCK{i:02d}"
-            resolver.register(_defn(f"NSE_EQ|{sym}", symbol=sym, exchange_segment="NSE_EQ", instrument_type="EQUITY"))
+            resolver.register(
+                _defn(
+                    f"NSE_EQ|{sym}", symbol=sym, exchange_segment="NSE_EQ", instrument_type="EQUITY"
+                )
+            )
 
         results = resolver.search("STOCK", limit=5)
         assert len(results) <= 5
@@ -258,11 +281,14 @@ class TestResolverSearch:
 # register_many / len
 # ---------------------------------------------------------------------------
 
+
 class TestResolverBulk:
     def test_register_many(self):
         resolver = UpstoxInstrumentResolver()
         defns = [
-            _defn(f"NSE_EQ|S{i}", symbol=f"S{i}", exchange_segment="NSE_EQ", instrument_type="EQUITY")
+            _defn(
+                f"NSE_EQ|S{i}", symbol=f"S{i}", exchange_segment="NSE_EQ", instrument_type="EQUITY"
+            )
             for i in range(10)
         ]
         resolver.register_many(defns)
@@ -270,8 +296,12 @@ class TestResolverBulk:
 
     def test_keys_returns_all_instrument_keys(self):
         resolver = UpstoxInstrumentResolver()
-        resolver.register(_defn("NSE_EQ|A", symbol="A", exchange_segment="NSE_EQ", instrument_type="EQUITY"))
-        resolver.register(_defn("NSE_EQ|B", symbol="B", exchange_segment="NSE_EQ", instrument_type="EQUITY"))
+        resolver.register(
+            _defn("NSE_EQ|A", symbol="A", exchange_segment="NSE_EQ", instrument_type="EQUITY")
+        )
+        resolver.register(
+            _defn("NSE_EQ|B", symbol="B", exchange_segment="NSE_EQ", instrument_type="EQUITY")
+        )
         assert set(resolver.keys()) == {"NSE_EQ|A", "NSE_EQ|B"}
 
 
@@ -281,21 +311,34 @@ class TestResolverBulk:
 class TestListOptionExpiries:
     def test_derives_sorted_future_expiries(self):
         from datetime import date, timedelta
+
         future = (date.today() + timedelta(days=7)).isoformat()
         farther = (date.today() + timedelta(days=30)).isoformat()
         resolver = UpstoxInstrumentResolver()
-        resolver.register(_defn(
-            "NSE_FO|NIFTY 24JUN26 25000 CE",
-            symbol="NIFTY 24JUN26 25000 CE", exchange_segment="NSE_FO",
-            instrument_type="OPTION", expiry=future,
-            strike=25000, option_type="CE", underlying_symbol="NIFTY",
-        ))
-        resolver.register(_defn(
-            "NSE_FO|NIFTY 30JUL26 25000 CE",
-            symbol="NIFTY 30JUL26 25000 CE", exchange_segment="NSE_FO",
-            instrument_type="OPTION", expiry=farther,
-            strike=25000, option_type="CE", underlying_symbol="NIFTY",
-        ))
+        resolver.register(
+            _defn(
+                "NSE_FO|NIFTY 24JUN26 25000 CE",
+                symbol="NIFTY 24JUN26 25000 CE",
+                exchange_segment="NSE_FO",
+                instrument_type="OPTION",
+                expiry=future,
+                strike=25000,
+                option_type="CE",
+                underlying_symbol="NIFTY",
+            )
+        )
+        resolver.register(
+            _defn(
+                "NSE_FO|NIFTY 30JUL26 25000 CE",
+                symbol="NIFTY 30JUL26 25000 CE",
+                exchange_segment="NSE_FO",
+                instrument_type="OPTION",
+                expiry=farther,
+                strike=25000,
+                option_type="CE",
+                underlying_symbol="NIFTY",
+            )
+        )
         result = resolver.list_option_expiries("NIFTY")
         assert result == sorted(result)
         assert future in result
@@ -303,21 +346,32 @@ class TestListOptionExpiries:
 
     def test_filters_past_expiries(self):
         from datetime import date, timedelta
+
         past = (date.today() - timedelta(days=14)).isoformat()
         future = (date.today() + timedelta(days=14)).isoformat()
         resolver = UpstoxInstrumentResolver()
-        resolver.register(_defn(
-            "NSE_FO|NIFTY PAST CE",
-            symbol="NIFTY PAST CE", exchange_segment="NSE_FO",
-            instrument_type="OPTION", expiry=past,
-            option_type="CE", underlying_symbol="NIFTY",
-        ))
-        resolver.register(_defn(
-            "NSE_FO|NIFTY FUTURE CE",
-            symbol="NIFTY FUTURE CE", exchange_segment="NSE_FO",
-            instrument_type="OPTION", expiry=future,
-            option_type="CE", underlying_symbol="NIFTY",
-        ))
+        resolver.register(
+            _defn(
+                "NSE_FO|NIFTY PAST CE",
+                symbol="NIFTY PAST CE",
+                exchange_segment="NSE_FO",
+                instrument_type="OPTION",
+                expiry=past,
+                option_type="CE",
+                underlying_symbol="NIFTY",
+            )
+        )
+        resolver.register(
+            _defn(
+                "NSE_FO|NIFTY FUTURE CE",
+                symbol="NIFTY FUTURE CE",
+                exchange_segment="NSE_FO",
+                instrument_type="OPTION",
+                expiry=future,
+                option_type="CE",
+                underlying_symbol="NIFTY",
+            )
+        )
         result = resolver.list_option_expiries("NIFTY")
         assert past not in result
         assert future in result
@@ -325,7 +379,9 @@ class TestListOptionExpiries:
     def test_unknown_underlying_returns_empty(self):
         resolver = UpstoxInstrumentResolver()
         # Register an unrelated instrument so the resolver is "loaded".
-        resolver.register(_defn("NSE_EQ|TCS", symbol="TCS", exchange_segment="NSE_EQ", instrument_type="EQUITY"))
+        resolver.register(
+            _defn("NSE_EQ|TCS", symbol="TCS", exchange_segment="NSE_EQ", instrument_type="EQUITY")
+        )
         assert resolver.list_option_expiries("NIFTY") == []
 
     def test_unloaded_raises(self):
@@ -337,14 +393,20 @@ class TestListOptionExpiries:
 
     def test_resets_expiry_index(self):
         from datetime import date, timedelta
+
         future = (date.today() + timedelta(days=7)).isoformat()
         resolver = UpstoxInstrumentResolver()
-        resolver.register(_defn(
-            "NSE_FO|NIFTY 24JUN26 25000 CE",
-            symbol="NIFTY 24JUN26 25000 CE", exchange_segment="NSE_FO",
-            instrument_type="OPTION", expiry=future,
-            option_type="CE", underlying_symbol="NIFTY",
-        ))
+        resolver.register(
+            _defn(
+                "NSE_FO|NIFTY 24JUN26 25000 CE",
+                symbol="NIFTY 24JUN26 25000 CE",
+                exchange_segment="NSE_FO",
+                instrument_type="OPTION",
+                expiry=future,
+                option_type="CE",
+                underlying_symbol="NIFTY",
+            )
+        )
         assert len(resolver.list_option_expiries("NIFTY")) == 1
         resolver.reset()
         with __import__("pytest").raises(RuntimeError):

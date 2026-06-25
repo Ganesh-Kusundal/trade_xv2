@@ -37,9 +37,9 @@ logger = logging.getLogger(__name__)
 class LossCircuitState(str, Enum):
     """State of the loss-based circuit breaker."""
 
-    CLOSED = "CLOSED"       # Trading allowed; losses within threshold.
-    OPEN = "OPEN"           # Trading halted; losses exceeded threshold.
-    COOLDOWN = "COOLDOWN"   # Post-trip cooling period; auto-transitions to CLOSED.
+    CLOSED = "CLOSED"  # Trading allowed; losses within threshold.
+    OPEN = "OPEN"  # Trading halted; losses exceeded threshold.
+    COOLDOWN = "COOLDOWN"  # Post-trip cooling period; auto-transitions to CLOSED.
 
 
 @dataclass(frozen=True)
@@ -57,26 +57,20 @@ class LossCircuitBreakerConfig:
 
     def __post_init__(self) -> None:
         if self.loss_threshold_pct <= 0:
-            raise ValueError(
-                f"loss_threshold_pct must be positive, got {self.loss_threshold_pct}"
-            )
+            raise ValueError(f"loss_threshold_pct must be positive, got {self.loss_threshold_pct}")
         if self.cooldown_seconds <= 0:
-            raise ValueError(
-                f"cooldown_seconds must be positive, got {self.cooldown_seconds}"
-            )
+            raise ValueError(f"cooldown_seconds must be positive, got {self.cooldown_seconds}")
         if self.window_seconds <= 0:
-            raise ValueError(
-                f"window_seconds must be positive, got {self.window_seconds}"
-            )
+            raise ValueError(f"window_seconds must be positive, got {self.window_seconds}")
 
 
 @dataclass
 class LossCircuitSample:
     """A single PnL sample recorded at a point in time."""
 
-    timestamp: float          # time.time() when the sample was recorded.
-    loss: Decimal             # Negative for loss, positive for gain.
-    capital: Decimal          # Capital at the time of recording.
+    timestamp: float  # time.time() when the sample was recorded.
+    loss: Decimal  # Negative for loss, positive for gain.
+    capital: Decimal  # Capital at the time of recording.
 
 
 class LossCircuitBreaker:
@@ -103,9 +97,9 @@ class LossCircuitBreaker:
         self._lock = threading.RLock()
         self._state: LossCircuitState = LossCircuitState.CLOSED
         self._samples: list[LossCircuitSample] = []
-        self._opened_at: float = 0.0          # time.time() when circuit opened
+        self._opened_at: float = 0.0  # time.time() when circuit opened
         self._cooldown_started_at: float = 0.0  # time.time() when cooldown started
-        self._trip_count: int = 0             # monotonic counter of trips to OPEN
+        self._trip_count: int = 0  # monotonic counter of trips to OPEN
 
     # -- Public API --
 
@@ -153,7 +147,10 @@ class LossCircuitBreaker:
                 # Check if losses have recovered below threshold due to
                 # purging of old samples or new gains.
                 cumulative = self._cumulative_loss()
-                if capital > 0 and (cumulative >= 0 or abs(cumulative) / capital * 100 < self.config.loss_threshold_pct):
+                if capital > 0 and (
+                    cumulative >= 0
+                    or abs(cumulative) / capital * 100 < self.config.loss_threshold_pct
+                ):
                     self._transition_to(LossCircuitState.COOLDOWN)
                     logger.info(
                         "loss_circuit_breaker_auto_recovery",
@@ -185,8 +182,7 @@ class LossCircuitBreaker:
 
             # COOLDOWN
             return False, (
-                f"Loss circuit breaker in COOLDOWN — "
-                f"{self._cooldown_remaining()}s remaining"
+                f"Loss circuit breaker in COOLDOWN — {self._cooldown_remaining()}s remaining"
             )
 
     def reset(self) -> None:
@@ -230,7 +226,9 @@ class LossCircuitBreaker:
 
             if self._state == LossCircuitState.OPEN:
                 result["opened_at"] = self._opened_at
-                result["seconds_since_open"] = now - self._opened_at if self._opened_at > 0 else None
+                result["seconds_since_open"] = (
+                    now - self._opened_at if self._opened_at > 0 else None
+                )
 
             if self._state == LossCircuitState.COOLDOWN:
                 result["cooldown_started_at"] = self._cooldown_started_at
@@ -273,7 +271,10 @@ class LossCircuitBreaker:
         if self._state == LossCircuitState.OPEN and self._samples:
             latest_capital = self._samples[-1].capital
             cumulative = self._cumulative_loss()
-            if latest_capital > 0 and (cumulative >= 0 or abs(cumulative) / latest_capital * 100 < self.config.loss_threshold_pct):
+            if latest_capital > 0 and (
+                cumulative >= 0
+                or abs(cumulative) / latest_capital * 100 < self.config.loss_threshold_pct
+            ):
                 self._transition_to(LossCircuitState.COOLDOWN)
                 logger.info(
                     "loss_circuit_breaker_auto_recovery",

@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import os
 
-import pytest
-
 from brokers.common.auth.environment_bootstrap import bootstrap_environment
 
 

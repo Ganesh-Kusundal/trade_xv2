@@ -62,9 +62,7 @@ class UpstoxInstrumentLoader:
 
         elapsed = time.time() - start
         file_size_mb = cache_path.stat().st_size / (1024 * 1024)
-        logger.info(
-            f"Instrument catalog downloaded: {file_size_mb:.1f}MB in {elapsed:.1f}s"
-        )
+        logger.info("Instrument catalog downloaded: %.1fMB in %.1fs", file_size_mb, elapsed)
         return cache_path
 
     def _is_cache_valid(self, cache_path: Path) -> bool:
@@ -77,24 +75,22 @@ class UpstoxInstrumentLoader:
             file_age_hours = file_age_seconds / 3600
 
             if file_age_hours < CACHE_VALIDITY_HOURS:
-                logger.debug(
-                    f"Cache valid: {file_age_hours:.1f}h old (< {CACHE_VALIDITY_HOURS}h)"
-                )
+                logger.debug("Cache valid: %.1fh old (< %sh)", file_age_hours, CACHE_VALIDITY_HOURS)
                 return True
             else:
                 logger.info(
-                    f"Cache expired: {file_age_hours:.1f}h old (>= {CACHE_VALIDITY_HOURS}h)"
+                    "Cache expired: %.1fh old (>= %sh)", file_age_hours, CACHE_VALIDITY_HOURS
                 )
                 return False
         except Exception as e:
-            logger.warning(f"Cache validation failed: {e}")
+            logger.warning("Cache validation failed: %s", e)
             return False
 
     def load(self, path: Path) -> list[UpstoxInstrumentDefinition]:
         """Load instruments with JSON+gzip caching for fast subsequent loads."""
         path = Path(path)
-        json_gz_path = path.with_name(path.stem + '.parsed.json.gz')
-        pkl_path = path.with_suffix('.pkl')
+        json_gz_path = path.with_name(path.stem + ".parsed.json.gz")
+        pkl_path = path.with_suffix(".pkl")
 
         # Migration: If old .pkl cache exists, migrate to .json.gz
         if pkl_path.exists() and not json_gz_path.exists():
@@ -106,12 +102,10 @@ class UpstoxInstrumentLoader:
                 start = time.time()
                 defs = self._load_json_cache(json_gz_path)
                 elapsed = time.time() - start
-                logger.info(
-                    f"Loaded {len(defs)} instruments from JSON cache in {elapsed:.2f}s"
-                )
+                logger.info("Loaded %d instruments from JSON cache in %.2fs", len(defs), elapsed)
                 return defs
             except Exception as e:
-                logger.warning(f"JSON cache load failed: {e}")
+                logger.warning("JSON cache load failed: %s", e)
 
         # Parse from JSON/gz (slow)
         logger.info("Parsing instrument catalog from JSON...")
@@ -124,13 +118,15 @@ class UpstoxInstrumentLoader:
         # Save to JSON+gzip cache
         try:
             self._save_json_cache(defs, json_gz_path)
-            cache_size_mb = json_gz_path.stat().st_size / (1024*1024)
+            cache_size_mb = json_gz_path.stat().st_size / (1024 * 1024)
             logger.info(
-                f"Parsed {len(defs)} instruments in {elapsed:.2f}s "
-                f"(JSON cache: {cache_size_mb:.1f}MB)"
+                "Parsed %d instruments in %.2fs (JSON cache: %.1fMB)",
+                len(defs),
+                elapsed,
+                cache_size_mb,
             )
         except Exception as e:
-            logger.warning(f"Failed to save JSON cache: {e}")
+            logger.warning("Failed to save JSON cache: %s", e)
 
         return defs
 
@@ -161,8 +157,7 @@ class UpstoxInstrumentLoader:
             "legacy_pickle_cache_quarantined",
             extra={
                 "pkl_path": str(pkl_path),
-                "reason": "CWE-502 — pickle.load is unsafe; "
-                          "rebuild from JSON source instead",
+                "reason": "CWE-502 — pickle.load is unsafe; rebuild from JSON source instead",
             },
         )
         quarantine = pkl_path.with_suffix(pkl_path.suffix + ".quarantine")
@@ -182,16 +177,16 @@ class UpstoxInstrumentLoader:
 
     def _load_json_cache(self, json_gz_path: Path) -> list[UpstoxInstrumentDefinition]:
         """Load instrument definitions from JSON+gzip cache."""
-        with gzip.open(json_gz_path, 'rt', encoding='utf-8') as f:
+        with gzip.open(json_gz_path, "rt", encoding="utf-8") as f:
             data = json.load(f)
         return [UpstoxInstrumentDefinition(**item) for item in data]
 
     def _save_json_cache(self, defs: list[UpstoxInstrumentDefinition], json_gz_path: Path) -> None:
         """Save instrument definitions to JSON+gzip cache."""
         # Convert dataclasses to dicts
-        data = [d.to_dict() if hasattr(d, 'to_dict') else d.__dict__ for d in defs]
-        with gzip.open(json_gz_path, 'wt', encoding='utf-8') as f:
-            json.dump(data, f, separators=(',', ':'))  # Compact format
+        data = [d.to_dict() if hasattr(d, "to_dict") else d.__dict__ for d in defs]
+        with gzip.open(json_gz_path, "wt", encoding="utf-8") as f:
+            json.dump(data, f, separators=(",", ":"))  # Compact format
 
     def _is_json_cache_valid(self, json_path: Path, json_gz_path: Path) -> bool:
         """Check if JSON cache exists and is newer than source JSON."""
@@ -249,8 +244,11 @@ class UpstoxInstrumentLoader:
         expiry_val = record.get("expiry")
         if isinstance(expiry_val, int | float):
             from datetime import datetime, timezone
+
             try:
-                expiry_val = datetime.fromtimestamp(expiry_val / 1000, tz=timezone.utc).strftime("%Y-%m-%d")
+                expiry_val = datetime.fromtimestamp(expiry_val / 1000, tz=timezone.utc).strftime(
+                    "%Y-%m-%d"
+                )
             except (ValueError, OSError):
                 expiry_val = None
 

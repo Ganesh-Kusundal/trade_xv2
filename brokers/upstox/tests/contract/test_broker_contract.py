@@ -15,8 +15,8 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 
-from domain import MarketDepth, Quote
 from brokers.upstox.gateway import UpstoxBrokerGateway
+from domain import MarketDepth, Quote
 
 # ---------------------------------------------------------------------------
 # Live-skip guard
@@ -25,11 +25,13 @@ ENV_PATH = Path(__file__).resolve().parent.parent.parent.parent.parent / ".env.u
 _live_env_loaded = False
 if ENV_PATH.exists() and ENV_PATH.stat().st_size > 0:
     from dotenv import load_dotenv
+
     load_dotenv(ENV_PATH, override=True)
     # Only enable live tests if BOTH API key AND access token are present
     _live_env_loaded = bool(
         os.environ.get("UPSTOX_API_KEY") and os.environ.get("UPSTOX_ACCESS_TOKEN")
     )
+
 
 def _should_skip_live() -> bool:
     """Skip live tests if credentials missing, integration disabled, token expired, or market closed."""
@@ -39,13 +41,17 @@ def _should_skip_live() -> bool:
         return True
     # Validate token is not expired by checking JWT exp claim
     token = os.environ.get("UPSTOX_ACCESS_TOKEN", "")
-    from brokers.common.auth.jwt_expiry import JwtExpiry
     import time as _time
+
+    from brokers.common.auth.jwt_expiry import JwtExpiry
+
     exp_ms = JwtExpiry.parse_expiry_epoch_ms(token)
     if exp_ms > 0 and exp_ms < _time.time() * 1000:
         return True
     from tests.market_hours import is_market_open
+
     return not is_market_open()
+
 
 skip_live = pytest.mark.skipif(
     _should_skip_live(),
@@ -57,6 +63,7 @@ pytestmark = pytest.mark.live_readonly
 @pytest.fixture(scope="module")
 def live_gateway() -> UpstoxBrokerGateway:
     from brokers.upstox.factory import UpstoxBrokerFactory
+
     gw = UpstoxBrokerFactory().create(env_path=ENV_PATH, load_instruments=True)
     yield gw
     gw.close()
@@ -66,12 +73,14 @@ def live_gateway() -> UpstoxBrokerGateway:
 def mock_gateway():
     """Return a PaperGateway for contract testing without live credentials."""
     from brokers.paper.paper_gateway import PaperGateway
+
     return PaperGateway()
 
 
 # ===========================================================================
 # Contract Suite
 # ===========================================================================
+
 
 class TestUpstoxLTPContract:
     @skip_live
@@ -145,12 +154,11 @@ class TestUpstoxHistoricalContract:
     @skip_live
     def test_historical_v2_returns_candles(self, live_gateway):
         from datetime import date, timedelta
+
         broker = live_gateway._broker
         to_d = date.today()
         from_d = to_d - timedelta(days=5)
-        body = broker.historical_v2.get_candles(
-            "NSE_EQ|INE002A01018", "day", to_d, from_d
-        )
+        body = broker.historical_v2.get_candles("NSE_EQ|INE002A01018", "day", to_d, from_d)
         assert body.get("status") == "success"
         candles = body.get("data", {}).get("candles", [])
         assert len(candles) > 0
@@ -158,12 +166,11 @@ class TestUpstoxHistoricalContract:
     @skip_live
     def test_historical_v3_returns_candles(self, live_gateway):
         from datetime import date, timedelta
+
         broker = live_gateway._broker
         to_d = date.today()
         from_d = to_d - timedelta(days=5)
-        body = broker.historical_v3.get_candles(
-            "NSE_EQ|INE002A01018", "days", "1", to_d, from_d
-        )
+        body = broker.historical_v3.get_candles("NSE_EQ|INE002A01018", "days", "1", to_d, from_d)
         assert body.get("status") == "success"
         candles = body.get("data", {}).get("candles", [])
         assert len(candles) > 0
@@ -187,6 +194,7 @@ class TestUpstoxOptionsContract:
     @skip_live
     def test_option_chain_returns_data(self, live_gateway):
         import requests
+
         broker = live_gateway._broker
         token = broker.settings.access_token
         headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}

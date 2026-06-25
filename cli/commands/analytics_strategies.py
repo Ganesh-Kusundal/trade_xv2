@@ -23,7 +23,9 @@ def run_strategies(args: list[str], console: Console) -> None:
     if args[0] == "run":
         names = [a for a in args[1:] if not a.startswith("-")]
         if not names:
-            console.print("[yellow]Usage: tradex analytics strategies run <name> [name...][/yellow]")
+            console.print(
+                "[yellow]Usage: tradex analytics strategies run <name> [name...][/yellow]"
+            )
             return
         pipeline = MultiStrategyRuntime.create_pipeline(names)
         console.print(f"[green]Pipeline ready with {len(pipeline.strategies)} strategies[/green]")

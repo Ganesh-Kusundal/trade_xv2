@@ -14,9 +14,9 @@ from decimal import Decimal
 
 import pytest
 
+from application.oms.order_position_updater import OrderPositionUpdater
 from domain import Order, Trade
 from domain.types import OrderStatus, OrderType, ProductType, Side
-from application.oms.order_position_updater import OrderPositionUpdater
 
 
 @pytest.fixture
@@ -64,7 +64,9 @@ class TestPartialFillHandling:
         assert updated.avg_price == Decimal("100")
         assert updated.status == OrderStatus.PARTIALLY_FILLED
 
-    def test_multiple_partial_fills(self, updater: OrderPositionUpdater, sample_order: Order) -> None:
+    def test_multiple_partial_fills(
+        self, updater: OrderPositionUpdater, sample_order: Order
+    ) -> None:
         """Multiple partial fills should accumulate correctly."""
         order = sample_order
 
@@ -119,7 +121,9 @@ class TestFullFillHandling:
         assert updated.filled_quantity == 100
         assert updated.status == OrderStatus.FILLED
 
-    def test_partial_then_full_fill(self, updater: OrderPositionUpdater, sample_order: Order) -> None:
+    def test_partial_then_full_fill(
+        self, updater: OrderPositionUpdater, sample_order: Order
+    ) -> None:
         """Partial fill followed by completing fill should mark as FILLED."""
         order = sample_order
 
@@ -150,7 +154,9 @@ class TestFullFillHandling:
         assert order.filled_quantity == 100
         assert order.status == OrderStatus.FILLED
 
-    def test_overfill_marks_as_filled(self, updater: OrderPositionUpdater, sample_order: Order) -> None:
+    def test_overfill_marks_as_filled(
+        self, updater: OrderPositionUpdater, sample_order: Order
+    ) -> None:
         """Overfill (more than order quantity) should still mark as FILLED."""
         trade = Trade(
             trade_id="T1",
@@ -173,7 +179,9 @@ class TestFullFillHandling:
 class TestAveragePriceComputation:
     """Test VWAP-style average price computation."""
 
-    def test_first_trade_avg_price(self, updater: OrderPositionUpdater, sample_order: Order) -> None:
+    def test_first_trade_avg_price(
+        self, updater: OrderPositionUpdater, sample_order: Order
+    ) -> None:
         """First trade should set avg_price to trade price."""
         trade = Trade(
             trade_id="T1",
@@ -187,7 +195,9 @@ class TestAveragePriceComputation:
         updated = updater.apply_trade(sample_order, trade)
         assert updated.avg_price == Decimal("100")
 
-    def test_weighted_avg_price_two_trades(self, updater: OrderPositionUpdater, sample_order: Order) -> None:
+    def test_weighted_avg_price_two_trades(
+        self, updater: OrderPositionUpdater, sample_order: Order
+    ) -> None:
         """Two trades should compute weighted average correctly."""
         order = sample_order
 
@@ -218,28 +228,45 @@ class TestAveragePriceComputation:
         # Expected: (50*100 + 50*200) / 100 = 150
         assert order.avg_price == Decimal("150")
 
-    def test_weighted_avg_price_three_trades(self, updater: OrderPositionUpdater, sample_order: Order) -> None:
+    def test_weighted_avg_price_three_trades(
+        self, updater: OrderPositionUpdater, sample_order: Order
+    ) -> None:
         """Three trades should compute weighted average correctly."""
         order = sample_order
 
         # 30 @ 100
         trade1 = Trade(
-            trade_id="T1", order_id=order.order_id, symbol=order.symbol,
-            exchange=order.exchange, side=order.side, quantity=30, price=Decimal("100"),
+            trade_id="T1",
+            order_id=order.order_id,
+            symbol=order.symbol,
+            exchange=order.exchange,
+            side=order.side,
+            quantity=30,
+            price=Decimal("100"),
         )
         order = updater.apply_trade(order, trade1)
 
         # 30 @ 200
         trade2 = Trade(
-            trade_id="T2", order_id=order.order_id, symbol=order.symbol,
-            exchange=order.exchange, side=order.side, quantity=30, price=Decimal("200"),
+            trade_id="T2",
+            order_id=order.order_id,
+            symbol=order.symbol,
+            exchange=order.exchange,
+            side=order.side,
+            quantity=30,
+            price=Decimal("200"),
         )
         order = updater.apply_trade(order, trade2)
 
         # 40 @ 150
         trade3 = Trade(
-            trade_id="T3", order_id=order.order_id, symbol=order.symbol,
-            exchange=order.exchange, side=order.side, quantity=40, price=Decimal("150"),
+            trade_id="T3",
+            order_id=order.order_id,
+            symbol=order.symbol,
+            exchange=order.exchange,
+            side=order.side,
+            quantity=40,
+            price=Decimal("150"),
         )
         order = updater.apply_trade(order, trade3)
 
@@ -297,7 +324,9 @@ class TestEdgeCases:
         assert updated.filled_quantity == 0
         assert updated.avg_price == Decimal("0")
 
-    def test_returns_new_order_instance(self, updater: OrderPositionUpdater, sample_order: Order) -> None:
+    def test_returns_new_order_instance(
+        self, updater: OrderPositionUpdater, sample_order: Order
+    ) -> None:
         """apply_trade should return new Order instance (immutability)."""
         trade = Trade(
             trade_id="T1",

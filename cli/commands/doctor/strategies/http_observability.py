@@ -17,9 +17,7 @@ class HTTPObservabilityCheck(CheckStrategy):
         results: list[CheckResult] = []
 
         if broker_service is None:
-            results.append(
-                CheckResult("HTTP Observability", "WARN", "No broker service available")
-            )
+            results.append(CheckResult("HTTP Observability", "WARN", "No broker service available"))
             return results
 
         server = broker_service.http_observability

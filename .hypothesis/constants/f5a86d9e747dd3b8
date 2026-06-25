@@ -1,4 +1,4 @@
-# file: /workspaces/trade_xv2/cli/widgets/diagnostics_console.py
+# file: /Users/apple/Downloads/Trade_XV2/cli/widgets/diagnostics_console.py
 # hypothesis_version: 6.155.7
 
 ['FAIL', 'PASS', 'Status', 'WARN', 'WARNING', 'bold green', 'bold red', 'bold yellow', 'btn-run-doctor', 'doctor-results-table', 'panel', 'primary', 'title']

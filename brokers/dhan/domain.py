@@ -10,12 +10,20 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any
 
-from domain.constants import IST_OFFSET as IST
-
-_CANONICAL = frozenset({
-    "Holding", "Order", "OrderStatus", "OrderType", "Position",
-    "ProductType", "Side", "Trade", "Validity", "OrderSide",
-})
+_CANONICAL = frozenset(
+    {
+        "Holding",
+        "Order",
+        "OrderStatus",
+        "OrderType",
+        "Position",
+        "ProductType",
+        "Side",
+        "Trade",
+        "Validity",
+        "OrderSide",
+    }
+)
 
 _ALIASES = {"OrderSide": "Side"}
 
@@ -23,6 +31,7 @@ _ALIASES = {"OrderSide": "Side"}
 def __getattr__(name: str) -> Any:
     if name in _CANONICAL:
         import domain as _domain
+
         return getattr(_domain, _ALIASES.get(name, name))
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
@@ -141,6 +150,7 @@ class Instrument:
 
 
 # OrderSide remains available via __getattr__ deprecation shim.
+
 
 @dataclass(frozen=True)
 class SuperOrderLeg:

@@ -35,21 +35,25 @@ DEFAULT_CATALOG = "market_data/catalog.duckdb"
 @dataclass(frozen=True)
 class PriceLevel:
     """A support or resistance price level."""
+
     price: float
     touches: int  # number of pivots in the cluster (strength indicator)
     last_touch: date  # date of most recent pivot in the cluster
 
 
-def _read_daily_candles(conn: duckdb.DuckDBPyConnection, symbol: str,
-                        start_date: date, end_date: date) -> pd.DataFrame:
+def _read_daily_candles(
+    conn: duckdb.DuckDBPyConnection, symbol: str, start_date: date, end_date: date
+) -> pd.DataFrame:
     """Read daily OHLC for a symbol from v_daily_summary.
 
     v_daily_summary columns: trade_date, symbol, day_open, day_high, day_low, day_close, day_volume
     """
     from datalake.symbols import normalize_symbol
+
     sym = normalize_symbol(symbol)
 
-    return conn.execute("""
+    return conn.execute(
+        """
         SELECT
             trade_date as date,
             day_high as high,
@@ -59,11 +63,14 @@ def _read_daily_candles(conn: duckdb.DuckDBPyConnection, symbol: str,
         WHERE symbol = ?
           AND trade_date BETWEEN ? AND ?
         ORDER BY trade_date
-    """, [sym, start_date, end_date]).fetchdf()
+    """,
+        [sym, start_date, end_date],
+    ).fetchdf()
 
 
-def _find_pivots(daily: pd.DataFrame, window: int = 2
-                 ) -> tuple[list[tuple[date, float]], list[tuple[date, float]]]:
+def _find_pivots(
+    daily: pd.DataFrame, window: int = 2
+) -> tuple[list[tuple[date, float]], list[tuple[date, float]]]:
     """Find local minima (support) and local maxima (resistance).
 
     Returns lists of (date, price) tuples so we can track last_touch date.
@@ -90,8 +97,7 @@ def _find_pivots(daily: pd.DataFrame, window: int = 2
     return supports, resistances
 
 
-def _cluster_levels(pivots: list[tuple[date, float]], tolerance: float = 0.01
-                    ) -> list[PriceLevel]:
+def _cluster_levels(pivots: list[tuple[date, float]], tolerance: float = 0.01) -> list[PriceLevel]:
     """Cluster nearby pivot prices and return the strongest levels.
 
     `tolerance` is the fraction of the price (e.g., 0.01 = 1%) within which
@@ -123,22 +129,28 @@ def _cluster_levels(pivots: list[tuple[date, float]], tolerance: float = 0.01
         touches = len(cluster)
         avg_price = sum(p for _, p in cluster) / len(cluster)
         last_touch = max(d for d, _ in cluster)
-        levels.append(PriceLevel(
-            price=round(avg_price, 2),
-            touches=touches,
-            last_touch=last_touch,
-        ))
+        levels.append(
+            PriceLevel(
+                price=round(avg_price, 2),
+                touches=touches,
+                last_touch=last_touch,
+            )
+        )
 
     # Sort by strength (touches desc), then by price
     levels.sort(key=lambda lvl: (-lvl.touches, lvl.price))
     return levels
 
 
-def find_support_resistance(symbol: str, days: int = 60, top_n: int = 3,
-                            pivot_window: int = 2, cluster_tolerance: float = 0.01,
-                            catalog_path: str | Path | None = None,
-                            conn: duckdb.DuckDBPyConnection | None = None
-                            ) -> dict[str, list[PriceLevel]]:
+def find_support_resistance(
+    symbol: str,
+    days: int = 60,
+    top_n: int = 3,
+    pivot_window: int = 2,
+    cluster_tolerance: float = 0.01,
+    catalog_path: str | Path | None = None,
+    conn: duckdb.DuckDBPyConnection | None = None,
+) -> dict[str, list[PriceLevel]]:
     """Find support and resistance levels for a stock.
 
     Parameters

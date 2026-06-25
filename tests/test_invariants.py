@@ -13,8 +13,7 @@ import pytest
 
 from brokers.dhan.exceptions import DhanIdentityError
 from brokers.dhan.identity import DhanInstrumentRef
-from brokers.dhan.invariants import assert_dhan_identity, assert_valid_security_id, VALID_SEGMENTS
-
+from brokers.dhan.invariants import VALID_SEGMENTS, assert_dhan_identity, assert_valid_security_id
 
 # ── assert_dhan_identity Tests ────────────────────────────────────────────
 
@@ -74,17 +73,19 @@ class TestAssertDhanIdentity:
 
     def test_rejects_object_without_security_id(self):
         """Object without security_id attribute should be rejected."""
+
         class FakeRef:
             exchange_segment = "NSE_EQ"
-        
+
         with pytest.raises(DhanIdentityError, match="Not a DhanInstrumentRef"):
             assert_dhan_identity(FakeRef())
 
     def test_rejects_object_without_exchange_segment(self):
         """Object without exchange_segment attribute should be rejected."""
+
         class FakeRef:
             security_id = "11536"
-        
+
         with pytest.raises(DhanIdentityError, match="Not a DhanInstrumentRef"):
             assert_dhan_identity(FakeRef())
 

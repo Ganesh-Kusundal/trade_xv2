@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/application/oms/position_manager.py
-# hypothesis_version: 6.155.7
-
-[0.0, '0', 'BUY', 'NSE', 'PositionManager', '_lock', '_owner', 'average_price', 'avg_price', 'exchange', 'exchange_segment', 'last_price', 'ltp', 'net_quantity', 'position', 'position_updated', 'quantity', 'realized_pnl', 'reentered', 'symbol', 'trade', 'trading_symbol', 'unrealized_pnl']

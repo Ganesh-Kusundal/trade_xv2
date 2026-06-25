@@ -7,7 +7,7 @@ wire DTOs or raw response payloads — those stay behind the adapter boundary.
 
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
 
 
 class BrokerError(Exception):
@@ -28,7 +28,8 @@ class BrokerUnavailableError(BrokerError):
 
     def __init__(self, broker_id: str, reason: str = "") -> None:
         super().__init__(
-            f"Broker '{broker_id}' is unavailable: {reason}" if reason
+            f"Broker '{broker_id}' is unavailable: {reason}"
+            if reason
             else f"Broker '{broker_id}' is unavailable",
             broker_id=broker_id,
         )
@@ -92,7 +93,8 @@ class RoutingError(BrokerError):
     def __init__(self, operation: str, reason: str = "") -> None:
         super().__init__(
             f"No broker could be selected for operation='{operation}': {reason}"
-            if reason else f"No broker could be selected for operation='{operation}'"
+            if reason
+            else f"No broker could be selected for operation='{operation}'"
         )
         self.operation = operation
         self.reason = reason

@@ -65,3 +65,9 @@ dist/
 # market_data/ directory removed from gitignore to allow LFS tracking
 # datalake/catalog.duckdb and .wal now tracked via LFS
 ZCode-3.1.1-mac-arm64.dmg
+
+# Analytics materialized cache
+analytics_cache/
+
+# Data lake quarantine — corrupted / unparseable files
+market_data/_quarantine/

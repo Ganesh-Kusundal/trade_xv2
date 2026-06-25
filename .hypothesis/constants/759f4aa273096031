@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/brokers/upstox/websocket/portfolio_stream.py
-# hypothesis_version: 6.155.7
-
-['GTT_UPDATED', 'HOLDING_UPDATED', 'ORDER_UPDATED', 'PORTFOLIO_STREAM', 'POSITION_UPDATED', 'TRADE', 'close', 'data', 'gtt', 'holding', 'order', 'payload', 'position', 'recv', 'symbol', 'trade', 'trading_symbol', 'type', 'unknown', 'update_type', 'utf-8']

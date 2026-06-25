@@ -25,6 +25,7 @@ def real_resolver():
     resolver.load_from_rows(rows)
     return resolver
 
+
 def test_live_bidirectional_mapping(real_resolver):
     """Verify bidirectional mapping (symbol <-> security_id) for random samples."""
     all_insts = real_resolver.all_instruments()
@@ -55,7 +56,9 @@ def test_live_bidirectional_mapping(real_resolver):
 
             # 2. Forward lookup: symbol -> Instrument
             fwd = real_resolver.get_by_symbol(inst.symbol, inst.exchange.value)
-            assert fwd is not None, f"Failed forward lookup for symbol {inst.symbol} on {inst.exchange}"
+            assert fwd is not None, (
+                f"Failed forward lookup for symbol {inst.symbol} on {inst.exchange}"
+            )
             assert fwd.symbol == inst.symbol
             assert fwd.exchange == inst.exchange
 
@@ -72,7 +75,10 @@ def test_live_bidirectional_mapping(real_resolver):
                 if alt is not None:
                     assert alt.exchange == inst.exchange
                     if inst.instrument_type in (InstrumentType.OPTION, InstrumentType.FUTURE):
-                        assert alt.underlying == inst.underlying or alt.sm_symbol_name == inst.sm_symbol_name
+                        assert (
+                            alt.underlying == inst.underlying
+                            or alt.sm_symbol_name == inst.sm_symbol_name
+                        )
 
             # 5. Check if canonical symbol resolves
             if inst.canonical_symbol:

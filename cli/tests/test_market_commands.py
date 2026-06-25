@@ -123,7 +123,7 @@ class TestShowQuote:
     """Tests for show_quote command."""
 
     def test_show_quote_success(self, mock_broker_service, console, mock_quote):
-        mock_broker_service.active_broker.market_data.get_quote.return_value = mock_quote
+        mock_broker_service.active_broker.quote.return_value = mock_quote
 
         show_quote(mock_broker_service, "RELIANCE", console)
 
@@ -131,10 +131,10 @@ class TestShowQuote:
         assert "RELIANCE" in output
         assert "Quote Terminal" in output
         assert "2,450.50" in output
-        mock_broker_service.active_broker.market_data.get_quote.assert_called_once()
+        mock_broker_service.active_broker.quote.assert_called_once()
 
     def test_show_quote_no_data(self, mock_broker_service, console):
-        mock_broker_service.active_broker.market_data.get_quote.return_value = None
+        mock_broker_service.active_broker.quote.return_value = None
 
         show_quote(mock_broker_service, "RELIANCE", console)
 
@@ -142,14 +142,14 @@ class TestShowQuote:
         assert "No quote data" in output
 
     def test_show_quote_index_symbol(self, mock_broker_service, console, mock_quote):
-        mock_broker_service.active_broker.market_data.get_quote.return_value = mock_quote
+        mock_broker_service.active_broker.quote.return_value = mock_quote
 
         show_quote(mock_broker_service, "NIFTY", console)
 
         output = console.export_text()
         assert "INDEX" in output
         # Should call with INDEX exchange
-        call_args = mock_broker_service.active_broker.market_data.get_quote.call_args
+        call_args = mock_broker_service.active_broker.quote.call_args
         assert call_args[0][1] == "INDEX"
 
 
@@ -162,7 +162,7 @@ class TestShowDepth:
     """Tests for show_depth command."""
 
     def test_show_depth_success(self, mock_broker_service, console, mock_depth):
-        mock_broker_service.active_broker.market_data.get_depth.return_value = mock_depth
+        mock_broker_service.active_broker.depth.return_value = mock_depth
 
         show_depth(mock_broker_service, "RELIANCE", console)
 
@@ -170,10 +170,10 @@ class TestShowDepth:
         assert "Market Depth" in output
         assert "2,450.00" in output
         assert "2,451.00" in output
-        mock_broker_service.active_broker.market_data.get_depth.assert_called_once()
+        mock_broker_service.active_broker.depth.assert_called_once()
 
     def test_show_depth_no_data(self, mock_broker_service, console):
-        mock_broker_service.active_broker.market_data.get_depth.return_value = None
+        mock_broker_service.active_broker.depth.return_value = None
 
         show_depth(mock_broker_service, "RELIANCE", console)
 
@@ -184,7 +184,7 @@ class TestShowDepth:
         depth = MagicMock()
         depth.bids = []
         depth.asks = []
-        mock_broker_service.active_broker.market_data.get_depth.return_value = depth
+        mock_broker_service.active_broker.depth.return_value = depth
 
         show_depth(mock_broker_service, "RELIANCE", console)
 
@@ -277,22 +277,27 @@ class TestShowFutures:
     """Tests for show_futures command."""
 
     def test_show_futures_success(self, mock_broker_service, console):
-        contracts = [
-            {
-                "expiry": "2026-06-25",
-                "symbol": "NIFTY25JUNFUT",
-                "security_id": "12345",
-                "lot_size": 50,
-            },
-            {
-                "expiry": "2026-07-30",
-                "symbol": "NIFTY30JULFUT",
-                "security_id": "12346",
-                "lot_size": 50,
-            },
-        ]
+        from domain.entities.options import FutureChain, FutureContract
+        
+        chain = FutureChain(
+            underlying="NIFTY",
+            exchange="NFO",
+            expiries=("2026-06-25", "2026-07-30"),
+            contracts=(
+                FutureContract(
+                    symbol="NIFTY25JUNFUT",
+                    expiry="2026-06-25",
+                    lot_size=50,
+                ),
+                FutureContract(
+                    symbol="NIFTY30JULFUT",
+                    expiry="2026-07-30",
+                    lot_size=50,
+                ),
+            ),
+        )
 
-        mock_broker_service.active_broker.futures.get_contracts.return_value = contracts
+        mock_broker_service.active_broker.future_chain.return_value = chain
 
         show_futures(mock_broker_service, "NIFTY", console)
 
@@ -300,10 +305,13 @@ class TestShowFutures:
         assert "Futures Contracts" in output
         assert "NIFTY" in output
         assert "2026-06-25" in output
-        mock_broker_service.active_broker.futures.get_contracts.assert_called_once()
+        mock_broker_service.active_broker.future_chain.assert_called_once()
 
     def test_show_futures_no_contracts(self, mock_broker_service, console):
-        mock_broker_service.active_broker.futures.get_contracts.return_value = []
+        from domain.entities.options import FutureChain
+        
+        chain = FutureChain(underlying="NIFTY", exchange="NFO", expiries=(), contracts=())
+        mock_broker_service.active_broker.future_chain.return_value = chain
 
         show_futures(mock_broker_service, "NIFTY", console)
 
@@ -311,16 +319,21 @@ class TestShowFutures:
         assert "No contracts found" in output
 
     def test_show_commodity_futures(self, mock_broker_service, console):
-        contracts = [
-            {"expiry": "2026-07-01", "symbol": "GOLD01JUL", "security_id": "99999", "lot_size": 100}
-        ]
+        from domain.entities.options import FutureChain
+        
+        chain = FutureChain(
+            underlying="GOLD",
+            exchange="MCX",
+            expiries=("2026-07-01",),
+            contracts=(),
+        )
 
-        mock_broker_service.active_broker.futures.get_contracts.return_value = contracts
+        mock_broker_service.active_broker.future_chain.return_value = chain
 
         show_futures(mock_broker_service, "GOLD", console)
 
         # Should route to MCX
-        call_args = mock_broker_service.active_broker.futures.get_contracts.call_args
+        call_args = mock_broker_service.active_broker.future_chain.call_args
         assert call_args[0][1] == "MCX"
 
 
@@ -418,7 +431,7 @@ class TestMarketRouter:
         assert "Unknown" in output
 
     def test_market_quote_subcommand(self, mock_broker_service, console, mock_quote):
-        mock_broker_service.active_broker.market_data.get_quote.return_value = mock_quote
+        mock_broker_service.active_broker.quote.return_value = mock_quote
 
         cmd_market.run(["quote", "RELIANCE"], mock_broker_service, console)
 

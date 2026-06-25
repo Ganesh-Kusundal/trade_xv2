@@ -7,6 +7,7 @@ to rebuild order/position state up to the point of the crash.
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import json
 import logging
@@ -74,7 +75,7 @@ def _deserialize_value(value: Any, expected_type: type | None = None) -> Any:
         if isinstance(expected_type, type) and issubclass(expected_type, enum.Enum):
             try:
                 return expected_type(value)
-            except Exception as exc:
+            except Exception:
                 logger.debug("enum_value_parse_failed: %s=%s", expected_type, value)
 
     if isinstance(value, dict):
@@ -93,9 +94,7 @@ def _deserialize_value(value: Any, expected_type: type | None = None) -> Any:
                 except Exception:
                     type_hints = {}
                 kwargs = {
-                    f.name: _deserialize_value(
-                        value.get(f.name), type_hints.get(f.name)
-                    )
+                    f.name: _deserialize_value(value.get(f.name), type_hints.get(f.name))
                     for f in dataclasses.fields(cls)
                     if f.init
                 }
@@ -146,7 +145,7 @@ class EventLog:
                     self._current_handle.close()
                 except Exception as exc:
                     logger.warning("Error closing old event log: %s", exc)
-            self._current_handle = open(target, "a", encoding="utf-8")
+            self._current_handle = open(target, "a", encoding="utf-8")  # noqa: SIM115
             self._current_file = target
         return self._current_handle
 
@@ -176,20 +175,17 @@ class EventLog:
             try:
                 handle.write(line + "\n")
                 handle.flush()
-                try:
+                with contextlib.suppress(OSError, ValueError):
                     os.fsync(handle.fileno())
-                except (OSError, ValueError):
                     # Some filesystems don't support fsync. The flush above
                     # is the best we can do.
-                    pass
             except (OSError, ValueError) as exc:
                 self.append_errors += 1
-                logger.error(
+                logger.exception(
                     "EventLog: failed to append %s to %s: %s",
                     event.event_type,
                     self._current_file,
                     exc,
-                    exc_info=True,
                 )
                 # Re-raise so the EventBus can dead-letter the event.
                 raise
@@ -276,15 +272,15 @@ class EventLog:
 
 class BufferedEventLog(EventLog):
     """EventLog with buffered writes for improved performance.
-    
+
     Instead of fsync on every append, this class buffers events and flushes:
     - When buffer size >= flush_threshold (default 100 events)
     - When flush_interval seconds have passed (default 1 second)
     - On explicit flush() call
     - On close() or process exit
-    
+
     Critical events (TRADE, ORDER_*) can use sync_mode=True for immediate fsync.
-    
+
     Usage:
         log = BufferedEventLog(
             events_dir=Path("market_data/events"),
@@ -294,10 +290,10 @@ class BufferedEventLog(EventLog):
         log.append(event)  # Buffered
         log.append(event)  # Buffered
         log.flush()  # Explicit flush
-        
+
         # Critical event: immediate fsync
         log.append(critical_event, sync_mode=True)
-    
+
     Parameters
     ----------
     events_dir:
@@ -307,7 +303,7 @@ class BufferedEventLog(EventLog):
     flush_interval:
         Maximum time between flushes in seconds (default 1.0).
     """
-    
+
     def __init__(
         self,
         events_dir: Path = DEFAULT_EVENTS_DIR,
@@ -320,14 +316,15 @@ class BufferedEventLog(EventLog):
         self._buffer: list[tuple[str, DomainEvent]] = []
         self._last_flush: datetime = datetime.now(timezone.utc)
         self._flush_count = 0
-        
+
         # Register atexit handler for flush on process exit
         import atexit
+
         atexit.register(self._flush_on_exit)
-    
+
     def append(self, event: DomainEvent, sync_mode: bool = False) -> None:
         """Append an event to the log (buffered).
-        
+
         Parameters
         ----------
         event:
@@ -347,64 +344,62 @@ class BufferedEventLog(EventLog):
                 "sequence_number": event.sequence_number,  # B5
             }
             line = json.dumps(record, ensure_ascii=False) + "\n"
-            
+
             # Add to buffer
             self._buffer.append((line, event))
-            
+
             # Check if we should flush
             should_flush = (
-                sync_mode or
-                len(self._buffer) >= self._flush_threshold or
-                (datetime.now(timezone.utc) - self._last_flush).total_seconds() >= self._flush_interval
+                sync_mode
+                or len(self._buffer) >= self._flush_threshold
+                or (datetime.now(timezone.utc) - self._last_flush).total_seconds()
+                >= self._flush_interval
             )
-            
+
             if should_flush:
                 self._flush_locked()
-    
+
     def _flush_locked(self) -> None:
         """Flush buffer to disk. Must be called with lock held."""
         if not self._buffer:
             return
-        
+
         try:
             # Open file if not already open
             if self._current_handle is None:
                 # Use timestamp from first buffered event to determine file
                 first_event = self._buffer[0][1]
                 self._ensure_handle(first_event.timestamp)
-            
+
             # Write all buffered events
             for line, _ in self._buffer:
                 self._current_handle.write(line)
-            
+
             # Flush and fsync
             self._current_handle.flush()
-            if hasattr(self._current_handle, 'fileno'):
-                try:
+            if hasattr(self._current_handle, "fileno"):
+                with contextlib.suppress(OSError):
                     os.fsync(self._current_handle.fileno())
-                except OSError:
-                    pass  # Some file-like objects don't support fileno
-            
+                    # Some file-like objects don't support fileno
+
             self._flush_count += 1
             self._last_flush = datetime.now(timezone.utc)
             self._buffer.clear()
-        
+
         except Exception as exc:
-            logger.error("BufferedEventLog flush failed: %s", exc, exc_info=True)
+            logger.exception("BufferedEventLog flush failed: %s", exc)
             # Don't clear buffer on failure, retry next time
-    
+
     def flush(self) -> None:
         """Explicitly flush the buffer to disk."""
         with self._lock:
             self._flush_locked()
-    
+
     def _flush_on_exit(self) -> None:
         """Flush buffer on process exit."""
-        try:
+        with contextlib.suppress(Exception):
             self.flush()
-        except Exception:
-            pass
-    
+
     def close(self) -> None:
         """Flush buffer and close the log."""
         with self._lock:
@@ -415,10 +410,10 @@ class BufferedEventLog(EventLog):
                 self._flush_count,
                 len(self._buffer),
             )
-    
+
     def get_stats(self) -> dict[str, Any]:
         """Get buffer statistics.
-        
+
         Returns
         -------
         dict:

@@ -48,6 +48,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from application.oms import (
+    DailyPnlResetScheduler,
+    PositionManager,
+    RiskConfig,
+    RiskManager,
+)
+from brokers.common.observability.event_metrics import EventMetrics
 from domain import (
     Order,
     OrderStatus,
@@ -62,22 +69,20 @@ from infrastructure.lifecycle.lifecycle import (
     LifecycleManager,
     ManagedService,
 )
-from brokers.common.observability.event_metrics import EventMetrics
-from application.oms import (
-    DailyPnlResetScheduler,
-    PositionManager,
-    RiskConfig,
-    RiskManager,
-)
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
 
 def _make_order(price: Decimal = Decimal("2500")) -> Order:
     return Order(
-        order_id="O-1", symbol="RELIANCE", exchange="NSE",
-        side=Side.BUY, quantity=10, price=price,
-        order_type=OrderType.LIMIT, product_type=ProductType.INTRADAY,
+        order_id="O-1",
+        symbol="RELIANCE",
+        exchange="NSE",
+        side=Side.BUY,
+        quantity=10,
+        price=price,
+        order_type=OrderType.LIMIT,
+        product_type=ProductType.INTRADAY,
         status=OrderStatus.OPEN,
     )
 
@@ -91,12 +96,14 @@ def test_token_expiry_triggers_401_handler_refresh() -> None:
     from brokers.dhan.http_client import DhanHttpClient
 
     new_token_holder = {"v": "TOK-V1"}
+
     def refresh():
         new_token_holder["v"] = "TOK-V2"
         return "TOK-V2"
 
     client = DhanHttpClient(
-        client_id="X", access_token="TOK-V1",
+        client_id="X",
+        access_token="TOK-V1",
         token_refresh_fn=refresh,
     )
 
@@ -169,11 +176,17 @@ def test_read_circuit_breaker_opens_under_load_does_not_block_writes() -> None:
     )
     from brokers.dhan.http_client import DhanHttpClient
 
-    cb_read = CircuitBreaker("r", CircuitBreakerConfig(failure_threshold=2, open_duration_ms=30_000))
-    cb_write = CircuitBreaker("w", CircuitBreakerConfig(failure_threshold=10, open_duration_ms=30_000))
+    cb_read = CircuitBreaker(
+        "r", CircuitBreakerConfig(failure_threshold=2, open_duration_ms=30_000)
+    )
+    cb_write = CircuitBreaker(
+        "w", CircuitBreakerConfig(failure_threshold=10, open_duration_ms=30_000)
+    )
     client = DhanHttpClient(
-        client_id="X", access_token="T",
-        read_circuit_breaker=cb_read, write_circuit_breaker=cb_write,
+        client_id="X",
+        access_token="T",
+        read_circuit_breaker=cb_read,
+        write_circuit_breaker=cb_write,
     )
 
     # 2 failed reads
@@ -183,6 +196,7 @@ def test_read_circuit_breaker_opens_under_load_does_not_block_writes() -> None:
         resp.text = "boom"
         client._session.request = MagicMock(return_value=resp)
         from brokers.dhan.exceptions import DhanError
+
         with pytest.raises(DhanError):
             client.get("/marketfeed/quote")
     assert cb_read.state == CircuitState.OPEN
@@ -230,21 +244,28 @@ def test_kill_switch_flip_is_observed_atomically() -> None:
     errors: list[BaseException] = []
 
     stop = threading.Event()
+
     def killer():
         while not stop.is_set():
             rm.set_kill_switch(True)
             rm.set_kill_switch(False)
+
     def checker():
         while not stop.is_set():
             try:
                 rm.check_order(order)
             except BaseException as exc:  # pragma: no cover
                 errors.append(exc)
-    threads = [threading.Thread(target=killer)] + [threading.Thread(target=checker) for _ in range(4)]
-    for t in threads: t.start()
+
+    threads = [threading.Thread(target=killer)] + [
+        threading.Thread(target=checker) for _ in range(4)
+    ]
+    for t in threads:
+        t.start()
     time.sleep(0.3)
     stop.set()
-    for t in threads: t.join()
+    for t in threads:
+        t.join()
     assert not errors
 
 
@@ -260,17 +281,25 @@ def test_lifecycle_drains_20_services_even_when_some_throw() -> None:
     def make_named(name: str, throws: bool = False, slow: bool = False) -> ManagedService:
         class _S(ManagedService):
             pass
+
         s = _S()
         s.name = name
-        def start(self): pass
+
+        def start(self):
+            pass
+
         def stop(self, timeout_seconds=5.0):
             if throws:
                 raise RuntimeError(f"{name} failed")
             if slow:
                 time.sleep(0.3)
+
         def health(self):
             state = HealthState.UNHEALTHY if throws else HealthState.HEALTHY
-            return HealthStatus(state=state, service=self.name, last_check=datetime.now(timezone.utc))
+            return HealthStatus(
+                state=state, service=self.name, last_check=datetime.now(timezone.utc)
+            )
+
         s.start = start.__get__(s)
         s.stop = stop.__get__(s)
         s.health = health.__get__(s)
@@ -344,10 +373,12 @@ def test_risk_manager_daily_pnl_survives_concurrent_writes() -> None:
 
     threads = [threading.Thread(target=writer, args=(i,)) for i in range(8)]
     threads += [threading.Thread(target=reader) for _ in range(8)]
-    for t in threads: t.start()
+    for t in threads:
+        t.start()
     time.sleep(0.3)
     stop.set()
-    for t in threads: t.join()
+    for t in threads:
+        t.join()
     assert not errors
     # All seen values must be valid Decimals in range 0..99
     for v in seen:
@@ -377,13 +408,17 @@ def test_event_metrics_snapshot_is_consistent_under_concurrent_increments() -> N
     """20 threads each increment the same (event, outcome) 500 times.
     The final snapshot must show exactly 10,000 (no lost increments)."""
     em = EventMetrics()
-    N_THREADS = 20
-    INCREMENTS = 500
+    n_threads = 20
+    increments = 500
+
     def hammer():
-        for _ in range(INCREMENTS):
+        for _ in range(increments):
             em.inc("TICK", "published")
-    threads = [threading.Thread(target=hammer) for _ in range(N_THREADS)]
-    for t in threads: t.start()
-    for t in threads: t.join()
+
+    threads = [threading.Thread(target=hammer) for _ in range(n_threads)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
     snap = em.snapshot()
-    assert snap["TICK"]["published"] == N_THREADS * INCREMENTS
+    assert snap["TICK"]["published"] == n_threads * increments

@@ -6,17 +6,6 @@ from dataclasses import dataclass
 from decimal import Decimal
 from unittest.mock import MagicMock
 
-import pytest
-
-from domain import (
-    ExchangeSegment,
-    OrderRequest,
-    OrderResponse,
-    OrderType,
-    ProductType,
-    Side,
-    Validity,
-)
 from brokers.upstox.auth.config import UpstoxConnectionSettings
 from brokers.upstox.broker import UpstoxBroker
 from brokers.upstox.capabilities import (
@@ -25,6 +14,15 @@ from brokers.upstox.capabilities import (
     OrdersCapability,
     PortfolioCapability,
     StreamingCapability,
+)
+from domain import (
+    ExchangeSegment,
+    OrderRequest,
+    OrderResponse,
+    OrderType,
+    ProductType,
+    Side,
+    Validity,
 )
 
 

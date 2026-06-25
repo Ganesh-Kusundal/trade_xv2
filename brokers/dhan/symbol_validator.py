@@ -7,40 +7,46 @@ import re
 from datetime import date, datetime
 from typing import Any
 
-logger = logging.getLogger(__name__)
-
 from brokers.dhan.domain import Exchange, InstrumentType, OptionType
 from brokers.dhan.loader import InstrumentLoader
 from brokers.dhan.resolver import SymbolResolver
 
+logger = logging.getLogger(__name__)
+
 # Regex patterns for F&O symbol parsing
 # Format 1: "NIFTY 26 JUN 25000 CE" or "BANKNIFTY 24 JUL 55000 PE"
 _OPT_SPACED_PATTERN = re.compile(
-    r"^([A-Z0-9\-_]+)\s+(\d{1,2})\s+([A-Z]{3})\s+(\d+(?:\.\d+)?)\s+(CE|PE|CALL|PUT)$",
-    re.IGNORECASE
+    r"^([A-Z0-9\-_]+)\s+(\d{1,2})\s+([A-Z]{3})\s+(\d+(?:\.\d+)?)\s+(CE|PE|CALL|PUT)$", re.IGNORECASE
 )
 
 # Format 2: "NIFTY26JUN25000CE"
 _OPT_COMPACT_PATTERN = re.compile(
-    r"^([A-Z0-9\-_]+?)(\d{1,2})([A-Z]{3})(\d+(?:\.\d+)?)(CE|PE|CALL|PUT)$",
-    re.IGNORECASE
+    r"^([A-Z0-9\-_]+?)(\d{1,2})([A-Z]{3})(\d+(?:\.\d+)?)(CE|PE|CALL|PUT)$", re.IGNORECASE
 )
 
 # Format 3: Futures with day: "CRUDEOIL 24 JUN FUT"
 _FUT_SPACED_DAY_PATTERN = re.compile(
-    r"^([A-Z0-9\-_]+)\s+(\d{1,2})\s+([A-Z]{3})\s+(FUT|FUTURES)$",
-    re.IGNORECASE
+    r"^([A-Z0-9\-_]+)\s+(\d{1,2})\s+([A-Z]{3})\s+(FUT|FUTURES)$", re.IGNORECASE
 )
 
 # Format 4: Futures without day: "CRUDEOIL JUN FUT"
 _FUT_SPACED_NO_DAY_PATTERN = re.compile(
-    r"^([A-Z0-9\-_]+)\s+([A-Z]{3})\s+(FUT|FUTURES)$",
-    re.IGNORECASE
+    r"^([A-Z0-9\-_]+)\s+([A-Z]{3})\s+(FUT|FUTURES)$", re.IGNORECASE
 )
 
 _MONTH_MAP = {
-    "JAN": 1, "FEB": 2, "MAR": 3, "APR": 4, "MAY": 5, "JUN": 6,
-    "JUL": 7, "AUG": 8, "SEP": 9, "OCT": 10, "NOV": 11, "DEC": 12
+    "JAN": 1,
+    "FEB": 2,
+    "MAR": 3,
+    "APR": 4,
+    "MAY": 5,
+    "JUN": 6,
+    "JUL": 7,
+    "AUG": 8,
+    "SEP": 9,
+    "OCT": 10,
+    "NOV": 11,
+    "DEC": 12,
 }
 
 
@@ -63,7 +69,7 @@ def parse_fo_symbol(symbol: str) -> dict[str, Any] | None:
             "expiry_month": month.upper(),
             "strike": float(strike),
             "option_type": "CE" if opt_type in ("CE", "CALL") else "PE",
-            "is_future": False
+            "is_future": False,
         }
 
     # 2. Compact Option
@@ -76,7 +82,7 @@ def parse_fo_symbol(symbol: str) -> dict[str, Any] | None:
             "expiry_month": month.upper(),
             "strike": float(strike),
             "option_type": "CE" if opt_type in ("CE", "CALL") else "PE",
-            "is_future": False
+            "is_future": False,
         }
 
     # 3. Spaced Future with Day
@@ -89,7 +95,7 @@ def parse_fo_symbol(symbol: str) -> dict[str, Any] | None:
             "expiry_month": month.upper(),
             "strike": None,
             "option_type": None,
-            "is_future": True
+            "is_future": True,
         }
 
     # 4. Spaced Future without Day
@@ -102,7 +108,7 @@ def parse_fo_symbol(symbol: str) -> dict[str, Any] | None:
             "expiry_month": month.upper(),
             "strike": None,
             "option_type": None,
-            "is_future": True
+            "is_future": True,
         }
 
     return None
@@ -119,7 +125,9 @@ class DhanSymbolValidator:
         else:
             self.resolver = resolver
 
-    def validate(self, symbol: str, exchange: str | None = None, segment: str | None = None) -> dict[str, Any]:
+    def validate(
+        self, symbol: str, exchange: str | None = None, segment: str | None = None
+    ) -> dict[str, Any]:
         """Normalize, match against the instrument master, and validate the symbol.
 
         Handles both standard equity/indices and F&O symbols.
@@ -135,11 +143,17 @@ class DhanSymbolValidator:
         else:
             return self._validate_standard(normalized_sym, exchange, segment)
 
-    def _validate_standard(self, symbol: str, exchange_filter: str | None = None, segment_filter: str | None = None) -> dict[str, Any]:
+    def _validate_standard(
+        self, symbol: str, exchange_filter: str | None = None, segment_filter: str | None = None
+    ) -> dict[str, Any]:
         """Validate standard equity/index symbols."""
         candidates = []
 
-        exchanges_to_check = [exchange_filter] if exchange_filter else ["NSE", "BSE", "INDEX", "MCX", "CDS", "NFO", "BFO"]
+        exchanges_to_check = (
+            [exchange_filter]
+            if exchange_filter
+            else ["NSE", "BSE", "INDEX", "MCX", "CDS", "NFO", "BFO"]
+        )
 
         for exch_str in exchanges_to_check:
             try:
@@ -150,46 +164,55 @@ class DhanSymbolValidator:
                     if segment_filter and segment_filter.upper() != segment_val:
                         continue
 
-                    candidates.append({
-                        "exchange": inst.exchange.value,
-                        "segment": segment_val,
-                        "tradingSymbol": inst.symbol,
-                        "displayName": inst.canonical_symbol or f"{inst.symbol}-{inst.exchange.value}",
-                        "securityId": inst.security_id,
-                        "instrumentType": self._get_inst_type_code(inst.instrument_type)
-                    })
-            except Exception as exc:
+                    candidates.append(
+                        {
+                            "exchange": inst.exchange.value,
+                            "segment": segment_val,
+                            "tradingSymbol": inst.symbol,
+                            "displayName": inst.canonical_symbol
+                            or f"{inst.symbol}-{inst.exchange.value}",
+                            "securityId": inst.security_id,
+                            "instrumentType": self._get_inst_type_code(inst.instrument_type),
+                        }
+                    )
+            except Exception:
                 logger.debug("symbol_candidate_build_failed: %s", inst.symbol)
 
         if not candidates:
             # Check for partial matches or underlying name
             all_insts = self.resolver.all_instruments()
             partial_matches = [
-                i for i in all_insts
-                if symbol == (i.underlying or "").upper() or symbol in i.symbol.upper() or (i.canonical_symbol and symbol in i.canonical_symbol.upper())
+                i
+                for i in all_insts
+                if symbol == (i.underlying or "").upper()
+                or symbol in i.symbol.upper()
+                or (i.canonical_symbol and symbol in i.canonical_symbol.upper())
             ]
 
             if partial_matches:
                 # Format partial matches as candidates
                 for inst in partial_matches[:10]:
-                    candidates.append({
-                        "exchange": inst.exchange.value,
-                        "segment": self._get_segment_code(inst.exchange, inst.instrument_type),
-                        "tradingSymbol": inst.symbol,
-                        "displayName": inst.canonical_symbol or f"{inst.symbol}-{inst.exchange.value}",
-                        "securityId": inst.security_id,
-                        "instrumentType": self._get_inst_type_code(inst.instrument_type)
-                    })
+                    candidates.append(
+                        {
+                            "exchange": inst.exchange.value,
+                            "segment": self._get_segment_code(inst.exchange, inst.instrument_type),
+                            "tradingSymbol": inst.symbol,
+                            "displayName": inst.canonical_symbol
+                            or f"{inst.symbol}-{inst.exchange.value}",
+                            "securityId": inst.security_id,
+                            "instrumentType": self._get_inst_type_code(inst.instrument_type),
+                        }
+                    )
                 return {
                     "status": "AMBIGUOUS",
                     "message": f"Multiple candidates found for '{symbol}'. Please specify a specific contract.",
-                    "candidates": candidates
+                    "candidates": candidates,
                 }
 
             return {
                 "status": "INVALID",
                 "message": f"Symbol '{symbol}' not found in Dhan instrument master.",
-                "candidates": []
+                "candidates": [],
             }
 
         if len(candidates) > 1:
@@ -197,7 +220,7 @@ class DhanSymbolValidator:
             return {
                 "status": "AMBIGUOUS",
                 "message": f"Multiple matches found for symbol '{symbol}'. Please specify exchange or segment.",
-                "candidates": candidates
+                "candidates": candidates,
             }
 
         # Unique match
@@ -205,7 +228,13 @@ class DhanSymbolValidator:
         res["status"] = "VALID"
         return res
 
-    def _validate_fo(self, symbol: str, fo_info: dict[str, Any], exchange_filter: str | None = None, segment_filter: str | None = None) -> dict[str, Any]:
+    def _validate_fo(
+        self,
+        symbol: str,
+        fo_info: dict[str, Any],
+        exchange_filter: str | None = None,
+        segment_filter: str | None = None,
+    ) -> dict[str, Any]:
         """Validate F&O derivatives (options and futures)."""
         underlying = fo_info["underlying"]
         exp_day = fo_info["expiry_day"]
@@ -262,7 +291,7 @@ class DhanSymbolValidator:
                         continue
                     if exp_day is not None and inst_day != exp_day:
                         continue
-                except Exception:
+                except Exception:  # noqa: S112
                     continue
             else:
                 continue
@@ -273,7 +302,11 @@ class DhanSymbolValidator:
         if exchange_filter:
             matches = [m for m in matches if m.exchange.value == exchange_filter.upper()]
         if segment_filter:
-            matches = [m for m in matches if self._get_segment_code(m.exchange, m.instrument_type) == segment_filter.upper()]
+            matches = [
+                m
+                for m in matches
+                if self._get_segment_code(m.exchange, m.instrument_type) == segment_filter.upper()
+            ]
 
         # Verify month code exists in month map
         month_num = _MONTH_MAP.get(exp_month)
@@ -284,7 +317,7 @@ class DhanSymbolValidator:
                 "strike": strike,
                 "optionType": opt_type,
                 "status": "INVALID_EXPIRY_FORMAT",
-                "message": f"Expiry month '{exp_month}' is not recognized."
+                "message": f"Expiry month '{exp_month}' is not recognized.",
             }
 
         # If no active match is found, check if it's expired
@@ -297,7 +330,7 @@ class DhanSymbolValidator:
 
             # Find a year where the day of the week matches typical F&O expiry days (Wed/Thu)
             # or default to current year
-            target_day = exp_day if exp_day is not None else 25 # fallback
+            target_day = exp_day if exp_day is not None else 25  # fallback
             for yr in [2024, 2025, 2026, 2027, 2028, 2029]:
                 try:
                     d = date(yr, month_num, target_day)
@@ -321,8 +354,8 @@ class DhanSymbolValidator:
             status = "EXPIRED" if is_past else "INVALID"
             message = (
                 f"Option contract expired on {expiry_str} and is no longer present in the active Dhan instrument master."
-                if is_past else
-                f"No instrument matching '{symbol}' was found in the active master list."
+                if is_past
+                else f"No instrument matching '{symbol}' was found in the active master list."
             )
 
             return {
@@ -335,20 +368,22 @@ class DhanSymbolValidator:
                 "segment": "D" if underlying in ("NIFTY", "BANKNIFTY", "FINNIFTY") else "M",
                 "lotSize": None,
                 "status": status,
-                "message": message
+                "message": message,
             }
 
         # If multiple matches, flag ambiguity
         if len(matches) > 1:
             candidates = []
             for inst in matches:
-                candidates.append({
-                    "securityId": inst.security_id,
-                    "tradingSymbol": inst.symbol,
-                    "exchange": inst.exchange.value,
-                    "segment": self._get_segment_code(inst.exchange, inst.instrument_type),
-                    "lotSize": inst.lot_size
-                })
+                candidates.append(
+                    {
+                        "securityId": inst.security_id,
+                        "tradingSymbol": inst.symbol,
+                        "exchange": inst.exchange.value,
+                        "segment": self._get_segment_code(inst.exchange, inst.instrument_type),
+                        "lotSize": inst.lot_size,
+                    }
+                )
             return {
                 "underlying": underlying,
                 "expiry": matches[0].expiry[:10] if matches[0].expiry else None,
@@ -356,7 +391,7 @@ class DhanSymbolValidator:
                 "optionType": opt_type,
                 "status": "AMBIGUOUS",
                 "message": "Multiple matching instruments found in active master.",
-                "candidates": candidates
+                "candidates": candidates,
             }
 
         # Unique active match
@@ -370,7 +405,7 @@ class DhanSymbolValidator:
             "exchange": inst.exchange.value,
             "segment": self._get_segment_code(inst.exchange, inst.instrument_type),
             "lotSize": inst.lot_size,
-            "status": "VALID"
+            "status": "VALID",
         }
 
     @staticmethod

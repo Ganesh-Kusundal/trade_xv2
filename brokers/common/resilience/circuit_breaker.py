@@ -12,13 +12,9 @@ from dataclasses import dataclass
 from enum import Enum
 
 from domain.constants import (
-    BACKOFF_JITTER,
-    BACKOFF_MULTIPLIER,
     CIRCUIT_BREAKER_FAILURE_THRESHOLD,
     CIRCUIT_BREAKER_OPEN_DURATION_MS,
     CIRCUIT_BREAKER_SUCCESS_THRESHOLD,
-    MAX_RETRY_DELAY_MS,
-    RETRY_BASE_DELAY_MS,
 )
 
 
@@ -80,19 +76,20 @@ class CircuitBreaker:
     @property
     def state(self) -> CircuitState:
         """Current state, potentially transitioning from OPEN -> HALF_OPEN.
-        
+
         Thread-safe: acquires lock to prevent concurrent state transitions.
         """
         with self._lock:
-            if self._state == CircuitState.OPEN:
-                if time.monotonic_ns() - self._opened_at_ns >= self.config.open_duration_ms * 1_000_000:
-                    self._transition_to(CircuitState.HALF_OPEN)
+            if self._state == CircuitState.OPEN and (
+                time.monotonic_ns() - self._opened_at_ns >= self.config.open_duration_ms * 1_000_000
+            ):
+                self._transition_to(CircuitState.HALF_OPEN)
             return self._state
 
     @property
     def metrics(self) -> CircuitBreakerMetrics:
         """Return a snapshot of current metrics.
-        
+
         Thread-safe: acquires lock to prevent torn reads.
         """
         with self._lock:
@@ -105,14 +102,14 @@ class CircuitBreaker:
 
     def allow_request(self) -> bool:
         """Check if a request is allowed through the circuit breaker.
-        
+
         Thread-safe: acquires lock via state property.
         """
         return self.state != CircuitState.OPEN
 
     def on_success(self) -> None:
         """Record a successful execution.
-        
+
         Thread-safe: acquires lock to prevent concurrent state corruption.
         """
         with self._lock:
@@ -129,7 +126,7 @@ class CircuitBreaker:
 
     def on_failure(self) -> None:
         """Record a failed execution.
-        
+
         Thread-safe: acquires lock to prevent concurrent state corruption.
         """
         with self._lock:
@@ -139,13 +136,15 @@ class CircuitBreaker:
             if self._state == CircuitState.HALF_OPEN:
                 # Any failure in half-open immediately re-opens
                 self._transition_to(CircuitState.OPEN)
-            elif self._state == CircuitState.CLOSED:
-                if self._failure_count >= self.config.failure_threshold:
-                    self._transition_to(CircuitState.OPEN)
+            elif (
+                self._state == CircuitState.CLOSED
+                and self._failure_count >= self.config.failure_threshold
+            ):
+                self._transition_to(CircuitState.OPEN)
 
     def reset(self) -> None:
         """Force reset to CLOSED state.
-        
+
         Thread-safe: acquires lock to prevent concurrent modifications.
         """
         with self._lock:
@@ -156,7 +155,7 @@ class CircuitBreaker:
 
     def _transition_to(self, new_state: CircuitState) -> None:
         """Transition to a new state.
-        
+
         NOTE: Caller must hold self._lock. This is an internal method
         called only from locked contexts (state property, on_success,
         on_failure, reset).

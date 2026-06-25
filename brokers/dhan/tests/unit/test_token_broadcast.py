@@ -15,6 +15,7 @@ These tests do not use a real Dhan connection; they drive the
 public surface of :class:`DhanConnection` so they pass without
 network access and remain stable across refactors.
 """
+
 from __future__ import annotations
 
 from unittest.mock import MagicMock
@@ -35,14 +36,20 @@ def connection_with_mock_client() -> DhanConnection:
 
 def test_register_token_receiver_returns_receiver(connection_with_mock_client):
     conn = connection_with_mock_client
-    fn = lambda t: None  # noqa: E731
+
+    def fn(t):
+        return None
+
     assert conn.register_token_receiver(fn) is fn
     assert fn in conn._token_receivers
 
 
 def test_register_token_receiver_is_idempotent(connection_with_mock_client):
     conn = connection_with_mock_client
-    fn = lambda t: None  # noqa: E731
+
+    def fn(t):
+        return None
+
     conn.register_token_receiver(fn)
     conn.register_token_receiver(fn)
     assert conn._token_receivers.count(fn) == 1

@@ -8,15 +8,14 @@ from decimal import Decimal
 import pytest
 from fastapi.testclient import TestClient
 
-from domain import Side, Trade
-from application.oms.context import TradingContext
-from application.oms.order_manager import OrderManager
-from application.oms.position_manager import PositionManager
-from infrastructure.event_bus.event_bus import EventBus
 from api.config import APIConfig
 from api.deps import get_trade_journal, reset_container
 from api.main import create_app
+from application.oms.context import TradingContext
+from application.oms.position_manager import PositionManager
 from datalake.journal import TradeJournal
+from domain import Side, Trade
+from infrastructure.event_bus.event_bus import EventBus
 
 
 @pytest.fixture
@@ -44,9 +43,7 @@ def portfolio_app(tmp_path):
         trading_context=trading_context,
         broker_service=object(),
     )
-    app.dependency_overrides[get_trade_journal] = lambda: TradeJournal(
-        journal_path, read_only=True
-    )
+    app.dependency_overrides[get_trade_journal] = lambda: TradeJournal(journal_path, read_only=True)
     yield app
     reset_container()
 
@@ -68,7 +65,6 @@ class TestPortfolioPnLIntegration:
 
 class TestSquareOffBrokerGuard:
     def test_square_off_503_without_submit_order(self, portfolio_client: TestClient):
-        pm = portfolio_client.app.dependency_overrides  # noqa: SLF001
         from api.deps import get_position_manager
 
         position_manager = PositionManager()

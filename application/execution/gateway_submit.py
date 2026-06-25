@@ -7,10 +7,10 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from domain import Order, OrderStatus, OrderType, ProductType, Side
+from application.oms.order_manager import OmsOrderCommand
+from domain import Order, OrderStatus
 from domain.entities import OrderResponse
 from domain.ports.broker_gateway import OrderTransportPort
-from application.oms.order_manager import OmsOrderCommand
 
 
 def order_from_response(command: OmsOrderCommand, response: OrderResponse) -> Order:

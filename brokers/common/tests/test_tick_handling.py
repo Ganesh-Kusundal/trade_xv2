@@ -9,14 +9,12 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-import pytest
-
 
 class TestOutOfOrderTickHandling:
-
     def test_later_tick_updates_last_tick_time(self):
-        from brokers.upstox.websocket.market_data_v3 import UpstoxMarketDataV3Multiplexer
         from unittest.mock import MagicMock
+
+        from brokers.upstox.websocket.market_data_v3 import UpstoxMarketDataV3Multiplexer
 
         mux = UpstoxMarketDataV3Multiplexer(authorizer=MagicMock())
         t1 = datetime(2026, 6, 17, 10, 0, 0, tzinfo=timezone.utc)
@@ -27,8 +25,9 @@ class TestOutOfOrderTickHandling:
         assert mux._last_tick_time["NSE|123"] == t2
 
     def test_earlier_tick_does_not_overwrite_later(self):
-        from brokers.upstox.websocket.market_data_v3 import UpstoxMarketDataV3Multiplexer
         from unittest.mock import MagicMock
+
+        from brokers.upstox.websocket.market_data_v3 import UpstoxMarketDataV3Multiplexer
 
         mux = UpstoxMarketDataV3Multiplexer(authorizer=MagicMock())
         later = datetime(2026, 6, 17, 10, 0, 5, tzinfo=timezone.utc)
@@ -40,8 +39,9 @@ class TestOutOfOrderTickHandling:
         assert mux._last_tick_time["NSE|123"] == later
 
     def test_out_of_order_ticks_tracked_per_instrument(self):
-        from brokers.upstox.websocket.market_data_v3 import UpstoxMarketDataV3Multiplexer
         from unittest.mock import MagicMock
+
+        from brokers.upstox.websocket.market_data_v3 import UpstoxMarketDataV3Multiplexer
 
         mux = UpstoxMarketDataV3Multiplexer(authorizer=MagicMock())
         t1 = datetime(2026, 6, 17, 10, 0, 0, tzinfo=timezone.utc)
@@ -57,7 +57,9 @@ class TestOutOfOrderTickHandling:
         from brokers.dhan.websocket import DhanMarketFeed
 
         feed = DhanMarketFeed(
-            client_id="TEST", access_token="TOKEN", instruments=[],
+            client_id="TEST",
+            access_token="TOKEN",
+            instruments=[],
         )
         quote = {
             "symbol": "RELIANCE",
@@ -70,11 +72,10 @@ class TestOutOfOrderTickHandling:
 
 
 class TestTickGapDetection:
-
     def test_gap_detected_when_tick_time_jumps(self):
-        from brokers.upstox.websocket.market_data_v3 import UpstoxMarketDataV3Multiplexer
         from unittest.mock import MagicMock
-        from datetime import timedelta
+
+        from brokers.upstox.websocket.market_data_v3 import UpstoxMarketDataV3Multiplexer
 
         mux = UpstoxMarketDataV3Multiplexer(authorizer=MagicMock())
         t1 = datetime(2026, 6, 17, 10, 0, 0, tzinfo=timezone.utc)
@@ -85,8 +86,6 @@ class TestTickGapDetection:
         assert gap == 300.0
 
     def test_no_gap_for_consecutive_ticks(self):
-        from datetime import timedelta
-
         t1 = datetime(2026, 6, 17, 10, 0, 0, tzinfo=timezone.utc)
         t2 = datetime(2026, 6, 17, 10, 0, 1, tzinfo=timezone.utc)
         gap = (t2 - t1).total_seconds()
@@ -99,8 +98,9 @@ class TestTickGapDetection:
         assert age > 5.0
 
     def test_missing_tick_detection_across_instruments(self):
-        from brokers.upstox.websocket.market_data_v3 import UpstoxMarketDataV3Multiplexer
         from unittest.mock import MagicMock
+
+        from brokers.upstox.websocket.market_data_v3 import UpstoxMarketDataV3Multiplexer
 
         mux = UpstoxMarketDataV3Multiplexer(authorizer=MagicMock())
         t_now = datetime(2026, 6, 17, 10, 0, 10, tzinfo=timezone.utc)
@@ -110,8 +110,6 @@ class TestTickGapDetection:
         mux._last_tick_time["NSE|456"] = t_old
 
         stale_threshold = datetime(2026, 6, 17, 9, 58, 0, tzinfo=timezone.utc)
-        stale_instruments = [
-            k for k, v in mux._last_tick_time.items() if v < stale_threshold
-        ]
+        stale_instruments = [k for k, v in mux._last_tick_time.items() if v < stale_threshold]
         assert "NSE|456" in stale_instruments
         assert "NSE|123" not in stale_instruments

@@ -13,14 +13,10 @@ from __future__ import annotations
 
 from decimal import Decimal
 from typing import get_type_hints
-from unittest.mock import MagicMock, patch
 
-import pytest
-
-from api.schemas import OptionContract, OptionChainResponse, QuoteResponse
+from api.schemas import OptionChainResponse, OptionContract, QuoteResponse
 from datalake.gateway import DataLakeGateway
 from domain import Quote
-
 
 # ── P0.1: Options Router Bid/Ask Tests ───────────────────────────────────────
 
@@ -267,12 +263,8 @@ class TestDataLakeGatewayQuoteReturnsNone:
         gw = DataLakeGateway(root=str(tmp_path))
         quote = gw.quote("RELIANCE")
 
-        assert quote.bid is None, (
-            f"bid should be None for OHLCV-derived quote, got: {quote.bid}"
-        )
-        assert quote.ask is None, (
-            f"ask should be None for OHLCV-derived quote, got: {quote.ask}"
-        )
+        assert quote.bid is None, f"bid should be None for OHLCV-derived quote, got: {quote.bid}"
+        assert quote.ask is None, f"ask should be None for OHLCV-derived quote, got: {quote.ask}"
         assert quote.ltp == Decimal("2500.0"), "LTP should still be populated"
 
     def test_quote_batch_returns_none_for_bid_ask(self, tmp_path):
@@ -305,12 +297,8 @@ class TestDataLakeGatewayQuoteReturnsNone:
         quotes = gw.quote_batch(["RELIANCE", "TCS"])
 
         for symbol, quote in quotes.items():
-            assert quote.bid is None, (
-                f"bid should be None for {symbol}, got: {quote.bid}"
-            )
-            assert quote.ask is None, (
-                f"ask should be None for {symbol}, got: {quote.ask}"
-            )
+            assert quote.bid is None, f"bid should be None for {symbol}, got: {quote.bid}"
+            assert quote.ask is None, f"ask should be None for {symbol}, got: {quote.ask}"
 
 
 # ── Edge Cases and Regression Tests ──────────────────────────────────────────

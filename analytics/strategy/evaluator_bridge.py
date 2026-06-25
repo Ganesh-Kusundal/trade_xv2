@@ -9,7 +9,6 @@ import pandas as pd
 from analytics.scanner.models import Candidate
 from analytics.strategy.pipeline import StrategyPipeline
 from domain.models.trading import CandidateDTO, SignalDTO
-from domain.ports.strategy_evaluator import StrategyEvaluator
 
 
 class StrategyPipelineEvaluator:
@@ -18,9 +17,7 @@ class StrategyPipelineEvaluator:
     def __init__(self, pipeline: StrategyPipeline) -> None:
         self._pipeline = pipeline
 
-    def evaluate_single(
-        self, candidate: CandidateDTO, features: pd.DataFrame
-    ) -> list[SignalDTO]:
+    def evaluate_single(self, candidate: CandidateDTO, features: pd.DataFrame) -> list[SignalDTO]:
         legacy = Candidate(
             symbol=candidate.symbol,
             score=float(candidate.score),
@@ -42,12 +39,12 @@ def _to_dto(signal: object) -> SignalDTO:
         confidence=Decimal(str(getattr(signal, "confidence", 0))),
         quantity=int(getattr(signal, "quantity", 0) or 0),
         price=(
-            Decimal(str(getattr(signal, "entry_price")))
+            Decimal(str(signal.entry_price))
             if getattr(signal, "entry_price", None) is not None
             else None
         ),
         entry_price=(
-            Decimal(str(getattr(signal, "entry_price")))
+            Decimal(str(signal.entry_price))
             if getattr(signal, "entry_price", None) is not None
             else None
         ),

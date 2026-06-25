@@ -9,9 +9,9 @@ from application.execution.execution_mode_adapter import (
     create_execution_adapter,
 )
 from application.execution.gateway_submit import make_gateway_submit_fn
-from domain.ports.broker_gateway import OrderTransportPort
 from application.oms.context import TradingContext
 from application.oms.order_manager import OmsOrderCommand, OrderManager, OrderResult
+from domain.ports.broker_gateway import OrderTransportPort
 
 
 class ExecutionService:

@@ -14,8 +14,10 @@ Usage::
 
 from __future__ import annotations
 
-from typing import ClassVar
+from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from domain.types import OrderStatus
 
 # Lazy-imported by both enums.py and status_mapper.py.
 # Using a module-level registry that status_mapper populates at import time.
@@ -32,7 +34,7 @@ def _get_registry():
     return _registry
 
 
-def normalize_status(broker_status: str) -> "OrderStatus":  # type: ignore[name-defined] # noqa: F821
+def normalize_status(broker_status: str) -> OrderStatus:
     """Normalize a broker-specific status string to canonical OrderStatus.
 
     Delegates to :class:`~domain.status_mapper.StatusMapperRegistry.normalize`,

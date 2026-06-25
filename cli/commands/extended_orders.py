@@ -52,7 +52,9 @@ def super_order(args: list[str], broker_service: BrokerService, console: Console
         return _fail(console, exc)
 
 
-def forever_order(args: list[str], broker_service: BrokerService, console: Console) -> CommandResult:
+def forever_order(
+    args: list[str], broker_service: BrokerService, console: Console
+) -> CommandResult:
     try:
         payload = json.loads(" ".join(args)) if args else {}
         gw = _gateway(broker_service)
@@ -214,7 +216,9 @@ def slice_order(args: list[str], broker_service: BrokerService, console: Console
         return _fail(console, exc)
 
 
-def broker_kill_switch(args: list[str], broker_service: BrokerService, console: Console) -> CommandResult:
+def broker_kill_switch(
+    args: list[str], broker_service: BrokerService, console: Console
+) -> CommandResult:
     if _broker_name(broker_service) != "upstox":
         return CommandResult(success=False, error="broker-kill-switch is Upstox-only")
     try:

@@ -16,13 +16,13 @@ Run with:
 from __future__ import annotations
 
 import threading
-import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
 
 import pytest
 
+from application.oms.order_manager import OmsOrderCommand, OrderManager
+from brokers.upstox.gateway import UpstoxBrokerGateway
 from domain import (
     Order,
     OrderResponse,
@@ -31,18 +31,14 @@ from domain import (
     Trade,
 )
 from infrastructure.event_bus import EventBus
-from application.oms.order_manager import OrderManager, OmsOrderCommand
-from brokers.upstox.gateway import UpstoxBrokerGateway
-
 from tests.integration.fixtures.upstox import (
     make_cancel_response,
     make_instrument_defn,
     make_mock_broker,
-    make_order_response,
 )
 
-
 # ─── Fixtures ──────────────────────────────────────────────────────────────
+
 
 @pytest.fixture
 def mock_broker():
@@ -80,6 +76,7 @@ def order_manager(event_bus):
 
 
 # ─── Complete Order Lifecycle ─────────────────────────────────────────────
+
 
 class TestCompleteOrderLifecycle:
     """Test complete order lifecycle from placement to fill."""
@@ -190,6 +187,7 @@ class TestCompleteOrderLifecycle:
 
 # ─── Partial Fill Handling ────────────────────────────────────────────────
 
+
 class TestPartialFillHandling:
     """Test partial fill scenarios."""
 
@@ -288,6 +286,7 @@ class TestPartialFillHandling:
 
 # ─── Rejection Handling ───────────────────────────────────────────────────
 
+
 class TestRejectionHandling:
     """Test order rejection scenarios."""
 
@@ -315,6 +314,7 @@ class TestRejectionHandling:
 
     def test_order_manager_rejected_order_not_in_book(self, order_manager):
         """Rejected orders should not be added to order book."""
+
         def failing_submit(request):
             raise RuntimeError("Order rejected by broker")
 
@@ -348,6 +348,7 @@ class TestRejectionHandling:
 
 
 # ─── Order Cancellation ───────────────────────────────────────────────────
+
 
 class TestOrderCancellation:
     """Test order cancellation flows."""
@@ -433,6 +434,7 @@ class TestOrderCancellation:
 
 
 # ─── State Transitions ───────────────────────────────────────────────────
+
 
 class TestStateTransitions:
     """Test order state machine transitions."""
@@ -521,6 +523,7 @@ class TestStateTransitions:
 
 # ─── Audit Trail Verification ────────────────────────────────────────────
 
+
 class TestAuditTrail:
     """Test audit trail for order operations."""
 
@@ -593,11 +596,16 @@ class TestAuditTrail:
         assert len(entries) > initial_count
 
         # Trade application changes status to PARTIALLY_FILLED or FILLED
-        trade_entries = [e for e in entries if "PARTIALLY_FILLED" in str(e.new_status) or "FILLED" in str(e.new_status)]
+        trade_entries = [
+            e
+            for e in entries
+            if "PARTIALLY_FILLED" in str(e.new_status) or "FILLED" in str(e.new_status)
+        ]
         assert len(trade_entries) >= 1
 
 
 # ─── OrderManager + Gateway Integration ──────────────────────────────────
+
 
 class TestOrderManagerGatewayIntegration:
     """Test OrderManager integration with UpstoxGateway."""
@@ -659,6 +667,7 @@ class TestOrderManagerGatewayIntegration:
 
 
 # ─── Thread Safety for Orders ────────────────────────────────────────────
+
 
 class TestOrderThreadSafety:
     """Test concurrent order operations."""

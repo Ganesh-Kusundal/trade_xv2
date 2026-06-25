@@ -25,8 +25,8 @@ def run(args: list[str], broker_service, console: Console) -> None:
         from brokers.common.intelligent_gateway import IntelligentGateway
         from cli.services.broker_registry import create_gateway
 
-        dhan = create_gateway("dhan", env_path=Path('.env.local'), load_instruments=True)
-        upstox = create_gateway("upstox", env_path=Path('.env.upstox'), load_instruments=True)
+        dhan = create_gateway("dhan", env_path=Path(".env.local"), load_instruments=True)
+        upstox = create_gateway("upstox", env_path=Path(".env.upstox"), load_instruments=True)
         if dhan and upstox:
             gw = IntelligentGateway(dhan_gateway=dhan, upstox_gateway=upstox)
         elif dhan:
@@ -45,30 +45,41 @@ def run(args: list[str], broker_service, console: Console) -> None:
         console.print(f"\n[cyan]--- {name} ---[/cyan]")
         try:
             t0 = time.time()
-            df = broker.history(symbol, timeframe='1D', lookback_days=30)
+            df = broker.history(symbol, timeframe="1D", lookback_days=30)
             latency = (time.time() - t0) * 1000
 
             rows = len(df)
-            duplicates = df.duplicated(subset=['timestamp']).sum() if not df.empty else 0
-            schema_ok = list(df.columns) == ['timestamp', 'open', 'high', 'low', 'close', 'volume', 'oi', 'symbol', 'exchange', 'timeframe']
+            duplicates = df.duplicated(subset=["timestamp"]).sum() if not df.empty else 0
+            schema_ok = list(df.columns) == [
+                "timestamp",
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "oi",
+                "symbol",
+                "exchange",
+                "timeframe",
+            ]
 
             # Check for out-of-order candles
-            if not df.empty and 'timestamp' in df.columns:
-                out_of_order = (df['timestamp'].diff().dt.total_seconds() < 0).sum()
+            if not df.empty and "timestamp" in df.columns:
+                out_of_order = (df["timestamp"].diff().dt.total_seconds() < 0).sum()
             else:
                 out_of_order = 0
 
             # Check for missing candles (weekdays)
-            if not df.empty and 'timestamp' in df.columns:
-                date_range = (df['timestamp'].max() - df['timestamp'].min()).days
+            if not df.empty and "timestamp" in df.columns:
+                date_range = (df["timestamp"].max() - df["timestamp"].min()).days
                 expected_candles = date_range * 5 / 7  # ~5 trading days per week
                 completeness = (rows / expected_candles * 100) if expected_candles > 0 else 100
             else:
                 completeness = 0
 
             # Check volume anomalies (zero volume)
-            if not df.empty and 'volume' in df.columns:
-                zero_volume = (df['volume'] == 0).sum()
+            if not df.empty and "volume" in df.columns:
+                zero_volume = (df["volume"] == 0).sum()
             else:
                 zero_volume = 0
 

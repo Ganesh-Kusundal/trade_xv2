@@ -27,7 +27,8 @@ def identify_stale_symbols(
     conn = duckdb.connect(catalog_path, read_only=True)
 
     try:
-        result = conn.execute("""
+        result = conn.execute(
+            """
             SELECT
                 symbol,
                 MAX(timestamp)::DATE as latest_date,
@@ -36,12 +37,11 @@ def identify_stale_symbols(
             GROUP BY symbol
             HAVING MAX(timestamp) < CURRENT_DATE - INTERVAL ? DAY
             ORDER BY days_old DESC
-        """, [max_age_days]).fetchall()
+        """,
+            [max_age_days],
+        ).fetchall()
 
-        return [
-            {"symbol": row[0], "latest_date": row[1], "days_old": row[2]}
-            for row in result
-        ]
+        return [{"symbol": row[0], "latest_date": row[1], "days_old": row[2]} for row in result]
     finally:
         conn.close()
 
@@ -106,6 +106,7 @@ def main():
     args = parser.parse_args()
 
     from brokers.common.logging_config import setup_logging
+
     setup_logging()
 
     # Identify stale symbols

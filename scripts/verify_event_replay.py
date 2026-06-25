@@ -30,6 +30,10 @@ from typing import Any
 # Make project importable when run as a script.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from application.oms.context import TradingContext
+from application.oms.order_manager import OrderManager
+from application.oms.position_manager import PositionManager
+from brokers.common.observability.event_metrics import EventMetrics
 from infrastructure.event_bus import (
     DeadLetterQueue,
     DomainEvent,
@@ -38,10 +42,6 @@ from infrastructure.event_bus import (
     TradeIdKey,
 )
 from infrastructure.event_log import EventLog
-from brokers.common.observability.event_metrics import EventMetrics
-from application.oms.context import TradingContext
-from application.oms.order_manager import OrderManager
-from application.oms.position_manager import PositionManager
 
 
 def _dumps(value: Any) -> str:
@@ -168,8 +168,7 @@ def verify(events_dir: Path) -> int:
     snapshot_path = events_dir.parent / "live_snapshot.json"
     if not snapshot_path.exists():
         logger.warning(
-            "No live snapshot found at %s. Saving replayed snapshot as new "
-            "baseline.",
+            "No live snapshot found at %s. Saving replayed snapshot as new baseline.",
             snapshot_path,
         )
         snapshot_path.write_text(_dumps(snapshot_replayed))
@@ -210,6 +209,7 @@ def main() -> int:
     args = parser.parse_args()
 
     from brokers.common.logging_config import setup_logging
+
     setup_logging(log_level="DEBUG" if args.verbose else "INFO")
 
     if args.record_snapshot:

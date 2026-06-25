@@ -5,8 +5,8 @@ from __future__ import annotations
 import random
 from decimal import Decimal
 
-from domain import Balance, Holding, OrderResponse, Position
 from application.oms.context import TradingContext
+from domain import Balance, Holding, OrderResponse, Position
 from domain.constants.defaults import PAPER_INITIAL_CAPITAL
 
 from .paper_gateway import PaperGateway
@@ -26,7 +26,7 @@ class MockBroker:
         trading_context: TradingContext | None = None,
     ) -> None:
         self._name = name
-        self._id = f"paper-{random.randint(1000, 9999)}"
+        self._id = f"paper-{random.randint(1000, 9999)}"  # noqa: S311
         self._connected = False
         self._gw = PaperGateway(
             initial_capital=initial_capital,

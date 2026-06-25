@@ -22,23 +22,28 @@ def _make_gateway():
         "max_daily_days": 3650,
     }
 
-    def _history(symbol, exchange="NSE", timeframe="1D", lookback_days=90, from_date=None, to_date=None):
+    def _history(
+        symbol, exchange="NSE", timeframe="1D", lookback_days=90, from_date=None, to_date=None
+    ):
         from datetime import datetime
+
         n = 30
         dates = [datetime(2026, 1, 1) + timedelta(days=i) for i in range(n)]
         close = 100 + pd.Series(range(n)).values
-        return pd.DataFrame({
-            "timestamp": dates,
-            "open": close - 1,
-            "high": close + 2,
-            "low": close - 2,
-            "close": close,
-            "volume": [100000] * n,
-            "oi": [0] * n,
-            "symbol": symbol,
-            "exchange": exchange,
-            "timeframe": timeframe,
-        })
+        return pd.DataFrame(
+            {
+                "timestamp": dates,
+                "open": close - 1,
+                "high": close + 2,
+                "low": close - 2,
+                "close": close,
+                "volume": [100000] * n,
+                "oi": [0] * n,
+                "symbol": symbol,
+                "exchange": exchange,
+                "timeframe": timeframe,
+            }
+        )
 
     gw.history.side_effect = _history
     return gw

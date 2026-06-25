@@ -134,7 +134,9 @@ def assert_dhan_identity(
     # error so callers learn to unwrap correctly).
     is_carrier_shape = (
         segment is None
-        and not isinstance(security_id_or_ref, (type(None), str, dict, list, tuple, int, float, bool))
+        and not isinstance(
+            security_id_or_ref, type(None) | str | dict | list | tuple | int | float | bool
+        )
         and hasattr(security_id_or_ref, "security_id")
         and hasattr(security_id_or_ref, "exchange_segment")
     )
@@ -162,28 +164,19 @@ def assert_dhan_identity(
         raise DhanIdentityError(f"{label}: Invalid security_id: empty")
     if isinstance(security_id, bool):
         # bool is an int subclass — guard against the True/False trap
-        raise DhanIdentityError(
-            f"{label}: Invalid security_id: bool {security_id!r}"
-        )
+        raise DhanIdentityError(f"{label}: Invalid security_id: bool {security_id!r}")
     if isinstance(security_id, int):
         if security_id <= 0:
-            raise DhanIdentityError(
-                f"{label}: Invalid security_id: non-positive {security_id!r}"
-            )
+            raise DhanIdentityError(f"{label}: Invalid security_id: non-positive {security_id!r}")
     elif isinstance(security_id, str):
         stripped = security_id.strip()
         if not stripped.isdigit():
-            raise DhanIdentityError(
-                f"{label}: Invalid security_id: non-digit {security_id!r}"
-            )
+            raise DhanIdentityError(f"{label}: Invalid security_id: non-digit {security_id!r}")
         if int(stripped) <= 0:
-            raise DhanIdentityError(
-                f"{label}: Invalid security_id: non-positive {security_id!r}"
-            )
+            raise DhanIdentityError(f"{label}: Invalid security_id: non-positive {security_id!r}")
     else:
         raise DhanIdentityError(
-            f"{label}: Invalid security_id: expected str/int, got "
-            f"{type(security_id).__name__}"
+            f"{label}: Invalid security_id: expected str/int, got {type(security_id).__name__}"
         )
 
 
@@ -207,33 +200,22 @@ def assert_valid_security_id(security_id: Any, *, context: str = "") -> None:
     if security_id is None or security_id == "":
         raise DhanIdentityError(f"{label}: Invalid security_id: empty")
     if isinstance(security_id, bool):
-        raise DhanIdentityError(
-            f"{label}: Invalid security_id: bool {security_id!r}"
-        )
+        raise DhanIdentityError(f"{label}: Invalid security_id: bool {security_id!r}")
     if isinstance(security_id, int):
         if security_id <= 0:
-            raise DhanIdentityError(
-                f"{label}: Invalid security_id: non-positive {security_id!r}"
-            )
+            raise DhanIdentityError(f"{label}: Invalid security_id: non-positive {security_id!r}")
         return
     if isinstance(security_id, str):
         if security_id != security_id.strip():
-            raise DhanIdentityError(
-                f"{label}: Invalid security_id: whitespace {security_id!r}"
-            )
+            raise DhanIdentityError(f"{label}: Invalid security_id: whitespace {security_id!r}")
         stripped = security_id.strip()
         if not stripped.isdigit():
-            raise DhanIdentityError(
-                f"{label}: Invalid security_id: non-digit {security_id!r}"
-            )
+            raise DhanIdentityError(f"{label}: Invalid security_id: non-digit {security_id!r}")
         if int(stripped) <= 0:
-            raise DhanIdentityError(
-                f"{label}: Invalid security_id: non-positive {security_id!r}"
-            )
+            raise DhanIdentityError(f"{label}: Invalid security_id: non-positive {security_id!r}")
         return
     raise DhanIdentityError(
-        f"{label}: Invalid security_id: expected str/int, got "
-        f"{type(security_id).__name__}"
+        f"{label}: Invalid security_id: expected str/int, got {type(security_id).__name__}"
     )
 
 

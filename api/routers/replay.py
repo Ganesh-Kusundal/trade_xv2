@@ -10,15 +10,14 @@ from __future__ import annotations
 import logging
 import threading
 from datetime import datetime
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from api.auth import require_auth
 from api.schemas import (
     CreateReplaySessionRequest,
-    ReplaySessionResponse,
     ReplayControlRequest,
+    ReplaySessionResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -104,6 +103,7 @@ async def create_session(req: CreateReplaySessionRequest):
     Initializes replay engine and returns session handle.
     """
     import uuid
+
     session_id = f"replay_{uuid.uuid4().hex[:12]}"
 
     session = {
@@ -168,10 +168,10 @@ async def play_session(session_id: str):
 
     # Load historical data and run replay engine
     try:
-        from api.deps import get_container
-        from analytics.pipeline import FeaturePipeline, RSI, SMA, ATR
+        from analytics.pipeline import ATR, RSI, SMA, FeaturePipeline
+        from analytics.replay import ReplayConfig, ReplayEngine
         from analytics.strategy import MomentumStrategy, StrategyPipeline
-        from analytics.replay import ReplayEngine, ReplayConfig
+        from api.deps import get_container
 
         container = get_container()
         gateway = container.datalake_gateway if container else None
@@ -200,14 +200,14 @@ async def play_session(session_id: str):
             lookback_days=1,
         )
 
-        if df is None or (hasattr(df, 'empty') and df.empty):
+        if df is None or (hasattr(df, "empty") and df.empty):
             logger.warning("No data loaded for %s on timeframe=%s", symbol, timeframe)
             session = _session_store.get(session_id) or session
             return _build_response(session)
 
         engine = ReplayEngine(pipeline, strategy, config)
         result = engine.run(df, symbol=symbol)
-        
+
         # Store engine reference for lifecycle management
         session_update = _session_store.get(session_id)
         if session_update:
@@ -224,7 +224,8 @@ async def play_session(session_id: str):
         )
         logger.info(
             "Replay completed: %d/%d bars, %d signals, %d trades on %s",
-            result.bars_processed, total_bars,
+            result.bars_processed,
+            total_bars,
             result.signals_generated,
             result.session.total_trades,
             symbol,

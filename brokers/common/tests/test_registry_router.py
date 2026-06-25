@@ -35,9 +35,7 @@ class TestBrokerRegistry:
             dual_registry.get_gateway("dhan")
 
     def test_find_brokers_by_capability_predicate(self, dual_registry):
-        news_brokers = dual_registry.find_brokers(
-            lambda c: c.supports("news")
-        )
+        news_brokers = dual_registry.find_brokers(lambda c: c.supports("news"))
         assert news_brokers == ["upstox"]
 
 
@@ -80,9 +78,7 @@ class TestBrokerRouter:
         registry = BrokerRegistry()
         registry.register(InMemoryBrokerGateway("dhan", dhan_capabilities()))
         registry.register(InMemoryBrokerGateway("upstox", upstox_capabilities()))
-        registry.update_health(
-            BrokerHealthSnapshot(broker_id="upstox", alive=False, reason="down")
-        )
+        registry.update_health(BrokerHealthSnapshot(broker_id="upstox", alive=False, reason="down"))
         router = BrokerRouter(registry, auto_dual_broker_policy())
         decision = router.route(
             RoutingRequest(
@@ -95,12 +91,8 @@ class TestBrokerRouter:
 
     def test_no_eligible_broker_raises_routing_error(self):
         registry = BrokerRegistry()
-        registry.register(
-            InMemoryBrokerGateway("dhan", dhan_capabilities(), alive=False)
-        )
-        registry.update_health(
-            BrokerHealthSnapshot(broker_id="dhan", alive=False, reason="down")
-        )
+        registry.register(InMemoryBrokerGateway("dhan", dhan_capabilities(), alive=False))
+        registry.update_health(BrokerHealthSnapshot(broker_id="dhan", alive=False, reason="down"))
         router = BrokerRouter(registry, default_dhan_only_policy())
         with pytest.raises(RoutingError):
             router.route(

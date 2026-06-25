@@ -34,9 +34,7 @@ class CredentialValidator:
             return True, issues
 
         if path is None:
-            issues.append(
-                CredentialIssue(broker, "env_file", "No env file configured", "error")
-            )
+            issues.append(CredentialIssue(broker, "env_file", "No env file configured", "error"))
             return False, issues
 
         if not path.exists():

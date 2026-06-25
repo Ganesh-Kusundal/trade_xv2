@@ -58,7 +58,7 @@ def bullish_features() -> pd.DataFrame:
     close = 100 + np.cumsum(np.random.randn(n) * 2)
     volume = np.random.randint(100000, 500000, n).astype(float)
     rsi = np.full(n, 25.0)  # Oversold
-    roc = np.full(n, 2.0)   # Positive momentum
+    roc = np.full(n, 2.0)  # Positive momentum
     return pd.DataFrame(
         {
             "timestamp": dates,
@@ -382,9 +382,7 @@ class TestStrategyPipeline:
         assert results[0].count == 2
         assert results[0].evaluated == 2
 
-    def test_evaluate_single_candidate(
-        self, sample_features: pd.DataFrame
-    ) -> None:
+    def test_evaluate_single_candidate(self, sample_features: pd.DataFrame) -> None:
         pipeline = StrategyPipeline(strategies=[MomentumStrategy(), BreakoutStrategy()])
         candidate = Candidate(symbol="RELIANCE", score=80.0)
         signals = pipeline.evaluate_single(candidate, sample_features)

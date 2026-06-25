@@ -24,16 +24,18 @@ Usage:
 
 from __future__ import annotations
 
-import duckdb
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from decimal import Decimal
-from pathlib import Path
 from typing import Any
 
+import duckdb
 import pandas as pd
 
-from domain import MarketDepth, Quote
+from brokers.common.gateway import BrokerCapabilities
+from brokers.common.gateway_errors import (
+    UnsupportedGatewayOperationError as UnsupportedGatewayOperation,
+)
 from brokers.common.gateway_interfaces import (
     BatchMarketDataProvider,
     DerivativesProvider,
@@ -41,11 +43,11 @@ from brokers.common.gateway_interfaces import (
     LifecycleAware,
     MarketDataProvider,
 )
-from brokers.common.gateway_errors import UnsupportedGatewayOperation
-from domain.constants import BATCH_MAX_WORKERS
-from brokers.common.gateway import BrokerCapabilities
+from datalake.paths import CURATED_ROOT, curated_equity_glob
 from datalake.store import ParquetStore
 from datalake.symbols import normalize_symbol
+from domain import MarketDepth, Quote
+from domain.constants import BATCH_MAX_WORKERS
 
 logger = logging.getLogger(__name__)
 
@@ -64,9 +66,10 @@ class DataLakeGateway(
     intentionally absent — use a live broker gateway for those.
     """
 
-    def __init__(self, root: str = "market_data") -> None:
-        self._store = ParquetStore(root)
+    def __init__(self, root: str = "market_data", curated_root: str = CURATED_ROOT) -> None:
+        self._store = ParquetStore(root, curated_root=curated_root)
         self._root = self._store.root
+        self._curated_root = self._store.curated_root
         self._candles_dir = self._store.candles_dir
         self._download_pool_max_workers = 4
 
@@ -151,6 +154,7 @@ class DataLakeGateway(
             the order book snapshots needed to derive bid/ask prices.
         """
         from domain import Quote as _Quote
+
         symbol = normalize_symbol(symbol)
         df = self._load_parquet(symbol, "1m")
         if df is None or df.empty:
@@ -181,6 +185,7 @@ class DataLakeGateway(
 
     def depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
         from domain import MarketDepth as _MarketDepth
+
         return _MarketDepth(symbol=symbol)
 
     def option_chain(
@@ -190,6 +195,7 @@ class DataLakeGateway(
         expiry: str | None = None,
     ):
         from domain.entities import OptionChain
+
         return OptionChain(underlying=underlying, exchange=exchange, expiry=expiry or "")
 
     def future_chain(
@@ -198,6 +204,7 @@ class DataLakeGateway(
         exchange: str = "NFO",
     ):
         from domain.entities import FutureChain
+
         return FutureChain(underlying=underlying, exchange=exchange)
 
     def stream(self, symbols: list[str], exchange: str = "NSE") -> Any:
@@ -220,7 +227,32 @@ class DataLakeGateway(
         if not symbols:
             return {}
 
-        # Try DuckDB for batch read
+        # Try DuckDB with curated layout first
+        try:
+            curated_glob = curated_equity_glob(root=str(self._curated_root))
+            if list(self._curated_root.glob("year=*/month=*/data_*.parquet")):
+                normalized = [normalize_symbol(s) for s in symbols]
+                placeholders = ",".join("?" for _ in normalized)
+                query = f"""
+                    SELECT symbol, close
+                    FROM (
+                        SELECT symbol, close,
+                               ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY timestamp DESC) as rn
+                        FROM read_parquet(?)
+                        WHERE symbol IN ({placeholders})
+                    )
+                    WHERE rn = 1
+                """
+                df = duckdb.execute(query, [curated_glob] + normalized).fetchdf()
+                return {
+                    symbol: Decimal(str(close))
+                    for symbol, close in zip(df["symbol"], df["close"], strict=False)
+                    if pd.notna(symbol) and pd.notna(close)
+                }
+        except Exception as exc:
+            logger.debug("Curated ltp_batch failed, trying legacy: %s", exc)
+
+        # Try DuckDB with legacy layout
         try:
             timeframe_dir = self._candles_dir / "timeframe=1m"
             parquet_paths = []
@@ -231,8 +263,6 @@ class DataLakeGateway(
                     parquet_paths.append(str(path))
 
             if parquet_paths:
-                # Read last row of each file using window function
-                # Parameterized DuckDB query — DuckDB accepts Python lists as bound parameters
                 query = """
                     SELECT symbol, close
                     FROM (
@@ -243,10 +273,9 @@ class DataLakeGateway(
                     WHERE rn = 1
                 """
                 df = duckdb.execute(query, [parquet_paths]).fetchdf()
-                # Vectorized conversion — avoid iterrows overhead
                 return {
                     symbol: Decimal(str(close))
-                    for symbol, close in zip(df["symbol"], df["close"])
+                    for symbol, close in zip(df["symbol"], df["close"], strict=False)
                     if pd.notna(symbol) and pd.notna(close)
                 }
         except Exception as exc:
@@ -285,7 +314,25 @@ class DataLakeGateway(
         if not symbols:
             return pd.DataFrame()
 
-        # Build list of parquet paths for all requested symbols
+        # Try curated layout first
+        try:
+            curated_glob = curated_equity_glob(root=str(self._curated_root))
+            normalized = [normalize_symbol(s) for s in symbols]
+            placeholders = ",".join("?" for _ in normalized)
+            query = f"""
+                SELECT *
+                FROM read_parquet(?)
+                WHERE symbol IN ({placeholders})
+            """
+            df = duckdb.execute(query, [curated_glob] + normalized).fetchdf()
+            if not df.empty:
+                df = self._filter_by_date(df, lookback_days=lookback_days)
+                df["timeframe"] = timeframe
+            return df
+        except Exception as exc:
+            logger.debug("Curated history_batch failed, trying legacy: %s", exc)
+
+        # Build list of legacy parquet paths
         timeframe_dir = self._candles_dir / f"timeframe={timeframe}"
         if not timeframe_dir.exists():
             return pd.DataFrame()
@@ -300,7 +347,6 @@ class DataLakeGateway(
         if not parquet_paths:
             return pd.DataFrame()
 
-        # Use DuckDB to read all files in one query
         try:
             query = """
                 SELECT *
@@ -309,7 +355,6 @@ class DataLakeGateway(
 
             df = duckdb.execute(query, [parquet_paths]).fetchdf()
 
-            # Filter by date range
             if not df.empty:
                 df = self._filter_by_date(df, lookback_days=lookback_days)
                 df["timeframe"] = timeframe
@@ -318,7 +363,6 @@ class DataLakeGateway(
 
         except Exception as exc:
             logger.warning("DuckDB batch query failed, falling back to sequential: %s", exc)
-            # Fallback to sequential read
             return self._history_batch_sequential(symbols, exchange, timeframe, lookback_days)
 
     def _history_batch_sequential(
@@ -329,10 +373,7 @@ class DataLakeGateway(
         lookback_days: int = 90,
     ) -> pd.DataFrame:
         """Fallback sequential batch read (original implementation)."""
-        frames = [
-            self.history(s, exchange, timeframe, lookback_days)
-            for s in symbols
-        ]
+        frames = [self.history(s, exchange, timeframe, lookback_days) for s in symbols]
         valid_frames = [f for f in frames if f is not None and not f.empty]
         if not valid_frames:
             return pd.DataFrame()
@@ -366,25 +407,54 @@ class DataLakeGateway(
 
     def describe(self) -> dict:
         symbols = self.list_symbols()
+        layout = self._store._layout_in_use()
         return {
             "name": "DataLakeGateway",
             "type": "parquet",
             "root": str(self._root),
+            "curated_root": str(self._curated_root),
+            "layout": layout,
             "symbols": len(symbols),
             "timeframes": ["1m"],
         }
 
     def capabilities(self) -> BrokerCapabilities:
+        from brokers.common.capabilities import (
+            BrokerCapabilities,
+            HistoricalWindowConstraint,
+        )
+
         return BrokerCapabilities(
-            expired_options=True,
-            expired_futures=True,
-            max_intraday_days=365 * 6,
-            max_daily_days=365 * 10,
-            supported_timeframes=("1m",),
-            websocket=False,
-            polling_fallback=False,
-            load_instruments=False,
-            search=True,
+            broker_id="datalake",
+            supports_place_order=False,
+            supports_cancel_order=False,
+            supports_modify_order=False,
+            supports_historical_data=True,
+            supports_intraday_history=True,
+            supports_expired_options_history=True,
+            supports_live_market_data=False,
+            supports_depth=False,
+            supports_option_chain=False,
+            supports_polling_fallback=False,
+            supports_order_stream=False,
+            supports_portfolio_stream=False,
+            supports_news=False,
+            supports_fundamentals=False,
+            supports_super_order=False,
+            supports_forever_order=False,
+            supports_native_slice_order=False,
+            historical_windows=(
+                HistoricalWindowConstraint(
+                    timeframe="1m",
+                    max_lookback_days=365 * 6,
+                    max_chunk_days=365,
+                    supports_expired_instruments=True,
+                ),
+            ),
+            latency_class="low",
+            reliability_class="tier1",
+            product_types=frozenset(),
+            order_types=frozenset(),
         )
 
     def close(self) -> None:
@@ -396,7 +466,7 @@ class DataLakeGateway(
 
     def list_symbols(self, timeframe: str = "1m") -> list[str]:
         return self._store.list_symbols(timeframe)
-    
+
     def load_candles_parallel(
         self,
         symbols: list[str],
@@ -404,22 +474,22 @@ class DataLakeGateway(
         max_workers: int | None = None,
     ) -> dict[str, pd.DataFrame]:
         """Load candles for multiple symbols in parallel.
-        
+
         Uses thread pool to load historical data concurrently from
         parquet files. Ideal for backtesting multiple symbols or
         loading universe data.
-        
+
         Performance: 3-5x faster than sequential loads for I/O-bound
         parquet reads, especially on SSD/NVMe storage.
-        
+
         Args:
             symbols: List of instrument symbols
             timeframe: Candle timeframe (default: "1m")
             max_workers: Maximum parallel threads (default: 4)
-            
+
         Returns:
             Dict mapping symbol -> DataFrame (only successful loads)
-            
+
         Example:
             >>> gw = DataLakeGateway()
             >>> data = gw.load_candles_parallel(
@@ -431,9 +501,9 @@ class DataLakeGateway(
         """
         if max_workers is None:
             max_workers = self._download_pool_max_workers
-        
+
         results: dict[str, pd.DataFrame] = {}
-        
+
         def load_single(symbol: str):
             """Load candles for single symbol."""
             try:
@@ -441,31 +511,22 @@ class DataLakeGateway(
                 return symbol, df, None
             except Exception as exc:
                 return symbol, None, exc
-        
+
         # Parallel load using thread pool
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Submit all tasks
-            futures = {
-                executor.submit(load_single, symbol): symbol
-                for symbol in symbols
-            }
-            
+            futures = {executor.submit(load_single, symbol): symbol for symbol in symbols}
+
             # Collect results as they complete
             for future in as_completed(futures):
                 symbol, df, error = future.result()
                 if error:
-                    logger.warning(
-                        "parallel_load_failed: symbol=%s error=%s",
-                        symbol,
-                        error
-                    )
+                    logger.warning("parallel_load_failed: symbol=%s error=%s", symbol, error)
                 elif df is not None and not df.empty:
                     results[symbol] = df
-        
+
         logger.info(
-            "parallel_load_complete: requested=%d successful=%d",
-            len(symbols),
-            len(results)
+            "parallel_load_complete: requested=%d successful=%d", len(symbols), len(results)
         )
-        
+
         return results

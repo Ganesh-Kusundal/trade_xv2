@@ -41,11 +41,13 @@ def to_canonical_strikes(
     out: list[dict] = []
     for row in chain:
         if isinstance(row, OptionContract):
-            out.append({
-                "strike": row.strike,
-                "call": _leg_from_contract(row, "call"),
-                "put": _leg_from_contract(row, "put"),
-            })
+            out.append(
+                {
+                    "strike": row.strike,
+                    "call": _leg_from_contract(row, "call"),
+                    "put": _leg_from_contract(row, "put"),
+                }
+            )
         elif isinstance(row, dict):
             # Already-canonical Dhan-style row, pass through with normalization.
             # Dhan historically uses ``strikePrice``; canonical form is ``strike``.
@@ -54,11 +56,13 @@ def to_canonical_strikes(
                 strike = Decimal(str(strike_val)) if strike_val is not None else Decimal("0")
             except Exception:
                 strike = Decimal("0")
-            out.append({
-                "strike": strike,
-                "call": _normalize_leg(row.get("call") or row.get("CE") or {}),
-                "put": _normalize_leg(row.get("put") or row.get("PE") or {}),
-            })
+            out.append(
+                {
+                    "strike": strike,
+                    "call": _normalize_leg(row.get("call") or row.get("CE") or {}),
+                    "put": _normalize_leg(row.get("put") or row.get("PE") or {}),
+                }
+            )
     return out
 
 
@@ -79,13 +83,18 @@ def _leg_from_contract(row: OptionContract, side: str) -> dict:
 def _normalize_leg(leg: Any) -> dict:
     if not isinstance(leg, dict):
         return {
-            "ltp": None, "oi": None, "volume": None, "iv": None,
-            "bid": None, "ask": None,
+            "ltp": None,
+            "oi": None,
+            "volume": None,
+            "iv": None,
+            "bid": None,
+            "ask": None,
             "symbol": leg.get("symbol") if isinstance(leg, dict) else None,
             "trading_symbol": leg.get("tradingSymbol") if isinstance(leg, dict) else None,
             "instrument_key": (
                 leg.get("security_id") or leg.get("instrument_key")
-                if isinstance(leg, dict) else None
+                if isinstance(leg, dict)
+                else None
             ),
         }
     out = {

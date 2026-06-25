@@ -81,19 +81,21 @@ def compare_strategies(
         bt_result = engine.run(data, symbol=symbol)
 
         m = bt_result.metrics
-        result.results.append({
-            "strategy": strategy_name,
-            "total_return_pct": m.total_return_pct,
-            "cagr": m.cagr,
-            "sharpe_ratio": m.sharpe_ratio,
-            "sortino_ratio": m.sortino_ratio,
-            "max_drawdown_pct": m.max_drawdown_pct,
-            "total_trades": m.trade_analysis.total_trades,
-            "win_rate": m.trade_analysis.win_rate,
-            "profit_factor": m.trade_analysis.profit_factor,
-            "avg_win": m.trade_analysis.avg_win,
-            "avg_loss": m.trade_analysis.avg_loss,
-        })
+        result.results.append(
+            {
+                "strategy": strategy_name,
+                "total_return_pct": m.total_return_pct,
+                "cagr": m.cagr,
+                "sharpe_ratio": m.sharpe_ratio,
+                "sortino_ratio": m.sortino_ratio,
+                "max_drawdown_pct": m.max_drawdown_pct,
+                "total_trades": m.trade_analysis.total_trades,
+                "win_rate": m.trade_analysis.win_rate,
+                "profit_factor": m.trade_analysis.profit_factor,
+                "avg_win": m.trade_analysis.avg_win,
+                "avg_loss": m.trade_analysis.avg_loss,
+            }
+        )
 
     return result
 
@@ -127,7 +129,7 @@ def compare_parameters(
     config = BacktestConfig(initial_capital=initial_capital, warmup_bars=warmup_bars)
     result = ComparisonResult()
 
-    for i, params in enumerate(param_sets):
+    for _i, params in enumerate(param_sets):
         pipeline = (
             FeaturePipeline()
             .add(RSI(period=params.get("rsi_period", 14)))
@@ -135,10 +137,12 @@ def compare_parameters(
             .add(SMA(period=params.get("sma_period", 20)))
             .add(ROC(period=params.get("roc_period", 5)))
             .add(Momentum(period=params.get("momentum_period", 5)))
-            .add(Trend(
-                fast_period=params.get("trend_fast", 10),
-                slow_period=params.get("trend_slow", 50),
-            ))
+            .add(
+                Trend(
+                    fast_period=params.get("trend_fast", 10),
+                    slow_period=params.get("trend_slow", 50),
+                )
+            )
         )
 
         strategy = StrategyPipeline(strategies=[MomentumStrategy()])
@@ -146,16 +150,18 @@ def compare_parameters(
         bt_result = engine.run(data, symbol=symbol)
 
         m = bt_result.metrics
-        result.results.append({
-            "params": params,
-            "total_return_pct": m.total_return_pct,
-            "cagr": m.cagr,
-            "sharpe_ratio": m.sharpe_ratio,
-            "sortino_ratio": m.sortino_ratio,
-            "max_drawdown_pct": m.max_drawdown_pct,
-            "total_trades": m.trade_analysis.total_trades,
-            "win_rate": m.trade_analysis.win_rate,
-            "profit_factor": m.trade_analysis.profit_factor,
-        })
+        result.results.append(
+            {
+                "params": params,
+                "total_return_pct": m.total_return_pct,
+                "cagr": m.cagr,
+                "sharpe_ratio": m.sharpe_ratio,
+                "sortino_ratio": m.sortino_ratio,
+                "max_drawdown_pct": m.max_drawdown_pct,
+                "total_trades": m.trade_analysis.total_trades,
+                "win_rate": m.trade_analysis.win_rate,
+                "profit_factor": m.trade_analysis.profit_factor,
+            }
+        )
 
     return result

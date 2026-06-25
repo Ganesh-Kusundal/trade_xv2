@@ -26,18 +26,20 @@ def _make_ohlcv(n: int = 200, start_price: float = 100.0, trend: str = "up") -> 
     open_ = close + np.random.randn(n) * 0.3
     volume = np.random.randint(1000, 100000, n)
 
-    return pd.DataFrame({
-        "timestamp": dates,
-        "open": open_,
-        "high": high,
-        "low": low,
-        "close": close,
-        "volume": volume,
-        "oi": 0,
-        "symbol": "TEST",
-        "exchange": "NSE",
-        "timeframe": "1m",
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": dates,
+            "open": open_,
+            "high": high,
+            "low": low,
+            "close": close,
+            "volume": volume,
+            "oi": 0,
+            "symbol": "TEST",
+            "exchange": "NSE",
+            "timeframe": "1m",
+        }
+    )
 
 
 class TestHalfTrend:
@@ -116,7 +118,9 @@ class TestHalfTrend:
         signal_indices = result[result["halftrend_signal"] != "HOLD"].index.tolist()
         for i in range(1, len(signal_indices)):
             gap = signal_indices[i] - signal_indices[i - 1]
-            assert gap >= cooldown, f"Gap between signals {i-1} and {i} is {gap}, expected >= {cooldown}"
+            assert gap >= cooldown, (
+                f"Gap between signals {i - 1} and {i} is {gap}, expected >= {cooldown}"
+            )
 
     def test_uptrend_follows_price(self):
         """In uptrend, HalfTrend line follows price upward."""
@@ -132,7 +136,9 @@ class TestHalfTrend:
                 uptrend_data = valid[uptrend_mask]
                 # HT line should be below close in uptrend (it acts as support)
                 below_close = (uptrend_data["halftrend"] < uptrend_data["close"]).mean()
-                assert below_close > 0.5, f"Expected HT below close in uptrend, got {below_close:.2%}"
+                assert below_close > 0.5, (
+                    f"Expected HT below close in uptrend, got {below_close:.2%}"
+                )
 
     def test_downtrend_follows_price(self):
         """In downtrend, HalfTrend line follows price downward."""
@@ -147,7 +153,9 @@ class TestHalfTrend:
                 downtrend_data = valid[downtrend_mask]
                 # HT line should be above close in downtrend (it acts as resistance)
                 above_close = (downtrend_data["halftrend"] > downtrend_data["close"]).mean()
-                assert above_close > 0.5, f"Expected HT above close in downtrend, got {above_close:.2%}"
+                assert above_close > 0.5, (
+                    f"Expected HT above close in downtrend, got {above_close:.2%}"
+                )
 
     def test_halftrend_not_nan_after_warmup(self):
         """HalfTrend values are not NaN after warmup period."""

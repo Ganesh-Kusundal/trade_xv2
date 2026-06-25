@@ -5,9 +5,9 @@ from __future__ import annotations
 from dataclasses import replace
 from unittest.mock import MagicMock, patch
 
-from infrastructure.lifecycle import LifecycleManager
 from brokers.upstox.auth.config import UpstoxConnectionSettings
 from brokers.upstox.factory import UpstoxBrokerFactory
+from infrastructure.lifecycle import LifecycleManager
 
 
 def _totp_settings() -> UpstoxConnectionSettings:
@@ -37,15 +37,19 @@ def _run_factory(*, settings: UpstoxConnectionSettings, lifecycle: LifecycleMana
     mock_broker.market_data_websocket = MagicMock()
     mock_broker.portfolio_stream = MagicMock()
 
-    with patch(
-        "brokers.upstox.factory.UpstoxSettingsLoader.from_env",
-        return_value=settings,
-    ), patch(
-        "brokers.upstox.factory.UpstoxBroker",
-        return_value=mock_broker,
-    ), patch(
-        "brokers.upstox.factory.UpstoxBrokerGateway",
-    ) as gateway_cls:
+    with (
+        patch(
+            "brokers.upstox.factory.UpstoxSettingsLoader.from_env",
+            return_value=settings,
+        ),
+        patch(
+            "brokers.upstox.factory.UpstoxBroker",
+            return_value=mock_broker,
+        ),
+        patch(
+            "brokers.upstox.factory.UpstoxBrokerGateway",
+        ) as gateway_cls,
+    ):
         gateway_cls.return_value = MagicMock()
         UpstoxBrokerFactory().create(
             lifecycle=lifecycle,

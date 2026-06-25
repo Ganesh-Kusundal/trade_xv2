@@ -6,8 +6,6 @@ import logging
 from collections.abc import Callable
 from datetime import datetime
 
-from infrastructure.event_bus import EventBus
-from infrastructure.lifecycle import LifecycleManager
 from application.oms.risk_manager import RiskManager
 from brokers.dhan.alerts import AlertsAdapter
 from brokers.dhan.conditional_triggers import ConditionalTriggersAdapter
@@ -33,6 +31,8 @@ from brokers.dhan.resolver_refresher import ResolverRefresher
 from brokers.dhan.super_orders import SuperOrdersAdapter
 from brokers.dhan.user_profile import UserProfileAdapter
 from brokers.dhan.websocket import DhanMarketFeed, DhanOrderStream, PollingMarketFeed
+from infrastructure.event_bus import EventBus
+from infrastructure.lifecycle import LifecycleManager
 
 logger = logging.getLogger(__name__)
 
@@ -41,24 +41,24 @@ logger = logging.getLogger(__name__)
 # Entries are split by whether the adapter's constructor takes the
 # instrument resolver as a second positional arg.
 _ADAPTERS_WITH_INSTRUMENTS: list[tuple[str, type]] = [
-    ("_market_data",            MarketDataAdapter),
-    ("_historical",             HistoricalAdapter),
-    ("_portfolio",              PortfolioAdapter),
-    ("_options",                OptionsAdapter),
-    ("_futures",                FuturesAdapter),
-    ("_margin",                 MarginAdapter),
-    ("_alerts",                 AlertsAdapter),
-    ("_super_orders",           SuperOrdersAdapter),
-    ("_forever_orders",         ForeverOrdersAdapter),
-    ("_conditional_triggers",   ConditionalTriggersAdapter),
+    ("_market_data", MarketDataAdapter),
+    ("_historical", HistoricalAdapter),
+    ("_portfolio", PortfolioAdapter),
+    ("_options", OptionsAdapter),
+    ("_futures", FuturesAdapter),
+    ("_margin", MarginAdapter),
+    ("_alerts", AlertsAdapter),
+    ("_super_orders", SuperOrdersAdapter),
+    ("_forever_orders", ForeverOrdersAdapter),
+    ("_conditional_triggers", ConditionalTriggersAdapter),
 ]
 
 _ADAPTERS_CLIENT_ONLY: list[tuple[str, type]] = [
-    ("_ledger",         LedgerAdapter),
-    ("_user_profile",   UserProfileAdapter),
-    ("_ip_management",  IPManagementAdapter),
-    ("_edis",           EDISAdapter),
-    ("_exit_all",       ExitAllAdapter),
+    ("_ledger", LedgerAdapter),
+    ("_user_profile", UserProfileAdapter),
+    ("_ip_management", IPManagementAdapter),
+    ("_edis", EDISAdapter),
+    ("_exit_all", ExitAllAdapter),
 ]
 
 
@@ -290,7 +290,11 @@ class DhanConnection:
 
         logger.info(
             "instrument_load_completed",
-            extra={"count": len(rows), "load_time_s": round(load_time, 2), "source": source or "cached"},
+            extra={
+                "count": len(rows),
+                "load_time_s": round(load_time, 2),
+                "source": source or "cached",
+            },
         )
 
         start = time.monotonic()
@@ -461,9 +465,7 @@ class DhanConnection:
 
     # ── Token-receiver registry (REF-13) ──────────────────────────────────
 
-    def register_token_receiver(
-        self, receiver: Callable[[str], None]
-    ) -> Callable[[str], None]:
+    def register_token_receiver(self, receiver: Callable[[str], None]) -> Callable[[str], None]:
         """Register a callable invoked whenever a new access token arrives.
 
         Used by the :class:`TokenRefreshScheduler`'s ``on_refresh``
@@ -495,9 +497,7 @@ class DhanConnection:
                 receiver(new_token)
                 delivered += 1
             except Exception as exc:  # pragma: no cover - defensive
-                receiver_name = getattr(
-                    receiver, "__qualname__", repr(receiver)
-                )
+                receiver_name = getattr(receiver, "__qualname__", repr(receiver))
                 logger.warning(
                     "token_receiver_failed",
                     extra={"receiver": receiver_name, "error": str(exc)},
@@ -541,9 +541,7 @@ class DhanConnection:
         can drain it deterministically on shutdown.
         """
         if self._lifecycle is None:
-            logger.debug(
-                "resolver_refresher_not_registered: connection has no lifecycle manager"
-            )
+            logger.debug("resolver_refresher_not_registered: connection has no lifecycle manager")
             return None
         refresher = self.get_or_create_resolver_refresher(
             interval_seconds=interval_seconds,
@@ -581,8 +579,13 @@ class DhanConnection:
                 logger.warning("resolver_refresher_stop_failed: %s", exc)
         # Stop the WebSocket services via their ManagedService.stop()
         # method which joins the thread within timeout.
-        for svc in (self._market_feed, self._order_stream, self._polling_feed,
-                     self._depth_20_feed, self._depth_200_feed):
+        for svc in (
+            self._market_feed,
+            self._order_stream,
+            self._polling_feed,
+            self._depth_20_feed,
+            self._depth_200_feed,
+        ):
             if svc is None:
                 continue
             try:

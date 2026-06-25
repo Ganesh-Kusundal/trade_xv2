@@ -6,10 +6,10 @@ This module owns Dhan-specific wire strings (``MCX_COMM``) and SDK transport cod
 
 from __future__ import annotations
 
-from domain.exchange_segments import parse_segment as _parse_segment
-from domain.constants.market import DEFAULT_EXCHANGE_SEGMENT_FALLBACK
-from domain.types import ExchangeSegment
 from brokers.dhan.domain import Exchange
+from domain.constants.market import DEFAULT_EXCHANGE_SEGMENT_FALLBACK
+from domain.exchange_segments import parse_segment as _parse_segment
+from domain.types import ExchangeSegment
 
 DEFAULT_SEGMENT = DEFAULT_EXCHANGE_SEGMENT_FALLBACK
 
@@ -47,10 +47,12 @@ EXCHANGE_TO_SEGMENT["INDEX"] = "IDX_I"
 SEGMENT_TO_EXCHANGE: dict[str, str] = {
     wire: _EXCHANGE_SHORT[seg] for seg, wire in _DHAN_WIRE.items()
 }
-SEGMENT_TO_EXCHANGE.update({
-    "BSE_CURRENCY": "BCD",
-    "NSE_COMM": "MCX",
-})
+SEGMENT_TO_EXCHANGE.update(
+    {
+        "BSE_CURRENCY": "BCD",
+        "NSE_COMM": "MCX",
+    }
+)
 
 _COMPACT_SEGMENT_MAP: dict[tuple[str, str], str] = {
     ("NSE", "E"): "NSE_EQ",
@@ -111,7 +113,7 @@ def to_sdk_int(segment: str | ExchangeSegment) -> int:
     from dhanhq.marketfeed import MarketFeed as SDKMarketFeed
 
     wire = to_dhan_wire(segment)
-    _SDK_MAP: dict[str, int] = {
+    _sdk_map: dict[str, int] = {
         "IDX_I": SDKMarketFeed.IDX,
         "NSE_EQ": SDKMarketFeed.NSE,
         "NSE_FNO": SDKMarketFeed.NSE_FNO,
@@ -121,7 +123,7 @@ def to_sdk_int(segment: str | ExchangeSegment) -> int:
         "BSE_FNO": SDKMarketFeed.BSE_FNO,
         "BSE_CURRENCY": SDKMarketFeed.BSE_CURR,
     }
-    sdk_int = _SDK_MAP.get(wire)
+    sdk_int = _sdk_map.get(wire)
     if sdk_int is None:
         raise ValueError(f"No SDK mapping for Dhan wire segment: {wire!r}")
     return sdk_int

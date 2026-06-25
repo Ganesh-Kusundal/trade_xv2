@@ -8,10 +8,7 @@ consistent state.
 from __future__ import annotations
 
 import asyncio
-from typing import Any
 from unittest.mock import MagicMock
-
-import pytest
 
 from brokers.upstox.websocket.feed_authorizer import UpstoxFeedAuthorizer
 from brokers.upstox.websocket.market_data_v3 import UpstoxMarketDataV3Multiplexer
@@ -27,7 +24,6 @@ def _fake_authorizer() -> UpstoxFeedAuthorizer:
 
 
 class TestUpstoxReconnectSubscriptionRecovery:
-
     def test_subscriptions_persisted_across_disconnect(self):
         mux = UpstoxMarketDataV3Multiplexer(authorizer=_fake_authorizer())
         keys = ["NSE_EQ|INE002A01018", "NSE_EQ|INE062A01020"]
@@ -61,6 +57,7 @@ class TestUpstoxReconnectSubscriptionRecovery:
     def test_last_tick_time_survives_reconnect(self):
         mux = UpstoxMarketDataV3Multiplexer(authorizer=_fake_authorizer())
         from datetime import datetime, timezone
+
         mux._last_tick_time["NSE_EQ|INE002A01018"] = datetime.now(timezone.utc)
 
         mux._connected = False

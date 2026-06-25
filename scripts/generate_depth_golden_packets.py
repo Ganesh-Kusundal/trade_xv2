@@ -45,7 +45,9 @@ HEADER_SIZE = 12
 LEVEL_SIZE = 16
 
 
-def build_depth20_packet(response_code: int, security_id: int, levels: list[tuple[float, int, int]]) -> bytes:
+def build_depth20_packet(
+    response_code: int, security_id: int, levels: list[tuple[float, int, int]]
+) -> bytes:
     """Build a depth-20 packet per documented layout.
 
     Layout:
@@ -71,7 +73,9 @@ def build_depth20_packet(response_code: int, security_id: int, levels: list[tupl
     return bytes(packet)
 
 
-def build_depth200_packet(response_code: int, num_rows: int, levels: list[tuple[float, int, int]]) -> bytes:
+def build_depth200_packet(
+    response_code: int, num_rows: int, levels: list[tuple[float, int, int]]
+) -> bytes:
     """Build a depth-200 packet per documented layout.
 
     Layout:
@@ -124,14 +128,8 @@ def main() -> None:
 
     # ── depth-200 ────────────────────────────────────────────────────────────
     # 25 levels on each side. Security id is implicit (depth-200 = 1 per conn).
-    depth200_bids = [
-        (2450.55 - i * 0.05, (100 + i * 25) % 5000, (5 + i) % 50)
-        for i in range(25)
-    ]
-    depth200_asks = [
-        (2450.65 + i * 0.05, (80 + i * 30) % 5000, (4 + i) % 50)
-        for i in range(25)
-    ]
+    depth200_bids = [(2450.55 - i * 0.05, (100 + i * 25) % 5000, (5 + i) % 50) for i in range(25)]
+    depth200_asks = [(2450.65 + i * 0.05, (80 + i * 30) % 5000, (4 + i) % 50) for i in range(25)]
     (FIXTURE_DIR / "depth_200_packet.bin").write_bytes(
         build_depth200_packet(DEPTH_200_BID, 25, depth200_bids)
     )

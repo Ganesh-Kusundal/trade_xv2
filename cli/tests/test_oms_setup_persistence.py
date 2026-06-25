@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 from application.oms import PositionManager, RiskConfig, RiskManager

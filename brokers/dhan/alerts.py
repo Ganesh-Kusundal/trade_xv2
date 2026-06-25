@@ -9,7 +9,6 @@ from brokers.dhan.domain import Alert, AlertRequest
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 from brokers.dhan.invariants import assert_dhan_payload
-from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
 
 logger = logging.getLogger(__name__)
 
@@ -33,10 +32,13 @@ class AlertsAdapter:
         errors = self._validate_request(request)
         if errors:
             msg = "; ".join(errors)
-            logger.warning("alert_validation_failed", extra={
-                "symbol": request.symbol,
-                "errors": errors,
-            })
+            logger.warning(
+                "alert_validation_failed",
+                extra={
+                    "symbol": request.symbol,
+                    "errors": errors,
+                },
+            )
             raise ValueError(f"Alert request validation failed: {msg}")
 
         # Resolve instrument via the identity provider. The carrier
@@ -76,11 +78,14 @@ class AlertsAdapter:
             created_at=alert_data.get("createdAt"),
         )
 
-        logger.info("alert_placed", extra={
-            "alert_id": alert.alert_id,
-            "symbol": request.symbol,
-            "trigger_price": str(request.trigger_price),
-        })
+        logger.info(
+            "alert_placed",
+            extra={
+                "alert_id": alert.alert_id,
+                "symbol": request.symbol,
+                "trigger_price": str(request.trigger_price),
+            },
+        )
 
         return alert
 
@@ -136,7 +141,9 @@ class AlertsAdapter:
 
         valid_conditions = {"LTP_CROSSES_ABOVE", "LTP_CROSSES_BELOW"}
         if request.condition not in valid_conditions:
-            errors.append(f"Invalid condition: {request.condition}. Must be one of {valid_conditions}")
+            errors.append(
+                f"Invalid condition: {request.condition}. Must be one of {valid_conditions}"
+            )
 
         return errors
 

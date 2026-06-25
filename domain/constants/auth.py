@@ -3,6 +3,7 @@
 All constants governing token refresh intervals, buffers, and cooldown periods
 for broker authentication systems.
 """
+
 from __future__ import annotations
 
 # ── Auth / token lifecycle ─────────────────────────────────────────────────

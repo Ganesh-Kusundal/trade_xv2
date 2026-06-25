@@ -1,6 +1,5 @@
 """Tests for DataQualityValidator — missing candles, duplicates, OI/volume anomalies, timestamps."""
 
-
 import pandas as pd
 
 from brokers.common.services.data_validator import DataQualityValidator, ValidationReport
@@ -9,18 +8,50 @@ from brokers.common.services.data_validator import DataQualityValidator, Validat
 class TestValidationReport:
     def test_add_critical_fails(self):
         report = ValidationReport(symbol="TEST", total_rows=100)
-        report.add(type("Issue", (), {"category": "test", "severity": "critical", "message": "bad", "row_index": None, "column": ""})())
+        report.add(
+            type(
+                "Issue",
+                (),
+                {
+                    "category": "test",
+                    "severity": "critical",
+                    "message": "bad",
+                    "row_index": None,
+                    "column": "",
+                },
+            )()
+        )
         assert report.passed is False
         assert report.critical_count == 1
 
     def test_add_warning_stays_passed(self):
         report = ValidationReport(symbol="TEST", total_rows=100)
-        report.add(type("Issue", (), {"category": "test", "severity": "warning", "message": "ok", "row_index": None, "column": ""})())
+        report.add(
+            type(
+                "Issue",
+                (),
+                {
+                    "category": "test",
+                    "severity": "warning",
+                    "message": "ok",
+                    "row_index": None,
+                    "column": "",
+                },
+            )()
+        )
         assert report.passed is True
         assert report.warning_count == 1
 
     def test_summary(self):
-        report = ValidationReport(symbol="TEST", total_rows=10, total_issues=1, critical_count=1, warning_count=0, info_count=0, passed=False)
+        report = ValidationReport(
+            symbol="TEST",
+            total_rows=10,
+            total_issues=1,
+            critical_count=1,
+            warning_count=0,
+            info_count=0,
+            passed=False,
+        )
         s = report.summary()
         assert "TEST" in s
         assert "FAILED" in s
@@ -29,14 +60,16 @@ class TestValidationReport:
 class TestDataQualityValidator:
     def _make_df(self, n=100, start="2026-01-01", freq="1D", with_oi=True, with_volume=True):
         dates = pd.date_range(start, periods=n, freq=freq)
-        df = pd.DataFrame({
-            "timestamp": dates,
-            "open": [100 + i * 0.5 for i in range(n)],
-            "high": [101 + i * 0.5 for i in range(n)],
-            "low": [99 + i * 0.5 for i in range(n)],
-            "close": [100.5 + i * 0.5 for i in range(n)],
-            "volume": [10000 + i * 100 for i in range(n)],
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": dates,
+                "open": [100 + i * 0.5 for i in range(n)],
+                "high": [101 + i * 0.5 for i in range(n)],
+                "low": [99 + i * 0.5 for i in range(n)],
+                "close": [100.5 + i * 0.5 for i in range(n)],
+                "volume": [10000 + i * 100 for i in range(n)],
+            }
+        )
         if with_oi:
             df["oi"] = [50000 + i * 50 for i in range(n)]
         return df
@@ -132,7 +165,9 @@ class TestDataQualityValidator:
         df.loc[3, "timestamp"] = None
         validator = DataQualityValidator()
         issues = validator.check_timestamps(df, timeframe="1d")
-        assert any("invalid" in i.message.lower() or "unparseable" in i.message.lower() for i in issues)
+        assert any(
+            "invalid" in i.message.lower() or "unparseable" in i.message.lower() for i in issues
+        )
 
     def test_validate_all_checks(self):
         df = self._make_df(n=50)
@@ -149,11 +184,16 @@ class TestDataQualityValidator:
     def test_validate_intraday_checks_weekend(self):
         """Intraday timestamps on weekends should be flagged."""
         dates = pd.date_range("2026-01-03", periods=5, freq="1h")  # Sat/Sun
-        df = pd.DataFrame({
-            "timestamp": dates,
-            "open": range(5), "high": range(5), "low": range(5), "close": range(5),
-            "volume": range(5),
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": dates,
+                "open": range(5),
+                "high": range(5),
+                "low": range(5),
+                "close": range(5),
+                "volume": range(5),
+            }
+        )
         validator = DataQualityValidator()
         issues = validator.check_timestamps(df, timeframe="1h")
         assert any("weekend" in i.message.lower() for i in issues)

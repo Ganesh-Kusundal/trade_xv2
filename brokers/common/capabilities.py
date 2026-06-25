@@ -10,10 +10,9 @@ backward compatibility.  New code uses this module.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Mapping, Sequence
-
 
 # ---------------------------------------------------------------------------
 # Sub-profiles
@@ -148,8 +147,8 @@ class BrokerCapabilities:
     stream_limits: StreamLimitProfile | None = None
 
     # -- Classification --
-    latency_class: str = "medium"       # "low" | "medium" | "high"
-    reliability_class: str = "tier2"    # "tier1" | "tier2" | "tier3"
+    latency_class: str = "medium"  # "low" | "medium" | "high"
+    reliability_class: str = "tier2"  # "tier1" | "tier2" | "tier3"
 
     # -- Supported vocabularies --
     product_types: frozenset[str] = field(default_factory=frozenset)
@@ -211,7 +210,7 @@ class CapabilityDescriptor:
 
     broker_id: str
     capabilities: BrokerCapabilities
-    extensions: frozenset[str]   # registered extension type names
+    extensions: frozenset[str]  # registered extension type names
     observed_at: datetime
 
     @classmethod
@@ -358,7 +357,7 @@ def upstox_capabilities() -> BrokerCapabilities:
         supports_news=True,
         supports_fundamentals=True,
         supports_super_order=False,
-        supports_forever_order=True,   # via GTT adapter
+        supports_forever_order=True,  # via GTT adapter
         supports_native_slice_order=False,
         rate_limit_profiles=(
             RateLimitProfile(
@@ -438,12 +437,10 @@ def upstox_capabilities() -> BrokerCapabilities:
             ),
         ),
         stream_limits=StreamLimitProfile(
-            max_connections=2,          # 5 for Plus plan
+            max_connections=2,  # 5 for Plus plan
             max_instruments_per_connection=5000,
-            max_depth_levels=None,      # no native depth WS; REST only
-            supported_stream_modes=frozenset(
-                {"ltpc", "option_greeks", "full", "full_d30"}
-            ),
+            max_depth_levels=None,  # no native depth WS; REST only
+            supported_stream_modes=frozenset({"ltpc", "option_greeks", "full", "full_d30"}),
             combined_mode_caps={
                 "ltpc": 2000,
                 "option_greeks": 2000,

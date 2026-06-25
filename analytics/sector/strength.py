@@ -28,17 +28,17 @@ class SectorStrength:
     """Strength score for a single sector."""
 
     sector: str
-    score: float                # 0-100 composite
-    momentum_score: float       # 0-100
-    volume_score: float         # 0-100
-    breadth_score: float        # 0-100
-    rs_score: float             # 0-100
-    trend_score: float          # 0-100
-    stock_count: int            # Number of stocks in sector
-    avg_return: float           # Average return over period (%)
-    advancing_pct: float        # % of stocks with positive return
-    rank: int                   # Rank among all sectors (1 = strongest)
-    signal: str                 # "strong" / "neutral" / "weak"
+    score: float  # 0-100 composite
+    momentum_score: float  # 0-100
+    volume_score: float  # 0-100
+    breadth_score: float  # 0-100
+    rs_score: float  # 0-100
+    trend_score: float  # 0-100
+    stock_count: int  # Number of stocks in sector
+    avg_return: float  # Average return over period (%)
+    advancing_pct: float  # % of stocks with positive return
+    rank: int  # Rank among all sectors (1 = strongest)
+    signal: str  # "strong" / "neutral" / "weak"
 
 
 @dataclass
@@ -46,7 +46,7 @@ class SectorStrengthResult:
     """Aggregated strength analysis across all sectors."""
 
     sectors: list[SectorStrength] = field(default_factory=list)
-    market_strength: float = 50.0    # Overall market strength
+    market_strength: float = 50.0  # Overall market strength
     strongest: str = ""
     weakest: str = ""
     rotation_signal: str = ""
@@ -160,7 +160,9 @@ class SectorStrengthScorer:
 
         for sym in symbols:
             if "symbol" in data.columns:
-                sym_data = data[data["symbol"] == sym].sort_values("timestamp" if "timestamp" in data.columns else "date")
+                sym_data = data[data["symbol"] == sym].sort_values(
+                    "timestamp" if "timestamp" in data.columns else "date"
+                )
             else:
                 sym_data = data.sort_values("timestamp" if "timestamp" in data.columns else "date")
 

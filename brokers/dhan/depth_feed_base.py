@@ -31,9 +31,9 @@ import time
 from collections.abc import Callable
 from datetime import datetime, timezone
 from decimal import Decimal
+from typing import Any
 
-from endpoints import Dhan as _DhanEndpoints
-
+from brokers.dhan.reconnecting_service import ReconnectingServiceMixin
 from domain import DepthLevel, MarketDepth
 from infrastructure.event_bus import DomainEvent, EventBus
 from infrastructure.lifecycle.lifecycle import (
@@ -41,8 +41,6 @@ from infrastructure.lifecycle.lifecycle import (
     HealthStatus,
     ManagedService,
 )
-
-from brokers.dhan.reconnecting_service import ReconnectingServiceMixin
 
 logger = logging.getLogger(__name__)
 
@@ -178,10 +176,7 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
         Accepts either a single tuple (depth-200 style) or a list of tuples
         (depth-20 style). Both call sites are preserved.
         """
-        if isinstance(instruments, tuple):
-            new_instruments = [instruments]
-        else:
-            new_instruments = list(instruments)
+        new_instruments = [instruments] if isinstance(instruments, tuple) else list(instruments)
 
         new_instruments = [i for i in new_instruments if i not in self._subscriptions]
         if not new_instruments:
@@ -216,10 +211,7 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
             logger.info("%s_unsubscribe_all", self.DEPTH_TYPE.lower())
             return
 
-        if isinstance(instruments, tuple):
-            instruments_list = [instruments]
-        else:
-            instruments_list = list(instruments)
+        instruments_list = [instruments] if isinstance(instruments, tuple) else list(instruments)
 
         removed: list[tuple[str, str]] = []
         for inst in instruments_list:
@@ -320,7 +312,9 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
                 "subscribed_instrument_count": len(self._subscriptions),
                 "published_depths": self._published_depths,
                 "dropped_depths": self._dropped_depths,
-                "last_message_age_seconds": last_message_age if last_message_age is not None else -1,
+                "last_message_age_seconds": last_message_age
+                if last_message_age is not None
+                else -1,
             },
         )
 
@@ -363,10 +357,7 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
 
     def _build_ws_url(self) -> str:
         """Build the authenticated WebSocket URL using the current token."""
-        return (
-            f"{self.ENDPOINT}?token={self._access_token}"
-            f"&clientId={self._client_id}&authType=2"
-        )
+        return f"{self.ENDPOINT}?token={self._access_token}&clientId={self._client_id}&authType=2"
 
     async def _websocket_handler(self) -> None:
         """Async WebSocket handler with auto-reconnect."""
@@ -391,9 +382,7 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
 
                     while not self._stop_event.is_set():
                         try:
-                            message = await asyncio.wait_for(
-                                ws.recv(), timeout=30.0
-                            )
+                            message = await asyncio.wait_for(ws.recv(), timeout=30.0)
 
                             if isinstance(message, bytes):
                                 self._process_binary_message(message)
@@ -464,9 +453,7 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
 
         if not self._ws:
             self._dropped_depths += 1
-            logger.warning(
-                "%s_subscription_dropped_no_ws", self.DEPTH_TYPE.lower()
-            )
+            logger.warning("%s_subscription_dropped_no_ws", self.DEPTH_TYPE.lower())
             return
 
         try:
@@ -486,9 +473,7 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
         # run_coroutine_threadsafe returns a concurrent.futures.Future.
         # We register a done-callback so failures increment the dropped
         # counter instead of vanishing.
-        future = asyncio.run_coroutine_threadsafe(
-            self._ws.send(payload), loop
-        )
+        future = asyncio.run_coroutine_threadsafe(self._ws.send(payload), loop)
 
         def _on_send_done(fut) -> None:
             try:
@@ -520,10 +505,10 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
 
             if self.header_carries_security_id:
                 # depth-20 layout: offset 4 = security_id
-                header_value = struct.unpack_from('<I', data, 4)[0]
+                header_value = struct.unpack_from("<I", data, 4)[0]
             else:
                 # depth-200 layout: offset 8 = num_rows
-                header_value = struct.unpack_from('<I', data, 8)[0]
+                header_value = struct.unpack_from("<I", data, 8)[0]
 
             # Plan §7.2: shared message tracking through the mixin so the
             # health endpoint reflects real bytes received, not heartbeat-only.
@@ -534,16 +519,13 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
                 self._dispatch_depth(depth_data)
 
         except Exception as exc:
-            logger.error(
+            logger.exception(
                 "%s_parse_error: %s",
                 self.DEPTH_TYPE.lower(),
                 exc,
-                exc_info=True,
             )
 
-    def _parse_depth_packet(
-        self, data: bytes, response_code: int, header_value: int
-    ) -> dict:
+    def _parse_depth_packet(self, data: bytes, response_code: int, header_value: int) -> dict:
         """Parse the depth body of a binary packet.
 
         For depth-20 ``header_value`` is the security_id (extracted from
@@ -556,9 +538,9 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
             offset = _HEADER_SIZE + (i * _LEVEL_SIZE)
             if offset + _LEVEL_SIZE > len(data):
                 break
-            price = struct.unpack_from('<d', data, offset)[0]
-            quantity = struct.unpack_from('<I', data, offset + 8)[0]
-            orders = struct.unpack_from('<I', data, offset + 12)[0]
+            price = struct.unpack_from("<d", data, offset)[0]
+            quantity = struct.unpack_from("<I", data, offset + 8)[0]
+            orders = struct.unpack_from("<I", data, offset + 12)[0]
             if quantity > 0:
                 depth_levels.append(
                     DepthLevel(
@@ -660,9 +642,7 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
                 self._published_depths += 1
             except Exception as exc:
                 self._dropped_depths += 1
-                logger.error(
-                    "%s_event_publish_error: %s", self.DEPTH_TYPE.lower(), exc
-                )
+                logger.error("%s_event_publish_error: %s", self.DEPTH_TYPE.lower(), exc)
 
     def _close_active_websocket(
         self,

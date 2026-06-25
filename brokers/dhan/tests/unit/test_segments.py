@@ -15,9 +15,7 @@ from brokers.dhan.segments import (
 def test_exchange_to_segment_completeness():
     all_exchanges = {e.value for e in Exchange}
     mapped = set(EXCHANGE_TO_SEGMENT.keys())
-    assert all_exchanges == mapped, (
-        f"Missing mappings for: {all_exchanges - mapped}"
-    )
+    assert all_exchanges == mapped, f"Missing mappings for: {all_exchanges - mapped}"
 
 
 def test_reverse_mapping_consistency():

@@ -25,7 +25,7 @@ from analytics.pipeline.pipeline import FeaturePipeline
 
 class ScannerState(str, Enum):
     """Scanner lifecycle states.
-    
+
     Transitions:
     - IDLE → RUNNING (start scan)
     - RUNNING → COMPLETED (scan finished successfully)
@@ -126,10 +126,10 @@ class Scanner(Protocol):
 @dataclass
 class BaseScanner:
     """Base class for scanners that use FeaturePipeline.
-    
+
     P1-Phase 1: Added optional event_bus parameter for publishing
     SCAN_STARTED, CANDIDATE_GENERATED, and SCAN_COMPLETED events.
-    
+
     P5.1: Optimized _compute_features to avoid unnecessary DataFrame copy
     when pipeline already returns an isolated DataFrame.
     """
@@ -142,12 +142,13 @@ class BaseScanner:
 
     def scan(self, universe: pd.DataFrame) -> ScanResult:
         """Default scan: compute features, score, rank. Override for custom logic.
-        
+
         P1-Phase 1: Publishes SCAN_STARTED and SCAN_COMPLETED events.
         """
         # P1-Phase 1: Publish SCAN_STARTED
         if self.event_bus is not None:
             from domain.events import EventType
+
             self.event_bus.publish(
                 EventType.SCAN_STARTED.value,
                 payload={
@@ -160,7 +161,7 @@ class BaseScanner:
 
     def _compute_features(self, universe: pd.DataFrame) -> pd.DataFrame:
         """Run the pipeline on the entire universe.
-        
+
         P5.1: Avoid unnecessary .copy() — pipeline.run() already returns
         a new DataFrame, so we can safely mutate it in-place downstream.
         """
@@ -215,6 +216,7 @@ class BaseScanner:
             # P1-Phase 1: Publish CANDIDATE_GENERATED event
             if self.event_bus is not None:
                 from domain.events import EventType
+
                 self.event_bus.publish(
                     EventType.CANDIDATE_GENERATED.value,
                     payload={
@@ -233,6 +235,7 @@ class BaseScanner:
         # P1-Phase 1: Publish SCAN_COMPLETED
         if self.event_bus is not None:
             from domain.events import EventType
+
             self.event_bus.publish(
                 EventType.SCAN_COMPLETED.value,
                 payload={

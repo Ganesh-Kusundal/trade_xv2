@@ -13,10 +13,8 @@ Verifies that:
 
 from __future__ import annotations
 
-import logging
-import time
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -317,7 +315,9 @@ class TestStrictModeVsAuditOnly:
         assert len(entries) >= 1
         assert any(e["outcome"] == "ALLOWED_AUDIT_ONLY" for e in entries)
 
-    def test_audit_mode_blocks_when_kill_switch_active(self, mock_gateway, mock_risk_manager, audit_log):
+    def test_audit_mode_blocks_when_kill_switch_active(
+        self, mock_gateway, mock_risk_manager, audit_log
+    ):
         """Even in audit-only mode, kill switch active still blocks."""
         mock_risk_manager.is_kill_switch_active.return_value = True
         entries, collector = audit_log

@@ -44,7 +44,10 @@ def _lookup(symbol: str, broker_service, console: Console) -> None:
     for exch in ["NSE", "BSE", "NFO", "BFO", "MCX", "INDEX", "CDS"]:
         inst = resolver.get_by_symbol(symbol, exch)
         if inst:
-            table.add_row(f"Match ({exch})", f"{inst.symbol} | sid={inst.security_id} | type={inst.instrument_type.value}")
+            table.add_row(
+                f"Match ({exch})",
+                f"{inst.symbol} | sid={inst.security_id} | type={inst.instrument_type.value}",
+            )
             if inst.expiry:
                 table.add_row("  Expiry", inst.expiry)
             if inst.strike_price:

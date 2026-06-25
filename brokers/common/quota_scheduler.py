@@ -32,13 +32,15 @@ Priority semantics:
 
 from __future__ import annotations
 
+import contextlib
+import logging
 import threading
 import time
 import uuid
-import logging
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from enum import IntEnum
-from typing import Callable, NamedTuple
+from typing import ClassVar
 
 from brokers.common.broker_port import QuotaToken
 from brokers.common.capabilities import RateLimitProfile
@@ -179,12 +181,12 @@ class QuotaScheduler:
             bars = await gateway.get_historical_bars(request, quota=token)
     """
 
-    _WAIT_INTERVALS_S = 0.05   # polling granularity when waiting for a token
+    _WAIT_INTERVALS_S: ClassVar[float] = 0.05  # polling granularity when waiting for a token
 
     # Max wait times per priority (seconds)
-    _MAX_WAIT: dict[int, float] = {
+    _MAX_WAIT: ClassVar[dict[int, float]] = {
         PriorityClass.EXECUTION_CRITICAL: 2.0,
-        PriorityClass.LIVE_STREAM_CONTROL: 0.0,   # reject immediately
+        PriorityClass.LIVE_STREAM_CONTROL: 0.0,  # reject immediately
         PriorityClass.PORTFOLIO_READ: 5.0,
         PriorityClass.HISTORICAL_BACKFILL: 60.0,
         PriorityClass.ENRICHMENT: 10.0,
@@ -253,7 +255,7 @@ class QuotaScheduler:
                         "token_id": token_id,
                     },
                 )
-                try:
+                with contextlib.suppress(Exception):
                     from brokers.common.observability.audit import emit_quota_event
 
                     emit_quota_event(
@@ -263,8 +265,6 @@ class QuotaScheduler:
                         "acquire",
                         token_id=token_id,
                     )
-                except Exception:
-                    pass
                 return QuotaToken(
                     broker_id=broker_id,
                     endpoint_class=endpoint_class,
@@ -284,7 +284,7 @@ class QuotaScheduler:
                         "max_wait_s": max_wait,
                     },
                 )
-                try:
+                with contextlib.suppress(Exception):
                     from brokers.common.observability.audit import emit_quota_event
 
                     emit_quota_event(
@@ -294,8 +294,6 @@ class QuotaScheduler:
                         "reject",
                         retry_after_s=retry_after,
                     )
-                except Exception:
-                    pass
                 raise QuotaExhaustedError(
                     broker_id=broker_id,
                     endpoint_class=endpoint_class,
@@ -360,7 +358,7 @@ class QuotaScheduler:
     class _BorrowContext:
         def __init__(
             self,
-            scheduler: "QuotaScheduler",
+            scheduler: QuotaScheduler,
             broker_id: str,
             endpoint_class: str,
             priority: PriorityClass,
@@ -386,7 +384,7 @@ class QuotaScheduler:
         broker_id: str,
         endpoint_class: str,
         priority_class: str | PriorityClass,
-    ) -> "_BorrowContext":
+    ) -> _BorrowContext:
         """Return an async context manager that acquires and releases a token."""
         priority = (
             priority_class
@@ -422,7 +420,7 @@ class QuotaScheduler:
         broker_id: str,
         endpoint_class: str,
     ) -> float:
-        """Return the non-reserved headroom fraction (0.0–1.0) for the given bucket.
+        """Return the non-reserved headroom fraction (0.0-1.0) for the given bucket.
 
         Used by the router in quota_aware mode to score candidates.
         """

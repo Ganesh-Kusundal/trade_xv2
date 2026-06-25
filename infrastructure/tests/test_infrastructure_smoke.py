@@ -2,19 +2,15 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
-from infrastructure.event_log import EventLog
 from infrastructure.event_bus import DomainEvent, EventBus
-from infrastructure.lifecycle import LifecycleManager, build_health, HealthState
+from infrastructure.event_log import EventLog
+from infrastructure.lifecycle import HealthState, LifecycleManager, build_health
 
 
 def test_event_log_append_and_replay(tmp_path):
     log = EventLog(events_dir=tmp_path / "events")
     bus = EventBus(event_log=log)
-    bus.publish(
-        DomainEvent.now("TICK", {"price": 100}, symbol="INFY", source="test")
-    )
+    bus.publish(DomainEvent.now("TICK", {"price": 100}, symbol="INFY", source="test"))
     events = list(log.replay())
     assert len(events) == 1
     assert events[0].event_type == "TICK"

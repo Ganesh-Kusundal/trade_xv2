@@ -236,24 +236,27 @@ class TestForwardMapping:
 class TestReverseMapping:
     """security_id → Instrument (reverse lookup)."""
 
-    @pytest.mark.parametrize("sec_id,expected_symbol,expected_exchange", [
-        ("13",     "NIFTY",                       Exchange.INDEX),
-        ("2885",   "RELIANCE",                     Exchange.NSE),
-        ("532",    "RELIANCE",                     Exchange.BSE),
-        ("55000",  "NIFTY-26Jun2026-25000-CE",    Exchange.NFO),
-        ("55001",  "NIFTY-26Jun2026-25000-PE",    Exchange.NFO),
-        ("55100",  "NIFTY-26Jun2026-FUT",          Exchange.NFO),
-        ("466500", "CRUDEOIL-18Jun2026-FUT",       Exchange.MCX),
-        ("466501", "CRUDEOIL-20Jul2026-FUT",       Exchange.MCX),
-        ("466600", "CRUDEOIL-18Jun2026-5000-CE",   Exchange.MCX),
-        ("466583", "GOLD AUG FUT",                 Exchange.MCX),
-        ("466584", "GOLDM-03Jul2026-FUT",          Exchange.MCX),
-        ("70000",  "SENSEX-26Jun2026-80000-CE",    Exchange.BFO),
-        ("80000",  "USDINR-26Jun2026-FUT",         Exchange.CDS),
-        ("80100",  "USDINR-26Jun2026-85-CE",       Exchange.CDS),
-        ("60000",  "RELIANCE-26Jun2026-3000-CE",   Exchange.NFO),
-        ("60100",  "RELIANCE-26Jun2026-FUT",       Exchange.NFO),
-    ])
+    @pytest.mark.parametrize(
+        "sec_id,expected_symbol,expected_exchange",
+        [
+            ("13", "NIFTY", Exchange.INDEX),
+            ("2885", "RELIANCE", Exchange.NSE),
+            ("532", "RELIANCE", Exchange.BSE),
+            ("55000", "NIFTY-26Jun2026-25000-CE", Exchange.NFO),
+            ("55001", "NIFTY-26Jun2026-25000-PE", Exchange.NFO),
+            ("55100", "NIFTY-26Jun2026-FUT", Exchange.NFO),
+            ("466500", "CRUDEOIL-18Jun2026-FUT", Exchange.MCX),
+            ("466501", "CRUDEOIL-20Jul2026-FUT", Exchange.MCX),
+            ("466600", "CRUDEOIL-18Jun2026-5000-CE", Exchange.MCX),
+            ("466583", "GOLD AUG FUT", Exchange.MCX),
+            ("466584", "GOLDM-03Jul2026-FUT", Exchange.MCX),
+            ("70000", "SENSEX-26Jun2026-80000-CE", Exchange.BFO),
+            ("80000", "USDINR-26Jun2026-FUT", Exchange.CDS),
+            ("80100", "USDINR-26Jun2026-85-CE", Exchange.CDS),
+            ("60000", "RELIANCE-26Jun2026-3000-CE", Exchange.NFO),
+            ("60100", "RELIANCE-26Jun2026-FUT", Exchange.NFO),
+        ],
+    )
     def test_reverse_by_security_id(self, resolver, sec_id, expected_symbol, expected_exchange):
         inst = resolver.get_by_security_id(sec_id)
         assert inst is not None, f"security_id={sec_id} not found"
@@ -264,11 +267,27 @@ class TestReverseMapping:
 class TestBidirectionalRoundTrip:
     """Verify symbol→sid→symbol round-trip for every fixture row."""
 
-    @pytest.mark.parametrize("sec_id", [
-        "13", "2885", "532", "55000", "55001", "55100",
-        "466500", "466501", "466600", "466583", "466584",
-        "70000", "80000", "80100", "60000", "60100",
-    ])
+    @pytest.mark.parametrize(
+        "sec_id",
+        [
+            "13",
+            "2885",
+            "532",
+            "55000",
+            "55001",
+            "55100",
+            "466500",
+            "466501",
+            "466600",
+            "466583",
+            "466584",
+            "70000",
+            "80000",
+            "80100",
+            "60000",
+            "60100",
+        ],
+    )
     def test_round_trip(self, resolver, sec_id):
         # Reverse: security_id → Instrument
         inst = resolver.get_by_security_id(sec_id)
@@ -276,7 +295,9 @@ class TestBidirectionalRoundTrip:
 
         # Forward: symbol + exchange → Instrument
         forward = resolver.get_by_symbol(inst.symbol, inst.exchange.value)
-        assert forward is not None, f"symbol={inst.symbol}, exchange={inst.exchange.value} not found in forward map"
+        assert forward is not None, (
+            f"symbol={inst.symbol}, exchange={inst.exchange.value} not found in forward map"
+        )
         assert forward.security_id == sec_id
 
 
@@ -341,41 +362,67 @@ class TestUnderlyingIndex:
 class TestExchangeNormalization:
     """Tests that various exchange format strings resolve correctly."""
 
-    @pytest.mark.parametrize("exchange_str", [
-        "NSE", "NSE_EQ", "nse", "Nse",
-    ])
+    @pytest.mark.parametrize(
+        "exchange_str",
+        [
+            "NSE",
+            "NSE_EQ",
+            "nse",
+            "Nse",
+        ],
+    )
     def test_equity_exchange_variants(self, resolver, exchange_str):
         inst = resolver.get_by_symbol("RELIANCE", exchange_str)
         assert inst is not None
         assert inst.security_id == "2885"
 
-    @pytest.mark.parametrize("exchange_str", [
-        "NFO", "NSE_FNO", "nfo",
-    ])
+    @pytest.mark.parametrize(
+        "exchange_str",
+        [
+            "NFO",
+            "NSE_FNO",
+            "nfo",
+        ],
+    )
     def test_fno_exchange_variants(self, resolver, exchange_str):
         inst = resolver.get_by_symbol("NIFTY-26Jun2026-25000-CE", exchange_str)
         assert inst is not None
         assert inst.security_id == "55000"
 
-    @pytest.mark.parametrize("exchange_str", [
-        "MCX", "MCX_COMM", "mcx",
-    ])
+    @pytest.mark.parametrize(
+        "exchange_str",
+        [
+            "MCX",
+            "MCX_COMM",
+            "mcx",
+        ],
+    )
     def test_mcx_exchange_variants(self, resolver, exchange_str):
         inst = resolver.get_by_symbol("CRUDEOIL-18Jun2026-FUT", exchange_str)
         assert inst is not None
         assert inst.security_id == "466500"
 
-    @pytest.mark.parametrize("exchange_str", [
-        "CDS", "NSE_CURRENCY", "cds",
-    ])
+    @pytest.mark.parametrize(
+        "exchange_str",
+        [
+            "CDS",
+            "NSE_CURRENCY",
+            "cds",
+        ],
+    )
     def test_currency_exchange_variants(self, resolver, exchange_str):
         inst = resolver.get_by_symbol("USDINR-26Jun2026-FUT", exchange_str)
         assert inst is not None
         assert inst.security_id == "80000"
 
-    @pytest.mark.parametrize("exchange_str", [
-        "BFO", "BSE_FNO", "bfo",
-    ])
+    @pytest.mark.parametrize(
+        "exchange_str",
+        [
+            "BFO",
+            "BSE_FNO",
+            "bfo",
+        ],
+    )
     def test_bfo_exchange_variants(self, resolver, exchange_str):
         inst = resolver.get_by_symbol("SENSEX-26Jun2026-80000-CE", exchange_str)
         assert inst is not None
@@ -412,16 +459,19 @@ class TestEdgeCases:
     def test_row_without_sm_symbol_name_still_works(self):
         """Rows without SM_SYMBOL_NAME should still load (backward compatibility)."""
         r = SymbolResolver()
-        r.load_from_rows([{
-            "SEM_TRADING_SYMBOL": "TESTSTOCK",
-            "SEM_SMST_SECURITY_ID": "99999",
-            "SEM_EXM_EXCH_ID": "NSE_EQ",
-            "SEM_INSTRUMENT_NAME": "EQUITY",
-            "SEM_LOT_UNITS": 1,
-            "SEM_TICK_SIZE": 0.05,
-        }])
+        r.load_from_rows(
+            [
+                {
+                    "SEM_TRADING_SYMBOL": "TESTSTOCK",
+                    "SEM_SMST_SECURITY_ID": "99999",
+                    "SEM_EXM_EXCH_ID": "NSE_EQ",
+                    "SEM_INSTRUMENT_NAME": "EQUITY",
+                    "SEM_LOT_UNITS": 1,
+                    "SEM_TICK_SIZE": 0.05,
+                }
+            ]
+        )
         inst = r.get_by_security_id("99999")
         assert inst is not None
         assert inst.sm_symbol_name is None
         assert inst.symbol == "TESTSTOCK"
-

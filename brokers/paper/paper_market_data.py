@@ -17,18 +17,18 @@ class PaperMarketData:
 
     def _base(self, symbol: str) -> float:
         if symbol not in self._base_prices:
-            self._base_prices[symbol] = 500.0 + random.uniform(0, 4500)
+            self._base_prices[symbol] = 500.0 + random.uniform(0, 4500)  # noqa: S311
         return self._base_prices[symbol]
 
     def get_quote(self, symbol: str, exchange: str = "NSE") -> Quote:
         base = self._base(symbol)
-        change_pct = random.uniform(-0.02, 0.02)
+        change_pct = random.uniform(-0.02, 0.02)  # noqa: S311
         ltp_f = base * (1 + change_pct)
         open_f = base
-        high_f = max(ltp_f, open_f) * (1 + random.uniform(0, 0.005))
-        low_f = min(ltp_f, open_f) * (1 - random.uniform(0, 0.005))
-        close_f = base * (1 + random.uniform(-0.01, 0.01))
-        volume = random.randint(50_000, 500_000)
+        high_f = max(ltp_f, open_f) * (1 + random.uniform(0, 0.005))  # noqa: S311
+        low_f = min(ltp_f, open_f) * (1 - random.uniform(0, 0.005))  # noqa: S311
+        close_f = base * (1 + random.uniform(-0.01, 0.01))  # noqa: S311
+        volume = random.randint(50_000, 500_000)  # noqa: S311
 
         ltp = Decimal(f"{ltp_f:.2f}")
         open_ = Decimal(f"{open_f:.2f}")
@@ -56,20 +56,20 @@ class PaperMarketData:
 
     def get_depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
         base = self._base(symbol)
-        ltp = base * (1 + random.uniform(-0.01, 0.01))
+        ltp = base * (1 + random.uniform(-0.01, 0.01))  # noqa: S311
         bids = [
             DepthLevel(
                 price=Decimal(f"{ltp - (i + 1) * 0.50:.2f}"),
-                quantity=random.randint(50, 500),
-                orders=random.randint(1, 10),
+                quantity=random.randint(50, 500),  # noqa: S311
+                orders=random.randint(1, 10),  # noqa: S311
             )
             for i in range(5)
         ]
         asks = [
             DepthLevel(
                 price=Decimal(f"{ltp + (i + 1) * 0.50:.2f}"),
-                quantity=random.randint(50, 500),
-                orders=random.randint(1, 10),
+                quantity=random.randint(50, 500),  # noqa: S311
+                orders=random.randint(1, 10),  # noqa: S311
             )
             for i in range(5)
         ]

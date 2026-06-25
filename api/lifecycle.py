@@ -2,14 +2,14 @@
 
 Thin wrapper around TradingRuntimeFactory for backward compatibility.
 """
+
 from __future__ import annotations
 
 import logging
-from typing import Any
 
-from infrastructure.event_bus import EventBus
 from application.oms.context import TradingContext
 from application.oms.risk_manager import RiskConfig
+from infrastructure.event_bus import EventBus
 
 logger = logging.getLogger(__name__)
 

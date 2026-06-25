@@ -9,11 +9,8 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-import pytest
-
+from application.oms.order_manager import OrderManager
 from domain import Order, OrderStatus, OrderType, Side, Trade
-from infrastructure.event_bus import DomainEvent, EventBus, EventType
-from application.oms.order_manager import OrderManager, OrderRequest
 
 
 def _make_order(
@@ -34,7 +31,6 @@ def _make_order(
 
 
 class TestPartialFillLifecycle:
-
     def test_single_partial_fill_sets_partially_filled(self):
         om = OrderManager()
         order = _make_order(quantity=100)
@@ -61,16 +57,24 @@ class TestPartialFillLifecycle:
         om._orders[order.order_id] = order
 
         t1 = Trade(
-            trade_id="T1", order_id=order.order_id, symbol=order.symbol,
-            exchange=order.exchange, side=Side.BUY, quantity=40,
+            trade_id="T1",
+            order_id=order.order_id,
+            symbol=order.symbol,
+            exchange=order.exchange,
+            side=Side.BUY,
+            quantity=40,
             price=Decimal("2500"),
         )
         om.record_trade(t1)
         assert om._orders[order.order_id].status == OrderStatus.PARTIALLY_FILLED
 
         t2 = Trade(
-            trade_id="T2", order_id=order.order_id, symbol=order.symbol,
-            exchange=order.exchange, side=Side.BUY, quantity=60,
+            trade_id="T2",
+            order_id=order.order_id,
+            symbol=order.symbol,
+            exchange=order.exchange,
+            side=Side.BUY,
+            quantity=60,
             price=Decimal("2501"),
         )
         om.record_trade(t2)
@@ -85,9 +89,13 @@ class TestPartialFillLifecycle:
 
         for i, qty in enumerate([100, 100, 100], 1):
             trade = Trade(
-                trade_id=f"T{i}", order_id=order.order_id,
-                symbol=order.symbol, exchange=order.exchange,
-                side=Side.BUY, quantity=qty, price=Decimal("2500"),
+                trade_id=f"T{i}",
+                order_id=order.order_id,
+                symbol=order.symbol,
+                exchange=order.exchange,
+                side=Side.BUY,
+                quantity=qty,
+                price=Decimal("2500"),
             )
             om.record_trade(trade)
 
@@ -101,8 +109,12 @@ class TestPartialFillLifecycle:
         om._orders[order.order_id] = order
 
         trade = Trade(
-            trade_id="T1", order_id=order.order_id, symbol=order.symbol,
-            exchange=order.exchange, side=Side.BUY, quantity=40,
+            trade_id="T1",
+            order_id=order.order_id,
+            symbol=order.symbol,
+            exchange=order.exchange,
+            side=Side.BUY,
+            quantity=40,
             price=Decimal("2500"),
         )
         om.record_trade(trade)
@@ -118,8 +130,12 @@ class TestPartialFillLifecycle:
         om._orders[order.order_id] = order
 
         trade = Trade(
-            trade_id="T1", order_id=order.order_id, symbol=order.symbol,
-            exchange=order.exchange, side=Side.BUY, quantity=50,
+            trade_id="T1",
+            order_id=order.order_id,
+            symbol=order.symbol,
+            exchange=order.exchange,
+            side=Side.BUY,
+            quantity=50,
             price=Decimal("2500"),
         )
         om.record_trade(trade)
@@ -134,8 +150,12 @@ class TestPartialFillLifecycle:
         om._orders[order.order_id] = order
 
         trade = Trade(
-            trade_id="T1", order_id=order.order_id, symbol=order.symbol,
-            exchange=order.exchange, side=Side.BUY, quantity=30,
+            trade_id="T1",
+            order_id=order.order_id,
+            symbol=order.symbol,
+            exchange=order.exchange,
+            side=Side.BUY,
+            quantity=30,
             price=Decimal("2500"),
         )
         om.record_trade(trade)
@@ -150,8 +170,12 @@ class TestPartialFillLifecycle:
         om._orders[order.order_id] = order
 
         trade = Trade(
-            trade_id="T1", order_id=order.order_id, symbol=order.symbol,
-            exchange=order.exchange, side=Side.BUY, quantity=30,
+            trade_id="T1",
+            order_id=order.order_id,
+            symbol=order.symbol,
+            exchange=order.exchange,
+            side=Side.BUY,
+            quantity=30,
             price=Decimal("2500"),
         )
         om.record_trade(trade)

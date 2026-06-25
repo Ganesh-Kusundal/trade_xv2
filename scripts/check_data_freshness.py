@@ -1,17 +1,18 @@
 """Data freshness and completeness analysis."""
 
-import duckdb
-from pathlib import Path
 from datetime import date
+from pathlib import Path
 
-conn = duckdb.connect('market_data/catalog.duckdb', read_only=True)
+import duckdb
+
+conn = duckdb.connect("market_data/catalog.duckdb", read_only=True)
 
 print("=" * 80)
 print("DATA FRESHNESS & COMPLETENESS REPORT")
 print("=" * 80)
 
-parquet_dir = Path('market_data/equities/candles/timeframe=1m')
-parquet_pattern = str(parquet_dir / 'symbol=*' / 'data.parquet')
+parquet_dir = Path("market_data/equities/candles/timeframe=1m")
+parquet_pattern = str(parquet_dir / "symbol=*" / "data.parquet")
 
 # 1. Data Freshness - How recent is the data?
 print("\n📅 DATA FRESHNESS")
@@ -19,7 +20,7 @@ print("-" * 80)
 
 today = date.today()
 result = conn.execute(f"""
-    SELECT 
+    SELECT
         MAX(latest_date) as most_recent_date,
         MIN(latest_date) as oldest_latest_date,
         COUNT(*) as total_symbols
@@ -41,8 +42,8 @@ print(f"Total Symbols: {total_symbols}")
 
 # Distribution of freshness
 result = conn.execute(f"""
-    SELECT 
-        CASE 
+    SELECT
+        CASE
             WHEN DATEDIFF('day', latest_date, CURRENT_DATE) = 0 THEN 'Today'
             WHEN DATEDIFF('day', latest_date, CURRENT_DATE) = 1 THEN '1 day ago'
             WHEN DATEDIFF('day', latest_date, CURRENT_DATE) <= 3 THEN '2-3 days ago'
@@ -71,15 +72,15 @@ print("-" * 80)
 # Check last 30 days completeness
 result = conn.execute(f"""
     WITH recent_data AS (
-        SELECT 
+        SELECT
             symbol,
             COUNT(DISTINCT DATE_TRUNC('day', timestamp)) as actual_days
         FROM read_parquet('{parquet_pattern}')
         WHERE timestamp >= CURRENT_DATE - INTERVAL 30 DAY
         GROUP BY symbol
     )
-    SELECT 
-        CASE 
+    SELECT
+        CASE
             WHEN actual_days >= 20 THEN 'Excellent (20+ days)'
             WHEN actual_days >= 15 THEN 'Good (15-19 days)'
             WHEN actual_days >= 10 THEN 'Fair (10-14 days)'
@@ -101,7 +102,7 @@ print("\n⚠️  SYMBOLS MISSING RECENT DATA (>7 days old)")
 print("-" * 80)
 
 result = conn.execute(f"""
-    SELECT 
+    SELECT
         symbol,
         MAX(timestamp)::DATE as latest_date,
         DATEDIFF('day', MAX(timestamp)::DATE, CURRENT_DATE) as days_old
@@ -116,7 +117,7 @@ if result:
     print(f"{'Symbol':<15} {'Latest Date':>12} {'Days Old':>10}")
     print("-" * 40)
     for row in result:
-        print(f"{row[0]:<15} {str(row[1]):>12} {row[2]:>10}")
+        print(f"{row[0]:<15} {row[1]!s:>12} {row[2]:>10}")
 else:
     print("✓ All symbols have recent data (within 7 days)")
 
@@ -135,7 +136,7 @@ print(f"Analyzing: {trading_date}")
 
 # Check a sample of symbols
 result = conn.execute(f"""
-    SELECT 
+    SELECT
         symbol,
         COUNT(*) as candles,
         MIN(timestamp) as first_candle,
@@ -154,15 +155,17 @@ for row in result:
     # Expected ~375 candles for full day (9:15 to 15:30)
     expected = 375
     pct = (candles / expected * 100) if expected > 0 else 0
-    print(f"{row[0]:<15} {candles:>10,} {str(row[2])[11:16]:>10} {str(row[3])[11:16]:>10} {expected:>10} ({pct:.0f}%)")
+    print(
+        f"{row[0]:<15} {candles:>10,} {str(row[2])[11:16]:>10} {str(row[3])[11:16]:>10} {expected:>10} ({pct:.0f}%)"
+    )
 
 # 5. Zero volume analysis
 print("\n📉 ZERO VOLUME ANALYSIS")
 print("-" * 80)
 
 result = conn.execute(f"""
-    SELECT 
-        CASE 
+    SELECT
+        CASE
             WHEN zero_pct = 0 THEN '0% (Perfect)'
             WHEN zero_pct < 1 THEN '<1%'
             WHEN zero_pct < 5 THEN '1-5%'
@@ -171,14 +174,14 @@ result = conn.execute(f"""
         END as zero_volume_rate,
         COUNT(*) as symbol_count
     FROM (
-        SELECT 
+        SELECT
             symbol,
             ROUND(SUM(CASE WHEN volume = 0 THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 2) as zero_pct
         FROM read_parquet('{parquet_pattern}')
         GROUP BY symbol
     )
     GROUP BY zero_volume_rate
-    ORDER BY MIN(CASE 
+    ORDER BY MIN(CASE
         WHEN zero_pct = 0 THEN 0
         WHEN zero_pct < 1 THEN 1
         WHEN zero_pct < 5 THEN 2
@@ -193,7 +196,7 @@ for row in result:
 
 # Top symbols with most zero volume
 result = conn.execute(f"""
-    SELECT 
+    SELECT
         symbol,
         COUNT(*) as total,
         SUM(CASE WHEN volume = 0 THEN 1 ELSE 0 END) as zero_vol,

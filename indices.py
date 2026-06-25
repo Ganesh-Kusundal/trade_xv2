@@ -44,12 +44,12 @@ from dataclasses import dataclass
 class _IndexEntry:
     """Broker-agnostic index metadata."""
 
-    canonical_name: str          # User-facing name (e.g. "NIFTY 50")
-    dhan_exchange: str = "INDEX"    # Dhan exchange value
-    dhan_segment: str = "IDX_I"     # Dhan segment code
+    canonical_name: str  # User-facing name (e.g. "NIFTY 50")
+    dhan_exchange: str = "INDEX"  # Dhan exchange value
+    dhan_segment: str = "IDX_I"  # Dhan segment code
     dhan_security_id: str | None = None  # Dhan numeric security ID for index LTP
-    upstox_segment: str = ""        # Upstox segment (e.g. "NSE_INDEX")
-    upstox_name: str = ""           # Upstox instrument key suffix (e.g. "Nifty 50")
+    upstox_segment: str = ""  # Upstox segment (e.g. "NSE_INDEX")
+    upstox_name: str = ""  # Upstox instrument key suffix (e.g. "Nifty 50")
 
 
 # ── Master index registry ───────────────────────────────────────────────────
@@ -283,7 +283,6 @@ _INDEX_MAP: dict[str, _IndexEntry] = {
         upstox_segment="NSE_INDEX",
         upstox_name="India VIX",
     ),
-
     # ── BSE indices ──────────────────────────────────────────────────────
     "SENSEX": _IndexEntry(
         canonical_name="SENSEX",
@@ -334,7 +333,6 @@ _INDEX_MAP: dict[str, _IndexEntry] = {
         upstox_segment="BSE_INDEX",
         upstox_name="BSE Smallcap",
     ),
-
     # ── Global indices (Upstox only) ─────────────────────────────────────
     "DOW": _IndexEntry(
         canonical_name="DOW JONES",
@@ -399,10 +397,12 @@ def list_indices() -> list[dict[str, str]]:
     """Return a human-readable list of all registered indices."""
     result = []
     for sym, entry in sorted(_INDEX_MAP.items()):
-        result.append({
-            "symbol": sym,
-            "name": entry.canonical_name,
-            "dhan_exchange": entry.dhan_exchange,
-            "upstox_segment": entry.upstox_segment,
-        })
+        result.append(
+            {
+                "symbol": sym,
+                "name": entry.canonical_name,
+                "dhan_exchange": entry.dhan_exchange,
+                "upstox_segment": entry.upstox_segment,
+            }
+        )
     return result

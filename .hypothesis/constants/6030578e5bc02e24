@@ -1,4 +1,0 @@
-# file: /workspaces/trade_xv2/brokers/dhan/options.py
-# hypothesis_version: 6.155.7
-
-['/optionchain', '0', '100', '25', '50', 'BANKNIFTY', 'CALL', 'Expiry', 'FINNIFTY', 'MCX_COMM', 'MIDCPNIFTY', 'MONTH', 'NIFTY', 'NSE_FNO', 'OPTIDX', 'PUT', 'SENSEX', 'UnderlyingScrip', 'UnderlyingSeg', 'WEEK', 'call', 'ce', 'ce_count', 'close', 'count', 'data', 'delta', 'drvOptionType', 'exchangeSegment', 'expiries', 'expiries_fetched', 'expiry', 'expiryCode', 'expiryFlag', 'expiryList', 'expiry_flag', 'fromDate', 'gamma', 'greeks', 'high', 'implied_volatility', 'instrument', 'interval', 'iv', 'last_price', 'low', 'ltp', 'oc', 'oi', 'open', 'option_chain_fetched', 'option_type', 'options.get_expiries', 'pe', 'pe_count', 'put', 'requiredData', 'securityId', 'security_id', 'spot', 'status', 'strike', 'strikes', 'success', 'symbol', 'theta', 'timestamp', 'toDate', 'underlying', 'vega', 'volume']

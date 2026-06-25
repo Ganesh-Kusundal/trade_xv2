@@ -10,7 +10,6 @@ from brokers.dhan.exceptions import MarketDataError
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 from brokers.dhan.invariants import assert_dhan_payload
-from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
 
 logger = logging.getLogger(__name__)
 
@@ -20,12 +19,22 @@ _DEFAULT_OPEN = "09:15:00"
 _DEFAULT_CLOSE = "15:30:00"
 
 _TIMEFRAME_MAP = {
-    "1": 1, "1M": 1, "1m": 1,
-    "5": 5, "5M": 5, "5m": 5,
-    "15": 15, "15M": 15, "15m": 15,
+    "1": 1,
+    "1M": 1,
+    "1m": 1,
+    "5": 5,
+    "5M": 5,
+    "5m": 5,
+    "15": 15,
+    "15M": 15,
+    "15m": 15,
     "25": 25,
-    "60": 60, "60M": 60, "60m": 60,
-    "1D": "1D", "D": "1D", "DAY": "1D",
+    "60": 60,
+    "60M": 60,
+    "60m": 60,
+    "1D": "1D",
+    "D": "1D",
+    "DAY": "1D",
 }
 
 
@@ -87,10 +96,16 @@ class HistoricalAdapter:
 
         data = self._client.post(endpoint, json=payload)
         df = self._parse(data, symbol=symbol, exchange=exchange, timeframe=timeframe)
-        logger.info("historical_fetched", extra={
-            "symbol": symbol, "timeframe": timeframe, "candles": len(df),
-            "from": str(from_date), "to": str(to_date),
-        })
+        logger.info(
+            "historical_fetched",
+            extra={
+                "symbol": symbol,
+                "timeframe": timeframe,
+                "candles": len(df),
+                "from": str(from_date),
+                "to": str(to_date),
+            },
+        )
         return df
 
     @staticmethod
@@ -119,7 +134,20 @@ class HistoricalAdapter:
         df["symbol"] = symbol
         df["exchange"] = exchange
         df["timeframe"] = timeframe
-        return df[["timestamp", "open", "high", "low", "close", "volume", "oi", "symbol", "exchange", "timeframe"]]
+        return df[
+            [
+                "timestamp",
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "oi",
+                "symbol",
+                "exchange",
+                "timeframe",
+            ]
+        ]
 
     @staticmethod
     def _get_instrument_type(inst) -> str:

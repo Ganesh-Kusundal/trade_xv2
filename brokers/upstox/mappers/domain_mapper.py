@@ -13,12 +13,6 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from domain.parsing import (
-    parse_decimal,
-    parse_int,
-    parse_optional_str,
-    parse_timestamp,
-)
 from domain import (
     DepthLevel,
     ExchangeSegment,
@@ -40,8 +34,12 @@ from domain import (
     Trade,
     Validity,
 )
-from domain.field_mapping import DefaultFieldMapping as UpstoxFieldMapping
-import brokers.upstox.status_mapper  # noqa: F401 — register Upstox status mappings
+from domain.parsing import (
+    parse_decimal,
+    parse_int,
+    parse_optional_str,
+    parse_timestamp,
+)
 
 from .price_parser import UpstoxPriceParser
 
@@ -72,7 +70,6 @@ _TXN_TO_WIRE = {
     Side.SELL: "SELL",
 }
 _WIRE_TO_TXN = {v: k for k, v in _TXN_TO_WIRE.items()}
-
 
 
 def _wire_status_to_domain_status(raw: str) -> OrderStatus:
@@ -331,15 +328,15 @@ class UpstoxDomainMapper:
     @staticmethod
     def to_trade(payload: Any) -> Trade:
         if not isinstance(payload, dict):
-            return Trade(trade_id="", order_id="", symbol="", exchange="", side=Side.BUY, quantity=0)
+            return Trade(
+                trade_id="", order_id="", symbol="", exchange="", side=Side.BUY, quantity=0
+            )
         return Trade(
             trade_id=str(payload.get("trade_id") or ""),
             order_id=str(payload.get("order_id") or ""),
             symbol=str(payload.get("trading_symbol") or payload.get("symbol") or ""),
             exchange=str(payload.get("exchange") or ""),
-            side=UpstoxDomainMapper.txn_from_wire(
-                str(payload.get("transaction_type") or "BUY")
-            ),
+            side=UpstoxDomainMapper.txn_from_wire(str(payload.get("transaction_type") or "BUY")),
             quantity=_to_int(payload.get("quantity") or payload.get("traded_quantity")),
             price=UpstoxPriceParser.parse(
                 payload.get("price") or payload.get("average_price") or 0
@@ -523,15 +520,20 @@ class UpstoxDomainMapper:
     @staticmethod
     def to_order(payload: Any) -> Order:
         if not isinstance(payload, dict):
-            return Order(order_id="", symbol="", exchange="", side=Side.BUY, order_type=OrderType.MARKET, quantity=0)
+            return Order(
+                order_id="",
+                symbol="",
+                exchange="",
+                side=Side.BUY,
+                order_type=OrderType.MARKET,
+                quantity=0,
+            )
         return Order(
             order_id=str(payload.get("order_id") or ""),
             correlation_id=_str_or_none(payload.get("tag")),
             symbol=str(payload.get("trading_symbol") or payload.get("symbol") or ""),
             exchange=str(payload.get("exchange") or ""),
-            side=UpstoxDomainMapper.txn_from_wire(
-                str(payload.get("transaction_type") or "BUY")
-            ),
+            side=UpstoxDomainMapper.txn_from_wire(str(payload.get("transaction_type") or "BUY")),
             quantity=_to_int(payload.get("quantity")),
             price=UpstoxPriceParser.parse(payload.get("price") or 0),
             trigger_price=UpstoxPriceParser.parse(payload.get("trigger_price") or 0),
@@ -546,5 +548,6 @@ class UpstoxDomainMapper:
             timestamp=_parse_iso(payload.get("order_timestamp")),
             reject_reason=_str_or_none(
                 payload.get("status_message") or payload.get("rejection_reason")
-            ) or "",
+            )
+            or "",
         )

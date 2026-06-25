@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Response
 
@@ -18,7 +18,7 @@ router = APIRouter(dependencies=[Depends(require_auth)])
 async def live_option_chain(
     underlying: str,
     exchange: str = Query("NFO"),
-    expiry: Optional[str] = Query(None),
+    expiry: str | None = Query(None),
     response: Response = None,
     gw: Any = Depends(require_live_broker),
 ) -> dict[str, Any]:

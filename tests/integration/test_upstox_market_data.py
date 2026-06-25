@@ -15,20 +15,16 @@ Run with:
 
 from __future__ import annotations
 
-import asyncio
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
 
 import pytest
 
-from domain import MarketDepth, Quote
 from brokers.upstox.gateway import UpstoxBrokerGateway
-
+from domain import MarketDepth, Quote
 from tests.integration.fixtures.upstox import (
-    MockWebsocket,
     make_depth_response,
     make_instrument_defn,
     make_ltp_response,
@@ -37,8 +33,8 @@ from tests.integration.fixtures.upstox import (
     make_tick_payload,
 )
 
-
 # ─── Fixtures ──────────────────────────────────────────────────────────────
+
 
 @pytest.fixture
 def mock_broker_connected():
@@ -88,6 +84,7 @@ def nifty_index_defn():
 
 # ─── WebSocket Subscription ───────────────────────────────────────────────
 
+
 class TestWebSocketSubscription:
     """Test WebSocket subscription lifecycle."""
 
@@ -124,6 +121,7 @@ class TestWebSocketSubscription:
 
     def test_stream_deduplicates_callbacks(self, gateway_connected):
         """stream() should not register same callback twice."""
+
         def on_tick(tick):
             pass
 
@@ -179,6 +177,7 @@ class TestWebSocketSubscription:
 
 
 # ─── Tick Data Reception ─────────────────────────────────────────────────
+
 
 class TestTickDataReception:
     """Test tick data reception and translation."""
@@ -295,11 +294,13 @@ class TestTickDataReception:
 
 # ─── Unsubscription Cleanup ─────────────────────────────────────────────
 
+
 class TestUnsubscriptionCleanup:
     """Test unsubscription and cleanup."""
 
     def test_unstream_removes_callback(self, gateway_connected, instrument_defn):
         """unstream() should remove specific callback."""
+
         def on_tick(tick):
             pass
 
@@ -311,6 +312,7 @@ class TestUnsubscriptionCleanup:
 
     def test_unstream_removes_all_callbacks(self, gateway_connected):
         """unstream() with no callback should remove all callbacks for instrument."""
+
         def on_tick1(tick):
             pass
 
@@ -326,6 +328,7 @@ class TestUnsubscriptionCleanup:
 
     def test_unstream_unsubscribes_from_websocket(self, gateway_connected):
         """unstream() should unsubscribe from WebSocket."""
+
         def on_tick(tick):
             pass
 
@@ -338,6 +341,7 @@ class TestUnsubscriptionCleanup:
 
     def test_unstream_clears_registry_entry(self, gateway_connected):
         """unstream() should remove instrument from stream registry."""
+
         def on_tick(tick):
             pass
 
@@ -354,6 +358,7 @@ class TestUnsubscriptionCleanup:
 
     def test_multiple_instruments_independent(self, gateway_connected):
         """Multiple instruments should have independent subscriptions."""
+
         def on_tick1(tick):
             pass
 
@@ -375,6 +380,7 @@ class TestUnsubscriptionCleanup:
 
 
 # ─── Quote Accuracy ──────────────────────────────────────────────────────
+
 
 class TestQuoteAccuracy:
     """Test quote data accuracy."""
@@ -445,6 +451,7 @@ class TestQuoteAccuracy:
 
 # ─── Concurrent Market Data ─────────────────────────────────────────────
 
+
 class TestConcurrentMarketData:
     """Test concurrent market data operations."""
 
@@ -456,8 +463,10 @@ class TestConcurrentMarketData:
 
         def subscribe(symbol: str):
             try:
+
                 def on_tick(tick):
                     pass
+
                 gateway_connected.stream(symbol, exchange="NSE", mode="LTP", on_tick=on_tick)
                 with lock:
                     subscribed.append(symbol)
@@ -481,8 +490,10 @@ class TestConcurrentMarketData:
 
         def subscribe_unsubscribe(i: int):
             try:
+
                 def on_tick(tick):
                     pass
+
                 symbol = f"SYM{i}"
                 gateway_connected.stream(symbol, exchange="NSE", mode="LTP", on_tick=on_tick)
                 gateway_connected.unstream(symbol, exchange="NSE", on_tick=on_tick)
@@ -533,6 +544,7 @@ class TestConcurrentMarketData:
 
 # ─── Error Handling ──────────────────────────────────────────────────────
 
+
 class TestMarketDataErrorHandling:
     """Test market data error scenarios."""
 
@@ -572,9 +584,10 @@ class TestMarketDataErrorHandling:
     def test_stream_unsubscribe_failure_handled(self, mock_broker_connected):
         """stream() should handle unsubscribe failure gracefully."""
         # Make unsubscribe raise an error
-        original_unsubscribe = mock_broker_connected.market_data_websocket.unsubscribe
+
         def failing_unsubscribe(keys):
             raise RuntimeError("Unsubscribe failed")
+
         mock_broker_connected.market_data_websocket.unsubscribe = failing_unsubscribe
 
         def on_tick(tick):
@@ -589,8 +602,8 @@ class TestMarketDataErrorHandling:
 
 # ─── Live read-only depth (gated) ─────────────────────────────────────────
 
-import os
-from pathlib import Path
+import os  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 _LIVE_ENV = Path(__file__).resolve().parents[2] / ".env.upstox"
 _live_loaded = False
@@ -607,7 +620,9 @@ class TestUpstoxDepthLive:
     def test_depth_live_levels(self):
         from brokers.upstox.factory import UpstoxBrokerFactory
 
-        gw = UpstoxBrokerFactory().create(env_path=_LIVE_ENV, load_instruments=True, analytics_only=True)
+        gw = UpstoxBrokerFactory().create(
+            env_path=_LIVE_ENV, load_instruments=True, analytics_only=True
+        )
         try:
             depth = gw.depth("RELIANCE", "NSE")
             assert len(depth.bids) >= 1

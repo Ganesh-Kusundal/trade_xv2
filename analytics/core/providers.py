@@ -124,7 +124,13 @@ class GatewayMarketDataProvider:
         from_date: str | None = None,
         to_date: str | None = None,
     ) -> pd.DataFrame:
-        return self._gateway.history(symbol, timeframe=timeframe, lookback_days=lookback_days, from_date=from_date, to_date=to_date)
+        return self._gateway.history(
+            symbol,
+            timeframe=timeframe,
+            lookback_days=lookback_days,
+            from_date=from_date,
+            to_date=to_date,
+        )
 
     def option_chain(self, underlying: str, *, expiry: str | None = None) -> OptionChain:
         chain = self._gateway.option_chain(underlying, expiry=expiry)

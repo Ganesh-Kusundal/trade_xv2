@@ -36,7 +36,7 @@ class ForeverOrderRequest:
     product_type: ProductType
     price1: Decimal
     trigger1: Decimal
-    order_flag: str = "SINGLE"   # "SINGLE" | "OCO"
+    order_flag: str = "SINGLE"  # "SINGLE" | "OCO"
     price2: Decimal | None = None
     trigger2: Decimal | None = None
     correlation_id: str | None = None

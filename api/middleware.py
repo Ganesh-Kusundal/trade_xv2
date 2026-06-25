@@ -9,11 +9,11 @@ Adds to every HTTP request:
 from __future__ import annotations
 
 import logging
-import time
 import threading
+import time
 import uuid
 from collections import defaultdict
-from typing import Callable
+from collections.abc import Callable
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -65,17 +65,12 @@ class HttpRequestMetrics:
         """Return a JSON-serialisable snapshot of all counters."""
         with self._lock:
             return {
-                "total": {
-                    f"{m}|{p}|{s}": v
-                    for (m, p, s), v in sorted(self._total.items())
-                },
+                "total": {f"{m}|{p}|{s}": v for (m, p, s), v in sorted(self._total.items())},
                 "duration_ms_sum": {
-                    f"{m}|{p}|{s}": v
-                    for (m, p, s), v in sorted(self._duration_sum.items())
+                    f"{m}|{p}|{s}": v for (m, p, s), v in sorted(self._duration_sum.items())
                 },
                 "duration_ms_count": {
-                    f"{m}|{p}|{s}": v
-                    for (m, p, s), v in sorted(self._duration_count.items())
+                    f"{m}|{p}|{s}": v for (m, p, s), v in sorted(self._duration_count.items())
                 },
                 "active_requests": self.active_requests,
             }
@@ -94,19 +89,25 @@ class HttpRequestMetrics:
             dur_count_copy = dict(self._duration_count)
             active = self._active_requests
 
-        lines.append("# HELP tradexv2_http_requests_total Total HTTP requests by method, path, status.")
+        lines.append(
+            "# HELP tradexv2_http_requests_total Total HTTP requests by method, path, status."
+        )
         lines.append("# TYPE tradexv2_http_requests_total counter")
         for (method, path, status), count in sorted(total_copy.items()):
             labels = f'method="{method}", path="{path}", status="{status}"'
             lines.append(f"tradexv2_http_requests_total{{{labels}}} {count}")
 
-        lines.append("# HELP tradexv2_http_request_duration_ms_sum Cumulative request duration in ms.")
+        lines.append(
+            "# HELP tradexv2_http_request_duration_ms_sum Cumulative request duration in ms."
+        )
         lines.append("# TYPE tradexv2_http_request_duration_ms_sum counter")
         for (method, path, status), val in sorted(dur_sum_copy.items()):
             labels = f'method="{method}", path="{path}", status="{status}"'
             lines.append(f"tradexv2_http_request_duration_ms_sum{{{labels}}} {val:.1f}")
 
-        lines.append("# HELP tradexv2_http_request_duration_ms_count Request duration sample count.")
+        lines.append(
+            "# HELP tradexv2_http_request_duration_ms_count Request duration sample count."
+        )
         lines.append("# TYPE tradexv2_http_request_duration_ms_count counter")
         for (method, path, status), val in sorted(dur_count_copy.items()):
             labels = f'method="{method}", path="{path}", status="{status}"'
@@ -151,11 +152,18 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
     - Skips health probe paths (/, /healthz, /readyz) to reduce noise.
     """
 
-    _SKIP_PATHS = frozenset({
-        "/", "/docs", "/openapi.json", "/redoc",
-        "/api/v1/health", "/api/v1/health/readyz",
-        "/api/v1/health/metrics", "/api/v1/health/metrics/prometheus",
-    })
+    _SKIP_PATHS = frozenset(
+        {
+            "/",
+            "/docs",
+            "/openapi.json",
+            "/redoc",
+            "/api/v1/health",
+            "/api/v1/health/readyz",
+            "/api/v1/health/metrics",
+            "/api/v1/health/metrics/prometheus",
+        }
+    )
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         # Correlation / request ID

@@ -7,10 +7,10 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from infrastructure.event_bus.event_bus import EventBus
 from api.config import APIConfig
 from api.deps import reset_container
 from api.main import create_app
+from infrastructure.event_bus.event_bus import EventBus
 
 
 @pytest.fixture

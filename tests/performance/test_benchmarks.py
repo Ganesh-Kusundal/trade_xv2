@@ -9,12 +9,11 @@ Run with:
 Or as part of full suite:
     pytest tests/performance/ -v
 """
+
 from __future__ import annotations
 
-from decimal import Decimal
-
-from decimal import Decimal
 from dataclasses import dataclass
+from decimal import Decimal
 
 import pytest
 
@@ -30,6 +29,7 @@ class PnLResult:
 def compute_portfolio_pnl(positions: list[Position]) -> PnLResult:
     total = sum((p.pnl for p in positions), start=Decimal("0"))
     return PnLResult(total_pnl=total, position_count=len(positions))
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -118,6 +118,7 @@ class TestDomainModelBenchmarks:
     @pytest.mark.performance
     def test_trade_creation(self, benchmark):
         """Trade creation should be fast."""
+
         def create_trade():
             return Trade(
                 trade_id="T1",
@@ -143,8 +144,8 @@ class TestEventBusBenchmarks:
     @pytest.fixture
     def event_bus(self):
         """Create a fresh EventBus for testing."""
-        from infrastructure.event_bus import DeadLetterQueue, EventBus
         from brokers.common.observability.event_metrics import EventMetrics
+        from infrastructure.event_bus import DeadLetterQueue, EventBus
 
         metrics = EventMetrics()
         dlq = DeadLetterQueue()
@@ -204,9 +205,9 @@ class TestOrderManagerBenchmarks:
     @pytest.fixture
     def order_manager(self):
         """Create a fresh OrderManager for testing."""
-        from infrastructure.event_bus import DeadLetterQueue, EventBus
-        from brokers.common.observability.event_metrics import EventMetrics
         from application.oms.order_manager import OrderManager
+        from brokers.common.observability.event_metrics import EventMetrics
+        from infrastructure.event_bus import DeadLetterQueue, EventBus
 
         metrics = EventMetrics()
         dlq = DeadLetterQueue()
@@ -304,17 +305,19 @@ class TestDataLakeBenchmarks:
         from datalake.io import atomic_parquet_write
 
         # Create small test data
-        df = pd.DataFrame({
-            "timestamp": pd.date_range("2026-01-01", periods=1000, freq="1min"),
-            "symbol": ["RELIANCE"] * 1000,
-            "exchange": ["NSE"] * 1000,
-            "open": [2500.0] * 1000,
-            "high": [2510.0] * 1000,
-            "low": [2490.0] * 1000,
-            "close": [2505.0] * 1000,
-            "volume": [10000] * 1000,
-            "oi": [0] * 1000,
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": pd.date_range("2026-01-01", periods=1000, freq="1min"),
+                "symbol": ["RELIANCE"] * 1000,
+                "exchange": ["NSE"] * 1000,
+                "open": [2500.0] * 1000,
+                "high": [2510.0] * 1000,
+                "low": [2490.0] * 1000,
+                "close": [2505.0] * 1000,
+                "volume": [10000] * 1000,
+                "oi": [0] * 1000,
+            }
+        )
         table = pa.Table.from_pandas(df)
         path = tmp_path / "test.parquet"
 
@@ -332,17 +335,19 @@ class TestDataLakeBenchmarks:
         import pyarrow.parquet as pq
 
         # Create and write test data
-        df = pd.DataFrame({
-            "timestamp": pd.date_range("2026-01-01", periods=1000, freq="1min"),
-            "symbol": ["RELIANCE"] * 1000,
-            "exchange": ["NSE"] * 1000,
-            "open": [2500.0] * 1000,
-            "high": [2510.0] * 1000,
-            "low": [2490.0] * 1000,
-            "close": [2505.0] * 1000,
-            "volume": [10000] * 1000,
-            "oi": [0] * 1000,
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": pd.date_range("2026-01-01", periods=1000, freq="1min"),
+                "symbol": ["RELIANCE"] * 1000,
+                "exchange": ["NSE"] * 1000,
+                "open": [2500.0] * 1000,
+                "high": [2510.0] * 1000,
+                "low": [2490.0] * 1000,
+                "close": [2505.0] * 1000,
+                "volume": [10000] * 1000,
+                "oi": [0] * 1000,
+            }
+        )
         table = pa.Table.from_pandas(df)
         path = tmp_path / "test.parquet"
         pq.write_table(table, path)

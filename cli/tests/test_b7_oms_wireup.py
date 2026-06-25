@@ -81,16 +81,21 @@ def test_oms_risk_manager_kill_switch_blocks_orders() -> None:
     """The OMS risk_manager's kill_switch is the canonical one.
     Setting it blocks all subsequent orders regardless of which
     caller (OrdersAdapter, OMS, CLI) checks them."""
+    from cli.services.broker_service import BrokerService
     from domain import Order, OrderStatus, OrderType, ProductType, Side
 
-    from cli.services.broker_service import BrokerService
     bs = BrokerService()
     rm, _cp = bs._build_oms_risk_manager()
 
     order = Order(
-        order_id="O-1", symbol="RELIANCE", exchange="NSE",
-        side=Side.BUY, quantity=10, price=Decimal("2500"),
-        order_type=OrderType.LIMIT, product_type=ProductType.INTRADAY,
+        order_id="O-1",
+        symbol="RELIANCE",
+        exchange="NSE",
+        side=Side.BUY,
+        quantity=10,
+        price=Decimal("2500"),
+        order_type=OrderType.LIMIT,
+        product_type=ProductType.INTRADAY,
         status=OrderStatus.OPEN,
     )
 
@@ -116,6 +121,7 @@ def test_factory_accepts_risk_manager_and_threads_to_connection() -> None:
     import inspect
 
     from brokers.dhan.factory import BrokerFactory
+
     sig = inspect.signature(BrokerFactory.create)
     assert "risk_manager" in sig.parameters, (
         "BrokerFactory.create must accept risk_manager= parameter (B7)"
@@ -143,6 +149,7 @@ def test_end_to_end_kill_switch_via_oms_blocks_dhan_place_order() -> None:
     # The resolved instrument must have a valid digit-string security_id
     # so DhanInstrumentRef.__post_init__ validation passes.
     from brokers.dhan.resolver import SymbolResolver
+
     identity = MagicMock(spec=SymbolResolver)
     identity.resolve.return_value = MagicMock(
         symbol="RELIANCE",
@@ -159,7 +166,8 @@ def test_end_to_end_kill_switch_via_oms_blocks_dhan_place_order() -> None:
     adapter = OrdersAdapter(
         client=client,
         identity=identity,
-        event_bus=None, risk_manager=rm,
+        event_bus=None,
+        risk_manager=rm,
         allow_live_orders=True,
     )
 
@@ -167,12 +175,18 @@ def test_end_to_end_kill_switch_via_oms_blocks_dhan_place_order() -> None:
     rm.set_kill_switch(True)
 
     # Try to place an order — must raise OrderError due to risk gate
-    from domain import OrderRequest
+    from brokers.common.dtos import BrokerOrderPayload
+
     with pytest.raises(OrderError, match="Risk check failed"):
-        adapter.place_order(OrderRequest(
-            symbol="RELIANCE", exchange="NSE",
-            transaction_type="BUY", quantity=10, order_type="MARKET",
-        ))
+        adapter.place_order(
+            BrokerOrderPayload(
+                symbol="RELIANCE",
+                exchange="NSE",
+                transaction_type="BUY",
+                quantity=10,
+                order_type="MARKET",
+            )
+        )
 
     # HTTP was never called
     assert client.post.call_count == 0
@@ -200,8 +214,8 @@ def test_oms_capital_fn_uses_real_gateway_funds_after_init() -> None:
     capital_provider closure captures the real gateway. Calling
     get_available_balance() reads gateway.funds().available_balance.
     """
-    from domain import Balance
     from cli.services.broker_service import BrokerService
+    from domain import Balance
 
     bs = BrokerService()
 
@@ -271,8 +285,8 @@ def test_oms_capital_fn_blocks_on_zero_balance_with_fail_open() -> None:
     """A zero or negative balance is a hard stop, even with
     RISK_FAIL_OPEN=1. Phantom capital would defeat the risk gate.
     """
-    from domain import Balance
     from cli.services.broker_service import BrokerService
+    from domain import Balance
 
     bs = BrokerService()
     _rm, cp = bs._build_oms_risk_manager()
@@ -295,6 +309,11 @@ def test_oms_capital_fn_caches_position_pct_against_real_balance() -> None:
     of 1,000,000, the same order is only 3% — which would pass.
     This is the production impact of C.1.
     """
+    from application.oms import (
+        PositionManager,
+        RiskManager,
+    )
+    from application.oms.capital_provider import GatewayCapitalProvider
     from domain import (
         Balance,
         Order,
@@ -303,12 +322,6 @@ def test_oms_capital_fn_caches_position_pct_against_real_balance() -> None:
         ProductType,
         Side,
     )
-    from application.oms import (
-        PositionManager,
-        RiskConfig,
-        RiskManager,
-    )
-    from application.oms.capital_provider import GatewayCapitalProvider
 
     # Build a RiskManager with explicit capital provider that reads
     # from a fake gateway returning 100k (not the default 1M).
@@ -327,9 +340,14 @@ def test_oms_capital_fn_caches_position_pct_against_real_balance() -> None:
 
     # Order notional = 30,000 = 30% of 100k → exceeds 20% cap
     order = Order(
-        order_id="O-1", symbol="RELIANCE", exchange="NSE",
-        side=Side.BUY, quantity=10, price=Decimal("3000"),
-        order_type=OrderType.LIMIT, product_type=ProductType.INTRADAY,
+        order_id="O-1",
+        symbol="RELIANCE",
+        exchange="NSE",
+        side=Side.BUY,
+        quantity=10,
+        price=Decimal("3000"),
+        order_type=OrderType.LIMIT,
+        product_type=ProductType.INTRADAY,
         status=OrderStatus.OPEN,
     )
     result = rm.check_order(order)

@@ -18,7 +18,11 @@ def _make_option_data(root: Path) -> None:
     Creates one timestamp, two strikes, CE+PE, for NIFTY weekly expiry.
     """
     for und in ["NIFTY", "BANKNIFTY"]:
-        for ek, ec, exp_date in [("WEEK", 1, "2026-06-04"), ("WEEK", 2, "2026-06-11"), ("MONTH", 1, "2026-06-25")]:
+        for ek, ec, exp_date in [
+            ("WEEK", 1, "2026-06-04"),
+            ("WEEK", 2, "2026-06-11"),
+            ("MONTH", 1, "2026-06-25"),
+        ]:
             path = root / f"underlying={und}" / f"expiry_kind={ek}" / f"expiry_code={ec}"
             path.mkdir(parents=True, exist_ok=True)
             data = []
@@ -26,27 +30,29 @@ def _make_option_data(root: Path) -> None:
                 for ot in ["CALL", "PUT"]:
                     for so, stk in [(-2, 23500), (-1, 23550), (0, 23600), (1, 23650), (2, 23700)]:
                         symbol = f"{und}_{ek}_{ec}_{so}_{ot}"
-                        data.append({
-                            "timestamp": pd.Timestamp(ts),
-                            "symbol": symbol,
-                            "underlying": und,
-                            "exchange": "NSE",
-                            "open": 100.0,
-                            "high": 105.0,
-                            "low": 95.0,
-                            "close": 102.0 if ot == "CALL" else 98.0,
-                            "volume": 1000 if ot == "CALL" else 2000,
-                            "oi": 5000 if ot == "CALL" else 8000,
-                            "iv": 15.0 if ot == "CALL" else 16.0,
-                            "spot": 23600.0,
-                            "strike": float(stk),
-                            "strike_offset": so,
-                            "option_type": ot,
-                            "expiry_kind": ek,
-                            "expiry_code": ec,
-                            "interval_min": 5,
-                            "expiry_date": exp_date,
-                        })
+                        data.append(
+                            {
+                                "timestamp": pd.Timestamp(ts),
+                                "symbol": symbol,
+                                "underlying": und,
+                                "exchange": "NSE",
+                                "open": 100.0,
+                                "high": 105.0,
+                                "low": 95.0,
+                                "close": 102.0 if ot == "CALL" else 98.0,
+                                "volume": 1000 if ot == "CALL" else 2000,
+                                "oi": 5000 if ot == "CALL" else 8000,
+                                "iv": 15.0 if ot == "CALL" else 16.0,
+                                "spot": 23600.0,
+                                "strike": float(stk),
+                                "strike_offset": so,
+                                "option_type": ot,
+                                "expiry_kind": ek,
+                                "expiry_code": ec,
+                                "interval_min": 5,
+                                "expiry_date": exp_date,
+                            }
+                        )
             df = pd.DataFrame(data)
             table = pa.Table.from_pandas(df, preserve_index=False)
             table.to_pandas().to_parquet(path / "data.parquet", index=False)
@@ -59,7 +65,7 @@ def opt_db(tmp_path: Path) -> duckdb.DuckDBPyConnection:
     _make_option_data(tmp_path)
 
     # Create materialized tables manually (simplified versions of the SQL)
-    c.execute("""
+    c.execute(f"""
         CREATE TABLE m_pcr AS
         SELECT
             timestamp, underlying, expiry_kind, expiry_code, expiry_date,
@@ -68,15 +74,15 @@ def opt_db(tmp_path: Path) -> duckdb.DuckDBPyConnection:
             SUM(CASE WHEN option_type = 'PUT' THEN volume ELSE 0 END) as total_pe_volume,
             SUM(CASE WHEN option_type = 'CALL' THEN oi ELSE 0 END) as total_ce_oi,
             SUM(CASE WHEN option_type = 'PUT' THEN oi ELSE 0 END) as total_pe_oi
-        FROM read_parquet('{}/*/*/*/data.parquet')
+        FROM read_parquet('{tmp_path}/*/*/*/data.parquet')
         GROUP BY timestamp, underlying, expiry_kind, expiry_code, expiry_date, spot, interval_min
-    """.format(tmp_path))
-    c.execute("""
+    """)
+    c.execute(f"""
         CREATE TABLE m_max_pain AS
         WITH candidates AS (
             SELECT DISTINCT timestamp, underlying, expiry_kind, expiry_code,
                    expiry_date, spot, interval_min, strike as K
-            FROM read_parquet('{}/*/*/*/data.parquet')
+            FROM read_parquet('{tmp_path}/*/*/*/data.parquet')
         ),
         pain AS (
             SELECT c.timestamp, c.underlying, c.expiry_kind, c.expiry_code,
@@ -84,7 +90,7 @@ def opt_db(tmp_path: Path) -> duckdb.DuckDBPyConnection:
                    SUM(CASE WHEN o.option_type = 'CALL' THEN o.oi * GREATEST(0, c.K - o.strike) ELSE 0 END) +
                    SUM(CASE WHEN o.option_type = 'PUT' THEN o.oi * GREATEST(0, o.strike - c.K) ELSE 0 END) as total_pain
             FROM candidates c
-            JOIN read_parquet('{}/*/*/*/data.parquet') o
+            JOIN read_parquet('{tmp_path}/*/*/*/data.parquet') o
                 ON c.timestamp = o.timestamp AND c.underlying = o.underlying
                 AND c.expiry_kind = o.expiry_kind AND c.expiry_code = o.expiry_code
             GROUP BY c.timestamp, c.underlying, c.expiry_kind, c.expiry_code,
@@ -99,15 +105,15 @@ def opt_db(tmp_path: Path) -> duckdb.DuckDBPyConnection:
         SELECT timestamp, underlying, expiry_kind, expiry_code, expiry_date,
                spot, interval_min, K as max_pain_strike, total_pain as total_pain_at_max_pain
         FROM ranked WHERE rn = 1
-    """.format(tmp_path, tmp_path))
-    c.execute("""
+    """)
+    c.execute(f"""
         CREATE TABLE m_iv_surface AS
         WITH options AS (
             SELECT *, ABS(strike - spot) as dist,
                 CASE WHEN strike < spot AND option_type = 'PUT' THEN 'otm_put'
                      WHEN strike > spot AND option_type = 'CALL' THEN 'otm_call'
                      ELSE 'other' END as moneyness
-            FROM read_parquet('{}/*/*/*/data.parquet')
+            FROM read_parquet('{tmp_path}/*/*/*/data.parquet')
         ),
         atm AS (
             SELECT DISTINCT ON (timestamp, underlying, expiry_kind, expiry_code)
@@ -135,7 +141,7 @@ def opt_db(tmp_path: Path) -> duckdb.DuckDBPyConnection:
         FROM atm a
         LEFT JOIN otm_put p USING (timestamp, underlying, expiry_kind, expiry_code)
         LEFT JOIN otm_call c USING (timestamp, underlying, expiry_kind, expiry_code)
-    """.format(tmp_path))
+    """)
     yield c
     c.close()
 
@@ -177,7 +183,7 @@ class TestOptionViewsPCR:
             WHERE underlying='NIFTY' AND expiry_kind='WEEK' AND expiry_code=1
             LIMIT 1
         """).fetchone()[0]
-        # 5 strikes × OI=5000 = 25,000 per CE per timestamp
+        # 5 strikes x OI=5000 = 25,000 per CE per timestamp
         assert r == 25000
 
 
@@ -278,18 +284,16 @@ class TestIVSurfaceRegression:
             "SELECT COUNT(*) FROM m_iv_surface WHERE atm_iv IS NULL OR atm_iv <= 0"
         ).fetchone()[0]
         total = opt_db.execute("SELECT COUNT(*) FROM m_iv_surface").fetchone()[0]
-        assert null_count == 0, (
-            f"{null_count}/{total} rows have NULL or non-positive atm_iv"
-        )
+        assert null_count == 0, f"{null_count}/{total} rows have NULL or non-positive atm_iv"
 
-    def test_v_iv_surface_matches_m_iv_surface_row_count(self, opt_db: duckdb.DuckDBPyConnection) -> None:
+    def test_v_iv_surface_matches_m_iv_surface_row_count(
+        self, opt_db: duckdb.DuckDBPyConnection
+    ) -> None:
         """View row count must match materialized table row count."""
         OptionViews().create_views(opt_db)
         m_count = opt_db.execute("SELECT COUNT(*) FROM m_iv_surface").fetchone()[0]
         v_count = opt_db.execute("SELECT COUNT(*) FROM v_iv_surface").fetchone()[0]
-        assert m_count == v_count, (
-            f"m_iv_surface has {m_count} rows but v_iv_surface has {v_count}"
-        )
+        assert m_count == v_count, f"m_iv_surface has {m_count} rows but v_iv_surface has {v_count}"
 
     def test_atm_strike_within_one_strike_interval_of_spot(
         self, opt_db: duckdb.DuckDBPyConnection

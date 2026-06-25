@@ -11,10 +11,11 @@ import threading
 from decimal import Decimal
 from typing import Any
 
+from application.oms._internal.reentrancy_guard import _ReentrancyGuard
 from domain.entities import Position, Trade
-from infrastructure.state_machine import IllegalTransitionError, StateMachine
 from domain.types import POSITION_STATE_TRANSITIONS, PositionState
 from infrastructure.event_bus import DomainEvent, EventBus, EventType
+from infrastructure.state_machine import IllegalTransitionError, StateMachine
 
 logger = logging.getLogger(__name__)
 
@@ -45,10 +46,12 @@ class PositionManager:
         self._processed_trades = processed_trade_repository
         self._metrics = metrics
         self._trades_applied = 0
-        
+
         # P2-Phase 2: State machine enforcement (audit-only mode first)
         self._enforce_state_transitions = enforce_state_transitions
-        self._position_states: dict[str, StateMachine[PositionState]] = {}  # symbol_key -> StateMachine
+        self._position_states: dict[
+            str, StateMachine[PositionState]
+        ] = {}  # symbol_key -> StateMachine
 
     # ── Public API ──────────────────────────────────────────────────────────
 
@@ -88,8 +91,9 @@ class PositionManager:
             elif not was_flat and not will_be_flat:
                 if abs(new_quantity) < abs(current.quantity):
                     new_state = PositionState.REDUCING
-                elif (current.quantity > 0 and new_quantity < 0) or \
-                     (current.quantity < 0 and new_quantity > 0):
+                elif (current.quantity > 0 and new_quantity < 0) or (
+                    current.quantity < 0 and new_quantity > 0
+                ):
                     new_state = PositionState.REVERSED
                 else:
                     new_state = PositionState.OPEN
@@ -119,27 +123,37 @@ class PositionManager:
 
             # Collect events under lock, publish after release
             if was_flat and not will_be_flat:
-                events_to_publish.append((
-                    EventType.POSITION_OPENED.value,
-                    {
-                        "symbol": updated.symbol,
-                        "quantity": updated.quantity,
-                        "avg_price": float(updated.avg_price),
-                    },
-                ))
+                events_to_publish.append(
+                    (
+                        EventType.POSITION_OPENED.value,
+                        {
+                            "symbol": updated.symbol,
+                            "quantity": updated.quantity,
+                            "avg_price": float(updated.avg_price),
+                        },
+                    )
+                )
             elif not was_flat and will_be_flat:
-                events_to_publish.append((
-                    EventType.POSITION_CLOSED.value,
-                    {
-                        "symbol": updated.symbol,
-                        "realized_pnl": float(updated.realized_pnl) if hasattr(updated, 'realized_pnl') else 0.0,
-                    },
-                ))
+                events_to_publish.append(
+                    (
+                        EventType.POSITION_CLOSED.value,
+                        {
+                            "symbol": updated.symbol,
+                            "realized_pnl": float(updated.realized_pnl)
+                            if hasattr(updated, "realized_pnl")
+                            else 0.0,
+                        },
+                    )
+                )
             events_to_publish.append((EventType.POSITION_UPDATED.value, updated))
 
         # REF-020: Publish events OUTSIDE the lock
         for event_type, data in events_to_publish:
-            self._publish(event_type, data if isinstance(data, Position) else None, payload=data if isinstance(data, dict) else None)
+            self._publish(
+                event_type,
+                data if isinstance(data, Position) else None,
+                payload=data if isinstance(data, dict) else None,
+            )
 
         return updated
 
@@ -173,7 +187,9 @@ class PositionManager:
                     "quantity": p.quantity,
                     "avg_price": str(p.avg_price),
                     "ltp": str(p.ltp),
-                    "unrealized_pnl": str(p.unrealized_pnl) if hasattr(p, "unrealized_pnl") else "0",
+                    "unrealized_pnl": str(p.unrealized_pnl)
+                    if hasattr(p, "unrealized_pnl")
+                    else "0",
                 }
                 for p in self._positions.values()
             ]
@@ -201,7 +217,9 @@ class PositionManager:
                 if ltp:
                     pos = pos.with_ltp(ltp)
                 self._positions[key] = pos
-                self._publish(EventType.POSITION_UPDATED.value, pos)  # P1-3: Migrated to EventType enum
+                self._publish(
+                    EventType.POSITION_UPDATED.value, pos
+                )  # P1-3: Migrated to EventType enum
                 return pos
             # Update existing position
             delta = quantity - current.quantity
@@ -209,7 +227,9 @@ class PositionManager:
             if ltp:
                 updated = updated.with_ltp(ltp)
             self._positions[key] = updated
-            self._publish(EventType.POSITION_UPDATED.value, updated)  # P1-3: Migrated to EventType enum
+            self._publish(
+                EventType.POSITION_UPDATED.value, updated
+            )  # P1-3: Migrated to EventType enum
             return updated
 
     def reset(self) -> None:
@@ -257,7 +277,9 @@ class PositionManager:
     def _key(symbol: str, exchange: str) -> str:
         return f"{symbol.upper()}:{exchange.upper()}"
 
-    def _publish(self, event_type: str, position: Position | None = None, *, payload: dict | None = None) -> None:
+    def _publish(
+        self, event_type: str, position: Position | None = None, *, payload: dict | None = None
+    ) -> None:
         if self._event_bus is None:
             return
         data = payload if payload is not None else {"position": position}

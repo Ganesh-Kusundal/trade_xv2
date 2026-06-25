@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import pytest
 from fastapi.testclient import TestClient
 
 from api.config import APIConfig
-from api.deps import initialize_all_services, reset_container
+from api.deps import reset_container
 from api.main import create_app
 
 

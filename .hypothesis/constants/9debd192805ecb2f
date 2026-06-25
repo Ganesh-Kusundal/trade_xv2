@@ -1,4 +1,0 @@
-# file: /workspaces/trade_xv2/brokers/dhan/super_orders.py
-# hypothesis_version: 6.155.7
-
-['/super/orders', '; ', 'BUY', 'DAY', 'INTRADAY', 'LIMIT', 'SELL', 'correlationId', 'count', 'createdAt', 'data', 'dhanClientId', 'errorCode', 'errorMessage', 'error_code', 'error_message', 'errors', 'exchangeSegment', 'legDetails', 'legName', 'leg_name', 'message', 'ok', 'orderId', 'orderStatus', 'orderType', 'order_id', 'price', 'productType', 'quantity', 'raw', 'securityId', 'status', 'stopLossPrice', 'success', 'super_order_modified', 'super_order_placed', 'super_orders_fetched', 'symbol', 'targetPrice', 'tradingSymbol', 'trailingJump', 'transactionType', 'transaction_type', 'triggerPrice', 'validity']

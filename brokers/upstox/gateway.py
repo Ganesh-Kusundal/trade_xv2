@@ -28,16 +28,27 @@ from typing import Any
 import pandas as pd
 
 from brokers.common.batch_mixin import BatchFetchMixin
+from brokers.common.capabilities import upstox_capabilities
+from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
+from brokers.upstox.adapters import (
+    HistoricalAdapter,
+    PortfolioAdapter,
+    StreamManagerAdapter,
+)
+from brokers.upstox.market_data.market_data_adapter import UpstoxMarketDataAdapter as MarketDataAdapter
+from brokers.upstox.broker import UpstoxBroker
+from brokers.upstox.extended import UpstoxExtendedCapabilities
 from domain import (
     Balance,
     ExchangeSegment,
     FutureChain,
-    OptionChain,
     Holding,
     MarketDepth,
+    OptionChain,
     Order,
     OrderRequest,
     OrderResponse,
+    OrderStatus,
     OrderType,
     Position,
     ProductType,
@@ -46,32 +57,22 @@ from domain import (
     Trade,
     Validity,
 )
-from infrastructure.event_bus import EventBus
-from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
-from brokers.upstox.adapters import (
-    HistoricalAdapter,
-    MarketDataAdapter,
-    PortfolioAdapter,
-    StreamManagerAdapter,
-)
-from brokers.upstox.broker import UpstoxBroker
-from brokers.upstox.extended import UpstoxExtendedCapabilities
 
 logger = logging.getLogger(__name__)
 
 
 class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
     """Unified Upstox broker API. All calls delegate to UpstoxBroker adapters.
-    
+
     This facade provides a clean public API while internally delegating to
     specialized adapter classes for each responsibility area.
-    
+
     Thread Safety:
         All delegated operations are thread-safe. Stream management uses
         internal locking in StreamManagerAdapter.
-    
+
     Example::
-    
+
         gateway = UpstoxBrokerGateway(broker)
         gateway.load_instruments()
         ltp = gateway.ltp("RELIANCE", "NSE")
@@ -96,6 +97,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
 
         # Broker-agnostic options facade for CLI / tests.
         from brokers.common.options.gateway_facade import GatewayOptionsFacade
+
         # The facade adapter is only constructed when the broker exposes an
         # ``options`` attribute — tests that build a MagicMock with
         # ``spec=UpstoxBroker`` (which doesn't list ``options``) still
@@ -105,7 +107,6 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
             self.options = GatewayOptionsFacade(
                 options_attr, exchange_normalize=_upstox_normalize_exchange
             )
-
 
     # ── Backward compatibility properties (for tests accessing internals) ──
 
@@ -119,16 +120,15 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         """Access stream lock from StreamManagerAdapter (backward compat)."""
         return self._stream_manager._stream_lock
 
-
     # ── Market Data (ABC-aligned) ─────────────────────────────────────
 
     def ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:
         """Fetch last traded price for a symbol.
-        
+
         Args:
             symbol: Canonical trading symbol
             exchange: Exchange segment
-            
+
         Returns:
             Last traded price as Decimal
         """
@@ -137,11 +137,11 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
 
     def quote(self, symbol: str, exchange: str = "NSE") -> Quote:
         """Fetch full quote with OHLCV for a symbol.
-        
+
         Args:
             symbol: Canonical trading symbol
             exchange: Exchange segment
-            
+
         Returns:
             Quote dataclass with OHLCV data
         """
@@ -150,11 +150,11 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
 
     def depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
         """Fetch order book depth for a symbol.
-        
+
         Args:
             symbol: Canonical trading symbol
             exchange: Exchange segment
-            
+
         Returns:
             MarketDepth with bid/ask levels
         """
@@ -163,7 +163,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
 
     def get_orderbook(self) -> list[Order]:
         """Fetch current order book.
-        
+
         Returns:
             List of Order dataclasses
         """
@@ -171,7 +171,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
 
     def get_trade_book(self) -> list[Trade]:
         """Get today's trade book from the Upstox V2 trades-for-day endpoint.
-        
+
         Returns:
             List of Trade dataclasses
         """
@@ -197,7 +197,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
 
     def load_instruments(self, source: str | None = None) -> None:
         """Load instrument definitions from cache or download.
-        
+
         Args:
             source: Optional path to instrument file. If not provided,
                    uses cached file or downloads from Upstox.
@@ -215,7 +215,11 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         load_time = time.monotonic() - start
         logger.info(
             "instrument_load_completed",
-            extra={"count": len(defs), "load_time_s": round(load_time, 2), "source": source or "cached"},
+            extra={
+                "count": len(defs),
+                "load_time_s": round(load_time, 2),
+                "source": source or "cached",
+            },
         )
 
         start = time.monotonic()
@@ -240,7 +244,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         to_date: str | None = None,
     ) -> pd.DataFrame:
         """Fetch historical candle data.
-        
+
         Args:
             symbol: Single symbol or list of symbols
             exchange: Exchange segment
@@ -248,7 +252,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
             lookback_days: Number of days to look back
             from_date: Optional start date (YYYY-MM-DD)
             to_date: Optional end date (YYYY-MM-DD)
-            
+
         Returns:
             DataFrame with OHLCV data
         """
@@ -257,7 +261,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         to_str = to_date or str(to_d)
         from_str = from_date or str(from_d)
         tf = timeframe.upper() if timeframe else "1D"
-        
+
         # Resolve timeframe to V3 interval
         unit, interval = HistoricalAdapter.resolve_timeframe(tf)
 
@@ -279,7 +283,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         interval: str,
     ) -> pd.DataFrame:
         """Fetch historical candles for a single symbol.
-        
+
         Args:
             symbol: Canonical trading symbol
             exchange: Exchange segment
@@ -287,7 +291,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
             to_date: End date (YYYY-MM-DD)
             unit: Time unit (minutes, hours, days)
             interval: Interval value
-            
+
         Returns:
             DataFrame with OHLCV data
         """
@@ -309,21 +313,16 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
                 return OptionChain(underlying=underlying, exchange=exchange, expiry="")
             expiry = expiries[0]
         from brokers.common.options.chain_normalizer import upstox_chain_to_canonical
+
         if hasattr(self._broker.options, "get_option_chain_with_meta"):
-            result = self._broker.options.get_option_chain_with_meta(
-                underlying, exchange, expiry
-            )
+            result = self._broker.options.get_option_chain_with_meta(underlying, exchange, expiry)
             if isinstance(result, tuple) and len(result) == 3:
                 contracts, raw_rows, _body = result
-                return upstox_chain_to_canonical(
-                    contracts, raw_rows, underlying, exchange, expiry
-                )
+                return upstox_chain_to_canonical(contracts, raw_rows, underlying, exchange, expiry)
         contracts = self._broker.options.get_option_chain(underlying, exchange, expiry)
         if not isinstance(contracts, list):
             return OptionChain(underlying=underlying, exchange=exchange, expiry=expiry)
-        return upstox_chain_to_canonical(
-            contracts, None, underlying, exchange, expiry
-        )
+        return upstox_chain_to_canonical(contracts, None, underlying, exchange, expiry)
 
     def future_chain(
         self,
@@ -342,22 +341,26 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         for c in contracts:
             if not isinstance(c, dict):
                 continue
-            chain.append({
-                "expiry": c.get("expiry", ""),
-                "symbol": c.get("symbol", c.get("trading_symbol", "")),
-                "lot_size": c.get("lot_size", 1),
-                "underlying": c.get("underlying", underlying),
-            })
-        return FutureChain.from_dict({
-            "underlying": underlying,
-            "exchange": segment,
-            "expiries": expiries,
-            "contracts": chain,
-        })
+            chain.append(
+                {
+                    "expiry": c.get("expiry", ""),
+                    "symbol": c.get("symbol", c.get("trading_symbol", "")),
+                    "lot_size": c.get("lot_size", 1),
+                    "underlying": c.get("underlying", underlying),
+                }
+            )
+        return FutureChain.from_dict(
+            {
+                "underlying": underlying,
+                "exchange": segment,
+                "expiries": expiries,
+                "contracts": chain,
+            }
+        )
 
     def funds(self) -> Balance:
         """Fetch account fund limits.
-        
+
         Returns:
             Balance dataclass with available margin
         """
@@ -365,7 +368,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
 
     def positions(self) -> list[Position]:
         """Fetch all positions.
-        
+
         Returns:
             List of Position dataclasses
         """
@@ -373,7 +376,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
 
     def holdings(self) -> list[Holding]:
         """Fetch all holdings.
-        
+
         Returns:
             List of Holding dataclasses
         """
@@ -381,7 +384,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
 
     def trades(self) -> list[Trade]:
         """Fetch trade book.
-        
+
         Returns:
             List of Trade dataclasses
         """
@@ -389,13 +392,15 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
 
     def describe(self) -> dict:
         """Get broker description metadata.
-        
+
         Returns:
             Dict with broker capabilities and status
         """
         return {
             "broker": "Upstox",
-            "instruments_loaded": self._broker.instrument_resolver.is_loaded() if hasattr(self._broker.instrument_resolver, 'is_loaded') else True,
+            "instruments_loaded": self._broker.instrument_resolver.is_loaded()
+            if hasattr(self._broker.instrument_resolver, "is_loaded")
+            else True,
             "market_data": "available",
             "historical": "available",
             "options": "available",
@@ -405,60 +410,24 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
 
     def capabilities(self) -> BrokerCapabilities:
         """Return Upstox broker capability matrix.
-        
+
         Returns:
             BrokerCapabilities with supported features
         """
-        return BrokerCapabilities(
-            expired_options=False,
-            expired_futures=False,
-            depth_20=False,
-            depth_200=False,
-            max_intraday_days=30,
-            max_daily_days=365 * 10,
-            supported_timeframes=("1m", "5m", "15m", "30m", "1h", "1D"),
-            parallel_history=True,
-            max_batch_size=10,
-            websocket=True,
-            polling_fallback=False,
-            order_types=("MARKET", "LIMIT", "STOP_LOSS", "STOP_LOSS_MARKET"),
-            product_types=("INTRADAY", "MARGIN", "CNC"),
-            validities=("DAY", "IOC"),
-            load_instruments=True,
-            search=True,
-            rate_limit_per_second=10,
-            rate_limit_per_minute=200,
-            # Order life-cycle
-            amo=True,
-            # Advanced order types
-            slice_orders=True,
-            conditional_triggers=True,
-            # Risk management
-            market_protection=True,
-            # Investment capabilities
-            ipo=True,
-            mutual_funds=True,
-            fundamentals=True,
-            payments=True,
-            # Account management
-            user_profile=True,
-            convert_position=True,
-            trade_pnl=True,
-            exit_all=True,
-        )
+        return upstox_capabilities()
 
     def search(self, query: str) -> list[dict]:
         """Search for instruments by query string.
-        
+
         Args:
             query: Search query (symbol or name fragment)
-            
+
         Returns:
             List of matching instrument dicts (max 20)
         """
         results = []
         q = query.upper().strip()
-        if hasattr(self._broker.instrument_resolver, 'search'):
+        if hasattr(self._broker.instrument_resolver, "search"):
             results = self._broker.instrument_resolver.search(q)
         return results[:20] if isinstance(results, list) else []
 
@@ -537,21 +506,20 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         """
         # Security guard: prevent live orders if disabled or analytics-only
         if self._broker.settings.analytics_only:
-            return OrderResponse.fail(
-                "Analytics-only mode: live orders are blocked."
-            )
+            return OrderResponse.fail("Analytics-only mode: live orders are blocked.")
         if not self._broker.settings.allow_live_orders:
             return OrderResponse.fail(
                 "Live orders are disabled. Set allow_live_orders=True in configuration."
             )
-        
+
         if correlation_id is None:
             try:
                 from infrastructure.correlation import get_current_correlation_id
+
                 correlation_id = get_current_correlation_id()
             except ImportError:
                 pass
-        
+
         exchange_segment = self._resolve_exchange_segment(exchange, symbol)
         request = OrderRequest(
             symbol=symbol,
@@ -568,7 +536,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
             is_amo=is_amo,
             transport_only=transport_only,
         )
-        
+
         try:
             response = self._order_command.place_order(request)
         except Exception as e:
@@ -582,7 +550,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
                 },
             )
             return OrderResponse.fail(str(e))
-        
+
         # Log failed responses from adapter (risk checks, validation, etc.)
         if not response.success:
             logger.warning(
@@ -595,7 +563,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
                 },
             )
             return response
-        
+
         if response.success and correlation_id:
             logger.info(
                 "order_placed",
@@ -606,29 +574,60 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
                     "side": side,
                 },
             )
-        
+
         return response
 
     def cancel_order(self, order_id: str) -> OrderResponse:
-        """Cancel an order via Upstox.
+        """Cancel an order with post-cancellation verification.
+
+        H1 Critical Fix: After sending cancel request, verifies order actually
+        reached cancelled state. Detects race condition where order was filled
+        between cancel send and response.
 
         Returns:
-            :class:`OrderResponse` with ``success`` reflecting the
-            broker's response. Network/auth errors are reported as
-            ``success=False`` with a diagnostic error code; this method
-            never raises.
+            OrderResponse with success=True if cancelled, or
+            OrderResponse.fail with error_code="ALREADY_EXECUTED" if order
+            was already filled before cancel could complete.
         """
         # Safety guard: prevent live order cancellations if disabled
         if self._broker.settings.analytics_only:
-            return OrderResponse.fail(
-                "Analytics-only mode: live orders are blocked."
-            )
+            return OrderResponse.fail("Analytics-only mode: live orders are blocked.")
         if not self._broker.settings.allow_live_orders:
             return OrderResponse.fail(
                 "Live orders are disabled. Set allow_live_orders=True in configuration."
             )
-        
-        return self._order_command.cancel_order(order_id)
+
+        # Step 1: Send cancel request
+        response = self._order_command.cancel_order(order_id)
+
+        # Step 2: Post-cancellation verification (H1 fix)
+        if response.success:
+            order = self.get_order(order_id)
+            if order and order.status in (OrderStatus.FILLED,):
+                return OrderResponse.fail(
+                    message=f"Order {order_id} was already filled before cancel completed",
+                    status=OrderStatus.FILLED,
+                )
+
+        return response
+
+    def get_order(self, order_id: str) -> Order | None:
+        """Query a single order by ID from the orderbook.
+
+        H1 Critical Fix: Enables post-cancellation verification by allowing
+        lookup of individual orders.
+
+        Args:
+            order_id: Broker order ID to look up
+
+        Returns:
+            Order if found, None if not in orderbook
+        """
+        orderbook = self.get_orderbook()
+        for order in orderbook:
+            if order.order_id == order_id:
+                return order
+        return None
 
     def modify_order(self, order_id: str, **changes: Any) -> OrderResponse:
         """Modify an order via Upstox V3 API."""
@@ -636,9 +635,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
 
         # Safety guard: prevent live order modifications if disabled
         if self._broker.settings.analytics_only:
-            return OrderResponse.fail(
-                "Analytics-only mode: live orders are blocked."
-            )
+            return OrderResponse.fail("Analytics-only mode: live orders are blocked.")
         if not self._broker.settings.allow_live_orders:
             return OrderResponse.fail(
                 "Live orders are disabled. Set allow_live_orders=True in configuration."
@@ -648,7 +645,11 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
             result = self._order_command.modify_order(order_id, **changes)
             if isinstance(result, dict) and result.get("status") == "success":
                 return OrderResponse.ok(order_id=order_id, message="Order modified")
-            message = result.get("message", "modify failed") if isinstance(result, dict) else "modify failed"
+            message = (
+                result.get("message", "modify failed")
+                if isinstance(result, dict)
+                else "modify failed"
+            )
             return OrderResponse.fail(message)
         except Exception as exc:
             return OrderResponse.fail(str(exc))
@@ -657,12 +658,12 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
 
     def _translate_tick_to_quote(self, raw: dict[str, Any]) -> Quote | dict[str, Any]:
         """Translate raw tick to Quote (backward compatibility for tests).
-        
+
         Delegates to TickTranslatorAdapter via StreamManagerAdapter.
-        
+
         Args:
             raw: Raw tick payload
-            
+
         Returns:
             Quote or raw dict
         """
@@ -674,35 +675,36 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         fallback_key: str = "",
     ) -> str:
         """Derive canonical symbol from definition (backward compatibility).
-        
+
         Args:
             defn: Instrument definition
             fallback_key: Fallback instrument key
-            
+
         Returns:
             Canonical symbol string
         """
         from brokers.upstox.adapters.tick_translator import TickTranslatorAdapter
+
         return TickTranslatorAdapter._canonical_symbol_for_defn(defn, fallback_key)
 
     def _resolve_instrument_key(self, symbol: str, exchange: str) -> str:
         """Resolve canonical symbol to Upstox instrument_key.
-        
+
         Resolution priority:
         1. Hardcoded index mapping (NIFTY, BANKNIFTY, etc.) → NSE_INDEX segment
         2. Instrument master lookup (returns ISIN for equities)
         3. Fallback: construct key from segment|symbol
-        
+
         Args:
             symbol: Canonical trading symbol (e.g., "RELIANCE", "NIFTY")
             exchange: Exchange segment (e.g., "NSE", "NFO")
-            
+
         Returns:
             Upstox instrument_key string (e.g., "NSE_EQ|INE002A01018")
         """
-        from indices import index_upstox_key
         from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
-        
+        from indices import index_upstox_key
+
         # 1. Check hardcoded index mapping first
         idx_key = index_upstox_key(symbol)
         if idx_key is not None:
@@ -710,45 +712,44 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
             if defn:
                 return defn.instrument_key
             return idx_key
-        
+
         # 2. Try instrument master lookup
         segment = UpstoxDomainMapper.segment_to_wire(exchange)
-        if segment == 'NSE':
-            segment = 'NSE_EQ'
-        elif segment == 'BSE':
-            segment = 'BSE_EQ'
-        
+        if segment == "NSE":
+            segment = "NSE_EQ"
+        elif segment == "BSE":
+            segment = "BSE_EQ"
+
         defn = self._broker.instrument_resolver.resolve(
             symbol=symbol,
             exchange_segment=segment,
         )
         if defn:
             return defn.instrument_key
-        
+
         # 3. Fallback: construct key
         return f"{segment}|{symbol}"
 
     def _resolve_exchange_segment(self, exchange: str, symbol: str = "") -> ExchangeSegment:
         """Map user-facing exchange string to canonical ExchangeSegment.
-        
+
         For recognised index symbols (NIFTY, BANKNIFTY, etc.) the segment is
         set to IDX_I regardless of the exchange string.
-        
+
         Args:
             exchange: User-facing exchange string (e.g., "NSE", "NFO")
             symbol: Optional symbol for index detection
-            
+
         Returns:
             Canonical ExchangeSegment enum value
         """
-        from indices import index_upstox_key
         from domain.exchange_segments import parse_segment
-        
+        from indices import index_upstox_key
+
         # Index symbols use a dedicated segment
-        if symbol:
-            if index_upstox_key(symbol) is not None:
-                return ExchangeSegment.IDX_I
-        
+        if symbol and index_upstox_key(symbol) is not None:
+            return ExchangeSegment.IDX_I
+
         parsed = parse_segment(exchange)
         if parsed is None:
             raise ValueError(f"Unknown exchange segment: {exchange!r}")

@@ -15,14 +15,17 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
+import contextlib
+
 from rich.console import Console
 from rich.table import Table
 
 console = Console()
 
 
-def _test_broker_options(name: str, env_filename: str, symbol: str = "NIFTY",
-                         exchange: str = "INDEX") -> bool:
+def _test_broker_options(
+    name: str, env_filename: str, symbol: str = "NIFTY", exchange: str = "INDEX"
+) -> bool:
     console.print("\n[bold cyan]" + "=" * 60)
     console.print(f"[bold]Testing {name} options[/bold]")
     console.print("=" * 60)
@@ -65,7 +68,9 @@ def _test_broker_options(name: str, env_filename: str, symbol: str = "NIFTY",
         try:
             chain = gw.options.get_option_chain(symbol, exchange)
             strikes = chain.get("strikes", []) if isinstance(chain, dict) else []
-            console.print(f"[green]Chain: {len(strikes)} strikes (expiry={chain.get('expiry')})[/green]")
+            console.print(
+                f"[green]Chain: {len(strikes)} strikes (expiry={chain.get('expiry')})[/green]"
+            )
             for strike in strikes[:3]:
                 ce = strike.get("call", {}) if isinstance(strike, dict) else {}
                 pe = strike.get("put", {}) if isinstance(strike, dict) else {}
@@ -82,7 +87,10 @@ def _test_broker_options(name: str, env_filename: str, symbol: str = "NIFTY",
 
         # 3. Per-leg contract quote (best effort)
         try:
-            if results.get("chain", {}).get("status") == "PASS" and results["chain"].get("count", 0) > 0:
+            if (
+                results.get("chain", {}).get("status") == "PASS"
+                and results["chain"].get("count", 0) > 0
+            ):
                 first_ce = strikes[0].get("call", {})
                 ce_sym = first_ce.get("trading_symbol") or first_ce.get("symbol")
                 if ce_sym:
@@ -92,7 +100,10 @@ def _test_broker_options(name: str, env_filename: str, symbol: str = "NIFTY",
                     )
                     results["contract_quote"] = {"status": "PASS", "ltp": float(quote.ltp)}
                 else:
-                    results["contract_quote"] = {"status": "SKIP", "reason": "no CE symbol on chain"}
+                    results["contract_quote"] = {
+                        "status": "SKIP",
+                        "reason": "no CE symbol on chain",
+                    }
             else:
                 results["contract_quote"] = {"status": "SKIP"}
         except Exception as exc:
@@ -106,9 +117,11 @@ def _test_broker_options(name: str, env_filename: str, symbol: str = "NIFTY",
         table.add_column("Details")
         for test_name, result in results.items():
             status = result.get("status", "N/A") if isinstance(result, dict) else str(result)
-            details = ", ".join(
-                f"{k}={v}" for k, v in result.items() if k != "status" and k != "error"
-            ) if isinstance(result, dict) else ""
+            details = (
+                ", ".join(f"{k}={v}" for k, v in result.items() if k != "status" and k != "error")
+                if isinstance(result, dict)
+                else ""
+            )
             style = "green" if status == "PASS" else "yellow" if status == "SKIP" else "red"
             table.add_row(test_name.upper(), f"[{style}]{status}[/{style}]", details[:60])
         console.print(table)
@@ -117,10 +130,8 @@ def _test_broker_options(name: str, env_filename: str, symbol: str = "NIFTY",
             for r in results.values()
         )
     finally:
-        try:
+        with contextlib.suppress(Exception):
             gw.close()
-        except Exception:
-            pass
 
 
 if __name__ == "__main__":

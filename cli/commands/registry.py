@@ -18,8 +18,9 @@ Conventions
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 
 @dataclass
@@ -116,8 +117,8 @@ def reset() -> None:
 
 __all__ = [
     "COMMANDS",
-    "CommandResult",
     "DISPATCH_TABLE",
+    "CommandResult",
     "lookup",
     "lookup_handler",
     "register",

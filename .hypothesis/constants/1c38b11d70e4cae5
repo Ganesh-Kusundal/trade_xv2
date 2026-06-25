@@ -1,4 +1,0 @@
-# file: /workspaces/trade_xv2/cli/commands/analytics_walkforward.py
-# hypothesis_version: 6.155.7
-
-[0.05, 0.5, 100000.0, 100, 500, 10000, '--capital', '--file', '--step-bars', '--symbol', '--test-bars', '--train-bars', '1min', '2026-01-02 09:15', 'PnL', 'Sharpe', 'TEST', 'Window', 'close', 'high', 'low', 'open', 'right', 'timestamp', 'volume', 'window']

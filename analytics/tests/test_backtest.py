@@ -30,14 +30,16 @@ def trending_data() -> pd.DataFrame:
     down = up[-1] - np.cumsum(np.abs(np.random.randn(100)) * 1.2)
     close = np.concatenate([up, down])
     volume = np.random.randint(200000, 800000, n).astype(float)
-    return pd.DataFrame({
-        "timestamp": dates,
-        "open": close - np.random.rand(n),
-        "high": close + np.random.rand(n) * 3,
-        "low": close - np.random.rand(n) * 3,
-        "close": close,
-        "volume": volume,
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": dates,
+            "open": close - np.random.rand(n),
+            "high": close + np.random.rand(n) * 3,
+            "low": close - np.random.rand(n) * 3,
+            "close": close,
+            "volume": volume,
+        }
+    )
 
 
 @pytest.fixture
@@ -47,14 +49,16 @@ def benchmark_data() -> pd.DataFrame:
     n = 200
     dates = pd.date_range("2026-01-01", periods=n, freq="D")
     close = 20000 + np.cumsum(np.random.randn(n) * 50)
-    return pd.DataFrame({
-        "timestamp": dates,
-        "open": close - 10,
-        "high": close + 20,
-        "low": close - 20,
-        "close": close,
-        "volume": np.random.randint(1000000, 5000000, n).astype(float),
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": dates,
+            "open": close - 10,
+            "high": close + 20,
+            "low": close - 20,
+            "close": close,
+            "volume": np.random.randint(1000000, 5000000, n).astype(float),
+        }
+    )
 
 
 @pytest.fixture
@@ -95,9 +99,36 @@ class TestTradeAnalysis:
 
     def test_analyze_trades_computes_metrics(self) -> None:
         trades = [
-            SimulatedTrade(symbol="A", side="BUY", entry_price=100, exit_price=110, quantity=100, pnl=1000, pnl_pct=10.0, strategy="Momentum"),
-            SimulatedTrade(symbol="B", side="BUY", entry_price=100, exit_price=95, quantity=100, pnl=-500, pnl_pct=-5.0, strategy="Momentum"),
-            SimulatedTrade(symbol="C", side="BUY", entry_price=100, exit_price=115, quantity=100, pnl=1500, pnl_pct=15.0, strategy="Breakout"),
+            SimulatedTrade(
+                symbol="A",
+                side="BUY",
+                entry_price=100,
+                exit_price=110,
+                quantity=100,
+                pnl=1000,
+                pnl_pct=10.0,
+                strategy="Momentum",
+            ),
+            SimulatedTrade(
+                symbol="B",
+                side="BUY",
+                entry_price=100,
+                exit_price=95,
+                quantity=100,
+                pnl=-500,
+                pnl_pct=-5.0,
+                strategy="Momentum",
+            ),
+            SimulatedTrade(
+                symbol="C",
+                side="BUY",
+                entry_price=100,
+                exit_price=115,
+                quantity=100,
+                pnl=1500,
+                pnl_pct=15.0,
+                strategy="Breakout",
+            ),
         ]
         engine = BacktestEngine(FeaturePipeline())
         analysis = engine._analyze_trades(trades)
@@ -118,7 +149,9 @@ class TestTradeAnalysis:
 
 
 class TestBacktestEngine:
-    def test_run_returns_result(self, trending_data: pd.DataFrame, pipeline: FeaturePipeline) -> None:
+    def test_run_returns_result(
+        self, trending_data: pd.DataFrame, pipeline: FeaturePipeline
+    ) -> None:
         engine = BacktestEngine(pipeline, config=BacktestConfig(warmup_bars=20))
         result = engine.run(trending_data, symbol="TEST")
         assert isinstance(result, BacktestResult)
@@ -134,16 +167,31 @@ class TestBacktestEngine:
         assert isinstance(m.sortino_ratio, float)
         assert isinstance(m.max_drawdown, float)
 
-    def test_summary_has_all_fields(self, trending_data: pd.DataFrame, pipeline: FeaturePipeline) -> None:
+    def test_summary_has_all_fields(
+        self, trending_data: pd.DataFrame, pipeline: FeaturePipeline
+    ) -> None:
         engine = BacktestEngine(pipeline, config=BacktestConfig(warmup_bars=20))
         result = engine.run(trending_data, symbol="TEST")
         s = result.summary
         expected_keys = {
-            "bars_processed", "total_trades", "win_rate", "profit_factor",
-            "total_return_pct", "cagr", "sharpe_ratio", "sortino_ratio",
-            "calmar_ratio", "max_drawdown_pct", "max_drawdown_duration",
-            "volatility", "alpha", "beta", "information_ratio",
-            "final_equity", "avg_holding_bars", "max_consecutive_wins",
+            "bars_processed",
+            "total_trades",
+            "win_rate",
+            "profit_factor",
+            "total_return_pct",
+            "cagr",
+            "sharpe_ratio",
+            "sortino_ratio",
+            "calmar_ratio",
+            "max_drawdown_pct",
+            "max_drawdown_duration",
+            "volatility",
+            "alpha",
+            "beta",
+            "information_ratio",
+            "final_equity",
+            "avg_holding_bars",
+            "max_consecutive_wins",
             "max_consecutive_losses",
         }
         assert expected_keys.issubset(set(s.keys()))
@@ -173,7 +221,9 @@ class TestBacktestEngine:
         assert result.replay.bars_processed == 0
         assert result.metrics.trade_analysis.total_trades == 0
 
-    def test_max_drawdown_non_negative(self, trending_data: pd.DataFrame, pipeline: FeaturePipeline) -> None:
+    def test_max_drawdown_non_negative(
+        self, trending_data: pd.DataFrame, pipeline: FeaturePipeline
+    ) -> None:
         engine = BacktestEngine(pipeline, config=BacktestConfig(warmup_bars=20))
         result = engine.run(trending_data, symbol="TEST")
         assert result.metrics.max_drawdown >= 0
@@ -216,6 +266,7 @@ class TestBacktestEngine:
 class TestAnalyticsFacade:
     def test_analytics_has_backtest(self) -> None:
         from analytics import Analytics
+
         a = Analytics()
         try:
             engine = a.backtest()

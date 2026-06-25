@@ -11,6 +11,7 @@ This package splits the monolithic constants.py into focused sub-modules:
 All constants are re-exported here to maintain backward compatibility with
 existing imports from ``brokers.common.core.constants``.
 """
+
 from __future__ import annotations
 
 from domain.constants.auth import (

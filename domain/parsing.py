@@ -87,7 +87,7 @@ def parse_timestamp(value: Any) -> datetime | None:
     if not value:
         return None
 
-    if isinstance(value, (int, float)):
+    if isinstance(value, int | float):
         try:
             return datetime.fromtimestamp(float(value))
         except (ValueError, OSError, OverflowError):

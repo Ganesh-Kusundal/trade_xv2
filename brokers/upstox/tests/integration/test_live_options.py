@@ -22,12 +22,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "..
 # ---------------------------------------------------------------------------
 # Skip guard — credentials, token expiry, market hours
 # ---------------------------------------------------------------------------
-ENV_PATH = (
-    Path(__file__).resolve().parent.parent.parent.parent.parent / ".env.upstox"
-)
+ENV_PATH = Path(__file__).resolve().parent.parent.parent.parent.parent / ".env.upstox"
 _live_env_loaded = False
 if ENV_PATH.exists() and ENV_PATH.stat().st_size > 0:
     from dotenv import load_dotenv
+
     load_dotenv(ENV_PATH, override=True)
     _live_env_loaded = bool(
         os.environ.get("UPSTOX_API_KEY") and os.environ.get("UPSTOX_ACCESS_TOKEN")
@@ -42,6 +41,7 @@ def _should_skip_live() -> bool:
     token = os.environ.get("UPSTOX_ACCESS_TOKEN", "")
     try:
         from brokers.common.auth.jwt_expiry import JwtExpiry
+
         exp_ms = JwtExpiry.parse_expiry_epoch_ms(token)
         if exp_ms > 0 and exp_ms < time.time() * 1000:
             return True
@@ -49,6 +49,7 @@ def _should_skip_live() -> bool:
         pass
     try:
         from tests.market_hours import is_market_open
+
         return not is_market_open()
     except Exception:
         # If market_hours is unavailable (e.g. not in test collection), run.
@@ -64,6 +65,7 @@ skip_live = pytest.mark.skipif(
 @pytest.fixture(scope="module")
 def gateway():
     from brokers.upstox.factory import UpstoxBrokerFactory
+
     gw = UpstoxBrokerFactory().create(env_path=ENV_PATH, load_instruments=True)
     yield gw
     gw.close()
@@ -78,6 +80,7 @@ class TestLiveUpstoxOptions:
         assert len(expiries) > 0
         # All expiries are valid ISO dates and at least one is in the future.
         from datetime import date
+
         today = date.today().isoformat()
         assert any(e >= today for e in expiries), (
             f"Expected at least one future expiry, got {expiries!r}"

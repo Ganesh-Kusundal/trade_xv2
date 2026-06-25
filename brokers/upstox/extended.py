@@ -19,7 +19,6 @@ Usage::
 
 from __future__ import annotations
 
-import warnings
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -81,7 +80,9 @@ class UpstoxExtendedCapabilities:
         if self._broker.settings.analytics_only:
             raise RuntimeError("Analytics-only mode: live payouts are blocked.")
         if not self._broker.settings.allow_live_orders:
-            raise RuntimeError("Live payouts are disabled. Set allow_live_orders=True in configuration.")
+            raise RuntimeError(
+                "Live payouts are disabled. Set allow_live_orders=True in configuration."
+            )
         return self._broker.payments.initiate_payout(payload)
 
     def get_payouts(self) -> list[dict[str, Any]]:
@@ -141,7 +142,9 @@ class UpstoxExtendedCapabilities:
         if self._broker.settings.analytics_only:
             raise RuntimeError("Analytics-only mode: live mutual fund orders are blocked.")
         if not self._broker.settings.allow_live_orders:
-            raise RuntimeError("Live mutual fund orders are disabled. Set allow_live_orders=True in configuration.")
+            raise RuntimeError(
+                "Live mutual fund orders are disabled. Set allow_live_orders=True in configuration."
+            )
         return self._broker.mutual_funds.place_order(payload)
 
     # ── Fundamentals ───────────────────────────────────────────────────

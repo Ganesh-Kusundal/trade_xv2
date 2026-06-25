@@ -1,4 +1,0 @@
-# file: /workspaces/trade_xv2/brokers/dhan/resolver.py
-# hypothesis_version: 6.155.7
-
-[0.0, 0.01, 100, ' CALL', ' CE', ' PE', ' PUT', '%Y', '%Y-%m-%d', '%b', '%d', '%y', '-', '0', '0.05', '1', '2', '3', '4', '5', '6', '7', '8', '9', '9999-12-31', 'BSE_CURRENCY', 'BSE_FNO', 'C', 'CALL', 'CE', 'D', 'EQUITY', 'FUT', 'FUTCOM', 'FUTCUR', 'FUTIDX', 'FUTSTK', 'FUTURE', 'INDEX', 'MCX_COMM', 'N', 'NSE_CURRENCY', 'NSE_FNO', 'O', 'OPT', 'OPTCOM', 'OPTCUR', 'OPTFUT', 'OPTIDX', 'OPTION', 'OPTSTK', 'PE', 'PUT', 'SEM_CUSTOM_SYMBOL', 'SEM_EXM_EXCH_ID', 'SEM_EXPIRY_DATE', 'SEM_INSTRUMENT_NAME', 'SEM_LOT_UNITS', 'SEM_OPTION_TYPE', 'SEM_SMST_SECURITY_ID', 'SEM_STRIKE_PRICE', 'SEM_TICK_SIZE', 'SEM_TRADING_SYMBOL', 'SM_SYMBOL_NAME', '_', 'loaded', 'name', 'rate', 'security_id', 'skip_rate', 'skipped', 'symbol', 'total']

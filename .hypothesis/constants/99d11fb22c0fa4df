@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/brokers/upstox/market_data/futures.py
-# hypothesis_version: 6.155.7
-
-['BANKEX', 'BANKNIFTY', 'CRUDE', 'CRUDEOIL', 'FINNIFTY', 'GOLD', 'MIDCPNIFTY', 'NATURALGAS', 'NFO', 'NIFTY', 'SENSEX', 'SILVER', 'data', 'exchange_segment', 'expiry', 'instrument_key', 'lot_size', 'symbol', 'trading_symbol', 'underlying']

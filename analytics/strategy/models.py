@@ -46,7 +46,7 @@ class SignalType(str, Enum):
 
 class StrategyState(str, Enum):
     """Strategy lifecycle states.
-    
+
     Transitions:
     - INACTIVE → ACTIVE (activate strategy)
     - ACTIVE → PAUSED (temporarily disable)
@@ -55,17 +55,17 @@ class StrategyState(str, Enum):
     - PAUSED → DISABLED (disable from paused state)
     - DISABLED → {} (terminal state)
     """
-    
+
     INACTIVE = "INACTIVE"
     ACTIVE = "ACTIVE"
     PAUSED = "PAUSED"
     DISABLED = "DISABLED"
-    
+
     @property
     def is_active(self) -> bool:
         """True if strategy is active and can generate signals."""
         return self == StrategyState.ACTIVE
-    
+
     @property
     def is_terminal(self) -> bool:
         """True if strategy is disabled (cannot transition further)."""
@@ -98,7 +98,7 @@ class Signal:
     target:
         Suggested target price.  ``None`` if not applicable.
     position_size_pct:
-        Suggested position size as % of capital (0–100).  0 = no sizing.
+        Suggested position size as % of capital (0-100).  0 = no sizing.
     reasons:
         Human-readable list of reasons behind the signal.
     timestamp:

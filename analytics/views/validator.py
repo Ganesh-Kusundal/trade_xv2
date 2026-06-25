@@ -43,6 +43,7 @@ VALID_VIEWS = [
 @dataclass
 class ValidationReport:
     """Report from point-in-time validation."""
+
     view_name: str
     is_valid: bool = True
     issues: list[str] = field(default_factory=list)
@@ -110,13 +111,12 @@ class PointInTimeValidator:
     def _check_no_future_data(self, view_name: str, report: ValidationReport) -> None:
         """Check that no view contains data from the future."""
         try:
-            result = self._conn.execute(f"""
-                SELECT
-                    MAX(timestamp) as max_ts,
-                    MAX(CAST(timestamp AS DATE)) as max_date
-                FROM {view_name}
-                WHERE timestamp IS NOT NULL
-            """).fetchone()
+            result = self._conn.execute(
+                "SELECT MAX(timestamp) as max_ts, "  # noqa: S608
+                "MAX(CAST(timestamp AS DATE)) as max_date "
+                f"FROM {view_name} "
+                "WHERE timestamp IS NOT NULL"
+            ).fetchone()
 
             if result and result[0]:
                 max_ts = result[0]
@@ -127,30 +127,94 @@ class PointInTimeValidator:
                             f"Future data detected: max timestamp {max_ts} > now {now}"
                         )
         except Exception as exc:
-            logger.debug("temporal_validation_failed: %s: %s", view_name, exc)  # View may not have timestamp column
+            logger.debug(
+                "temporal_validation_failed: %s: %s", view_name, exc
+            )  # View may not have timestamp column
+
+        # Check published_at <= now (if column exists)
+        if self._column_exists(view_name, "published_at"):
+            try:
+                result = self._conn.execute(
+                    "SELECT MAX(published_at) as max_pub "  # noqa: S608
+                    f"FROM {view_name} "
+                    "WHERE published_at IS NOT NULL"
+                ).fetchone()
+                if result and result[0]:
+                    max_pub = result[0]
+                    if isinstance(max_pub, datetime) and max_pub > datetime.now():
+                        report.add_issue(
+                            f"Future published_at detected: max {max_pub}"
+                        )
+            except Exception as exc:
+                logger.debug("published_at_check_failed: %s: %s", view_name, exc)
+
+        # Check ingested_at <= now (if column exists)
+        if self._column_exists(view_name, "ingested_at"):
+            try:
+                result = self._conn.execute(
+                    "SELECT MAX(ingested_at) as max_ing "  # noqa: S608
+                    f"FROM {view_name} "
+                    "WHERE ingested_at IS NOT NULL"
+                ).fetchone()
+                if result and result[0]:
+                    max_ing = result[0]
+                    if isinstance(max_ing, datetime) and max_ing > datetime.now():
+                        report.add_issue(
+                            f"Future ingested_at detected: max {max_ing}"
+                        )
+            except Exception as exc:
+                logger.debug("ingested_at_check_failed: %s: %s", view_name, exc)
+
+        # Check published_at >= event_time (data can't be published before it occurred)
+        if self._column_exists(view_name, "published_at") and self._column_exists(
+            view_name, "event_time"
+        ):
+            try:
+                result = self._conn.execute(
+                    "SELECT COUNT(*) as violations FROM ("  # noqa: S608
+                    f"SELECT 1 FROM {view_name} "
+                    "WHERE published_at IS NOT NULL "
+                    "AND event_time IS NOT NULL "
+                    "AND published_at < event_time"
+                    ") AS sub"
+                ).fetchone()
+                if result and result[0] > 0:
+                    report.add_issue(
+                        f"Temporal violation: {result[0]} rows with published_at < event_time"
+                    )
+            except Exception as exc:
+                logger.debug("temporal_ordering_check_failed: %s: %s", view_name, exc)
+
+    def _column_exists(self, view_name: str, column: str) -> bool:
+        """Check if a column exists in a view."""
+        try:
+            result = self._conn.execute(
+                "SELECT COUNT(*) FROM information_schema.columns "
+                "WHERE table_name = ? AND column_name = ? AND table_schema = 'main'",
+                [view_name.lower(), column.lower()],
+            ).fetchone()
+            return result is not None and result[0] > 0
+        except Exception:
+            return False
 
     def _check_temporal_ordering(self, view_name: str, report: ValidationReport) -> None:
         """Check that data is temporally ordered."""
         try:
-            result = self._conn.execute(f"""
-                SELECT COUNT(*) as out_of_order
-                FROM (
-                    SELECT
-                        symbol,
-                        timestamp,
-                        LAG(timestamp) OVER (PARTITION BY symbol ORDER BY timestamp) as prev_ts
-                    FROM {view_name}
-                    WHERE symbol IS NOT NULL AND timestamp IS NOT NULL
-                )
-                WHERE timestamp < prev_ts
-            """).fetchone()
+            result = self._conn.execute(
+                "SELECT COUNT(*) as out_of_order FROM ("  # noqa: S608
+                "SELECT symbol, timestamp, "
+                "LAG(timestamp) OVER (PARTITION BY symbol ORDER BY timestamp) as prev_ts "
+                f"FROM {view_name} "
+                "WHERE symbol IS NOT NULL AND timestamp IS NOT NULL"
+                ") WHERE timestamp < prev_ts"
+            ).fetchone()
 
             if result and result[0] > 0:
-                report.add_issue(
-                    f"Temporal ordering violation: {result[0]} rows out of order"
-                )
+                report.add_issue(f"Temporal ordering violation: {result[0]} rows out of order")
         except Exception as exc:
-            logger.debug("temporal_ordering_check_failed: %s: %s", view_name, exc)  # View may not have required columns
+            logger.debug(
+                "temporal_ordering_check_failed: %s: %s", view_name, exc
+            )  # View may not have required columns
 
     def _check_feature_lag(self, view_name: str, report: ValidationReport) -> None:
         """Check that features use only past data (no look-ahead)."""

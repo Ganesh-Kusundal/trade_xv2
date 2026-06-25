@@ -11,7 +11,6 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Generic, TypeVar
 
-from domain.constants import MAX_RETRY_DELAY_MS
 from brokers.common.resilience.backoff import BackoffStrategy, ExponentialBackoff
 from brokers.common.resilience.circuit_breaker import CircuitBreaker
 from brokers.common.resilience.errors import (
@@ -20,7 +19,8 @@ from brokers.common.resilience.errors import (
     RetryableError,
 )
 from brokers.common.resilience.rate_limiter import MultiBucketRateLimiter
-from brokers.common.resilience.retry import DEFAULT_RETRYABLE_EXCEPTIONS, RetryConfig
+from brokers.common.resilience.retry import RetryConfig
+from domain.constants import MAX_RETRY_DELAY_MS
 
 T = TypeVar("T")
 

@@ -48,7 +48,6 @@ from __future__ import annotations
 import logging
 from collections import deque
 from decimal import Decimal
-from typing import TYPE_CHECKING
 
 import pandas as pd
 
@@ -65,8 +64,8 @@ from analytics.scanner.models import Candidate
 from analytics.strategy.models import Signal
 from analytics.strategy.pipeline import StrategyPipeline
 from domain.execution import compute_order_quantity
-from domain.runtime_hooks import create_oms_backtest_adapter
 from domain.ports.oms_backtest_adapter import OmsBacktestAdapterPort
+from domain.runtime_hooks import create_oms_backtest_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -157,7 +156,9 @@ class ReplayEngine:
 
         # P5.2: Avoid full DataFrame copy — work with view where possible
         df = data
-        ts_col = "timestamp" if "timestamp" in df.columns else "date" if "date" in df.columns else None
+        ts_col = (
+            "timestamp" if "timestamp" in df.columns else "date" if "date" in df.columns else None
+        )
         if ts_col is None:
             raise ValueError("Data must have a 'timestamp' or 'date' column")
 
@@ -313,7 +314,7 @@ class ReplayEngine:
         all_signals = []
         all_trades = []
         all_equity = []
-        for sym, s in sessions_per_symbol.items():
+        for _sym, s in sessions_per_symbol.items():
             all_signals.extend(s.signals)
             all_trades.extend(s.trades)
             all_equity.extend(s.equity_curve)
@@ -355,7 +356,6 @@ class ReplayEngine:
             return
 
         self._process_signal_via_oms(signal, bar, session, config)
-    
 
     def _process_signal_via_oms(
         self,
@@ -446,19 +446,21 @@ class ReplayEngine:
         pnl_pct = ((exit_price / pos.entry_price) - 1) * 100 if pos.entry_price > 0 else 0.0
 
         session.capital += pos.quantity * exit_price - self._config.commission_flat
-        session.trades.append(SimulatedTrade(
-            symbol=pos.symbol,
-            side=pos.side,
-            entry_price=pos.entry_price,
-            exit_price=exit_price,
-            quantity=pos.quantity,
-            entry_time=pos.entry_time,
-            exit_time=bar.timestamp,
-            pnl=pnl,
-            pnl_pct=pnl_pct,
-            strategy=pos.strategy,
-            reasons=[reason],
-        ))
+        session.trades.append(
+            SimulatedTrade(
+                symbol=pos.symbol,
+                side=pos.side,
+                entry_price=pos.entry_price,
+                exit_price=exit_price,
+                quantity=pos.quantity,
+                entry_time=pos.entry_time,
+                exit_time=bar.timestamp,
+                pnl=pnl,
+                pnl_pct=pnl_pct,
+                strategy=pos.strategy,
+                reasons=[reason],
+            )
+        )
         session.position = None
 
     def _close_position_at_price(
@@ -507,19 +509,21 @@ class ReplayEngine:
         pnl_pct = ((exit_price / pos.entry_price) - 1) * 100 if pos.entry_price > 0 else 0.0
 
         session.capital += exit_price * pos.quantity - self._config.commission_flat
-        session.trades.append(SimulatedTrade(
-            symbol=pos.symbol,
-            side=pos.side,
-            entry_price=pos.entry_price,
-            exit_price=exit_price,
-            quantity=pos.quantity,
-            entry_time=pos.entry_time,
-            exit_time=bar.timestamp,
-            pnl=pnl,
-            pnl_pct=pnl_pct,
-            strategy=pos.strategy,
-            reasons=[reason],
-        ))
+        session.trades.append(
+            SimulatedTrade(
+                symbol=pos.symbol,
+                side=pos.side,
+                entry_price=pos.entry_price,
+                exit_price=exit_price,
+                quantity=pos.quantity,
+                entry_time=pos.entry_time,
+                exit_time=bar.timestamp,
+                pnl=pnl,
+                pnl_pct=pnl_pct,
+                strategy=pos.strategy,
+                reasons=[reason],
+            )
+        )
         session.position = None
 
     def _publish_signal(self, signal: Signal) -> None:
@@ -539,7 +543,9 @@ class ReplayEngine:
                 payload={
                     "symbol": signal.symbol,
                     "strategy": signal.strategy,
-                    "signal_type": signal.signal_type.value if hasattr(signal.signal_type, "value") else str(signal.signal_type),
+                    "signal_type": signal.signal_type.value
+                    if hasattr(signal.signal_type, "value")
+                    else str(signal.signal_type),
                     "score": getattr(signal, "score", None),
                     "confidence": getattr(signal, "confidence", None),
                 },

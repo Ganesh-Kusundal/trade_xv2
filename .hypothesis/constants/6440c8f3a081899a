@@ -1,4 +1,0 @@
-# file: /workspaces/trade_xv2/analytics/indicators/halftrend.py
-# hypothesis_version: 6.155.7
-
-[1.0, 'BUY', 'HOLD', 'SELL', 'U10', 'close', 'halftrend', 'halftrend_direction', 'halftrend_signal', 'high', 'low']

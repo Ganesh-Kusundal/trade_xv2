@@ -27,7 +27,6 @@ from cli.commands.doctor.strategies import (
     PortfolioCheck,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -46,7 +45,7 @@ def mock_gateway():
     """Create a comprehensive mock gateway."""
     gw = MagicMock()
     gw.describe.return_value = {"type": "live", "name": "Dhan", "version": "1.0"}
-    
+
     # Capabilities
     caps = MagicMock()
     caps.websocket = True
@@ -57,7 +56,7 @@ def mock_gateway():
     caps.rate_limit_per_second = 10
     caps.rate_limit_per_minute = 500
     gw.capabilities.return_value = caps
-    
+
     return gw
 
 
@@ -95,10 +94,11 @@ class TestCheckStrategyProtocol:
 
     def test_protocol_requires_execute(self):
         """Verify CheckStrategy protocol requires execute method."""
+
         class ValidStrategy:
             def execute(self, broker_service) -> list[CheckResult]:
                 return [CheckResult("Test", "PASS")]
-        
+
         # Should not raise
         strategy: CheckStrategy = ValidStrategy()
         results = strategy.execute(None)
@@ -111,7 +111,7 @@ class TestCheckStrategyProtocol:
                     CheckResult("Check1", "PASS", "OK"),
                     CheckResult("Check2", "FAIL", "Error"),
                 ]
-        
+
         strategy: CheckStrategy = ValidStrategy()
         results = strategy.execute(None)
         assert all(isinstance(r, CheckResult) for r in results)
@@ -126,45 +126,53 @@ class TestBrokerRegistryCheck:
     """Tests for BrokerRegistryCheck strategy."""
 
     def test_success_with_brokers(self):
-        with patch("cli.commands.doctor.strategies.broker_registry.list_available_brokers") as mock_list:
+        with patch(
+            "cli.commands.doctor.strategies.broker_registry.list_available_brokers"
+        ) as mock_list:
             mock_list.return_value = [
                 {"name": "dhan", "env_file": ".env.local", "available": True},
                 {"name": "paper", "env_file": None, "available": True},
             ]
             strategy = BrokerRegistryCheck()
             results = strategy.execute(None)
-            
+
             assert len(results) >= 1
             assert results[0].name == "Registered Brokers"
             assert results[0].status == "PASS"
 
     def test_empty_registry(self):
-        with patch("cli.commands.doctor.strategies.broker_registry.list_available_brokers", return_value=[]):
+        with patch(
+            "cli.commands.doctor.strategies.broker_registry.list_available_brokers", return_value=[]
+        ):
             strategy = BrokerRegistryCheck()
             results = strategy.execute(None)
-            
+
             assert len(results) == 1
             assert results[0].status == "FAIL"
 
     def test_paper_broker_info(self):
-        with patch("cli.commands.doctor.strategies.broker_registry.list_available_brokers") as mock_list:
+        with patch(
+            "cli.commands.doctor.strategies.broker_registry.list_available_brokers"
+        ) as mock_list:
             mock_list.return_value = [
                 {"name": "paper", "env_file": None, "available": True},
             ]
             strategy = BrokerRegistryCheck()
             results = strategy.execute(None)
-            
+
             # Should have INFO status for paper broker
             assert any(r.status == "INFO" for r in results)
 
     def test_missing_env_file_warns(self):
-        with patch("cli.commands.doctor.strategies.broker_registry.list_available_brokers") as mock_list:
+        with patch(
+            "cli.commands.doctor.strategies.broker_registry.list_available_brokers"
+        ) as mock_list:
             mock_list.return_value = [
                 {"name": "dhan", "env_file": ".env.local", "available": False},
             ]
             strategy = BrokerRegistryCheck()
             results = strategy.execute(None)
-            
+
             assert any(r.status == "WARN" for r in results)
 
 
@@ -179,8 +187,12 @@ class TestGatewayCreationCheck:
     def test_success(self):
         from brokers.common.connection.bootstrap_result import BootstrapResult, BootstrapStatus
 
-        with patch("cli.commands.doctor.strategies.gateway_creation.list_available_brokers") as mock_list, \
-             patch("cli.commands.doctor.strategies.gateway_creation.bootstrap_gateway") as mock_boot:
+        with (
+            patch(
+                "cli.commands.doctor.strategies.gateway_creation.list_available_brokers"
+            ) as mock_list,
+            patch("cli.commands.doctor.strategies.gateway_creation.bootstrap_gateway") as mock_boot,
+        ):
             mock_list.return_value = [
                 {"name": "dhan", "env_file": ".env.local", "available": True},
             ]
@@ -199,8 +211,15 @@ class TestGatewayCreationCheck:
             assert any(r.status == "PASS" for r in results)
 
     def test_failure_raises_exception(self):
-        with patch("cli.commands.doctor.strategies.gateway_creation.list_available_brokers") as mock_list, \
-             patch("cli.commands.doctor.strategies.gateway_creation.bootstrap_gateway", side_effect=Exception("Config error")):
+        with (
+            patch(
+                "cli.commands.doctor.strategies.gateway_creation.list_available_brokers"
+            ) as mock_list,
+            patch(
+                "cli.commands.doctor.strategies.gateway_creation.bootstrap_gateway",
+                side_effect=Exception("Config error"),
+            ),
+        ):
             mock_list.return_value = [
                 {"name": "dhan", "env_file": ".env.local", "available": True},
             ]
@@ -213,8 +232,12 @@ class TestGatewayCreationCheck:
     def test_bootstrap_failed(self):
         from brokers.common.connection.bootstrap_result import BootstrapResult, BootstrapStatus
 
-        with patch("cli.commands.doctor.strategies.gateway_creation.list_available_brokers") as mock_list, \
-             patch("cli.commands.doctor.strategies.gateway_creation.bootstrap_gateway") as mock_boot:
+        with (
+            patch(
+                "cli.commands.doctor.strategies.gateway_creation.list_available_brokers"
+            ) as mock_list,
+            patch("cli.commands.doctor.strategies.gateway_creation.bootstrap_gateway") as mock_boot,
+        ):
             mock_list.return_value = [
                 {"name": "dhan", "env_file": ".env.local", "available": True},
             ]
@@ -230,14 +253,16 @@ class TestGatewayCreationCheck:
             assert any(r.status == "FAIL" for r in results)
 
     def test_paper_broker_skipped(self):
-        with patch("cli.commands.doctor.strategies.gateway_creation.list_available_brokers") as mock_list:
+        with patch(
+            "cli.commands.doctor.strategies.gateway_creation.list_available_brokers"
+        ) as mock_list:
             mock_list.return_value = [
                 {"name": "paper", "env_file": None, "available": True},
             ]
-            
+
             strategy = GatewayCreationCheck()
             results = strategy.execute(None)
-            
+
             assert any(r.status == "INFO" for r in results)
 
 
@@ -251,17 +276,17 @@ class TestActiveBrokerCheck:
 
     def test_success(self, mock_broker_service, mock_gateway):
         mock_broker_service.active_broker = mock_gateway
-        
+
         strategy = ActiveBrokerCheck()
         results = strategy.execute(mock_broker_service)
-        
+
         assert any(r.name == "Active Broker" and r.status == "PASS" for r in results)
         assert any(r.name == "  Capabilities" for r in results)
 
     def test_no_broker_service(self):
         strategy = ActiveBrokerCheck()
         results = strategy.execute(None)
-        
+
         assert len(results) == 1
         assert results[0].status == "FAIL"
 
@@ -269,10 +294,10 @@ class TestActiveBrokerCheck:
         mock_broker_service.active_broker_name = "dhan"
         mock_broker_service.active_broker = MagicMock()
         mock_broker_service.active_broker.describe.side_effect = Exception("Connection lost")
-        
+
         strategy = ActiveBrokerCheck()
         results = strategy.execute(mock_broker_service)
-        
+
         assert any(r.status == "FAIL" for r in results)
 
 
@@ -287,25 +312,25 @@ class TestInstrumentCatalogCheck:
     def test_search_success(self, mock_broker_service):
         mock_broker_service.active_broker = MagicMock()
         mock_broker_service.active_broker.search.return_value = [{"symbol": "RELIANCE"}]
-        
+
         strategy = InstrumentCatalogCheck()
         results = strategy.execute(mock_broker_service)
-        
+
         assert any(r.name == "Instrument Search" and r.status == "PASS" for r in results)
 
     def test_search_empty(self, mock_broker_service):
         mock_broker_service.active_broker = MagicMock()
         mock_broker_service.active_broker.search.return_value = []
-        
+
         strategy = InstrumentCatalogCheck()
         results = strategy.execute(mock_broker_service)
-        
+
         assert any(r.name == "Instrument Search" and r.status == "WARN" for r in results)
 
     def test_no_broker_service(self):
         strategy = InstrumentCatalogCheck()
         results = strategy.execute(None)
-        
+
         assert any(r.status == "FAIL" for r in results)
 
 
@@ -327,10 +352,10 @@ class TestMarketDataCheck:
         quote.close = 2440.00
         quote.volume = 1500000
         mock_broker_service.active_broker.quote.return_value = quote
-        
+
         strategy = MarketDataCheck()
         results = strategy.execute(mock_broker_service)
-        
+
         assert any(r.name == "Quote" and r.status == "PASS" for r in results)
 
     def test_quote_ltp_zero(self, mock_broker_service):
@@ -338,10 +363,10 @@ class TestMarketDataCheck:
         quote = MagicMock()
         quote.ltp = 0
         mock_broker_service.active_broker.quote.return_value = quote
-        
+
         strategy = MarketDataCheck()
         results = strategy.execute(mock_broker_service)
-        
+
         assert any(r.name == "Quote" and r.status == "WARN" for r in results)
 
     def test_quick_mode_skips_depth(self, mock_broker_service):
@@ -349,17 +374,17 @@ class TestMarketDataCheck:
         quote = MagicMock()
         quote.ltp = 2450.50
         mock_broker_service.active_broker.quote.return_value = quote
-        
+
         strategy = MarketDataCheck(quick_mode=True)
         results = strategy.execute(mock_broker_service)
-        
+
         assert any(r.name == "Market Depth" and r.status == "INFO" for r in results)
         assert any(r.name == "Historical Data" and r.status == "INFO" for r in results)
 
     def test_no_broker_service(self):
         strategy = MarketDataCheck()
         results = strategy.execute(None)
-        
+
         assert any(r.status == "FAIL" for r in results)
 
 
@@ -375,10 +400,10 @@ class TestOrderAPICheck:
         mock_broker_service.active_broker = MagicMock()
         mock_broker_service.active_broker.get_orderbook.return_value = []
         mock_broker_service.active_broker.get_trade_book.return_value = []
-        
+
         strategy = OrderAPICheck()
         results = strategy.execute(mock_broker_service)
-        
+
         assert any(r.name == "Order Book" and r.status == "PASS" for r in results)
         assert any(r.name == "Trade Book" and r.status == "PASS" for r in results)
 
@@ -386,16 +411,16 @@ class TestOrderAPICheck:
         mock_broker_service.active_broker = MagicMock()
         mock_broker_service.active_broker.get_orderbook.side_effect = Exception("API down")
         mock_broker_service.active_broker.get_trade_book.return_value = []
-        
+
         strategy = OrderAPICheck()
         results = strategy.execute(mock_broker_service)
-        
+
         assert any(r.name == "Order Book" and r.status == "FAIL" for r in results)
 
     def test_no_broker_service(self):
         strategy = OrderAPICheck()
         results = strategy.execute(None)
-        
+
         assert any(r.status == "FAIL" for r in results)
 
 
@@ -415,10 +440,10 @@ class TestPortfolioCheck:
         funds.available_balance = 100000.0
         funds.sod_limit = 50000.0
         mock_broker_service.active_broker.funds.return_value = funds
-        
+
         strategy = PortfolioCheck()
         results = strategy.execute(mock_broker_service)
-        
+
         assert any(r.name == "Positions" and r.status == "PASS" for r in results)
         assert any(r.name == "Holdings" and r.status == "PASS" for r in results)
         assert any(r.name == "Funds" and r.status == "PASS" for r in results)
@@ -430,16 +455,16 @@ class TestPortfolioCheck:
         funds = MagicMock()
         funds.available_balance = None
         mock_broker_service.active_broker.funds.return_value = funds
-        
+
         strategy = PortfolioCheck()
         results = strategy.execute(mock_broker_service)
-        
+
         assert any(r.name == "Funds" and r.status == "WARN" for r in results)
 
     def test_no_broker_service(self):
         strategy = PortfolioCheck()
         results = strategy.execute(None)
-        
+
         assert any(r.status == "FAIL" for r in results)
 
 
@@ -456,10 +481,10 @@ class TestLifecycleCheck:
             "service1": {"state": "HEALTHY", "detail": "OK"},
             "service2": {"state": "HEALTHY", "metrics": {"count": 5}},
         }
-        
+
         strategy = LifecycleCheck()
         results = strategy.execute(mock_broker_service)
-        
+
         assert any(r.name == "Lifecycle" and r.status == "PASS" for r in results)
         assert len(results) >= 3  # Summary + 2 services
 
@@ -468,34 +493,34 @@ class TestLifecycleCheck:
             "service1": {"state": "HEALTHY"},
             "service2": {"state": "DEGRADED", "detail": "High latency"},
         }
-        
+
         strategy = LifecycleCheck()
         results = strategy.execute(mock_broker_service)
-        
+
         assert any(r.name == "Lifecycle" and r.status == "WARN" for r in results)
 
     def test_failed_service(self, mock_broker_service):
         mock_broker_service.lifecycle.health_snapshot.return_value = {
             "service1": {"state": "FAILED", "detail": "Connection lost"},
         }
-        
+
         strategy = LifecycleCheck()
         results = strategy.execute(mock_broker_service)
-        
+
         assert any(r.name == "Lifecycle" and r.status == "FAIL" for r in results)
 
     def test_empty_lifecycle(self, mock_broker_service):
         mock_broker_service.lifecycle.health_snapshot.return_value = {}
-        
+
         strategy = LifecycleCheck()
         results = strategy.execute(mock_broker_service)
-        
+
         assert any(r.status == "WARN" for r in results)
 
     def test_no_broker_service(self):
         strategy = LifecycleCheck()
         results = strategy.execute(None)
-        
+
         assert any(r.status == "FAIL" for r in results)
 
 
@@ -517,24 +542,24 @@ class TestOMSRiskManagerCheck:
         }
         tc.risk_manager = rm
         mock_broker_service.trading_context = tc
-        
+
         strategy = OMSRiskManagerCheck()
         results = strategy.execute(mock_broker_service)
-        
+
         assert any(r.name == "OMS RiskManager" and r.status == "PASS" for r in results)
 
     def test_no_trading_context(self, mock_broker_service):
         mock_broker_service.trading_context = None
-        
+
         strategy = OMSRiskManagerCheck()
         results = strategy.execute(mock_broker_service)
-        
+
         assert any(r.status == "WARN" for r in results)
 
     def test_no_broker_service(self):
         strategy = OMSRiskManagerCheck()
         results = strategy.execute(None)
-        
+
         assert any(r.status == "WARN" for r in results)
 
 
@@ -553,22 +578,22 @@ class TestHTTPObservabilityCheck:
         health.state.value = "HEALTHY"
         server.health.return_value = health
         mock_broker_service.http_observability = server
-        
+
         strategy = HTTPObservabilityCheck()
         results = strategy.execute(mock_broker_service)
-        
+
         assert any(r.name == "HTTP Observability" and r.status == "PASS" for r in results)
 
     def test_no_server(self, mock_broker_service):
         mock_broker_service.http_observability = None
-        
+
         strategy = HTTPObservabilityCheck()
         results = strategy.execute(mock_broker_service)
-        
+
         assert any(r.status == "WARN" for r in results)
 
     def test_no_broker_service(self):
         strategy = HTTPObservabilityCheck()
         results = strategy.execute(None)
-        
+
         assert any(r.status == "WARN" for r in results)

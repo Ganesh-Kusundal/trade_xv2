@@ -76,8 +76,16 @@ class Analytics:
         to_date: str | None = None,
     ) -> AnalysisResult:
         if self.provider is None:
-            return AnalysisResult(name="history", symbol=symbol, summary="No market-data provider configured.")
-        data = self.provider.history(symbol, timeframe=timeframe, lookback_days=lookback_days, from_date=from_date, to_date=to_date)
+            return AnalysisResult(
+                name="history", symbol=symbol, summary="No market-data provider configured."
+            )
+        data = self.provider.history(
+            symbol,
+            timeframe=timeframe,
+            lookback_days=lookback_days,
+            from_date=from_date,
+            to_date=to_date,
+        )
         return AnalysisResult(
             name="history",
             symbol=symbol,
@@ -88,14 +96,22 @@ class Analytics:
 
     def fetch_option_chain(self, underlying: str, *, expiry: str | None = None) -> AnalysisResult:
         if self.provider is None:
-            return AnalysisResult(name="option_chain", symbol=underlying, summary="No market-data provider configured.")
+            return AnalysisResult(
+                name="option_chain",
+                symbol=underlying,
+                summary="No market-data provider configured.",
+            )
         chain = self.provider.option_chain(underlying, expiry=expiry)
         strikes = chain.get("strikes", [])
         return AnalysisResult(
             name="option_chain",
             symbol=underlying,
             summary=f"Fetched {len(strikes)} option-chain strikes for {underlying}.",
-            metrics={"strikes": len(strikes), "underlying": chain.get("underlying", underlying), "expiry": chain.get("expiry", expiry)},
+            metrics={
+                "strikes": len(strikes),
+                "underlying": chain.get("underlying", underlying),
+                "expiry": chain.get("expiry", expiry),
+            },
             charts=[{"type": "option_chain", "data": strikes}],
         )
 
@@ -108,7 +124,9 @@ class Analytics:
         sector_prices: pd.DataFrame | None = None,
     ) -> AnalysisResult:
         logger.info("Analyzing stock %s (%d bars)", symbol, len(prices))
-        return self.stock_engine.analyze(symbol, prices, benchmark_prices, benchmark_symbol, sector_prices)
+        return self.stock_engine.analyze(
+            symbol, prices, benchmark_prices, benchmark_symbol, sector_prices
+        )
 
     def future(
         self,
@@ -140,9 +158,17 @@ class Analytics:
         spot_price: float | None = None,
         iv_history: list[float] | pd.Series | None = None,
     ) -> AnalysisResult:
-        chain_len = len(chain) if isinstance(chain, pd.DataFrame) else len(chain.get("strikes", [])) if isinstance(chain, dict) else 0
+        chain_len = (
+            len(chain)
+            if isinstance(chain, pd.DataFrame)
+            else len(chain.get("strikes", []))
+            if isinstance(chain, dict)
+            else 0
+        )
         logger.info("Analyzing options %s (%d strikes)", underlying, chain_len)
-        return self.options_engine.analyze(underlying, chain, spot_price=spot_price, iv_history=iv_history)
+        return self.options_engine.analyze(
+            underlying, chain, spot_price=spot_price, iv_history=iv_history
+        )
 
     def volatility(
         self,
@@ -153,7 +179,9 @@ class Analytics:
         iv_history: list[float] | pd.Series | None = None,
     ) -> AnalysisResult:
         logger.info("Analyzing volatility %s (%d bars)", symbol, len(prices))
-        return self.volatility_engine.analyze(symbol, prices, implied_volatility=implied_volatility, iv_history=iv_history)
+        return self.volatility_engine.analyze(
+            symbol, prices, implied_volatility=implied_volatility, iv_history=iv_history
+        )
 
     def volume_profile(self, data: pd.DataFrame, *, symbol: str | None = None) -> AnalysisResult:
         logger.info("Building volume profile (%d bars)", len(data))
@@ -175,7 +203,9 @@ class Analytics:
         result = self._sector_analyzer.analyze(sectors)
         return self._sector_analyzer.to_analysis_result(result)
 
-    def scan(self, data: pd.DataFrame | None = None, scanner: str | None = None) -> ScanResult | dict[str, type]:
+    def scan(
+        self, data: pd.DataFrame | None = None, scanner: str | None = None
+    ) -> ScanResult | dict[str, type]:
         """Run a scanner on universe data.
 
         If called with no data, returns the dict of available scanners.
@@ -186,18 +216,24 @@ class Analytics:
         scanner_name = scanner or "momentum"
         scanner_cls = self._scanners.get(scanner_name)
         if not scanner_cls:
-            raise ValueError(f"Unknown scanner '{scanner_name}'. Available: {list(self._scanners.keys())}")
+            raise ValueError(
+                f"Unknown scanner '{scanner_name}'. Available: {list(self._scanners.keys())}"
+            )
         logger.info("Running %s scanner on %d rows", scanner_name, len(data))
         s = scanner_cls()
         return s.scan(data)
 
-    def rank(self, data: pd.DataFrame | None = None, *, name: str = "ranking") -> AnalysisResult | RankingFacade:
+    def rank(
+        self, data: pd.DataFrame | None = None, *, name: str = "ranking"
+    ) -> AnalysisResult | RankingFacade:
         if data is None:
             return RankingFacade(self._ranker)
         logger.info("Ranking %d instruments", len(data))
         return self._ranker.analyze(data, name=name)
 
-    def probability(self, metrics: dict[str, float], *, symbol: str | None = None) -> AnalysisResult:
+    def probability(
+        self, metrics: dict[str, float], *, symbol: str | None = None
+    ) -> AnalysisResult:
         logger.info("Computing probability for %s", symbol or "unknown")
         return self._probability.analyze(metrics, symbol=symbol)
 

@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
 
-from domain import Order
+from application.oms.order_manager import OmsOrderCommand, OrderManager, OrderResult
+from domain import Order, Side
 from domain.ports import EventPublisher
 from domain.requests import OrderRequest
-from application.oms.order_manager import OmsOrderCommand, OrderManager, OrderResult
 
 
 class PlaceOrderUseCase:

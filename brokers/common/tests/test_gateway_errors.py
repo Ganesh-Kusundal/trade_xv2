@@ -11,7 +11,9 @@ from __future__ import annotations
 
 import pytest
 
-from brokers.common.gateway_errors import UnsupportedGatewayOperation
+from brokers.common.gateway_errors import (
+    UnsupportedGatewayOperationError as UnsupportedGatewayOperation,
+)
 from datalake.gateway import DataLakeGateway
 
 

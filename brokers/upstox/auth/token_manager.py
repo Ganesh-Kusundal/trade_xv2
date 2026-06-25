@@ -12,6 +12,8 @@ import threading
 import time
 from urllib.parse import urlencode
 
+from brokers.common.auth.jwt_expiry import JwtExpiry
+
 from .exceptions import UpstoxAuthError
 from .holders import (
     ThreadSafeTokenHolder,
@@ -22,7 +24,6 @@ from .holders import (
     UpstoxTokenHolder,
 )
 from .json_token_state_store import JsonTokenStateStore
-from brokers.common.auth.jwt_expiry import JwtExpiry
 from .oauth_client import UpstoxOAuthClient
 from .pkce import PkcePair, UpstoxPkceUtil
 from .token_expiry import UpstoxTokenExpiry
@@ -118,15 +119,19 @@ class UpstoxTokenManager:
             now_ms = int(time.time() * 1000)
             exp_ms = self._holder.expiry_epoch_ms()
             buffer_ms = getattr(self._settings, "refresh_buffer_minutes", 30) * 60 * 1000
-            if exp_ms > 0 and now_ms >= exp_ms - buffer_ms:
-                if self._state and self._state.refresh_token:
-                    logger.info(
-                        "Upstox token at/near expiry; refreshing proactively (now=%d, expiry=%d, buffer=%d)",
-                        now_ms,
-                        exp_ms,
-                        buffer_ms,
-                    )
-                    self._refresh_now()
+            if (
+                exp_ms > 0
+                and now_ms >= exp_ms - buffer_ms
+                and self._state
+                and self._state.refresh_token
+            ):
+                logger.info(
+                    "Upstox token at/near expiry; refreshing proactively (now=%d, expiry=%d, buffer=%d)",
+                    now_ms,
+                    exp_ms,
+                    buffer_ms,
+                )
+                self._refresh_now()
 
     def force_refresh(self) -> TokenSnapshot | None:
         with self._lock:
@@ -439,28 +444,28 @@ class UpstoxTokenManager:
 
     def _bootstrap_totp(self) -> TokenSnapshot:
         """Bootstrap token using TOTP auto-generation.
-        
+
         Generates a fresh token using the upstox-totp library and persists it.
         Falls back to refresh-token mechanism if TOTP generation fails.
         """
         try:
             logger.info("Attempting TOTP token generation...")
             totp_client = UpstoxTotpClient(self._settings)
-            
+
             if not totp_client.validate_config():
                 raise UpstoxAuthError(
                     "TOTP configuration incomplete. Set UPSTOX_MOBILE, UPSTOX_PIN, "
                     "and UPSTOX_TOTP_SECRET environment variables."
                 )
-            
+
             result = totp_client.generate_token()
             access_token = result["access_token"]
-            
+
             # Parse expiry from JWT
             exp = JwtExpiry.parse_expiry_epoch_ms(access_token)
             if exp <= 0:
                 exp = UpstoxTokenExpiry.next_expiry_epoch_ms()
-            
+
             state = TokenSnapshot(
                 access_token=access_token,
                 refresh_token=None,  # TOTP tokens don't have refresh tokens
@@ -468,7 +473,7 @@ class UpstoxTokenManager:
                 issued_at_ms=int(time.time() * 1000),
                 source="TOTP",
             )
-            
+
             self._state = state
             self._holder.replace(
                 UpstoxStaticTokenHolder(
@@ -478,18 +483,18 @@ class UpstoxTokenManager:
                 )
             )
             self._persist(state)
-            
+
             logger.info("TOTP token bootstrap successful, expires at: %d", exp)
             return state
-            
+
         except Exception as exc:
             logger.warning("TOTP bootstrap failed: %s, falling back to refresh-token", exc)
-            
+
             # Fallback: try refresh-token mechanism if available
             if self._settings.refresh_token:
                 logger.info("Falling back to refresh-token mechanism")
                 return self._acquire_initial()
-            
+
             raise UpstoxAuthError(
                 f"TOTP authentication failed and no fallback available: {exc}"
             ) from exc

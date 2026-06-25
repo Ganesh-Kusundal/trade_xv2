@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
 from brokers.common.adapters import build_extension_bundle
 from brokers.common.adapters.market_data_gateway_adapter import wrap_market_gateway
@@ -61,7 +62,7 @@ async def bootstrap_from_broker_registry(
     **bootstrap_kwargs: Any,
 ) -> BrokerInfrastructure | None:
     """Bootstrap infrastructure using cli.services.broker_registry."""
-    from cli.services.broker_registry import bootstrap_gateway
+    from cli.services.broker_registry import bootstrap_gateway  # noqa: TID251
 
     wrapped: list[tuple[str, MarketDataGateway]] = []
     for name in broker_names:

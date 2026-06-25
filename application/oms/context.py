@@ -9,6 +9,11 @@ from collections.abc import Callable
 from decimal import Decimal
 from typing import Any
 
+from application.oms.order_manager import OrderManager
+from application.oms.persistence.sqlite_order_store import SqliteOrderStore
+from application.oms.position_manager import PositionManager
+from application.oms.reconciliation_service import ReconciliationService
+from application.oms.risk_manager import RiskConfig, RiskManager
 from domain.constants import PHANTOM_CAPITAL_INR, RECONCILIATION_INTERVAL_SECONDS
 from infrastructure.event_bus import (
     DeadLetterQueue,
@@ -23,16 +28,12 @@ from infrastructure.event_bus.persistent_dead_letter_queue import (
 from infrastructure.event_log import EventLog
 from infrastructure.lifecycle import LifecycleManager
 from infrastructure.observability.event_metrics import EventMetrics
-from application.oms.order_manager import OrderManager
-from application.oms.position_manager import PositionManager
-from application.oms.reconciliation_service import ReconciliationService
-from application.oms.risk_manager import RiskConfig, RiskManager
-from application.oms.persistence.sqlite_order_store import SqliteOrderStore
 
 # P1-Phase 1: Optional import for TradingOrchestrator
 # Import only when needed to avoid circular dependency
 try:
     from application.trading import TradingOrchestrator
+
     _HAS_ORCHESTRATOR = True
 except ImportError:
     _HAS_ORCHESTRATOR = False
@@ -110,9 +111,7 @@ class TradingContext:
         else:
             self._event_bus = event_bus
 
-        self._processed_trades = (
-            processed_trade_repository or ProcessedTradeRepository()
-        )
+        self._processed_trades = processed_trade_repository or ProcessedTradeRepository()
         # REF-19: enable the self-cleaning thread. It runs as a daemon
         # so it does not block process exit; callers that own a
         # LifecycleManager can stop it deterministically via
@@ -146,14 +145,20 @@ class TradingContext:
         )
 
         # Wire managers to the event bus.
-        self._event_bus.subscribe(EventType.ORDER_UPDATED.value, self._order_manager.on_order_update)  # P1-3: Migrated to EventType enum
+        self._event_bus.subscribe(
+            EventType.ORDER_UPDATED.value, self._order_manager.on_order_update
+        )  # P1-3: Migrated to EventType enum
         # The OMS is the sole gatekeeper for trade idempotency. The
         # position manager subscribes to TRADE_APPLIED (a downstream
         # event the OMS publishes only after a trade has been accepted)
         # rather than to raw TRADE events. This guarantees that
         # duplicate websocket fills cannot double-count positions.
-        self._event_bus.subscribe(EventType.TRADE.value, self._order_manager.on_trade)  # P1-3: Migrated to EventType enum
-        self._event_bus.subscribe(EventType.TRADE_APPLIED.value, self._position_manager.on_trade_applied)  # P1-3: Migrated to EventType enum
+        self._event_bus.subscribe(
+            EventType.TRADE.value, self._order_manager.on_trade
+        )  # P1-3: Migrated to EventType enum
+        self._event_bus.subscribe(
+            EventType.TRADE_APPLIED.value, self._position_manager.on_trade_applied
+        )  # P1-3: Migrated to EventType enum
 
         # Reconciliation: an externally-owned ReconciliationService
         # (a ManagedService) is created here so it can be registered
@@ -162,10 +167,7 @@ class TradingContext:
         # __init__ and never stopped it.
         self._reconciliation_service: ReconciliationService | None = None
         self._reconciliation_ready = reconciliation_service is None
-        if (
-            reconciliation_service is not None
-            and reconciliation_interval_seconds > 0
-        ):
+        if reconciliation_service is not None and reconciliation_interval_seconds > 0:
             self._reconciliation_service = ReconciliationService(
                 order_manager=self._order_manager,
                 position_manager=self._position_manager,
@@ -178,7 +180,7 @@ class TradingContext:
 
         if replay_events and self._event_log is not None:
             self._replay_log_into_oms()
-        
+
         # P1-Phase 1: Store orchestrator for lifecycle management
         self._orchestrator: Any = orchestrator
 
@@ -206,11 +208,11 @@ class TradingContext:
         # TradingContext directly (tests, scripts, custom entry points)
         # would silently accumulate PnL across days.
         self._register_daily_pnl_reset(lifecycle)
-        
+
         # B2: Register TradingContext itself as a ManagedService so
         # it participates in deterministic start/stop via the lifecycle.
         lifecycle.register(self)
-        
+
         # P1-Phase 1: Register orchestrator for start/stop
         if self._orchestrator is not None:
             lifecycle.register(self._orchestrator)
@@ -247,7 +249,7 @@ class TradingContext:
     @property
     def processed_trade_repository(self) -> ProcessedTradeRepository:
         return self._processed_trades
-    
+
     @property
     def orchestrator(self) -> Any | None:  # P1-Phase 1: TradingOrchestrator accessor
         """Access the TradingOrchestrator if configured."""
@@ -299,11 +301,12 @@ class TradingContext:
 
     def _register_daily_pnl_reset(self, lifecycle: LifecycleManager) -> None:
         """Auto-wire a DailyPnlResetScheduler so daily PnL is always reset.
-        
+
         This is the SINGLE registration point for the scheduler.
         BrokerService no longer registers a duplicate (fixed P2-1).
         """
         from application.oms.daily_pnl_reset_scheduler import DailyPnlResetScheduler
+
         scheduler = DailyPnlResetScheduler(risk_manager=self._risk_manager)
         lifecycle.register(scheduler)
 
@@ -314,7 +317,6 @@ class TradingContext:
         on handler failures. On shutdown (stop), drains the DLQ and logs
         any remaining entries so they are not silently lost.
         """
-        from infrastructure.event_bus import DeadLetterQueue
         from infrastructure.lifecycle import HealthState, ManagedService
 
         dlq: DeadLetterQueue = self._dead_letter_queue
@@ -333,9 +335,7 @@ class TradingContext:
                 if self._thread and self._thread.is_alive():
                     return
                 self._stop.clear()
-                self._thread = threading.Thread(
-                    target=self._loop, daemon=True, name="dlq-monitor"
-                )
+                self._thread = threading.Thread(target=self._loop, daemon=True, name="dlq-monitor")
                 self._thread.start()
 
             def stop(self, timeout_seconds: float = 30.0) -> None:
@@ -359,6 +359,7 @@ class TradingContext:
 
             def health(self):
                 from infrastructure.lifecycle import build_health
+
                 return build_health(
                     self.name,
                     HealthState.HEALTHY if self._last_depth == 0 else HealthState.DEGRADED,
@@ -427,8 +428,12 @@ class TradingContext:
         logging_was_enabled = self._event_bus.logging_enabled
         self._event_bus.set_logging_enabled(False)
         try:
-            for event in self._event_log.replay(event_types={EventType.ORDER_UPDATED.value, EventType.TRADE.value}):  # P1-3: Migrated to EventType enum
-                if event.event_type == EventType.ORDER_UPDATED.value:  # P1-3: Migrated to EventType enum
+            for event in self._event_log.replay(
+                event_types={EventType.ORDER_UPDATED.value, EventType.TRADE.value}
+            ):  # P1-3: Migrated to EventType enum
+                if (
+                    event.event_type == EventType.ORDER_UPDATED.value
+                ):  # P1-3: Migrated to EventType enum
                     self._order_manager.on_order_update(event)
                 elif event.event_type == EventType.TRADE.value:  # P1-3: Migrated to EventType enum
                     self._order_manager.on_trade(event)
@@ -507,8 +512,7 @@ class TradingContext:
             result["orders_cancelled"] = cancel_result["orders_cancelled"]
             result["orders_failed"] = cancel_result["orders_failed"]
             logger.info(
-                "TradingContext: order cancellation complete — "
-                "cancelled=%d, failed=%d",
+                "TradingContext: order cancellation complete — cancelled=%d, failed=%d",
                 result["orders_cancelled"],
                 result["orders_failed"],
             )
@@ -523,9 +527,7 @@ class TradingContext:
                 result["event_log_flushed"] = True
                 logger.info("TradingContext: event log flushed and closed")
             except Exception as exc:
-                logger.warning(
-                    "TradingContext: event_log flush/close failed: %s", exc
-                )
+                logger.warning("TradingContext: event_log flush/close failed: %s", exc)
 
         # Step 4: Emit SYSTEM_SHUTDOWN event
         try:
@@ -542,9 +544,7 @@ class TradingContext:
                 )
             )
         except Exception as exc:
-            logger.warning(
-                "TradingContext: SYSTEM_SHUTDOWN event publish failed: %s", exc
-            )
+            logger.warning("TradingContext: SYSTEM_SHUTDOWN event publish failed: %s", exc)
 
         return result
 
@@ -579,18 +579,13 @@ class TradingContext:
             "failed_order_ids": [],
         }
 
-        open_orders = [
-            o for o in self._order_manager.get_orders()
-            if o.status == OrderStatus.OPEN
-        ]
+        open_orders = [o for o in self._order_manager.get_orders() if o.status == OrderStatus.OPEN]
 
         if not open_orders:
             logger.debug("TradingContext: no open orders to cancel")
             return result
 
-        logger.info(
-            "TradingContext: cancelling %d open orders", len(open_orders)
-        )
+        logger.info("TradingContext: cancelling %d open orders", len(open_orders))
 
         for order in open_orders:
             try:
@@ -602,7 +597,8 @@ class TradingContext:
                             msg = getattr(cancel_response, "message", "unknown")
                             logger.error(
                                 "TradingContext: broker cancel failed for %s: %s",
-                                order.order_id, msg,
+                                order.order_id,
+                                msg,
                             )
                             result["orders_failed"] += 1
                             result["failed_order_ids"].append(order.order_id)
@@ -610,7 +606,9 @@ class TradingContext:
                     except Exception as exc:
                         logger.error(
                             "TradingContext: gateway.cancel_order(%s) raised: %s: %s",
-                            order.order_id, type(exc).__name__, exc,
+                            order.order_id,
+                            type(exc).__name__,
+                            exc,
                         )
                         result["orders_failed"] += 1
                         result["failed_order_ids"].append(order.order_id)
@@ -624,7 +622,8 @@ class TradingContext:
                 else:
                     logger.warning(
                         "TradingContext: local cancel failed for %s: %s",
-                        order.order_id, cancel_result.error,
+                        order.order_id,
+                        cancel_result.error,
                     )
                     result["orders_failed"] += 1
                     result["failed_order_ids"].append(order.order_id)
@@ -632,7 +631,9 @@ class TradingContext:
             except Exception as exc:
                 logger.error(
                     "TradingContext: unexpected error cancelling %s: %s: %s",
-                    order.order_id, type(exc).__name__, exc,
+                    order.order_id,
+                    type(exc).__name__,
+                    exc,
                 )
                 result["orders_failed"] += 1
                 result["failed_order_ids"].append(order.order_id)
@@ -660,6 +661,7 @@ class TradingContext:
         logger.info("TradingContext.stop: initiating graceful shutdown")
         try:
             import asyncio
+
             try:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
@@ -672,10 +674,10 @@ class TradingContext:
             except RuntimeError:
                 self._sync_shutdown()
         except Exception as exc:
-            logger.error(
+            logger.exception(
                 "TradingContext.stop: shutdown failed: %s: %s",
-                type(exc).__name__, exc,
-                exc_info=True,
+                type(exc).__name__,
+                exc,
             )
 
     def _sync_shutdown(self) -> dict:
@@ -711,9 +713,7 @@ class TradingContext:
                 self._event_log.close()
                 result["event_log_flushed"] = True
             except Exception as exc:
-                logger.warning(
-                    "TradingContext: event_log flush/close failed: %s", exc
-                )
+                logger.warning("TradingContext: event_log flush/close failed: %s", exc)
 
         # Step 4: Emit SYSTEM_SHUTDOWN event
         try:
@@ -730,9 +730,7 @@ class TradingContext:
                 )
             )
         except Exception as exc:
-            logger.warning(
-                "TradingContext: SYSTEM_SHUTDOWN event publish failed: %s", exc
-            )
+            logger.warning("TradingContext: SYSTEM_SHUTDOWN event publish failed: %s", exc)
 
         return result
 
@@ -762,10 +760,6 @@ class TradingContext:
             if signum in original_handlers:
                 signal.signal(signum, original_handlers[signum])
 
-        original_handlers[signal.SIGTERM] = signal.signal(
-            signal.SIGTERM, _signal_handler
-        )
-        original_handlers[signal.SIGINT] = signal.signal(
-            signal.SIGINT, _signal_handler
-        )
+        original_handlers[signal.SIGTERM] = signal.signal(signal.SIGTERM, _signal_handler)
+        original_handlers[signal.SIGINT] = signal.signal(signal.SIGINT, _signal_handler)
         logger.info("TradingContext: signal handlers registered for SIGTERM, SIGINT")

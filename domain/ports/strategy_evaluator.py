@@ -15,8 +15,7 @@ class StrategyEvaluator(Protocol):
 
     def evaluate_single(
         self, candidate: CandidateDTO, features: pd.DataFrame
-    ) -> list[SignalDTO]:
-        ...
+    ) -> list[SignalDTO]: ...
 
 
 __all__ = ["StrategyEvaluator"]

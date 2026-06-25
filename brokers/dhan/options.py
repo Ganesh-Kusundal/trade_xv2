@@ -9,7 +9,6 @@ from typing import Literal
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 from brokers.dhan.invariants import assert_dhan_identity
-from brokers.dhan.segments import EXCHANGE_TO_SEGMENT
 
 logger = logging.getLogger(__name__)
 
@@ -59,11 +58,14 @@ class OptionsAdapter:
         # body, so we verify each (scrip, segment) pair.
         assert_dhan_identity(scrip_id, segment, context="options.get_option_chain")
 
-        response = self._client.post("/optionchain", json={
-            "UnderlyingScrip": scrip_id,
-            "UnderlyingSeg": segment,
-            "Expiry": expiry,
-        })
+        response = self._client.post(
+            "/optionchain",
+            json={
+                "UnderlyingScrip": scrip_id,
+                "UnderlyingSeg": segment,
+                "Expiry": expiry,
+            },
+        )
 
         data = response.get("data", response)
         if isinstance(data, dict):
@@ -90,7 +92,7 @@ class OptionsAdapter:
                     ce_inst = self._resolver.get_by_security_id(str(ce_sec_id))
                     if ce_inst:
                         ce_symbol = ce_inst.symbol
-                except Exception as exc:
+                except Exception:
                     logger.debug("ce_symbol_resolve_failed: %s", ce_sec_id)
 
             pe_symbol = ""
@@ -99,48 +101,61 @@ class OptionsAdapter:
                     pe_inst = self._resolver.get_by_security_id(str(pe_sec_id))
                     if pe_inst:
                         pe_symbol = pe_inst.symbol
-                except Exception as exc:
+                except Exception:
                     logger.debug("pe_symbol_resolve_failed: %s", pe_sec_id)
 
-            strikes.append({
-                "strike": strike,
-                "call": {
-                    "ltp": _dec(ce.get("last_price")),
-                    "oi": int(ce.get("oi", 0) or 0),
-                    "volume": int(ce.get("volume", 0) or 0),
-                    "iv": _dec(ce.get("implied_volatility")),
-                    "delta": _dec(ce_greeks.get("delta")),
-                    "theta": _dec(ce_greeks.get("theta")),
-                    "gamma": _dec(ce_greeks.get("gamma")),
-                    "vega": _dec(ce_greeks.get("vega")),
-                    "security_id": ce_sec_id,
-                    "symbol": ce_symbol,
-                },
-                "put": {
-                    "ltp": _dec(pe.get("last_price")),
-                    "oi": int(pe.get("oi", 0) or 0),
-                    "volume": int(pe.get("volume", 0) or 0),
-                    "iv": _dec(pe.get("implied_volatility")),
-                    "delta": _dec(pe_greeks.get("delta")),
-                    "theta": _dec(pe_greeks.get("theta")),
-                    "gamma": _dec(pe_greeks.get("gamma")),
-                    "vega": _dec(pe_greeks.get("vega")),
-                    "security_id": pe_sec_id,
-                    "symbol": pe_symbol,
-                },
-            })
+            strikes.append(
+                {
+                    "strike": strike,
+                    "call": {
+                        "ltp": _dec(ce.get("last_price")),
+                        "oi": int(ce.get("oi", 0) or 0),
+                        "volume": int(ce.get("volume", 0) or 0),
+                        "iv": _dec(ce.get("implied_volatility")),
+                        "delta": _dec(ce_greeks.get("delta")),
+                        "theta": _dec(ce_greeks.get("theta")),
+                        "gamma": _dec(ce_greeks.get("gamma")),
+                        "vega": _dec(ce_greeks.get("vega")),
+                        "security_id": ce_sec_id,
+                        "symbol": ce_symbol,
+                    },
+                    "put": {
+                        "ltp": _dec(pe.get("last_price")),
+                        "oi": int(pe.get("oi", 0) or 0),
+                        "volume": int(pe.get("volume", 0) or 0),
+                        "iv": _dec(pe.get("implied_volatility")),
+                        "delta": _dec(pe_greeks.get("delta")),
+                        "theta": _dec(pe_greeks.get("theta")),
+                        "gamma": _dec(pe_greeks.get("gamma")),
+                        "vega": _dec(pe_greeks.get("vega")),
+                        "security_id": pe_sec_id,
+                        "symbol": pe_symbol,
+                    },
+                }
+            )
 
-        logger.info("option_chain_fetched", extra={"underlying": underlying, "expiry": expiry, "strikes": len(strikes), "spot": str(spot)})
+        logger.info(
+            "option_chain_fetched",
+            extra={
+                "underlying": underlying,
+                "expiry": expiry,
+                "strikes": len(strikes),
+                "spot": str(spot),
+            },
+        )
         return {"underlying": underlying, "expiry": expiry, "spot": spot, "strikes": strikes}
 
     def get_expiries(self, underlying: str, exchange: str) -> list[str]:
         ref, segment = self._resolve_and_segment(underlying, exchange)
         # PR-B: defence-in-depth invariant assertion.
         assert_dhan_identity(int(ref.security_id), segment, context="options.get_expiries")
-        response = self._client.post("/optionchain/expirylist", json={
-            "UnderlyingScrip": int(ref.security_id),
-            "UnderlyingSeg": segment,
-        })
+        response = self._client.post(
+            "/optionchain/expirylist",
+            json={
+                "UnderlyingScrip": int(ref.security_id),
+                "UnderlyingSeg": segment,
+            },
+        )
         data = response.get("data", {})
         if isinstance(data, dict):
             values = data.get("expiryList") or data.get("expiries") or []
@@ -193,27 +208,27 @@ class OptionsAdapter:
         if required_data is None:
             required_data = ["open", "high", "low", "close", "volume", "oi", "spot"]
 
-        response = self._client.post("/charts/rollingoption", json={
-            "securityId": security_id,
-            "exchangeSegment": _EXPIRED_EXCHANGE_SEGMENT,
-            "instrument": "OPTIDX",
-            "expiryFlag": expiry_flag,
-            "expiryCode": expiry_code,
-            "strike": strike,
-            "drvOptionType": option_type,
-            "requiredData": required_data,
-            "fromDate": from_date,
-            "toDate": to_date,
-            "interval": interval,
-        })
+        response = self._client.post(
+            "/charts/rollingoption",
+            json={
+                "securityId": security_id,
+                "exchangeSegment": _EXPIRED_EXCHANGE_SEGMENT,
+                "instrument": "OPTIDX",
+                "expiryFlag": expiry_flag,
+                "expiryCode": expiry_code,
+                "strike": strike,
+                "drvOptionType": option_type,
+                "requiredData": required_data,
+                "fromDate": from_date,
+                "toDate": to_date,
+                "interval": interval,
+            },
+        )
 
         # HTTP client returns {"data": {"ce": {...}, "pe": {...}}} on success
         # or raises DhanError on failure
         data = response.get("data", {})
-        if isinstance(data, dict):
-            inner = data.get("data", data)
-        else:
-            inner = {}
+        inner = data.get("data", data) if isinstance(data, dict) else {}
 
         result = {"status": "success", "ce": None, "pe": None}
         if isinstance(inner, dict):
@@ -226,8 +241,13 @@ class OptionsAdapter:
         pe_count = len(result["pe"]["timestamp"]) if result["pe"] else 0
         logger.info(
             "expired_options_data_fetched",
-            extra={"security_id": security_id, "expiry_flag": expiry_flag,
-                   "option_type": option_type, "ce_count": ce_count, "pe_count": pe_count},
+            extra={
+                "security_id": security_id,
+                "expiry_flag": expiry_flag,
+                "option_type": option_type,
+                "ce_count": ce_count,
+                "pe_count": pe_count,
+            },
         )
         return result
 

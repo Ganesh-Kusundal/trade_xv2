@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/api/auth.py
-# hypothesis_version: 6.155.7
-
-[1008, '/docs', '/healthz', '/metrics', '/openapi.json', '/readyz', '/redoc', 'API Key', 'API_KEY', 'AUTH_MODE', 'ApiKey', 'Invalid API key', 'Unauthorized', 'WWW-Authenticate', 'X-API-Key', 'api_key', 'none', 'x-api-key']

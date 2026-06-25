@@ -53,8 +53,12 @@ def run_datalake_backtest(args: list[str], console: Console) -> None:
             index += 1
 
     if not symbol and not scan_mode:
-        console.print("[yellow]Usage: tradex analytics datalake-backtest --symbol RELIANCE [--years 2][/yellow]")
-        console.print("[dim]   or: tradex analytics datalake-backtest --scan --top 10 --years 2[/dim]")
+        console.print(
+            "[yellow]Usage: tradex analytics datalake-backtest --symbol RELIANCE [--years 2][/yellow]"
+        )
+        console.print(
+            "[dim]   or: tradex analytics datalake-backtest --scan --top 10 --years 2[/dim]"
+        )
         return
 
     gw = DataLakeGateway()
@@ -91,7 +95,7 @@ def run_datalake_backtest(args: list[str], console: Console) -> None:
                 close = df["close"]
                 ret_5d = (close.iloc[-1] / close.iloc[-120] - 1) * 100 if len(close) > 120 else 0
                 scored.append((sym, ret_5d))
-            except Exception:
+            except Exception:  # noqa: S112
                 continue
         scored.sort(key=lambda x: x[1], reverse=True)
 
@@ -114,10 +118,11 @@ def run_datalake_backtest(args: list[str], console: Console) -> None:
                 m = bt_result.metrics
                 ret_style = "green" if m.total_return_pct >= 0 else "red"
                 bt_table.add_row(
-                    str(i), sym,
+                    str(i),
+                    sym,
                     f"[{ret_style}]{m.total_return_pct:+.2f}%[/{ret_style}]",
                     str(m.trade_analysis.total_trades),
-                    f"{m.trade_analysis.win_rate*100:.0f}%",
+                    f"{m.trade_analysis.win_rate * 100:.0f}%",
                     f"{m.max_drawdown_pct:.1f}%",
                     f"{m.sharpe_ratio:.2f}",
                 )
@@ -148,7 +153,7 @@ def run_datalake_backtest(args: list[str], console: Console) -> None:
         table.add_row("Sortino Ratio", f"{m.sortino_ratio:.2f}")
         table.add_row("Calmar Ratio", f"{m.calmar_ratio:.2f}")
         table.add_row("Total Trades", str(m.trade_analysis.total_trades))
-        table.add_row("Win Rate", f"{m.trade_analysis.win_rate*100:.1f}%")
+        table.add_row("Win Rate", f"{m.trade_analysis.win_rate * 100:.1f}%")
         table.add_row("Profit Factor", f"{m.trade_analysis.profit_factor:.2f}")
         table.add_row("Avg Win", f"₹{m.trade_analysis.avg_win:.2f}")
         table.add_row("Avg Loss", f"₹{m.trade_analysis.avg_loss:.2f}")

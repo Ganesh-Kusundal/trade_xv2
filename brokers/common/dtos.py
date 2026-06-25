@@ -25,10 +25,9 @@ Gateways (``DhanBrokerGateway``, ``UpstoxBrokerGateway``) construct a
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import Decimal
 
 from domain.requests import OrderRequest
-from domain.types import ExchangeSegment, OrderType, ProductType, Side, Validity
+from domain.types import ExchangeSegment
 
 
 @dataclass(slots=True, frozen=False)

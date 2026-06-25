@@ -6,8 +6,18 @@ from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 
 COMMON_COMMODITIES = {
-    "GOLD", "SILVER", "CRUDEOIL", "NATURALGAS", "COPPER",
-    "ZINC", "LEAD", "NICKEL", "ALUMINIUM", "CRUDEOILM", "GOLDM", "SILVERM",
+    "GOLD",
+    "SILVER",
+    "CRUDEOIL",
+    "NATURALGAS",
+    "COPPER",
+    "ZINC",
+    "LEAD",
+    "NICKEL",
+    "ALUMINIUM",
+    "CRUDEOILM",
+    "GOLDM",
+    "SILVERM",
 }
 
 # Index underlyings live on INDEX exchange spot, but their derivatives

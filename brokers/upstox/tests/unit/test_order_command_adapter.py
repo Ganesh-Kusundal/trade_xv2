@@ -5,6 +5,8 @@ from __future__ import annotations
 from decimal import Decimal
 from unittest.mock import MagicMock
 
+from brokers.upstox.orders.order_client import UpstoxRestOrderClient
+from brokers.upstox.orders.order_command_adapter import UpstoxOrderCommandAdapter
 from domain import (
     ExchangeSegment,
     OrderRequest,
@@ -20,8 +22,6 @@ from domain import (
     Validity as EnumsValidity,
 )
 from infrastructure.event_bus import EventBus
-from brokers.upstox.orders.order_client import UpstoxRestOrderClient
-from brokers.upstox.orders.order_command_adapter import UpstoxOrderCommandAdapter
 
 
 class _FakeOrderClient(UpstoxRestOrderClient):

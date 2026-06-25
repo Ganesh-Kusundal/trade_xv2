@@ -48,23 +48,22 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from decimal import Decimal
 
+from application.oms._internal.loss_circuit_breaker import (
+    LossCircuitBreaker,
+    LossCircuitBreakerConfig,
+)
+from application.oms.capital_provider import CapitalProvider, FixedCapitalProvider
+from application.oms.position_manager import PositionManager
+from brokers.common.api import MarginCalculationError, MarginProvider
+from domain import Order
 from domain.constants import (
-    PHANTOM_CAPITAL_INR,
     RISK_DAILY_LOSS_PERCENT,
     RISK_GROSS_PERCENT,
     RISK_MARGIN_SAFETY_MULTIPLIER,
     RISK_POSITION_PERCENT,
 )
-from domain import Order
-from domain.exchange_segments import is_derivative_segment
-from application.oms.capital_provider import CapitalProvider, FixedCapitalProvider
-from application.oms.position_manager import PositionManager
-from application.oms._internal.loss_circuit_breaker import (
-    LossCircuitBreaker,
-    LossCircuitBreakerConfig,
-)
 from domain.constants.defaults import RISK_FALLBACK_CAPITAL
-from brokers.common.api import MarginCalculationError, MarginProvider
+from domain.exchange_segments import is_derivative_segment
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +71,7 @@ logger = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class RiskConfig:
     max_daily_loss_pct: Decimal = Decimal(str(RISK_DAILY_LOSS_PERCENT))  # of capital
-    max_position_pct: Decimal = Decimal(str(RISK_POSITION_PERCENT))   # of capital per symbol
+    max_position_pct: Decimal = Decimal(str(RISK_POSITION_PERCENT))  # of capital per symbol
     max_gross_exposure_pct: Decimal = Decimal(str(RISK_GROSS_PERCENT))  # of capital
     kill_switch: bool = False
     margin_safety_multiplier: Decimal = Decimal(str(RISK_MARGIN_SAFETY_MULTIPLIER))
@@ -115,7 +114,7 @@ class RiskManager:
         self._position_manager = position_manager
         self._config = config
         self._margin_provider = margin_provider
-        
+
         # Support both old capital_fn and new capital_provider (P2-2)
         if capital_provider is not None:
             self._capital_provider = capital_provider
@@ -124,13 +123,15 @@ class RiskManager:
             class LegacyCapitalAdapter(CapitalProvider):
                 def __init__(self, fn):
                     self._fn = fn
+
                 def get_available_balance(self) -> Decimal:
                     return self._fn()
+
             self._capital_provider = LegacyCapitalAdapter(capital_fn)
         else:
             # Default to fixed capital
             self._capital_provider = FixedCapitalProvider(RISK_FALLBACK_CAPITAL)
-        
+
         self._daily_pnl: Decimal = Decimal("0")
         # A2: lock that protects _config, _daily_pnl, and the derived
         # reads in check_order. RLock (not Lock) so the OMS may
@@ -178,8 +179,12 @@ class RiskManager:
                 exchange=order.exchange,
                 quantity=order.quantity,
                 price=order.price,
-                product_type=order.product_type.value if hasattr(order.product_type, 'value') else str(order.product_type),
-                order_type=order.order_type.value if hasattr(order.order_type, 'value') else str(order.order_type),
+                product_type=order.product_type.value
+                if hasattr(order.product_type, "value")
+                else str(order.product_type),
+                order_type=order.order_type.value
+                if hasattr(order.order_type, "value")
+                else str(order.order_type),
             )
         except MarginCalculationError as exc:
             # Fail-closed: API error -> reject order
@@ -265,11 +270,17 @@ class RiskManager:
                 if not margin_result.allowed:
                     return margin_result
 
-            notional = Decimal(order.quantity) * order.price if order.price > 0 else Decimal(order.quantity)
+            notional = (
+                Decimal(order.quantity) * order.price
+                if order.price > 0
+                else Decimal(order.quantity)
+            )
 
             # Per-symbol concentration
             current = self._position_manager.get_position(order.symbol, order.exchange)
-            current_notional = Decimal(abs(current.quantity)) * current.avg_price if current else Decimal("0")
+            current_notional = (
+                Decimal(abs(current.quantity)) * current.avg_price if current else Decimal("0")
+            )
             if (current_notional + notional) / capital * 100 > self._config.max_position_pct:
                 return RiskResult(False, f"Exceeds max position pct for {order.symbol}")
 
@@ -280,7 +291,10 @@ class RiskManager:
                 return RiskResult(False, "Exceeds max gross exposure pct")
 
             # Daily loss
-            if self._daily_pnl < 0 and abs(self._daily_pnl) / capital * 100 >= self._config.max_daily_loss_pct:
+            if (
+                self._daily_pnl < 0
+                and abs(self._daily_pnl) / capital * 100 >= self._config.max_daily_loss_pct
+            ):
                 return RiskResult(False, "Daily loss limit reached")
 
             return RiskResult(True)
@@ -328,12 +342,11 @@ class RiskManager:
                     extra={"new_state": active, "previous": previous},
                 )
 
-
     def is_kill_switch_active(self) -> bool:
         """Check if kill switch is currently active.
-        
+
         P4-5: Thread-safe read of kill switch status.
-        
+
         Returns
         -------
         bool:
@@ -353,6 +366,7 @@ class RiskManager:
         ``_last_reset_at`` so an SRE can confirm the rollover fired.
         """
         import time as _time
+
         with self._lock:
             self._daily_pnl = Decimal("0")
             self._reset_count += 1
@@ -400,6 +414,7 @@ class RiskManager:
         only briefly to read the scalar fields.
         """
         import time as _time
+
         with self._lock:
             base = {
                 "kill_switch": self._config.kill_switch,

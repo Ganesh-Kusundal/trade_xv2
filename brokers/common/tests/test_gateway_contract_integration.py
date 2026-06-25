@@ -11,8 +11,7 @@ from __future__ import annotations
 
 import inspect
 from decimal import Decimal
-from typing import get_type_hints
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
@@ -21,16 +20,11 @@ from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
 from domain import (
     Balance,
     FutureChain,
-    Holding,
     MarketDepth,
     OptionChain,
-    Order,
     OrderResponse,
-    Position,
     Quote,
-    Trade,
 )
-
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -51,6 +45,7 @@ class TestABCContractMethodExistence:
 
     def test_dhan_implements_all_abstract_methods(self):
         from brokers.dhan.gateway import BrokerGateway
+
         abstract = _get_abstract_methods()
         implemented = set(dir(BrokerGateway))
         missing = abstract - implemented
@@ -58,6 +53,7 @@ class TestABCContractMethodExistence:
 
     def test_upstox_implements_all_abstract_methods(self):
         from brokers.upstox.gateway import UpstoxBrokerGateway
+
         abstract = _get_abstract_methods()
         implemented = set(dir(UpstoxBrokerGateway))
         missing = abstract - implemented
@@ -65,6 +61,7 @@ class TestABCContractMethodExistence:
 
     def test_paper_implements_all_abstract_methods(self):
         from brokers.paper.paper_gateway import PaperGateway
+
         abstract = _get_abstract_methods()
         implemented = set(dir(PaperGateway))
         missing = abstract - implemented
@@ -73,12 +70,24 @@ class TestABCContractMethodExistence:
     def test_intelligent_gateway_implements_market_data_methods(self):
         """IntelligentGateway must implement at least all read-only market data methods."""
         from brokers.common.intelligent_gateway import IntelligentGateway
+
         required_read_only = {
-            "history", "quote", "ltp", "depth",
-            "option_chain", "future_chain", "stream",
-            "ltp_batch", "quote_batch", "history_batch",
-            "positions", "holdings", "funds", "trades",
-            "search", "describe",
+            "history",
+            "quote",
+            "ltp",
+            "depth",
+            "option_chain",
+            "future_chain",
+            "stream",
+            "ltp_batch",
+            "quote_batch",
+            "history_batch",
+            "positions",
+            "holdings",
+            "funds",
+            "trades",
+            "search",
+            "describe",
         }
         implemented = set(dir(IntelligentGateway))
         missing = required_read_only - implemented
@@ -100,84 +109,121 @@ class TestABCContractSignatures:
         # Check all expected params are present (allows extra optional params)
         for ep in expected_params:
             assert ep in params, (
-                f"{gw_class.__name__}.{method_name} missing param '{ep}'. "
-                f"Has: {params}"
+                f"{gw_class.__name__}.{method_name} missing param '{ep}'. Has: {params}"
             )
 
-    @pytest.mark.parametrize("gw_module,gw_class", [
-        ("brokers.dhan.gateway", "BrokerGateway"),
-        ("brokers.upstox.gateway", "UpstoxBrokerGateway"),
-        ("brokers.paper.paper_gateway", "PaperGateway"),
-    ])
+    @pytest.mark.parametrize(
+        "gw_module,gw_class",
+        [
+            ("brokers.dhan.gateway", "BrokerGateway"),
+            ("brokers.upstox.gateway", "UpstoxBrokerGateway"),
+            ("brokers.paper.paper_gateway", "PaperGateway"),
+        ],
+    )
     def test_history_signature(self, gw_module, gw_class):
         import importlib
+
         mod = importlib.import_module(gw_module)
         cls = getattr(mod, gw_class)
         self._check_signature(cls, "history", ["symbol", "exchange", "timeframe", "lookback_days"])
 
-    @pytest.mark.parametrize("gw_module,gw_class", [
-        ("brokers.dhan.gateway", "BrokerGateway"),
-        ("brokers.upstox.gateway", "UpstoxBrokerGateway"),
-        ("brokers.paper.paper_gateway", "PaperGateway"),
-    ])
+    @pytest.mark.parametrize(
+        "gw_module,gw_class",
+        [
+            ("brokers.dhan.gateway", "BrokerGateway"),
+            ("brokers.upstox.gateway", "UpstoxBrokerGateway"),
+            ("brokers.paper.paper_gateway", "PaperGateway"),
+        ],
+    )
     def test_quote_signature(self, gw_module, gw_class):
         import importlib
+
         mod = importlib.import_module(gw_module)
         cls = getattr(mod, gw_class)
         self._check_signature(cls, "quote", ["symbol", "exchange"])
 
-    @pytest.mark.parametrize("gw_module,gw_class", [
-        ("brokers.dhan.gateway", "BrokerGateway"),
-        ("brokers.upstox.gateway", "UpstoxBrokerGateway"),
-        ("brokers.paper.paper_gateway", "PaperGateway"),
-    ])
+    @pytest.mark.parametrize(
+        "gw_module,gw_class",
+        [
+            ("brokers.dhan.gateway", "BrokerGateway"),
+            ("brokers.upstox.gateway", "UpstoxBrokerGateway"),
+            ("brokers.paper.paper_gateway", "PaperGateway"),
+        ],
+    )
     def test_ltp_signature(self, gw_module, gw_class):
         import importlib
+
         mod = importlib.import_module(gw_module)
         cls = getattr(mod, gw_class)
         self._check_signature(cls, "ltp", ["symbol", "exchange"])
 
-    @pytest.mark.parametrize("gw_module,gw_class", [
-        ("brokers.dhan.gateway", "BrokerGateway"),
-        ("brokers.upstox.gateway", "UpstoxBrokerGateway"),
-    ])
+    @pytest.mark.parametrize(
+        "gw_module,gw_class",
+        [
+            ("brokers.dhan.gateway", "BrokerGateway"),
+            ("brokers.upstox.gateway", "UpstoxBrokerGateway"),
+        ],
+    )
     def test_place_order_signature(self, gw_module, gw_class):
         import importlib
+
         mod = importlib.import_module(gw_module)
         cls = getattr(mod, gw_class)
-        self._check_signature(cls, "place_order", [
-            "symbol", "exchange", "side", "quantity", "price", "order_type", "product_type",
-        ])
+        self._check_signature(
+            cls,
+            "place_order",
+            [
+                "symbol",
+                "exchange",
+                "side",
+                "quantity",
+                "price",
+                "order_type",
+                "product_type",
+            ],
+        )
 
-    @pytest.mark.parametrize("gw_module,gw_class", [
-        ("brokers.dhan.gateway", "BrokerGateway"),
-        ("brokers.upstox.gateway", "UpstoxBrokerGateway"),
-        ("brokers.paper.paper_gateway", "PaperGateway"),
-    ])
+    @pytest.mark.parametrize(
+        "gw_module,gw_class",
+        [
+            ("brokers.dhan.gateway", "BrokerGateway"),
+            ("brokers.upstox.gateway", "UpstoxBrokerGateway"),
+            ("brokers.paper.paper_gateway", "PaperGateway"),
+        ],
+    )
     def test_stream_signature(self, gw_module, gw_class):
         import importlib
+
         mod = importlib.import_module(gw_module)
         cls = getattr(mod, gw_class)
         self._check_signature(cls, "stream", ["symbol", "exchange", "mode", "on_tick"])
 
-    @pytest.mark.parametrize("gw_module,gw_class", [
-        ("brokers.dhan.gateway", "BrokerGateway"),
-        ("brokers.upstox.gateway", "UpstoxBrokerGateway"),
-        ("brokers.paper.paper_gateway", "PaperGateway"),
-    ])
+    @pytest.mark.parametrize(
+        "gw_module,gw_class",
+        [
+            ("brokers.dhan.gateway", "BrokerGateway"),
+            ("brokers.upstox.gateway", "UpstoxBrokerGateway"),
+            ("brokers.paper.paper_gateway", "PaperGateway"),
+        ],
+    )
     def test_ltp_batch_signature(self, gw_module, gw_class):
         import importlib
+
         mod = importlib.import_module(gw_module)
         cls = getattr(mod, gw_class)
         self._check_signature(cls, "ltp_batch", ["symbols", "exchange"])
 
-    @pytest.mark.parametrize("gw_module,gw_class", [
-        ("brokers.dhan.gateway", "BrokerGateway"),
-        ("brokers.upstox.gateway", "UpstoxBrokerGateway"),
-        ("brokers.paper.paper_gateway", "PaperGateway"),
-    ])
+    @pytest.mark.parametrize(
+        "gw_module,gw_class",
+        [
+            ("brokers.dhan.gateway", "BrokerGateway"),
+            ("brokers.upstox.gateway", "UpstoxBrokerGateway"),
+            ("brokers.paper.paper_gateway", "PaperGateway"),
+        ],
+    )
     def test_cancel_order_signature(self, gw_module, gw_class):
         import importlib
+
         mod = importlib.import_module(gw_module)
         cls = getattr(mod, gw_class)
         self._check_signature(cls, "cancel_order", ["order_id"])
@@ -210,6 +256,7 @@ class TestDhanGatewayReturnTypes:
         conn.instruments.resolve.return_value = inst
 
         from brokers.dhan.gateway import BrokerGateway
+
         gw = BrokerGateway(conn)
         return gw
 
@@ -220,9 +267,14 @@ class TestDhanGatewayReturnTypes:
 
     def test_quote_returns_quote(self, dhan_gw):
         dhan_gw._conn.market_data.get_quote.return_value = Quote(
-            symbol="RELIANCE", ltp=Decimal("2450"), open=Decimal("2430"),
-            high=Decimal("2460"), low=Decimal("2420"), close=Decimal("2425"),
-            volume=100000, change=Decimal("25"),
+            symbol="RELIANCE",
+            ltp=Decimal("2450"),
+            open=Decimal("2430"),
+            high=Decimal("2460"),
+            low=Decimal("2420"),
+            close=Decimal("2425"),
+            volume=100000,
+            change=Decimal("25"),
         )
         result = dhan_gw.quote("RELIANCE", "NSE")
         assert isinstance(result, Quote)
@@ -244,7 +296,8 @@ class TestDhanGatewayReturnTypes:
 
     def test_funds_returns_balance(self, dhan_gw):
         dhan_gw._conn.portfolio.get_balance.return_value = Balance(
-            available_balance=Decimal("100000"), used_margin=Decimal("0"),
+            available_balance=Decimal("100000"),
+            used_margin=Decimal("0"),
         )
         result = dhan_gw.funds()
         assert isinstance(result, Balance)
@@ -271,14 +324,16 @@ class TestDhanGatewayReturnTypes:
         assert "broker" in result
 
     def test_history_returns_dataframe(self, dhan_gw):
-        dhan_gw._conn.historical.get_historical.return_value = pd.DataFrame({
-            "timestamp": ["2026-06-01"],
-            "open": [2450],
-            "high": [2460],
-            "low": [2440],
-            "close": [2455],
-            "volume": [100000],
-        })
+        dhan_gw._conn.historical.get_historical.return_value = pd.DataFrame(
+            {
+                "timestamp": ["2026-06-01"],
+                "open": [2450],
+                "high": [2460],
+                "low": [2440],
+                "close": [2455],
+                "volume": [100000],
+            }
+        )
         result = dhan_gw.history("RELIANCE", "NSE", timeframe="1D", lookback_days=5)
         assert isinstance(result, pd.DataFrame)
 
@@ -305,8 +360,10 @@ class TestDhanGatewayReturnTypes:
         options_adapter = MagicMock()
         options_adapter.get_expiries.return_value = ["2026-06-26"]
         options_adapter.get_option_chain.return_value = {
-            "underlying": "NIFTY", "exchange": "NFO",
-            "expiry": "2026-06-26", "data": [],
+            "underlying": "NIFTY",
+            "exchange": "NFO",
+            "expiry": "2026-06-26",
+            "data": [],
         }
         dhan_gw._conn.options = options_adapter
         result = dhan_gw.option_chain("NIFTY", "NFO")
@@ -346,6 +403,7 @@ class TestUpstoxGatewayReturnTypes:
         broker.instrument_resolver.is_loaded.return_value = True
 
         from brokers.upstox.gateway import UpstoxBrokerGateway
+
         gw = UpstoxBrokerGateway(broker)
         return gw
 
@@ -359,12 +417,19 @@ class TestUpstoxGatewayReturnTypes:
 
     def test_quote_returns_quote(self, upstox_gw):
         upstox_gw._broker.market_data_v2.get_quote.return_value = {
-            "data": {"NSE_EQ|INE002A01018": {
-                "last_price": 2450.55, "ohlc": {
-                    "open": 2430, "high": 2460, "low": 2420, "close": 2425,
-                },
-                "volume": 100000, "net_change": 25,
-            }},
+            "data": {
+                "NSE_EQ|INE002A01018": {
+                    "last_price": 2450.55,
+                    "ohlc": {
+                        "open": 2430,
+                        "high": 2460,
+                        "low": 2420,
+                        "close": 2425,
+                    },
+                    "volume": 100000,
+                    "net_change": 25,
+                }
+            },
         }
         upstox_gw._resolve_instrument_key = lambda s, e: "NSE_EQ|INE002A01018"
         result = upstox_gw.quote("RELIANCE", "NSE")
@@ -388,7 +453,8 @@ class TestUpstoxGatewayReturnTypes:
 
     def test_funds_returns_balance(self, upstox_gw):
         upstox_gw._broker.portfolio.get_fund_limits.return_value = Balance(
-            available_balance=Decimal("100000"), used_margin=Decimal("0"),
+            available_balance=Decimal("100000"),
+            used_margin=Decimal("0"),
         )
         result = upstox_gw.funds()
         assert isinstance(result, Balance)
@@ -426,6 +492,7 @@ class TestPaperGatewayContract:
     @pytest.fixture()
     def paper_gw(self):
         from brokers.paper.paper_gateway import PaperGateway
+
         return PaperGateway()
 
     def test_ltp_returns_decimal(self, paper_gw):
@@ -507,6 +574,7 @@ class TestIntelligentGatewayWrapper:
 
     def test_delegates_ltp_to_inner_gateway(self):
         from brokers.common.intelligent_gateway import IntelligentGateway
+
         inner = MagicMock(spec=MarketDataGateway)
         inner.ltp.return_value = Decimal("2450")
 
@@ -518,11 +586,17 @@ class TestIntelligentGatewayWrapper:
 
     def test_delegates_quote_to_inner_gateway(self):
         from brokers.common.intelligent_gateway import IntelligentGateway
+
         inner = MagicMock(spec=MarketDataGateway)
         expected = Quote(
-            symbol="RELIANCE", ltp=Decimal("2450"), open=Decimal("2430"),
-            high=Decimal("2460"), low=Decimal("2420"), close=Decimal("2425"),
-            volume=100000, change=Decimal("25"),
+            symbol="RELIANCE",
+            ltp=Decimal("2450"),
+            open=Decimal("2430"),
+            high=Decimal("2460"),
+            low=Decimal("2420"),
+            close=Decimal("2425"),
+            volume=100000,
+            change=Decimal("25"),
         )
         inner.quote.return_value = expected
 
@@ -533,6 +607,7 @@ class TestIntelligentGatewayWrapper:
 
     def test_delegates_history_to_inner_gateway(self):
         from brokers.common.intelligent_gateway import IntelligentGateway
+
         inner = MagicMock(spec=MarketDataGateway)
         expected = pd.DataFrame({"close": [2450]})
         inner.history.return_value = expected
@@ -544,6 +619,7 @@ class TestIntelligentGatewayWrapper:
 
     def test_delegates_positions_to_inner_gateway(self):
         from brokers.common.intelligent_gateway import IntelligentGateway
+
         inner = MagicMock(spec=MarketDataGateway)
         inner.positions.return_value = []
 
@@ -555,6 +631,7 @@ class TestIntelligentGatewayWrapper:
 
     def test_delegates_funds_to_inner_gateway(self):
         from brokers.common.intelligent_gateway import IntelligentGateway
+
         inner = MagicMock(spec=MarketDataGateway)
         expected = Balance(available_balance=Decimal("100000"), used_margin=Decimal("0"))
         inner.funds.return_value = expected
@@ -573,6 +650,7 @@ class TestObservabilityProvider:
 
     def test_dhan_get_connection_status(self):
         from brokers.dhan.gateway import BrokerGateway
+
         conn = MagicMock()
         conn.client_id = "TEST"
         conn.instruments = MagicMock()
@@ -586,6 +664,7 @@ class TestObservabilityProvider:
 
     def test_dhan_get_circuit_breaker_states(self):
         from brokers.dhan.gateway import BrokerGateway
+
         conn = MagicMock()
         conn.client_id = "TEST"
         conn.instruments = MagicMock()
@@ -599,6 +678,7 @@ class TestObservabilityProvider:
 
     def test_dhan_get_token_refresh_metrics(self):
         from brokers.dhan.gateway import BrokerGateway
+
         conn = MagicMock()
         conn.client_id = "TEST"
         conn.instruments = MagicMock()

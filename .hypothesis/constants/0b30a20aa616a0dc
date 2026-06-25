@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/brokers/dhan/forever_orders.py
-# hypothesis_version: 6.155.7
-
-['/forever/all', '/forever/orders', '; ', 'OCO', 'SINGLE', 'correlationId', 'count', 'createdAt', 'data', 'dhanClientId', 'errorCode', 'errorMessage', 'error_code', 'error_message', 'errors', 'exchangeSegment', 'forever_order_placed', 'legName', 'message', 'ok', 'orderFlag', 'orderId', 'orderStatus', 'orderType', 'order_flag', 'order_id', 'price', 'price1', 'productType', 'quantity', 'quantity1', 'raw', 'securityId', 'status', 'success', 'symbol', 'tradingSymbol', 'transactionType', 'transaction_type', 'triggerPrice', 'triggerPrice1', 'validity']

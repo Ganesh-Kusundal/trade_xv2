@@ -10,8 +10,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from endpoints import Dhan
 from brokers.dhan.segments import _COMPACT_SEGMENT_MAP
+from endpoints import Dhan
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +81,10 @@ class InstrumentLoader:
                 mtime = datetime.fromtimestamp(cache_path.stat().st_mtime)
                 cache_age_hours = (datetime.now() - mtime).total_seconds() / 3600.0
                 if cache_age_hours > 6.0:
-                    logger.info("Cache is older than 6 hours (age: %.1f hours). Attempting refresh...", cache_age_hours)
+                    logger.info(
+                        "Cache is older than 6 hours (age: %.1f hours). Attempting refresh...",
+                        cache_age_hours,
+                    )
                     force_refresh = True
             except Exception as exc:
                 logger.warning("Error checking cache file modification time: %s", exc)
@@ -103,7 +106,10 @@ class InstrumentLoader:
                 os.replace(tmp_path, cache_path)
             except Exception as exc:
                 if cache_path.exists() and cache_path.stat().st_size > 0:
-                    logger.error("Failed to download instruments from Dhan (%s). Falling back to stale cached file.", exc)
+                    logger.error(
+                        "Failed to download instruments from Dhan (%s). Falling back to stale cached file.",
+                        exc,
+                    )
                     try:
                         df = pd.read_csv(cache_path, low_memory=False)
                     except Exception as read_exc:
@@ -117,7 +123,9 @@ class InstrumentLoader:
         # looks at the operator's env var; the explicit boolean wins.
         if mcx_required is None:
             trading_segments = os.environ.get("DHAN_TRADING_SEGMENTS", "")
-            mcx_required = "MCX" in [s.strip().upper() for s in trading_segments.split(",") if s.strip()]
+            mcx_required = "MCX" in [
+                s.strip().upper() for s in trading_segments.split(",") if s.strip()
+            ]
 
         # Supplement with MCX detailed API (has GOLD/CRUDEOIL futures
         # missing from compact). The behaviour on failure is now
@@ -147,7 +155,9 @@ class InstrumentLoader:
                 else:
                     rows[i] = r
                     replaced += 1
-            logger.info("Merged %d MCX instruments (added=%d replaced=%d)", len(mcx_rows), added, replaced)
+            logger.info(
+                "Merged %d MCX instruments (added=%d replaced=%d)", len(mcx_rows), added, replaced
+            )
 
         return rows
 
@@ -170,19 +180,21 @@ class InstrumentLoader:
             seg = _COMPACT_SEGMENT_MAP.get((exch_id, segment))
             if seg is None:
                 continue
-            out.append({
-                "SEM_TRADING_SYMBOL": str(getattr(r, "SEM_TRADING_SYMBOL", "")),
-                "SEM_SMST_SECURITY_ID": str(int(getattr(r, "SEM_SMST_SECURITY_ID", 0))),
-                "SEM_EXM_EXCH_ID": seg,
-                "SEM_INSTRUMENT_NAME": str(getattr(r, "SEM_INSTRUMENT_NAME", "")),
-                "SEM_LOT_UNITS": _safe_float(r, "SEM_LOT_UNITS", 1),
-                "SEM_TICK_SIZE": _safe_float(r, "SEM_TICK_SIZE", 0.05),
-                "SEM_EXPIRY_DATE": _safe_str(r, "SEM_EXPIRY_DATE"),
-                "SEM_STRIKE_PRICE": _safe_opt_float(r, "SEM_STRIKE_PRICE"),
-                "SEM_OPTION_TYPE": _safe_opt_str(r, "SEM_OPTION_TYPE"),
-                "SEM_CUSTOM_SYMBOL": _safe_opt_str(r, "SEM_CUSTOM_SYMBOL"),
-                "SM_SYMBOL_NAME": _safe_opt_str(r, "SM_SYMBOL_NAME"),
-            })
+            out.append(
+                {
+                    "SEM_TRADING_SYMBOL": str(getattr(r, "SEM_TRADING_SYMBOL", "")),
+                    "SEM_SMST_SECURITY_ID": str(int(getattr(r, "SEM_SMST_SECURITY_ID", 0))),
+                    "SEM_EXM_EXCH_ID": seg,
+                    "SEM_INSTRUMENT_NAME": str(getattr(r, "SEM_INSTRUMENT_NAME", "")),
+                    "SEM_LOT_UNITS": _safe_float(r, "SEM_LOT_UNITS", 1),
+                    "SEM_TICK_SIZE": _safe_float(r, "SEM_TICK_SIZE", 0.05),
+                    "SEM_EXPIRY_DATE": _safe_str(r, "SEM_EXPIRY_DATE"),
+                    "SEM_STRIKE_PRICE": _safe_opt_float(r, "SEM_STRIKE_PRICE"),
+                    "SEM_OPTION_TYPE": _safe_opt_str(r, "SEM_OPTION_TYPE"),
+                    "SEM_CUSTOM_SYMBOL": _safe_opt_str(r, "SEM_CUSTOM_SYMBOL"),
+                    "SM_SYMBOL_NAME": _safe_opt_str(r, "SM_SYMBOL_NAME"),
+                }
+            )
         return out
 
     @staticmethod
@@ -197,11 +209,11 @@ class InstrumentLoader:
         import io
         import urllib.request
 
-        req = urllib.request.Request(
+        req = urllib.request.Request(  # noqa: S310
             _DETAILED_MCX_URL,
             headers={"User-Agent": "TradeXV2/1.0"},
         )
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310
             content = resp.read().decode("utf-8")
 
         reader = csv.DictReader(io.StringIO(content))
@@ -222,6 +234,7 @@ class InstrumentLoader:
             if expiry_date_str:
                 try:
                     from datetime import datetime
+
                     dt_str = expiry_date_str.split()[0]
                     dt = datetime.strptime(dt_str, "%Y-%m-%d")
                     dd_mmm_yyyy = dt.strftime("%d%b%Y")
@@ -242,19 +255,21 @@ class InstrumentLoader:
                 except Exception as exc:
                     logger.debug("mcx_symbol_parse_failed: %s", exc)
 
-            rows.append({
-                "SEM_TRADING_SYMBOL": trading_symbol,
-                "SEM_SMST_SECURITY_ID": (r.get("SECURITY_ID") or "").strip(),
-                "SEM_EXM_EXCH_ID": "MCX_COMM",
-                "SEM_INSTRUMENT_NAME": instrument,
-                "SEM_LOT_UNITS": _safe_float_dict(r, "LOT_SIZE", 1),
-                "SEM_TICK_SIZE": _safe_float_dict(r, "TICK_SIZE", 0.05),
-                "SEM_EXPIRY_DATE": expiry_date_str or None,
-                "SEM_STRIKE_PRICE": strike_price_str or None,
-                "SEM_OPTION_TYPE": option_type or None,
-                "SEM_CUSTOM_SYMBOL": display_name or None,
-                "SM_SYMBOL_NAME": symbol_name.upper() if symbol_name else None,
-            })
+            rows.append(
+                {
+                    "SEM_TRADING_SYMBOL": trading_symbol,
+                    "SEM_SMST_SECURITY_ID": (r.get("SECURITY_ID") or "").strip(),
+                    "SEM_EXM_EXCH_ID": "MCX_COMM",
+                    "SEM_INSTRUMENT_NAME": instrument,
+                    "SEM_LOT_UNITS": _safe_float_dict(r, "LOT_SIZE", 1),
+                    "SEM_TICK_SIZE": _safe_float_dict(r, "TICK_SIZE", 0.05),
+                    "SEM_EXPIRY_DATE": expiry_date_str or None,
+                    "SEM_STRIKE_PRICE": strike_price_str or None,
+                    "SEM_OPTION_TYPE": option_type or None,
+                    "SEM_CUSTOM_SYMBOL": display_name or None,
+                    "SM_SYMBOL_NAME": symbol_name.upper() if symbol_name else None,
+                }
+            )
         return rows
 
 

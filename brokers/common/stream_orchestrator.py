@@ -28,13 +28,20 @@ The orchestrator delivers normalized ``MarketTick`` and ``OrderResult`` objects.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
-import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Callable, Literal, Protocol, Sequence
+from typing import Any, Literal, Protocol
 
+from brokers.common.broker_port import (
+    BrokerStreamHandle,
+    BrokerStreamPlan,
+)
+from brokers.common.models import OperationKind, RouteDecision, RoutingRequest
+from brokers.common.registry import BrokerRegistry
+from brokers.common.router import BrokerRouter
 from domain.historical import InstrumentRef
 from domain.stream_health import (
     FreshnessState,
@@ -44,16 +51,6 @@ from domain.stream_health import (
     SubscriptionState,
     TransportState,
 )
-from brokers.common.broker_port import (
-    BrokerStreamHandle,
-    BrokerStreamPlan,
-    CommonBrokerGateway,
-    QuotaToken,
-)
-from brokers.common.errors import StreamAuthError, StreamError, StreamStalenessError
-from brokers.common.models import OperationKind, RouteDecision, RoutingRequest
-from brokers.common.registry import BrokerRegistry
-from brokers.common.router import BrokerRouter
 
 logger = logging.getLogger(__name__)
 
@@ -74,11 +71,11 @@ class StreamConsumer(Protocol):
         """Unique identifier for this consumer (for metrics and deregistration)."""
         ...
 
-    async def on_market_tick(self, tick: "MarketTick") -> None:
+    async def on_market_tick(self, tick: MarketTick) -> None:
         """Called for each normalized market data update."""
         ...
 
-    async def on_order_update(self, update: "OrderUpdate") -> None:
+    async def on_order_update(self, update: OrderUpdate) -> None:
         """Called for each normalized order/position stream update."""
         ...
 
@@ -159,9 +156,7 @@ class _ActiveSubscription:
     session_id: str
     consumer: StreamConsumer
     request: SubscriptionRequest
-    registered_at: datetime = field(
-        default_factory=lambda: datetime.now(tz=timezone.utc)
-    )
+    registered_at: datetime = field(default_factory=lambda: datetime.now(tz=timezone.utc))
 
 
 # ---------------------------------------------------------------------------
@@ -186,6 +181,7 @@ class StreamOrchestrator:
     _HEARTBEAT_INTERVAL_S = 5.0
     _RECONNECT_BASE_DELAY_S = 1.0
     _RECONNECT_MAX_DELAY_S = 60.0
+    _MAX_RECONNECT_ATTEMPTS = 5
 
     def __init__(
         self,
@@ -278,10 +274,7 @@ class StreamOrchestrator:
             if sub is None:
                 return
             # Check if any other consumer uses this session
-            remaining = [
-                s for s in self._subscriptions.values()
-                if s.session_id == sub.session_id
-            ]
+            remaining = [s for s in self._subscriptions.values() if s.session_id == sub.session_id]
             if not remaining:
                 await self._disconnect_session(sub.session_id, reason="no_consumers")
 
@@ -302,14 +295,8 @@ class StreamOrchestrator:
         """Build a stream state summary for the given broker (for BrokerRegistry)."""
         sessions = [s for s in self._sessions.values() if s.broker_id == broker_id]
         healthy = sum(1 for s in sessions if s.is_healthy())
-        stale = sum(
-            1 for s in sessions
-            if s.health.freshness == FreshnessState.STALE
-        )
-        degraded = sum(
-            1 for s in sessions
-            if s.health.subscription == SubscriptionState.DEGRADED
-        )
+        stale = sum(1 for s in sessions if s.health.freshness == FreshnessState.STALE)
+        degraded = sum(1 for s in sessions if s.health.subscription == SubscriptionState.DEGRADED)
         return StreamStateSummary(
             broker_id=broker_id,
             active_sessions=len(sessions),
@@ -324,10 +311,7 @@ class StreamOrchestrator:
 
     async def _deliver_tick(self, session_id: str, tick: MarketTick) -> None:
         """Deliver a market tick to all consumers of the session."""
-        subs = [
-            s for s in self._subscriptions.values()
-            if s.session_id == session_id
-        ]
+        subs = [s for s in self._subscriptions.values() if s.session_id == session_id]
         for sub in subs:
             try:
                 await asyncio.wait_for(
@@ -357,10 +341,7 @@ class StreamOrchestrator:
 
     async def _deliver_order_update(self, session_id: str, update: OrderUpdate) -> None:
         """Deliver an order update to all consumers of the session."""
-        subs = [
-            s for s in self._subscriptions.values()
-            if s.session_id == session_id
-        ]
+        subs = [s for s in self._subscriptions.values() if s.session_id == session_id]
         for sub in subs:
             try:
                 # BLOCK for order events — never drop
@@ -421,14 +402,18 @@ class StreamOrchestrator:
             session.update_transport(TransportState.CONNECTED)
             session.update_subscription(SubscriptionState.ACKNOWLEDGED)
             self._log_state_change(
-                session_id, TransportState.CONNECTING.value,
-                TransportState.CONNECTED.value, "session_opened"
+                session_id,
+                TransportState.CONNECTING.value,
+                TransportState.CONNECTED.value,
+                "session_opened",
             )
         except Exception as exc:
             session.update_transport(TransportState.DISCONNECTED)
             self._log_state_change(
-                session_id, TransportState.CONNECTING.value,
-                TransportState.DISCONNECTED.value, f"open_failed:{exc}"
+                session_id,
+                TransportState.CONNECTING.value,
+                TransportState.DISCONNECTED.value,
+                f"open_failed:{exc}",
             )
             raise
 
@@ -446,10 +431,8 @@ class StreamOrchestrator:
         handle = self._handles.pop(session_id, None)
         session = self._sessions.pop(session_id, None)
         if handle:
-            try:
+            with contextlib.suppress(Exception):
                 await handle.disconnect()
-            except Exception:
-                pass
         if session:
             self._log_state_change(
                 session_id,
@@ -562,7 +545,12 @@ class StreamOrchestrator:
         session_id: str,
         original_request: SubscriptionRequest,
     ) -> None:
-        """Monitor a session and reconnect on transport loss."""
+        """Monitor a session and reconnect on transport loss.
+
+        After ``_MAX_RECONNECT_ATTEMPTS`` failures on the same broker,
+        attempts cross-broker failover if ``allow_failover`` is set on the
+        original subscription request.
+        """
         delay = self._RECONNECT_BASE_DELAY_S
         while self._running:
             await asyncio.sleep(1.0)
@@ -584,6 +572,17 @@ class StreamOrchestrator:
                 session.increment_reconnect()
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, self._RECONNECT_MAX_DELAY_S)
+
+                # Try failover if max reconnect attempts exceeded
+                if (
+                    session.reconnect_generation >= self._MAX_RECONNECT_ATTEMPTS
+                    and original_request.allow_failover
+                ):
+                    failover_ok = await self._try_failover(
+                        session_id, session, original_request
+                    )
+                    if failover_ok:
+                        return  # failover succeeded, new session is active
 
                 try:
                     broker_id = session.broker_id
@@ -617,6 +616,94 @@ class StreamOrchestrator:
                         f"reconnect_failed:{exc}",
                     )
 
+    async def _try_failover(
+        self,
+        session_id: str,
+        session: StreamSession,
+        original_request: SubscriptionRequest,
+    ) -> bool:
+        """Attempt to failover to a different broker.
+
+        Returns True if failover succeeded, False if no fallback available.
+        """
+        current_broker = session.broker_id
+        trace_id = str(uuid.uuid4())
+
+        operation = (
+            OperationKind.OPEN_MARKET_STREAM
+            if session.stream_kind == "market"
+            else OperationKind.OPEN_ORDER_STREAM
+        )
+        routing_request = RoutingRequest(
+            operation=operation,
+            trace_id=trace_id,
+        )
+        try:
+            decision = self._router.route(routing_request)
+        except Exception:
+            logger.warning(
+                "stream.failover.routing_failed",
+                extra={"session_id": session_id, "current_broker": current_broker},
+            )
+            return False
+
+        # Try each fallback broker
+        for fallback_broker in decision.fallback_brokers:
+            if fallback_broker == current_broker:
+                continue
+            try:
+                gw = self._registry.get_gateway(fallback_broker)
+                plan = BrokerStreamPlan(
+                    instruments=session.instruments,
+                    modes=session.modes,
+                )
+                if session.stream_kind == "market":
+                    handle = await gw.open_market_stream(plan)
+                else:
+                    handle = await gw.open_order_stream(plan)
+
+                async with self._lock:
+                    self._handles[session_id] = handle
+                session.update_transport(TransportState.CONNECTED)
+                session.update_subscription(SubscriptionState.ACKNOWLEDGED)
+                session.update_freshness(FreshnessState.UNKNOWN)
+                session.reconnect_generation = 0  # reset for new broker
+
+                # Update broker_id on the session
+                object.__setattr__(session, "broker_id", fallback_broker)
+
+                self._log_state_change(
+                    session_id,
+                    TransportState.RECONNECTING.value,
+                    TransportState.CONNECTED.value,
+                    f"failover:{current_broker}->{fallback_broker}",
+                )
+                logger.info(
+                    "stream.failover.success",
+                    extra={
+                        "session_id": session_id,
+                        "from_broker": current_broker,
+                        "to_broker": fallback_broker,
+                    },
+                )
+                return True
+            except Exception as exc:
+                logger.warning(
+                    "stream.failover.broker_failed",
+                    extra={
+                        "session_id": session_id,
+                        "fallback_broker": fallback_broker,
+                        "error": str(exc),
+                    },
+                )
+                continue
+
+        logger.warning(
+            "stream.failover.exhausted",
+            extra={"session_id": session_id, "current_broker": current_broker},
+        )
+        return False
+
     # ------------------------------------------------------------------
     # Heartbeat / staleness detection
     # ------------------------------------------------------------------
@@ -626,7 +713,7 @@ class StreamOrchestrator:
         while self._running:
             await asyncio.sleep(self._HEARTBEAT_INTERVAL_S)
             now = datetime.now(tz=timezone.utc)
-            for session_id, session in list(self._sessions.items()):
+            for _session_id, session in list(self._sessions.items()):
                 self._check_freshness(session, now)
 
     def _check_freshness(self, session: StreamSession, now: datetime) -> None:
@@ -637,15 +724,17 @@ class StreamOrchestrator:
             return
 
         elapsed = (now - last).total_seconds()
-        if elapsed > session.health.stale_seconds_threshold:
-            if session.health.freshness != FreshnessState.STALE:
-                session.update_freshness(FreshnessState.STALE)
-                self._log_state_change(
-                    session.session_id,
-                    FreshnessState.FRESH.value,
-                    FreshnessState.STALE.value,
-                    f"no_valid_data_for_{elapsed:.0f}s",
-                )
+        if (
+            elapsed > session.health.stale_seconds_threshold
+            and session.health.freshness != FreshnessState.STALE
+        ):
+            session.update_freshness(FreshnessState.STALE)
+            self._log_state_change(
+                session.session_id,
+                FreshnessState.FRESH.value,
+                FreshnessState.STALE.value,
+                f"no_valid_data_for_{elapsed:.0f}s",
+            )
 
     # ------------------------------------------------------------------
     # Broker selection
@@ -700,7 +789,7 @@ class StreamOrchestrator:
                 "timestamp": datetime.now(tz=timezone.utc).isoformat(),
             },
         )
-        try:
+        with contextlib.suppress(Exception):
             from brokers.common.observability.audit import emit_stream_state_change
 
             emit_stream_state_change(
@@ -712,5 +801,3 @@ class StreamOrchestrator:
                 reason=reason,
                 reconnect_generation=reconnect_gen,
             )
-        except Exception:
-            pass

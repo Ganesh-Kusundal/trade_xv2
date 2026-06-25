@@ -6,7 +6,6 @@ All generators are deterministic given the same seed.
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal
 
 import numpy as np
 import pandas as pd
@@ -62,15 +61,17 @@ def generate_ohlcv_data(
     high = np.maximum(high, close)
     low = np.minimum(low, close)
 
-    return pd.DataFrame({
-        "timestamp": timestamps,
-        "open": open_,
-        "high": high,
-        "low": low,
-        "close": close,
-        "volume": volume,
-        "symbol": symbol,
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": timestamps,
+            "open": open_,
+            "high": high,
+            "low": low,
+            "close": close,
+            "volume": volume,
+            "symbol": symbol,
+        }
+    )
 
 
 def generate_multi_symbol_data(
@@ -141,15 +142,17 @@ def generate_trending_data(
     high = np.maximum(high, close)
     low = np.minimum(low, close)
 
-    return pd.DataFrame({
-        "timestamp": timestamps,
-        "open": open_,
-        "high": high,
-        "low": low,
-        "close": close,
-        "volume": volume,
-        "symbol": symbol,
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": timestamps,
+            "open": open_,
+            "high": high,
+            "low": low,
+            "close": close,
+            "volume": volume,
+            "symbol": symbol,
+        }
+    )
 
 
 def generate_mean_reverting_data(
@@ -182,7 +185,7 @@ def generate_mean_reverting_data(
     close = np.zeros(n_bars)
     close[0] = start_price
     for i in range(1, n_bars):
-        close[i] = close[i-1] + reversion_speed * (mean - close[i-1]) + volatility * rng.randn()
+        close[i] = close[i - 1] + reversion_speed * (mean - close[i - 1]) + volatility * rng.randn()
 
     high = close + abs(rng.randn(n_bars)) * 0.5
     low = close - abs(rng.randn(n_bars)) * 0.5
@@ -192,12 +195,14 @@ def generate_mean_reverting_data(
     high = np.maximum(high, close)
     low = np.minimum(low, close)
 
-    return pd.DataFrame({
-        "timestamp": timestamps,
-        "open": open_,
-        "high": high,
-        "low": low,
-        "close": close,
-        "volume": volume,
-        "symbol": symbol,
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": timestamps,
+            "open": open_,
+            "high": high,
+            "low": low,
+            "close": close,
+            "volume": volume,
+            "symbol": symbol,
+        }
+    )

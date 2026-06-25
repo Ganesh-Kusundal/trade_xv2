@@ -29,10 +29,10 @@ from analytics.replay.orchestrator import (
 )
 from infrastructure.event_bus.event_bus import DomainEvent
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def tmp_events_dir(tmp_path: Path) -> Path:
@@ -42,18 +42,22 @@ def tmp_events_dir(tmp_path: Path) -> Path:
 @pytest.fixture
 def sample_bar_df() -> pd.DataFrame:
     """A small OHLCV DataFrame for testing."""
-    return pd.DataFrame({
-        "timestamp": pd.to_datetime([
-            "2026-01-15 09:15:00",
-            "2026-01-15 09:16:00",
-            "2026-01-15 09:17:00",
-        ]),
-        "open": [100.0, 101.0, 102.0],
-        "high": [101.0, 102.0, 103.0],
-        "low": [99.5, 100.5, 101.5],
-        "close": [100.5, 101.5, 102.5],
-        "volume": [1000.0, 1500.0, 2000.0],
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": pd.to_datetime(
+                [
+                    "2026-01-15 09:15:00",
+                    "2026-01-15 09:16:00",
+                    "2026-01-15 09:17:00",
+                ]
+            ),
+            "open": [100.0, 101.0, 102.0],
+            "high": [101.0, 102.0, 103.0],
+            "low": [99.5, 100.5, 101.5],
+            "close": [100.5, 101.5, 102.5],
+            "volume": [1000.0, 1500.0, 2000.0],
+        }
+    )
 
 
 @pytest.fixture
@@ -83,8 +87,8 @@ def sample_events() -> list[DomainEvent]:
 # ReplayItem tests
 # ---------------------------------------------------------------------------
 
-class TestReplayItem:
 
+class TestReplayItem:
     def test_bar_item(self) -> None:
         ts = datetime(2026, 1, 15, 9, 15, 0, tzinfo=timezone.utc)
         item = ReplayItem(
@@ -136,8 +140,8 @@ class TestReplayItem:
 # UnifiedReplayResult tests
 # ---------------------------------------------------------------------------
 
-class TestUnifiedReplayResult:
 
+class TestUnifiedReplayResult:
     def test_summary_without_replay_result(self) -> None:
         result = UnifiedReplayResult(
             replay_result=None,
@@ -189,8 +193,8 @@ class TestUnifiedReplayResult:
 # Orchestrator internal helpers tests
 # ---------------------------------------------------------------------------
 
-class TestOrchestratorHelpers:
 
+class TestOrchestratorHelpers:
     def test_df_to_items_converts_dataframe(self, sample_bar_df: pd.DataFrame) -> None:
         orchestrator = UnifiedReplayOrchestrator(data_root="market_data")
         items = orchestrator._df_to_items(sample_bar_df, "RELIANCE")
@@ -208,14 +212,16 @@ class TestOrchestratorHelpers:
         assert items[1].sequence == 101
 
     def test_df_to_items_handles_naive_timestamps(self) -> None:
-        df = pd.DataFrame({
-            "timestamp": [pd.Timestamp("2026-01-15 09:15:00")],
-            "open": [100.0],
-            "high": [101.0],
-            "low": [99.0],
-            "close": [100.5],
-            "volume": [1000.0],
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": [pd.Timestamp("2026-01-15 09:15:00")],
+                "open": [100.0],
+                "high": [101.0],
+                "low": [99.0],
+                "close": [100.5],
+                "volume": [1000.0],
+            }
+        )
         orchestrator = UnifiedReplayOrchestrator(data_root="market_data")
         items = orchestrator._df_to_items(df, "X")
         assert items[0].timestamp.tzinfo is not None
@@ -254,14 +260,30 @@ class TestOrchestratorHelpers:
                 sequence=0,
                 kind="bar",
                 symbol="A",
-                bar_data={"symbol": "A", "timestamp": ts, "open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5, "volume": 1000.0},
+                bar_data={
+                    "symbol": "A",
+                    "timestamp": ts,
+                    "open": 100.0,
+                    "high": 101.0,
+                    "low": 99.0,
+                    "close": 100.5,
+                    "volume": 1000.0,
+                },
             ),
             ReplayItem(
                 timestamp=ts,
                 sequence=1,
                 kind="bar",
                 symbol="B",
-                bar_data={"symbol": "B", "timestamp": ts, "open": 200.0, "high": 201.0, "low": 199.0, "close": 200.5, "volume": 500.0},
+                bar_data={
+                    "symbol": "B",
+                    "timestamp": ts,
+                    "open": 200.0,
+                    "high": 201.0,
+                    "low": 199.0,
+                    "close": 200.5,
+                    "volume": 500.0,
+                },
             ),
         ]
         orchestrator = UnifiedReplayOrchestrator(data_root="market_data")
@@ -284,8 +306,8 @@ class TestOrchestratorHelpers:
 # Full run() integration tests
 # ---------------------------------------------------------------------------
 
-class TestOrchestratorRun:
 
+class TestOrchestratorRun:
     @patch("analytics.replay.orchestrator.EventLog")
     @patch("datalake.research.ResearchAPI")
     def test_run_with_no_data_returns_no_data_result(
@@ -314,8 +336,11 @@ class TestOrchestratorRun:
     @patch("analytics.replay.orchestrator.EventLog")
     @patch("datalake.research.ResearchAPI")
     def test_run_loads_bars_and_events(
-        self, mock_research_cls: MagicMock, mock_eventlog_cls: MagicMock,
-        sample_bar_df: pd.DataFrame, sample_events: list[DomainEvent],
+        self,
+        mock_research_cls: MagicMock,
+        mock_eventlog_cls: MagicMock,
+        sample_bar_df: pd.DataFrame,
+        sample_events: list[DomainEvent],
     ) -> None:
         """Verifies run() properly loads and merges data."""
         mock_research = MagicMock()
@@ -338,7 +363,9 @@ class TestOrchestratorRun:
     @patch("analytics.replay.orchestrator.EventLog")
     @patch("datalake.research.ResearchAPI")
     def test_run_handles_bar_load_error_gracefully(
-        self, mock_research_cls: MagicMock, mock_eventlog_cls: MagicMock,
+        self,
+        mock_research_cls: MagicMock,
+        mock_eventlog_cls: MagicMock,
         sample_events: list[DomainEvent],
     ) -> None:
         """If bar loading fails, run() continues with events only."""
@@ -363,7 +390,9 @@ class TestOrchestratorRun:
     @patch("analytics.replay.orchestrator.EventLog")
     @patch("datalake.research.ResearchAPI")
     def test_run_with_multiple_symbols(
-        self, mock_research_cls: MagicMock, mock_eventlog_cls: MagicMock,
+        self,
+        mock_research_cls: MagicMock,
+        mock_eventlog_cls: MagicMock,
         sample_bar_df: pd.DataFrame,
     ) -> None:
         """Verifies bars are loaded for each symbol."""
@@ -386,14 +415,15 @@ class TestOrchestratorRun:
 
         # 3 bars per symbol * 2 symbols = 6 total bars
         assert result.bars_replayed == 6
-        mock_research.history.call_count == 2
+        assert mock_research.history.call_count == 2
 
     @patch("analytics.replay.orchestrator.EventLog")
     def test_run_handles_event_load_error_gracefully(
-        self, mock_eventlog_cls: MagicMock, sample_bar_df: pd.DataFrame,
+        self,
+        mock_eventlog_cls: MagicMock,
+        sample_bar_df: pd.DataFrame,
     ) -> None:
         """If event loading fails, run() continues with bars only."""
-        from analytics.replay.orchestrator import EventLog as RealEventLog
 
         mock_eventlog = MagicMock()
         mock_eventlog.replay.side_effect = RuntimeError("event log error")
@@ -416,8 +446,11 @@ class TestOrchestratorRun:
     @patch("analytics.replay.orchestrator.EventLog")
     @patch("datalake.research.ResearchAPI")
     def test_run_state_assertion_enabled(
-        self, mock_research_cls: MagicMock, mock_eventlog_cls: MagicMock,
-        sample_bar_df: pd.DataFrame, sample_events: list[DomainEvent],
+        self,
+        mock_research_cls: MagicMock,
+        mock_eventlog_cls: MagicMock,
+        sample_bar_df: pd.DataFrame,
+        sample_events: list[DomainEvent],
     ) -> None:
         """Verifies state assertion is performed when assert_state=True."""
         mock_research = MagicMock()
@@ -444,7 +477,9 @@ class TestOrchestratorRun:
     @patch("analytics.replay.orchestrator.EventLog")
     @patch("datalake.research.ResearchAPI")
     def test_run_metadata_includes_date_and_symbols(
-        self, mock_research_cls: MagicMock, mock_eventlog_cls: MagicMock,
+        self,
+        mock_research_cls: MagicMock,
+        mock_eventlog_cls: MagicMock,
         sample_bar_df: pd.DataFrame,
     ) -> None:
         mock_research = MagicMock()
@@ -472,8 +507,8 @@ class TestOrchestratorRun:
 # Determinism tests
 # ---------------------------------------------------------------------------
 
-class TestReplayDeterminism:
 
+class TestReplayDeterminism:
     def test_replay_item_ordering_is_deterministic(self) -> None:
         """Same items sorted twice should produce the same order."""
         ts1 = datetime(2026, 1, 15, 9, 15, 0, tzinfo=timezone.utc)

@@ -139,9 +139,9 @@ def test_append_does_not_silently_swallow_errors(
     with patch.object(log, "_ensure_handle") as m:
         m.return_value.write.side_effect = OSError("disk full")
         import logging as _logging
-        with caplog.at_level(_logging.ERROR):
-            with pytest.raises(OSError):
-                log.append(DomainEvent.now("TICK", {"ltp": 1.0}))
+
+        with caplog.at_level(_logging.ERROR), pytest.raises(OSError):
+            log.append(DomainEvent.now("TICK", {"ltp": 1.0}))
     assert any("disk full" in r.message for r in caplog.records)
 
 

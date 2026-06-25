@@ -37,10 +37,9 @@ def test_market_feed_callback_registration_is_thread_safe():
         except Exception as exc:
             errors.append(exc)
 
-    threads = (
-        [threading.Thread(target=register_quote) for _ in range(10)]
-        + [threading.Thread(target=register_depth) for _ in range(10)]
-    )
+    threads = [threading.Thread(target=register_quote) for _ in range(10)] + [
+        threading.Thread(target=register_depth) for _ in range(10)
+    ]
     for t in threads:
         t.start()
     for t in threads:
@@ -72,11 +71,14 @@ def test_market_feed_on_message_snapshots_callbacks():
     feed.on_quote(cb_a)
     feed.on_quote(cb_b)
 
-    feed._on_message(MagicMock(), {
-        "type": "Quote Data",
-        "security_id": 2885,
-        "last_price": "2500.00",
-    })
+    feed._on_message(
+        MagicMock(),
+        {
+            "type": "Quote Data",
+            "security_id": 2885,
+            "last_price": "2500.00",
+        },
+    )
 
     assert received == ["a", "b"]
 
@@ -137,10 +139,12 @@ def test_order_stream_on_update_snapshots_callbacks():
     stream.on_order_update(cb_a)
     stream.on_order_update(cb_b)
 
-    stream._on_order_update({
-        "Type": "order_alert",
-        "Data": {"orderNo": "1", "status": "COMPLETE"},
-    })
+    stream._on_order_update(
+        {
+            "Type": "order_alert",
+            "Data": {"orderNo": "1", "status": "COMPLETE"},
+        }
+    )
 
     assert received == ["a", "b"]
 

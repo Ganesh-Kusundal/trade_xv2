@@ -2,8 +2,10 @@
 
 Tests every gateway data endpoint for NSE, BSE, NFO, MCX, CDS, and INDEX.
 """
-import sys
+
+import contextlib
 import os
+import sys
 import time
 import traceback
 from decimal import Decimal
@@ -81,7 +83,12 @@ def test_gateway():
         try:
             q = gw.quote(symbol, exchange)
             if q and q.ltp and q.ltp > 0:
-                record("quote", f"{exchange}({label})", PASS, f"{symbol} LTP={q.ltp}, OHLC=({q.open},{q.high},{q.low},{q.close})")
+                record(
+                    "quote",
+                    f"{exchange}({label})",
+                    PASS,
+                    f"{symbol} LTP={q.ltp}, OHLC=({q.open},{q.high},{q.low},{q.close})",
+                )
             else:
                 record("quote", f"{exchange}({label})", FAIL, f"got {q}")
         except Exception as e:
@@ -98,9 +105,11 @@ def test_gateway():
         try:
             d = gw.depth(symbol, exchange)
             if d:
-                buy_count = len(d.bids) if hasattr(d, 'bids') else 0
-                sell_count = len(d.asks) if hasattr(d, 'asks') else 0
-                record("depth", f"{exchange}({label})", PASS, f"bids={buy_count}, asks={sell_count}")
+                buy_count = len(d.bids) if hasattr(d, "bids") else 0
+                sell_count = len(d.asks) if hasattr(d, "asks") else 0
+                record(
+                    "depth", f"{exchange}({label})", PASS, f"bids={buy_count}, asks={sell_count}"
+                )
             else:
                 record("depth", f"{exchange}({label})", FAIL, "returned None")
         except Exception as e:
@@ -119,22 +128,40 @@ def test_gateway():
         try:
             df = gw.history(symbol, exchange, timeframe=tf, lookback_days=10)
             if df is not None and len(df) > 0:
-                record("history", f"{exchange}({label})", PASS, f"{len(df)} bars, cols={list(df.columns[:5])}")
+                record(
+                    "history",
+                    f"{exchange}({label})",
+                    PASS,
+                    f"{len(df)} bars, cols={list(df.columns[:5])}",
+                )
             else:
-                record("history", f"{exchange}({label})", FAIL, f"empty or None ({len(df) if df is not None else 'None'})")
+                record(
+                    "history",
+                    f"{exchange}({label})",
+                    FAIL,
+                    f"empty or None ({len(df) if df is not None else 'None'})",
+                )
         except Exception as e:
             record("history", f"{exchange}({label})", FAIL, f"{type(e).__name__}: {e}")
         time.sleep(0.3)
 
     # ── 5. Option chain ─────────────────────────────────────────────────
     print("\n=== Option Chain ===")
-    for underlying, exchange, label in [("NIFTY", "NFO", "NFO NIFTY"), ("SENSEX", "BFO", "BFO SENSEX")]:
+    for underlying, exchange, label in [
+        ("NIFTY", "NFO", "NFO NIFTY"),
+        ("SENSEX", "BFO", "BFO SENSEX"),
+    ]:
         try:
             chain = gw.option_chain(underlying, exchange)
             if chain and isinstance(chain, dict):
                 data = chain.get("data", chain.get("contracts", []))
                 count = len(data) if isinstance(data, list) else len(data) if data else 0
-                record("option_chain", f"{exchange}({label})", PASS, f"underlying={underlying}, contracts={count}")
+                record(
+                    "option_chain",
+                    f"{exchange}({label})",
+                    PASS,
+                    f"underlying={underlying}, contracts={count}",
+                )
             else:
                 record("option_chain", f"{exchange}({label})", FAIL, f"got {type(chain)}")
         except Exception as e:
@@ -160,7 +187,12 @@ def test_gateway():
             if chain and isinstance(chain, dict):
                 contracts = chain.get("contracts", [])
                 expiries = chain.get("expiries", [])
-                record("future_chain", f"{exchange}({label})", PASS, f"contracts={len(contracts)}, expiries={len(expiries)}")
+                record(
+                    "future_chain",
+                    f"{exchange}({label})",
+                    PASS,
+                    f"contracts={len(contracts)}, expiries={len(expiries)}",
+                )
             else:
                 record("future_chain", f"{exchange}({label})", FAIL, f"got {type(chain)}")
         except Exception as e:
@@ -173,7 +205,12 @@ def test_gateway():
         symbols = ["RELIANCE", "TCS", "INFY", "HDFCBANK", "ICICIBANK"]
         batch = gw.ltp_batch(symbols, "NSE")
         if batch and len(batch) > 0:
-            record("ltp_batch", "NSE(Equity)", PASS, f"{len(batch)} symbols: {list(batch.keys())[:3]}...")
+            record(
+                "ltp_batch",
+                "NSE(Equity)",
+                PASS,
+                f"{len(batch)} symbols: {list(batch.keys())[:3]}...",
+            )
         else:
             record("ltp_batch", "NSE(Equity)", FAIL, f"got {batch}")
     except Exception as e:
@@ -196,7 +233,12 @@ def test_gateway():
     try:
         bal = gw.funds()
         if bal:
-            record("funds", "Account", PASS, f"available={bal.available if hasattr(bal, 'available') else bal}")
+            record(
+                "funds",
+                "Account",
+                PASS,
+                f"available={bal.available if hasattr(bal, 'available') else bal}",
+            )
         else:
             record("funds", "Account", FAIL, "returned None/empty")
     except Exception as e:
@@ -237,7 +279,12 @@ def test_gateway():
         symbols = ["RELIANCE", "TCS"]
         df = gw.history_batch(symbols, "NSE", timeframe="1D", lookback_days=5)
         if df is not None and len(df) > 0:
-            record("history_batch", "NSE(Equity)", PASS, f"{len(df)} total bars for {len(symbols)} symbols")
+            record(
+                "history_batch",
+                "NSE(Equity)",
+                PASS,
+                f"{len(df)} total bars for {len(symbols)} symbols",
+            )
         else:
             record("history_batch", "NSE(Equity)", FAIL, f"empty or None")
     except Exception as e:
@@ -260,10 +307,8 @@ if __name__ == "__main__":
         traceback.print_exc()
         sys.exit(1)
     finally:
-        try:
+        with contextlib.suppress(Exception):
             gw._conn.close()
-        except Exception:
-            pass
 
     # ── Summary ──────────────────────────────────────────────────────────
     print("\n" + "=" * 70)

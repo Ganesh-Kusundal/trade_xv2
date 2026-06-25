@@ -22,19 +22,18 @@ def _ensure_dhanhq_sdk_aliases() -> None:
     the broker modules without requiring an older dhanhq release.
     """
     try:
-        import dhanhq  # noqa: F401
         import dhanhq.marketfeed as _marketfeed
         import dhanhq.orderupdate as _orderupdate
     except Exception:
         return
 
-    _SEGMENT_CONSTANTS = None
+    _segment_constants = None
     try:
         from brokers.dhan.segments import DHAN_SDK_SEGMENT_CONSTANTS
 
-        _SEGMENT_CONSTANTS = DHAN_SDK_SEGMENT_CONSTANTS
+        _segment_constants = DHAN_SDK_SEGMENT_CONSTANTS
     except Exception:
-        _SEGMENT_CONSTANTS = {
+        _segment_constants = {
             "IDX": 0,
             "NSE": 1,
             "NSE_FNO": 2,
@@ -44,21 +43,22 @@ def _ensure_dhanhq_sdk_aliases() -> None:
             "BSE_CURR": 7,
             "BSE_FNO": 8,
         }
-    _REQUEST_CODE_CONSTANTS = {
+    _request_code_constants = {
         "Ticker": 15,
         "Quote": 17,
         "Depth": 19,
         "Full": 21,
     }
 
-    for _name, _value in _SEGMENT_CONSTANTS.items():
+    for _name, _value in _segment_constants.items():
         if not hasattr(_marketfeed, _name):
             setattr(_marketfeed, _name, _value)
-    for _name, _value in _REQUEST_CODE_CONSTANTS.items():
+    for _name, _value in _request_code_constants.items():
         if not hasattr(_marketfeed, _name):
             setattr(_marketfeed, _name, _value)
 
     if not hasattr(_marketfeed, "DhanFeed"):
+
         class _StubDhanFeed:  # pragma: no cover - SDK version shim
             pass
 
@@ -66,9 +66,9 @@ def _ensure_dhanhq_sdk_aliases() -> None:
         # the production class does. Modules like ``websocket.py`` access
         # ``SDKMarketFeed.Ticker`` etc. at call-time, so the stub needs
         # every constant the real class exposes.
-        for _name, _value in _REQUEST_CODE_CONSTANTS.items():
+        for _name, _value in _request_code_constants.items():
             setattr(_StubDhanFeed, _name, _value)
-        for _name, _value in _SEGMENT_CONSTANTS.items():
+        for _name, _value in _segment_constants.items():
             setattr(_StubDhanFeed, _name, _value)
         _marketfeed.DhanFeed = _StubDhanFeed
 
@@ -78,6 +78,7 @@ def _ensure_dhanhq_sdk_aliases() -> None:
         _StubDhanFeed.run_forever = _stub_run_forever
 
     if not hasattr(_orderupdate, "OrderSocket"):
+
         class _StubOrderSocket:  # pragma: no cover - SDK version shim
             def __init__(self, *args, **kwargs):
                 self.args = args
@@ -105,9 +106,7 @@ class FakeHttpClient:
     need broker-specific methods.
     """
 
-    def __init__(
-        self, client_id: str = "TEST_CLIENT", access_token: str = "TEST_TOKEN"
-    ):
+    def __init__(self, client_id: str = "TEST_CLIENT", access_token: str = "TEST_TOKEN"):
         self.client_id = client_id
         self.access_token = access_token
         self._responses: dict[tuple[str, str], Any] = {}

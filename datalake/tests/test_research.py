@@ -24,17 +24,19 @@ def _make_canonical_df(
     np.random.seed(42)
     dates = pd.date_range(start, periods=n, freq=freq)
     close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-    return pd.DataFrame({
-        "timestamp": dates,
-        "symbol": symbol,
-        "exchange": "NSE",
-        "open": close + np.random.randn(n) * 0.2,
-        "high": close + np.abs(np.random.randn(n) * 0.5),
-        "low": close - np.abs(np.random.randn(n) * 0.5),
-        "close": close,
-        "volume": np.random.randint(1000, 10000, n),
-        "oi": np.zeros(n, dtype=np.int64),
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": dates,
+            "symbol": symbol,
+            "exchange": "NSE",
+            "open": close + np.random.randn(n) * 0.2,
+            "high": close + np.abs(np.random.randn(n) * 0.5),
+            "low": close - np.abs(np.random.randn(n) * 0.5),
+            "close": close,
+            "volume": np.random.randint(1000, 10000, n),
+            "oi": np.zeros(n, dtype=np.int64),
+        }
+    )
 
 
 def _setup_lake(tmp_path: Path, symbols: list[str] | None = None) -> None:
@@ -44,7 +46,9 @@ def _setup_lake(tmp_path: Path, symbols: list[str] | None = None) -> None:
 
     for sym in symbols:
         df = _make_canonical_df(n=500, symbol=sym)
-        parquet_path = tmp_path / "equities" / "candles" / "timeframe=1m" / f"symbol={sym}" / "data.parquet"
+        parquet_path = (
+            tmp_path / "equities" / "candles" / "timeframe=1m" / f"symbol={sym}" / "data.parquet"
+        )
         _write_parquet(parquet_path, df)
 
 
@@ -97,6 +101,7 @@ class TestUniverse:
 
         # Patch UNIVERSE_FILES
         from datalake.schema import UNIVERSE_FILES
+
         UNIVERSE_FILES["TEST"] = str(csv_path)
 
         api = ResearchAPI(root=str(tmp_path))
@@ -114,6 +119,7 @@ class TestUniverse:
         pd.DataFrame({"symbol": ["RELIANCE", "NONEXISTENT"]}).to_csv(csv_path, index=False)
 
         from datalake.schema import UNIVERSE_FILES
+
         UNIVERSE_FILES["TEST"] = str(csv_path)
 
         api = ResearchAPI(root=str(tmp_path))
@@ -132,6 +138,7 @@ class TestScan:
         pd.DataFrame({"symbol": ["RELIANCE", "TCS", "HDFCBANK"]}).to_csv(csv_path, index=False)
 
         from datalake.schema import UNIVERSE_FILES
+
         UNIVERSE_FILES["TEST"] = str(csv_path)
 
         api = ResearchAPI(root=str(tmp_path))

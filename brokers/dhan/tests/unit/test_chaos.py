@@ -14,9 +14,15 @@ from brokers.dhan.connection import DhanConnection
 from brokers.dhan.gateway import BrokerGateway
 
 SAMPLE_ROWS = [
-    {"SEM_TRADING_SYMBOL": "RELIANCE", "SEM_SMST_SECURITY_ID": "2885",
-     "SEM_EXM_EXCH_ID": "NSE_EQ", "SEM_INSTRUMENT_NAME": "EQUITY",
-     "SEM_LOT_UNITS": "1", "SEM_TICK_SIZE": "0.05", "SEM_CUSTOM_SYMBOL": "Reliance Industries"},
+    {
+        "SEM_TRADING_SYMBOL": "RELIANCE",
+        "SEM_SMST_SECURITY_ID": "2885",
+        "SEM_EXM_EXCH_ID": "NSE_EQ",
+        "SEM_INSTRUMENT_NAME": "EQUITY",
+        "SEM_LOT_UNITS": "1",
+        "SEM_TICK_SIZE": "0.05",
+        "SEM_CUSTOM_SYMBOL": "Reliance Industries",
+    },
 ]
 
 
@@ -131,6 +137,7 @@ class TestRateLimiting:
 
     def test_rate_limit_exists(self):
         from brokers.dhan.http_client import _RATE_LIMITS
+
         assert "/marketfeed/quote" in _RATE_LIMITS
         assert "/optionchain" in _RATE_LIMITS
         assert _RATE_LIMITS["/marketfeed/quote"] > 0

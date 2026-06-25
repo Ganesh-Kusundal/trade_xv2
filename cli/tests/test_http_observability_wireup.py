@@ -15,8 +15,8 @@ from __future__ import annotations
 import socket
 from decimal import Decimal
 
-from infrastructure.lifecycle import LifecycleManager
 from brokers.common.observability.http_server import HttpObservabilityServer
+from infrastructure.lifecycle import LifecycleManager
 
 
 def _find_free_port() -> int:
@@ -35,6 +35,7 @@ def test_http_observability_field_is_none_before_init() -> None:
     """Before _ensure_initialized runs, http_observability is None.
     This is the contract for the no-gateway / failed-init case."""
     from cli.services.broker_service import BrokerService
+
     bs = BrokerService()
     assert bs.http_observability is None
 
@@ -42,6 +43,7 @@ def test_http_observability_field_is_none_before_init() -> None:
 def test_lifecycle_starts_empty_and_http_observability_is_none() -> None:
     """Same as the above but combined with the lifecycle invariant."""
     from cli.services.broker_service import BrokerService
+
     bs = BrokerService()
     assert bs.lifecycle.service_names() == []
     assert bs.http_observability is None
@@ -75,6 +77,7 @@ def test_extra_gauges_returns_daily_pnl_and_kill_switch() -> None:
             return float(v)
         except (TypeError, ValueError):
             return 0.0
+
     snap = rm.snapshot()
     gauges = {
         "daily_pnl": _f(snap.get("daily_pnl", "0")),
@@ -99,6 +102,7 @@ def test_http_observability_field_initialized_to_none() -> None:
     _ensure_initialized). The test confirms the contract: a fresh
     BrokerService has no HTTP server until init runs."""
     from cli.services.broker_service import BrokerService
+
     bs = BrokerService()
     # Field exists
     assert hasattr(bs, "http_observability")

@@ -37,7 +37,9 @@ pytestmark = [
 ]
 
 
-@pytest.mark.skipif(not _DHAN_TOTP.configured, reason=_DHAN_TOTP.reason or "Dhan TOTP not configured")
+@pytest.mark.skipif(
+    not _DHAN_TOTP.configured, reason=_DHAN_TOTP.reason or "Dhan TOTP not configured"
+)
 class TestDhanTotpLive:
     def test_environment_bootstrap_loads_dhan_env(self):
         loaded = bootstrap_environment(project_root=REPO_ROOT, brokers=("dhan",))
@@ -67,7 +69,9 @@ class TestDhanTotpLive:
                 result.gateway.close()
 
 
-@pytest.mark.skipif(not _UPSTOX_TOTP.configured, reason=_UPSTOX_TOTP.reason or "Upstox TOTP not configured")
+@pytest.mark.skipif(
+    not _UPSTOX_TOTP.configured, reason=_UPSTOX_TOTP.reason or "Upstox TOTP not configured"
+)
 class TestUpstoxTotpLive:
     def test_environment_bootstrap_loads_upstox_env(self):
         loaded = bootstrap_environment(project_root=REPO_ROOT, brokers=("upstox",))
@@ -109,7 +113,9 @@ class TestUpstoxTotpLive:
                 result.gateway.close()
 
 
-@pytest.mark.skipif(not _DHAN_RO.configured, reason=_DHAN_RO.reason or "Dhan readonly creds missing")
+@pytest.mark.skipif(
+    not _DHAN_RO.configured, reason=_DHAN_RO.reason or "Dhan readonly creds missing"
+)
 class TestDhanBootstrapReadonlyLive:
     """Verify bootstrap + auth probe with an existing token (no forced TOTP)."""
 

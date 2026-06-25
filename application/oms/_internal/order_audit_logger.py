@@ -247,4 +247,4 @@ class OrderAuditLogger:
 
             # Evict oldest entries if over limit
             if len(self._audit_log[order_id]) > self._max_entries:
-                self._audit_log[order_id] = self._audit_log[order_id][-self._max_entries:]
+                self._audit_log[order_id] = self._audit_log[order_id][-self._max_entries :]

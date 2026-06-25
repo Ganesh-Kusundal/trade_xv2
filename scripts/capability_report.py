@@ -18,7 +18,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from domain.capability_manifest import (  # noqa: E402
+from domain.capability_manifest import (
     CAPABILITY_SURFACES,
     CapabilitySurface,
     Severity,
@@ -89,12 +89,14 @@ def generate_markdown() -> str:
                 lines.append(f"- `{s.id}` — {note}")
             lines.append("")
 
-    lines.extend([
-        "## Full Matrix",
-        "",
-        "| ID | Capability | Gateway | Dhan | Upstox | CLI | REST | Status |",
-        "|----|------------|---------|------|--------|-----|------|--------|",
-    ])
+    lines.extend(
+        [
+            "## Full Matrix",
+            "",
+            "| ID | Capability | Gateway | Dhan | Upstox | CLI | REST | Status |",
+            "|----|------------|---------|------|--------|-----|------|--------|",
+        ]
+    )
     for surface in CAPABILITY_SURFACES:
         lines.append(_format_surface_row(surface))
     lines.append("")
@@ -133,7 +135,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Capability coverage report")
     parser.add_argument("--markdown", type=str, help="Write markdown report to path")
     parser.add_argument("--surface", choices=["cli", "rest"], help="Filter gaps by surface")
-    parser.add_argument("--fail-on", choices=["P0", "P1", "P2", "P3"], help="Exit 1 if gaps at severity")
+    parser.add_argument(
+        "--fail-on", choices=["P0", "P1", "P2", "P3"], help="Exit 1 if gaps at severity"
+    )
     args = parser.parse_args()
 
     if args.markdown:
@@ -147,13 +151,14 @@ def main() -> int:
     if args.fail_on:
         threshold = SEVERITY_ORDER[args.fail_on]
         blocking = [
-            s for s in CAPABILITY_SURFACES
+            s
+            for s in CAPABILITY_SURFACES
             if (sev := _gap_severity(s)) is not None and SEVERITY_ORDER[sev] <= threshold
         ]
         if blocking:
             print(f"\nFAIL: {len(blocking)} gap(s) at or above {args.fail_on}")
             return 1
-    return 0 if gap_count == 0 else 0  # non-blocking by default
+    return 0  # non-blocking by default
 
 
 if __name__ == "__main__":

@@ -9,21 +9,61 @@ from analytics.options.options_analytics import GreeksAnalytics
 
 
 def _chain_with_greeks() -> pd.DataFrame:
-    return pd.DataFrame([
-        {"strike": 100, "option_type": "CE", "oi": 100, "iv": 0.20, "delta": 0.6, "gamma": 0.02, "vega": 0.1, "theta": -0.05},
-        {"strike": 110, "option_type": "CE", "oi": 50, "iv": 0.25, "delta": 0.4, "gamma": 0.015, "vega": 0.08, "theta": -0.04},
-        {"strike": 100, "option_type": "PE", "oi": 80, "iv": 0.22, "delta": -0.4, "gamma": 0.02, "vega": 0.1, "theta": -0.03},
-        {"strike": 90, "option_type": "PE", "oi": 60, "iv": 0.28, "delta": -0.6, "gamma": 0.018, "vega": 0.09, "theta": -0.04},
-    ])
+    return pd.DataFrame(
+        [
+            {
+                "strike": 100,
+                "option_type": "CE",
+                "oi": 100,
+                "iv": 0.20,
+                "delta": 0.6,
+                "gamma": 0.02,
+                "vega": 0.1,
+                "theta": -0.05,
+            },
+            {
+                "strike": 110,
+                "option_type": "CE",
+                "oi": 50,
+                "iv": 0.25,
+                "delta": 0.4,
+                "gamma": 0.015,
+                "vega": 0.08,
+                "theta": -0.04,
+            },
+            {
+                "strike": 100,
+                "option_type": "PE",
+                "oi": 80,
+                "iv": 0.22,
+                "delta": -0.4,
+                "gamma": 0.02,
+                "vega": 0.1,
+                "theta": -0.03,
+            },
+            {
+                "strike": 90,
+                "option_type": "PE",
+                "oi": 60,
+                "iv": 0.28,
+                "delta": -0.6,
+                "gamma": 0.018,
+                "vega": 0.09,
+                "theta": -0.04,
+            },
+        ]
+    )
 
 
 def _chain_without_greeks() -> pd.DataFrame:
-    return pd.DataFrame([
-        {"strike": 100, "option_type": "CE", "oi": 100, "iv": 0.20},
-        {"strike": 110, "option_type": "CE", "oi": 50, "iv": 0.25},
-        {"strike": 100, "option_type": "PE", "oi": 80, "iv": 0.22},
-        {"strike": 90, "option_type": "PE", "oi": 60, "iv": 0.28},
-    ])
+    return pd.DataFrame(
+        [
+            {"strike": 100, "option_type": "CE", "oi": 100, "iv": 0.20},
+            {"strike": 110, "option_type": "CE", "oi": 50, "iv": 0.25},
+            {"strike": 100, "option_type": "PE", "oi": 80, "iv": 0.22},
+            {"strike": 90, "option_type": "PE", "oi": 60, "iv": 0.28},
+        ]
+    )
 
 
 def test_greeks_with_provided_data() -> None:
@@ -51,10 +91,12 @@ def test_greeks_without_spot_defaults_to_zero() -> None:
 
 
 def test_net_delta_signal() -> None:
-    chain = pd.DataFrame([
-        {"strike": 100, "option_type": "CE", "oi": 100, "iv": 0.20},
-        {"strike": 110, "option_type": "CE", "oi": 100, "iv": 0.25},
-    ])
+    chain = pd.DataFrame(
+        [
+            {"strike": 100, "option_type": "CE", "oi": 100, "iv": 0.20},
+            {"strike": 110, "option_type": "CE", "oi": 100, "iv": 0.25},
+        ]
+    )
     result = GreeksAnalytics().analyze(chain, multiplier=1.0, spot_price=105, days_to_expiry=30)
     signals = " ".join(result.signals)
     assert "long" in signals.lower() or "short" in signals.lower()

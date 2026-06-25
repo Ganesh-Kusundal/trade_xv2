@@ -8,8 +8,24 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
+from enum import Enum
 
 from domain.constants import DEFAULT_TICK_SIZE
+from domain.historical import InstrumentRef
+from domain.provenance import DataProvenance
+
+
+class DepthKind(str, Enum):
+    """Describes the source and depth level of market depth data.
+
+    REST_5   — 5-level depth from REST API (standard across all brokers).
+    WS_20    — 20-level depth from WebSocket (Dhan-specific).
+    WS_200   — 200-level depth from WebSocket (Dhan-specific, premium tier).
+    """
+
+    REST_5 = "REST_5"
+    WS_20 = "WS_20"
+    WS_200 = "WS_200"
 
 
 @dataclass(slots=True, frozen=True)
@@ -29,7 +45,7 @@ class MarketDepth:
     bids: list[DepthLevel] | None = None
     asks: list[DepthLevel] | None = None
     timestamp: datetime | None = None
-    depth_type: str = "DEPTH_5"  # DEPTH_5, DEPTH_20, DEPTH_200
+    depth_kind: DepthKind = DepthKind.REST_5
 
     def __post_init__(self) -> None:
         # REF-027: Use object.__setattr__ for frozen dataclass compatibility.
@@ -82,3 +98,45 @@ class Instrument:
     expiry: str | None = None
     underlying: str | None = None
     canonical_symbol: str | None = None
+
+
+@dataclass(slots=True, frozen=True)
+class MarketTick:
+    """Normalized market data tick — delivered by StreamOrchestrator to consumers.
+
+    Every tick carries full provenance so consumers can trace data lineage.
+    """
+
+    instrument: InstrumentRef
+    ltp: Decimal
+    volume: int = 0
+    bid: Decimal | None = None
+    ask: Decimal | None = None
+    event_time: datetime
+    sequence: int | None = None
+    provenance: DataProvenance
+    open: Decimal | None = None
+    high: Decimal | None = None
+    low: Decimal | None = None
+
+
+@dataclass(slots=True, frozen=True)
+class QuoteSnapshot:
+    """Point-in-time quote snapshot with provenance — returned by gateway methods.
+
+    Distinct from ``Quote`` which is the older model without provenance.
+    New code should prefer ``QuoteSnapshot`` for multi-broker auditing.
+    """
+
+    instrument: InstrumentRef
+    ltp: Decimal
+    open: Decimal = Decimal("0")
+    high: Decimal = Decimal("0")
+    low: Decimal = Decimal("0")
+    close: Decimal = Decimal("0")
+    volume: int = 0
+    change_pct: Decimal = Decimal("0")
+    bid: Decimal | None = None
+    ask: Decimal | None = None
+    event_time: datetime
+    provenance: DataProvenance

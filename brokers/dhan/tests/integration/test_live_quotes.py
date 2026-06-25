@@ -26,6 +26,7 @@ ENV_PATH = Path(__file__).resolve().parent.parent.parent.parent.parent / ".env.l
 _live_env_loaded = False
 if ENV_PATH.exists() and ENV_PATH.stat().st_size > 0:
     from dotenv import load_dotenv
+
     load_dotenv(ENV_PATH, override=True)
     _live_env_loaded = bool(os.environ.get("DHAN_CLIENT_ID"))
 
@@ -66,7 +67,11 @@ class TestLiveQuotes:
 
     def test_mcx_quote_via_nearest(self, gateway: BrokerGateway):
         """Fetch nearest GOLD future and quote it — ltp must be > 0."""
-        nearest = gateway.extended.get_futures_contracts("GOLD", "MCX")[0] if gateway.extended.get_futures_contracts("GOLD", "MCX") else None
+        nearest = (
+            gateway.extended.get_futures_contracts("GOLD", "MCX")[0]
+            if gateway.extended.get_futures_contracts("GOLD", "MCX")
+            else None
+        )
         assert nearest is not None, "No GOLD futures found in resolver"
 
         time.sleep(1.5)

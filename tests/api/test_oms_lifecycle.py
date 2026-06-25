@@ -13,32 +13,30 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from decimal import Decimal
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
 
-from infrastructure.event_bus import EventBus
-from application.oms.context import TradingContext
 from api.config import APIConfig
 from api.deps import (
-    ServiceContainer,
     get_container,
     get_order_manager,
     get_position_manager,
     get_risk_manager,
     get_trading_context,
     initialize_all_services,
-    set_container,
 )
 from api.main import create_app
+from application.oms.context import TradingContext
+from infrastructure.event_bus import EventBus
 
 
 @pytest.fixture(autouse=True)
 def reset_container():
     """Reset container before and after each test to ensure isolation."""
     import api.deps as deps
+
     deps._container = None
     yield
     deps._container = None
@@ -50,11 +48,11 @@ class TestTradingContextLifecycle:
     def test_trading_context_created_when_event_bus_provided(self):
         """TradingContext should be auto-built when event_bus is provided."""
         event_bus = EventBus()
-        app = create_app(
+        create_app(
             config=APIConfig(auth_mode="none"),
             event_bus=event_bus,
         )
-        
+
         container = get_container()
         assert container.trading_context is not None
         assert isinstance(container.trading_context, TradingContext)
@@ -64,10 +62,10 @@ class TestTradingContextLifecycle:
 
     def test_trading_context_not_created_without_event_bus(self):
         """TradingContext should be None when no event_bus is provided."""
-        app = create_app(
+        create_app(
             config=APIConfig(auth_mode="none"),
         )
-        
+
         container = get_container()
         assert container.trading_context is None
         assert container.order_manager is None
@@ -78,26 +76,26 @@ class TestTradingContextLifecycle:
         """Provided TradingContext should be used instead of creating new one."""
         event_bus = EventBus()
         custom_ctx = TradingContext(event_bus=event_bus)
-        
-        app = create_app(
+
+        create_app(
             config=APIConfig(auth_mode="none"),
             trading_context=custom_ctx,
         )
-        
+
         container = get_container()
         assert container.trading_context is custom_ctx
 
     def test_oms_components_accessible_via_container(self):
         """OMS components should be extractable from TradingContext."""
         event_bus = EventBus()
-        app = create_app(
+        create_app(
             config=APIConfig(auth_mode="none"),
             event_bus=event_bus,
         )
-        
+
         container = get_container()
         ctx = container.trading_context
-        
+
         assert ctx is not None
         assert ctx.order_manager is not None
         assert ctx.position_manager is not None
@@ -127,9 +125,11 @@ class TestOMSEndpointsWithoutTradingContext:
         response = client_without_oms.get("/api/v1/orders")
         assert response.status_code in (200, 503)  # 200 if empty, 503 if no OMS
         if response.status_code == 503:
-            assert "TradingContext" in response.json().get("detail", "") or \
-                   "not initialized" in response.json().get("detail", "").lower() or \
-                   "OMS" in response.json().get("detail", "")
+            assert (
+                "TradingContext" in response.json().get("detail", "")
+                or "not initialized" in response.json().get("detail", "").lower()
+                or "OMS" in response.json().get("detail", "")
+            )
 
     def test_get_positions_returns_503(self, client_without_oms):
         """GET /portfolio/positions should return 503 when TradingContext not initialized."""
@@ -206,38 +206,38 @@ class TestDIIntegration:
     def test_get_trading_context_raises_503_when_not_initialized(self):
         """get_trading_context should raise 503 when not initialized."""
         from fastapi import HTTPException
-        
+
         with pytest.raises(HTTPException) as exc_info:
             get_container()  # This will fail first
-        
+
         assert exc_info.value.status_code == 503
         assert "not initialized" in exc_info.value.detail.lower()
 
     def test_get_order_manager_raises_503_when_not_initialized(self):
         """get_order_manager should raise 503 when not initialized."""
         from fastapi import HTTPException
-        
+
         with pytest.raises(HTTPException) as exc_info:
             get_order_manager()
-        
+
         assert exc_info.value.status_code == 503
 
     def test_get_position_manager_raises_503_when_not_initialized(self):
         """get_position_manager should raise 503 when not initialized."""
         from fastapi import HTTPException
-        
+
         with pytest.raises(HTTPException) as exc_info:
             get_position_manager()
-        
+
         assert exc_info.value.status_code == 503
 
     def test_get_risk_manager_raises_503_when_not_initialized(self):
         """get_risk_manager should raise 503 when not initialized."""
         from fastapi import HTTPException
-        
+
         with pytest.raises(HTTPException) as exc_info:
             get_risk_manager()
-        
+
         assert exc_info.value.status_code == 503
 
     def test_get_trading_context_returns_context_when_initialized(self):
@@ -245,7 +245,7 @@ class TestDIIntegration:
         event_bus = EventBus()
         ctx = TradingContext(event_bus=event_bus)
         initialize_all_services(event_bus=event_bus, trading_context=ctx)
-        
+
         result = get_trading_context()
         assert result is ctx
 
@@ -254,7 +254,7 @@ class TestDIIntegration:
         event_bus = EventBus()
         ctx = TradingContext(event_bus=event_bus)
         initialize_all_services(event_bus=event_bus, trading_context=ctx)
-        
+
         result = get_order_manager()
         assert result is ctx.order_manager
 
@@ -263,7 +263,7 @@ class TestDIIntegration:
         event_bus = EventBus()
         ctx = TradingContext(event_bus=event_bus)
         initialize_all_services(event_bus=event_bus, trading_context=ctx)
-        
+
         result = get_position_manager()
         assert result is ctx.position_manager
 
@@ -272,7 +272,7 @@ class TestDIIntegration:
         event_bus = EventBus()
         ctx = TradingContext(event_bus=event_bus)
         initialize_all_services(event_bus=event_bus, trading_context=ctx)
-        
+
         result = get_risk_manager()
         assert result is ctx.risk_manager
 
@@ -283,18 +283,16 @@ class TestLifecycleStartup:
     def test_lifecycle_starts_with_trading_context(self, caplog):
         """Lifecycle should start when TradingContext is present."""
         event_bus = EventBus()
-        
+
         with caplog.at_level(logging.INFO):
             app = create_app(
                 config=APIConfig(auth_mode="none"),
                 event_bus=event_bus,
             )
-            
+
             # Simulate lifespan startup
-            with TestClient(app) as client:
-                assert "TradingContext lifecycle started" in caplog.text or \
-                       "MarketBridge started" in caplog.text or \
-                       True  # Accept if no crash
+            with TestClient(app):
+                assert True  # Accept if no crash
 
     def test_lifecycle_gracefully_degraded_without_trading_context(self, caplog):
         """Lifecycle should log warning when TradingContext is missing."""
@@ -302,8 +300,8 @@ class TestLifecycleStartup:
             app = create_app(
                 config=APIConfig(auth_mode="none"),
             )
-            
-            with TestClient(app) as client:
+
+            with TestClient(app):
                 # Should not crash, just log warning
                 assert True  # Test passes if no exception
 
@@ -314,38 +312,33 @@ class TestLifecycleShutdown:
     def test_shutdown_cleans_up_marketbridge(self):
         """Shutdown should stop MarketBridge."""
         from api.main import _shutdown_cleanup
-        
+
         mock_bridge = MagicMock()
         mock_bridge.stop = AsyncMock()
-        
-        asyncio.get_event_loop().run_until_complete(
-            _shutdown_cleanup(mock_bridge, None, False)
-        )
-        
+
+        asyncio.get_event_loop().run_until_complete(_shutdown_cleanup(mock_bridge, None, False))
+
         mock_bridge.stop.assert_called_once()
 
     def test_shutdown_skips_lifecycle_if_not_started(self, caplog):
         """Shutdown should skip lifecycle.stop_all() if not started."""
         from api.main import _shutdown_cleanup
-        
+
         mock_lifecycle = MagicMock()
-        
+
         with caplog.at_level(logging.DEBUG):
             asyncio.get_event_loop().run_until_complete(
                 _shutdown_cleanup(None, mock_lifecycle, False)
             )
-            
-            assert "was not started" in caplog.text or \
-                   mock_lifecycle.stop_all.call_count == 0
+
+            assert "was not started" in caplog.text or mock_lifecycle.stop_all.call_count == 0
 
     def test_shutdown_stops_lifecycle_if_started(self):
         """Shutdown should call lifecycle.stop_all() if started."""
         from api.main import _shutdown_cleanup
-        
+
         mock_lifecycle = MagicMock()
-        
-        asyncio.get_event_loop().run_until_complete(
-            _shutdown_cleanup(None, mock_lifecycle, True)
-        )
-        
+
+        asyncio.get_event_loop().run_until_complete(_shutdown_cleanup(None, mock_lifecycle, True))
+
         mock_lifecycle.stop_all.assert_called_once()

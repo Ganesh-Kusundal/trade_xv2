@@ -10,13 +10,13 @@ Callers must respect connection budget from ``BrokerCapabilities.stream_limits``
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import datetime
-from decimal import Decimal
-from typing import Protocol, Sequence
+from typing import Protocol
 
-from domain.historical import InstrumentRef
 from domain.entities.market import DepthLevel
+from domain.historical import InstrumentRef
 
 
 class DepthKind(str):

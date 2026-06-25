@@ -16,6 +16,7 @@ from typing import Any
 import pandas as pd
 import pytest
 
+from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
 from domain import (
     Balance,
     DepthLevel,
@@ -23,7 +24,6 @@ from domain import (
     OrderStatus,
     Quote,
 )
-from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
 
 
 class BrokerContractSuite:
@@ -35,9 +35,7 @@ class BrokerContractSuite:
 
     @pytest.fixture
     def gateway(self) -> MarketDataGateway:
-        raise NotImplementedError(
-            "gateway fixture must be provided by the broker implementation"
-        )
+        raise NotImplementedError("gateway fixture must be provided by the broker implementation")
 
     # ── Lifecycle ─────────────────────────────────────────────────────────
 
@@ -79,8 +77,16 @@ class BrokerContractSuite:
         assert isinstance(df, pd.DataFrame)
         if not df.empty:
             expected_columns = [
-                "timestamp", "open", "high", "low", "close",
-                "volume", "oi", "symbol", "exchange", "timeframe",
+                "timestamp",
+                "open",
+                "high",
+                "low",
+                "close",
+                "volume",
+                "oi",
+                "symbol",
+                "exchange",
+                "timeframe",
             ]
             for col in expected_columns:
                 assert col in df.columns, f"Missing column: {col}"
@@ -89,6 +95,7 @@ class BrokerContractSuite:
 
     def test_option_chain_returns_dict(self, gateway: Any) -> None:
         from domain.derivatives import OptionChain
+
         result = gateway.option_chain("NIFTY", "NFO")
         # Accept both domain objects and dict representations (broker flexibility)
         if isinstance(result, OptionChain):
@@ -98,6 +105,7 @@ class BrokerContractSuite:
 
     def test_future_chain_returns_dict(self, gateway: Any) -> None:
         from domain.derivatives import FutureChain
+
         result = gateway.future_chain("NIFTY", "NFO")
         if isinstance(result, FutureChain):
             result = result.to_dict()

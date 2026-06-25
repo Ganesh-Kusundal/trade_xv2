@@ -11,7 +11,6 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from domain.constants import MAX_RETRY_ATTEMPTS, MAX_RETRY_DELAY_MS
 from brokers.common.resilience.backoff import BackoffStrategy, ExponentialBackoff
 from brokers.common.resilience.circuit_breaker import CircuitBreaker
 from brokers.common.resilience.errors import (
@@ -20,7 +19,7 @@ from brokers.common.resilience.errors import (
     RetryableError,
 )
 from brokers.common.resilience.rate_limiter import MultiBucketRateLimiter
-
+from domain.constants import MAX_RETRY_ATTEMPTS, MAX_RETRY_DELAY_MS
 
 #: Default exception types considered transient/retryable.
 DEFAULT_RETRYABLE_EXCEPTIONS: tuple[type[Exception], ...] = (

@@ -36,9 +36,7 @@ def is_token_rejection(exc: BaseException) -> bool:
         return True
     if "invalid token" in msg or "token rejected" in msg:
         return True
-    if "unauthorized" in msg or "forbidden" in msg:
-        return True
-    return False
+    return bool("unauthorized" in msg or "forbidden" in msg)
 
 
 def execute_read_only_probe(gateway: Any, broker: str) -> AuthProbeResult:

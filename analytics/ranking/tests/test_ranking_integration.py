@@ -14,5 +14,7 @@ def test_rank_dataframe_orders_by_score() -> None:
 
 def test_composite_score_bounded() -> None:
     engine = RankingEngine()
-    score = engine.composite_score({"trend": 100.0, "momentum": 0.0, "volume": 50.0, "relative_strength": 50.0, "oi": 50.0})
+    score = engine.composite_score(
+        {"trend": 100.0, "momentum": 0.0, "volume": 50.0, "relative_strength": 50.0, "oi": 50.0}
+    )
     assert 0.0 <= score <= 100.0

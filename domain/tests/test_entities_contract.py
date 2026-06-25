@@ -19,6 +19,7 @@ from domain.types import OrderStatus, OrderType, ProductType, Side, Validity
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 def _make_order(**overrides) -> Order:
     defaults = {
         "order_id": "O-1001",
@@ -61,6 +62,7 @@ def _make_position(**overrides) -> Position:
 # ---------------------------------------------------------------------------
 # Order invariant tests
 # ---------------------------------------------------------------------------
+
 
 class TestOrderWithStatus:
     """Order.with_status must preserve all fields and only change status."""
@@ -152,6 +154,7 @@ class TestOrderWithFill:
 # Position invariant tests
 # ---------------------------------------------------------------------------
 
+
 class TestPositionWithLtp:
     """Position.with_ltp must update ltp and unrealized_pnl, preserve rest."""
 
@@ -229,9 +232,7 @@ class TestPositionWithFill:
         assert result.avg_price == Decimal("0")
 
     def test_realized_pnl_accumulates(self):
-        p = _make_position(
-            quantity=10, avg_price=Decimal("2500"), realized_pnl=Decimal("200")
-        )
+        p = _make_position(quantity=10, avg_price=Decimal("2500"), realized_pnl=Decimal("200"))
         result = p.with_fill(-5, Decimal("2600"))
         assert result.realized_pnl == Decimal("700")  # 200 + 500
 

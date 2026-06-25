@@ -11,7 +11,6 @@ These tests enforce architectural rules and prevent regression:
 from __future__ import annotations
 
 import ast
-import os
 from pathlib import Path
 
 import pytest
@@ -31,7 +30,7 @@ def _find_python_files(directories: list[str]) -> list[Path]:
 
 def _file_contains_basic_config(filepath: Path) -> list[int]:
     """Check if file contains logging.basicConfig() calls.
-    
+
     Allows conditional initialization (if not logging.getLogger().handlers).
     """
     lines = []
@@ -41,11 +40,15 @@ def _file_contains_basic_config(filepath: Path) -> list[int]:
         for node in ast.walk(tree):
             if isinstance(node, ast.Call):
                 func = node.func
-                if isinstance(func, ast.Attribute) and func.attr == "basicConfig":
-                    if isinstance(func.value, ast.Name) and func.value.id == "logging":
-                        # Check if it's inside an if statement checking for handlers
-                        # For now, flag all instances - manual review needed
-                        lines.append(node.lineno)
+                if (
+                    isinstance(func, ast.Attribute)
+                    and func.attr == "basicConfig"
+                    and isinstance(func.value, ast.Name)
+                    and func.value.id == "logging"
+                ):
+                    # Check if it's inside an if statement checking for handlers
+                    # For now, flag all instances - manual review needed
+                    lines.append(node.lineno)
     except (SyntaxError, UnicodeDecodeError):
         pass
     return lines
@@ -58,9 +61,8 @@ def _file_contains_bare_except(filepath: Path) -> list[int]:
         content = filepath.read_text()
         tree = ast.parse(content, filename=str(filepath))
         for node in ast.walk(tree):
-            if isinstance(node, ast.ExceptHandler):
-                if node.type is None:  # bare except
-                    lines.append(node.lineno)
+            if isinstance(node, ast.ExceptHandler) and node.type is None:  # bare except
+                lines.append(node.lineno)
     except (SyntaxError, UnicodeDecodeError):
         pass
     return lines
@@ -79,21 +81,25 @@ def _file_contains_token_print(filepath: Path) -> list[tuple[int, str]]:
                     for arg in node.args:
                         if isinstance(arg, ast.JoinedStr):  # f-string
                             for value in arg.values:
-                                if isinstance(value, ast.FormattedValue):
-                                    if isinstance(value.value, ast.Subscript):
-                                        if isinstance(value.value.value, ast.Name):
-                                            var_name = value.value.value.id
-                                            if any(
-                                                kw in var_name.lower()
-                                                for kw in ["token", "secret", "password"]
-                                            ):
-                                                findings.append((node.lineno, var_name))
-                        elif isinstance(arg, ast.Constant):
-                            if isinstance(arg.value, str) and any(
-                                kw in arg.value.lower()
-                                for kw in ["token=", "secret=", "password="]
-                            ):
-                                findings.append((node.lineno, arg.value[:50]))
+                                if (
+                                    isinstance(value, ast.FormattedValue)
+                                    and isinstance(value.value, ast.Subscript)
+                                    and isinstance(value.value.value, ast.Name)
+                                ):
+                                    var_name = value.value.value.id
+                                    if any(
+                                        kw in var_name.lower()
+                                        for kw in ["token", "secret", "password"]
+                                    ):
+                                        findings.append((node.lineno, var_name))
+                        elif (
+                            isinstance(arg, ast.Constant)
+                            and isinstance(arg.value, str)
+                            and any(
+                                kw in arg.value.lower() for kw in ["token=", "secret=", "password="]
+                            )
+                        ):
+                            findings.append((node.lineno, arg.value[:50]))
     except (SyntaxError, UnicodeDecodeError):
         pass
     return findings
@@ -160,8 +166,7 @@ class TestNoTokenLeakage:
                 violations[str(filepath.relative_to(ROOT))] = findings
 
         assert not violations, (
-            f"Token/secret/password leakage via print() found.\n"
-            f"Violations: {violations}"
+            f"Token/secret/password leakage via print() found.\nViolations: {violations}"
         )
 
 
@@ -368,15 +373,24 @@ def _file_contains_bare_token_log(filepath: Path) -> list[tuple[int, str]]:
                     for value in arg.values:
                         if isinstance(value, ast.FormattedValue):
                             if _expr_mentions_sensitive(value.value, sensitive_kw):
-                                findings.append((node.lineno, f"f-string with sensitive var"))
+                                findings.append((node.lineno, "f-string with sensitive var"))
                             continue
-                        if isinstance(value, ast.Constant) and isinstance(value.value, str):
-                            if any(kw in value.value.lower() for kw in sensitive_kw):
-                                findings.append((node.lineno, f"literal contains sensitive kw"))
+                        if (
+                            isinstance(value, ast.Constant)
+                            and isinstance(value.value, str)
+                            and any(kw in value.value.lower() for kw in sensitive_kw)
+                        ):
+                            findings.append((node.lineno, "literal contains sensitive kw"))
                 # bare %s / .format string
-                elif isinstance(arg, ast.Constant) and isinstance(arg.value, str):
-                    if any(kw in arg.value.lower() for kw in ("token=", "secret=", "password=", "api_key=")):
-                        findings.append((node.lineno, f"format string mentions secret"))
+                elif (
+                    isinstance(arg, ast.Constant)
+                    and isinstance(arg.value, str)
+                    and any(
+                        kw in arg.value.lower()
+                        for kw in ("token=", "secret=", "password=", "api_key=")
+                    )
+                ):
+                    findings.append((node.lineno, "format string mentions secret"))
     except (SyntaxError, UnicodeDecodeError):
         pass
     return findings
@@ -387,12 +401,10 @@ def _expr_mentions_sensitive(node: ast.AST, sensitive_kw: tuple[str, ...]) -> bo
     whose identifier contains any of the sensitive keywords.
     """
     for sub in ast.walk(node):
-        if isinstance(sub, ast.Name):
-            if any(kw in sub.id.lower() for kw in sensitive_kw):
-                return True
-        if isinstance(sub, ast.Attribute):
-            if any(kw in sub.attr.lower() for kw in sensitive_kw):
-                return True
+        if isinstance(sub, ast.Name) and any(kw in sub.id.lower() for kw in sensitive_kw):
+            return True
+        if isinstance(sub, ast.Attribute) and any(kw in sub.attr.lower() for kw in sensitive_kw):
+            return True
     return False
 
 

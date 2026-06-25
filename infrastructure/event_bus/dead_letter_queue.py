@@ -18,7 +18,7 @@ import threading
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Callable
+from typing import Any
 
 from domain.constants import DEAD_LETTER_QUEUE_MAX_SIZE
 from infrastructure.event_bus.event_bus import DomainEvent

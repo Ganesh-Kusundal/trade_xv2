@@ -51,19 +51,23 @@ class GatewayOptionsFacade:
             return chain
         if isinstance(chain, dict):
             strikes = to_canonical_strikes(chain.get("strikes", []))
-            return OptionChain.from_dict({
-                "underlying": chain.get("underlying", underlying),
-                "exchange": chain.get("exchange", exchange),
-                "expiry": chain.get("expiry", expiry),
-                "spot": chain.get("spot"),
-                "strikes": strikes,
-            })
-        return OptionChain.from_dict({
-            "underlying": underlying,
-            "exchange": exchange,
-            "expiry": expiry,
-            "strikes": to_canonical_strikes(chain),
-        })
+            return OptionChain.from_dict(
+                {
+                    "underlying": chain.get("underlying", underlying),
+                    "exchange": chain.get("exchange", exchange),
+                    "expiry": chain.get("expiry", expiry),
+                    "spot": chain.get("spot"),
+                    "strikes": strikes,
+                }
+            )
+        return OptionChain.from_dict(
+            {
+                "underlying": underlying,
+                "exchange": exchange,
+                "expiry": expiry,
+                "strikes": to_canonical_strikes(chain),
+            }
+        )
 
     def _normalize_exchange(self, underlying: str, exchange: str) -> str:
         if self._normalize is None:
@@ -76,4 +80,5 @@ class GatewayOptionsFacade:
 
 def _upstox_canonical(contracts, raw_rows, underlying, exchange, expiry) -> OptionChain:
     from brokers.common.options.chain_normalizer import upstox_chain_to_canonical
+
     return upstox_chain_to_canonical(contracts, raw_rows, underlying, exchange, expiry)

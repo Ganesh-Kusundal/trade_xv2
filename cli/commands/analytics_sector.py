@@ -20,7 +20,9 @@ def run_breadth(args: list[str], console: Console) -> None:
         row = data.iloc[-1].to_dict()
         result = Analytics().breadth(row)
     else:
-        result = Analytics().breadth({"advances": 1200, "declines": 700, "unchanged": 100, "new_highs": 80, "new_lows": 30})
+        result = Analytics().breadth(
+            {"advances": 1200, "declines": 700, "unchanged": 100, "new_highs": 80, "new_lows": 30}
+        )
     print_result(result, console)
 
 
@@ -32,37 +34,57 @@ def run_sector(args: list[str], console: Console) -> None:
         if required.issubset(data.columns):
             result = Analytics().sectors(data)
         else:
-            result = Analytics().sectors(pd.DataFrame([{"sector": "BANK", "relative_strength": 1.8}, {"sector": "IT", "relative_strength": -0.4}]))
+            result = Analytics().sectors(
+                pd.DataFrame(
+                    [
+                        {"sector": "BANK", "relative_strength": 1.8},
+                        {"sector": "IT", "relative_strength": -0.4},
+                    ]
+                )
+            )
     else:
-        result = Analytics().sectors(pd.DataFrame([{"sector": "BANK", "relative_strength": 1.8}, {"sector": "IT", "relative_strength": -0.4}]))
+        result = Analytics().sectors(
+            pd.DataFrame(
+                [
+                    {"sector": "BANK", "relative_strength": 1.8},
+                    {"sector": "IT", "relative_strength": -0.4},
+                ]
+            )
+        )
     print_result(result, console)
 
 
 def run_sector_rotation(args: list[str], console: Console) -> None:
     """Run sector rotation analysis."""
-    from analytics.sector import SectorAnalyzer as SA
+    from analytics.sector import SectorAnalyzer
 
     data = load_dataframe(args)
-    analyzer = SA()
+    analyzer = SectorAnalyzer()
 
     if data is not None and not data.empty:
         if "sector" in data.columns and "return_pct" in data.columns:
-            returns = data.pivot_table(index=data.index, columns="sector", values="return_pct", aggfunc="first")
+            returns = data.pivot_table(
+                index=data.index, columns="sector", values="return_pct", aggfunc="first"
+            )
             result = analyzer.analyze_rotation(returns)
         else:
             result = analyzer.analyze(data).rotation
     else:
         import numpy as np
+
         np.random.seed(42)
         dates = pd.date_range("2026-01-01", periods=30, freq="D")
-        demo_returns = pd.DataFrame({
-            "IT": np.random.randn(30) * 0.02,
-            "Finance": np.random.randn(30) * 0.015,
-            "Pharma": np.random.randn(30) * 0.018,
-            "Auto": np.random.randn(30) * 0.022,
-            "FMCG": np.random.randn(30) * 0.01,
-            "Metals": np.random.randn(30) * 0.025,
-        }, index=dates)
+        demo_returns = pd.DataFrame(
+            {
+                "IT": np.random.randn(30) * 0.02,
+                "Finance": np.random.randn(30) * 0.015,
+                "Pharma": np.random.randn(30) * 0.018,
+                "Auto": np.random.randn(30) * 0.022,
+                "FMCG": np.random.randn(30) * 0.01,
+                "Metals": np.random.randn(30) * 0.025,
+            },
+            index=dates,
+        )
         result = analyzer.analyze_rotation(demo_returns)
 
     table = Table(title="Sector Rotation Analysis", header_style="bold cyan")
@@ -74,7 +96,9 @@ def run_sector_rotation(args: list[str], console: Console) -> None:
     table.add_column("Signal", style="bold")
 
     for s in result.sectors:
-        signal_style = "green" if s.signal == "inflow" else "red" if s.signal == "outflow" else "dim"
+        signal_style = (
+            "green" if s.signal == "inflow" else "red" if s.signal == "outflow" else "dim"
+        )
         table.add_row(
             s.sector,
             s.phase.value,
@@ -86,9 +110,15 @@ def run_sector_rotation(args: list[str], console: Console) -> None:
 
     console.print(table)
     console.print(f"\n[bold]Rotation Regime:[/bold] {result.rotation_regime}")
-    console.print(f"[bold]Leading:[/bold] {', '.join(result.leading_sectors) if result.leading_sectors else 'None'}")
-    console.print(f"[bold]Lagging:[/bold] {', '.join(result.lagging_sectors) if result.lagging_sectors else 'None'}")
-    console.print(f"[dim]Breadth: {result.breadth_score:.1f}% of sectors with positive momentum[/dim]")
+    console.print(
+        f"[bold]Leading:[/bold] {', '.join(result.leading_sectors) if result.leading_sectors else 'None'}"
+    )
+    console.print(
+        f"[bold]Lagging:[/bold] {', '.join(result.lagging_sectors) if result.lagging_sectors else 'None'}"
+    )
+    console.print(
+        f"[dim]Breadth: {result.breadth_score:.1f}% of sectors with positive momentum[/dim]"
+    )
 
 
 def run_sector_volume(args: list[str], console: Console) -> None:
@@ -99,7 +129,9 @@ def run_sector_volume(args: list[str], console: Console) -> None:
     if data is not None and not data.empty:
         result = analyzer.analyze_volume(data)
     else:
-        console.print("[yellow]Provide --file with OHLCV data (symbol,timestamp,open,high,low,close,volume)[/yellow]")
+        console.print(
+            "[yellow]Provide --file with OHLCV data (symbol,timestamp,open,high,low,close,volume)[/yellow]"
+        )
         return
 
     if not result.profiles:
@@ -116,7 +148,13 @@ def run_sector_volume(args: list[str], console: Console) -> None:
     table.add_column("Score", style="green")
 
     for p in result.profiles:
-        trend_style = "green" if p.volume_trend == "increasing" else "red" if p.volume_trend == "decreasing" else "dim"
+        trend_style = (
+            "green"
+            if p.volume_trend == "increasing"
+            else "red"
+            if p.volume_trend == "decreasing"
+            else "dim"
+        )
         table.add_row(
             p.sector,
             f"{p.total_volume:,.0f}",
@@ -130,7 +168,9 @@ def run_sector_volume(args: list[str], console: Console) -> None:
     console.print(table)
     console.print(f"\n[bold]Top Volume:[/bold] {result.top_volume_sector}")
     console.print(f"[bold]Lowest Volume:[/bold] {result.low_volume_sector}")
-    console.print(f"[dim]Concentration (HHI): {result.volume_concentration:.4f} | Signal: {result.volume_rotation_signal}[/dim]")
+    console.print(
+        f"[dim]Concentration (HHI): {result.volume_concentration:.4f} | Signal: {result.volume_rotation_signal}[/dim]"
+    )
 
 
 def run_sector_strength(args: list[str], console: Console) -> None:
@@ -141,7 +181,9 @@ def run_sector_strength(args: list[str], console: Console) -> None:
     if data is not None and not data.empty:
         result = analyzer.analyze(data).strength
     else:
-        console.print("[yellow]Provide --file with OHLCV data (symbol,timestamp,open,high,low,close,volume,sector)[/yellow]")
+        console.print(
+            "[yellow]Provide --file with OHLCV data (symbol,timestamp,open,high,low,close,volume,sector)[/yellow]"
+        )
         return
 
     if not result.sectors:
@@ -176,7 +218,9 @@ def run_sector_strength(args: list[str], console: Console) -> None:
         )
 
     console.print(table)
-    console.print(f"\n[bold]Strongest:[/bold] {result.strongest} | [bold]Weakest:[/bold] {result.weakest}")
+    console.print(
+        f"\n[bold]Strongest:[/bold] {result.strongest} | [bold]Weakest:[/bold] {result.weakest}"
+    )
     console.print(f"[bold]Market Strength:[/bold] {result.market_strength:.1f}/100")
     console.print(f"[dim]{result.rotation_signal}[/dim]")
 
@@ -190,6 +234,7 @@ def run_sector_full(args: list[str], console: Console) -> None:
         result = analyzer.analyze(data)
     else:
         import numpy as np
+
         np.random.seed(42)
         n_days = 30
         dates = pd.date_range("2026-01-01", periods=n_days, freq="D")
@@ -199,21 +244,36 @@ def run_sector_full(args: list[str], console: Console) -> None:
             close = 100 + np.cumsum(np.random.randn(n_days) * 2)
             vol = np.random.randint(100000, 500000, n_days).astype(float)
             for i, d in enumerate(dates):
-                rows.append({
-                    "symbol": f"{sector}_IDX", "sector": sector, "timestamp": d,
-                    "open": close[i] - 1, "high": close[i] + 2,
-                    "low": close[i] - 2, "close": close[i], "volume": vol[i],
-                })
+                rows.append(
+                    {
+                        "symbol": f"{sector}_IDX",
+                        "sector": sector,
+                        "timestamp": d,
+                        "open": close[i] - 1,
+                        "high": close[i] + 2,
+                        "low": close[i] - 2,
+                        "close": close[i],
+                        "volume": vol[i],
+                    }
+                )
         demo_data = pd.DataFrame(rows)
         result = analyzer.analyze(demo_data)
 
     console.print("[bold cyan]=== SECTOR ANALYSIS SUMMARY ===[/bold cyan]\n")
     console.print(f"[bold]Rotation Regime:[/bold] {result.rotation.rotation_regime}")
-    console.print(f"[bold]Leading:[/bold] {', '.join(result.rotation.leading_sectors) if result.rotation.leading_sectors else 'None'}")
-    console.print(f"[bold]Lagging:[/bold] {', '.join(result.rotation.lagging_sectors) if result.rotation.lagging_sectors else 'None'}")
+    console.print(
+        f"[bold]Leading:[/bold] {', '.join(result.rotation.leading_sectors) if result.rotation.leading_sectors else 'None'}"
+    )
+    console.print(
+        f"[bold]Lagging:[/bold] {', '.join(result.rotation.lagging_sectors) if result.rotation.lagging_sectors else 'None'}"
+    )
     console.print(f"[bold]Market Strength:[/bold] {result.strength.market_strength:.1f}/100")
-    console.print(f"[bold]Strongest:[/bold] {result.strength.strongest} | [bold]Weakest:[/bold] {result.strength.weakest}")
-    console.print(f"[dim]Volume concentration: {result.volume.volume_concentration:.4f} | Signal: {result.volume.volume_rotation_signal}[/dim]\n")
+    console.print(
+        f"[bold]Strongest:[/bold] {result.strength.strongest} | [bold]Weakest:[/bold] {result.strength.weakest}"
+    )
+    console.print(
+        f"[dim]Volume concentration: {result.volume.volume_concentration:.4f} | Signal: {result.volume.volume_rotation_signal}[/dim]\n"
+    )
 
     if result.strength.sectors:
         table = Table(title="Sector Strength", header_style="bold cyan")
@@ -226,6 +286,13 @@ def run_sector_full(args: list[str], console: Console) -> None:
         table.add_column("Signal", style="bold")
         for s in result.strength.sectors:
             sig = "green" if s.signal == "strong" else "red" if s.signal == "weak" else "dim"
-            table.add_row(str(s.rank), s.sector, f"{s.score:.1f}", f"{s.momentum_score:.1f}",
-                          f"{s.volume_score:.1f}", f"{s.breadth_score:.1f}", f"[{sig}]{s.signal}[/{sig}]")
+            table.add_row(
+                str(s.rank),
+                s.sector,
+                f"{s.score:.1f}",
+                f"{s.momentum_score:.1f}",
+                f"{s.volume_score:.1f}",
+                f"{s.breadth_score:.1f}",
+                f"[{sig}]{s.signal}[/{sig}]",
+            )
         console.print(table)

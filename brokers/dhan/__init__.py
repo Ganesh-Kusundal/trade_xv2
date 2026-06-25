@@ -10,7 +10,6 @@ Import them from ``brokers.common.core.domain`` instead::
 
 # ── Dhan-specific domain types ──────────────────────────────────────────────
 from brokers.dhan.connection import DhanConnection
-from domain import Balance, DepthLevel, MarketDepth, Quote
 from brokers.dhan.domain import (
     Exchange,
     Instrument,
@@ -46,8 +45,10 @@ from brokers.dhan.reconciliation import DhanReconciliationService, Reconciliatio
 # ── Infrastructure ──────────────────────────────────────────────────────────
 from brokers.dhan.resolver import SymbolResolver
 from brokers.dhan.websocket import DhanMarketFeed, DhanOrderStream, PollingMarketFeed
+from domain import Balance, DepthLevel, MarketDepth, Quote
 
 __all__ = [
+    "DHAN_SEGMENTS",
     # Exceptions
     "AuthenticationError",
     # Domain — Dhan-specific types
@@ -56,7 +57,6 @@ __all__ = [
     "BrokerGateway",
     "ConfigurationError",
     "DepthLevel",
-    "DHAN_SEGMENTS",
     "DhanConnection",
     "DhanError",
     "DhanHttpClient",
@@ -65,8 +65,6 @@ __all__ = [
     "DhanIdentityProvider",
     "DhanIdentitySource",
     "DhanInstrumentRef",
-    "coerce_identity_provider",
-    "is_dhan_segment",
     # WebSocket
     "DhanMarketFeed",
     "DhanOrderStream",
@@ -87,4 +85,6 @@ __all__ = [
     "ReconciliationReport",
     # Infrastructure
     "SymbolResolver",
+    "coerce_identity_provider",
+    "is_dhan_segment",
 ]

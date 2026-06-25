@@ -54,9 +54,7 @@ def show_orders(
             else:
                 status_style = "red"
 
-            time_str = (
-                o.order_timestamp.strftime("%H:%M:%S") if o.order_timestamp else "N/A"
-            )
+            time_str = o.order_timestamp.strftime("%H:%M:%S") if o.order_timestamp else "N/A"
 
             limit_price = o.price
             avg_price = o.average_price

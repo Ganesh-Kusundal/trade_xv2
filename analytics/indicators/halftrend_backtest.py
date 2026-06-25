@@ -12,24 +12,25 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-logger = logging.getLogger(__name__)
-
 import numpy as np
 import pandas as pd
 
+logger = logging.getLogger(__name__)
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from analytics.backtest.models import (
+from analytics.backtest.models import (  # noqa: E402
     BacktestConfig,
 )
-from analytics.indicators.halftrend import HalfTrend
-from analytics.scanner.models import Candidate
-from analytics.strategy import Signal, SignalType
-from datalake.gateway import DataLakeGateway
+from analytics.indicators.halftrend import HalfTrend  # noqa: E402
+from analytics.scanner.models import Candidate  # noqa: E402
+from analytics.strategy import Signal, SignalType  # noqa: E402
+from datalake.gateway import DataLakeGateway  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # HalfTrend Strategy (wraps indicator for StrategyPipeline)
 # ---------------------------------------------------------------------------
+
 
 class HalfTrendStrategy:
     """Strategy that uses HalfTrend signals."""
@@ -41,7 +42,13 @@ class HalfTrendStrategy:
 
     def evaluate(self, candidate: Candidate, features: pd.DataFrame) -> Signal:
         if features.empty:
-            return Signal(symbol=candidate.symbol, signal_type=SignalType.HOLD, confidence=0.0, strategy=self.name, reasons=["No data"])
+            return Signal(
+                symbol=candidate.symbol,
+                signal_type=SignalType.HOLD,
+                confidence=0.0,
+                strategy=self.name,
+                reasons=["No data"],
+            )
 
         # Compute HalfTrend on the feature DataFrame
         df = self._ht.compute(features)
@@ -90,6 +97,7 @@ class HalfTrendStrategy:
 # Fast Backtest Engine (pre-computes features)
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class Trade:
     symbol: str
@@ -104,7 +112,9 @@ class Trade:
     strategy: str = ""
 
 
-def fast_backtest(data: pd.DataFrame, strategy, config: BacktestConfig, symbol: str = "SYMBOL", cooldown: int = 50) -> dict:
+def fast_backtest(
+    data: pd.DataFrame, strategy, config: BacktestConfig, symbol: str = "SYMBOL", cooldown: int = 50
+) -> dict:
     """Optimized backtest that pre-computes features once."""
     if data.empty or len(data) < config.warmup_bars + 10:
         return {"trades": 0, "return": 0, "win_rate": 0, "sharpe": 0, "max_dd": 0}
@@ -133,13 +143,19 @@ def fast_backtest(data: pd.DataFrame, strategy, config: BacktestConfig, symbol: 
         elif signal_str == "SELL" and position is not None:
             exit_p = price - price * (config.slippage_pct / 100)
             pnl = (exit_p - position["entry"]) * position["qty"]
-            trades.append(Trade(
-                symbol=symbol, side="LONG",
-                entry_price=position["entry"], exit_price=exit_p,
-                entry_time=position["time"], exit_time=ts,
-                quantity=position["qty"], pnl=pnl - config.commission_flat,
-                pnl_pct=(exit_p / position["entry"] - 1) * 100,
-            ))
+            trades.append(
+                Trade(
+                    symbol=symbol,
+                    side="LONG",
+                    entry_price=position["entry"],
+                    exit_price=exit_p,
+                    entry_time=position["time"],
+                    exit_time=ts,
+                    quantity=position["qty"],
+                    pnl=pnl - config.commission_flat,
+                    pnl_pct=(exit_p / position["entry"] - 1) * 100,
+                )
+            )
             capital += pnl - config.commission_flat
             position = None
 
@@ -154,13 +170,19 @@ def fast_backtest(data: pd.DataFrame, strategy, config: BacktestConfig, symbol: 
     if position:
         last_price = float(features.iloc[-1]["close"])
         pnl = (last_price - position["entry"]) * position["qty"]
-        trades.append(Trade(
-            symbol=symbol, side="LONG",
-            entry_price=position["entry"], exit_price=last_price,
-            entry_time=position["time"], exit_time=features.iloc[-1]["timestamp"],
-            quantity=position["qty"], pnl=pnl - config.commission_flat,
-            pnl_pct=(last_price / position["entry"] - 1) * 100,
-        ))
+        trades.append(
+            Trade(
+                symbol=symbol,
+                side="LONG",
+                entry_price=position["entry"],
+                exit_price=last_price,
+                entry_time=position["time"],
+                exit_time=features.iloc[-1]["timestamp"],
+                quantity=position["qty"],
+                pnl=pnl - config.commission_flat,
+                pnl_pct=(last_price / position["entry"] - 1) * 100,
+            )
+        )
 
     # Metrics
     winning = [t for t in trades if t.pnl > 0]
@@ -174,9 +196,11 @@ def fast_backtest(data: pd.DataFrame, strategy, config: BacktestConfig, symbol: 
     peak = equity_curve[0]
     max_dd = 0
     for eq in equity_curve:
-        if eq > peak: peak = eq
+        if eq > peak:
+            peak = eq
         dd = (peak - eq) / peak if peak > 0 else 0
-        if dd > max_dd: max_dd = dd
+        if dd > max_dd:
+            max_dd = dd
 
     return {
         "trades": len(trades),
@@ -185,7 +209,9 @@ def fast_backtest(data: pd.DataFrame, strategy, config: BacktestConfig, symbol: 
         "pnl": total_pnl,
         "sharpe": (mean_ret - 0.065) / volatility if volatility > 0 else 0,
         "max_dd": max_dd * 100,
-        "profit_factor": abs(sum(t.pnl for t in winning) / sum(t.pnl for t in trades if t.pnl <= 0)) if trades and any(t.pnl <= 0 for t in trades) else 0,
+        "profit_factor": abs(sum(t.pnl for t in winning) / sum(t.pnl for t in trades if t.pnl <= 0))
+        if trades and any(t.pnl <= 0 for t in trades)
+        else 0,
     }
 
 
@@ -193,18 +219,19 @@ def fast_backtest(data: pd.DataFrame, strategy, config: BacktestConfig, symbol: 
 # Main
 # ---------------------------------------------------------------------------
 
+
 def run_halftrend_backtest(top_n: int = 50, years: int = 1):
     """Run HalfTrend backtest across top N stocks by volume."""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"HALFTREND BACKTEST: Top {top_n} by volume | {years}Y | 1m")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     gw = DataLakeGateway(root="market_data")
     all_symbols = gw.list_symbols()
     print(f"Universe: {len(all_symbols)} symbols")
 
     # Sample symbols
-    sample = all_symbols[:min(top_n * 2, len(all_symbols))]
+    sample = all_symbols[: min(top_n * 2, len(all_symbols))]
 
     # Load data and compute average volume for ranking
     print("Loading data for ranking...")
@@ -259,9 +286,9 @@ def run_halftrend_backtest(top_n: int = 50, years: int = 1):
     trades = [r["trades"] for r in results]
     win_rates = [r["win_rate"] for r in results if r["trades"] > 0]
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"HALFTREND RESULTS: {len(results)} symbols")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"  Avg Return: {np.mean(returns):+.2f}%")
     print(f"  Median Return: {np.median(returns):+.2f}%")
     print(f"  Avg Trades: {np.mean(trades):.0f}")
@@ -274,11 +301,15 @@ def run_halftrend_backtest(top_n: int = 50, years: int = 1):
     results.sort(key=lambda x: x["return"], reverse=True)
     print("\nTop 10:")
     for r in results[:10]:
-        print(f"  {r['symbol']}: {r['return']:+.2f}% | {r['trades']} trades | Win {r['win_rate']:.0f}% | Sharpe {r['sharpe']:.3f}")
+        print(
+            f"  {r['symbol']}: {r['return']:+.2f}% | {r['trades']} trades | Win {r['win_rate']:.0f}% | Sharpe {r['sharpe']:.3f}"
+        )
 
     print("\nBottom 5:")
     for r in results[-5:]:
-        print(f"  {r['symbol']}: {r['return']:+.2f}% | {r['trades']} trades | Win {r['win_rate']:.0f}%")
+        print(
+            f"  {r['symbol']}: {r['return']:+.2f}% | {r['trades']} trades | Win {r['win_rate']:.0f}%"
+        )
 
 
 def main():

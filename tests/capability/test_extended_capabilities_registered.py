@@ -6,7 +6,6 @@ import inspect
 
 import pytest
 
-from brokers.common.gateway import BrokerCapabilities
 from domain.capability_manifest import CAPABILITY_SURFACES, classify_exposure
 
 
@@ -38,7 +37,7 @@ class TestDhanExtendedCapabilities:
     def test_dhan_extended_class_methods_covered(self) -> None:
         from brokers.dhan.extended import DhanExtendedCapabilities
 
-        public_methods = [
+        [
             name
             for name, fn in inspect.getmembers(DhanExtendedCapabilities, inspect.isfunction)
             if not name.startswith("_") and name not in ("instruments", "identity", "orders")
@@ -76,8 +75,6 @@ class TestUpstoxExtendedCapabilities:
     """Upstox extended.py methods are represented in manifest."""
 
     def test_upstox_extended_key_methods_in_manifest(self) -> None:
-        from brokers.upstox.extended import UpstoxExtendedCapabilities
-
         key_methods = {
             "get_ipos",
             "initiate_payout",
@@ -86,10 +83,11 @@ class TestUpstoxExtendedCapabilities:
             "get_user_profile",
         }
         manifest_refs = {
-            s.gateway_method.split(".")[-1] if s.gateway_method else ""
-            for s in CAPABILITY_SURFACES
+            s.gateway_method.split(".")[-1] if s.gateway_method else "" for s in CAPABILITY_SURFACES
         }
-        manifest_refs |= {s.broker.upstox.split(".")[-1] if s.broker.upstox else "" for s in CAPABILITY_SURFACES}
+        manifest_refs |= {
+            s.broker.upstox.split(".")[-1] if s.broker.upstox else "" for s in CAPABILITY_SURFACES
+        }
         for method in key_methods:
             assert method in manifest_refs or any(
                 method in (s.broker.upstox or "") for s in CAPABILITY_SURFACES

@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import pytest
 from fastapi.testclient import TestClient
 
-from api.main import create_app
 from api.config import APIConfig
+from api.main import create_app
 
 
 class TestHealthEndpoints:
@@ -32,7 +31,7 @@ class TestHealthEndpoints:
         response = client.get("/api/v1/health/readyz")
         # Should be 503 if services not initialized, or 200 if they are
         assert response.status_code in (200, 503)
-        
+
         if response.status_code == 503:
             data = response.json()
             assert "detail" in data
@@ -47,7 +46,7 @@ class TestHealthEndpoints:
 
         with caplog.at_level("ERROR"):
             client.get("/api/v1/health/readyz")
-        
+
         # If there's an exception, it should be logged
         # (We can't force an exception in tests, but we verify the logging setup exists)
         assert True  # Test passes if no crash occurs

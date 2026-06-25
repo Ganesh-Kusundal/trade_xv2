@@ -26,14 +26,16 @@ def test_walk_forward_window_count() -> None:
     rows = 700
     ts = pd.date_range("2026-01-02 09:15", periods=rows, freq="1min")
     price = 100 + pd.Series(range(rows)).astype(float) * 0.01
-    df = pd.DataFrame({
-        "timestamp": ts,
-        "open": price,
-        "high": price + 0.2,
-        "low": price - 0.2,
-        "close": price,
-        "volume": 5000,
-    })
+    df = pd.DataFrame(
+        {
+            "timestamp": ts,
+            "open": price,
+            "high": price + 0.2,
+            "low": price - 0.2,
+            "close": price,
+            "volume": 5000,
+        }
+    )
 
     engine = WalkForwardEngine(
         FeaturePipeline(),

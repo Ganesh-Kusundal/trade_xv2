@@ -17,14 +17,16 @@ def _ohlcv(n: int = 100) -> pd.DataFrame:
 
     np.random.seed(42)
     close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-    return pd.DataFrame({
-        "timestamp": pd.date_range("2026-01-01", periods=n, freq="D"),
-        "open": close - 0.5,
-        "high": close + 1.5,
-        "low": close - 1.5,
-        "close": close,
-        "volume": [1000 + (i % 5) * 100 for i in range(n)],
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2026-01-01", periods=n, freq="D"),
+            "open": close - 0.5,
+            "high": close + 1.5,
+            "low": close - 1.5,
+            "close": close,
+            "volume": [1000 + (i % 5) * 100 for i in range(n)],
+        }
+    )
 
 
 class TestComparisonResult:
@@ -35,17 +37,21 @@ class TestComparisonResult:
         assert result.summary.empty
 
     def test_with_results(self) -> None:
-        result = ComparisonResult(results=[
-            {"strategy": "momentum", "sharpe_ratio": 1.5, "total_return_pct": 10.0},
-            {"strategy": "breakout", "sharpe_ratio": 0.8, "total_return_pct": 5.0},
-        ])
+        result = ComparisonResult(
+            results=[
+                {"strategy": "momentum", "sharpe_ratio": 1.5, "total_return_pct": 10.0},
+                {"strategy": "breakout", "sharpe_ratio": 0.8, "total_return_pct": 5.0},
+            ]
+        )
         assert len(result.results) == 2
         assert result.best["strategy"] == "momentum"
 
     def test_summary_dataframe(self) -> None:
-        result = ComparisonResult(results=[
-            {"strategy": "momentum", "sharpe_ratio": 1.5},
-        ])
+        result = ComparisonResult(
+            results=[
+                {"strategy": "momentum", "sharpe_ratio": 1.5},
+            ]
+        )
         df = result.summary
         assert isinstance(df, pd.DataFrame)
         assert len(df) == 1

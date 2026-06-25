@@ -36,16 +36,22 @@ def test_configurable_cache_dir(temp_cache_dir):
     assert os.environ["DHAN_CACHE_DIR"] == str(temp_cache_dir)
 
     # Mock network call to pd.read_csv to return a minimal DataFrame
-    mock_df = pd.DataFrame([{
-        "SEM_TRADING_SYMBOL": "RELIANCE",
-        "SEM_SMST_SECURITY_ID": 2885,
-        "SEM_EXM_EXCH_ID": "NSE",
-        "SEM_SEGMENT": "E",
-        "SEM_INSTRUMENT_NAME": "EQUITY",
-    }])
+    mock_df = pd.DataFrame(
+        [
+            {
+                "SEM_TRADING_SYMBOL": "RELIANCE",
+                "SEM_SMST_SECURITY_ID": 2885,
+                "SEM_EXM_EXCH_ID": "NSE",
+                "SEM_SEGMENT": "E",
+                "SEM_INSTRUMENT_NAME": "EQUITY",
+            }
+        ]
+    )
 
-    with mock.patch("pandas.read_csv", return_value=mock_df), \
-         mock.patch("brokers.dhan.loader.InstrumentLoader._fetch_mcx_detailed", return_value=[]):
+    with (
+        mock.patch("pandas.read_csv", return_value=mock_df),
+        mock.patch("brokers.dhan.loader.InstrumentLoader._fetch_mcx_detailed", return_value=[]),
+    ):
         rows = InstrumentLoader.load_cached(force_refresh=True)
 
     today = date.today().isoformat()
@@ -62,21 +68,27 @@ def test_cache_ttl_less_than_6_hours(temp_cache_dir):
     today = date.today().isoformat()
     cache_path = temp_cache_dir / f"instruments_{today}.csv"
 
-    mock_df = pd.DataFrame([{
-        "SEM_TRADING_SYMBOL": "CACHED_VAL",
-        "SEM_SMST_SECURITY_ID": 123,
-        "SEM_EXM_EXCH_ID": "NSE",
-        "SEM_SEGMENT": "E",
-        "SEM_INSTRUMENT_NAME": "EQUITY",
-    }])
+    mock_df = pd.DataFrame(
+        [
+            {
+                "SEM_TRADING_SYMBOL": "CACHED_VAL",
+                "SEM_SMST_SECURITY_ID": 123,
+                "SEM_EXM_EXCH_ID": "NSE",
+                "SEM_SEGMENT": "E",
+                "SEM_INSTRUMENT_NAME": "EQUITY",
+            }
+        ]
+    )
     mock_df.to_csv(cache_path, index=False)
 
     # Set mtime to 3 hours ago
     three_hours_ago = time.time() - (3 * 3600)
     os.utime(cache_path, (three_hours_ago, three_hours_ago))
 
-    with mock.patch("pandas.read_csv") as mock_read_csv, \
-         mock.patch("brokers.dhan.loader.InstrumentLoader._fetch_mcx_detailed", return_value=[]):
+    with (
+        mock.patch("pandas.read_csv") as mock_read_csv,
+        mock.patch("brokers.dhan.loader.InstrumentLoader._fetch_mcx_detailed", return_value=[]),
+    ):
         # When reading cache, pd.read_csv is called with cache_path.
         # We configure it to return the mock_df.
         mock_read_csv.return_value = mock_df
@@ -97,13 +109,17 @@ def test_cache_ttl_more_than_6_hours_forces_refresh(temp_cache_dir):
     cache_path = temp_cache_dir / f"instruments_{today}.csv"
 
     # Create stale cache
-    old_df = pd.DataFrame([{
-        "SEM_TRADING_SYMBOL": "STALE_VAL",
-        "SEM_SMST_SECURITY_ID": 123,
-        "SEM_EXM_EXCH_ID": "NSE",
-        "SEM_SEGMENT": "E",
-        "SEM_INSTRUMENT_NAME": "EQUITY",
-    }])
+    old_df = pd.DataFrame(
+        [
+            {
+                "SEM_TRADING_SYMBOL": "STALE_VAL",
+                "SEM_SMST_SECURITY_ID": 123,
+                "SEM_EXM_EXCH_ID": "NSE",
+                "SEM_SEGMENT": "E",
+                "SEM_INSTRUMENT_NAME": "EQUITY",
+            }
+        ]
+    )
     old_df.to_csv(cache_path, index=False)
 
     # Set mtime to 7 hours ago
@@ -111,17 +127,23 @@ def test_cache_ttl_more_than_6_hours_forces_refresh(temp_cache_dir):
     os.utime(cache_path, (seven_hours_ago, seven_hours_ago))
 
     # Fresh data from server
-    fresh_df = pd.DataFrame([{
-        "SEM_TRADING_SYMBOL": "FRESH_VAL",
-        "SEM_SMST_SECURITY_ID": 456,
-        "SEM_EXM_EXCH_ID": "NSE",
-        "SEM_SEGMENT": "E",
-        "SEM_INSTRUMENT_NAME": "EQUITY",
-    }])
+    fresh_df = pd.DataFrame(
+        [
+            {
+                "SEM_TRADING_SYMBOL": "FRESH_VAL",
+                "SEM_SMST_SECURITY_ID": 456,
+                "SEM_EXM_EXCH_ID": "NSE",
+                "SEM_SEGMENT": "E",
+                "SEM_INSTRUMENT_NAME": "EQUITY",
+            }
+        ]
+    )
 
     # We patch read_csv. When it loads from URL (fresh download), it returns fresh_df.
-    with mock.patch("pandas.read_csv", return_value=fresh_df) as mock_read_csv, \
-         mock.patch("brokers.dhan.loader.InstrumentLoader._fetch_mcx_detailed", return_value=[]):
+    with (
+        mock.patch("pandas.read_csv", return_value=fresh_df) as mock_read_csv,
+        mock.patch("brokers.dhan.loader.InstrumentLoader._fetch_mcx_detailed", return_value=[]),
+    ):
         rows = InstrumentLoader.load_cached(force_refresh=False)
 
         # Verify it downloaded fresh from URL (read_csv called on _COMPACT_CSV_URL)
@@ -138,13 +160,17 @@ def test_graceful_fallback_on_download_failure(temp_cache_dir):
     today = date.today().isoformat()
     cache_path = temp_cache_dir / f"instruments_{today}.csv"
 
-    cached_df = pd.DataFrame([{
-        "SEM_TRADING_SYMBOL": "STALE_FALLBACK_VAL",
-        "SEM_SMST_SECURITY_ID": 789,
-        "SEM_EXM_EXCH_ID": "NSE",
-        "SEM_SEGMENT": "E",
-        "SEM_INSTRUMENT_NAME": "EQUITY",
-    }])
+    cached_df = pd.DataFrame(
+        [
+            {
+                "SEM_TRADING_SYMBOL": "STALE_FALLBACK_VAL",
+                "SEM_SMST_SECURITY_ID": 789,
+                "SEM_EXM_EXCH_ID": "NSE",
+                "SEM_SEGMENT": "E",
+                "SEM_INSTRUMENT_NAME": "EQUITY",
+            }
+        ]
+    )
     cached_df.to_csv(cache_path, index=False)
 
     # Set mtime to 7 hours ago to trigger refresh attempt
@@ -157,8 +183,10 @@ def test_graceful_fallback_on_download_failure(temp_cache_dir):
             raise ConnectionError("Server offline")
         return cached_df
 
-    with mock.patch("pandas.read_csv", side_effect=side_effect), \
-         mock.patch("brokers.dhan.loader.InstrumentLoader._fetch_mcx_detailed", return_value=[]):
+    with (
+        mock.patch("pandas.read_csv", side_effect=side_effect),
+        mock.patch("brokers.dhan.loader.InstrumentLoader._fetch_mcx_detailed", return_value=[]),
+    ):
         rows = InstrumentLoader.load_cached(force_refresh=False)
 
     # Should fall back to stale cache value instead of raising exception
@@ -177,13 +205,17 @@ def test_cache_cleanup_older_than_7_days(temp_cache_dir):
     ]
 
     created_paths = []
-    dummy_df = pd.DataFrame([{
-        "SEM_TRADING_SYMBOL": "TEST",
-        "SEM_SMST_SECURITY_ID": 1,
-        "SEM_EXM_EXCH_ID": "NSE",
-        "SEM_SEGMENT": "E",
-        "SEM_INSTRUMENT_NAME": "EQUITY",
-    }])
+    dummy_df = pd.DataFrame(
+        [
+            {
+                "SEM_TRADING_SYMBOL": "TEST",
+                "SEM_SMST_SECURITY_ID": 1,
+                "SEM_EXM_EXCH_ID": "NSE",
+                "SEM_SEGMENT": "E",
+                "SEM_INSTRUMENT_NAME": "EQUITY",
+            }
+        ]
+    )
 
     for suffix, age_days in files_to_create:
         p = temp_cache_dir / f"instruments_{suffix}.csv"
@@ -195,8 +227,10 @@ def test_cache_cleanup_older_than_7_days(temp_cache_dir):
         created_paths.append((p, age_days))
 
     # Run cache load (which triggers cleanup)
-    with mock.patch("pandas.read_csv", return_value=dummy_df), \
-         mock.patch("brokers.dhan.loader.InstrumentLoader._fetch_mcx_detailed", return_value=[]):
+    with (
+        mock.patch("pandas.read_csv", return_value=dummy_df),
+        mock.patch("brokers.dhan.loader.InstrumentLoader._fetch_mcx_detailed", return_value=[]),
+    ):
         InstrumentLoader.load_cached(force_refresh=False)
 
     # Verify file existence

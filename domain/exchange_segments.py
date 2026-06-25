@@ -20,6 +20,7 @@ Design rules
   helpers. The previous design reimplemented these checks inline
   at 8+ call sites.
 """
+
 from __future__ import annotations
 
 from domain.types import ExchangeSegment
@@ -60,9 +61,7 @@ _DERIVATIVE_SEGMENTS: frozenset[ExchangeSegment] = frozenset(
         ExchangeSegment.BSE_CURRENCY,
     }
 )
-_EQUITY_SEGMENTS: frozenset[ExchangeSegment] = frozenset(
-    {ExchangeSegment.NSE, ExchangeSegment.BSE}
-)
+_EQUITY_SEGMENTS: frozenset[ExchangeSegment] = frozenset({ExchangeSegment.NSE, ExchangeSegment.BSE})
 _CURRENCY_SEGMENTS: frozenset[ExchangeSegment] = frozenset(
     {ExchangeSegment.NSE_CURRENCY, ExchangeSegment.BSE_CURRENCY}
 )

@@ -14,25 +14,17 @@ Each test must complete in < 5 seconds.
 from __future__ import annotations
 
 import gc
-import sys
-import tracemalloc
-import threading
 import time
+import tracemalloc
 import weakref
-from collections import deque
-from datetime import datetime, timezone
-from decimal import Decimal
-from pathlib import Path
-from typing import Any
 from unittest.mock import MagicMock
 
 import pandas as pd
-import pytest
-
 
 # ──────────────────────────────────────────────────────────────────────
 # Section 1: EventBus Memory Bounds
 # ──────────────────────────────────────────────────────────────────────
+
 
 class TestEventBusMemoryBounds:
     """Verify EventBus does not leak memory under sustained load."""
@@ -71,7 +63,7 @@ class TestEventBusMemoryBounds:
 
     def test_event_bus_no_leak_from_subscribe_unsubscribe_cycles(self):
         """Subscribe/unsubscribe cycles should not leak handler references."""
-        from infrastructure.event_bus.event_bus import DomainEvent, EventBus
+        from infrastructure.event_bus.event_bus import EventBus
 
         tracemalloc.start()
         snapshot1 = tracemalloc.take_snapshot()
@@ -89,13 +81,11 @@ class TestEventBusMemoryBounds:
         stats = snapshot2.compare_to(snapshot1, "lineno")
         total_growth = sum(s.size_diff for s in stats if s.size_diff > 0)
         # Should be very small since we unsubscribed everything
-        assert total_growth < 200_000, (
-            f"Subscribe/unsubscribe cycles leaked {total_growth} bytes"
-        )
+        assert total_growth < 200_000, f"Subscribe/unsubscribe cycles leaked {total_growth} bytes"
 
     def test_event_bus_handler_reference_released_on_unsubscribe(self):
         """Unsubscribed handlers should be garbage collected."""
-        from infrastructure.event_bus.event_bus import DomainEvent, EventBus
+        from infrastructure.event_bus.event_bus import EventBus
 
         class LargeHandler:
             def __init__(self):
@@ -125,8 +115,8 @@ class TestEventBusMemoryBounds:
 
     def test_dead_letter_queue_bounded_memory(self):
         """DeadLetterQueue should not grow beyond max_size."""
-        from infrastructure.event_bus.event_bus import DomainEvent
         from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
+        from infrastructure.event_bus.event_bus import DomainEvent
 
         dlq = DeadLetterQueue(max_size=100)
 
@@ -147,28 +137,31 @@ class TestEventBusMemoryBounds:
 # Section 2: ReplayEngine Window Bounds
 # ──────────────────────────────────────────────────────────────────────
 
+
 class TestReplayEngineMemoryBounds:
     """Verify ReplayEngine uses bounded memory regardless of input size."""
 
     def test_replay_engine_uses_bounded_deque(self):
         """ReplayEngine window should be a bounded deque."""
+        from analytics.pipeline.pipeline import FeaturePipeline
         from analytics.replay.engine import ReplayEngine
         from analytics.replay.models import ReplayConfig
-        from analytics.pipeline.pipeline import FeaturePipeline
 
         window_size = 20
         config = ReplayConfig(window_size=window_size, warmup_bars=0)
 
         # Create large dataset
         n_bars = 1000
-        df = pd.DataFrame({
-            "timestamp": pd.date_range("2024-01-01", periods=n_bars, freq="min"),
-            "open": [100.0 + i * 0.1 for i in range(n_bars)],
-            "high": [101.0 + i * 0.1 for i in range(n_bars)],
-            "low": [99.0 + i * 0.1 for i in range(n_bars)],
-            "close": [100.5 + i * 0.1 for i in range(n_bars)],
-            "volume": [1000 + i for i in range(n_bars)],
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": pd.date_range("2024-01-01", periods=n_bars, freq="min"),
+                "open": [100.0 + i * 0.1 for i in range(n_bars)],
+                "high": [101.0 + i * 0.1 for i in range(n_bars)],
+                "low": [99.0 + i * 0.1 for i in range(n_bars)],
+                "close": [100.5 + i * 0.1 for i in range(n_bars)],
+                "volume": [1000 + i for i in range(n_bars)],
+            }
+        )
 
         engine = ReplayEngine(
             pipeline=FeaturePipeline(),
@@ -212,6 +205,7 @@ class TestReplayEngineMemoryBounds:
 # Section 3: Cache Eviction (DataLakeGateway TTLCache)
 # ──────────────────────────────────────────────────────────────────────
 
+
 class TestCacheEviction:
     """Verify caches evict properly and don't grow unbounded."""
 
@@ -223,9 +217,7 @@ class TestCacheEviction:
         # TTLCache maxsize=100
 
         # Verify cache attributes
-        assert gw._resample_cache.maxsize == 100, (
-            "Resample cache should have maxsize of 100"
-        )
+        assert gw._resample_cache.maxsize == 100, "Resample cache should have maxsize of 100"
 
     def test_ttl_cache_evicts_old_entries(self):
         """TTLCache should evict entries when maxsize is reached."""
@@ -237,9 +229,7 @@ class TestCacheEviction:
             cache[f"key-{i}"] = f"value-{i}"
 
         # Should only have 3 entries (maxsize)
-        assert len(cache) <= 3, (
-            f"TTLCache should have at most 3 entries, got {len(cache)}"
-        )
+        assert len(cache) <= 3, f"TTLCache should have at most 3 entries, got {len(cache)}"
 
     def test_ttl_cache_entries_expire(self):
         """TTLCache entries should expire after TTL."""
@@ -270,9 +260,7 @@ class TestCacheEviction:
         # Cache should have entries but not grow infinitely
         # Each call adds one entry
         cache_size = len(gw._cache)
-        assert cache_size == 200, (
-            f"Cache should have one entry per unique symbol, got {cache_size}"
-        )
+        assert cache_size == 200, f"Cache should have one entry per unique symbol, got {cache_size}"
 
         # Verify cache entries are _CacheEntry objects with TTL
         for entry in gw._cache.values():
@@ -284,13 +272,14 @@ class TestCacheEviction:
 # Section 4: Reference Cycles
 # ──────────────────────────────────────────────────────────────────────
 
+
 class TestReferenceCycles:
     """Verify no uncollectable reference cycles in key components."""
 
     def test_event_bus_no_reference_cycles(self):
         """EventBus should not create reference cycles."""
-        from infrastructure.event_bus.event_bus import DomainEvent, EventBus
         from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
+        from infrastructure.event_bus.event_bus import DomainEvent, EventBus
 
         dlq = DeadLetterQueue(max_size=100)
         bus = EventBus(dead_letter_queue=dlq, fail_fast=False)
@@ -312,9 +301,7 @@ class TestReferenceCycles:
         gc.collect()
         after = len(gc.garbage)
 
-        assert after == before, (
-            f"EventBus created {after - before} uncollectable objects"
-        )
+        assert after == before, f"EventBus created {after - before} uncollectable objects"
 
     def test_domain_event_no_reference_cycles(self):
         """DomainEvent (frozen dataclass) should not create cycles."""
@@ -359,7 +346,7 @@ class TestReferenceCycles:
         before = len(gc.garbage)
 
         metrics = EventMetrics()
-        for i in range(100):
+        for _i in range(100):
             metrics.inc("TICK", "published")
             metrics.add_timestamped_counter("TICK", "published", time.time())
 
@@ -374,26 +361,29 @@ class TestReferenceCycles:
 # Section 5: DataFrame Memory
 # ──────────────────────────────────────────────────────────────────────
 
+
 class TestDataFrameMemory:
     """Verify DataFrame operations don't hold unnecessary references."""
 
     def test_replay_engine_does_not_hold_full_dataframe_reference(self):
         """After replay, engine should not hold a reference to the full input DataFrame."""
+        from analytics.pipeline.pipeline import FeaturePipeline
         from analytics.replay.engine import ReplayEngine
         from analytics.replay.models import ReplayConfig
-        from analytics.pipeline.pipeline import FeaturePipeline
 
         n_bars = 500
-        df = pd.DataFrame({
-            "timestamp": pd.date_range("2024-01-01", periods=n_bars, freq="min"),
-            "open": [100.0] * n_bars,
-            "high": [101.0] * n_bars,
-            "low": [99.0] * n_bars,
-            "close": [100.5] * n_bars,
-            "volume": [1000] * n_bars,
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": pd.date_range("2024-01-01", periods=n_bars, freq="min"),
+                "open": [100.0] * n_bars,
+                "high": [101.0] * n_bars,
+                "low": [99.0] * n_bars,
+                "close": [100.5] * n_bars,
+                "volume": [1000] * n_bars,
+            }
+        )
 
-        weak_df = weakref.ref(df)
+        weakref.ref(df)
 
         engine = ReplayEngine(
             pipeline=FeaturePipeline(),
@@ -415,10 +405,12 @@ class TestDataFrameMemory:
         cache = TTLCache(maxsize=10, ttl=300)
 
         n_rows = 10
-        original_df = pd.DataFrame({
-            "timestamp": pd.date_range("2024-01-01", periods=n_rows, freq="min"),
-            "close": [100.0 + i for i in range(n_rows)],
-        })
+        original_df = pd.DataFrame(
+            {
+                "timestamp": pd.date_range("2024-01-01", periods=n_rows, freq="min"),
+                "close": [100.0 + i for i in range(n_rows)],
+            }
+        )
 
         # The DataLakeGateway uses getsizeof to track memory,
         # but a plain TTLCache can store any value
@@ -435,19 +427,21 @@ class TestDataFrameMemory:
         tracemalloc.start()
 
         n_rows = 100_000
-        df = pd.DataFrame({
-            "timestamp": pd.date_range("2024-01-01", periods=n_rows, freq="s"),
-            "open": [100.0] * n_rows,
-            "high": [101.0] * n_rows,
-            "low": [99.0] * n_rows,
-            "close": [100.5] * n_rows,
-            "volume": [1000] * n_rows,
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": pd.date_range("2024-01-01", periods=n_rows, freq="s"),
+                "open": [100.0] * n_rows,
+                "high": [101.0] * n_rows,
+                "low": [99.0] * n_rows,
+                "close": [100.5] * n_rows,
+                "volume": [1000] * n_rows,
+            }
+        )
 
         snapshot1 = tracemalloc.take_snapshot()
 
         # Access single column — should be a view, not a copy
-        close = df["close"]
+        df["close"]
 
         snapshot2 = tracemalloc.take_snapshot()
         tracemalloc.stop()
@@ -464,10 +458,12 @@ class TestDataFrameMemory:
         """DataLakeGateway._df_size should accurately report DataFrame size."""
         from datalake.gateway import DataLakeGateway
 
-        df = pd.DataFrame({
-            "a": [1] * 1000,
-            "b": ["x" * 100] * 1000,
-        })
+        df = pd.DataFrame(
+            {
+                "a": [1] * 1000,
+                "b": ["x" * 100] * 1000,
+            }
+        )
 
         size = DataLakeGateway._df_size(df)
         assert size > 0, "_df_size should return positive value"
@@ -478,14 +474,15 @@ class TestDataFrameMemory:
 # Section 6: Overall Memory Growth Bounds
 # ──────────────────────────────────────────────────────────────────────
 
+
 class TestOverallMemoryGrowth:
     """Verify overall system memory growth is bounded under sustained load."""
 
     def test_sustained_event_bus_load_bounded_growth(self):
         """Sustained EventBus load should have bounded memory growth (< 10MB)."""
-        from infrastructure.event_bus.event_bus import DomainEvent, EventBus
-        from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
         from brokers.common.observability.event_metrics import EventMetrics
+        from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
+        from infrastructure.event_bus.event_bus import DomainEvent, EventBus
 
         tracemalloc.start()
 
@@ -499,11 +496,16 @@ class TestOverallMemoryGrowth:
         # 1000 iterations of publish + small handler
         for batch in range(10):
             for i in range(100):
-                bus.publish(DomainEvent.now("TICK", {
-                    "batch": batch,
-                    "seq": i,
-                    "payload": "x" * 50,
-                }))
+                bus.publish(
+                    DomainEvent.now(
+                        "TICK",
+                        {
+                            "batch": batch,
+                            "seq": i,
+                            "payload": "x" * 50,
+                        },
+                    )
+                )
             gc.collect()
 
         snapshot2 = tracemalloc.take_snapshot()
@@ -519,7 +521,7 @@ class TestOverallMemoryGrowth:
 
     def test_process_memory_stable_after_gc(self):
         """After gc.collect(), process memory should be stable."""
-        from infrastructure.event_bus.event_bus import DomainEvent, EventBus
+        from infrastructure.event_bus.event_bus import EventBus
 
         # Create a bus and generate some garbage
         bus = EventBus(fail_fast=False)
@@ -528,12 +530,10 @@ class TestOverallMemoryGrowth:
             bus.unsubscribe(token)
 
         # Force GC
-        collected = gc.collect()
+        gc.collect()
 
         # Verify no garbage left
-        assert len(gc.garbage) == 0, (
-            f"gc.collect() found {len(gc.garbage)} uncollectable objects"
-        )
+        assert len(gc.garbage) == 0, f"gc.collect() found {len(gc.garbage)} uncollectable objects"
 
     def test_no_unbounded_growth_in_metrics_timestamped_entries(self):
         """EventMetrics timestamped entries should be pruned, not accumulate."""
@@ -544,12 +544,10 @@ class TestOverallMemoryGrowth:
         # Add many timestamped entries
         now = time.time()
         for i in range(1000):
-            metrics.add_timestamped_counter(
-                "TICK", "published", timestamp=now - (1000 - i)
-            )
+            metrics.add_timestamped_counter("TICK", "published", timestamp=now - (1000 - i))
 
         # Rate calculation should prune old entries
-        rate = metrics.rate("TICK", "published", window_seconds=60)
+        metrics.rate("TICK", "published", window_seconds=60)
 
         # After pruning, only recent entries should remain
         with metrics._lock:

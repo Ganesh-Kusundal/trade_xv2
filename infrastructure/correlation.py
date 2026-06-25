@@ -9,8 +9,8 @@ from __future__ import annotations
 import contextlib
 import threading
 import uuid
+from collections.abc import Generator
 from datetime import datetime, timezone
-from typing import Generator
 
 _correlation_local = threading.local()
 

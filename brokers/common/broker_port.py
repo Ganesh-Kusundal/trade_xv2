@@ -15,14 +15,14 @@ Design invariants enforced here:
 
 from __future__ import annotations
 
-from typing import Protocol, Sequence, runtime_checkable
+from collections.abc import Sequence
+from typing import Protocol, runtime_checkable
 
-from domain.historical import HistoricalBar, InstrumentRef
+from brokers.common.capabilities import CapabilityDescriptor
 from domain.entities import Balance, Order, OrderResponse, Position, Quote, Trade
-from domain.requests import ModifyOrderRequest, OrderRequest
 from domain.entities.market import MarketDepth
-from brokers.common.capabilities import BrokerCapabilities, CapabilityDescriptor
-
+from domain.historical import HistoricalBar, InstrumentRef
+from domain.requests import ModifyOrderRequest, OrderRequest
 
 # ---------------------------------------------------------------------------
 # Supporting transport types (lifecycle owned by StreamOrchestrator)
@@ -75,11 +75,11 @@ class HistoricalBarRequest:
     """
 
     __slots__ = (
-        "instrument",
-        "timeframe",
         "from_date",
-        "to_date",
+        "instrument",
         "request_id",
+        "timeframe",
+        "to_date",
     )
 
     def __init__(
@@ -102,12 +102,12 @@ class BrokerHealthSnapshot:
 
     alive         — whether the gateway can currently serve requests.
     auth_valid    — whether the current access token is valid.
-    error_rate    — recent error rate (0.0–1.0) as observed by health monitor.
+    error_rate    — recent error rate (0.0-1.0) as observed by health monitor.
     latency_p50   — median API latency in milliseconds.
     reason        — human-readable reason if not alive.
     """
 
-    __slots__ = ("broker_id", "alive", "auth_valid", "error_rate", "latency_p50", "reason")
+    __slots__ = ("alive", "auth_valid", "broker_id", "error_rate", "latency_p50", "reason")
 
     def __init__(
         self,
@@ -138,7 +138,7 @@ class QuotaToken:
     The scheduler validates tokens at release time for accounting.
     """
 
-    __slots__ = ("broker_id", "endpoint_class", "priority_class", "_token_id")
+    __slots__ = ("_token_id", "broker_id", "endpoint_class", "priority_class")
 
     def __init__(
         self,

@@ -1,6 +1,6 @@
 """Market data CLI command group (quote, depth, history, stream)."""
 
-from cli.commands.market import (  # noqa: F401
+from cli.commands.market import (
     resolve_exchange,
     show_depth,
     show_futures,

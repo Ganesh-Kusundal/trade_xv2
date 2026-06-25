@@ -22,8 +22,8 @@ from decimal import Decimal
 
 import pytest
 
-from domain import Order, OrderStatus, OrderType, ProductType, Side
 from application.oms import PositionManager, RiskConfig, RiskManager
+from domain import Order, OrderStatus, OrderType, ProductType, Side
 
 
 def _make_order() -> Order:
@@ -161,7 +161,4 @@ def test_check_order_with_concurrent_capital_fn(risk_manager: RiskManager) -> No
     assert allowed_count > 0
     assert rejected_count > 0
     # The 'Insufficient capital' reason must be observed at least once.
-    assert any(
-        not r.allowed and r.reason and "capital" in r.reason.lower()
-        for r in results
-    )
+    assert any(not r.allowed and r.reason and "capital" in r.reason.lower() for r in results)

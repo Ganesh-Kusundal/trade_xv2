@@ -11,13 +11,14 @@ Patterns replicated from Trade_J:
 from __future__ import annotations
 
 import base64
+import contextlib
 import hashlib
 import hmac
 import json
+import logging
 import os
 import struct
 import time
-import logging
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -83,7 +84,9 @@ class TokenState:
         now = datetime.now()
         return (self.expires_at - now).total_seconds()
 
-    def refresh_recommended(self, buffer_seconds: float = TOKEN_REFRESH_RECOMMENDED_BUFFER_SECONDS) -> bool:
+    def refresh_recommended(
+        self, buffer_seconds: float = TOKEN_REFRESH_RECOMMENDED_BUFFER_SECONDS
+    ) -> bool:
         """Check if token should be refreshed within the given buffer.
 
         Args:
@@ -204,14 +207,12 @@ class JsonTokenStateStore(TokenStateStore):
             data["issued_at"] = state.issued_at.isoformat()
         if state.expires_at:
             data["expires_at"] = state.expires_at.isoformat()
-        
+
         # Write with secure file permissions (owner read/write only)
         self._path.write_text(json.dumps(data, indent=2))
-        try:
+        with contextlib.suppress(OSError):
             os.chmod(self._path, 0o600)
-        except OSError:
             # Best effort - file already written securely by default umask
-            pass
 
 
 class TotpGenerator:
@@ -362,7 +363,9 @@ class AuthManager:
 
         return None
 
-    def ensure_valid(self, buffer_seconds: float = TOKEN_REFRESH_RECOMMENDED_BUFFER_SECONDS) -> bool:
+    def ensure_valid(
+        self, buffer_seconds: float = TOKEN_REFRESH_RECOMMENDED_BUFFER_SECONDS
+    ) -> bool:
         """Ensure the current token is present and not expired.
 
         Does **not** proactively refresh tokens that are still valid.
@@ -374,7 +377,9 @@ class AuthManager:
         result = self.acquire()
         return result is not None and result.is_valid()
 
-    def ensure_fresh(self, buffer_seconds: float = TOKEN_REFRESH_RECOMMENDED_BUFFER_SECONDS) -> bool:
+    def ensure_fresh(
+        self, buffer_seconds: float = TOKEN_REFRESH_RECOMMENDED_BUFFER_SECONDS
+    ) -> bool:
         """Ensure token is valid; proactively refresh when within *buffer* of expiry."""
         if self._state and self._state.is_valid():
             if not self._state.refresh_recommended(buffer_seconds):
@@ -441,7 +446,9 @@ class AuthManager:
                 return True
         except Exception as exc:
             logger = logging.getLogger(__name__)
-            logger.warning("token_refresh_failed", extra={"client_id": self.client_id, "error": str(exc)})
+            logger.warning(
+                "token_refresh_failed", extra={"client_id": self.client_id, "error": str(exc)}
+            )
             return False
         return False
 
@@ -465,7 +472,5 @@ class AuthManager:
     @staticmethod
     def _notify_callbacks(callbacks: list[Callable[[], None]]) -> None:
         for callback in callbacks:
-            try:
+            with contextlib.suppress(Exception):
                 callback()
-            except Exception:
-                continue

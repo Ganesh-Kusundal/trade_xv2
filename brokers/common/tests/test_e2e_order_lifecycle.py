@@ -26,10 +26,10 @@ LIVE = pytest.mark.skipif(
 
 @LIVE
 class TestDhanE2EOrderLifecycle:
-
     @pytest.fixture()
     def dhan_gateway(self):
         from brokers.dhan.factory import BrokerFactory
+
         factory = BrokerFactory()
         return factory.create()
 
@@ -73,7 +73,8 @@ class TestDhanE2EOrderLifecycle:
         assert response.success
 
         modified = dhan_gateway.orders.modify_order(
-            response.order_id, price=Decimal("2001"),
+            response.order_id,
+            price=Decimal("2001"),
         )
         assert isinstance(modified, Order)
 
@@ -82,10 +83,10 @@ class TestDhanE2EOrderLifecycle:
 
 @LIVE
 class TestUpstoxE2EOrderLifecycle:
-
     @pytest.fixture()
     def upstox_gateway(self):
         from brokers.upstox.factory import UpstoxBrokerFactory
+
         factory = UpstoxBrokerFactory()
         return factory.create()
 

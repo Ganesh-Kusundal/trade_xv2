@@ -37,9 +37,7 @@ class _StaticFeatureFetcher:
 class _AlwaysBuyEvaluator:
     """Strategy evaluator that always emits an actionable BUY signal."""
 
-    def evaluate_single(
-        self, candidate: CandidateDTO, features: pd.DataFrame
-    ) -> list[SignalDTO]:
+    def evaluate_single(self, candidate: CandidateDTO, features: pd.DataFrame) -> list[SignalDTO]:
         return [
             SignalDTO(
                 symbol=candidate.symbol,

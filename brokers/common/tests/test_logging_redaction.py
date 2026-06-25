@@ -3,6 +3,7 @@
 These tests run against the filter in isolation — no dictConfig — so
 they are fast and do not pollute the global logger state.
 """
+
 from __future__ import annotations
 
 import io
@@ -11,7 +12,6 @@ import logging
 import pytest
 
 from brokers.common.logging_config import TokenRedactionFilter, _redact
-
 
 # ---------- pure-Python tests (no logger side effects) ----------
 
@@ -113,7 +113,7 @@ class TestFilterIntegration:
 
     def test_filter_redacts_fstring_style_message(self, logger_with_filter):
         token = "A" * 40
-        logger_with_filter.info(f"got token {token}")
+        logger_with_filter.info("got token %s", token)
         output = logger_with_filter.handlers[0].stream.getvalue()
         assert token not in output
         assert "<REDACTED>" in output

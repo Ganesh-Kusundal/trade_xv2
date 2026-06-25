@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List
 
 
 @dataclass
 class APIConfig:
     """Configuration for the TradeXV2 API server.
-    
+
     Parameters
     ----------
     host:
@@ -33,39 +32,41 @@ class APIConfig:
     api_prefix:
         URL prefix for all API routes (e.g., "/api/v1").
     """
-    
+
     host: str = "127.0.0.1"
     port: int = 8000
-    cors_origins: List[str] = field(default_factory=lambda: [
-        "http://localhost:5173",  # Vite dev server
-        "http://localhost:3000",  # Alternative dev port
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:3000",
-    ])
+    cors_origins: list[str] = field(
+        default_factory=lambda: [
+            "http://localhost:5173",  # Vite dev server
+            "http://localhost:3000",  # Alternative dev port
+            "http://127.0.0.1:5173",
+            "http://127.0.0.1:3000",
+        ]
+    )
     cors_allow_credentials: bool = True
-    cors_allow_methods: List[str] = field(default_factory=lambda: [
-        "GET", "POST", "PUT", "DELETE", "OPTIONS"
-    ])
-    cors_allow_headers: List[str] = field(default_factory=lambda: [
-        "Authorization", "Content-Type", "X-Correlation-ID"
-    ])
+    cors_allow_methods: list[str] = field(
+        default_factory=lambda: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    )
+    cors_allow_headers: list[str] = field(
+        default_factory=lambda: ["Authorization", "Content-Type", "X-Correlation-ID"]
+    )
     max_page_size: int = 1000
     default_page_size: int = 100
     rate_limit_per_minute: int = 0  # 0 = disabled
     api_prefix: str = "/api/v1"
     auth_mode: str = "none"  # "none" or "api_key"
     api_key: str = ""  # API key (generated if empty and auth_mode=api_key)
-    
+
     @property
     def docs_url(self) -> str:
         """URL for Swagger UI documentation."""
         return "/docs"
-    
+
     @property
     def redoc_url(self) -> str:
         """URL for ReDoc documentation."""
         return "/redoc"
-    
+
     @property
     def openapi_url(self) -> str:
         """URL for OpenAPI JSON schema."""

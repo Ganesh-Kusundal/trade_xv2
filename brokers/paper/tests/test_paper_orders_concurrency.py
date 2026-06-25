@@ -3,9 +3,9 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from decimal import Decimal
 
-from domain import OrderStatus, Side
 from brokers.paper.paper_market_data import PaperMarketData
 from brokers.paper.paper_orders import PaperOrders
+from domain import OrderStatus, Side
 
 
 class TestPaperOrdersConcurrency:
@@ -47,11 +47,15 @@ class TestPaperOrdersConcurrency:
     def test_position_copy_on_write_does_not_mutate_original(self):
         md = PaperMarketData()
         orders = PaperOrders(md, {})
-        orders.place_order("RELIANCE", "NSE", Side.BUY, 10, price=Decimal("100"), order_type="LIMIT")
+        orders.place_order(
+            "RELIANCE", "NSE", Side.BUY, 10, price=Decimal("100"), order_type="LIMIT"
+        )
 
         first = orders.get_positions()[0]
         assert first.quantity == 10
-        orders.place_order("RELIANCE", "NSE", Side.BUY, 10, price=Decimal("120"), order_type="LIMIT")
+        orders.place_order(
+            "RELIANCE", "NSE", Side.BUY, 10, price=Decimal("120"), order_type="LIMIT"
+        )
         second = orders.get_positions()[0]
 
         assert first is not second
@@ -63,7 +67,9 @@ class TestPaperOrdersConcurrency:
     def test_cancel_order_replaces_immutable_order(self):
         md = PaperMarketData()
         orders = PaperOrders(md, {})
-        o = orders.place_order("RELIANCE", "NSE", Side.BUY, 10, price=Decimal("100"), order_type="LIMIT")
+        o = orders.place_order(
+            "RELIANCE", "NSE", Side.BUY, 10, price=Decimal("100"), order_type="LIMIT"
+        )
 
         # Place an open order manually so cancellation has something to do.
         open_order = o.with_status(OrderStatus.OPEN)

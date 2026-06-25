@@ -58,7 +58,9 @@ class StockAnalytics:
             "Treat pullbacks in an uptrend as higher-quality long setups than late breakouts.",
         ]
         if sector_prices is not None and not sector_prices.empty:
-            recommendations.append("Compare stock relative strength against its sector before ranking.")
+            recommendations.append(
+                "Compare stock relative strength against its sector before ranking."
+            )
 
         return AnalysisResult(
             name="stock",
@@ -70,9 +72,15 @@ class StockAnalytics:
                 "rsi": rsi_value,
                 "roc": float(last["roc"]) if pd.notna(last["roc"]) else 0.0,
                 "momentum": float(last["momentum"]) if pd.notna(last["momentum"]) else 0.0,
-                "acceleration": float(last["acceleration"]) if pd.notna(last["acceleration"]) else 0.0,
-                "relative_volume": float(last["relative_volume"]) if pd.notna(last["relative_volume"]) else 0.0,
-                "volume_accumulation": float(last["volume_accumulation"]) if pd.notna(last["volume_accumulation"]) else 0.0,
+                "acceleration": float(last["acceleration"])
+                if pd.notna(last["acceleration"])
+                else 0.0,
+                "relative_volume": float(last["relative_volume"])
+                if pd.notna(last["relative_volume"])
+                else 0.0,
+                "volume_accumulation": float(last["volume_accumulation"])
+                if pd.notna(last["volume_accumulation"])
+                else 0.0,
                 "relative_strength": relative_strength.metrics,
             },
             scores={
@@ -86,7 +94,9 @@ class StockAnalytics:
             charts=[
                 {
                     "type": "ohlc",
-                    "data": features[["timestamp", "open", "high", "low", "close", "volume"]].to_dict("records"),
+                    "data": features[
+                        ["timestamp", "open", "high", "low", "close", "volume"]
+                    ].to_dict("records"),
                 }
             ],
             recommendations=recommendations,

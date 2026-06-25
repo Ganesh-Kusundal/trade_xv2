@@ -7,7 +7,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from runtime.trading_runtime_factory import Runtime, build_runtime as _factory_build
+from runtime.trading_runtime_factory import Runtime
+from runtime.trading_runtime_factory import build_runtime as _factory_build
 
 
 def build_runtime(

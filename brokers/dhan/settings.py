@@ -22,8 +22,8 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
-from endpoints import Dhan
 from brokers.common.settings import BrokerSettings, SettingsLoaderBase
+from endpoints import Dhan
 
 logger = logging.getLogger(__name__)
 
@@ -135,9 +135,7 @@ class DhanSettingsLoader(SettingsLoaderBase):
         is_sandbox = environment == "SANDBOX"
 
         client_id = (
-            cls._get(prefix, "SANDBOX_CLIENT_ID")
-            if is_sandbox
-            else cls._get(prefix, "CLIENT_ID")
+            cls._get(prefix, "SANDBOX_CLIENT_ID") if is_sandbox else cls._get(prefix, "CLIENT_ID")
         )
         if not client_id:
             raise ValueError("DHAN_CLIENT_ID is required")
@@ -187,8 +185,10 @@ class DhanSettingsLoader(SettingsLoaderBase):
     @classmethod
     def from_dict(cls, values: dict[str, str], *, prefix: str = PREFIX) -> DhanConnectionSettings:
         """Load settings from a flat dictionary (used for testing / .properties)."""
+
         def _val(key: str) -> str:
             return values.get(f"{prefix}.{key}", "")
+
         client_id = _val("clientId") or _val("client_id")
         if not client_id:
             raise ValueError("dhan.clientId is required")

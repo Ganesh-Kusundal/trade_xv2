@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
 from typing import Any
 
 import pandas as pd
@@ -78,14 +77,16 @@ class WalkForwardEngine:
             ta = getattr(metrics, "trade_analysis", None) if metrics else None
             pnl = float(getattr(ta, "total_pnl", 0.0) if ta else 0.0)
             sharpe = float(getattr(metrics, "sharpe_ratio", 0.0) if metrics else 0.0)
-            result.windows.append({
-                "window": window_idx,
-                "train_start": start,
-                "test_start": train_end,
-                "test_end": test_end,
-                "pnl": pnl,
-                "sharpe": sharpe,
-            })
+            result.windows.append(
+                {
+                    "window": window_idx,
+                    "train_start": start,
+                    "test_start": train_end,
+                    "test_end": test_end,
+                    "pnl": pnl,
+                    "sharpe": sharpe,
+                }
+            )
             result.total_pnl += pnl
             sharpe_values.append(sharpe)
             window_idx += 1

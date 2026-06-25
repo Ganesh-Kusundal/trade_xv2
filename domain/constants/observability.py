@@ -3,6 +3,7 @@
 All constants governing HTTP observability server configuration including
 host, port, and monitoring defaults.
 """
+
 from __future__ import annotations
 
 # ── Observability / HTTP server ────────────────────────────────────────────

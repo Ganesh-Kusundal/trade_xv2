@@ -33,16 +33,8 @@ class LifecycleCheck(CheckStrategy):
             return results
 
         service_names = list(snapshot.keys())
-        failed = [
-            (n, s)
-            for n, s in snapshot.items()
-            if s.get("state") in ("FAILED", "UNHEALTHY")
-        ]
-        degraded = [
-            (n, s)
-            for n, s in snapshot.items()
-            if s.get("state") in ("DEGRADED",)
-        ]
+        failed = [(n, s) for n, s in snapshot.items() if s.get("state") in ("FAILED", "UNHEALTHY")]
+        degraded = [(n, s) for n, s in snapshot.items() if s.get("state") in ("DEGRADED",)]
 
         n_services = len(snapshot)
         n_failed = len(failed)
@@ -66,9 +58,7 @@ class LifecycleCheck(CheckStrategy):
                 )
             )
         else:
-            failed_detail = ", ".join(
-                f"{n}({s.get('state', '?')})" for n, s in failed[:5]
-            )
+            failed_detail = ", ".join(f"{n}({s.get('state', '?')})" for n, s in failed[:5])
             results.append(
                 CheckResult(
                     "Lifecycle",

@@ -108,9 +108,50 @@ def validate_candles(
             if drop_invalid:
                 df = df[~future].copy()
 
+    # Check ingested_at not null (if column exists)
+    if "ingested_at" in df.columns:
+        null_ingested = df["ingested_at"].isna()
+        if null_ingested.any():
+            n = null_ingested.sum()
+            issues.append(f"{n} null ingested_at")
+            if drop_invalid:
+                df = df[~null_ingested].copy()
+
+    # Check published_at not null (if column exists)
+    if "published_at" in df.columns:
+        null_published = df["published_at"].isna()
+        if null_published.any():
+            n = null_published.sum()
+            issues.append(f"{n} null published_at")
+            if drop_invalid:
+                df = df[~null_published].copy()
+
+    # Check event_time equals timestamp (if both columns exist)
+    if "event_time" in df.columns and "timestamp" in df.columns:
+        mismatched = df["event_time"] != df["timestamp"]
+        if mismatched.any():
+            n = mismatched.sum()
+            issues.append(f"{n} event_time != timestamp")
+            if drop_invalid:
+                df = df[~mismatched].copy()
+
+    # Check is_correction is boolean (if column exists)
+    if "is_correction" in df.columns:
+        is_bool = df["is_correction"].isin([True, False, None])
+        if not is_bool.all():
+            n = (~is_bool).sum()
+            issues.append(f"{n} is_correction not boolean")
+            if drop_invalid:
+                df = df[is_bool].copy()
+
     if issues and symbol:
-        logger.warning("%s: dropped %d/%d invalid rows (%s)",
-                       symbol, before - len(df), before, "; ".join(issues))
+        logger.warning(
+            "%s: dropped %d/%d invalid rows (%s)",
+            symbol,
+            before - len(df),
+            before,
+            "; ".join(issues),
+        )
 
     return df
 

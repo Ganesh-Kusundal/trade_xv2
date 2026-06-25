@@ -7,22 +7,20 @@ for all three broker implementations (Dhan, Upstox, Paper).
 from __future__ import annotations
 
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
+from application.oms.order_manager import OrderManager
+from application.oms.risk_manager import RiskConfig, RiskManager
+from brokers.paper.paper_gateway import PaperGateway
 from domain import (
-    Order,
     OrderStatus,
     OrderType,
     ProductType,
     Side,
 )
-from application.oms.order_manager import OrderManager
-from application.oms.risk_manager import RiskConfig, RiskManager
-from brokers.paper.paper_gateway import PaperGateway
-from tests.integration.fixtures.domain import make_order, make_position
-from tests.integration.fixtures.event_bus import event_bus_with_capturer
+from tests.integration.fixtures.domain import make_order
 
 
 @pytest.mark.integration
@@ -54,7 +52,7 @@ class TestOMSBrokerIntegrationPaper:
         event_bus, capturer = event_bus_with_capturer
         capturer.subscribe("ORDER_PLACED")
 
-        order = make_order(
+        make_order(
             order_id="TEST-ORD-001",
             symbol="RELIANCE",
             side=Side.BUY,
@@ -99,8 +97,8 @@ class TestOMSBrokerIntegrationPaper:
 
         # Cancel the order
         if placed_order and placed_order.order_id:
-            cancel_result = order_manager.cancel_order(placed_order.order_id)
-            
+            order_manager.cancel_order(placed_order.order_id)
+
             # Verify cancellation event
             capturer.assert_event_published("ORDER_CANCELLED", min_count=0)
 
@@ -151,9 +149,7 @@ class TestOMSBrokerIntegrationMock:
         )
         gateway.quote.return_value = MagicMock(ltp=Decimal("2550.00"))
         gateway.positions.return_value = []
-        gateway.funds.return_value = MagicMock(
-            available_balance=Decimal("1000000.00")
-        )
+        gateway.funds.return_value = MagicMock(available_balance=Decimal("1000000.00"))
         return gateway
 
     @pytest.fixture
@@ -172,7 +168,7 @@ class TestOMSBrokerIntegrationMock:
 
     def test_order_placement_calls_gateway(self, order_manager, mock_gateway):
         """Test that OMS calls gateway.place_order()."""
-        result = order_manager.place_order(
+        order_manager.place_order(
             symbol="RELIANCE",
             exchange="NSE",
             side=Side.BUY,

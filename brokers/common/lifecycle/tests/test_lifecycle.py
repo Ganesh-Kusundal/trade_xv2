@@ -1,4 +1,5 @@
 """Tests for the LifecycleManager and ManagedService protocol."""
+
 from __future__ import annotations
 
 import threading

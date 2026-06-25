@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from domain import ExchangeSegment
 from brokers.upstox.instruments.segment_mapper import UpstoxSegmentMapper
+from domain import ExchangeSegment
 
 
 def test_known_upstox_segments_map():

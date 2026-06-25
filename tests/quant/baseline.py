@@ -19,17 +19,14 @@ import argparse
 import json
 import logging
 import sys
-from decimal import Decimal
 from pathlib import Path
 
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from analytics.replay.engine import ReplayEngine
-from analytics.replay.models import ReplayConfig
-from analytics.pipeline.pipeline import FeaturePipeline
 from analytics.pipeline.features import RSI
+from analytics.pipeline.pipeline import FeaturePipeline
 
 logger = logging.getLogger(__name__)
 
@@ -75,10 +72,10 @@ def baseline_scanner_determinism(mode: str) -> dict:
 
     # Use a simple FeaturePipeline to compute features
     pipeline = FeaturePipeline().add(RSI(period=14))
-    
+
     # For baseline, just verify pipeline produces deterministic output
     all_features = []
-    for run_idx in range(5):
+    for _run_idx in range(5):
         features = pipeline.run(df)
         # Extract last row's RSI value as deterministic check
         if not features.empty:
@@ -108,7 +105,7 @@ def baseline_scanner_determinism(mode: str) -> dict:
 
 def baseline_replay_pnl(mode: str) -> dict:
     """Test ReplayEngine produces identical PnL on fixed data.
-    
+
     NOTE: Full replay has a Decimal/float type bug (Phase 0).
     For now, just verify pipeline determinism on replay-like data.
     """
@@ -117,13 +114,13 @@ def baseline_replay_pnl(mode: str) -> dict:
 
     # Just verify feature pipeline is deterministic
     pipeline = FeaturePipeline().add(RSI(period=14))
-    
+
     all_rsi = []
     for _ in range(3):
         features = pipeline.run(df)
         if not features.empty and "rsi" in features.columns:
             all_rsi.append(float(features["rsi"].iloc[-1]))
-    
+
     is_deterministic = len(set(all_rsi)) == 1 if all_rsi else False
 
     result = {
@@ -147,9 +144,12 @@ def baseline_resample_correctness(mode: str) -> dict:
     df = _generate_synthetic_ohlcv(bars=1000)
 
     # Resample using pandas directly (reference)
-    df_5m = df.set_index("timestamp").resample("5min").agg(
-        {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"}
-    ).dropna()
+    df_5m = (
+        df.set_index("timestamp")
+        .resample("5min")
+        .agg({"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"})
+        .dropna()
+    )
 
     result = {
         "test": "resample_correctness",
@@ -194,7 +194,9 @@ def main() -> int:
     print("\n=== Baseline Summary ===")
     for r in results:
         status = "✓" if r.get("is_deterministic", True) else "✗"
-        print(f"{status} {r['test']}: {json.dumps({k: v for k, v in r.items() if k != 'candidates'})}")
+        print(
+            f"{status} {r['test']}: {json.dumps({k: v for k, v in r.items() if k != 'candidates'})}"
+        )
 
     return 0
 

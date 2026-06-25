@@ -48,10 +48,13 @@ class IPManagementAdapter:
         except Exception as exc:
             raise IPManagementError(f"Failed to set IP: {exc}") from exc
 
-        logger.info("ip_set", extra={
-            "ip_address": ip_address,
-            "ip_type": ip_type,
-        })
+        logger.info(
+            "ip_set",
+            extra={
+                "ip_address": ip_address,
+                "ip_type": ip_type,
+            },
+        )
         return data
 
     def modify_ip(self, ip_address: str, ip_type: str) -> dict:
@@ -81,10 +84,13 @@ class IPManagementAdapter:
         except Exception as exc:
             raise IPManagementError(f"Failed to modify IP: {exc}") from exc
 
-        logger.info("ip_modified", extra={
-            "ip_address": ip_address,
-            "ip_type": ip_type,
-        })
+        logger.info(
+            "ip_modified",
+            extra={
+                "ip_address": ip_address,
+                "ip_type": ip_type,
+            },
+        )
         return data
 
     def get_ip(self) -> list[IPConfig]:

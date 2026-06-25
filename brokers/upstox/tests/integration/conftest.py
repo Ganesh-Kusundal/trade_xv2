@@ -15,4 +15,3 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
             continue
         item.add_marker(pytest.mark.integration)
         item.add_marker(pytest.mark.sandbox)
-

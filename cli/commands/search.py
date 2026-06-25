@@ -28,7 +28,9 @@ def run(args: list[str], broker_service, console: Console) -> None:
 
     matches = []
     for inst in resolver.all_instruments():
-        if query in inst.symbol.upper() or (inst.canonical_symbol and query in inst.canonical_symbol.upper()):
+        if query in inst.symbol.upper() or (
+            inst.canonical_symbol and query in inst.canonical_symbol.upper()
+        ):
             matches.append(inst)
         if len(matches) >= 80:
             break
@@ -42,7 +44,9 @@ def run(args: list[str], broker_service, console: Console) -> None:
                 inst.instrument_type.value,
             )
         stats = resolver.stats()
-        table.caption = f"[dim]{len(matches)} matches from {stats.get('total', 0):,} instruments[/dim]"
+        table.caption = (
+            f"[dim]{len(matches)} matches from {stats.get('total', 0):,} instruments[/dim]"
+        )
         console.print(table)
     else:
         console.print(f"[yellow]No instruments matched '{query}'.[/yellow]")

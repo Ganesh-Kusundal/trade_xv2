@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-import pytest
-
 from infrastructure.event_bus.dead_letter_queue import DeadLetter
 from infrastructure.event_bus.event_bus import DomainEvent
 from infrastructure.event_bus.persistent_dead_letter_queue import (

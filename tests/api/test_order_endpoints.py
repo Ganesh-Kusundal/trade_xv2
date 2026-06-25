@@ -6,14 +6,7 @@ Tests verify real order lifecycle, not just route existence.
 
 from __future__ import annotations
 
-import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import MagicMock, patch
-from datetime import datetime
-from decimal import Decimal
-
-from application.oms.order_manager import OrderManager
-from domain import Order, OrderStatus, Side, OrderType, ProductType
 
 
 class TestGetOrdersEndpoint:

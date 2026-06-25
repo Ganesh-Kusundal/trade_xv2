@@ -1,6 +1,7 @@
 """Market data endpoints tests."""
+
 from __future__ import annotations
-import pytest
+
 from fastapi.testclient import TestClient
 
 
@@ -29,7 +30,9 @@ class TestGetCandlesEndpoint:
 
     def test_get_candles_with_date_range(self, client: TestClient):
         """Should accept date range parameters."""
-        response = client.get("/api/v1/market/candles?symbol=RELIANCE&timeframe=1m&from_ts=1704067200000&to_ts=1704153600000")
+        response = client.get(
+            "/api/v1/market/candles?symbol=RELIANCE&timeframe=1m&from_ts=1704067200000&to_ts=1704153600000"
+        )
         assert response.status_code in (200, 404, 500, 503)
 
     def test_get_candles_cache_headers(self, client: TestClient):

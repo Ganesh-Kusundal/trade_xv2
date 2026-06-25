@@ -148,7 +148,13 @@ class SectorAnalyzer:
             metrics["leading_sectors"] = result.rotation.leading_sectors
             metrics["lagging_sectors"] = result.rotation.lagging_sectors
             metrics["sector_rotation"] = [
-                {"sector": s.sector, "phase": s.phase.value, "rs_ratio": s.rs_ratio, "momentum": s.rs_momentum, "score": s.score}
+                {
+                    "sector": s.sector,
+                    "phase": s.phase.value,
+                    "rs_ratio": s.rs_ratio,
+                    "momentum": s.rs_momentum,
+                    "score": s.score,
+                }
                 for s in result.rotation.sectors
             ]
             signals.append(result.rotation.rotation_regime)
@@ -158,7 +164,12 @@ class SectorAnalyzer:
             metrics["volume_concentration"] = result.volume.volume_concentration
             metrics["top_volume_sector"] = result.volume.top_volume_sector
             metrics["sector_volume"] = [
-                {"sector": p.sector, "volume": p.total_volume, "change_pct": p.volume_change_pct, "trend": p.volume_trend}
+                {
+                    "sector": p.sector,
+                    "volume": p.total_volume,
+                    "change_pct": p.volume_change_pct,
+                    "trend": p.volume_trend,
+                }
                 for p in result.volume.profiles
             ]
 
@@ -168,8 +179,14 @@ class SectorAnalyzer:
             metrics["weakest_sector"] = result.strength.weakest
             metrics["market_strength"] = result.strength.market_strength
             metrics["sector_strength"] = [
-                {"sector": s.sector, "score": s.score, "momentum": s.momentum_score,
-                 "volume": s.volume_score, "breadth": s.breadth_score, "signal": s.signal}
+                {
+                    "sector": s.sector,
+                    "score": s.score,
+                    "momentum": s.momentum_score,
+                    "volume": s.volume_score,
+                    "breadth": s.breadth_score,
+                    "signal": s.signal,
+                }
                 for s in result.strength.sectors
             ]
             scores["market_strength"] = result.strength.market_strength
@@ -188,7 +205,9 @@ class SectorAnalyzer:
             return RotationResult()
 
         # Pivot to get per-sector returns
-        ts_col = "timestamp" if "timestamp" in df.columns else "date" if "date" in df.columns else None
+        ts_col = (
+            "timestamp" if "timestamp" in df.columns else "date" if "date" in df.columns else None
+        )
         if ts_col is None:
             return RotationResult()
 
@@ -237,7 +256,9 @@ class SectorAnalyzer:
             if result.rotation.leading_sectors:
                 parts.append(f"Leading: {', '.join(result.rotation.leading_sectors[:3])}")
         if result.strength.sectors:
-            parts.append(f"Strongest: {result.strength.strongest}, Weakest: {result.strength.weakest}")
+            parts.append(
+                f"Strongest: {result.strength.strongest}, Weakest: {result.strength.weakest}"
+            )
         if result.volume.top_volume_sector:
             parts.append(f"Highest volume: {result.volume.top_volume_sector}")
         return ". ".join(parts) if parts else "No sector data available."

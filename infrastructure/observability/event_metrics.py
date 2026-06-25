@@ -11,10 +11,10 @@ via :func:`snapshot`, which is what the alerting layer polls.
 
 from __future__ import annotations
 
-import time
 import threading
+import time
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 

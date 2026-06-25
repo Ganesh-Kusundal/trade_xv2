@@ -35,6 +35,3 @@ def read_secret(env_key: str, file_key: str) -> str | None:
         return Path(file_path).read_text().strip()
 
     return None
-
-
-from brokers.common.auth.env_token import update_env_token

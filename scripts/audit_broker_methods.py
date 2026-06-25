@@ -99,12 +99,14 @@ def summarize(audits: list[DomainAudit]) -> dict:
         broker_data = by_broker.setdefault(audit.broker, {"domains": {}, "total_methods": 0})
         domain_entry = broker_data["domains"].setdefault(audit.domain, {"files": []})
         for cls in audit.classes:
-            domain_entry["files"].append({
-                "file": audit.file,
-                "class": cls.class_name,
-                "methods": cls.methods,
-                "method_count": len(cls.methods),
-            })
+            domain_entry["files"].append(
+                {
+                    "file": audit.file,
+                    "class": cls.class_name,
+                    "methods": cls.methods,
+                    "method_count": len(cls.methods),
+                }
+            )
             broker_data["total_methods"] += len(cls.methods)
     return by_broker
 

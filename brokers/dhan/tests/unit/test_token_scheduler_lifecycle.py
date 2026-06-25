@@ -1,4 +1,5 @@
 """Tests for the LifecycleManager integration with TokenRefreshScheduler."""
+
 from __future__ import annotations
 
 import threading
@@ -7,8 +8,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from infrastructure.lifecycle import HealthState, LifecycleManager
 from brokers.dhan.token_scheduler import TokenRefreshScheduler
+from infrastructure.lifecycle import HealthState, LifecycleManager
 
 
 class _FakeAuth:

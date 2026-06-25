@@ -11,9 +11,9 @@ import threading
 from collections import defaultdict
 from collections.abc import Iterable
 
-logger = logging.getLogger(__name__)
-
 from .definition import UpstoxInstrumentDefinition
+
+logger = logging.getLogger(__name__)
 
 
 class UpstoxInstrumentResolver:
@@ -57,6 +57,7 @@ class UpstoxInstrumentResolver:
                 # Retrieve canonical segments/exchanges for alias indexing
                 from brokers.common.instruments import InstrumentRegistry
                 from brokers.upstox.instruments.segment_mapper import UpstoxSegmentMapper
+
                 xv2_segment = UpstoxSegmentMapper.to_safe(definition.exchange_segment)
                 canonical_exch = InstrumentRegistry.canonical_exchange(xv2_segment)
 
@@ -68,7 +69,7 @@ class UpstoxInstrumentResolver:
                     strike=definition.strike,
                     option_type=definition.option_type,
                     underlying=definition.underlying_symbol,
-                    canonical_symbol=definition.name
+                    canonical_symbol=definition.name,
                 )
 
                 for k in alt_keys:
@@ -87,9 +88,9 @@ class UpstoxInstrumentResolver:
                         definition.expiry[:10]
                     )
                 if definition.is_future and definition.expiry and definition.underlying_symbol:
-                    self._future_expiries_by_underlying[definition.underlying_symbol.strip().upper()].add(
-                        definition.expiry[:10]
-                    )
+                    self._future_expiries_by_underlying[
+                        definition.underlying_symbol.strip().upper()
+                    ].add(definition.expiry[:10])
             self._loaded = True
 
     def register_many(self, definitions: Iterable[UpstoxInstrumentDefinition]) -> None:
@@ -190,9 +191,7 @@ class UpstoxInstrumentResolver:
 
         with self._lock:
             if not self._loaded:
-                raise RuntimeError(
-                    "Upstox instruments not loaded; cannot derive option expiries"
-                )
+                raise RuntimeError("Upstox instruments not loaded; cannot derive option expiries")
             exps = self._expiries_by_underlying.get(underlying.strip().upper(), set())
             today = date.today().isoformat()
             return sorted(e for e in exps if e >= today)
@@ -203,9 +202,7 @@ class UpstoxInstrumentResolver:
 
         with self._lock:
             if not self._loaded:
-                raise RuntimeError(
-                    "Upstox instruments not loaded; cannot derive future expiries"
-                )
+                raise RuntimeError("Upstox instruments not loaded; cannot derive future expiries")
             exps = self._future_expiries_by_underlying.get(underlying.strip().upper(), set())
             today = date.today().isoformat()
             return sorted(e for e in exps if e >= today)
@@ -218,9 +215,7 @@ class UpstoxInstrumentResolver:
         today = date.today().isoformat()
         with self._lock:
             if not self._loaded:
-                raise RuntimeError(
-                    "Upstox instruments not loaded; cannot list future contracts"
-                )
+                raise RuntimeError("Upstox instruments not loaded; cannot list future contracts")
             contracts: list[UpstoxInstrumentDefinition] = []
             for defs in self._by_symbol_index.values():
                 for d in defs:
@@ -245,7 +240,7 @@ def _generate_alternate_keys(
     strike: float | None,
     option_type: str | None,
     underlying: str | None,
-    canonical_symbol: str | None
+    canonical_symbol: str | None,
 ) -> list[str]:
     keys = []
 
@@ -269,10 +264,11 @@ def _generate_alternate_keys(
     if (is_option or is_future) and expiry and underlying:
         try:
             from datetime import datetime
+
             dt = datetime.strptime(expiry[:10], "%Y-%m-%d")
             dd = dt.strftime("%d")
             dd_strip = str(int(dd))
-            MMM = dt.strftime("%b").upper()
+            mmm = dt.strftime("%b").upper()
             yy = dt.strftime("%y")
             yyyy = dt.strftime("%Y")
 
@@ -296,34 +292,34 @@ def _generate_alternate_keys(
                         strike_str = str(strike)
 
                 # Generate spaced option forms:
-                keys.append(f"{und_up} {dd} {MMM} {yy} {strike_str} {ce_pe}")
-                keys.append(f"{und_up} {dd_strip} {MMM} {yy} {strike_str} {ce_pe}")
-                keys.append(f"{und_up} {dd} {MMM} {yyyy} {strike_str} {ce_pe}")
-                keys.append(f"{und_up} {dd_strip} {MMM} {yyyy} {strike_str} {ce_pe}")
-                keys.append(f"{und_up} {dd} {MMM} {strike_str} {ce_pe}")
-                keys.append(f"{und_up} {dd_strip} {MMM} {strike_str} {ce_pe}")
+                keys.append(f"{und_up} {dd} {mmm} {yy} {strike_str} {ce_pe}")
+                keys.append(f"{und_up} {dd_strip} {mmm} {yy} {strike_str} {ce_pe}")
+                keys.append(f"{und_up} {dd} {mmm} {yyyy} {strike_str} {ce_pe}")
+                keys.append(f"{und_up} {dd_strip} {mmm} {yyyy} {strike_str} {ce_pe}")
+                keys.append(f"{und_up} {dd} {mmm} {strike_str} {ce_pe}")
+                keys.append(f"{und_up} {dd_strip} {mmm} {strike_str} {ce_pe}")
 
                 # Generate compact option forms:
-                keys.append(f"{und_up}{dd}{MMM}{yy}{strike_str}{ce_pe}")
-                keys.append(f"{und_up}{dd_strip}{MMM}{yy}{strike_str}{ce_pe}")
-                keys.append(f"{und_up}{dd}{MMM}{yyyy}{strike_str}{ce_pe}")
-                keys.append(f"{und_up}{dd_strip}{MMM}{yyyy}{strike_str}{ce_pe}")
-                keys.append(f"{und_up}{dd}{MMM}{strike_str}{ce_pe}")
-                keys.append(f"{und_up}{dd_strip}{MMM}{strike_str}{ce_pe}")
+                keys.append(f"{und_up}{dd}{mmm}{yy}{strike_str}{ce_pe}")
+                keys.append(f"{und_up}{dd_strip}{mmm}{yy}{strike_str}{ce_pe}")
+                keys.append(f"{und_up}{dd}{mmm}{yyyy}{strike_str}{ce_pe}")
+                keys.append(f"{und_up}{dd_strip}{mmm}{yyyy}{strike_str}{ce_pe}")
+                keys.append(f"{und_up}{dd}{mmm}{strike_str}{ce_pe}")
+                keys.append(f"{und_up}{dd_strip}{mmm}{strike_str}{ce_pe}")
 
                 # Weekly format: e.g. NIFTY2662525000CE
                 keys.append(f"{und_up}{yy}{month_char}{dd}{strike_str}{ce_pe}")
                 keys.append(f"{und_up}{yy}{month_char}{dd_strip}{strike_str}{ce_pe}")
 
             elif is_future:
-                keys.append(f"{und_up} {yy} {MMM} FUT")
-                keys.append(f"{und_up} {yyyy} {MMM} FUT")
-                keys.append(f"{und_up} {dd} {MMM} FUT")
+                keys.append(f"{und_up} {yy} {mmm} FUT")
+                keys.append(f"{und_up} {yyyy} {mmm} FUT")
+                keys.append(f"{und_up} {dd} {mmm} FUT")
                 keys.append(f"{und_up} FUT")
 
-                keys.append(f"{und_up}{yy}{MMM}FUT")
-                keys.append(f"{und_up}{yyyy}{MMM}FUT")
-                keys.append(f"{und_up}{dd}{MMM}FUT")
+                keys.append(f"{und_up}{yy}{mmm}FUT")
+                keys.append(f"{und_up}{yyyy}{mmm}FUT")
+                keys.append(f"{und_up}{dd}{mmm}FUT")
                 keys.append(f"{und_up}FUT")
         except Exception as exc:
             logger.debug("upstox_alternate_key_generation_failed: %s", exc)
@@ -336,4 +332,3 @@ def _generate_alternate_keys(
             seen.add(k_clean)
             res.append(k_clean)
     return res
-

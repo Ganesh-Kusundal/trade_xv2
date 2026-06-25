@@ -88,9 +88,8 @@ class OrderPositionUpdater:
         if order.filled_quantity == 0:
             return trade.price
 
-        total_value = (
-            order.avg_price * Decimal(order.filled_quantity)
-            + trade.price * Decimal(trade.quantity)
+        total_value = order.avg_price * Decimal(order.filled_quantity) + trade.price * Decimal(
+            trade.quantity
         )
         total_qty = order.filled_quantity + trade.quantity
         return total_value / Decimal(total_qty) if total_qty else Decimal("0")

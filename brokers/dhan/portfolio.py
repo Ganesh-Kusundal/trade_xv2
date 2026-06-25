@@ -5,12 +5,11 @@ from __future__ import annotations
 import logging
 from decimal import Decimal
 
-from domain import Balance
-from domain import Holding, Position, ProductType
 from brokers.dhan.domain import Exchange
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 from brokers.dhan.segments import SEGMENT_TO_EXCHANGE
+from domain import Balance, Holding, Position, ProductType
 
 logger = logging.getLogger(__name__)
 
@@ -31,17 +30,19 @@ class PortfolioAdapter:
         data = self._client.get("/positions")
         items = data.get("data", []) if isinstance(data, dict) else []
         positions = []
-        for item in (items if isinstance(items, list) else []):
-            positions.append(Position(
-                symbol=str(item.get("tradingSymbol", "")),
-                exchange=_parse_exchange(item.get("exchangeSegment", "NSE_EQ")),
-                quantity=int(item.get("netQuantity", 0)),
-                avg_price=Decimal(str(item.get("buyAveragePrice", 0))),
-                ltp=Decimal(str(item.get("lastPrice", 0))),
-                unrealized_pnl=Decimal(str(item.get("unrealizedPnl", 0))),
-                realized_pnl=Decimal(str(item.get("realizedPnl", 0))),
-                product_type=_parse_product(item.get("productType", "INTRADAY")),
-            ))
+        for item in items if isinstance(items, list) else []:
+            positions.append(
+                Position(
+                    symbol=str(item.get("tradingSymbol", "")),
+                    exchange=_parse_exchange(item.get("exchangeSegment", "NSE_EQ")),
+                    quantity=int(item.get("netQuantity", 0)),
+                    avg_price=Decimal(str(item.get("buyAveragePrice", 0))),
+                    ltp=Decimal(str(item.get("lastPrice", 0))),
+                    unrealized_pnl=Decimal(str(item.get("unrealizedPnl", 0))),
+                    realized_pnl=Decimal(str(item.get("realizedPnl", 0))),
+                    product_type=_parse_product(item.get("productType", "INTRADAY")),
+                )
+            )
         logger.info("positions_fetched", extra={"count": len(positions)})
         return positions
 
@@ -49,7 +50,7 @@ class PortfolioAdapter:
         data = self._client.get("/holdings")
         items = data.get("data", []) if isinstance(data, dict) else []
         holdings = []
-        for item in (items if isinstance(items, list) else []):
+        for item in items if isinstance(items, list) else []:
             qty = int(item.get("totalQty", item.get("quantity", 0)))
             avg_px = Decimal(str(item.get("avgCostPrice", item.get("costPrice", 0))))
             ltp = Decimal(str(item.get("lastTradedPrice", item.get("lastPrice", 0))))
@@ -60,15 +61,19 @@ class PortfolioAdapter:
                 pnl = (ltp - avg_px) * qty
             else:
                 pnl = Decimal("0")
-            holdings.append(Holding(
-                symbol=str(item.get("tradingSymbol", "")),
-                exchange=_parse_exchange(item.get("exchangeSegment", "NSE_EQ")),
-                quantity=qty,
-                available_quantity=int(item.get("availableQty", item.get("availableQuantity", 0))),
-                avg_price=avg_px,
-                ltp=ltp,
-                pnl=pnl,
-            ))
+            holdings.append(
+                Holding(
+                    symbol=str(item.get("tradingSymbol", "")),
+                    exchange=_parse_exchange(item.get("exchangeSegment", "NSE_EQ")),
+                    quantity=qty,
+                    available_quantity=int(
+                        item.get("availableQty", item.get("availableQuantity", 0))
+                    ),
+                    avg_price=avg_px,
+                    ltp=ltp,
+                    pnl=pnl,
+                )
+            )
         logger.info("holdings_fetched", extra={"count": len(holdings)})
         return holdings
 
@@ -79,7 +84,9 @@ class PortfolioAdapter:
             logger.warning("balance_fetch_failed", extra={"reason": "unexpected_response_type"})
             return Balance()
         balance = Balance(
-            available_balance=Decimal(str(raw.get("availabelBalance", raw.get("availableBalance", 0)))),
+            available_balance=Decimal(
+                str(raw.get("availabelBalance", raw.get("availableBalance", 0)))
+            ),
             sod_limit=Decimal(str(raw.get("sodLimit", 0))),
             collateral_amount=Decimal(str(raw.get("collateralAmount", 0))),
             utilized_amount=Decimal(str(raw.get("utilizedAmount", 0))),

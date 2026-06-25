@@ -95,8 +95,8 @@ class EventWsConsoleWidget(Static):
         broker_name = self._broker_service.active_broker_name
 
         # Random WS variations
-        latency = 10.0 + random.uniform(-2, 4)
-        throughput = 110 + random.randint(-15, 20)
+        latency = 10.0 + random.uniform(-2, 4)  # noqa: S311
+        throughput = 110 + random.randint(-15, 20)  # noqa: S311
 
         self.query_one("#tui-ws-conn", Label).update(
             f"WebSocket Connection: [green]CONNECTED ({broker_name.upper()})[/green]"
@@ -109,7 +109,7 @@ class EventWsConsoleWidget(Static):
         )
 
         # Occasional random event
-        if random.random() < 0.3:
+        if random.random() < 0.3:  # noqa: S311
             self.trigger_simulation()
 
         self.refresh_ws_event_data()

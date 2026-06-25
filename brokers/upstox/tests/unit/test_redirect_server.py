@@ -7,10 +7,10 @@ import asyncio
 import pytest
 
 aiohttp = pytest.importorskip("aiohttp")
-from aiohttp import ClientSession
+from aiohttp import ClientSession  # noqa: E402
 
-from brokers.upstox.auth.config import UpstoxConnectionSettings
-from brokers.upstox.auth.redirect_server import UpstoxRedirectServer
+from brokers.upstox.auth.config import UpstoxConnectionSettings  # noqa: E402
+from brokers.upstox.auth.redirect_server import UpstoxRedirectServer  # noqa: E402
 
 
 def _settings(port: int = 0) -> UpstoxConnectionSettings:
@@ -34,11 +34,13 @@ async def test_captures_code():
 
         async def _hit():
             await asyncio.sleep(0.05)
-            async with ClientSession() as session:
-                async with session.get(f"{_client_url(server, '/cb')}?code=hello") as resp:
-                    assert resp.status == 200
+            async with (
+                ClientSession() as session,
+                session.get(f"{_client_url(server, '/cb')}?code=hello") as resp,
+            ):
+                assert resp.status == 200
 
-        asyncio.create_task(_hit())
+        asyncio.create_task(_hit())  # noqa: RUF006
         code = await server.capture_code(timeout=2.0)
         assert code == "hello"
     finally:
@@ -53,11 +55,13 @@ async def test_default_path():
 
         async def _hit():
             await asyncio.sleep(0.05)
-            async with ClientSession() as session:
-                async with session.get(f"{_client_url(server)}?code=root-code") as resp:
-                    assert resp.status == 200
+            async with (
+                ClientSession() as session,
+                session.get(f"{_client_url(server)}?code=root-code") as resp,
+            ):
+                assert resp.status == 200
 
-        asyncio.create_task(_hit())
+        asyncio.create_task(_hit())  # noqa: RUF006
         code = await server.capture_code(timeout=2.0)
         assert code == "root-code"
     finally:
@@ -81,11 +85,13 @@ async def test_context_manager():
 
         async def _hit():
             await asyncio.sleep(0.05)
-            async with ClientSession() as session:
-                async with session.get(f"{_client_url(server, '/cb')}?code=ctx-code") as resp:
-                    assert resp.status == 200
+            async with (
+                ClientSession() as session,
+                session.get(f"{_client_url(server, '/cb')}?code=ctx-code") as resp,
+            ):
+                assert resp.status == 200
 
-        asyncio.create_task(_hit())
+        asyncio.create_task(_hit())  # noqa: RUF006
         code = await server.capture_code(timeout=2.0)
         assert code == "ctx-code"
 
@@ -98,18 +104,22 @@ async def test_duplicate_callback_only_resolves_first():
 
         async def _hit1():
             await asyncio.sleep(0.05)
-            async with ClientSession() as session:
-                async with session.get(f"{_client_url(server, '/cb')}?code=first") as resp:
-                    assert resp.status == 200
+            async with (
+                ClientSession() as session,
+                session.get(f"{_client_url(server, '/cb')}?code=first") as resp,
+            ):
+                assert resp.status == 200
 
         async def _hit2():
             await asyncio.sleep(0.2)
-            async with ClientSession() as session:
-                async with session.get(f"{_client_url(server, '/cb')}?code=second") as resp:
-                    assert resp.status == 200
+            async with (
+                ClientSession() as session,
+                session.get(f"{_client_url(server, '/cb')}?code=second") as resp,
+            ):
+                assert resp.status == 200
 
-        asyncio.create_task(_hit1())
-        asyncio.create_task(_hit2())
+        asyncio.create_task(_hit1())  # noqa: RUF006
+        asyncio.create_task(_hit2())  # noqa: RUF006
         code = await server.capture_code(timeout=2.0)
         assert code == "first"
     finally:
@@ -128,11 +138,13 @@ async def test_capture_starts_server_if_not_started():
 
     async def _hit():
         await asyncio.sleep(0.1)
-        async with ClientSession() as session:
-            async with session.get(f"{_client_url(server, '/cb')}?code=auto") as resp:
-                assert resp.status == 200
+        async with (
+            ClientSession() as session,
+            session.get(f"{_client_url(server, '/cb')}?code=auto") as resp,
+        ):
+            assert resp.status == 200
 
-    asyncio.create_task(_hit())
+    asyncio.create_task(_hit())  # noqa: RUF006
     code = await server.capture_code(timeout=2.0)
     assert code == "auto"
     await server.stop()

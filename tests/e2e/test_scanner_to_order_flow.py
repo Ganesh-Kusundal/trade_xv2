@@ -21,21 +21,15 @@ import pytest
 
 pytestmark = pytest.mark.e2e
 
-from domain import OrderStatus, Side, Trade
-from application.oms.order_manager import OmsOrderCommand
-from application.oms.risk_manager import RiskConfig
-
-from analytics.scanner.scanners import MomentumScanner, VolumeScanner
-from analytics.scanner.models import Candidate, ScanResult
-from analytics.pipeline.pipeline import FeaturePipeline
-from analytics.pipeline import RSI, ROC, SMA, Momentum, Trend, RelativeVolume
-
-from tests.e2e.fixtures.data_generators import (
+from analytics.scanner.models import ScanResult  # noqa: E402
+from analytics.scanner.scanners import MomentumScanner, VolumeScanner  # noqa: E402
+from application.oms.order_manager import OmsOrderCommand  # noqa: E402
+from domain import OrderStatus, Side, Trade  # noqa: E402
+from tests.e2e.fixtures.data_generators import (  # noqa: E402
     generate_multi_symbol_data,
     generate_trending_data,
 )
-from tests.e2e.fixtures.trading_context_factory import create_paper_trading_context
-
+from tests.e2e.fixtures.trading_context_factory import create_paper_trading_context  # noqa: E402
 
 # ── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -119,11 +113,17 @@ class TestScannerExecution:
 
     def test_scanner_with_insufficient_data(self):
         """Universe with too few bars should handle gracefully."""
-        df = pd.DataFrame({
-            "timestamp": [datetime.now(timezone.utc)],
-            "open": [100.0], "high": [101.0], "low": [99.0],
-            "close": [100.5], "volume": [10000], "symbol": ["TEST"],
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": [datetime.now(timezone.utc)],
+                "open": [100.0],
+                "high": [101.0],
+                "low": [99.0],
+                "close": [100.5],
+                "volume": [10000],
+                "symbol": ["TEST"],
+            }
+        )
         scanner = MomentumScanner()
         result = scanner.scan(df)
 
@@ -139,7 +139,7 @@ class TestScannerExecution:
         result2 = scanner.scan(universe)
 
         assert len(result1.candidates) == len(result2.candidates)
-        for c1, c2 in zip(result1.candidates, result2.candidates):
+        for c1, c2 in zip(result1.candidates, result2.candidates, strict=False):
             assert c1.symbol == c2.symbol
             assert abs(c1.score - c2.score) < 0.001
 
@@ -276,16 +276,22 @@ class TestOrderExecution:
     """Tests: Orders execute correctly after scanner generates them."""
 
     def _submit_fn(self, fill_price: Decimal = Decimal("100.0")):
-        from domain import Order, ProductType, OrderType
+        from domain import Order
+
         def submit_fn(cmd):
             return Order(
                 order_id=f"SCAN-{cmd.correlation_id[:8]}",
-                symbol=cmd.symbol, exchange=cmd.exchange,
-                side=cmd.side, order_type=cmd.order_type,
-                quantity=cmd.quantity, price=fill_price,
-                status=OrderStatus.OPEN, product_type=cmd.product_type,
+                symbol=cmd.symbol,
+                exchange=cmd.exchange,
+                side=cmd.side,
+                order_type=cmd.order_type,
+                quantity=cmd.quantity,
+                price=fill_price,
+                status=OrderStatus.OPEN,
+                product_type=cmd.product_type,
                 correlation_id=cmd.correlation_id,
             )
+
         return submit_fn
 
     def test_scanner_order_fills_correctly(self, trading_context):
@@ -296,16 +302,22 @@ class TestOrderExecution:
 
         candidate = result.candidates[0]
         cmd = OmsOrderCommand(
-            symbol=candidate.symbol, exchange="NSE", side=Side.BUY,
-            quantity=10, price=Decimal("100.0"),
+            symbol=candidate.symbol,
+            exchange="NSE",
+            side=Side.BUY,
+            quantity=10,
+            price=Decimal("100.0"),
             correlation_id=f"exec-{candidate.symbol}",
         )
         order_result = trading_context.order_manager.place_order(cmd, submit_fn=self._submit_fn())
         trade = Trade(
             trade_id=f"TRD-{order_result.order.order_id}",
             order_id=order_result.order.order_id,
-            symbol=candidate.symbol, exchange="NSE", side=Side.BUY,
-            quantity=10, price=Decimal("100.0"),
+            symbol=candidate.symbol,
+            exchange="NSE",
+            side=Side.BUY,
+            quantity=10,
+            price=Decimal("100.0"),
         )
         trading_context.order_manager.record_trade(trade)
 
@@ -322,8 +334,11 @@ class TestOrderExecution:
         executed = 0
         for candidate in result.candidates:
             cmd = OmsOrderCommand(
-                symbol=candidate.symbol, exchange="NSE", side=Side.BUY,
-                quantity=10, price=Decimal("100.0"),
+                symbol=candidate.symbol,
+                exchange="NSE",
+                side=Side.BUY,
+                quantity=10,
+                price=Decimal("100.0"),
                 correlation_id=f"risk-check-{candidate.symbol}",
             )
             order_result = trading_context.order_manager.place_order(cmd)
@@ -341,15 +356,21 @@ class TestPortfolioUpdate:
 
     def _submit_fn(self, fill_price: Decimal = Decimal("100.0")):
         from domain import Order
+
         def submit_fn(cmd):
             return Order(
                 order_id=f"PF-{cmd.correlation_id[:8]}",
-                symbol=cmd.symbol, exchange=cmd.exchange,
-                side=cmd.side, order_type=cmd.order_type,
-                quantity=cmd.quantity, price=fill_price,
-                status=OrderStatus.OPEN, product_type=cmd.product_type,
+                symbol=cmd.symbol,
+                exchange=cmd.exchange,
+                side=cmd.side,
+                order_type=cmd.order_type,
+                quantity=cmd.quantity,
+                price=fill_price,
+                status=OrderStatus.OPEN,
+                product_type=cmd.product_type,
                 correlation_id=cmd.correlation_id,
             )
+
         return submit_fn
 
     def test_portfolio_reflects_all_scanner_positions(self, trading_context):
@@ -360,17 +381,27 @@ class TestPortfolioUpdate:
 
         for candidate in result.candidates:
             cmd = OmsOrderCommand(
-                symbol=candidate.symbol, exchange="NSE", side=Side.BUY,
-                quantity=10, price=Decimal("100.0"),
+                symbol=candidate.symbol,
+                exchange="NSE",
+                side=Side.BUY,
+                quantity=10,
+                price=Decimal("100.0"),
                 correlation_id=f"pf-{candidate.symbol}",
             )
-            order_result = trading_context.order_manager.place_order(cmd, submit_fn=self._submit_fn())
-            trading_context.order_manager.record_trade(Trade(
-                trade_id=f"TRD-{order_result.order.order_id}",
-                order_id=order_result.order.order_id,
-                symbol=candidate.symbol, exchange="NSE", side=Side.BUY,
-                quantity=10, price=Decimal("100.0"),
-            ))
+            order_result = trading_context.order_manager.place_order(
+                cmd, submit_fn=self._submit_fn()
+            )
+            trading_context.order_manager.record_trade(
+                Trade(
+                    trade_id=f"TRD-{order_result.order.order_id}",
+                    order_id=order_result.order.order_id,
+                    symbol=candidate.symbol,
+                    exchange="NSE",
+                    side=Side.BUY,
+                    quantity=10,
+                    price=Decimal("100.0"),
+                )
+            )
 
         positions = trading_context.position_manager.get_positions()
         assert len(positions) == len(result.candidates)
@@ -383,17 +414,27 @@ class TestPortfolioUpdate:
 
         for candidate in result.candidates:
             cmd = OmsOrderCommand(
-                symbol=candidate.symbol, exchange="NSE", side=Side.BUY,
-                quantity=10, price=Decimal("100.0"),
+                symbol=candidate.symbol,
+                exchange="NSE",
+                side=Side.BUY,
+                quantity=10,
+                price=Decimal("100.0"),
                 correlation_id=f"pnl-{candidate.symbol}",
             )
-            order_result = trading_context.order_manager.place_order(cmd, submit_fn=self._submit_fn())
-            trading_context.order_manager.record_trade(Trade(
-                trade_id=f"TRD-{order_result.order.order_id}",
-                order_id=order_result.order.order_id,
-                symbol=candidate.symbol, exchange="NSE", side=Side.BUY,
-                quantity=10, price=Decimal("100.0"),
-            ))
+            order_result = trading_context.order_manager.place_order(
+                cmd, submit_fn=self._submit_fn()
+            )
+            trading_context.order_manager.record_trade(
+                Trade(
+                    trade_id=f"TRD-{order_result.order.order_id}",
+                    order_id=order_result.order.order_id,
+                    symbol=candidate.symbol,
+                    exchange="NSE",
+                    side=Side.BUY,
+                    quantity=10,
+                    price=Decimal("100.0"),
+                )
+            )
             # Update LTP to show profit
             trading_context.position_manager.update_ltp(candidate.symbol, "NSE", Decimal("110.0"))
 
@@ -409,17 +450,27 @@ class TestPortfolioUpdate:
 
         for candidate in result.candidates:
             cmd = OmsOrderCommand(
-                symbol=candidate.symbol, exchange="NSE", side=Side.BUY,
-                quantity=10, price=Decimal("100.0"),
+                symbol=candidate.symbol,
+                exchange="NSE",
+                side=Side.BUY,
+                quantity=10,
+                price=Decimal("100.0"),
                 correlation_id=f"snapshot-{candidate.symbol}",
             )
-            order_result = trading_context.order_manager.place_order(cmd, submit_fn=self._submit_fn())
-            trading_context.order_manager.record_trade(Trade(
-                trade_id=f"TRD-{order_result.order.order_id}",
-                order_id=order_result.order.order_id,
-                symbol=candidate.symbol, exchange="NSE", side=Side.BUY,
-                quantity=10, price=Decimal("100.0"),
-            ))
+            order_result = trading_context.order_manager.place_order(
+                cmd, submit_fn=self._submit_fn()
+            )
+            trading_context.order_manager.record_trade(
+                Trade(
+                    trade_id=f"TRD-{order_result.order.order_id}",
+                    order_id=order_result.order.order_id,
+                    symbol=candidate.symbol,
+                    exchange="NSE",
+                    side=Side.BUY,
+                    quantity=10,
+                    price=Decimal("100.0"),
+                )
+            )
 
         # Verify snapshot
         orders = trading_context.order_manager.get_orders()

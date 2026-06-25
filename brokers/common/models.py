@@ -11,8 +11,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Sequence
-
 
 # ---------------------------------------------------------------------------
 # Operation kinds
@@ -158,7 +156,7 @@ class BrokerHealthSnapshot:
     broker_id: str
     alive: bool
     auth_valid: bool = True
-    error_rate: float = 0.0       # 0.0–1.0
+    error_rate: float = 0.0  # 0.0-1.0
     latency_p50_ms: float = 0.0
     reason: str = ""
     observed_at: datetime = field(default_factory=lambda: datetime.now(tz=timezone.utc))

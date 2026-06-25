@@ -1,4 +1,0 @@
-# file: /workspaces/trade_xv2/brokers/dhan/factory.py
-# hypothesis_version: 6.155.7
-
-[5.0, 200, 384, 15000, 30000, '.env.local', 'DHAN_ACCESS_TOKEN=', 'DHAN_CLIENT_ID', 'DHAN_PIN', 'DHAN_PIN_FILE', 'DHAN_TOTP_SECRET', 'accessToken', 'access_token', 'data', 'depth_20', 'depth_200', 'dhan-admin-cb', 'dhan-read-cb', 'dhan-write-cb', 'dhan.market_feed', 'dhan.order_stream', 'dhanClientId', 'dhan_token_refreshed', 'error', 'market_feed', 'message', 'on_demand', 'once every 2 minutes', 'order_stream', 'pin', 'r', 'rb', 'receivers', 'runtime', 'status', 'token_suffix', 'totp', 'utf-8', 'websocket_wired']

@@ -69,11 +69,14 @@ class EDISAdapter:
         except Exception as exc:
             raise EDISError(f"Failed to authorize eDIS: {exc}") from exc
 
-        logger.info("edis_authorized", extra={
-            "isin": isin,
-            "quantity": quantity,
-            "exchange": exchange,
-        })
+        logger.info(
+            "edis_authorized",
+            extra={
+                "isin": isin,
+                "quantity": quantity,
+                "exchange": exchange,
+            },
+        )
         return data
 
     def check_status(self, isin: str) -> dict:
@@ -94,10 +97,13 @@ class EDISAdapter:
             raise EDISError(f"Failed to check eDIS status: {exc}") from exc
 
         result = data.get("data", data)
-        logger.info("edis_status_checked", extra={
-            "isin": isin,
-            "status": result.get("status"),
-        })
+        logger.info(
+            "edis_status_checked",
+            extra={
+                "isin": isin,
+                "status": result.get("status"),
+            },
+        )
         return result
 
     def _is_valid_isin(self, isin: str) -> bool:

@@ -8,7 +8,7 @@ Freshness thresholds:
 
 Usage:
     from api.freshness import check_data_freshness
-    
+
     @router.get("/candles")
     async def get_candles(...):
         freshness = check_data_freshness(df, timeframe)
@@ -22,8 +22,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
-from typing import Optional
+from datetime import date, datetime
 
 import pandas as pd
 
@@ -33,8 +32,9 @@ logger = logging.getLogger(__name__)
 @dataclass
 class FreshnessResult:
     """Result of data freshness check."""
+
     is_stale: bool
-    last_update: Optional[date]
+    last_update: date | None
     days_old: int
     threshold_days: int
     status: str  # "FRESH", "STALE", "MISSING"
@@ -42,15 +42,15 @@ class FreshnessResult:
 
 # Freshness thresholds by timeframe
 FRESHNESS_THRESHOLDS = {
-    "1m": 0,    # Must be today
+    "1m": 0,  # Must be today
     "3m": 0,
     "5m": 0,
     "15m": 0,
     "30m": 0,
     "1h": 0,
-    "4h": 1,    # Within last trading day
-    "1d": 2,    # Within last 2 trading days
-    "1w": 7,    # Within last week
+    "4h": 1,  # Within last trading day
+    "1d": 2,  # Within last 2 trading days
+    "1w": 7,  # Within last week
 }
 
 
@@ -104,9 +104,7 @@ def check_data_freshness(
         latest_ts = df[timestamp_col].max()
 
     # Convert to date
-    if isinstance(latest_ts, pd.Timestamp):
-        latest_date = latest_ts.date()
-    elif isinstance(latest_ts, datetime):
+    if isinstance(latest_ts, pd.Timestamp | datetime):
         latest_date = latest_ts.date()
     else:
         latest_date = pd.Timestamp(latest_ts).date()

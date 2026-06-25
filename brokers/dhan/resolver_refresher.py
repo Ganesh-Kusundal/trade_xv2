@@ -118,7 +118,8 @@ class ResolverRefresher(ManagedService):
         )
         self._thread.start()
         logger.info(
-            "Resolver refresher started (interval=%ds)", self._interval,
+            "Resolver refresher started (interval=%ds)",
+            self._interval,
         )
 
     def stop(self, timeout_seconds: float = 10.0) -> None:

@@ -7,9 +7,10 @@ Not supported by: Dhan
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Protocol, Sequence
+from typing import Protocol
 
 from brokers.common.broker_port import QuotaToken
 

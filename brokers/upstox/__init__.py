@@ -30,4 +30,10 @@ class UpstoxBroker:
         return _UpstoxBroker(settings=settings, **kwargs)
 
 
-__all__ = ["UpstoxBroker", "UpstoxBrokerFactory", "UpstoxBrokerGateway", "UpstoxConnectionSettings", "UpstoxSettingsLoader"]
+__all__ = [
+    "UpstoxBroker",
+    "UpstoxBrokerFactory",
+    "UpstoxBrokerGateway",
+    "UpstoxConnectionSettings",
+    "UpstoxSettingsLoader",
+]

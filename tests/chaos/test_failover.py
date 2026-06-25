@@ -33,19 +33,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from domain import (
-    OrderStatus,
-    Side,
-    Trade,
-)
-from infrastructure.event_bus import DomainEvent, EventType, EventBus
-from infrastructure.lifecycle import LifecycleManager
-from infrastructure.lifecycle.lifecycle import (
-    HealthState,
-    HealthStatus,
-    ManagedService,
-    build_health,
-)
 from application.oms import (
     DailyPnlResetScheduler,
     OrderManager,
@@ -53,6 +40,19 @@ from application.oms import (
     PositionManager,
     RiskConfig,
     RiskManager,
+)
+from domain import (
+    OrderStatus,
+    Side,
+    Trade,
+)
+from infrastructure.event_bus import DomainEvent, EventBus, EventType
+from infrastructure.lifecycle import LifecycleManager
+from infrastructure.lifecycle.lifecycle import (
+    HealthState,
+    HealthStatus,
+    ManagedService,
+    build_health,
 )
 
 # ── 1. Lifecycle drain with stuck service ─────────────────────────────────
@@ -149,7 +149,7 @@ def test_lifecycle_drain_with_two_stuck_services_serial_timeout() -> None:
     lc.stop_all()
     elapsed = time.monotonic() - t0
 
-    # 2 services × 2s timeout = 4s. Allow generous upper bound.
+    # 2 services x 2s timeout = 4s. Allow generous upper bound.
     assert 1.5 < elapsed < 6.0, f"expected ~4s, got {elapsed:.2f}s"
     a.release()
     b.release()
@@ -177,7 +177,8 @@ def test_dhan_token_refresh_during_in_flight_trade_event() -> None:
         return "TOK-V2"
 
     client = DhanHttpClient(
-        client_id="X", access_token="TOK-V1",
+        client_id="X",
+        access_token="TOK-V1",
         token_refresh_fn=refresh,
     )
     # Bypass the throttle (default 0.04s for /orders) by patching it.
@@ -209,9 +210,7 @@ def test_dhan_token_refresh_during_in_flight_trade_event() -> None:
     # caller (the websocket adapter in production) is responsible
     # for hooking on_trade onto the bus. We do the same here.
     bus.subscribe(EventType.TRADE.value, om.on_trade)  # P1-3: Migrated to EventType enum
-    order = om.place_order(
-        OrderRequest("RELIANCE", "NSE", Side.BUY, 10, price=Decimal("100"))
-    )
+    order = om.place_order(OrderRequest("RELIANCE", "NSE", Side.BUY, 10, price=Decimal("100")))
     assert order.success
     assert order.order is not None
     trade = Trade(
@@ -223,8 +222,12 @@ def test_dhan_token_refresh_during_in_flight_trade_event() -> None:
         quantity=10,
         price=Decimal("100"),
     )
-    bus.publish(DomainEvent.now(EventType.TRADE.value, {"trade": trade}, symbol="RELIANCE"))  # P1-3: Migrated to EventType enum
-    bus.publish(DomainEvent.now(EventType.TRADE.value, {"trade": trade}, symbol="RELIANCE"))  # P1-3: Migrated to EventType enum
+    bus.publish(
+        DomainEvent.now(EventType.TRADE.value, {"trade": trade}, symbol="RELIANCE")
+    )  # P1-3: Migrated to EventType enum
+    bus.publish(
+        DomainEvent.now(EventType.TRADE.value, {"trade": trade}, symbol="RELIANCE")
+    )  # P1-3: Migrated to EventType enum
 
     # The OMS processed the trade exactly once.
     fresh = om.get_order(order.order.order_id)
@@ -258,7 +261,8 @@ def test_dhan_token_refresh_does_not_replay_under_cooldown() -> None:
         return "TOK-V2"
 
     client = DhanHttpClient(
-        client_id="X", access_token="TOK-V1",
+        client_id="X",
+        access_token="TOK-V1",
         token_refresh_fn=refresh,
     )
     client._throttle = lambda *a, **kw: None  # type: ignore[assignment]
@@ -277,6 +281,7 @@ def test_dhan_token_refresh_does_not_replay_under_cooldown() -> None:
     resp_401_b.json.return_value = {}
     client._session.request = MagicMock(return_value=resp_401_b)
     from brokers.dhan.exceptions import AuthenticationError
+
     with pytest.raises(AuthenticationError):
         client.get("/positions")
     assert refresh_calls["n"] == 1, "cooldown must suppress the second refresh"

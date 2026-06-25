@@ -41,8 +41,8 @@ from typing import TYPE_CHECKING, Any
 from domain.entities import OrderResponse
 
 if TYPE_CHECKING:
-    from brokers.common.gateway import MarketDataGateway
     from application.oms._internal.risk_manager import RiskManager
+    from brokers.common.gateway import MarketDataGateway
 
 logger = logging.getLogger(__name__)
 
@@ -95,11 +95,13 @@ class OMSGatewayProxy:
     """
 
     # Order operations that MUST go through OMS
-    _ORDER_OPERATIONS = frozenset({
-        "place_order",
-        "cancel_order",
-        "modify_order",
-    })
+    _ORDER_OPERATIONS = frozenset(
+        {
+            "place_order",
+            "cancel_order",
+            "modify_order",
+        }
+    )
 
     def __init__(
         self,
@@ -164,20 +166,26 @@ class OMSGatewayProxy:
         if self._risk_manager is None:
             if self._strict_mode:
                 self._audit(
-                    operation, symbol, "BLOCKED",
+                    operation,
+                    symbol,
+                    "BLOCKED",
                     reason="OMS risk_manager unavailable (strict mode)",
                 )
                 return False
             else:
                 self._audit(
-                    operation, symbol, "ALLOWED_AUDIT_ONLY",
+                    operation,
+                    symbol,
+                    "ALLOWED_AUDIT_ONLY",
                     reason="OMS unavailable — audit-only mode",
                 )
                 return True
 
         if self._risk_manager.is_kill_switch_active():
             self._audit(
-                operation, symbol, "BLOCKED",
+                operation,
+                symbol,
+                "BLOCKED",
                 reason="Kill switch active",
             )
             return False
@@ -236,8 +244,7 @@ class OMSGatewayProxy:
         """
         if not self._check_oms_available("cancel_order", None):
             raise OrderBlockedError(
-                f"Cancel blocked: kill switch active or OMS unavailable. "
-                f"order_id={order_id}",
+                f"Cancel blocked: kill switch active or OMS unavailable. order_id={order_id}",
                 operation="cancel_order",
                 reason="Kill switch active or OMS unavailable",
             )
@@ -253,8 +260,7 @@ class OMSGatewayProxy:
         """
         if not self._check_oms_available("modify_order", None):
             raise OrderBlockedError(
-                f"Modify blocked: kill switch active or OMS unavailable. "
-                f"order_id={order_id}",
+                f"Modify blocked: kill switch active or OMS unavailable. order_id={order_id}",
                 operation="modify_order",
                 reason="Kill switch active or OMS unavailable",
             )
@@ -357,9 +363,7 @@ class OMSGatewayProxy:
             "blocked_count": self._blocked_count,
             "strict_mode": self._strict_mode,
             "kill_switch_active": (
-                self._risk_manager.is_kill_switch_active()
-                if self._risk_manager
-                else None
+                self._risk_manager.is_kill_switch_active() if self._risk_manager else None
             ),
             "real_gateway": type(self._real_gateway).__name__,
         }

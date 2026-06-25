@@ -21,31 +21,21 @@ adapter method.  Provenance survives every step.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import uuid
-from dataclasses import dataclass, field, replace
-from datetime import date, datetime, timedelta, timezone
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass, replace
+from datetime import date, datetime, timedelta
 from decimal import Decimal
-from typing import Callable, Literal, Sequence
+from typing import Literal
 
-from domain.historical import (
-    BarLabelConvention,
-    DateRange,
-    Gap,
-    HistoricalBar,
-    HistoricalSeries,
-    InstrumentRef,
-    MergeManifest,
-)
-from domain.provenance import DataProvenance, ProvenanceConfidence, SourceIdentity
 from brokers.common.broker_port import (
-    CommonBrokerGateway,
     HistoricalBarRequest,
     QuotaToken,
 )
-from brokers.common.capabilities import BrokerCapabilities
-from brokers.common.errors import HistoricalFetchError, MergeConflictError, RoutingError
-from brokers.common.models import OperationKind, RoutingRequest, RouteDecision
+from brokers.common.errors import MergeConflictError, RoutingError
+from brokers.common.models import OperationKind, RouteDecision, RoutingRequest
 from brokers.common.provenance import (
     BarRangeRecord,
     ChunkRecord,
@@ -54,6 +44,14 @@ from brokers.common.provenance import (
 )
 from brokers.common.registry import BrokerRegistry
 from brokers.common.router import BrokerRouter
+from domain.historical import (
+    DateRange,
+    Gap,
+    HistoricalBar,
+    HistoricalSeries,
+    InstrumentRef,
+    MergeManifest,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -159,14 +157,11 @@ class HistoricalDataCoordinator:
 
         # 2. Fetch all chunks concurrently (respecting concurrency cap)
         semaphore = asyncio.Semaphore(query.max_concurrent_fetches)
-        fetch_results: list[tuple[_ChunkPlan, Sequence[HistoricalBar] | None]] = (
-            await asyncio.gather(
-                *[
-                    self._fetch_chunk_guarded(chunk, semaphore, ledger)
-                    for chunk in chunks
-                ],
-                return_exceptions=False,
-            )
+        fetch_results: list[
+            tuple[_ChunkPlan, Sequence[HistoricalBar] | None]
+        ] = await asyncio.gather(
+            *[self._fetch_chunk_guarded(chunk, semaphore, ledger) for chunk in chunks],
+            return_exceptions=False,
         )
 
         # 3. Collect bars per chunk
@@ -196,7 +191,7 @@ class HistoricalDataCoordinator:
         )
         for c in conflicts:
             ledger.add_conflict(c)
-            try:
+            with contextlib.suppress(Exception):
                 from brokers.common.observability.audit import emit_merge_conflict
 
                 emit_merge_conflict(
@@ -209,8 +204,6 @@ class HistoricalDataCoordinator:
                     delta_pct=str(c.delta_pct),
                     resolution=c.resolution,
                 )
-            except Exception:
-                pass
 
         if query.merge_strategy == "fail_on_conflict" and conflicts:
             raise MergeConflictError(
@@ -338,13 +331,11 @@ class HistoricalDataCoordinator:
         # Build broker window map: broker_id -> max_lookback_days
         broker_windows: dict[str, int] = {}
         for bid in broker_ids:
-            try:
+            with contextlib.suppress(Exception):
                 cap = self._registry.get_capabilities(bid).capabilities
                 constraint = cap.historical_window_for(timeframe)
                 if constraint and cap.supports_historical_data:
                     broker_windows[bid] = constraint.max_lookback_days
-            except Exception:
-                pass
 
         if not broker_windows:
             return result
@@ -423,7 +414,7 @@ class HistoricalDataCoordinator:
                     fetch_latency_ms=elapsed,
                 )
             )
-            try:
+            with contextlib.suppress(Exception):
                 from brokers.common.observability.audit import emit_historical_chunk
 
                 emit_historical_chunk(
@@ -437,8 +428,6 @@ class HistoricalDataCoordinator:
                     bar_count=len(bars),
                     latency_ms=elapsed,
                 )
-            except Exception:
-                pass
             logger.info(
                 "historical.chunk.complete",
                 extra={
@@ -465,7 +454,7 @@ class HistoricalDataCoordinator:
                     fetch_latency_ms=elapsed,
                 )
             )
-            try:
+            with contextlib.suppress(Exception):
                 from brokers.common.observability.audit import emit_historical_chunk
 
                 emit_historical_chunk(
@@ -480,8 +469,6 @@ class HistoricalDataCoordinator:
                     latency_ms=elapsed,
                     error=str(exc),
                 )
-            except Exception:
-                pass
             logger.warning(
                 "historical.chunk.failed",
                 extra={
@@ -508,9 +495,7 @@ class HistoricalDataCoordinator:
         except RoutingError:
             return None
 
-        fallbacks = [
-            b for b in decision.fallback_brokers if b != failed_plan.broker_id
-        ]
+        fallbacks = [b for b in decision.fallback_brokers if b != failed_plan.broker_id]
         for fallback_id in fallbacks:
             fallback_plan = _ChunkPlan(
                 chunk_id=str(uuid.uuid4()),
@@ -592,9 +577,11 @@ class HistoricalDataCoordinator:
 
             if strategy == "prefer_primary":
                 pass  # keep existing
-            elif strategy == "prefer_newest_provenance":
-                if bar.provenance.fetched_at > existing.provenance.fetched_at:
-                    merged[ts] = bar
+            elif (
+                strategy == "prefer_newest_provenance"
+                and bar.provenance.fetched_at > existing.provenance.fetched_at
+            ):
+                merged[ts] = bar
             # fail_on_conflict: keep existing; caller raises after seeing conflicts
 
         return sorted(merged.values(), key=lambda b: b.event_time), conflicts
@@ -655,7 +642,7 @@ class HistoricalDataCoordinator:
 
         Gap detection is calendar-day based for daily bars.  For intraday bars,
         gaps are detected by finding consecutive bars with timestamps more than
-        2× the timeframe apart (approximate heuristic).
+        2x the timeframe apart (approximate heuristic).
         """
         gaps: list[Gap] = []
         if not bars:

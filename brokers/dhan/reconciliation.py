@@ -11,10 +11,10 @@ import logging
 import time
 from typing import Any
 
-from domain import DriftItem, ReconciliationReport
 from brokers.common.reconciliation.engine import ReconciliationEngine
 from brokers.dhan.orders import OrdersAdapter
 from brokers.dhan.portfolio import PortfolioAdapter
+from domain import DriftItem, ReconciliationReport
 
 logger = logging.getLogger(__name__)
 
@@ -98,11 +98,13 @@ class DhanReconciliationService:
         except Exception as exc:
             logger.error("reconciliation_orders_failed: %s", exc)
             broker_orders = []
-            drift.append(DriftItem(
-                kind="fetch_error",
-                severity="HIGH",
-                details=f"Failed to fetch broker orders: {exc}",
-            ))
+            drift.append(
+                DriftItem(
+                    kind="fetch_error",
+                    severity="HIGH",
+                    details=f"Failed to fetch broker orders: {exc}",
+                )
+            )
 
         try:
             broker_positions = self._portfolio.get_positions()
@@ -110,11 +112,13 @@ class DhanReconciliationService:
         except Exception as exc:
             logger.error("reconciliation_positions_failed: %s", exc)
             broker_positions = []
-            drift.append(DriftItem(
-                kind="fetch_error",
-                severity="HIGH",
-                details=f"Failed to fetch broker positions: {exc}",
-            ))
+            drift.append(
+                DriftItem(
+                    kind="fetch_error",
+                    severity="HIGH",
+                    details=f"Failed to fetch broker positions: {exc}",
+                )
+            )
 
         # 2. Compare using shared engine
         engine = ReconciliationEngine()
@@ -129,12 +133,15 @@ class DhanReconciliationService:
         if self._auto_repair and self._oms is not None:
             self._repair_local_oms(broker_orders, broker_positions, drift)
 
-        logger.info("reconciliation_complete", extra={
-            "drift_count": len(drift),
-            "high_severity": report.high_severity_count,
-            "broker_orders": report.broker_orders,
-            "broker_positions": report.broker_positions,
-        })
+        logger.info(
+            "reconciliation_complete",
+            extra={
+                "drift_count": len(drift),
+                "high_severity": report.high_severity_count,
+                "broker_orders": report.broker_orders,
+                "broker_positions": report.broker_positions,
+            },
+        )
         return report
 
     def _repair_local_oms(
@@ -148,7 +155,9 @@ class DhanReconciliationService:
         upsert_order = getattr(self._oms, "upsert_order", None)
         if upsert_order is not None:
             for broker_order in broker_orders:
-                local_order = getattr(self._oms, "get_order", lambda oid: None)(broker_order.order_id)
+                local_order = getattr(self._oms, "get_order", lambda oid: None)(
+                    broker_order.order_id
+                )
                 if local_order is None:
                     try:
                         upsert_order(broker_order)
@@ -161,13 +170,15 @@ class DhanReconciliationService:
         if upsert_position is not None:
             for broker_pos in broker_positions:
                 try:
-                    upsert_position({
-                        "symbol": broker_pos.symbol,
-                        "exchange": getattr(broker_pos, "exchange", "NSE"),
-                        "quantity": broker_pos.quantity,
-                        "avg_price": str(getattr(broker_pos, "avg_price", "0")),
-                        "ltp": str(getattr(broker_pos, "ltp", "0")),
-                    })
+                    upsert_position(
+                        {
+                            "symbol": broker_pos.symbol,
+                            "exchange": getattr(broker_pos, "exchange", "NSE"),
+                            "quantity": broker_pos.quantity,
+                            "avg_price": str(getattr(broker_pos, "avg_price", "0")),
+                            "ltp": str(getattr(broker_pos, "ltp", "0")),
+                        }
+                    )
                     logger.info("Repaired position %s", broker_pos.symbol)
                 except Exception as exc:
                     logger.warning("Failed to repair position %s: %s", broker_pos.symbol, exc)

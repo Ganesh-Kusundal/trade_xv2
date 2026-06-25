@@ -30,7 +30,6 @@ from domain import (
     ConditionalAlertRequest,
     FundLimits,
     FutureChain,
-    HistoricalCandle,
     Holding,
     MarketDepth,
     OptionChain,
@@ -83,9 +82,7 @@ class DerivativesProvider(ABC):
     ) -> OptionChain: ...
 
     @abstractmethod
-    def future_chain(
-        self, underlying: str, exchange: str = "NFO"
-    ) -> FutureChain: ...
+    def future_chain(self, underlying: str, exchange: str = "NFO") -> FutureChain: ...
 
 
 class BatchMarketDataProvider(ABC):
@@ -509,7 +506,6 @@ class MarketStatusProvider(ABC):
         ...
 
 
-
 class FuturesProvider(ABC):
     """Futures instrument capability. Gateway method: future_chain."""
 
@@ -534,25 +530,21 @@ class FuturesProvider(ABC):
         ...
 
 
-
 __all__ = [
     # Core gateway interfaces
     "BatchMarketDataProvider",
-    "DerivativesProvider",
-    "InstrumentProvider",
-    "LifecycleAware",
-    "MarketDataProvider",
-    "PortfolioReader",
-    "StreamProvider",
-    "TradingExecutor",
     # Broker SPI ports (migrated from api.ports)
     "ConditionalAlertProvider",
     "CoverOrderProvider",
+    "DerivativesProvider",
     "FuturesProvider",
     "GttOrderProvider",
     "IdempotencyCachePort",
+    "InstrumentProvider",
     "KillSwitchPort",
+    "LifecycleAware",
     "MarginProvider",
+    "MarketDataProvider",
     "MarketIntelligencePort",
     "MarketStatusProvider",
     "NewsProvider",
@@ -560,6 +552,9 @@ __all__ = [
     "OrderCommand",
     "OrderQuery",
     "PortfolioProvider",
+    "PortfolioReader",
     "SliceOrderCommand",
     "StaticIPPort",
+    "StreamProvider",
+    "TradingExecutor",
 ]

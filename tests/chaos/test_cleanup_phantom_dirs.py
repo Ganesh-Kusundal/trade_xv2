@@ -1,9 +1,8 @@
 """Regression tests for phantom directory cleanup (F1, F9 remediation)."""
+
 from __future__ import annotations
 
 from pathlib import Path
-
-import pytest
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 

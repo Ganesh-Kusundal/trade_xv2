@@ -14,25 +14,23 @@ Each test must complete in < 5 seconds.
 
 from __future__ import annotations
 
-import json
-import time
 import threading
-from collections import deque
-from datetime import datetime, timezone, timedelta
-from unittest.mock import MagicMock, patch
+import time
+from datetime import datetime, timezone
+from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
 
-from infrastructure.event_bus.event_bus import DomainEvent, EventBus
-from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
 from brokers.common.observability.event_metrics import EventMetrics
 from brokers.common.resilience.broker_health_monitor import BrokerHealthMonitor
-
+from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
+from infrastructure.event_bus.event_bus import DomainEvent, EventBus
 
 # ──────────────────────────────────────────────────────────────────────
 # Section 1: Corrupted Parquet / DataFrame
 # ──────────────────────────────────────────────────────────────────────
+
 
 class TestCorruptedDataFrame:
     """Verify system handles corrupted or malformed DataFrame inputs."""
@@ -45,19 +43,19 @@ class TestCorruptedDataFrame:
         engine = ReplayEngine(config=ReplayConfig(window_size=20), oms_adapter=MagicMock())
         result = engine.run(pd.DataFrame(), symbol="TEST")
 
-        assert result.bars_processed == 0, (
-            "Replay on empty DataFrame should have 0 bars processed"
-        )
+        assert result.bars_processed == 0, "Replay on empty DataFrame should have 0 bars processed"
 
     def test_replay_engine_handles_missing_ohlcv_columns(self):
         """DataFrame missing OHLCV columns should not crash the engine."""
         from analytics.replay.engine import ReplayEngine
         from analytics.replay.models import ReplayConfig
 
-        df = pd.DataFrame({
-            "timestamp": pd.date_range("2024-01-01", periods=10, freq="h"),
-            # Missing: open, high, low, close, volume
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": pd.date_range("2024-01-01", periods=10, freq="h"),
+                # Missing: open, high, low, close, volume
+            }
+        )
 
         engine = ReplayEngine(config=ReplayConfig(window_size=5), oms_adapter=MagicMock())
         # Should not crash — defaults to 0 for missing numeric columns
@@ -70,10 +68,12 @@ class TestCorruptedDataFrame:
         from analytics.replay.engine import ReplayEngine
         from analytics.replay.models import ReplayConfig
 
-        df = pd.DataFrame({
-            "open": [100.0],
-            "close": [101.0],
-        })
+        df = pd.DataFrame(
+            {
+                "open": [100.0],
+                "close": [101.0],
+            }
+        )
 
         engine = ReplayEngine(config=ReplayConfig(), oms_adapter=MagicMock())
 
@@ -82,18 +82,20 @@ class TestCorruptedDataFrame:
 
     def test_replay_engine_handles_corrupted_numeric_values(self):
         """DataFrame with NaN/inf values should be handled by FeaturePipeline gracefully."""
+        from analytics.pipeline.pipeline import FeaturePipeline
         from analytics.replay.engine import ReplayEngine
         from analytics.replay.models import ReplayConfig
-        from analytics.pipeline.pipeline import FeaturePipeline
 
-        df = pd.DataFrame({
-            "timestamp": pd.date_range("2024-01-01", periods=5, freq="h"),
-            "open": [100.0, float("nan"), 102.0, float("inf"), 104.0],
-            "high": [101.0, 102.0, 103.0, 105.0, 106.0],
-            "low": [99.0, 98.0, 100.0, 101.0, 102.0],
-            "close": [100.5, 101.5, 102.5, 104.5, 105.5],
-            "volume": [1000, 1200, 1100, 1300, 1400],
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": pd.date_range("2024-01-01", periods=5, freq="h"),
+                "open": [100.0, float("nan"), 102.0, float("inf"), 104.0],
+                "high": [101.0, 102.0, 103.0, 105.0, 106.0],
+                "low": [99.0, 98.0, 100.0, 101.0, 102.0],
+                "close": [100.5, 101.5, 102.5, 104.5, 105.5],
+                "volume": [1000, 1200, 1100, 1300, 1400],
+            }
+        )
 
         engine = ReplayEngine(
             pipeline=FeaturePipeline(),
@@ -106,18 +108,20 @@ class TestCorruptedDataFrame:
 
     def test_replay_engine_handles_negative_prices(self):
         """DataFrame with negative prices should be processed (data quality concern, not crash)."""
+        from analytics.pipeline.pipeline import FeaturePipeline
         from analytics.replay.engine import ReplayEngine
         from analytics.replay.models import ReplayConfig
-        from analytics.pipeline.pipeline import FeaturePipeline
 
-        df = pd.DataFrame({
-            "timestamp": pd.date_range("2024-01-01", periods=5, freq="h"),
-            "open": [-100.0, -99.0, -98.0, -97.0, -96.0],
-            "high": [-99.0, -98.0, -97.0, -96.0, -95.0],
-            "low": [-101.0, -100.0, -99.0, -98.0, -97.0],
-            "close": [-99.5, -98.5, -97.5, -96.5, -95.5],
-            "volume": [1000, 1200, 1100, 1300, 1400],
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": pd.date_range("2024-01-01", periods=5, freq="h"),
+                "open": [-100.0, -99.0, -98.0, -97.0, -96.0],
+                "high": [-99.0, -98.0, -97.0, -96.0, -95.0],
+                "low": [-101.0, -100.0, -99.0, -98.0, -97.0],
+                "close": [-99.5, -98.5, -97.5, -96.5, -95.5],
+                "volume": [1000, 1200, 1100, 1300, 1400],
+            }
+        )
 
         engine = ReplayEngine(
             pipeline=FeaturePipeline(),
@@ -125,30 +129,30 @@ class TestCorruptedDataFrame:
             oms_adapter=MagicMock(),
         )
         result = engine.run(df, symbol="TEST")
-        assert result.bars_processed == 5, (
-            "Engine should process bars even with negative prices"
-        )
+        assert result.bars_processed == 5, "Engine should process bars even with negative prices"
 
     def test_replay_engine_handles_out_of_order_timestamps(self):
         """DataFrame with out-of-order timestamps should be sorted by engine."""
+        from analytics.pipeline.pipeline import FeaturePipeline
         from analytics.replay.engine import ReplayEngine
         from analytics.replay.models import ReplayConfig
-        from analytics.pipeline.pipeline import FeaturePipeline
 
-        df = pd.DataFrame({
-            "timestamp": [
-                pd.Timestamp("2024-01-01 03:00"),
-                pd.Timestamp("2024-01-01 01:00"),
-                pd.Timestamp("2024-01-01 05:00"),
-                pd.Timestamp("2024-01-01 02:00"),
-                pd.Timestamp("2024-01-01 04:00"),
-            ],
-            "open": [100.0, 101.0, 102.0, 103.0, 104.0],
-            "high": [101.0, 102.0, 103.0, 104.0, 105.0],
-            "low": [99.0, 100.0, 101.0, 102.0, 103.0],
-            "close": [100.5, 101.5, 102.5, 103.5, 104.5],
-            "volume": [1000, 1200, 1100, 1300, 1400],
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": [
+                    pd.Timestamp("2024-01-01 03:00"),
+                    pd.Timestamp("2024-01-01 01:00"),
+                    pd.Timestamp("2024-01-01 05:00"),
+                    pd.Timestamp("2024-01-01 02:00"),
+                    pd.Timestamp("2024-01-01 04:00"),
+                ],
+                "open": [100.0, 101.0, 102.0, 103.0, 104.0],
+                "high": [101.0, 102.0, 103.0, 104.0, 105.0],
+                "low": [99.0, 100.0, 101.0, 102.0, 103.0],
+                "close": [100.5, 101.5, 102.5, 103.5, 104.5],
+                "volume": [1000, 1200, 1100, 1300, 1400],
+            }
+        )
 
         engine = ReplayEngine(
             pipeline=FeaturePipeline(),
@@ -156,24 +160,24 @@ class TestCorruptedDataFrame:
             oms_adapter=MagicMock(),
         )
         result = engine.run(df, symbol="TEST")
-        assert result.bars_processed == 5, (
-            "Engine should process all bars after sorting timestamps"
-        )
+        assert result.bars_processed == 5, "Engine should process all bars after sorting timestamps"
 
     def test_replay_engine_handles_extremely_large_values(self):
         """DataFrame with extremely large values should not cause overflow."""
+        from analytics.pipeline.pipeline import FeaturePipeline
         from analytics.replay.engine import ReplayEngine
         from analytics.replay.models import ReplayConfig
-        from analytics.pipeline.pipeline import FeaturePipeline
 
-        df = pd.DataFrame({
-            "timestamp": pd.date_range("2024-01-01", periods=3, freq="h"),
-            "open": [1e15, 1e15, 1e15],
-            "high": [1e15 + 1, 1e15 + 1, 1e15 + 1],
-            "low": [1e15 - 1, 1e15 - 1, 1e15 - 1],
-            "close": [1e15, 1e15, 1e15],
-            "volume": [1e12, 1e12, 1e12],
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": pd.date_range("2024-01-01", periods=3, freq="h"),
+                "open": [1e15, 1e15, 1e15],
+                "high": [1e15 + 1, 1e15 + 1, 1e15 + 1],
+                "low": [1e15 - 1, 1e15 - 1, 1e15 - 1],
+                "close": [1e15, 1e15, 1e15],
+                "volume": [1e12, 1e12, 1e12],
+            }
+        )
 
         engine = ReplayEngine(
             pipeline=FeaturePipeline(),
@@ -188,6 +192,7 @@ class TestCorruptedDataFrame:
 # ──────────────────────────────────────────────────────────────────────
 # Section 2: Corrupted Events (Event Bus)
 # ──────────────────────────────────────────────────────────────────────
+
 
 class TestCorruptedEvents:
     """Verify event bus handles corrupted or malformed events."""
@@ -219,9 +224,7 @@ class TestCorruptedEvents:
         event = DomainEvent.now("TICK", {"wrong_key": "no price here"})
         bus.publish(event)
 
-        assert len(dlq) == 1, (
-            "Corrupted payload causing handler error should be dead-lettered"
-        )
+        assert len(dlq) == 1, "Corrupted payload causing handler error should be dead-lettered"
 
     def test_event_bus_handles_none_payload_gracefully(self):
         """Event with None in payload should not crash."""
@@ -255,6 +258,7 @@ class TestCorruptedEvents:
 # Section 3: Duplicate Events
 # ──────────────────────────────────────────────────────────────────────
 
+
 class TestDuplicateEvents:
     """Verify system handles duplicate events correctly."""
 
@@ -274,12 +278,8 @@ class TestDuplicateEvents:
         bus.publish(event1)
         bus.publish(event2)
 
-        assert len(received) == 2, (
-            "Both duplicate events should be dispatched"
-        )
-        assert received[0] != received[1], (
-            "Each event should have a unique event_id"
-        )
+        assert len(received) == 2, "Both duplicate events should be dispatched"
+        assert received[0] != received[1], "Each event should have a unique event_id"
 
     def test_event_bus_sequence_numbers_are_monotonic(self):
         """Sequence numbers should be monotonically increasing."""
@@ -313,9 +313,7 @@ class TestDuplicateEvents:
         prepared = [bus._prepare_event(e) for e in events]
         seq_numbers = [e.sequence_number for e in prepared]
 
-        assert seq_numbers == [5, 3, 8], (
-            "Replay mode should preserve original sequence numbers"
-        )
+        assert seq_numbers == [5, 3, 8], "Replay mode should preserve original sequence numbers"
 
     def test_dead_letter_queue_bounded_capacity(self):
         """DLQ should enforce max_size and track dropped entries."""
@@ -358,6 +356,7 @@ class TestDuplicateEvents:
 # ──────────────────────────────────────────────────────────────────────
 # Section 4: Clock Skew
 # ──────────────────────────────────────────────────────────────────────
+
 
 class TestClockSkew:
     """Verify system handles clock skew and out-of-order timestamps."""
@@ -420,15 +419,14 @@ class TestClockSkew:
 # Section 5: Invalid State Transitions
 # ──────────────────────────────────────────────────────────────────────
 
+
 class TestInvalidStateTransitions:
     """Verify system handles invalid state transitions."""
 
     def test_health_monitor_unknown_broker_is_healthy(self):
         """Unknown broker should be treated as healthy (optimistic default)."""
         monitor = BrokerHealthMonitor(failure_threshold=3)
-        assert monitor.is_healthy("unknown_broker"), (
-            "Unknown broker should be treated as healthy"
-        )
+        assert monitor.is_healthy("unknown_broker"), "Unknown broker should be treated as healthy"
 
     def test_health_monitor_transition_healthy_to_unhealthy(self):
         """Broker should transition to unhealthy after threshold failures."""
@@ -456,9 +454,7 @@ class TestInvalidStateTransitions:
         event = DomainEvent.now("TICK", {"data": "replay"})
         bus.publish(event)
 
-        event_log.append.assert_not_called(), (
-            "Event log should not be written to in replay mode"
-        )
+        event_log.append.assert_not_called(), ("Event log should not be written to in replay mode")
 
     def test_event_bus_sequence_counter_resets_on_new_instance(self):
         """Each EventBus instance should have its own sequence counter."""
@@ -493,9 +489,7 @@ class TestInvalidStateTransitions:
             event = DomainEvent.now("TICK", {"data": "with correlation"})
             bus.publish(event)
 
-        assert captured[0] == "test-corr-123", (
-            "Correlation ID should be auto-injected from context"
-        )
+        assert captured[0] == "test-corr-123", "Correlation ID should be auto-injected from context"
 
     def test_domain_event_immutability(self):
         """DomainEvent is frozen — attempts to modify should raise."""
@@ -532,6 +526,7 @@ class TestInvalidStateTransitions:
 # ──────────────────────────────────────────────────────────────────────
 # Section 6: Data Integrity Under Concurrency
 # ──────────────────────────────────────────────────────────────────────
+
 
 class TestDataIntegrityUnderConcurrency:
     """Verify data integrity when multiple threads interact with shared state."""
@@ -580,9 +575,7 @@ class TestDataIntegrityUnderConcurrency:
             t.join(timeout=5)
 
         count = metrics.get("TICK", "published")
-        assert count == 2000, (
-            f"Expected 2000 increments (4 threads * 500), got {count}"
-        )
+        assert count == 2000, f"Expected 2000 increments (4 threads * 500), got {count}"
 
     def test_event_bus_handler_order_preserved_with_concurrent_publish(self):
         """Multiple publishes from different threads should all be delivered."""
@@ -600,18 +593,13 @@ class TestDataIntegrityUnderConcurrency:
             for i in range(10):
                 bus.publish(DomainEvent.now("TICK", {"thread_id": thread_id, "seq": i}))
 
-        threads = [
-            threading.Thread(target=publish_from_thread, args=(tid,))
-            for tid in range(4)
-        ]
+        threads = [threading.Thread(target=publish_from_thread, args=(tid,)) for tid in range(4)]
         for t in threads:
             t.start()
         for t in threads:
             t.join(timeout=5)
 
-        assert len(received) == 40, (
-            f"Expected 40 events (4 threads * 10), got {len(received)}"
-        )
+        assert len(received) == 40, f"Expected 40 events (4 threads * 10), got {len(received)}"
 
     def test_dead_letter_queue_concurrent_pushes(self):
         """Concurrent DLQ pushes should not lose entries or corrupt state."""
@@ -622,10 +610,7 @@ class TestDataIntegrityUnderConcurrency:
                 event = DomainEvent.now("TICK", {"seq": start + i})
                 dlq.push_failure(event, "handler", RuntimeError(f"Error {start + i}"))
 
-        threads = [
-            threading.Thread(target=push_many, args=(tid * 100,))
-            for tid in range(4)
-        ]
+        threads = [threading.Thread(target=push_many, args=(tid * 100,)) for tid in range(4)]
         for t in threads:
             t.start()
         for t in threads:

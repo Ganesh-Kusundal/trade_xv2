@@ -11,7 +11,6 @@ Tests cover:
 
 from __future__ import annotations
 
-import logging
 import threading
 import time
 from decimal import Decimal
@@ -20,14 +19,10 @@ from unittest.mock import MagicMock
 import pandas as pd
 import pytest
 
-from domain.constants.timeouts import (
-    HISTORY_CACHE_TTL_SECONDS,
-    QUOTE_CACHE_TTL_SECONDS,
-)
 from brokers.common.intelligent_gateway import (
-    _CacheEntry,
-    IntelligentGateway,
     _WRITE_OPERATIONS,
+    IntelligentGateway,
+    _CacheEntry,
 )
 from brokers.common.observability.event_metrics import EventMetrics
 from brokers.common.resilience.broker_health_monitor import (
@@ -35,7 +30,10 @@ from brokers.common.resilience.broker_health_monitor import (
     BrokerHealthStatus,
 )
 from brokers.common.resilience.errors import BrokerDegradedError
-
+from domain.constants.timeouts import (
+    HISTORY_CACHE_TTL_SECONDS,
+    QUOTE_CACHE_TTL_SECONDS,
+)
 
 # ======================================================================
 # BrokerHealthMonitor tests
@@ -320,8 +318,7 @@ class TestIntelligentGatewayHealthMonitorIntegration:
         assert result == Decimal("100.00") or dhan.ltp.called
         # Verify skip was logged
         skip_logs = [
-            r for r in caplog.records
-            if getattr(r, "message", None) == "broker_health_skip_primary"
+            r for r in caplog.records if getattr(r, "message", None) == "broker_health_skip_primary"
         ]
         assert len(skip_logs) >= 1
 
@@ -333,12 +330,16 @@ class TestIntelligentGatewayDegradedModeReadOperations:
         """Create a gateway with both brokers unhealthy."""
         dhan = MagicMock()
         upstox = MagicMock()
-        return IntelligentGateway(
-            dhan_gateway=dhan,
-            upstox_gateway=upstox,
-            health_monitor=monitor,
-            metrics=EventMetrics(),
-        ), dhan, upstox
+        return (
+            IntelligentGateway(
+                dhan_gateway=dhan,
+                upstox_gateway=upstox,
+                health_monitor=monitor,
+                metrics=EventMetrics(),
+            ),
+            dhan,
+            upstox,
+        )
 
     def test_ltp_returns_cached_data_in_degraded_mode(self, caplog):
         monitor = BrokerHealthMonitor(failure_threshold=2)
@@ -361,12 +362,12 @@ class TestIntelligentGatewayDegradedModeReadOperations:
 
         # Should have logged critical and warning
         critical_logs = [
-            r for r in caplog.records
-            if getattr(r, "message", None) == "broker_degraded_mode"
+            r for r in caplog.records if getattr(r, "message", None) == "broker_degraded_mode"
         ]
         assert len(critical_logs) >= 1
         stale_logs = [
-            r for r in caplog.records
+            r
+            for r in caplog.records
             if getattr(r, "message", None) == "broker_degraded_serving_stale_cache"
         ]
         assert len(stale_logs) >= 1
@@ -592,5 +593,6 @@ class TestBrokerDegradedError:
 
     def test_is_broker_error(self):
         from brokers.common.resilience.errors import BrokerError
+
         err = BrokerDegradedError()
         assert isinstance(err, BrokerError)

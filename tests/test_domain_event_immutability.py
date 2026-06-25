@@ -12,23 +12,21 @@ Verifies:
 
 from __future__ import annotations
 
-import json
 import tempfile
+from dataclasses import FrozenInstanceError
 from datetime import datetime, timezone
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
-from dataclasses import FrozenInstanceError
 
+from infrastructure.correlation import with_correlation
 from infrastructure.event_bus.event_bus import DomainEvent, EventBus
 from infrastructure.event_log import EventLog
-from infrastructure.correlation import with_correlation
-
 
 # ──────────────────────────────────────────────────────────────────────
 # Section 1: DomainEvent is truly immutable
 # ──────────────────────────────────────────────────────────────────────
+
 
 class TestDomainEventImmutability:
     """Verify DomainEvent is frozen and cannot be mutated."""
@@ -69,7 +67,9 @@ class TestDomainEventImmutability:
             event.correlation_id = "corr-456"
 
     def test_sequence_number_is_immutable(self):
-        event = DomainEvent("TICK", datetime(2024, 1, 1, tzinfo=timezone.utc), {}, sequence_number=5)
+        event = DomainEvent(
+            "TICK", datetime(2024, 1, 1, tzinfo=timezone.utc), {}, sequence_number=5
+        )
         with pytest.raises(FrozenInstanceError):
             event.sequence_number = 10
 
@@ -96,6 +96,7 @@ class TestDomainEventImmutability:
 # ──────────────────────────────────────────────────────────────────────
 # Section 2: publish() does not mutate original event
 # ──────────────────────────────────────────────────────────────────────
+
 
 class TestPublishDoesNotMutate:
     """Verify EventBus.publish() creates a new event instead of mutating."""
@@ -157,6 +158,7 @@ class TestPublishDoesNotMutate:
 # Section 3: _prepare_event() creates new instance
 # ──────────────────────────────────────────────────────────────────────
 
+
 class TestPrepareEvent:
     """Verify _prepare_event() behavior."""
 
@@ -217,9 +219,7 @@ class TestPrepareEvent:
 
         prepared = bus._prepare_event(event)
 
-        assert prepared is event, (
-            "_prepare_event should return original when no changes needed"
-        )
+        assert prepared is event, "_prepare_event should return original when no changes needed"
 
     def test_creates_new_instance_when_changes_needed(self):
         bus = EventBus(fail_fast=False)
@@ -235,6 +235,7 @@ class TestPrepareEvent:
 # ──────────────────────────────────────────────────────────────────────
 # Section 4: Replay mode preserves original values
 # ──────────────────────────────────────────────────────────────────────
+
 
 class TestReplayModePreservation:
     """Verify replay mode preserves original event values."""
@@ -253,20 +254,18 @@ class TestReplayModePreservation:
         prepared = [bus._prepare_event(e) for e in events]
 
         seqs = [e.sequence_number for e in prepared]
-        assert seqs == [5, 3, 8], (
-            "Replay mode must preserve original sequence numbers"
-        )
+        assert seqs == [5, 3, 8], "Replay mode must preserve original sequence numbers"
 
     def test_replay_mode_does_not_assign_new_sequence(self):
         """In replay mode, _prepare_event does not assign new sequence numbers."""
         bus = EventBus(fail_fast=False, replay_mode=True)
 
-        event = DomainEvent("TICK", datetime(2024, 1, 1, tzinfo=timezone.utc), {}, sequence_number=0)
+        event = DomainEvent(
+            "TICK", datetime(2024, 1, 1, tzinfo=timezone.utc), {}, sequence_number=0
+        )
         prepared = bus._prepare_event(event)
 
-        assert prepared.sequence_number == 0, (
-            "Replay mode must not assign new sequence numbers"
-        )
+        assert prepared.sequence_number == 0, "Replay mode must not assign new sequence numbers"
         assert prepared is event  # No changes needed, returns original
 
     def test_live_mode_assigns_monotonic_sequence(self):
@@ -286,6 +285,7 @@ class TestReplayModePreservation:
 # ──────────────────────────────────────────────────────────────────────
 # Section 5: EventLog round-trip preserves correlation_id
 # ──────────────────────────────────────────────────────────────────────
+
 
 class TestEventLogRoundTrip:
     """Verify EventLog serialization preserves correlation_id."""
@@ -360,6 +360,7 @@ class TestEventLogRoundTrip:
 # Section 6: Payload isolation between handlers
 # ──────────────────────────────────────────────────────────────────────
 
+
 class TestPayloadIsolation:
     """Verify payload defensive copy prevents handler mutation."""
 
@@ -409,6 +410,7 @@ class TestPayloadIsolation:
 # Section 7: Naive timestamp rejected
 # ──────────────────────────────────────────────────────────────────────
 
+
 class TestNaiveTimestampRejection:
     """Verify naive timestamps are rejected with ValueError."""
 
@@ -449,6 +451,7 @@ class TestNaiveTimestampRejection:
 # ──────────────────────────────────────────────────────────────────────
 # Section 8: Integration - full publish lifecycle
 # ──────────────────────────────────────────────────────────────────────
+
 
 class TestPublishLifecycle:
     """Integration tests for the full publish lifecycle."""
@@ -496,8 +499,6 @@ class TestPublishLifecycle:
 
         assert len(received) == 3
         seqs = [e.sequence_number for e in received]
-        assert seqs == [1, 2, 3], (
-            "Each publish should get independent sequence number"
-        )
+        assert seqs == [1, 2, 3], "Each publish should get independent sequence number"
         # All should share the same event_id
         assert all(e.event_id == original.event_id for e in received)

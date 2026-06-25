@@ -17,9 +17,7 @@ class InstrumentCatalogCheck(CheckStrategy):
         results: list[CheckResult] = []
 
         if broker_service is None:
-            results.append(
-                CheckResult("Instrument Catalog", "FAIL", "No broker service available")
-            )
+            results.append(CheckResult("Instrument Catalog", "FAIL", "No broker service available"))
             return results
 
         try:

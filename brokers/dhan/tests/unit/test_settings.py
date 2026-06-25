@@ -10,13 +10,13 @@ from pathlib import Path
 import pytest
 
 from brokers.dhan.settings import (
-    DhanConnectionSettings,
-    DhanSettingsLoader,
     _BASE_URL,
     _GENERATE_TOKEN_URL,
-    _TOKEN_LIFETIME_SECONDS,
-    _SCHEDULER_INTERVAL_SECONDS,
     _REFRESH_BUFFER_SECONDS,
+    _SCHEDULER_INTERVAL_SECONDS,
+    _TOKEN_LIFETIME_SECONDS,
+    DhanConnectionSettings,
+    DhanSettingsLoader,
 )
 
 
@@ -148,9 +148,7 @@ class TestDhanSettingsLoaderFromEnv:
         """Env file is loaded and values become available."""
         env_file = tmp_path / ".env.local"
         env_file.write_text(
-            "DHAN_CLIENT_ID=from-dotenv\n"
-            "DHAN_ACCESS_TOKEN=dotenv-tok\n"
-            "DHAN_PIN=9999\n"
+            "DHAN_CLIENT_ID=from-dotenv\nDHAN_ACCESS_TOKEN=dotenv-tok\nDHAN_PIN=9999\n"
         )
         s = DhanSettingsLoader.from_env(env_path=env_file)
         assert s.client_id == "from-dotenv"

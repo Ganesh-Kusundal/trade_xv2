@@ -33,11 +33,18 @@ def sample_ohlcv() -> pd.DataFrame:
         close = 100 + np.cumsum(np.random.randn(n_days) * 2)
         vol = np.random.randint(100000, 500000, n_days).astype(float)
         for i, d in enumerate(dates):
-            rows.append({
-                "symbol": sym, "sector": sector, "timestamp": d,
-                "open": close[i] - 1, "high": close[i] + 2,
-                "low": close[i] - 2, "close": close[i], "volume": vol[i],
-            })
+            rows.append(
+                {
+                    "symbol": sym,
+                    "sector": sector,
+                    "timestamp": d,
+                    "open": close[i] - 1,
+                    "high": close[i] + 2,
+                    "low": close[i] - 2,
+                    "close": close[i],
+                    "volume": vol[i],
+                }
+            )
     return pd.DataFrame(rows)
 
 
@@ -47,13 +54,16 @@ def sector_returns() -> pd.DataFrame:
     np.random.seed(42)
     n = 60
     dates = pd.date_range("2026-01-01", periods=n, freq="D")
-    return pd.DataFrame({
-        "IT": np.random.randn(n) * 0.02,
-        "Finance": np.random.randn(n) * 0.015,
-        "Pharma": np.random.randn(n) * 0.018,
-        "Auto": np.random.randn(n) * 0.022,
-        "FMCG": np.random.randn(n) * 0.01,
-    }, index=dates)
+    return pd.DataFrame(
+        {
+            "IT": np.random.randn(n) * 0.02,
+            "Finance": np.random.randn(n) * 0.015,
+            "Pharma": np.random.randn(n) * 0.018,
+            "Auto": np.random.randn(n) * 0.022,
+            "FMCG": np.random.randn(n) * 0.01,
+        },
+        index=dates,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -126,8 +136,12 @@ class TestRotationAnalyzer:
     def test_sector_phases(self, sector_returns: pd.DataFrame) -> None:
         result = RotationAnalyzer(lookback=14).analyze(sector_returns)
         for s in result.sectors:
-            assert s.phase in (RotationPhase.LEADING, RotationPhase.IMPROVING,
-                               RotationPhase.LAGGING, RotationPhase.WEAKENING)
+            assert s.phase in (
+                RotationPhase.LEADING,
+                RotationPhase.IMPROVING,
+                RotationPhase.LAGGING,
+                RotationPhase.WEAKENING,
+            )
 
     def test_rotation_regime(self, sector_returns: pd.DataFrame) -> None:
         result = RotationAnalyzer(lookback=14).analyze(sector_returns)
@@ -299,12 +313,14 @@ class TestSectorAnalyzer:
 class TestAnalyticsFacade:
     def test_analytics_has_sector_analyzer(self) -> None:
         from analytics import Analytics
+
         a = Analytics()
         analyzer = a.sectors()
         assert isinstance(analyzer, SectorAnalyzer)
 
     def test_analyze_returns_analysis_result(self, sample_ohlcv: pd.DataFrame) -> None:
         from analytics import Analytics
+
         a = Analytics()
         result = a.sectors(sample_ohlcv)
         assert result.name == "sector_analysis"

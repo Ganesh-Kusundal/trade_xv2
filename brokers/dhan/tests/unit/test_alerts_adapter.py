@@ -43,24 +43,30 @@ class TestAlertsAdapter:
 
     def test_place_alert_success(self, fake_client, resolver):
         """Should create alert and return Alert."""
-        fake_client.set_response("POST", "/alerts", {
-            "data": {
-                "alertId": "ALERT_001",
-                "symbol": "RELIANCE",
-                "exchange": "NSE",
-                "condition": "LTP_CROSSES_ABOVE",
-                "triggerPrice": 2500.0,
-                "status": "ACTIVE",
-            }
-        })
+        fake_client.set_response(
+            "POST",
+            "/alerts",
+            {
+                "data": {
+                    "alertId": "ALERT_001",
+                    "symbol": "RELIANCE",
+                    "exchange": "NSE",
+                    "condition": "LTP_CROSSES_ABOVE",
+                    "triggerPrice": 2500.0,
+                    "status": "ACTIVE",
+                }
+            },
+        )
 
         adapter = AlertsAdapter(fake_client, resolver)
-        result = adapter.place(AlertRequest(
-            symbol="RELIANCE",
-            exchange="NSE",
-            condition="LTP_CROSSES_ABOVE",
-            trigger_price=Decimal("2500.00"),
-        ))
+        result = adapter.place(
+            AlertRequest(
+                symbol="RELIANCE",
+                exchange="NSE",
+                condition="LTP_CROSSES_ABOVE",
+                trigger_price=Decimal("2500.00"),
+            )
+        )
 
         assert isinstance(result, Alert)
         assert result.alert_id == "ALERT_001"
@@ -72,36 +78,44 @@ class TestAlertsAdapter:
         adapter = AlertsAdapter(fake_client, resolver)
 
         with pytest.raises(ValueError, match="Trigger price must be positive"):
-            adapter.place(AlertRequest(
-                symbol="RELIANCE",
-                exchange="NSE",
-                condition="LTP_CROSSES_ABOVE",
-                trigger_price=Decimal("-100"),
-            ))
+            adapter.place(
+                AlertRequest(
+                    symbol="RELIANCE",
+                    exchange="NSE",
+                    condition="LTP_CROSSES_ABOVE",
+                    trigger_price=Decimal("-100"),
+                )
+            )
 
     def test_place_alert_validation_invalid_condition(self, fake_client, resolver):
         """Should reject invalid condition."""
         adapter = AlertsAdapter(fake_client, resolver)
 
         with pytest.raises(ValueError, match="Invalid condition"):
-            adapter.place(AlertRequest(
-                symbol="RELIANCE",
-                exchange="NSE",
-                condition="INVALID_CONDITION",
-                trigger_price=Decimal("2500.00"),
-            ))
+            adapter.place(
+                AlertRequest(
+                    symbol="RELIANCE",
+                    exchange="NSE",
+                    condition="INVALID_CONDITION",
+                    trigger_price=Decimal("2500.00"),
+                )
+            )
 
     def test_get_alert_success(self, fake_client, resolver):
         """Should retrieve alert by ID."""
-        fake_client.set_response("GET", "/alerts/ALERT_001", {
-            "data": {
-                "alertId": "ALERT_001",
-                "symbol": "RELIANCE",
-                "condition": "LTP_CROSSES_ABOVE",
-                "triggerPrice": 2500.0,
-                "status": "ACTIVE",
-            }
-        })
+        fake_client.set_response(
+            "GET",
+            "/alerts/ALERT_001",
+            {
+                "data": {
+                    "alertId": "ALERT_001",
+                    "symbol": "RELIANCE",
+                    "condition": "LTP_CROSSES_ABOVE",
+                    "triggerPrice": 2500.0,
+                    "status": "ACTIVE",
+                }
+            },
+        )
 
         adapter = AlertsAdapter(fake_client, resolver)
         alert = adapter.get("ALERT_001")
@@ -111,12 +125,26 @@ class TestAlertsAdapter:
 
     def test_list_alerts_success(self, fake_client, resolver):
         """Should list all alerts."""
-        fake_client.set_response("GET", "/alerts", {
-            "data": [
-                {"alertId": "ALERT_001", "symbol": "RELIANCE", "triggerPrice": 2500.0, "status": "ACTIVE"},
-                {"alertId": "ALERT_002", "symbol": "TCS", "triggerPrice": 3500.0, "status": "ACTIVE"},
-            ]
-        })
+        fake_client.set_response(
+            "GET",
+            "/alerts",
+            {
+                "data": [
+                    {
+                        "alertId": "ALERT_001",
+                        "symbol": "RELIANCE",
+                        "triggerPrice": 2500.0,
+                        "status": "ACTIVE",
+                    },
+                    {
+                        "alertId": "ALERT_002",
+                        "symbol": "TCS",
+                        "triggerPrice": 3500.0,
+                        "status": "ACTIVE",
+                    },
+                ]
+            },
+        )
 
         adapter = AlertsAdapter(fake_client, resolver)
         alerts = adapter.list_all()

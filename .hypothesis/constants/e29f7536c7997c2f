@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/application/oms/context.py
-# hypothesis_version: 6.155.7
-
-[5.0, 10.0, 30.0, 60.0, '1', 'PYTEST_CURRENT_TEST', 'TradingContext', '_logging_enabled', '_order_store', 'connections_closed', 'dead_letter', 'depth', 'detail', 'dlq-monitor', 'dropped', 'event_log_errors', 'event_log_flushed', 'failed_order_ids', 'flush', 'message', 'metrics', 'none', 'oms.dlq_monitor', 'oms.trading_context', 'oms_writer_lock_held', 'orders_cancelled', 'orders_failed', 'reconciliation_ready', 'service_name', 'shutdown_complete', 'size', 'success', 'total_drained', 'trades', 'unknown']

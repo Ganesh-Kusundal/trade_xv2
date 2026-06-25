@@ -34,12 +34,11 @@ from __future__ import annotations
 
 import os
 import threading
-import time
 from pathlib import Path
 
 import pytest
 
-from tests.market_hours import is_market_open, skip_off_market
+from tests.market_hours import is_market_open
 
 # ── Gate 1: credentials present ─────────────────────────────────────────────
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -83,16 +82,12 @@ requires_pre_prod = pytest.mark.skipif(
 
 def _skip_if_not_pre_prod():
     if not PRE_PROD:
-        pytest.skip(
-            "pre-prod parity test: set PRE_PROD_GATE=1 to run against live Dhan"
-        )
+        pytest.skip("pre-prod parity test: set PRE_PROD_GATE=1 to run against live Dhan")
 
 
 def _skip_if_off_market():
     if not is_market_open():
-        pytest.skip(
-            "pre-prod parity test: NSE market is closed (weekend or off-hours)"
-        )
+        pytest.skip("pre-prod parity test: NSE market is closed (weekend or off-hours)")
 
 
 def _credentials_or_skip():

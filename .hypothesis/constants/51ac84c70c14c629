@@ -1,4 +1,0 @@
-# file: /workspaces/trade_xv2/brokers/common/logging_config.py
-# hypothesis_version: 6.155.7
-
-['%Y-%m-%d %H:%M:%S', '()', '<REDACTED>', 'INFO', 'WARNING', 'XV2_LOG_LEVEL', 'aiohttp', 'class', 'console', 'datefmt', 'ext://sys.stderr', 'file', 'filename', 'filters', 'fmt', 'format', 'formatter', 'formatters', 'handlers', 'json', 'level', 'loggers', 'logging.FileHandler', 'logging_initialized', 'propagate', 'requests', 'root', 'standard', 'stream', 'token_redaction', 'urllib3', 'version', 'websockets']

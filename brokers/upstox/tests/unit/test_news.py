@@ -70,7 +70,9 @@ class TestUpstoxNewsClient:
         result = client.get_news()
         assert result == []
 
-    def test_get_news_non_list_non_dict(self, client: UpstoxNewsClient, mock_http: MagicMock) -> None:
+    def test_get_news_non_list_non_dict(
+        self, client: UpstoxNewsClient, mock_http: MagicMock
+    ) -> None:
         mock_http.get_json.return_value = "unexpected"
         result = client.get_news()
         assert result == []
@@ -80,7 +82,9 @@ class TestUpstoxNewsClient:
         client.get_news_for_instruments(["NSE_EQ|INE002A01018"])
         assert mock_http.get_json.called
 
-    def test_get_news_for_instruments_string_input(self, client: UpstoxNewsClient, mock_http: MagicMock) -> None:
+    def test_get_news_for_instruments_string_input(
+        self, client: UpstoxNewsClient, mock_http: MagicMock
+    ) -> None:
         mock_http.get_json.return_value = []
         client.get_news_for_instruments("NSE_EQ|INE002A01018")
         assert mock_http.get_json.called
@@ -156,7 +160,11 @@ class TestNewsCLI:
         broker = MagicMock()
         broker.news.get_news.return_value = [
             {"headline": "Test headline", "source": "TestSource", "timestamp": "2026-01-01 10:00"},
-            {"headline": "Another headline", "source": "TestSource", "timestamp": "2026-01-01 11:00"},
+            {
+                "headline": "Another headline",
+                "source": "TestSource",
+                "timestamp": "2026-01-01 11:00",
+            },
         ]
         broker_service = MagicMock()
         broker_service.active_broker = broker

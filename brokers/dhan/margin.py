@@ -9,7 +9,6 @@ from brokers.dhan.domain import MarginRequest, MarginResponse
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 from brokers.dhan.invariants import assert_dhan_payload
-from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
 
 logger = logging.getLogger(__name__)
 
@@ -36,10 +35,13 @@ class MarginAdapter:
         errors = self._validate_request(request)
         if errors:
             msg = "; ".join(errors)
-            logger.warning("margin_validation_failed", extra={
-                "symbol": request.symbol,
-                "errors": errors,
-            })
+            logger.warning(
+                "margin_validation_failed",
+                extra={
+                    "symbol": request.symbol,
+                    "errors": errors,
+                },
+            )
             raise ValueError(f"Margin request validation failed: {msg}")
 
         # Resolve instrument via the identity provider. The carrier
@@ -78,15 +80,22 @@ class MarginAdapter:
             total_margin=Decimal(str(response_data.get("totalMargin", 0))),
             order_margin=Decimal(str(response_data.get("orderMargin", 0))),
             exposure_margin=Decimal(str(response_data.get("exposureMargin", 0))),
-            available_margin=Decimal(str(response_data["availableMargin"])) if "availableMargin" in response_data else None,
-            span_margin=Decimal(str(response_data["spanMargin"])) if "spanMargin" in response_data else None,
+            available_margin=Decimal(str(response_data["availableMargin"]))
+            if "availableMargin" in response_data
+            else None,
+            span_margin=Decimal(str(response_data["spanMargin"]))
+            if "spanMargin" in response_data
+            else None,
         )
 
-        logger.info("margin_calculated", extra={
-            "symbol": request.symbol,
-            "quantity": request.quantity,
-            "total_margin": str(margin_response.total_margin),
-        })
+        logger.info(
+            "margin_calculated",
+            extra={
+                "symbol": request.symbol,
+                "quantity": request.quantity,
+                "total_margin": str(margin_response.total_margin),
+            },
+        )
 
         return margin_response
 
@@ -97,7 +106,9 @@ class MarginAdapter:
         if request.quantity <= 0:
             errors.append(f"Quantity must be positive, got {request.quantity}")
 
-        if request.order_type in ("LIMIT", "STOP_LOSS") and (request.price is None or request.price <= 0):
+        if request.order_type in ("LIMIT", "STOP_LOSS") and (
+            request.price is None or request.price <= 0
+        ):
             errors.append("LIMIT/STOP_LOSS orders require price > 0")
 
         return errors

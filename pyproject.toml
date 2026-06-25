@@ -89,11 +89,10 @@ python_functions = ["test_*"]
 
 # ─── coverage ─────────────────────────────────────────────
 [tool.coverage.run]
-source = ["brokers", "analytics", "cli", "datalake", "application", "domain", "infrastructure", "tests/chaos"]
+source = ["brokers", "analytics", "cli", "datalake", "application", "domain", "infrastructure"]
 omit = [
     "*/tests/*",
     "*/__init__.py",
-    "*/tests/run.py",
 ]
 
 [tool.coverage.report]
@@ -122,14 +121,13 @@ fail_under = 90  # 90% mutant kill rate required
 
 # ─── mypy ─────────────────────────────────────────────────
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.13"
 strict = false
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
 warn_unused_ignores = true
 warn_redundant_casts = true
 warn_return_any = true
-ignore_missing_imports = true
 exclude = [
     "tests/",
     "scripts/",
@@ -139,7 +137,7 @@ exclude = [
 ]
 
 [[tool.mypy.overrides]]
-module = ["dhanhq.*"]
+module = ["dhanhq.*", "textual.*", "rich.*", "upstox_client.*", "pandas.*", "numpy.*"]
 ignore_missing_imports = true
 
 # ─── ruff ─────────────────────────────────────────────────

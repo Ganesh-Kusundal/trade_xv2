@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from brokers.dhan.domain import UserProfile
 from brokers.dhan.exceptions import UserProfileError
@@ -35,11 +34,14 @@ class UserProfileAdapter:
         profile_data = data.get("data", data)
         profile = self._parse_profile(profile_data)
 
-        logger.info("user_profile_fetched", extra={
-            "token_valid": profile.token_valid,
-            "active_segments_count": len(profile.active_segments),
-            "ddpi_status": profile.ddpi_status,
-        })
+        logger.info(
+            "user_profile_fetched",
+            extra={
+                "token_valid": profile.token_valid,
+                "active_segments_count": len(profile.active_segments),
+                "ddpi_status": profile.ddpi_status,
+            },
+        )
         return profile
 
     def _parse_profile(self, data: dict) -> UserProfile:

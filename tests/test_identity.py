@@ -10,7 +10,6 @@ Verifies:
 from __future__ import annotations
 
 from dataclasses import FrozenInstanceError
-from decimal import Decimal
 from unittest.mock import Mock
 
 import pytest
@@ -18,10 +17,9 @@ import pytest
 # Import directly from submodules to avoid circular import through __init__.py
 from brokers.dhan.domain import Exchange, Instrument, InstrumentType
 from brokers.dhan.exceptions import DhanIdentityError, InstrumentNotFoundError
-from brokers.dhan.identity import DhanInstrumentRef, DhanIdentityProvider
+from brokers.dhan.identity import DhanIdentityProvider, DhanInstrumentRef
 from brokers.dhan.resolver import SymbolResolver
 from brokers.dhan.segments import EXCHANGE_TO_SEGMENT
-
 
 # ── DhanInstrumentRef Tests ────────────────────────────────────────────────
 

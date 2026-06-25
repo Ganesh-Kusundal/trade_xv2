@@ -23,8 +23,8 @@ def run(args: list[str], broker_service, console: Console) -> None:
         from brokers.common.intelligent_gateway import IntelligentGateway
         from cli.services.broker_registry import create_gateway
 
-        dhan = create_gateway("dhan", env_path=Path('.env.local'), load_instruments=True)
-        upstox = create_gateway("upstox", env_path=Path('.env.upstox'), load_instruments=True)
+        dhan = create_gateway("dhan", env_path=Path(".env.local"), load_instruments=True)
+        upstox = create_gateway("upstox", env_path=Path(".env.upstox"), load_instruments=True)
         if dhan and upstox:
             gw = IntelligentGateway(dhan_gateway=dhan, upstox_gateway=upstox)
         elif dhan:
@@ -41,7 +41,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
     # Dhan resolution
     console.print("[cyan]--- Dhan ---[/cyan]")
     try:
-        inst = gw.dhan.instruments.resolve(symbol, 'NSE')
+        inst = gw.dhan.instruments.resolve(symbol, "NSE")
         table = Table(show_header=False, show_edge=False)
         table.add_column("Field", style="cyan", width=20)
         table.add_column("Value", width=40)
@@ -60,7 +60,8 @@ def run(args: list[str], broker_service, console: Console) -> None:
     console.print("\n[cyan]--- Upstox ---[/cyan]")
     try:
         from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
-        segment = UpstoxDomainMapper.segment_to_wire('NSE')
+
+        segment = UpstoxDomainMapper.segment_to_wire("NSE")
         defn = gw.upstox.instruments.resolve(symbol=symbol, exchange_segment=segment)
         if defn:
             table = Table(show_header=False, show_edge=False)

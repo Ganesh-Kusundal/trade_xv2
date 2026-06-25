@@ -32,12 +32,12 @@ The filter is NOT a substitute for code review. Loggers are an
 untrusted sink: prefer explicit ``extra={"client_id": ...}`` (no
 secrets) over format strings.
 """
+
 from __future__ import annotations
 
 import logging
 import os
 import re
-import sys
 from logging.config import dictConfig
 from pathlib import Path
 from typing import Any
@@ -66,19 +66,21 @@ _TOKEN_PATTERNS: tuple[re.Pattern[str], ...] = (
 )
 
 
-_SENSITIVE_EXTRA_KEYS: frozenset[str] = frozenset({
-    "token",
-    "access_token",
-    "refresh_token",
-    "api_key",
-    "api_secret",
-    "password",
-    "pin",
-    "totp",
-    "totp_secret",
-    "authorization",
-    "bearer_token",
-})
+_SENSITIVE_EXTRA_KEYS: frozenset[str] = frozenset(
+    {
+        "token",
+        "access_token",
+        "refresh_token",
+        "api_key",
+        "api_secret",
+        "password",
+        "pin",
+        "totp",
+        "totp_secret",
+        "authorization",
+        "bearer_token",
+    }
+)
 
 
 class TokenRedactionFilter(logging.Filter):
@@ -99,7 +101,7 @@ class TokenRedactionFilter(logging.Filter):
 
     REDACTED = "<REDACTED>"
 
-    def filter(self, record: logging.LogRecord) -> bool:  # noqa: A003
+    def filter(self, record: logging.LogRecord) -> bool:
         try:
             msg = record.getMessage()
         except Exception:
@@ -172,9 +174,7 @@ def setup_logging(
     level = log_level or os.environ.get("XV2_LOG_LEVEL", "INFO").upper()
 
     redaction_filter: dict[str, Any] | None = (
-        {"()": "brokers.common.logging_config.TokenRedactionFilter"}
-        if enable_redaction
-        else None
+        {"()": "brokers.common.logging_config.TokenRedactionFilter"} if enable_redaction else None
     )
 
     console_handler: dict[str, Any] = {

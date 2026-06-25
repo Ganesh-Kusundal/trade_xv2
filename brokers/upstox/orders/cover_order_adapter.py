@@ -11,10 +11,10 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from brokers.common.gateway_interfaces import CoverOrderProvider
 from brokers.common.dtos import BrokerOrderPayload
-from domain import Order
+from brokers.common.gateway_interfaces import CoverOrderProvider
 from brokers.upstox.orders.order_client import UpstoxRestOrderClient
+from domain import Order
 
 
 class UpstoxCoverOrderAdapter(CoverOrderProvider):

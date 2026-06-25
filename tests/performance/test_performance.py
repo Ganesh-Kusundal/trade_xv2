@@ -5,14 +5,13 @@ from decimal import Decimal
 
 import pytest
 
-from domain import Order, OrderStatus, OrderType, Position, Side
-from domain import DepthLevel, MarketDepth, Quote
 from brokers.dhan.domain import (
     Exchange,
     Instrument,
     InstrumentType,
 )
 from brokers.dhan.resolver import SymbolResolver
+from domain import DepthLevel, MarketDepth, Order, OrderStatus, OrderType, Position, Quote, Side
 
 
 @pytest.mark.performance
@@ -78,8 +77,12 @@ class TestDomainModelCreationLatency:
         assert per_op_us < 200, f"Instrument() too slow: {per_op_us:.1f}μs/op"
 
     def test_market_depth_creation_latency(self):
-        bids = tuple(DepthLevel(price=Decimal(str(100 - i)), quantity=100, orders=5) for i in range(5))
-        asks = tuple(DepthLevel(price=Decimal(str(101 + i)), quantity=100, orders=5) for i in range(5))
+        bids = tuple(
+            DepthLevel(price=Decimal(str(100 - i)), quantity=100, orders=5) for i in range(5)
+        )
+        asks = tuple(
+            DepthLevel(price=Decimal(str(101 + i)), quantity=100, orders=5) for i in range(5)
+        )
         iterations = 10_000
         start = time.perf_counter()
         for _ in range(iterations):
@@ -96,14 +99,16 @@ class TestSymbolResolverThroughput:
     def _make_resolver(self, n: int = 1000) -> SymbolResolver:
         rows = []
         for i in range(n):
-            rows.append({
-                "SEM_TRADING_SYMBOL": f"SYM{i}",
-                "SEM_SMST_SECURITY_ID": str(1000 + i),
-                "SEM_EXM_EXCH_ID": "NSE_EQ",
-                "SEM_INSTRUMENT_NAME": "EQUITY",
-                "SEM_LOT_UNITS": 1,
-                "SEM_TICK_SIZE": 0.05,
-            })
+            rows.append(
+                {
+                    "SEM_TRADING_SYMBOL": f"SYM{i}",
+                    "SEM_SMST_SECURITY_ID": str(1000 + i),
+                    "SEM_EXM_EXCH_ID": "NSE_EQ",
+                    "SEM_INSTRUMENT_NAME": "EQUITY",
+                    "SEM_LOT_UNITS": 1,
+                    "SEM_TICK_SIZE": 0.05,
+                }
+            )
         r = SymbolResolver()
         r.load_from_rows(rows)
         return r
@@ -124,14 +129,16 @@ class TestSymbolResolverThroughput:
         """Verify loading 175k instruments completes in < 5 seconds."""
         rows = []
         for i in range(1, 175_001):
-            rows.append({
-                "SEM_TRADING_SYMBOL": f"INST{i}",
-                "SEM_SMST_SECURITY_ID": str(i),
-                "SEM_EXM_EXCH_ID": "NSE_EQ",
-                "SEM_INSTRUMENT_NAME": "EQUITY",
-                "SEM_LOT_UNITS": 1,
-                "SEM_TICK_SIZE": 0.05,
-            })
+            rows.append(
+                {
+                    "SEM_TRADING_SYMBOL": f"INST{i}",
+                    "SEM_SMST_SECURITY_ID": str(i),
+                    "SEM_EXM_EXCH_ID": "NSE_EQ",
+                    "SEM_INSTRUMENT_NAME": "EQUITY",
+                    "SEM_LOT_UNITS": 1,
+                    "SEM_TICK_SIZE": 0.05,
+                }
+            )
         r = SymbolResolver()
         start = time.perf_counter()
         r.load_from_rows(rows)

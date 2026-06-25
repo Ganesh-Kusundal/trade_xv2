@@ -15,7 +15,6 @@ Covers:
 
 from __future__ import annotations
 
-import json
 import threading
 import time
 from datetime import datetime, timezone
@@ -25,12 +24,12 @@ from unittest.mock import patch
 import pytest
 
 from infrastructure.event_bus.event_bus import DomainEvent
-from infrastructure.event_log import BufferedEventLog, EventLog
-
+from infrastructure.event_log import BufferedEventLog
 
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def tmp_events_dir(tmp_path: Path) -> Path:
@@ -62,9 +61,11 @@ def buffered_log(tmp_events_dir: Path) -> BufferedEventLog:
 # Basic append tests
 # ---------------------------------------------------------------------------
 
-class TestBufferedAppend:
 
-    def test_append_adds_to_buffer(self, buffered_log: BufferedEventLog, sample_event: DomainEvent) -> None:
+class TestBufferedAppend:
+    def test_append_adds_to_buffer(
+        self, buffered_log: BufferedEventLog, sample_event: DomainEvent
+    ) -> None:
         """Events should be buffered, not immediately written."""
         buffered_log.append(sample_event)
         stats = buffered_log.get_stats()
@@ -99,8 +100,8 @@ class TestBufferedAppend:
 # Flush tests
 # ---------------------------------------------------------------------------
 
-class TestFlush:
 
+class TestFlush:
     def test_explicit_flush_writes_buffer(
         self, tmp_events_dir: Path, sample_event: DomainEvent
     ) -> None:
@@ -142,8 +143,8 @@ class TestFlush:
 # Time-based auto-flush tests
 # ---------------------------------------------------------------------------
 
-class TestTimeIntervalFlush:
 
+class TestTimeIntervalFlush:
     def test_append_triggers_time_based_flush(
         self, tmp_events_dir: Path, sample_event: DomainEvent
     ) -> None:
@@ -175,8 +176,8 @@ class TestTimeIntervalFlush:
 # Close tests
 # ---------------------------------------------------------------------------
 
-class TestClose:
 
+class TestClose:
     def test_close_flushes_remaining_buffer(
         self, tmp_events_dir: Path, sample_event: DomainEvent
     ) -> None:
@@ -211,8 +212,8 @@ class TestClose:
 # Disk persistence tests
 # ---------------------------------------------------------------------------
 
-class TestDiskPersistence:
 
+class TestDiskPersistence:
     def test_flushed_events_are_readable(
         self, tmp_events_dir: Path, sample_event: DomainEvent
     ) -> None:
@@ -232,9 +233,7 @@ class TestDiskPersistence:
         assert replayed[0].event_type == "ORDER_PLACED"
         assert replayed[0].payload["order_id"] == "O1"
 
-    def test_multiple_events_round_trip(
-        self, tmp_events_dir: Path
-    ) -> None:
+    def test_multiple_events_round_trip(self, tmp_events_dir: Path) -> None:
         """Multiple events should round-trip correctly."""
         log = BufferedEventLog(
             events_dir=tmp_events_dir,
@@ -262,8 +261,8 @@ class TestDiskPersistence:
 # get_stats tests
 # ---------------------------------------------------------------------------
 
-class TestGetStats:
 
+class TestGetStats:
     def test_initial_stats(self, buffered_log: BufferedEventLog) -> None:
         stats = buffered_log.get_stats()
         assert stats["buffer_size"] == 0
@@ -271,12 +270,16 @@ class TestGetStats:
         assert stats["flush_threshold"] == 5
         assert stats["flush_interval"] == 10.0
 
-    def test_stats_after_appends(self, buffered_log: BufferedEventLog, sample_event: DomainEvent) -> None:
+    def test_stats_after_appends(
+        self, buffered_log: BufferedEventLog, sample_event: DomainEvent
+    ) -> None:
         buffered_log.append(sample_event)
         stats = buffered_log.get_stats()
         assert stats["buffer_size"] == 1
 
-    def test_stats_after_flush(self, buffered_log: BufferedEventLog, sample_event: DomainEvent) -> None:
+    def test_stats_after_flush(
+        self, buffered_log: BufferedEventLog, sample_event: DomainEvent
+    ) -> None:
         buffered_log.append(sample_event)
         buffered_log.flush()
         stats = buffered_log.get_stats()
@@ -288,11 +291,9 @@ class TestGetStats:
 # Thread safety tests
 # ---------------------------------------------------------------------------
 
-class TestThreadSafety:
 
-    def test_concurrent_appends(
-        self, tmp_events_dir: Path
-    ) -> None:
+class TestThreadSafety:
+    def test_concurrent_appends(self, tmp_events_dir: Path) -> None:
         """Multiple threads appending should not corrupt the buffer."""
         log = BufferedEventLog(
             events_dir=tmp_events_dir,
@@ -314,10 +315,7 @@ class TestThreadSafety:
             except Exception as e:
                 errors.append(e)
 
-        threads = [
-            threading.Thread(target=append_events, args=(i, 10))
-            for i in range(5)
-        ]
+        threads = [threading.Thread(target=append_events, args=(i, 10)) for i in range(5)]
         for t in threads:
             t.start()
         for t in threads:
@@ -335,10 +333,12 @@ class TestThreadSafety:
 # Error handling tests
 # ---------------------------------------------------------------------------
 
-class TestErrorHandling:
 
+class TestErrorHandling:
     def test_failed_flush_preserves_buffer(
-        self, tmp_events_dir: Path, sample_event: DomainEvent,
+        self,
+        tmp_events_dir: Path,
+        sample_event: DomainEvent,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         """If flush fails, buffer should not be cleared (retry next time)."""
@@ -357,7 +357,9 @@ class TestErrorHandling:
         assert log.get_stats()["buffer_size"] == 1
 
     def test_failed_flush_logs_error(
-        self, tmp_events_dir: Path, sample_event: DomainEvent,
+        self,
+        tmp_events_dir: Path,
+        sample_event: DomainEvent,
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Failed flush should log an error."""
@@ -370,6 +372,7 @@ class TestErrorHandling:
 
         with patch.object(log, "_ensure_handle", side_effect=OSError("disk full")):
             import logging
+
             with caplog.at_level(logging.ERROR):
                 log.flush()
 
@@ -380,11 +383,9 @@ class TestErrorHandling:
 # Inherited EventLog behavior tests
 # ---------------------------------------------------------------------------
 
-class TestInheritedBehavior:
 
-    def test_replay_filters_by_event_type(
-        self, tmp_events_dir: Path
-    ) -> None:
+class TestInheritedBehavior:
+    def test_replay_filters_by_event_type(self, tmp_events_dir: Path) -> None:
         """BufferedEventLog should support event_types filter from parent."""
         log = BufferedEventLog(
             events_dir=tmp_events_dir,
@@ -405,9 +406,7 @@ class TestInheritedBehavior:
         assert len(replayed) == 2
         assert all(e.event_type == "TRADE" for e in replayed)
 
-    def test_replay_filters_by_since(
-        self, tmp_events_dir: Path
-    ) -> None:
+    def test_replay_filters_by_since(self, tmp_events_dir: Path) -> None:
         """BufferedEventLog should support since filter from parent."""
         log = BufferedEventLog(
             events_dir=tmp_events_dir,

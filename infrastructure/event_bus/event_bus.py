@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import logging
 import threading
-import time
 import traceback
 import uuid
 from collections.abc import Callable
@@ -30,12 +29,11 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
-from domain.events.types import EventType
 from infrastructure.correlation import get_current_correlation_id
 
 if TYPE_CHECKING:
-    from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
     from domain.ports.observability import AlertingEnginePort, EventMetricsPort
+    from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +41,7 @@ logger = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class DomainEvent:
     """An immutable domain event published on the bus.
-    
+
     P4-Phase 4: Added sequence_number for deterministic replay ordering.
     When two events share the same timestamp, sequence_number provides
     a total order guarantee for replay determinism.
@@ -263,10 +261,9 @@ class EventBus:
                             len(alerts),
                         )
             except Exception as exc:
-                logger.error(
+                logger.exception(
                     "EventBus alerting evaluation failed: %s",
                     exc,
-                    exc_info=True,
                 )
             # Sleep in small increments to allow fast shutdown.
             self._alerting_stop.wait(self._alerting_interval)
@@ -385,11 +382,10 @@ class EventBus:
                     self._metrics.add_timestamped_counter(
                         event.event_type, f"log_error:{type(exc).__name__}"
                     )
-                logger.error(
+                logger.exception(
                     "EventBus: failed to persist %s to log: %s",
                     event.event_type,
                     exc,
-                    exc_info=True,
                 )
                 if self._dead_letter_queue is not None:
                     self._dead_letter_queue.push_failure(
@@ -431,9 +427,7 @@ class EventBus:
         error_type = type(exc).__name__
 
         if self._metrics is not None:
-            self._metrics.add_timestamped_counter(
-                event.event_type, f"handler_error:{error_type}"
-            )
+            self._metrics.add_timestamped_counter(event.event_type, f"handler_error:{error_type}")
             self._metrics.add_timestamped_counter(event.event_type, "dead_letter")
 
         logger.warning(

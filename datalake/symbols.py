@@ -47,6 +47,11 @@ def path_to_symbol(path: str | Path) -> str:
     return normalize_symbol(p.name)
 
 
+def normalize_universe_name(name: str) -> str:
+    """Normalize universe name, handling NIFTY50 vs nifty_50 variations."""
+    return name.upper().replace("_", "").replace("-", "").replace(" ", "")
+
+
 def are_same_symbol(a: str, b: str) -> bool:
     """Check if two symbol strings refer to the same instrument."""
     return normalize_symbol(a) == normalize_symbol(b)

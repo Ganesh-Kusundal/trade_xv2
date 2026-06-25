@@ -15,7 +15,7 @@ import threading
 from dataclasses import dataclass
 
 
-class SubscriptionLimitExceeded(RuntimeError):
+class SubscriptionLimitExceededError(RuntimeError):
     pass
 
 
@@ -130,7 +130,7 @@ class UpstoxV3SubscriptionManager:
             "full_d30": limits.d30_individual,
         }
         if sizes[mode] > individual_caps[mode]:
-            raise SubscriptionLimitExceeded(
+            raise SubscriptionLimitExceededError(
                 f"Upstox V3 {mode} individual subscription limit exceeded: "
                 f"{sizes[mode]} > {individual_caps[mode]}"
             )
@@ -143,7 +143,7 @@ class UpstoxV3SubscriptionManager:
                 "full_d30": limits.d30_combined,
             }
             if sizes[mode] > combined_caps[mode]:
-                raise SubscriptionLimitExceeded(
+                raise SubscriptionLimitExceededError(
                     f"Upstox V3 {mode} combined subscription limit exceeded: "
                     f"{sizes[mode]} > {combined_caps[mode]}"
                 )

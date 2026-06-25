@@ -36,18 +36,19 @@ def _load_golden(name: str) -> bytes:
 # Helpers
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 def _make_depth_packet(response_code, security_id, levels, total_slots=20):
     """Build a minimal Dhan depth-20 binary packet for testing."""
-    HEADER_SIZE = 12
-    LEVEL_SIZE = 16
-    body_size = total_slots * LEVEL_SIZE
-    packet = bytearray(HEADER_SIZE + body_size)
-    struct.pack_into("<H", packet, 0, HEADER_SIZE + body_size)
+    header_size = 12
+    level_size = 16
+    body_size = total_slots * level_size
+    packet = bytearray(header_size + body_size)
+    struct.pack_into("<H", packet, 0, header_size + body_size)
     packet[2] = response_code
     packet[3] = 1
     struct.pack_into("<I", packet, 4, security_id)
     for i, (price, qty, orders) in enumerate(levels[:total_slots]):
-        offset = HEADER_SIZE + i * LEVEL_SIZE
+        offset = header_size + i * level_size
         struct.pack_into("<d", packet, offset, price)
         struct.pack_into("<I", packet, offset + 8, qty)
         struct.pack_into("<I", packet, offset + 12, orders)
@@ -56,14 +57,14 @@ def _make_depth_packet(response_code, security_id, levels, total_slots=20):
 
 def _make_200_packet(response_code, num_rows, levels):
     """Build a minimal Dhan depth-200 binary packet for testing."""
-    HEADER_SIZE = 12
-    LEVEL_SIZE = 16
-    body = num_rows * LEVEL_SIZE
-    packet = bytearray(HEADER_SIZE + body)
+    header_size = 12
+    level_size = 16
+    body = num_rows * level_size
+    packet = bytearray(header_size + body)
     packet[2] = response_code
     struct.pack_into("<I", packet, 8, num_rows)
     for i, (price, qty, orders) in enumerate(levels[:num_rows]):
-        offset = HEADER_SIZE + i * LEVEL_SIZE
+        offset = header_size + i * level_size
         struct.pack_into("<d", packet, offset, price)
         struct.pack_into("<I", packet, offset + 8, qty)
         struct.pack_into("<I", packet, offset + 12, orders)
@@ -72,11 +73,13 @@ def _make_200_packet(response_code, num_rows, levels):
 
 def _make_feed20(instruments=None):
     from brokers.dhan.depth_20 import DhanDepth20Feed
+
     return DhanDepth20Feed("test_client", "test_token", instruments=instruments or [])
 
 
 def _make_feed200(instrument=None):
     from brokers.dhan.depth_200 import DhanDepth200Feed
+
     return DhanDepth200Feed("test_client", "test_token", instrument=instrument)
 
 
@@ -84,8 +87,8 @@ def _make_feed200(instrument=None):
 # DhanDepth20Feed
 # ──────────────────────────────────────────────────────────────────────────────
 
-class TestDhanDepth20Feed:
 
+class TestDhanDepth20Feed:
     def test_init_empty(self):
         feed = _make_feed20()
         assert feed._subscriptions == []
@@ -97,6 +100,7 @@ class TestDhanDepth20Feed:
 
     def test_max_instruments_exceeded(self):
         from brokers.dhan.depth_20 import DhanDepth20Feed
+
         instruments = [("NSE_EQ", str(i)) for i in range(51)]
         with pytest.raises(ValueError, match="Maximum 50"):
             DhanDepth20Feed("c", "t", instruments=instruments)
@@ -223,10 +227,12 @@ class TestDhanDepth20Feed:
 
     def test_health_stopped(self):
         from infrastructure.lifecycle.lifecycle import HealthState
+
         assert _make_feed20().health().state == HealthState.STOPPED
 
     def test_health_degraded(self):
         from infrastructure.lifecycle.lifecycle import HealthState
+
         feed = _make_feed20()
         feed._thread = mock.MagicMock()
         feed._thread.is_alive.return_value = True
@@ -246,8 +252,8 @@ class TestDhanDepth20Feed:
 # DhanDepth200Feed
 # ──────────────────────────────────────────────────────────────────────────────
 
-class TestDhanDepth200Feed:
 
+class TestDhanDepth200Feed:
     def test_init_no_instrument(self):
         feed = _make_feed200()
         assert feed._subscriptions == []
@@ -336,20 +342,25 @@ class TestDhanDepth200Feed:
 # gateway.depth_20 / gateway.depth_200
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 def _make_offline_gateway():
     from brokers.dhan.gateway import BrokerGateway
     from brokers.dhan.resolver import SymbolResolver
 
     resolver = SymbolResolver()
-    resolver.load_from_rows([{
-        "SEM_TRADING_SYMBOL": "RELIANCE",
-        "SEM_CUSTOM_SYMBOL": "RELIANCE",
-        "SEM_SMST_SECURITY_ID": "500325",
-        "SEM_EXM_EXCH_ID": "NSE_EQ",
-        "SEM_INSTRUMENT_NAME": "EQUITY",
-        "SEM_LOT_UNITS": 1,
-        "SEM_TICK_SIZE": 0.05,
-    }])
+    resolver.load_from_rows(
+        [
+            {
+                "SEM_TRADING_SYMBOL": "RELIANCE",
+                "SEM_CUSTOM_SYMBOL": "RELIANCE",
+                "SEM_SMST_SECURITY_ID": "500325",
+                "SEM_EXM_EXCH_ID": "NSE_EQ",
+                "SEM_INSTRUMENT_NAME": "EQUITY",
+                "SEM_LOT_UNITS": 1,
+                "SEM_TICK_SIZE": 0.05,
+            }
+        ]
+    )
 
     conn = mock.MagicMock()
     conn.instruments = resolver
@@ -369,9 +380,9 @@ def _make_offline_gateway():
 
 
 class TestGatewayDepth20:
-
     def _mock_feed20(self):
         from brokers.dhan.depth_20 import DhanDepth20Feed
+
         f = mock.MagicMock(spec=DhanDepth20Feed)
         f._subscriptions = []
         f.is_running = False
@@ -438,9 +449,9 @@ class TestGatewayDepth20:
 
 
 class TestGatewayDepth200:
-
     def _mock_feed200(self):
         from brokers.dhan.depth_200 import DhanDepth200Feed
+
         f = mock.MagicMock(spec=DhanDepth200Feed)
         f._subscriptions = []
         f.is_running = False
@@ -495,6 +506,7 @@ class TestGatewayDepth200:
 # parsers. They guard against the §5.1 silent correctness drift: a regression
 # that flips an offset in the header parse would parse the real-world bytes
 # into nonsense values, and these tests would catch it.
+
 
 class TestGoldenDepthPackets:
     """End-to-end parsing of the on-disk golden packets via the production
@@ -627,8 +639,7 @@ class TestGoldenDepthPackets:
         correct_num_rows = struct.unpack_from("<I", data, 8)[0]
 
         assert bogus_num_rows == 0, (
-            "depth-200 offset 4 must be reserved (zero); "
-            "if it is not, header layout has changed"
+            "depth-200 offset 4 must be reserved (zero); if it is not, header layout has changed"
         )
         assert correct_num_rows == 25
 

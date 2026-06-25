@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/datalake/gateway.py
-# hypothesis_version: 6.155.7
-
-[365, '0', '1D', '1m', 'DataLakeGateway', 'NFO', 'NSE', 'close', 'data.parquet', 'exchange', 'high', 'low', 'market_data', 'name', 'open', 'parquet', 'root', 'streaming', 'symbol', 'symbols', 'timeframe', 'timeframe=1m', 'timeframes', 'timestamp', 'type', 'volume']

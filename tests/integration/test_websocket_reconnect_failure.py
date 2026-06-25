@@ -153,7 +153,8 @@ class TestDepthFeedNetworkReconnect:
             feed.stop()
 
     def test_websocket_auth_coordinator_notifies_connection_depth_feeds(
-        self, flaky_ws_server,
+        self,
+        flaky_ws_server,
     ):
         from brokers.common.connection.websocket_auth_coordinator import (
             WebSocketAuthCoordinator,

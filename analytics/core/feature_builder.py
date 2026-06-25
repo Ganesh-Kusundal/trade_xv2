@@ -8,7 +8,7 @@ import pandas as pd
 
 from analytics.core.models import FeatureSet, normalize_ohlcv
 from analytics.indicators.market_structure import MarketStructureAnalyzer
-from analytics.pipeline.features import ATR, RSI, ROC, Momentum
+from analytics.pipeline.features import ATR, ROC, RSI, Momentum
 from analytics.pipeline.pipeline import FeaturePipeline
 
 logger = logging.getLogger(__name__)
@@ -76,8 +76,12 @@ class FeatureBuilder:
             features["volume_zscore"] >= 2.0
         )
         features["volume_dry_up"] = features["relative_volume"] <= 0.5
-        signed_volume = volume * features["returns"].apply(lambda value: 1 if value > 0 else -1 if value < 0 else 0)
-        features["volume_accumulation"] = signed_volume.rolling(self._volume_bars, min_periods=1).sum()
+        signed_volume = volume * features["returns"].apply(
+            lambda value: 1 if value > 0 else -1 if value < 0 else 0
+        )
+        features["volume_accumulation"] = signed_volume.rolling(
+            self._volume_bars, min_periods=1
+        ).sum()
         features["rolling_high_20"] = features["high"].rolling(20, min_periods=5).max()
         features["rolling_low_20"] = features["low"].rolling(20, min_periods=5).min()
 
@@ -106,7 +110,9 @@ class FeatureBuilder:
             "last_rsi": float(last["rsi"]) if pd.notna(last["rsi"]) else 0.0,
             "last_atr": float(last["atr"]) if pd.notna(last["atr"]) else 0.0,
             "last_roc": float(last["roc"]) if pd.notna(last["roc"]) else 0.0,
-            "last_acceleration": float(last["acceleration"]) if pd.notna(last["acceleration"]) else 0.0,
+            "last_acceleration": float(last["acceleration"])
+            if pd.notna(last["acceleration"])
+            else 0.0,
             "trend_score": self._trend_score(features),
         }
 

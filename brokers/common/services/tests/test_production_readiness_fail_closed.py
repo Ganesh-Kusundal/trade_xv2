@@ -12,9 +12,9 @@ and *passed*, allowing live trading to start with a phantom
 * The exception carries the full :class:`ReadinessReport` so
   operators can inspect every check.
 """
+
 from __future__ import annotations
 
-import os
 from unittest.mock import MagicMock
 
 import pytest
@@ -46,9 +46,7 @@ def bare_service() -> MagicMock:
     return svc
 
 
-def test_run_or_raise_accepts_custom_error_factory(
-    monkeypatch, bare_service
-) -> None:
+def test_run_or_raise_accepts_custom_error_factory(monkeypatch, bare_service) -> None:
     """``run_or_raise`` uses the caller-supplied factory for the exception
     type. This is the only way to assert on the *behavior* of the gate
     without coupling to ``ProductionReadinessError`` itself.
@@ -86,9 +84,7 @@ def test_run_or_raise_raises_on_failure(monkeypatch, bare_service) -> None:
     assert not exc_info.value.report.passed
 
 
-def test_capital_fn_check_fails_when_risk_fail_open_set(
-    monkeypatch, bare_service
-) -> None:
+def test_capital_fn_check_fails_when_risk_fail_open_set(monkeypatch, bare_service) -> None:
     """RISK_FAIL_OPEN=1 must FAIL the capital check (REF-17)."""
     monkeypatch.setenv("RISK_FAIL_OPEN", "1")
     monkeypatch.setenv("DHAN_CLIENT_ID", "TEST")
@@ -117,9 +113,7 @@ def test_capital_fn_check_passes_when_zero(monkeypatch, bare_service) -> None:
     assert passed is True, message
 
 
-def test_capital_fn_check_treats_whitespace_strictly(
-    monkeypatch, bare_service
-) -> None:
+def test_capital_fn_check_treats_whitespace_strictly(monkeypatch, bare_service) -> None:
     """Whitespace-only RISK_FAIL_OPEN must NOT be treated as 1."""
     monkeypatch.setenv("RISK_FAIL_OPEN", "  ")
     checker = ProductionReadinessChecker(bare_service)

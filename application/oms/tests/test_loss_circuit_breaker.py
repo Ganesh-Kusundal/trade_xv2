@@ -19,17 +19,16 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from domain import Order, OrderStatus, OrderType, ProductType, Side
-from application.oms._internal.loss_circuit_breaker import (
-    LossCircuitBreaker,
-    LossCircuitBreakerConfig,
-    LossCircuitState,
-)
 from application.oms import (
     PositionManager,
     RiskConfig,
     RiskManager,
 )
+from application.oms._internal.loss_circuit_breaker import (
+    LossCircuitBreaker,
+    LossCircuitBreakerConfig,
+)
+from domain import Order, OrderStatus, OrderType, ProductType, Side
 
 # -- Helpers --
 
@@ -64,7 +63,7 @@ def default_cb_config() -> LossCircuitBreakerConfig:
     return LossCircuitBreakerConfig(
         loss_threshold_pct=Decimal("2.0"),
         cooldown_seconds=5,  # Short for test speed
-        window_seconds=10,   # Short for test speed
+        window_seconds=10,  # Short for test speed
     )
 
 
@@ -116,7 +115,9 @@ class TestStateTransitions:
         assert reason is not None
         assert "OPEN" in reason
 
-    def test_reset_open_moves_to_cooldown(self, default_cb_config: LossCircuitBreakerConfig) -> None:
+    def test_reset_open_moves_to_cooldown(
+        self, default_cb_config: LossCircuitBreakerConfig
+    ) -> None:
         """reset() on OPEN transitions to COOLDOWN, not directly to CLOSED."""
         cb = LossCircuitBreaker(config=default_cb_config)
         capital = Decimal("1000000")
@@ -195,11 +196,13 @@ class TestRollingWindow:
 
     def test_old_samples_are_purged(self) -> None:
         """Samples older than window_seconds are removed."""
-        cb = LossCircuitBreaker(config=LossCircuitBreakerConfig(
-            loss_threshold_pct=Decimal("2.0"),
-            cooldown_seconds=1,  # Short cooldown for test
-            window_seconds=1,  # 1 second window
-        ))
+        cb = LossCircuitBreaker(
+            config=LossCircuitBreakerConfig(
+                loss_threshold_pct=Decimal("2.0"),
+                cooldown_seconds=1,  # Short cooldown for test
+                window_seconds=1,  # 1 second window
+            )
+        )
         capital = Decimal("1000000")
         cb.record_loss(Decimal("-50000"), capital)  # 5% loss
 
@@ -213,20 +216,22 @@ class TestRollingWindow:
         # Record a small new loss; old 5% should be purged
         # This triggers OPEN -> COOLDOWN transition
         cb.record_loss(Decimal("-100"), capital)
-        
+
         # Wait for cooldown to expire
         time.sleep(cb.config.cooldown_seconds + 0.5)
-        
+
         allowed, reason = cb.allow_trading()
         assert allowed is True
 
     def test_rolling_window_prevents_trip_when_old_losses_expire(self) -> None:
         """When old losses expire, cumulative loss drops below threshold."""
-        cb = LossCircuitBreaker(config=LossCircuitBreakerConfig(
-            loss_threshold_pct=Decimal("2.0"),
-            cooldown_seconds=1,  # Short cooldown for test
-            window_seconds=2,
-        ))
+        cb = LossCircuitBreaker(
+            config=LossCircuitBreakerConfig(
+                loss_threshold_pct=Decimal("2.0"),
+                cooldown_seconds=1,  # Short cooldown for test
+                window_seconds=2,
+            )
+        )
         capital = Decimal("1000000")
         # 3% loss (would trip)
         cb.record_loss(Decimal("-30000"), capital)
@@ -238,20 +243,22 @@ class TestRollingWindow:
         # Old loss purged; new small loss doesn't trip
         # This triggers OPEN -> COOLDOWN transition
         cb.record_loss(Decimal("-500"), capital)
-        
+
         # Wait for cooldown to expire
         time.sleep(cb.config.cooldown_seconds + 0.5)
-        
+
         allowed, _ = cb.allow_trading()
         assert allowed is True
 
     def test_cumulative_loss_across_window_boundary(self) -> None:
         """Losses within the window accumulate correctly."""
-        cb = LossCircuitBreaker(config=LossCircuitBreakerConfig(
-            loss_threshold_pct=Decimal("2.0"),
-            cooldown_seconds=5,
-            window_seconds=10,
-        ))
+        cb = LossCircuitBreaker(
+            config=LossCircuitBreakerConfig(
+                loss_threshold_pct=Decimal("2.0"),
+                cooldown_seconds=5,
+                window_seconds=10,
+            )
+        )
         capital = Decimal("1000000")
         # Two losses of 1.2% each = 2.4% total
         cb.record_loss(Decimal("-12000"), capital)

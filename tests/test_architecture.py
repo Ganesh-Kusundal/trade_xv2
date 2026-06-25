@@ -14,16 +14,13 @@ ROOT = Path(__file__).parent.parent
 
 def _get_python_files(directory: str) -> list[Path]:
     """Get all Python files in a directory, excluding test files.
-    
+
     Test files often import from multiple modules for integration testing
     and should not be subject to import direction rules.
     """
     all_files = list((ROOT / directory).rglob("*.py"))
     # Exclude test files and test directories
-    return [
-        f for f in all_files
-        if "/tests/" not in str(f) and "/test_" not in str(f)
-    ]
+    return [f for f in all_files if "/tests/" not in str(f) and "/test_" not in str(f)]
 
 
 def _get_imports(file_path: Path) -> list[str]:
@@ -38,9 +35,8 @@ def _get_imports(file_path: Path) -> list[str]:
         if isinstance(node, ast.Import):
             for alias in node.names:
                 imports.append(alias.name)
-        elif isinstance(node, ast.ImportFrom):
-            if node.module:
-                imports.append(node.module)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imports.append(node.module)
     return imports
 
 
@@ -56,9 +52,8 @@ class TestImportDirection:
                 if "brokers.dhan" in imp:
                     violations.append(f"{py_file.relative_to(ROOT)} imports {imp}")
 
-        assert not violations, (
-            f"brokers.common must not import from brokers.dhan:\n"
-            + "\n".join(violations)
+        assert not violations, "brokers.common must not import from brokers.dhan:\n" + "\n".join(
+            violations
         )
 
     def test_brokers_common_does_not_import_upstox(self):
@@ -70,9 +65,8 @@ class TestImportDirection:
                 if "brokers.upstox" in imp:
                     violations.append(f"{py_file.relative_to(ROOT)} imports {imp}")
 
-        assert not violations, (
-            f"brokers.common must not import from brokers.upstox:\n"
-            + "\n".join(violations)
+        assert not violations, "brokers.common must not import from brokers.upstox:\n" + "\n".join(
+            violations
         )
 
     def test_brokers_dhan_does_not_import_upstox(self):
@@ -84,9 +78,8 @@ class TestImportDirection:
                 if "brokers.upstox" in imp:
                     violations.append(f"{py_file.relative_to(ROOT)} imports {imp}")
 
-        assert not violations, (
-            f"brokers.dhan must not import from brokers.upstox:\n"
-            + "\n".join(violations)
+        assert not violations, "brokers.dhan must not import from brokers.upstox:\n" + "\n".join(
+            violations
         )
 
     def test_brokers_upstox_does_not_import_dhan(self):
@@ -98,9 +91,8 @@ class TestImportDirection:
                 if "brokers.dhan" in imp:
                     violations.append(f"{py_file.relative_to(ROOT)} imports {imp}")
 
-        assert not violations, (
-            f"brokers.upstox must not import from brokers.dhan:\n"
-            + "\n".join(violations)
+        assert not violations, "brokers.upstox must not import from brokers.dhan:\n" + "\n".join(
+            violations
         )
 
     def test_datalake_does_not_import_cli(self):
@@ -112,9 +104,7 @@ class TestImportDirection:
                 if imp.startswith("cli"):
                     violations.append(f"{py_file.relative_to(ROOT)} imports {imp}")
 
-        assert not violations, (
-            f"datalake must not import from cli:\n" + "\n".join(violations)
-        )
+        assert not violations, "datalake must not import from cli:\n" + "\n".join(violations)
 
     def test_analytics_does_not_import_cli(self):
         """analytics cannot import from cli."""
@@ -125,9 +115,7 @@ class TestImportDirection:
                 if imp.startswith("cli"):
                     violations.append(f"{py_file.relative_to(ROOT)} imports {imp}")
 
-        assert not violations, (
-            f"analytics must not import from cli:\n" + "\n".join(violations)
-        )
+        assert not violations, "analytics must not import from cli:\n" + "\n".join(violations)
 
     def test_no_shim_imports_in_production_code(self):
         """Production code must not import from deprecated shim paths.
@@ -138,7 +126,7 @@ class TestImportDirection:
 
         REF: Architecture Audit Phase 11 — Hidden Dependencies & Coupling Audit
         """
-        SHIM_PATTERNS = [
+        shim_patterns = [
             "brokers.common.core.domain",
             "brokers.common.core.types",
             "brokers.common.core.field_mapping",
@@ -150,7 +138,7 @@ class TestImportDirection:
         ]
 
         # Files that ARE the shims — they MUST import from themselves
-        SHIM_FILE_PATHS = {
+        shim_file_paths = {
             str(ROOT / "brokers/common/core/models.py"),
             str(ROOT / "brokers/common/core/types.py"),
             str(ROOT / "brokers/common/core/field_mapping.py"),
@@ -171,15 +159,13 @@ class TestImportDirection:
                 # Skip __pycache__ and the shim files themselves
                 if "__pycache__" in str(py_file):
                     continue
-                if str(py_file) in SHIM_FILE_PATHS:
+                if str(py_file) in shim_file_paths:
                     continue
                 imports = _get_imports(py_file)
                 for imp in imports:
-                    for pattern in SHIM_PATTERNS:
+                    for pattern in shim_patterns:
                         if imp == pattern or imp.startswith(pattern + "."):
-                            violations.append(
-                                f"{py_file.relative_to(ROOT)} imports {imp}"
-                            )
+                            violations.append(f"{py_file.relative_to(ROOT)} imports {imp}")
                             break
 
         assert not violations, (
@@ -199,7 +185,7 @@ class TestImportDirection:
 
         REF: Architecture Audit Phase 7 (Wave 3) + Wave 5 shim cleanup.
         """
-        INTERNAL_PATTERNS = [
+        internal_patterns = [
             "brokers.common.event_bus.event_bus",
             "brokers.common.event_bus.dead_letter_queue",
             "brokers.common.event_bus.factory",
@@ -209,7 +195,16 @@ class TestImportDirection:
         ]
 
         violations = []
-        for directory in ["brokers", "datalake", "analytics", "cli", "domain", "tests", "infrastructure", "scripts"]:
+        for directory in [
+            "brokers",
+            "datalake",
+            "analytics",
+            "cli",
+            "domain",
+            "tests",
+            "infrastructure",
+            "scripts",
+        ]:
             dir_path = ROOT / directory
             if not dir_path.exists():
                 continue
@@ -218,11 +213,9 @@ class TestImportDirection:
                     continue
                 imports = _get_imports(py_file)
                 for imp in imports:
-                    for pattern in INTERNAL_PATTERNS:
+                    for pattern in internal_patterns:
                         if imp == pattern or imp.startswith(pattern + "."):
-                            violations.append(
-                                f"{py_file.relative_to(ROOT)} imports {imp}"
-                            )
+                            violations.append(f"{py_file.relative_to(ROOT)} imports {imp}")
                             break
 
         assert not violations, (
@@ -254,8 +247,7 @@ class TestModuleBoundaries:
         ]
 
         violations = [
-            name for name in dhan_specific
-            if f'"{name}"' in content or f"'{name}'" in content
+            name for name in dhan_specific if f'"{name}"' in content or f"'{name}'" in content
         ]
 
         assert not violations, (
@@ -302,9 +294,17 @@ class TestNamingConventions:
                     if isinstance(node, ast.ClassDef):
                         # Check if it's an exception (inherits from Exception or BaseException)
                         for base in node.bases:
-                            if isinstance(base, ast.Name) and base.id in ("Exception", "BaseException", "BrokerError"):
-                                if not node.name.endswith("Error"):
-                                    violations.append(f"{py_file.relative_to(ROOT)}: {node.name}")
+                            if (
+                                isinstance(base, ast.Name)
+                                and base.id
+                                in (
+                                    "Exception",
+                                    "BaseException",
+                                    "BrokerError",
+                                )
+                                and not node.name.endswith("Error")
+                            ):
+                                violations.append(f"{py_file.relative_to(ROOT)}: {node.name}")
 
         # This is a soft check - we only warn, don't fail
         if violations:

@@ -156,12 +156,20 @@ class BacktestEngine:
                 rf_per_bar = config.risk_free_rate / config.annualization_factor
                 excess_returns = returns - rf_per_bar
                 if np.std(excess_returns) > 0:
-                    metrics.sharpe_ratio = float(np.mean(excess_returns) / np.std(excess_returns) * np.sqrt(config.annualization_factor))
+                    metrics.sharpe_ratio = float(
+                        np.mean(excess_returns)
+                        / np.std(excess_returns)
+                        * np.sqrt(config.annualization_factor)
+                    )
 
                 # Sortino ratio (downside deviation only)
                 downside = returns[returns < 0]
                 if len(downside) > 0 and np.std(downside) > 0:
-                    metrics.sortino_ratio = float(np.mean(excess_returns) / np.std(downside) * np.sqrt(config.annualization_factor))
+                    metrics.sortino_ratio = float(
+                        np.mean(excess_returns)
+                        / np.std(downside)
+                        * np.sqrt(config.annualization_factor)
+                    )
 
                 # Max drawdown
                 peak = np.maximum.accumulate(equities)
@@ -172,7 +180,11 @@ class BacktestEngine:
 
                 # Max drawdown duration
                 peak_idx = np.argmax(equities)
-                trough_idx = np.argmin(equities[peak_idx:]) + peak_idx if peak_idx < len(equities) else len(equities) - 1
+                trough_idx = (
+                    np.argmin(equities[peak_idx:]) + peak_idx
+                    if peak_idx < len(equities)
+                    else len(equities) - 1
+                )
                 metrics.max_drawdown_duration = int(trough_idx - peak_idx)
 
         # Calmar ratio
@@ -218,10 +230,18 @@ class BacktestEngine:
         # Profit factor
         total_wins = sum(t.pnl for t in wins)
         total_losses = abs(sum(t.pnl for t in losses))
-        analysis.profit_factor = total_wins / total_losses if total_losses > 0 else float("inf") if total_wins > 0 else 0.0
+        analysis.profit_factor = (
+            total_wins / total_losses
+            if total_losses > 0
+            else float("inf")
+            if total_wins > 0
+            else 0.0
+        )
 
         # Payoff ratio
-        analysis.payoff_ratio = analysis.avg_win / abs(analysis.avg_loss) if analysis.avg_loss != 0 else 0.0
+        analysis.payoff_ratio = (
+            analysis.avg_win / abs(analysis.avg_loss) if analysis.avg_loss != 0 else 0.0
+        )
 
         # Expected value
         analysis.expected_value = (
@@ -274,7 +294,13 @@ class BacktestEngine:
             return {}
 
         # Build benchmark returns
-        ts_col = "timestamp" if "timestamp" in benchmark.columns else "date" if "date" in benchmark.columns else None
+        ts_col = (
+            "timestamp"
+            if "timestamp" in benchmark.columns
+            else "date"
+            if "date" in benchmark.columns
+            else None
+        )
         if ts_col is None or "close" not in benchmark.columns:
             return {}
 
@@ -304,7 +330,11 @@ class BacktestEngine:
         # Information Ratio = (Strat_mean - Bench_mean) / Tracking Error
         tracking_diff = strat_returns - bench_returns
         tracking_error = float(np.std(tracking_diff) * np.sqrt(config.annualization_factor))
-        ir = float((np.mean(strat_returns) - np.mean(bench_returns)) / np.std(tracking_diff)) if np.std(tracking_diff) > 0 else 0.0
+        ir = (
+            float((np.mean(strat_returns) - np.mean(bench_returns)) / np.std(tracking_diff))
+            if np.std(tracking_diff) > 0
+            else 0.0
+        )
 
         # Benchmark total return
         bench_total = float((bench_returns + 1).prod() - 1)

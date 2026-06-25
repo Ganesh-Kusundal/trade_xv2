@@ -7,9 +7,8 @@ Mirrors Trade_J ``UpstoxPriceParser``.
 from __future__ import annotations
 
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Union
 
-Number = Union[int, float, str, Decimal]
+Number = int | float | str | Decimal
 
 
 class UpstoxPriceParser:

@@ -15,7 +15,7 @@ print("=" * 80)
 # Test 1: Import speed
 print("\n[1/4] Testing import speed...")
 start = time.time()
-from cli.services.broker_service import BrokerService
+from cli.services.broker_service import BrokerService  # noqa: E402
 
 import_time = time.time() - start
 print(f"  ✅ Import time: {import_time:.3f}s")
@@ -54,6 +54,7 @@ try:
 
         # Check cache metadata
         import sqlite3
+
         conn = sqlite3.connect(str(cache_db))
         cursor = conn.execute("SELECT broker, cached_at, instrument_count FROM cache_metadata")
         for row in cursor.fetchall():

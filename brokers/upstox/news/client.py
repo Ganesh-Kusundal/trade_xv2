@@ -34,7 +34,7 @@ class UpstoxNewsClient:
             data = body.get("data", {})
             if isinstance(data, dict):
                 all_news = []
-                for key, items in data.items():
+                for _key, items in data.items():
                     if isinstance(items, list):
                         all_news.extend(items)
                 return all_news

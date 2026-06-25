@@ -1,4 +1,0 @@
-# file: /workspaces/trade_xv2/cli/commands/portfolio.py
-# hypothesis_version: 6.155.7
-
-['0.00', 'Avg Price', 'CNC', 'INTRADAY', 'LTP', 'Long Positions', 'MARGIN', 'MTF', 'Net Qty', 'PnL', 'Product', 'Qty', 'Short Positions', 'Symbol', 'Total', 'Total PnL', 'avg_price', 'bold green', 'bold white', 'center', 'count', 'cyan', 'green', 'holdings', 'ltp', 'magenta', 'pnl', 'quantity', 'red', 'right', 'symbol', 'total_pnl', 'white']

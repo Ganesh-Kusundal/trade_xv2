@@ -21,7 +21,6 @@ import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
 
 import duckdb
 
@@ -101,7 +100,7 @@ class DuckDBReadPool:
         """
         key = str(Path(db_path).resolve())
         with self._lock:
-            if key in self._active_connections and self._active_connections[key]:
+            if self._active_connections.get(key):
                 if conn:
                     if conn in self._active_connections[key]:
                         self._active_connections[key].remove(conn)

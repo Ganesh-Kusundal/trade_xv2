@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import itertools
 import uuid
+from collections.abc import Callable
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Callable
+from typing import Any
 
-from domain import Order, OrderStatus, ProductType, Side, Trade
 from application.oms.order_manager import OmsOrderCommand
+from domain import Order, OrderStatus, ProductType, Side, Trade
 
 
 def apply_slippage(price: Decimal, *, side: Side | str, slippage_pct: float = 0.0) -> Decimal:

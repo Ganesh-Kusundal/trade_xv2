@@ -11,15 +11,13 @@ Run with:
 from __future__ import annotations
 
 import time
-import threading
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
 
-from domain import Balance, DepthLevel, MarketDepth, Quote
-
+from domain import DepthLevel, MarketDepth, Quote
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -27,6 +25,7 @@ from domain import Balance, DepthLevel, MarketDepth, Quote
 def _make_ohlcv_dataframe(n: int, symbol: str = "RELIANCE") -> pd.DataFrame:
     """Generate a realistic OHLCV DataFrame with n rows and valid OHLC integrity."""
     import numpy as np
+
     rng = np.random.default_rng(42)
     base_price = 2500.0
     dates = pd.date_range("2026-01-01", periods=n, freq="B")
@@ -35,16 +34,18 @@ def _make_ohlcv_dataframe(n: int, symbol: str = "RELIANCE") -> pd.DataFrame:
     # Ensure OHLC integrity: high >= max(open, close), low <= min(open, close)
     highs = np.maximum(opens, close) + rng.uniform(0, 10, n)
     lows = np.minimum(opens, close) - rng.uniform(0, 10, n)
-    return pd.DataFrame({
-        "timestamp": dates,
-        "open": opens,
-        "high": highs,
-        "low": lows,
-        "close": close,
-        "volume": rng.integers(100_000, 10_000_000, n),
-        "oi": rng.integers(0, 500_000, n),
-        "symbol": symbol,
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": dates,
+            "open": opens,
+            "high": highs,
+            "low": lows,
+            "close": close,
+            "volume": rng.integers(100_000, 10_000_000, n),
+            "oi": rng.integers(0, 500_000, n),
+            "symbol": symbol,
+        }
+    )
 
 
 def _make_mock_historical_response(n: int = 30) -> dict:
@@ -53,14 +54,16 @@ def _make_mock_historical_response(n: int = 30) -> dict:
     base = 2500
     for i in range(n):
         price = base + i
-        rows.append({
-            "date": f"2026-01-{(i % 28) + 1:02d}",
-            "open": price - 5,
-            "high": price + 10,
-            "low": price - 10,
-            "close": price,
-            "volume": 1_000_000 + i * 1000,
-        })
+        rows.append(
+            {
+                "date": f"2026-01-{(i % 28) + 1:02d}",
+                "open": price - 5,
+                "high": price + 10,
+                "low": price - 10,
+                "close": price,
+                "volume": 1_000_000 + i * 1000,
+            }
+        )
     return {"data": rows}
 
 
@@ -71,14 +74,16 @@ def _make_mock_intraday_response(n: int = 75) -> dict:
     ts = 1735689300
     for i in range(n):
         price = base + (i % 20)
-        rows.append({
-            "timestamp": ts + i * 300,
-            "open": price - 2,
-            "high": price + 5,
-            "low": price - 5,
-            "close": price,
-            "volume": 5000 + i * 100,
-        })
+        rows.append(
+            {
+                "timestamp": ts + i * 300,
+                "open": price - 2,
+                "high": price + 5,
+                "low": price - 5,
+                "close": price,
+                "volume": 5000 + i * 100,
+            }
+        )
     return {"data": rows}
 
 
@@ -87,16 +92,18 @@ def _make_historical_resolver():
     from brokers.dhan.resolver import SymbolResolver
 
     resolver = SymbolResolver()
-    resolver.load_from_rows([
-        {
-            "SEM_TRADING_SYMBOL": "RELIANCE",
-            "SEM_SMST_SECURITY_ID": "2885",
-            "SEM_EXM_EXCH_ID": "NSE_EQ",
-            "SEM_INSTRUMENT_NAME": "EQUITY",
-            "SEM_LOT_UNITS": 1,
-            "SEM_TICK_SIZE": 0.05,
-        },
-    ])
+    resolver.load_from_rows(
+        [
+            {
+                "SEM_TRADING_SYMBOL": "RELIANCE",
+                "SEM_SMST_SECURITY_ID": "2885",
+                "SEM_EXM_EXCH_ID": "NSE_EQ",
+                "SEM_INSTRUMENT_NAME": "EQUITY",
+                "SEM_LOT_UNITS": 1,
+                "SEM_TICK_SIZE": 0.05,
+            },
+        ]
+    )
     return resolver
 
 
@@ -155,7 +162,9 @@ class TestHistoricalDataPerformance:
         df = adapter.get_historical("RELIANCE", "NSE", "2026-01-01", "2026-01-05", "1D")
 
         required_cols = {"open", "high", "low", "close", "volume"}
-        assert required_cols.issubset(set(df.columns)), f"Missing columns: {required_cols - set(df.columns)}"
+        assert required_cols.issubset(set(df.columns)), (
+            f"Missing columns: {required_cols - set(df.columns)}"
+        )
 
 
 # ── 2. Historical Data Quality Regression ────────────────────────────────────
@@ -222,6 +231,7 @@ class TestBatchOperationPerformance:
 
     def _make_dhan_gw_with_mock(self):
         from brokers.dhan.gateway import BrokerGateway
+
         conn = MagicMock()
         conn.client_id = "TEST"
         conn.access_token = "TOKEN"
@@ -307,6 +317,7 @@ class TestRESTEndpointLatency:
 
     def _make_dhan_gw(self):
         from brokers.dhan.gateway import BrokerGateway
+
         conn = MagicMock()
         conn.client_id = "TEST"
         conn.access_token = "TOKEN"
@@ -345,9 +356,14 @@ class TestRESTEndpointLatency:
         """Quote retrieval + parsing must complete in < 10ms (mocked I/O)."""
         gw = self._make_dhan_gw()
         gw._conn.market_data.get_quote.return_value = Quote(
-            symbol="RELIANCE", ltp=Decimal("2450"), open=Decimal("2430"),
-            high=Decimal("2460"), low=Decimal("2420"), close=Decimal("2425"),
-            volume=100000, change=Decimal("25"),
+            symbol="RELIANCE",
+            ltp=Decimal("2450"),
+            open=Decimal("2430"),
+            high=Decimal("2460"),
+            low=Decimal("2420"),
+            close=Decimal("2425"),
+            volume=100000,
+            change=Decimal("25"),
         )
 
         iterations = 100
@@ -471,7 +487,9 @@ class TestInstrumentLoadPerformance:
             r.get_by_symbol(f"INST{i}", "NSE")
         elapsed_ms = (time.perf_counter() - start) * 1000
 
-        assert elapsed_ms < 100, f"Resolution after 200K load too slow: {elapsed_ms:.1f}ms for 1000 lookups"
+        assert elapsed_ms < 100, (
+            f"Resolution after 200K load too slow: {elapsed_ms:.1f}ms for 1000 lookups"
+        )
 
 
 # ── 6. WebSocket Throughput Simulation ───────────────────────────────────────
@@ -488,6 +506,7 @@ class TestWebSocketThroughput:
         mux = UpstoxMarketDataV3Multiplexer(authorizer=MagicMock())
 
         received = []
+
         def listener(event_type, payload):
             received.append(1)
 
@@ -500,8 +519,8 @@ class TestWebSocketThroughput:
         with mux._listener_lock:
             listeners = list(mux._listeners)
         for _ in range(iterations):
-            for l in listeners:
-                l("tick", tick)
+            for listener in listeners:
+                listener("tick", tick)
         elapsed_ms = (time.perf_counter() - start) * 1000
 
         assert len(received) == iterations
@@ -516,8 +535,10 @@ class TestWebSocketThroughput:
 
         counts = [0] * 10
         for i in range(10):
+
             def listener(event_type, payload, idx=i):
                 counts[idx] += 1
+
             mux.add_listener(listener)
 
         tick = {"type": "tick", "instrument_key": "NSE_EQ|2885", "ltp": 2450.0}
@@ -527,8 +548,8 @@ class TestWebSocketThroughput:
         with mux._listener_lock:
             listeners = list(mux._listeners)
         for _ in range(iterations):
-            for l in listeners:
-                l("tick", tick)
+            for listener in listeners:
+                listener("tick", tick)
         elapsed_ms = (time.perf_counter() - start) * 1000
 
         assert all(c == iterations for c in counts)
@@ -545,6 +566,7 @@ class TestCrossBrokerComparison:
     def test_paper_ltp_vs_batch_latency(self):
         """Paper ltp_batch() must complete for 20 symbols (regression guard)."""
         from brokers.paper.paper_gateway import PaperGateway
+
         pg = PaperGateway()
 
         symbols = [f"SYM{i}" for i in range(20)]
@@ -560,6 +582,7 @@ class TestCrossBrokerComparison:
     def test_paper_quote_returns_consistent_schema(self):
         """Paper quotes must have the same schema across multiple calls."""
         from brokers.paper.paper_gateway import PaperGateway
+
         pg = PaperGateway()
 
         q1 = pg.quote("RELIANCE", "NSE")
@@ -573,6 +596,7 @@ class TestCrossBrokerComparison:
     def test_paper_history_returns_valid_dataframe(self):
         """Paper history must return a valid OHLCV DataFrame."""
         from brokers.paper.paper_gateway import PaperGateway
+
         pg = PaperGateway()
 
         df = pg.history("RELIANCE", "NSE", timeframe="1D", lookback_days=30)
@@ -583,6 +607,7 @@ class TestCrossBrokerComparison:
     def test_paper_place_order_latency(self):
         """Paper order placement must complete in < 5ms."""
         from brokers.paper.paper_gateway import PaperGateway
+
         pg = PaperGateway()
 
         iterations = 100

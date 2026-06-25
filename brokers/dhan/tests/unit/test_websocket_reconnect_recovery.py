@@ -11,7 +11,6 @@ from brokers.dhan.websocket import DhanMarketFeed, DhanOrderStream
 
 
 class TestDhanWebSocketReconnectRecovery:
-
     def test_market_feed_preserves_instruments_on_construction(self):
         instruments = [
             (1, "2885", 15),

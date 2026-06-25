@@ -10,14 +10,13 @@ Tests cover:
 
 from __future__ import annotations
 
-import threading
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from infrastructure.state_machine import IllegalTransitionError
-from domain.types import ORDER_STATUS_TRANSITIONS, OrderStatus
 from application.oms.order_state_validator import OrderStateValidator
+from domain.types import OrderStatus
+from infrastructure.state_machine import IllegalTransitionError
 
 
 @pytest.fixture
@@ -47,21 +46,15 @@ class TestValidTransitions:
 
     def test_open_to_cancelled(self, validator_enforce: OrderStateValidator) -> None:
         """OPEN → CANCELLED is valid."""
-        validator_enforce.validate_transition(
-            "order-2", OrderStatus.OPEN, OrderStatus.CANCELLED
-        )
+        validator_enforce.validate_transition("order-2", OrderStatus.OPEN, OrderStatus.CANCELLED)
 
     def test_open_to_rejected(self, validator_enforce: OrderStateValidator) -> None:
         """OPEN → REJECTED is valid."""
-        validator_enforce.validate_transition(
-            "order-3", OrderStatus.OPEN, OrderStatus.REJECTED
-        )
+        validator_enforce.validate_transition("order-3", OrderStatus.OPEN, OrderStatus.REJECTED)
 
     def test_open_to_expired(self, validator_enforce: OrderStateValidator) -> None:
         """OPEN → EXPIRED is valid."""
-        validator_enforce.validate_transition(
-            "order-4", OrderStatus.OPEN, OrderStatus.EXPIRED
-        )
+        validator_enforce.validate_transition("order-4", OrderStatus.OPEN, OrderStatus.EXPIRED)
 
     def test_partially_filled_to_filled(self, validator_enforce: OrderStateValidator) -> None:
         """PARTIALLY_FILLED → FILLED is valid."""
@@ -93,18 +86,14 @@ class TestValidTransitions:
     def test_same_status_no_transition(self, validator_enforce: OrderStateValidator) -> None:
         """Same status should not trigger validation (no-op)."""
         # Should not raise even though OPEN → OPEN is not in transition table
-        validator_enforce.validate_transition(
-            "order-8", OrderStatus.OPEN, OrderStatus.OPEN
-        )
+        validator_enforce.validate_transition("order-8", OrderStatus.OPEN, OrderStatus.OPEN)
 
     def test_multiple_orders_independent(self, validator_enforce: OrderStateValidator) -> None:
         """Multiple orders should have independent state machines."""
         validator_enforce.validate_transition(
             "order-a", OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED
         )
-        validator_enforce.validate_transition(
-            "order-b", OrderStatus.OPEN, OrderStatus.CANCELLED
-        )
+        validator_enforce.validate_transition("order-b", OrderStatus.OPEN, OrderStatus.CANCELLED)
         # Both should succeed independently
 
 
@@ -117,9 +106,7 @@ class TestInvalidTransitions:
     def test_filled_to_open_raises(self, validator_enforce: OrderStateValidator) -> None:
         """FILLED → OPEN should raise IllegalTransitionError."""
         with pytest.raises(IllegalTransitionError) as exc_info:
-            validator_enforce.validate_transition(
-                "order-10", OrderStatus.FILLED, OrderStatus.OPEN
-            )
+            validator_enforce.validate_transition("order-10", OrderStatus.FILLED, OrderStatus.OPEN)
         assert exc_info.value.from_state == OrderStatus.FILLED
         assert exc_info.value.to_state == OrderStatus.OPEN
 
@@ -131,7 +118,9 @@ class TestInvalidTransitions:
             )
         assert exc_info.value.from_state == OrderStatus.CANCELLED
 
-    def test_rejected_to_partially_filled_raises(self, validator_enforce: OrderStateValidator) -> None:
+    def test_rejected_to_partially_filled_raises(
+        self, validator_enforce: OrderStateValidator
+    ) -> None:
         """REJECTED → PARTIALLY_FILLED should raise IllegalTransitionError."""
         with pytest.raises(IllegalTransitionError):
             validator_enforce.validate_transition(
@@ -147,9 +136,7 @@ class TestInvalidTransitions:
 
     def test_open_to_filled_is_allowed(self, validator_enforce: OrderStateValidator) -> None:
         """OPEN → FILLED is valid per ORDER_STATUS_TRANSITIONS."""
-        validator_enforce.validate_transition(
-            "order-14", OrderStatus.OPEN, OrderStatus.FILLED
-        )
+        validator_enforce.validate_transition("order-14", OrderStatus.OPEN, OrderStatus.FILLED)
 
 
 # ── Audit Mode ─────────────────────────────────────────────────────────────
@@ -158,12 +145,12 @@ class TestInvalidTransitions:
 class TestAuditMode:
     """Test audit mode (non-enforcement) behavior."""
 
-    def test_invalid_transition_logged_not_raised(self, validator_audit: OrderStateValidator) -> None:
+    def test_invalid_transition_logged_not_raised(
+        self, validator_audit: OrderStateValidator
+    ) -> None:
         """Invalid transition in audit mode should log but not raise."""
         # Should not raise in audit mode
-        validator_audit.validate_transition(
-            "order-20", OrderStatus.FILLED, OrderStatus.OPEN
-        )
+        validator_audit.validate_transition("order-20", OrderStatus.FILLED, OrderStatus.OPEN)
 
     def test_audit_mode_creates_state_machine(self, validator_audit: OrderStateValidator) -> None:
         """Audit mode should still create state machines."""
@@ -173,7 +160,9 @@ class TestAuditMode:
         sm = validator_audit.get_state_machine("order-21")
         assert sm is not None
 
-    def test_enforce_property(self, validator_enforce: OrderStateValidator, validator_audit: OrderStateValidator) -> None:
+    def test_enforce_property(
+        self, validator_enforce: OrderStateValidator, validator_audit: OrderStateValidator
+    ) -> None:
         """enforce property should reflect mode."""
         assert validator_enforce.enforce is True
         assert validator_audit.enforce is False
@@ -189,7 +178,9 @@ class TestStateMachineManagement:
         """get_state_machine should return None for unknown order."""
         assert validator_enforce.get_state_machine("unknown-order") is None
 
-    def test_get_state_machine_after_transition(self, validator_enforce: OrderStateValidator) -> None:
+    def test_get_state_machine_after_transition(
+        self, validator_enforce: OrderStateValidator
+    ) -> None:
         """get_state_machine should return state machine after transition."""
         validator_enforce.validate_transition(
             "order-30", OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED
@@ -212,7 +203,9 @@ class TestStateMachineManagement:
 
     def test_clear_all_state_machines(self, validator_enforce: OrderStateValidator) -> None:
         """clear should remove all state machines."""
-        validator_enforce.validate_transition("order-1", OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED)
+        validator_enforce.validate_transition(
+            "order-1", OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED
+        )
         validator_enforce.validate_transition("order-2", OrderStatus.OPEN, OrderStatus.CANCELLED)
         validator_enforce.clear()
         assert validator_enforce.get_state_machine("order-1") is None
@@ -232,13 +225,15 @@ class TestCustomTransitions:
             OrderStatus.FILLED: frozenset(),
         }
         validator = OrderStateValidator(transitions=custom_transitions, enforce=True)
-        
+
         # Should work with custom table
         validator.validate_transition("order-40", OrderStatus.OPEN, OrderStatus.FILLED)
-        
+
         # Should fail with custom table (no PARTIALLY_FILLED in custom)
         with pytest.raises(IllegalTransitionError):
-            validator.validate_transition("order-41", OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED)
+            validator.validate_transition(
+                "order-41", OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED
+            )
 
 
 # ── Thread Safety ──────────────────────────────────────────────────────────
@@ -247,8 +242,11 @@ class TestCustomTransitions:
 class TestThreadSafety:
     """Basic thread safety sanity checks."""
 
-    def test_concurrent_transitions_different_orders(self, validator_enforce: OrderStateValidator) -> None:
+    def test_concurrent_transitions_different_orders(
+        self, validator_enforce: OrderStateValidator
+    ) -> None:
         """Concurrent transitions on different orders should not deadlock."""
+
         def transition(order_num: int) -> bool:
             try:
                 order_id = f"order-{order_num}"

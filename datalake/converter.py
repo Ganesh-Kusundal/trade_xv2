@@ -53,9 +53,11 @@ def _detect_source_timezone(bar_time_ms: pd.Series) -> str:
     hours = as_utc.dt.hour
     minutes = as_utc.dt.minute
 
-    ist_market_count = ((hours == MARKET_OPEN_HOUR) & (minutes >= MARKET_OPEN_MINUTE)).sum() + \
-        ((hours > MARKET_OPEN_HOUR) & (hours < MARKET_CLOSE_HOUR)).sum() + \
-        ((hours == MARKET_CLOSE_HOUR) & (minutes <= MARKET_CLOSE_MINUTE)).sum()
+    ist_market_count = (
+        ((hours == MARKET_OPEN_HOUR) & (minutes >= MARKET_OPEN_MINUTE)).sum()
+        + ((hours > MARKET_OPEN_HOUR) & (hours < MARKET_CLOSE_HOUR)).sum()
+        + ((hours == MARKET_CLOSE_HOUR) & (minutes <= MARKET_CLOSE_MINUTE)).sum()
+    )
 
     return "UTC" if ist_market_count > len(sample) * 0.5 else "IST"
 
@@ -87,13 +89,15 @@ def convert_tradej_parquet(
         df = df.drop(columns=["interval"])
 
     # Rename columns
-    df = df.rename(columns={
-        "bar_time_ms": "timestamp",
-        "open_paisa": "open",
-        "high_paisa": "high",
-        "low_paisa": "low",
-        "close_paisa": "close",
-    })
+    df = df.rename(
+        columns={
+            "bar_time_ms": "timestamp",
+            "open_paisa": "open",
+            "high_paisa": "high",
+            "low_paisa": "low",
+            "close_paisa": "close",
+        }
+    )
 
     # Convert timestamp with timezone detection
     if "timestamp" in df.columns and not df["timestamp"].empty:
@@ -131,7 +135,13 @@ def convert_tradej_parquet(
     for col in CANONICAL_COLUMNS:
         if col not in df.columns:
             df[col] = 0 if col in ("volume", "oi") else ""
-    df = df[CANONICAL_COLUMNS]
+    df["event_time"] = df["timestamp"]
+    df = df[CANONICAL_COLUMNS].dropna(subset=["timestamp"])
+
+    now_ist = pd.Timestamp.now(tz="Asia/Kolkata").tz_localize(None)
+    df["published_at"] = now_ist
+    df["ingested_at"] = now_ist
+    df["is_correction"] = False
 
     # Validate OHLCV consistency
     df = validate_candles(df, symbol=symbol, drop_invalid=True)
@@ -167,7 +177,9 @@ def convert_tradej_directory(
     symbol_dirs = sorted(tradej_bars_dir.iterdir())
     if symbols:
         symbol_set = {normalize_symbol(s) for s in symbols}
-        symbol_dirs = [d for d in symbol_dirs if normalize_symbol(d.name.replace("symbol=", "")) in symbol_set]
+        symbol_dirs = [
+            d for d in symbol_dirs if normalize_symbol(d.name.replace("symbol=", "")) in symbol_set
+        ]
 
     for sym_dir in symbol_dirs:
         if not sym_dir.is_dir():

@@ -29,7 +29,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-
 # ── Shared host-independent constants ────────────────────────────────────────
 _UPSTOX_ASSET_INSTRUMENTS_JSON = (
     "https://assets.upstox.com/market-quote/instruments/exchange/complete.json.gz"
@@ -39,6 +38,7 @@ _UPSTOX_ASSET_INSTRUMENTS_JSON = (
 # ═══════════════════════════════════════════════════════════════════════════════
 # Dhan API Endpoints
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 class Dhan:
     """Dhan broker API endpoints — constants and defaults."""
@@ -58,7 +58,7 @@ class Dhan:
         return cls.SANDBOX_REST_BASE
 
     # ── Auth ────────────────────────────────────────────────────────────
-    GENERATE_TOKEN_URL: str = "https://auth.dhan.co/app/generateAccessToken"
+    GENERATE_TOKEN_URL: str = "https://auth.dhan.co/app/generateAccessToken"  # noqa: S105
 
     # ── WebSocket Feeds ─────────────────────────────────────────────────
     WS_DEPTH_20: str = "wss://depth-api-feed.dhan.co/twentydepth"
@@ -98,6 +98,7 @@ class Dhan:
 # ═══════════════════════════════════════════════════════════════════════════════
 # Upstox API Endpoints
 # ═══════════════════════════════════════════════════════════════════════════════
+
 
 @dataclass(frozen=True)
 class _UpstoxUrls:

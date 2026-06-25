@@ -80,7 +80,9 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
         ),
         rest=(
             RestExposure("GET", "/api/v1/market/candles", "api/routers/market.py", "datalake"),
-            RestExposure("GET", "/api/v1/live/candles", "api/routers/live/market.py", "live_broker"),
+            RestExposure(
+                "GET", "/api/v1/live/candles", "api/routers/live/market.py", "live_broker"
+            ),
         ),
         cli_data_source="live_broker",
         severity_if_gap="P2",
@@ -94,8 +96,12 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
         broker=BrokerMethodRef(dhan="market_data.get_quote", upstox="market_data.get_quote"),
         cli=(CliExposure("quote", "cli/commands/market_handlers.py"),),
         rest=(
-            RestExposure("GET", "/api/v1/market/quote/{symbol}", "api/routers/market.py", "datalake"),
-            RestExposure("GET", "/api/v1/live/quote/{symbol}", "api/routers/live/market.py", "live_broker"),
+            RestExposure(
+                "GET", "/api/v1/market/quote/{symbol}", "api/routers/market.py", "datalake"
+            ),
+            RestExposure(
+                "GET", "/api/v1/live/quote/{symbol}", "api/routers/live/market.py", "live_broker"
+            ),
         ),
         cli_data_source="live_broker",
         severity_if_gap="P2",
@@ -107,7 +113,11 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
         abc_required=True,
         broker=BrokerMethodRef(dhan="market_data.get_ltp", upstox="market_data.get_ltp"),
         cli=(),
-        rest=(RestExposure("GET", "/api/v1/live/ltp/{symbol}", "api/routers/live/market.py", "live_broker"),),
+        rest=(
+            RestExposure(
+                "GET", "/api/v1/live/ltp/{symbol}", "api/routers/live/market.py", "live_broker"
+            ),
+        ),
         cli_data_source="live_broker",
         tier="core",
         severity_if_gap="P2",
@@ -120,7 +130,11 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
         abc_required=True,
         broker=BrokerMethodRef(dhan="market_data.get_depth", upstox="market_data.get_depth"),
         cli=(CliExposure("depth", "cli/commands/market_handlers.py"),),
-        rest=(RestExposure("GET", "/api/v1/live/depth/{symbol}", "api/routers/live/market.py", "live_broker"),),
+        rest=(
+            RestExposure(
+                "GET", "/api/v1/live/depth/{symbol}", "api/routers/live/market.py", "live_broker"
+            ),
+        ),
         cli_data_source="live_broker",
         severity_if_gap="P2",
     ),
@@ -132,8 +146,15 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
         broker=BrokerMethodRef(dhan="options.get_option_chain", upstox="options.get_option_chain"),
         cli=(CliExposure("option-chain", "cli/commands/market_handlers.py"),),
         rest=(
-            RestExposure("GET", "/api/v1/options/chain/{underlying}", "api/routers/options.py", "datalake"),
-            RestExposure("GET", "/api/v1/live/options/chain/{underlying}", "api/routers/live/derivatives.py", "live_broker"),
+            RestExposure(
+                "GET", "/api/v1/options/chain/{underlying}", "api/routers/options.py", "datalake"
+            ),
+            RestExposure(
+                "GET",
+                "/api/v1/live/options/chain/{underlying}",
+                "api/routers/live/derivatives.py",
+                "live_broker",
+            ),
         ),
         cli_data_source="live_broker",
         severity_if_gap="P2",
@@ -149,7 +170,12 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
         ),
         cli=(CliExposure("futures", "cli/commands/market_handlers.py"),),
         rest=(
-            RestExposure("GET", "/api/v1/live/futures/chain/{underlying}", "api/routers/live/derivatives.py", "live_broker"),
+            RestExposure(
+                "GET",
+                "/api/v1/live/futures/chain/{underlying}",
+                "api/routers/live/derivatives.py",
+                "live_broker",
+            ),
         ),
         cli_data_source="live_broker",
         severity_if_gap="P2",
@@ -202,7 +228,9 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
         capability=Capability.HISTORICAL_DATA,
         gateway_method="history_batch",
         abc_required=True,
-        broker=BrokerMethodRef(dhan="historical.get_historical", upstox="historical.fetch_history_batch"),
+        broker=BrokerMethodRef(
+            dhan="historical.get_historical", upstox="historical.fetch_history_batch"
+        ),
         cli=(),
         rest=(),
         tier="broker_only",
@@ -233,7 +261,11 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
         abc_required=True,
         broker=BrokerMethodRef(dhan="orders.cancel_order", upstox="order_command.cancel_order"),
         cli=(CliExposure("cancel-order", "cli/commands/order_placement.py"),),
-        rest=(RestExposure("DELETE", "/api/v1/orders/{order_id}", "api/routers/orders.py", "live_broker"),),
+        rest=(
+            RestExposure(
+                "DELETE", "/api/v1/orders/{order_id}", "api/routers/orders.py", "live_broker"
+            ),
+        ),
         cli_data_source="oms",
         severity_if_gap="P1",
     ),
@@ -244,7 +276,11 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
         abc_required=False,
         broker=BrokerMethodRef(dhan="orders.modify_order", upstox="order_command.modify_order"),
         cli=(CliExposure("modify-order", "cli/commands/order_placement.py"),),
-        rest=(RestExposure("PUT", "/api/v1/orders/{order_id}", "api/routers/orders.py", "live_broker"),),
+        rest=(
+            RestExposure(
+                "PUT", "/api/v1/orders/{order_id}", "api/routers/orders.py", "live_broker"
+            ),
+        ),
         cli_data_source="live_broker",
         severity_if_gap="P1",
     ),
@@ -291,7 +327,9 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
         cli=(CliExposure("positions", "cli/commands/portfolio.py"),),
         rest=(
             RestExposure("GET", "/api/v1/portfolio/positions", "api/routers/portfolio.py", "oms"),
-            RestExposure("GET", "/api/v1/live/positions", "api/routers/live/portfolio.py", "live_broker"),
+            RestExposure(
+                "GET", "/api/v1/live/positions", "api/routers/live/portfolio.py", "live_broker"
+            ),
         ),
         cli_data_source="live_broker",
         severity_if_gap="P2",
@@ -305,7 +343,9 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
         cli=(CliExposure("holdings", "cli/commands/portfolio.py"),),
         rest=(
             RestExposure("GET", "/api/v1/portfolio/holdings", "api/routers/portfolio.py", "oms"),
-            RestExposure("GET", "/api/v1/live/holdings", "api/routers/live/portfolio.py", "live_broker"),
+            RestExposure(
+                "GET", "/api/v1/live/holdings", "api/routers/live/portfolio.py", "live_broker"
+            ),
         ),
         cli_data_source="live_broker",
         severity_if_gap="P2",
@@ -320,7 +360,11 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
             CliExposure("account", "cli/commands/account.py"),
             CliExposure("funds", "cli/commands/account.py"),
         ),
-        rest=(RestExposure("GET", "/api/v1/live/funds", "api/routers/live/portfolio.py", "live_broker"),),
+        rest=(
+            RestExposure(
+                "GET", "/api/v1/live/funds", "api/routers/live/portfolio.py", "live_broker"
+            ),
+        ),
         cli_data_source="live_broker",
         severity_if_gap="P2",
     ),
@@ -404,7 +448,11 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
         extended_only=True,
         broker=BrokerMethodRef(dhan="user_profile.get_profile", upstox="portfolio.get_profile"),
         cli=(CliExposure("profile", "cli/commands/extended_orders.py"),),
-        rest=(RestExposure("GET", "/api/v1/live/profile", "api/routers/live/extended.py", "live_broker"),),
+        rest=(
+            RestExposure(
+                "GET", "/api/v1/live/profile", "api/routers/live/extended.py", "live_broker"
+            ),
+        ),
         cli_data_source="live_broker",
         tier="extended",
         severity_if_gap="P3",
@@ -416,7 +464,11 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
         extended_only=True,
         broker=BrokerMethodRef(dhan="super_orders.place_super_order", upstox=None),
         cli=(CliExposure("super-order", "cli/commands/extended_orders.py"),),
-        rest=(RestExposure("POST", "/api/v1/live/orders/super", "api/routers/live/extended.py", "live_broker"),),
+        rest=(
+            RestExposure(
+                "POST", "/api/v1/live/orders/super", "api/routers/live/extended.py", "live_broker"
+            ),
+        ),
         cli_data_source="live_broker",
         tier="extended",
         severity_if_gap="P1",
@@ -426,9 +478,15 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
         capability=None,
         gateway_method="extended.place_forever_order",
         extended_only=True,
-        broker=BrokerMethodRef(dhan="forever_orders.place_forever_order", upstox="gtt.place_forever_order"),
+        broker=BrokerMethodRef(
+            dhan="forever_orders.place_forever_order", upstox="gtt.place_forever_order"
+        ),
         cli=(CliExposure("forever-order", "cli/commands/extended_orders.py"),),
-        rest=(RestExposure("POST", "/api/v1/live/orders/forever", "api/routers/live/extended.py", "live_broker"),),
+        rest=(
+            RestExposure(
+                "POST", "/api/v1/live/orders/forever", "api/routers/live/extended.py", "live_broker"
+            ),
+        ),
         cli_data_source="live_broker",
         tier="extended",
         severity_if_gap="P1",
@@ -440,7 +498,11 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
         extended_only=True,
         broker=BrokerMethodRef(dhan="conditional_triggers.place_trigger", upstox="gtt.place_alert"),
         cli=(CliExposure("trigger", "cli/commands/extended_orders.py"),),
-        rest=(RestExposure("POST", "/api/v1/live/alerts/trigger", "api/routers/live/extended.py", "live_broker"),),
+        rest=(
+            RestExposure(
+                "POST", "/api/v1/live/alerts/trigger", "api/routers/live/extended.py", "live_broker"
+            ),
+        ),
         cli_data_source="live_broker",
         tier="extended",
         severity_if_gap="P1",
@@ -452,7 +514,14 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
         extended_only=True,
         broker=BrokerMethodRef(dhan="margin.calculate", upstox="margin.calculate_margin"),
         cli=(CliExposure("margin", "cli/commands/extended_orders.py"),),
-        rest=(RestExposure("POST", "/api/v1/live/margin/calculate", "api/routers/live/extended.py", "live_broker"),),
+        rest=(
+            RestExposure(
+                "POST",
+                "/api/v1/live/margin/calculate",
+                "api/routers/live/extended.py",
+                "live_broker",
+            ),
+        ),
         cli_data_source="live_broker",
         tier="extended",
         severity_if_gap="P1",
@@ -465,7 +534,12 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
         broker=BrokerMethodRef(dhan="exit_all.exit_all", upstox="exit_all.exit_all"),
         cli=(CliExposure("exit-all", "cli/commands/extended_orders.py"),),
         rest=(
-            RestExposure("POST", "/api/v1/live/orders/exit-all", "api/routers/live/extended.py", "live_broker"),
+            RestExposure(
+                "POST",
+                "/api/v1/live/orders/exit-all",
+                "api/routers/live/extended.py",
+                "live_broker",
+            ),
             RestExposure("POST", "/api/v1/portfolio/square-off", "api/routers/portfolio.py", "oms"),
         ),
         cli_data_source="live_broker",
@@ -478,7 +552,11 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
         extended_only=True,
         broker=BrokerMethodRef(dhan="ledger.get_ledger", upstox="portfolio.get_ledger"),
         cli=(CliExposure("ledger", "cli/commands/extended_orders.py"),),
-        rest=(RestExposure("GET", "/api/v1/live/ledger", "api/routers/live/extended.py", "live_broker"),),
+        rest=(
+            RestExposure(
+                "GET", "/api/v1/live/ledger", "api/routers/live/extended.py", "live_broker"
+            ),
+        ),
         cli_data_source="live_broker",
         tier="extended",
         severity_if_gap="P3",
@@ -490,7 +568,11 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
         extended_only=True,
         broker=BrokerMethodRef(dhan="edis.authorize_edis", upstox=None),
         cli=(CliExposure("edis", "cli/commands/extended_orders.py"),),
-        rest=(RestExposure("POST", "/api/v1/live/edis/authorize", "api/routers/live/extended.py", "live_broker"),),
+        rest=(
+            RestExposure(
+                "POST", "/api/v1/live/edis/authorize", "api/routers/live/extended.py", "live_broker"
+            ),
+        ),
         cli_data_source="live_broker",
         tier="extended",
         severity_if_gap="P3",
@@ -518,7 +600,11 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
         extended_only=True,
         broker=BrokerMethodRef(dhan=None, upstox="gtt.place_gtt_order"),
         cli=(CliExposure("gtt-order", "cli/commands/extended_orders.py"),),
-        rest=(RestExposure("POST", "/api/v1/live/orders/gtt", "api/routers/live/extended.py", "live_broker"),),
+        rest=(
+            RestExposure(
+                "POST", "/api/v1/live/orders/gtt", "api/routers/live/extended.py", "live_broker"
+            ),
+        ),
         cli_data_source="live_broker",
         tier="extended",
         severity_if_gap="P1",
@@ -530,7 +616,11 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
         extended_only=True,
         broker=BrokerMethodRef(dhan=None, upstox="cover.place_cover_order"),
         cli=(CliExposure("cover-order", "cli/commands/extended_orders.py"),),
-        rest=(RestExposure("POST", "/api/v1/live/orders/cover", "api/routers/live/extended.py", "live_broker"),),
+        rest=(
+            RestExposure(
+                "POST", "/api/v1/live/orders/cover", "api/routers/live/extended.py", "live_broker"
+            ),
+        ),
         cli_data_source="live_broker",
         tier="extended",
         severity_if_gap="P1",
@@ -542,7 +632,11 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
         extended_only=True,
         broker=BrokerMethodRef(dhan="orders.place_slice_order", upstox="slice.place_slice_order"),
         cli=(CliExposure("slice-order", "cli/commands/extended_orders.py"),),
-        rest=(RestExposure("POST", "/api/v1/live/orders/slice", "api/routers/live/extended.py", "live_broker"),),
+        rest=(
+            RestExposure(
+                "POST", "/api/v1/live/orders/slice", "api/routers/live/extended.py", "live_broker"
+            ),
+        ),
         cli_data_source="live_broker",
         tier="extended",
         severity_if_gap="P1",
@@ -566,7 +660,9 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
         extended_only=True,
         broker=BrokerMethodRef(dhan=None, upstox="ipo.get_ipos"),
         cli=(CliExposure("ipo", "cli/commands/extended_orders.py"),),
-        rest=(RestExposure("GET", "/api/v1/live/ipo", "api/routers/live/extended.py", "live_broker"),),
+        rest=(
+            RestExposure("GET", "/api/v1/live/ipo", "api/routers/live/extended.py", "live_broker"),
+        ),
         cli_data_source="live_broker",
         tier="extended",
         severity_if_gap="P3",
@@ -579,8 +675,12 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
         broker=BrokerMethodRef(dhan=None, upstox="mutual_funds.place_order"),
         cli=(CliExposure("mf", "cli/commands/extended_orders.py"),),
         rest=(
-            RestExposure("GET", "/api/v1/live/mutual-funds", "api/routers/live/extended.py", "live_broker"),
-            RestExposure("POST", "/api/v1/live/mutual-funds", "api/routers/live/extended.py", "live_broker"),
+            RestExposure(
+                "GET", "/api/v1/live/mutual-funds", "api/routers/live/extended.py", "live_broker"
+            ),
+            RestExposure(
+                "POST", "/api/v1/live/mutual-funds", "api/routers/live/extended.py", "live_broker"
+            ),
         ),
         cli_data_source="live_broker",
         tier="extended",
@@ -593,7 +693,14 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
         extended_only=True,
         broker=BrokerMethodRef(dhan=None, upstox="payments.initiate_payout"),
         cli=(CliExposure("payout", "cli/commands/extended_orders.py"),),
-        rest=(RestExposure("POST", "/api/v1/live/payments/payout", "api/routers/live/extended.py", "live_broker"),),
+        rest=(
+            RestExposure(
+                "POST",
+                "/api/v1/live/payments/payout",
+                "api/routers/live/extended.py",
+                "live_broker",
+            ),
+        ),
         cli_data_source="live_broker",
         tier="extended",
         severity_if_gap="P3",
@@ -605,7 +712,14 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
         extended_only=True,
         broker=BrokerMethodRef(dhan=None, upstox="fundamentals.get_pnl"),
         cli=(CliExposure("fundamentals", "cli/commands/extended_orders.py"),),
-        rest=(RestExposure("GET", "/api/v1/live/fundamentals/{isin}", "api/routers/live/extended.py", "live_broker"),),
+        rest=(
+            RestExposure(
+                "GET",
+                "/api/v1/live/fundamentals/{isin}",
+                "api/routers/live/extended.py",
+                "live_broker",
+            ),
+        ),
         cli_data_source="live_broker",
         tier="extended",
         broker_only_reason="Upstox fundamentals API",
@@ -699,9 +813,18 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
         broker=BrokerMethodRef(dhan=None, upstox="intelligence.get_pcr"),
         cli=(),
         rest=(
-            RestExposure("GET", "/api/v1/options/pcr/{underlying}", "api/routers/options.py", "datalake"),
-            RestExposure("GET", "/api/v1/options/max-pain/{underlying}", "api/routers/options.py", "datalake"),
-            RestExposure("GET", "/api/v1/options/volume-profile/{underlying}", "api/routers/options.py", "datalake"),
+            RestExposure(
+                "GET", "/api/v1/options/pcr/{underlying}", "api/routers/options.py", "datalake"
+            ),
+            RestExposure(
+                "GET", "/api/v1/options/max-pain/{underlying}", "api/routers/options.py", "datalake"
+            ),
+            RestExposure(
+                "GET",
+                "/api/v1/options/volume-profile/{underlying}",
+                "api/routers/options.py",
+                "datalake",
+            ),
         ),
         tier="extended",
         severity_if_gap="P2",
@@ -792,7 +915,14 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
         gateway_method=None,
         broker=BrokerMethodRef(dhan=None, upstox="market_data_v3.get_option_greeks_v3"),
         cli=(CliExposure("option-chain", "cli/commands/market.py"),),
-        rest=(RestExposure("GET", "/api/v1/options/iv-surface/{underlying}", "api/routers/options.py", "datalake"),),
+        rest=(
+            RestExposure(
+                "GET",
+                "/api/v1/options/iv-surface/{underlying}",
+                "api/routers/options.py",
+                "datalake",
+            ),
+        ),
         tier="extended",
         severity_if_gap="P2",
     ),
@@ -822,7 +952,9 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
             RestExposure("GET", "/api/v1/health", "api/routers/health.py", "none"),
             RestExposure("GET", "/api/v1/health/readyz", "api/routers/health.py", "none"),
             RestExposure("GET", "/api/v1/health/metrics", "api/routers/health.py", "oms"),
-            RestExposure("GET", "/api/v1/health/metrics/prometheus", "api/routers/health.py", "none"),
+            RestExposure(
+                "GET", "/api/v1/health/metrics/prometheus", "api/routers/health.py", "none"
+            ),
         ),
         tier="core",
         severity_if_gap="P2",
@@ -835,7 +967,9 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
         rest=(
             RestExposure("GET", "/api/v1/live/health", "api/routers/live/health.py", "live_broker"),
             RestExposure("GET", "/api/v1/live/readyz", "api/routers/live/health.py", "live_broker"),
-            RestExposure("GET", "/api/v1/live/capabilities", "api/routers/live/health.py", "live_broker"),
+            RestExposure(
+                "GET", "/api/v1/live/capabilities", "api/routers/live/health.py", "live_broker"
+            ),
         ),
         cli_data_source="live_broker",
         tier="core",
@@ -849,7 +983,9 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
         cli=(CliExposure("analytics scan", "cli/commands/analytics_scanner.py"),),
         rest=(
             RestExposure("GET", "/api/v1/scanner/results", "api/routers/scanner.py", "datalake"),
-            RestExposure("GET", "/api/v1/scanner/top-candidates", "api/routers/scanner.py", "datalake"),
+            RestExposure(
+                "GET", "/api/v1/scanner/top-candidates", "api/routers/scanner.py", "datalake"
+            ),
             RestExposure("GET", "/api/v1/scanner/snapshots", "api/routers/scanner.py", "datalake"),
             RestExposure("POST", "/api/v1/scanner/run", "api/routers/scanner.py", "mixed"),
         ),
@@ -863,8 +999,15 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
         cli=(CliExposure("analytics backtest", "cli/commands/analytics_backtest.py"),),
         rest=(
             RestExposure("POST", "/api/v1/backtest/run", "api/routers/backtest.py", "datalake"),
-            RestExposure("GET", "/api/v1/backtest/results/{backtest_id}", "api/routers/backtest.py", "datalake"),
-            RestExposure("GET", "/api/v1/backtest/comparison/{run_id}", "api/routers/backtest.py", "datalake"),
+            RestExposure(
+                "GET",
+                "/api/v1/backtest/results/{backtest_id}",
+                "api/routers/backtest.py",
+                "datalake",
+            ),
+            RestExposure(
+                "GET", "/api/v1/backtest/comparison/{run_id}", "api/routers/backtest.py", "datalake"
+            ),
         ),
         tier="extended",
         severity_if_gap="P3",
@@ -877,12 +1020,39 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
         rest=(
             RestExposure("GET", "/api/v1/replay/sessions", "api/routers/replay.py", "datalake"),
             RestExposure("POST", "/api/v1/replay/sessions", "api/routers/replay.py", "datalake"),
-            RestExposure("GET", "/api/v1/replay/sessions/{session_id}", "api/routers/replay.py", "datalake"),
-            RestExposure("POST", "/api/v1/replay/sessions/{session_id}/play", "api/routers/replay.py", "datalake"),
-            RestExposure("POST", "/api/v1/replay/sessions/{session_id}/pause", "api/routers/replay.py", "datalake"),
-            RestExposure("POST", "/api/v1/replay/sessions/{session_id}/stop", "api/routers/replay.py", "datalake"),
-            RestExposure("POST", "/api/v1/replay/sessions/{session_id}/speed", "api/routers/replay.py", "datalake"),
-            RestExposure("POST", "/api/v1/replay/sessions/{session_id}/seek", "api/routers/replay.py", "datalake"),
+            RestExposure(
+                "GET", "/api/v1/replay/sessions/{session_id}", "api/routers/replay.py", "datalake"
+            ),
+            RestExposure(
+                "POST",
+                "/api/v1/replay/sessions/{session_id}/play",
+                "api/routers/replay.py",
+                "datalake",
+            ),
+            RestExposure(
+                "POST",
+                "/api/v1/replay/sessions/{session_id}/pause",
+                "api/routers/replay.py",
+                "datalake",
+            ),
+            RestExposure(
+                "POST",
+                "/api/v1/replay/sessions/{session_id}/stop",
+                "api/routers/replay.py",
+                "datalake",
+            ),
+            RestExposure(
+                "POST",
+                "/api/v1/replay/sessions/{session_id}/speed",
+                "api/routers/replay.py",
+                "datalake",
+            ),
+            RestExposure(
+                "POST",
+                "/api/v1/replay/sessions/{session_id}/seek",
+                "api/routers/replay.py",
+                "datalake",
+            ),
         ),
         tier="extended",
         severity_if_gap="P3",
@@ -893,11 +1063,21 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
         gateway_method=None,
         cli=(CliExposure("analytics breadth", "cli/commands/analytics.py"),),
         rest=(
-            RestExposure("GET", "/api/v1/analytics/market-breadth", "api/routers/analytics.py", "datalake"),
-            RestExposure("GET", "/api/v1/analytics/indicators", "api/routers/analytics.py", "datalake"),
-            RestExposure("GET", "/api/v1/analytics/snapshot", "api/routers/analytics.py", "datalake"),
-            RestExposure("GET", "/api/v1/analytics/top-candidates", "api/routers/analytics.py", "datalake"),
-            RestExposure("GET", "/api/v1/analytics/relative-strength", "api/routers/analytics.py", "datalake"),
+            RestExposure(
+                "GET", "/api/v1/analytics/market-breadth", "api/routers/analytics.py", "datalake"
+            ),
+            RestExposure(
+                "GET", "/api/v1/analytics/indicators", "api/routers/analytics.py", "datalake"
+            ),
+            RestExposure(
+                "GET", "/api/v1/analytics/snapshot", "api/routers/analytics.py", "datalake"
+            ),
+            RestExposure(
+                "GET", "/api/v1/analytics/top-candidates", "api/routers/analytics.py", "datalake"
+            ),
+            RestExposure(
+                "GET", "/api/v1/analytics/relative-strength", "api/routers/analytics.py", "datalake"
+            ),
         ),
         tier="extended",
         severity_if_gap="P3",
@@ -922,7 +1102,9 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
         cli=(CliExposure("instrument", "cli/commands/instrument_info.py"),),
         rest=(
             RestExposure("GET", "/api/v1/symbols/{symbol}", "api/routers/symbols.py", "datalake"),
-            RestExposure("GET", "/api/v1/symbols/universe/{name}", "api/routers/symbols.py", "datalake"),
+            RestExposure(
+                "GET", "/api/v1/symbols/universe/{name}", "api/routers/symbols.py", "datalake"
+            ),
         ),
         tier="core",
         severity_if_gap="P2",
@@ -934,9 +1116,15 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
         cli=(CliExposure("analytics strategies", "cli/commands/analytics_strategies.py"),),
         rest=(
             RestExposure("GET", "/api/v1/strategy/signals", "api/routers/strategy.py", "datalake"),
-            RestExposure("GET", "/api/v1/strategy/candidates", "api/routers/strategy.py", "datalake"),
-            RestExposure("GET", "/api/v1/analytics/strategies", "api/routers/analytics.py", "datalake"),
-            RestExposure("POST", "/api/v1/analytics/strategies/run", "api/routers/analytics.py", "datalake"),
+            RestExposure(
+                "GET", "/api/v1/strategy/candidates", "api/routers/strategy.py", "datalake"
+            ),
+            RestExposure(
+                "GET", "/api/v1/analytics/strategies", "api/routers/analytics.py", "datalake"
+            ),
+            RestExposure(
+                "POST", "/api/v1/analytics/strategies/run", "api/routers/analytics.py", "datalake"
+            ),
         ),
         tier="extended",
         severity_if_gap="P3",
@@ -964,31 +1152,33 @@ def surfaces_for_capability(cap: Capability) -> list[CapabilitySurface]:
 
 def abc_gateway_methods() -> frozenset[str]:
     """Abstract methods required by MarketDataGateway ABC."""
-    return frozenset({
-        "history",
-        "quote",
-        "ltp",
-        "depth",
-        "option_chain",
-        "future_chain",
-        "stream",
-        "ltp_batch",
-        "quote_batch",
-        "history_batch",
-        "place_order",
-        "cancel_order",
-        "get_orderbook",
-        "get_trade_book",
-        "positions",
-        "holdings",
-        "funds",
-        "trades",
-        "search",
-        "load_instruments",
-        "capabilities",
-        "describe",
-        "close",
-    })
+    return frozenset(
+        {
+            "history",
+            "quote",
+            "ltp",
+            "depth",
+            "option_chain",
+            "future_chain",
+            "stream",
+            "ltp_batch",
+            "quote_batch",
+            "history_batch",
+            "place_order",
+            "cancel_order",
+            "get_orderbook",
+            "get_trade_book",
+            "positions",
+            "holdings",
+            "funds",
+            "trades",
+            "search",
+            "load_instruments",
+            "capabilities",
+            "describe",
+            "close",
+        }
+    )
 
 
 def all_capability_enum_values() -> frozenset[Capability]:
@@ -1030,8 +1220,8 @@ def classify_exposure(surface: CapabilitySurface) -> ExposureStatus:
 
 
 __all__ = [
-    "BrokerMethodRef",
     "CAPABILITY_SURFACES",
+    "BrokerMethodRef",
     "CapabilitySurface",
     "CliExposure",
     "DataSource",

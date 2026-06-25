@@ -44,13 +44,13 @@ def gateway():
     if not _live_env_loaded:
         return None
     from brokers.dhan import BrokerFactory
+
     _load_credentials()
     return BrokerFactory().create(env_path=ENV_PATH, load_instruments=True)
 
 
 @pytest.mark.skipif(not _live_env_loaded, reason=".env.local with DHAN_CLIENT_ID required")
 class TestLiveValidation:
-
     def test_validate_rejects_bad_lot_size(self, gateway):
         """Find a real F&O instrument and test lot size validation."""
         # Use the resolver to find a NIFTY future
@@ -71,7 +71,12 @@ class TestLiveValidation:
                         price=Decimal("25000"),
                     )
                     assert len(errors) > 0
-                    assert any("lot size" in e.lower() or "multiple" in e.lower() or "not found" in e.lower() for e in errors)
+                    assert any(
+                        "lot size" in e.lower()
+                        or "multiple" in e.lower()
+                        or "not found" in e.lower()
+                        for e in errors
+                    )
                     return
         except Exception as exc:
             logger.debug("lot_size_validation_fallback: %s", exc)
@@ -103,7 +108,9 @@ class TestLiveValidation:
                     price=Decimal("25000"),
                 )
                 assert len(errors) > 0
-                assert any("CNC" in e or "product" in e.lower() or "not found" in e.lower() for e in errors)
+                assert any(
+                    "CNC" in e or "product" in e.lower() or "not found" in e.lower() for e in errors
+                )
                 return
         except Exception as exc:
             logger.debug("cnc_validation_fallback: %s", exc)
@@ -174,12 +181,13 @@ class TestLiveValidation:
             logger.debug("margin_validation_fallback: %s", exc)
         # If no F&O instruments found, skip
         import pytest
+
         pytest.skip("No F&O instruments available")
 
     def test_idempotency_cache_prevents_duplicate(self, gateway):
         """Placing same correlation_id twice should return cached result."""
-        from domain import Order, OrderStatus
         from brokers.dhan.orders import IdempotencyCache
+        from domain import Order, OrderStatus
 
         cache = IdempotencyCache()
         cached_order = Order(

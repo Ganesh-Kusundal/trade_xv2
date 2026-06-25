@@ -18,17 +18,19 @@ def _make_hive_structure(root: Path, symbol: str, timestamps: list) -> Path:
     hive.mkdir(parents=True, exist_ok=True)
     path = hive / "data.parquet"
     n = len(timestamps)
-    df = pd.DataFrame({
-        "timestamp": timestamps,
-        "symbol": symbol,
-        "exchange": "NSE",
-        "open": [100.0] * n,
-        "high": [101.0] * n,
-        "low": [99.0] * n,
-        "close": [100.5] * n,
-        "volume": [1000] * n,
-        "oi": [0] * n,
-    })
+    df = pd.DataFrame(
+        {
+            "timestamp": timestamps,
+            "symbol": symbol,
+            "exchange": "NSE",
+            "open": [100.0] * n,
+            "high": [101.0] * n,
+            "low": [99.0] * n,
+            "close": [100.5] * n,
+            "volume": [1000] * n,
+            "oi": [0] * n,
+        }
+    )
     table = pa.Table.from_pandas(df, preserve_index=False)
     atomic_parquet_write(path, table, compression="snappy")
     return path
@@ -37,8 +39,9 @@ def _make_hive_structure(root: Path, symbol: str, timestamps: list) -> Path:
 class TestDetectTimezone:
     def test_ist_data(self, tmp_path: Path) -> None:
         """Hours 9-15 → IST."""
-        _make_hive_structure(tmp_path, "RELIANCE",
-                             pd.date_range("2026-06-01 09:15", periods=50, freq="1min"))
+        _make_hive_structure(
+            tmp_path, "RELIANCE", pd.date_range("2026-06-01 09:15", periods=50, freq="1min")
+        )
 
         conn = duckdb.connect(":memory:")
         tz = detect_timezone(conn, "RELIANCE", data_root=str(tmp_path))
@@ -48,8 +51,9 @@ class TestDetectTimezone:
 
     def test_ist_shifted_data(self, tmp_path: Path) -> None:
         """Hours 14-20 → IST_SHIFTED (source was IST, incorrectly treated as UTC)."""
-        _make_hive_structure(tmp_path, "RELIANCE",
-                             pd.date_range("2026-06-01 14:46", periods=50, freq="1min"))
+        _make_hive_structure(
+            tmp_path, "RELIANCE", pd.date_range("2026-06-01 14:46", periods=50, freq="1min")
+        )
 
         conn = duckdb.connect(":memory:")
         tz = detect_timezone(conn, "RELIANCE", data_root=str(tmp_path))
@@ -59,8 +63,9 @@ class TestDetectTimezone:
 
     def test_raw_utc_data(self, tmp_path: Path) -> None:
         """Hours 3-10 → UTC (source was UTC, not converted)."""
-        _make_hive_structure(tmp_path, "RELIANCE",
-                             pd.date_range("2026-06-01 03:45", periods=50, freq="1min"))
+        _make_hive_structure(
+            tmp_path, "RELIANCE", pd.date_range("2026-06-01 03:45", periods=50, freq="1min")
+        )
 
         conn = duckdb.connect(":memory:")
         tz = detect_timezone(conn, "RELIANCE", data_root=str(tmp_path))
@@ -79,8 +84,9 @@ class TestNormalizeSymbol:
     def test_shifts_ist_shifted_back_to_ist(self, tmp_path: Path) -> None:
         """IST_SHIFTED data should be shifted back by 5:30 to get IST."""
         # Use enough data to span all IST market hours (9-15)
-        _make_hive_structure(tmp_path, "RELIANCE",
-                             pd.date_range("2026-06-01 14:46", periods=375, freq="1min"))
+        _make_hive_structure(
+            tmp_path, "RELIANCE", pd.date_range("2026-06-01 14:46", periods=375, freq="1min")
+        )
 
         conn = duckdb.connect(":memory:")
         result = normalize_symbol(conn, "RELIANCE", data_root=str(tmp_path))
@@ -105,8 +111,9 @@ class TestNormalizeSymbol:
 
     def test_ist_data_unchanged(self, tmp_path: Path) -> None:
         """IST data should return 'IST' without modification."""
-        _make_hive_structure(tmp_path, "RELIANCE",
-                             pd.date_range("2026-06-01 09:15", periods=50, freq="1min"))
+        _make_hive_structure(
+            tmp_path, "RELIANCE", pd.date_range("2026-06-01 09:15", periods=50, freq="1min")
+        )
 
         conn = duckdb.connect(":memory:")
         result = normalize_symbol(conn, "RELIANCE", data_root=str(tmp_path))
@@ -118,10 +125,12 @@ class TestNormalizeSymbol:
 class TestNormalizeAll:
     def test_dry_run(self, tmp_path: Path) -> None:
         """Dry run should report without writing."""
-        _make_hive_structure(tmp_path, "SYM1",
-                             pd.date_range("2026-06-01 14:46", periods=50, freq="1min"))
-        _make_hive_structure(tmp_path, "SYM2",
-                             pd.date_range("2026-06-01 09:15", periods=50, freq="1min"))
+        _make_hive_structure(
+            tmp_path, "SYM1", pd.date_range("2026-06-01 14:46", periods=50, freq="1min")
+        )
+        _make_hive_structure(
+            tmp_path, "SYM2", pd.date_range("2026-06-01 09:15", periods=50, freq="1min")
+        )
 
         from unittest.mock import patch
 
@@ -131,6 +140,7 @@ class TestNormalizeAll:
 
         # Instead, test directly
         from datalake.normalize import normalize_all
+
         counts = normalize_all(dry_run=True)
         # Should not have processed anything since the function uses market_data
         assert isinstance(counts, dict)

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -15,7 +15,6 @@ from cli.utils.error_formatter import (
 )
 from cli.utils.retry_handler import retry_with_backoff, with_retry
 from cli.utils.timeout_handler import with_timeout, with_timeout_async
-
 
 # ── Timeout Handler Tests ─────────────────────────────────────────────────
 
@@ -62,6 +61,7 @@ class TestWithTimeout:
 
     def test_timeout_default_30_seconds(self):
         """Test default timeout is 30 seconds."""
+
         # We can't test 30s directly, but verify the function accepts it
         def quick_func():
             return True
@@ -91,9 +91,7 @@ class TestWithTimeoutAsync:
         def fallback():
             return "fallback value"
 
-        result = with_timeout_async(
-            slow_function, timeout_seconds=1, on_timeout=fallback
-        )
+        result = with_timeout_async(slow_function, timeout_seconds=1, on_timeout=fallback)
         assert result == "fallback value"
 
     def test_timeout_without_fallback_raises(self):
@@ -200,9 +198,7 @@ class TestWithRetryDecorator:
         @with_retry(
             max_retries=3,
             backoff_factor=0.01,
-            on_retry=lambda attempt, exc, wait: retry_calls.append(
-                (attempt, str(exc), wait)
-            ),
+            on_retry=lambda attempt, exc, wait: retry_calls.append((attempt, str(exc), wait)),
         )
         def failing_function():
             nonlocal call_count
@@ -256,9 +252,7 @@ class TestRetryWithBackoff:
                 raise ConnectionError("fail")
             return "success"
 
-        result = retry_with_backoff(
-            fail_then_succeed, max_retries=3, backoff_factor=0.01
-        )
+        result = retry_with_backoff(fail_then_succeed, max_retries=3, backoff_factor=0.01)
         assert result == "success"
         assert call_count == 2
 

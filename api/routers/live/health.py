@@ -52,8 +52,7 @@ async def live_readyz(
             "ready": report.passed,
             "summary": report.summary(),
             "checks": [
-                {"name": c.name, "passed": c.passed, "message": c.message}
-                for c in report.checks
+                {"name": c.name, "passed": c.passed, "message": c.message} for c in report.checks
             ],
             "timestamp": datetime.now().isoformat(),
         }

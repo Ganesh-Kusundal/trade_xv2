@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 from brokers.common.auth.jwt_expiry import JwtExpiry
-from brokers.common.auth.token import JsonTokenStateStore, TokenSource, TokenState, TokenStateStore
+from brokers.common.auth.token import TokenSource, TokenState, TokenStateStore
 
 logger = logging.getLogger(__name__)
 

@@ -141,8 +141,7 @@ def get_scan_symbols(
 
     try:
         rows = conn.execute(
-            "SELECT symbol, score, reasons FROM scan_results "
-            "WHERE scan_id = ? ORDER BY score DESC",
+            "SELECT symbol, score, reasons FROM scan_results WHERE scan_id = ? ORDER BY score DESC",
             [scan_id],
         ).fetchall()
 
@@ -172,7 +171,8 @@ def compare_scans(
     try:
         ensure_scan_table(conn)
 
-        result = conn.execute("""
+        result = conn.execute(
+            """
             WITH s1 AS (
                 SELECT symbol, score FROM scan_results WHERE scan_id = ?
             ),
@@ -206,13 +206,16 @@ def compare_scans(
             SELECT * FROM removed
             UNION ALL
             SELECT * FROM changed
-        """, [scan_id_1, scan_id_2]).fetchall()
+        """,
+            [scan_id_1, scan_id_2],
+        ).fetchall()
 
-        added = [r[0] for r in result if r[4] == 'added']
-        removed = [r[0] for r in result if r[4] == 'removed']
+        added = [r[0] for r in result if r[4] == "added"]
+        removed = [r[0] for r in result if r[4] == "removed"]
         changed = [
             {"symbol": r[0], "old_score": r[1], "new_score": r[2], "delta": r[3]}
-            for r in result if r[4] == 'changed'
+            for r in result
+            if r[4] == "changed"
         ]
 
         return {

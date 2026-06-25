@@ -15,6 +15,7 @@ Every assertion is exact; no flaky sleeps. Time-dependent behaviour
 (timers, PnL rollover) is exercised via dependency injection so the
 tests do not depend on wall-clock progression.
 """
+
 from __future__ import annotations
 
 import json
@@ -24,6 +25,11 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+from application.oms.context import TradingContext
+from application.oms.factory import create_trading_context
+from application.oms.order_manager import OrderRequest
+from application.oms.position_manager import PositionManager
+from application.oms.risk_manager import RiskConfig, RiskManager
 from domain import (
     Order,
     OrderStatus,
@@ -34,11 +40,6 @@ from domain import (
 )
 from infrastructure.event_bus import EventBus
 from infrastructure.event_log import EventLog
-from application.oms.context import TradingContext
-from application.oms.factory import create_trading_context
-from application.oms.order_manager import OrderRequest
-from application.oms.position_manager import PositionManager
-from application.oms.risk_manager import RiskConfig, RiskManager
 
 # ── helpers ──────────────────────────────────────────────────────────
 
@@ -143,6 +144,7 @@ def test_scenario_1_crash_after_order_placement_replays_correctly(tmp_path):
     # Simulate the broker event handler (DhanOrderStream) publishing
     # the canonical ORDER_UPDATED that is replayed on restart.
     from infrastructure.event_bus import DomainEvent
+
     ctx.event_bus.publish(
         DomainEvent.now(
             "ORDER_UPDATED",
@@ -189,6 +191,7 @@ def test_scenario_2_crash_after_fill_replays_position(tmp_path):
     # ORDER_UPDATED; the OMS-internal TRADE_APPLIED handler is the
     # only path that updates positions. record_trade is called once.
     from infrastructure.event_bus import DomainEvent
+
     placed_order = ctx.order_manager.get_orders(symbol="TCS")[0]
     filled_order = placed_order.with_status(OrderStatus.FILLED).with_fill(5, Decimal("3500"))
     ctx.event_bus.publish(
@@ -227,9 +230,7 @@ def test_scenario_2_crash_after_fill_replays_position(tmp_path):
     # Pre-crash position
     pos_before = ctx.position_manager.get_position("TCS", "NSE")
     assert pos_before is not None, "position must be set pre-crash"
-    assert pos_before.quantity == 5, (
-        f"expected qty=5 pre-crash, got {pos_before.quantity}"
-    )
+    assert pos_before.quantity == 5, f"expected qty=5 pre-crash, got {pos_before.quantity}"
     # Simulate crash
     ctx = None
     # Restart and replay
@@ -390,9 +391,7 @@ def test_scenario_6_crash_during_token_refresh_atomic_env(tmp_path):
 
     env_path = tmp_path / ".env.local"
     env_path.write_text(
-        "DHAN_CLIENT_ID=1106251237\n"
-        "DHAN_ACCESS_TOKEN=OLD_TOKEN_VALUE\n"
-        "DHAN_PIN=960000\n"
+        "DHAN_CLIENT_ID=1106251237\nDHAN_ACCESS_TOKEN=OLD_TOKEN_VALUE\nDHAN_PIN=960000\n"
     )
     _update_env_token(env_path, "NEW_TOKEN_VALUE")
     # Re-read; must be the new value, not a partial.

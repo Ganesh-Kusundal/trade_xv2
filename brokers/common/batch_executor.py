@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, TypeVar
+from typing import TypeVar
 
 from domain.constants import BATCH_MAX_WORKERS
 

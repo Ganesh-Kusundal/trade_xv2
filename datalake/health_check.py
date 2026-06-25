@@ -100,14 +100,17 @@ def check_future_timestamps(conn: duckdb.DuckDBPyConnection) -> list[str]:
 def check_coverage(conn: duckdb.DuckDBPyConnection, min_rows: int = 100000) -> list[str]:
     """Check that each symbol has reasonable data coverage."""
     issues = []
-    r = conn.execute(f"""
+    r = conn.execute(
+        """
         SELECT symbol, COUNT(*) as cnt
         FROM v_candles_1m
         GROUP BY symbol
-        HAVING cnt < {min_rows}
+        HAVING cnt < ?
         ORDER BY cnt
         LIMIT 5
-    """).fetchall()
+    """,
+        [min_rows],
+    ).fetchall()
     for sym, cnt in r:
         issues.append(f"  {sym}: only {cnt:,} rows (expected >{min_rows:,})")
     return issues

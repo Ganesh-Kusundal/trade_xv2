@@ -7,6 +7,7 @@ method, wrong return type, incorrect schema) will fail fast.
 Run with:
     pytest tests/integration/test_gateway_contract.py -v
 """
+
 from __future__ import annotations
 
 from decimal import Decimal
@@ -14,6 +15,7 @@ from decimal import Decimal
 import pandas as pd
 import pytest
 
+from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
 from domain import (
     Balance,
     Holding,
@@ -24,7 +26,6 @@ from domain import (
     Quote,
     Trade,
 )
-from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -35,6 +36,7 @@ from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
 def paper_gateway():
     """Return a PaperGateway instance for contract testing."""
     from brokers.paper.paper_gateway import PaperGateway
+
     return PaperGateway()
 
 
@@ -55,16 +57,19 @@ class TestGatewayContract:
     def test_paper_gateway_is_subclass(self):
         """PaperGateway must extend MarketDataGateway."""
         from brokers.paper.paper_gateway import PaperGateway
+
         assert issubclass(PaperGateway, MarketDataGateway)
 
     def test_dhan_gateway_is_subclass(self):
         """Dhan BrokerGateway must extend MarketDataGateway."""
         from brokers.dhan.gateway import BrokerGateway
+
         assert issubclass(BrokerGateway, MarketDataGateway)
 
     def test_upstox_gateway_is_subclass(self):
         """Upstox UpstoxBrokerGateway must extend MarketDataGateway."""
         from brokers.upstox.gateway import UpstoxBrokerGateway
+
         assert issubclass(UpstoxBrokerGateway, MarketDataGateway)
 
     def test_no_abstract_methods_remaining(self, paper_gateway):
@@ -82,11 +87,29 @@ class TestGatewayContract:
     def test_all_methods_callable(self, paper_gateway):
         """All gateway methods must be callable (not just present)."""
         methods = [
-            "history", "quote", "ltp", "depth", "option_chain", "future_chain",
-            "stream", "ltp_batch", "quote_batch", "history_batch",
-            "place_order", "cancel_order", "get_orderbook", "get_trade_book",
-            "positions", "holdings", "funds", "trades",
-            "search", "load_instruments", "capabilities", "describe", "close",
+            "history",
+            "quote",
+            "ltp",
+            "depth",
+            "option_chain",
+            "future_chain",
+            "stream",
+            "ltp_batch",
+            "quote_batch",
+            "history_batch",
+            "place_order",
+            "cancel_order",
+            "get_orderbook",
+            "get_trade_book",
+            "positions",
+            "holdings",
+            "funds",
+            "trades",
+            "search",
+            "load_instruments",
+            "capabilities",
+            "describe",
+            "close",
         ]
         for method_name in methods:
             method = getattr(paper_gateway, method_name)
@@ -125,9 +148,7 @@ class TestReturnTypes:
             quantity=1,
             order_type="MARKET",
         )
-        assert isinstance(response, OrderResponse), (
-            f"Expected OrderResponse, got {type(response)}"
-        )
+        assert isinstance(response, OrderResponse), f"Expected OrderResponse, got {type(response)}"
 
     def test_positions_returns_list(self, paper_gateway):
         """positions() must return a list."""
@@ -166,9 +187,7 @@ class TestReturnTypes:
         trades = paper_gateway.get_trade_book()
         assert isinstance(trades, list), f"Expected list, got {type(trades)}"
         if trades:
-            assert isinstance(trades[0], Trade), (
-                f"Expected list[Trade], got {type(trades[0])}"
-            )
+            assert isinstance(trades[0], Trade), f"Expected list[Trade], got {type(trades[0])}"
 
     def test_capabilities_returns_broker_capabilities(self, paper_gateway):
         """capabilities() must return BrokerCapabilities."""
@@ -263,9 +282,9 @@ class TestErrorHandling:
     """Verify error handling conforms to contract."""
 
     def test_cancel_invalid_order_returns_false(self, paper_gateway):
-        """cancel_order() must return False for invalid order_id."""
+        """cancel_order() must return a failure response for invalid order_id."""
         result = paper_gateway.cancel_order("INVALID_ORDER_ID")
-        assert result is False, "cancel_order should return False for invalid order"
+        assert result.success is False, "cancel_order should return success=False for invalid order"
 
     def test_place_order_with_invalid_side_raises(self, paper_gateway):
         """place_order() with invalid side should raise ValueError."""
@@ -339,8 +358,12 @@ class TestLifecycle:
         """capabilities() must include key capability flags."""
         caps = paper_gateway.capabilities()
         required_fields = [
-            "websocket", "parallel_history", "max_batch_size",
-            "rate_limit_per_second", "rate_limit_per_minute",
+            "broker_id",
+            "supports_place_order",
+            "supports_historical_data",
+            "supports_live_market_data",
+            "rate_limit_profiles",
+            "max_batch_size",
         ]
         for field in required_fields:
             assert hasattr(caps, field), f"BrokerCapabilities missing field: {field}"

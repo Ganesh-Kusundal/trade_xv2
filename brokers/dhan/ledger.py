@@ -48,11 +48,14 @@ class LedgerAdapter:
         items = data.get("data", []) if isinstance(data, dict) else []
         entries = [self._parse_entry(item) for item in (items if isinstance(items, list) else [])]
 
-        logger.info("ledger_fetched", extra={
-            "from_date": from_date,
-            "to_date": to_date,
-            "count": len(entries),
-        })
+        logger.info(
+            "ledger_fetched",
+            extra={
+                "from_date": from_date,
+                "to_date": to_date,
+                "count": len(entries),
+            },
+        )
         return entries
 
     def _parse_entry(self, data: dict) -> LedgerEntry:

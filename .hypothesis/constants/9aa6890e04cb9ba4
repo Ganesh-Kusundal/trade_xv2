@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/brokers/common/auth/token.py
-# hypothesis_version: 6.155.7
-
-[0.0, 10.0, 127, 255, 384, '-', '=', '>Q', 'INTERACTIVE', 'OAUTH', 'STATIC', 'TOTP', 'TRADEJ_TOKEN', 'access_token', 'client_id', 'error', 'expires_at', 'issued_at', 'refresh_token', 'source', 'token_refresh_failed']

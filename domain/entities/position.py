@@ -61,13 +61,11 @@ class Position:
                 new_avg = old_avg
         else:
             new_realized = self.realized_pnl
-            new_avg = (Decimal(str(old_qty)) * old_avg + Decimal(str(delta)) * price) / Decimal(str(new_qty))
+            new_avg = (Decimal(str(old_qty)) * old_avg + Decimal(str(delta)) * price) / Decimal(
+                str(new_qty)
+            )
 
-        unrealized = (
-            Decimal(str(new_qty)) * (price - new_avg)
-            if new_qty != 0
-            else Decimal("0")
-        )
+        unrealized = Decimal(str(new_qty)) * (price - new_avg) if new_qty != 0 else Decimal("0")
         return replace(
             self,
             quantity=new_qty,

@@ -6,10 +6,8 @@ They serve as regression guards to prevent architectural drift.
 
 from __future__ import annotations
 
+import ast
 import inspect
-from abc import ABC
-from decimal import Decimal
-from typing import Any
 
 import pytest
 
@@ -35,7 +33,7 @@ class TestGatewayABCCompliance:
 
         # Get all public methods on UpstoxBrokerGateway
         gateway_methods = set()
-        for name, method in inspect.getmembers(UpstoxBrokerGateway, predicate=inspect.isfunction):
+        for name, _ in inspect.getmembers(UpstoxBrokerGateway, predicate=inspect.isfunction):
             if not name.startswith("_"):
                 gateway_methods.add(name)
 
@@ -44,10 +42,20 @@ class TestGatewayABCCompliance:
 
         # Deprecated methods that forward to extended (allowed during deprecation)
         deprecated_methods = {
-            "get_ipos", "initiate_payout", "get_payouts", "modify_payout",
-            "cancel_payout", "get_mutual_fund_holdings", "place_mutual_fund_order",
-            "get_pnl", "get_balance_sheet", "get_cash_flow", "get_ratios",
-            "get_user_profile", "convert_position", "get_trade_pnl"
+            "get_ipos",
+            "initiate_payout",
+            "get_payouts",
+            "modify_payout",
+            "cancel_payout",
+            "get_mutual_fund_holdings",
+            "place_mutual_fund_order",
+            "get_pnl",
+            "get_balance_sheet",
+            "get_cash_flow",
+            "get_ratios",
+            "get_user_profile",
+            "convert_position",
+            "get_trade_pnl",
         }
 
         # Find violations (excluding deprecated methods)
@@ -76,12 +84,10 @@ class TestGatewayABCCompliance:
 
         # ABC requires explicit parameters, not *args/**kwargs
         has_var_positional = any(
-            p.kind == inspect.Parameter.VAR_POSITIONAL
-            for p in place_order_sig.parameters.values()
+            p.kind == inspect.Parameter.VAR_POSITIONAL for p in place_order_sig.parameters.values()
         )
         has_var_keyword = any(
-            p.kind == inspect.Parameter.VAR_KEYWORD
-            for p in place_order_sig.parameters.values()
+            p.kind == inspect.Parameter.VAR_KEYWORD for p in place_order_sig.parameters.values()
         )
 
         if has_var_positional or has_var_keyword:
@@ -127,9 +133,20 @@ class TestGatewayABCCompliance:
         upstox_params = set(inspect.signature(UpstoxBrokerFactory.create).parameters.keys())
 
         # Core params from BrokerProviderFactory ABC
-        core_params = {"self", "env_path", "load_instruments", "event_bus", "risk_manager", "lifecycle"}
-        assert core_params.issubset(dhan_params), f"BrokerFactory missing core params: {core_params - dhan_params}"
-        assert core_params.issubset(upstox_params), f"UpstoxBrokerFactory missing core params: {core_params - upstox_params}"
+        core_params = {
+            "self",
+            "env_path",
+            "load_instruments",
+            "event_bus",
+            "risk_manager",
+            "lifecycle",
+        }
+        assert core_params.issubset(dhan_params), (
+            f"BrokerFactory missing core params: {core_params - dhan_params}"
+        )
+        assert core_params.issubset(upstox_params), (
+            f"UpstoxBrokerFactory missing core params: {core_params - upstox_params}"
+        )
 
 
 class TestExceptionHierarchy:
@@ -144,10 +161,7 @@ class TestExceptionHierarchy:
         from brokers.upstox.auth.exceptions import UpstoxApiError
 
         if not issubclass(UpstoxApiError, BrokerError):
-            pytest.skip(
-                "UpstoxApiError does not extend BrokerError. "
-                "Run Phase 3.5 to fix."
-            )
+            pytest.skip("UpstoxApiError does not extend BrokerError. Run Phase 3.5 to fix.")
 
         assert issubclass(UpstoxApiError, BrokerError)
 
@@ -169,6 +183,7 @@ class TestInstrumentLoaderSecurity:
         which has smarter logic to allow pickle.load in migration functions.
         """
         import pytest
+
         pytest.skip("Covered by test_security_findings.py::TestNoPickleLoad")
         from pathlib import Path
 
@@ -182,19 +197,23 @@ class TestInstrumentLoaderSecurity:
         # Search for pickle.load calls
         pickle_load_found = False
         for node in ast.walk(tree):
-            if isinstance(node, ast.Call):
-                if isinstance(node.func, ast.Attribute):
-                    if node.func.attr == "load":
-                        if isinstance(node.func.value, ast.Name):
-                            if node.func.value.id == "pickle":
-                                pickle_load_found = True
-                                break
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "load"
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "pickle"
+            ):
+                pickle_load_found = True
+                break
 
         if pickle_load_found:
             # pickle.load in migration function is acceptable (one-time local operation)
             pass
 
-        assert not pickle_load_found, "pickle.load must not be used in instrument loader (except migration)"
+        assert not pickle_load_found, (
+            "pickle.load must not be used in instrument loader (except migration)"
+        )
 
 
 class TestDomainModelCorrelationId:
@@ -211,10 +230,7 @@ class TestDomainModelCorrelationId:
             pytest.skip("Trade is not a dataclass")
 
         if "correlation_id" not in Trade.__dataclass_fields__:
-            pytest.skip(
-                "Trade does not have correlation_id field. "
-                "Run Phase 2.6 to fix."
-            )
+            pytest.skip("Trade does not have correlation_id field. Run Phase 2.6 to fix.")
 
         assert "correlation_id" in Trade.__dataclass_fields__
 
@@ -226,10 +242,7 @@ class TestDomainModelCorrelationId:
             pytest.skip("Position is not a dataclass")
 
         if "correlation_id" not in Position.__dataclass_fields__:
-            pytest.skip(
-                "Position does not have correlation_id field. "
-                "Run Phase 2.6 to fix."
-            )
+            pytest.skip("Position does not have correlation_id field. Run Phase 2.6 to fix.")
 
         assert "correlation_id" in Position.__dataclass_fields__
 
@@ -241,10 +254,7 @@ class TestDomainModelCorrelationId:
             pytest.skip("DomainEvent is not a dataclass")
 
         if "correlation_id" not in DomainEvent.__dataclass_fields__:
-            pytest.skip(
-                "DomainEvent does not have correlation_id field. "
-                "Run Phase 2.6 to fix."
-            )
+            pytest.skip("DomainEvent does not have correlation_id field. Run Phase 2.6 to fix.")
 
         assert "correlation_id" in DomainEvent.__dataclass_fields__
 
@@ -268,8 +278,7 @@ class TestUpstoxStreamAsyncBoundary:
         # Check for the problematic pattern
         if "asyncio.get_event_loop()" in source:
             pytest.skip(
-                "stream() uses asyncio.get_event_loop(). "
-                "Run Phase 1.3 to fix async boundary."
+                "stream() uses asyncio.get_event_loop(). Run Phase 1.3 to fix async boundary."
             )
 
         assert "asyncio.get_event_loop()" not in source

@@ -38,9 +38,11 @@ class TestUpstoxTotpClientInitialization:
     def test_init_missing_library_raises(self):
         """Test initialization fails gracefully if library not installed."""
         settings = _make_settings()
-        with patch.dict("sys.modules", {"upstox_totp": None}):
-            with pytest.raises(RuntimeError, match="upstox-totp library is required"):
-                UpstoxTotpClient(settings)
+        with (
+            patch.dict("sys.modules", {"upstox_totp": None}),
+            pytest.raises(RuntimeError, match="upstox-totp library is required"),
+        ):
+            UpstoxTotpClient(settings)
 
 
 class TestUpstoxTotpClientTokenGeneration:
@@ -55,14 +57,14 @@ class TestUpstoxTotpClientTokenGeneration:
             mock_response.data = MagicMock()
             mock_response.data.access_token = "test-access-token"
             mock_response.data.user_name = "test-user"
-            
+
             mock_client = MagicMock()
             mock_client.app_token.get_access_token.return_value = mock_response
             mock_totp.return_value = mock_client
-            
+
             client = UpstoxTotpClient(settings)
             result = client.generate_token()
-            
+
             assert result["success"] is True
             assert result["access_token"] == "test-access-token"
             assert result["user_name"] == "test-user"
@@ -74,13 +76,13 @@ class TestUpstoxTotpClientTokenGeneration:
             mock_response = MagicMock()
             mock_response.success = False
             mock_response.data = None
-            
+
             mock_client = MagicMock()
             mock_client.app_token.get_access_token.return_value = mock_response
             mock_totp.return_value = mock_client
-            
+
             client = UpstoxTotpClient(settings)
-            
+
             with pytest.raises(RuntimeError, match="TOTP token generation failed"):
                 client.generate_token()
 
@@ -91,9 +93,9 @@ class TestUpstoxTotpClientTokenGeneration:
             mock_client = MagicMock()
             mock_client.app_token.get_access_token.side_effect = Exception("API error")
             mock_totp.return_value = mock_client
-            
+
             client = UpstoxTotpClient(settings)
-            
+
             with pytest.raises(RuntimeError, match="TOTP token generation failed"):
                 client.generate_token()
 

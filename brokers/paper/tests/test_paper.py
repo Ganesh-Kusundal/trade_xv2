@@ -2,6 +2,7 @@
 
 from decimal import Decimal
 
+from brokers.paper import MockBroker, PaperGateway
 from domain import (
     Balance,
     OrderResponse,
@@ -9,18 +10,18 @@ from domain import (
     Side,
     Trade,
 )
-from brokers.paper import MockBroker, PaperGateway
 
 # ---------------------------------------------------------------------------
 # PaperGateway tests
 # ---------------------------------------------------------------------------
 
-class TestPaperGateway:
 
+class TestPaperGateway:
     def test_quote_returns_dict(self):
         gw = PaperGateway()
         q = gw.quote("RELIANCE", "NSE")
         from domain import Quote
+
         assert isinstance(q, Quote)
         assert q.symbol == "RELIANCE"
         assert q.ltp > 0
@@ -35,6 +36,7 @@ class TestPaperGateway:
         gw = PaperGateway()
         d = gw.depth("RELIANCE", "NSE")
         from domain import MarketDepth
+
         assert isinstance(d, MarketDepth)
         assert len(d.bids) == 5
         assert len(d.asks) == 5
@@ -57,8 +59,12 @@ class TestPaperGateway:
     def test_place_order_with_limit_price(self):
         gw = PaperGateway()
         o = gw.place_order(
-            "RELIANCE", "NSE", "BUY", 10,
-            price=Decimal("2500"), order_type="LIMIT",
+            "RELIANCE",
+            "NSE",
+            "BUY",
+            10,
+            price=Decimal("2500"),
+            order_type="LIMIT",
         )
         assert o.success is True
         assert o.order_id.startswith("PPR-")
@@ -139,8 +145,8 @@ class TestPaperGateway:
 # MockBroker (legacy wrapper) tests
 # ---------------------------------------------------------------------------
 
-class TestMockBroker:
 
+class TestMockBroker:
     def test_connect_disconnect(self):
         broker = MockBroker()
         assert broker.connect() is True
@@ -184,11 +190,13 @@ class TestMockBroker:
         broker = MockBroker()
         q = broker.quote("RELIANCE", "NSE")
         from domain import Quote
+
         assert isinstance(q, Quote)
         assert q.ltp > 0
 
     def test_trading_context_populates_oms(self):
         from application.oms.context import TradingContext
+
         ctx = TradingContext()
         broker = MockBroker(trading_context=ctx)
         broker.place_order("RELIANCE", "NSE", "BUY", 10, price=Decimal("2500"))
@@ -201,6 +209,7 @@ class TestMockBroker:
 
     def test_paper_gateway_shares_context(self):
         from application.oms.context import TradingContext
+
         ctx = TradingContext()
         gw = PaperGateway(trading_context=ctx)
         gw.place_order("RELIANCE", "NSE", "BUY", 5)
@@ -211,12 +220,15 @@ class TestMockBroker:
 
         from application.oms.context import TradingContext
         from application.oms.risk_manager import RiskConfig
+
         ctx = TradingContext(
             risk_config=RiskConfig(max_position_pct=Decimal("1")),
             capital_fn=lambda: Decimal("100000"),
         )
         gw = PaperGateway(trading_context=ctx)
-        resp = gw.place_order("RELIANCE", "NSE", "BUY", 1000, price=Decimal("100"), order_type="LIMIT")
+        resp = gw.place_order(
+            "RELIANCE", "NSE", "BUY", 1000, price=Decimal("100"), order_type="LIMIT"
+        )
         assert resp.status == OrderStatus.REJECTED
         assert len(ctx.order_manager.get_orders()) == 1
         assert ctx.order_manager.get_orders()[0].status == OrderStatus.REJECTED

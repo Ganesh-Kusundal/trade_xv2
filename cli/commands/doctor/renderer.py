@@ -10,17 +10,16 @@ from rich.console import Console
 from rich.table import Table
 
 from cli.commands.doctor.checks import CheckResult
-from cli.commands.doctor.orchestrator import SectionResult
 
 
 def _status_str(status: str) -> str:
     """Convert a status string to Rich-colored markup.
-    
+
     Parameters
     ----------
     status : str
         One of "PASS", "WARN", "FAIL", "INFO", "ERROR".
-    
+
     Returns
     -------
     str
@@ -39,22 +38,22 @@ def _status_str(status: str) -> str:
 
 class ResultRenderer:
     """Renders diagnostic check results as formatted tables.
-    
+
     Parameters
     ----------
     console : Console
         Rich console instance for output.
-    
+
     Example
     -------
     >>> renderer = ResultRenderer(console)
     >>> renderer.render_section("Market Data", results)
     >>> renderer.render_summary(all_results)
     """
-    
+
     def __init__(self, console: Console) -> None:
         self._console = console
-    
+
     def render_section(
         self,
         title: str,
@@ -63,7 +62,7 @@ class ResultRenderer:
         show_header: bool = True,
     ) -> None:
         """Render a diagnostics table for a group of checks.
-        
+
         Parameters
         ----------
         title : str
@@ -88,13 +87,13 @@ class ResultRenderer:
             table.add_row(r.name, _status_str(r.status), r.detail)
         self._console.print(table)
         self._console.print()
-    
+
     def render_sections(
         self,
         sections: list[tuple[str, list[CheckResult]]],
     ) -> None:
         """Render multiple sections in order.
-        
+
         Parameters
         ----------
         sections : list[tuple[str, list[CheckResult]]]
@@ -102,10 +101,10 @@ class ResultRenderer:
         """
         for title, results in sections:
             self.render_section(title, results)
-    
+
     def render_summary(self, all_results: list[CheckResult]) -> None:
         """Render the summary line showing pass/warn/fail counts.
-        
+
         Parameters
         ----------
         all_results : list[CheckResult]
@@ -117,7 +116,7 @@ class ResultRenderer:
         n_info = sum(1 for r in all_results if r.status == "INFO")
         n_error = sum(1 for r in all_results if r.status == "ERROR")
         total = len(all_results)
-        
+
         self._console.print()
         summary_parts = [
             f"[green]{n_pass} passed[/green]",

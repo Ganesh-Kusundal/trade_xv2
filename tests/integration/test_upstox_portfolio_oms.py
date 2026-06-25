@@ -9,7 +9,7 @@ from decimal import Decimal
 import pytest
 
 from application.oms import create_trading_context
-from brokers.upstox.tests.unit.test_websocket_safety import _FakeSocket, _fake_authorizer
+from brokers.upstox.tests.unit.test_websocket_safety import _fake_authorizer, _FakeSocket
 from brokers.upstox.websocket.portfolio_stream import UpstoxPortfolioStream
 from domain import Order, OrderStatus, OrderType, ProductType, Side
 
@@ -35,9 +35,11 @@ async def test_upstox_portfolio_stream_updates_oms_position():
 
     stream = UpstoxPortfolioStream(
         authorizer=_fake_authorizer(),
-        socket_factory=lambda _url: _FakeSocket([
-            '{"type":"order","data":{"order_id":"O1","trading_symbol":"INFY","exchange":"NSE","transaction_type":"BUY","quantity":100,"filled_quantity":100,"average_price":"1500","order_type":"MARKET","product":"I","validity":"DAY","status":"complete"}}',
-        ]),
+        socket_factory=lambda _url: _FakeSocket(
+            [
+                '{"type":"order","data":{"order_id":"O1","trading_symbol":"INFY","exchange":"NSE","transaction_type":"BUY","quantity":100,"filled_quantity":100,"average_price":"1500","order_type":"MARKET","product":"I","validity":"DAY","status":"complete"}}',
+            ]
+        ),
         event_bus=ctx.event_bus,
     )
     await stream.connect()

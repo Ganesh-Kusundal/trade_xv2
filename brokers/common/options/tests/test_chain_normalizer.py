@@ -4,20 +4,32 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from domain.entities import OptionChain, OptionContract
 from brokers.common.options.chain_normalizer import (
     to_canonical_strikes,
     upstox_chain_to_canonical,
 )
+from domain.entities import OptionChain, OptionContract
 
 
 def _row(strike: str, ce_ltp=100, pe_ltp=80, ce_iv=14, pe_iv=15) -> dict:
     return {
         "strike": strike,
-        "call": {"ltp": ce_ltp, "oi": 1000, "volume": 500, "iv": ce_iv,
-                 "symbol": "NIFTY" + strike + "CE", "security_id": strike + "C"},
-        "put": {"ltp": pe_ltp, "oi": 800, "volume": 400, "iv": pe_iv,
-                "symbol": "NIFTY" + strike + "PE", "security_id": strike + "P"},
+        "call": {
+            "ltp": ce_ltp,
+            "oi": 1000,
+            "volume": 500,
+            "iv": ce_iv,
+            "symbol": "NIFTY" + strike + "CE",
+            "security_id": strike + "C",
+        },
+        "put": {
+            "ltp": pe_ltp,
+            "oi": 800,
+            "volume": 400,
+            "iv": pe_iv,
+            "symbol": "NIFTY" + strike + "PE",
+            "security_id": strike + "P",
+        },
     }
 
 
@@ -33,8 +45,7 @@ def test_to_canonical_from_dhan_dict():
 
 def test_to_canonical_from_option_contract():
     contracts = [
-        OptionContract(strike=Decimal("24500"), call_ltp=Decimal("100"),
-                       put_ltp=Decimal("80")),
+        OptionContract(strike=Decimal("24500"), call_ltp=Decimal("100"), put_ltp=Decimal("80")),
     ]
     strikes = to_canonical_strikes(contracts)
     assert len(strikes) == 1
@@ -47,11 +58,13 @@ def test_to_canonical_from_option_contract():
 
 def test_to_canonical_handles_ce_pe_legacy_keys():
     """Dhan legacy chain dicts may still use CE/PE upper-case keys."""
-    rows = [{
-        "strikePrice": "24500",
-        "CE": {"tradingSymbol": "NIFTY24500CE", "last_price": "100"},
-        "PE": {"tradingSymbol": "NIFTY24500PE", "last_price": "80"},
-    }]
+    rows = [
+        {
+            "strikePrice": "24500",
+            "CE": {"tradingSymbol": "NIFTY24500CE", "last_price": "100"},
+            "PE": {"tradingSymbol": "NIFTY24500PE", "last_price": "80"},
+        }
+    ]
     strikes = to_canonical_strikes(rows)
     assert len(strikes) == 1
     assert strikes[0]["strike"] == Decimal("24500")
@@ -60,29 +73,36 @@ def test_to_canonical_handles_ce_pe_legacy_keys():
 
 
 def test_upstox_chain_to_canonical_recovers_per_leg_keys():
-    raw = [{
-        "strike_price": 24500,
-        "expiry": "2026-06-26",
-        "call_options": {
-            "market_data": {"ltp": 100, "oi": 1000, "volume": 500, "iv": 14},
-            "instrument_key": "NSE_FO|123",
-            "trading_symbol": "NIFTY24500CE",
-        },
-        "put_options": {
-            "market_data": {"ltp": 80, "oi": 800, "volume": 400, "iv": 15},
-            "instrument_key": "NSE_FO|124",
-            "trading_symbol": "NIFTY24500PE",
-        },
-    }]
-    contracts = [OptionContract(
-        strike=Decimal("24500"),
-        expiry="2026-06-26",
-        call_ltp=Decimal("100"),
-        put_ltp=Decimal("80"),
-        call_oi=1000, put_oi=800,
-        call_volume=500, put_volume=400,
-        call_iv=Decimal("14"), put_iv=Decimal("15"),
-    )]
+    raw = [
+        {
+            "strike_price": 24500,
+            "expiry": "2026-06-26",
+            "call_options": {
+                "market_data": {"ltp": 100, "oi": 1000, "volume": 500, "iv": 14},
+                "instrument_key": "NSE_FO|123",
+                "trading_symbol": "NIFTY24500CE",
+            },
+            "put_options": {
+                "market_data": {"ltp": 80, "oi": 800, "volume": 400, "iv": 15},
+                "instrument_key": "NSE_FO|124",
+                "trading_symbol": "NIFTY24500PE",
+            },
+        }
+    ]
+    contracts = [
+        OptionContract(
+            strike=Decimal("24500"),
+            expiry="2026-06-26",
+            call_ltp=Decimal("100"),
+            put_ltp=Decimal("80"),
+            call_oi=1000,
+            put_oi=800,
+            call_volume=500,
+            put_volume=400,
+            call_iv=Decimal("14"),
+            put_iv=Decimal("15"),
+        )
+    ]
     out = upstox_chain_to_canonical(contracts, raw, "NIFTY", "NFO", "2026-06-26")
     assert isinstance(out, OptionChain)
     assert out.underlying == "NIFTY"

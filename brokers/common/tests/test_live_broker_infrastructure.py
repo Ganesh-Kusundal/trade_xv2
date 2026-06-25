@@ -1,15 +1,14 @@
 """Live broker infrastructure tests — require TRADEX_LIVE_TESTS=1 and credentials."""
 
 import os
+from datetime import date, timedelta
 
 import pytest
 
 from brokers.common.bootstrap import bootstrap_from_broker_registry
-from brokers.common.policy import auto_dual_broker_policy
 from brokers.common.historical_coordinator import HistoricalQuery
+from brokers.common.policy import auto_dual_broker_policy
 from domain.historical import InstrumentRef
-from datetime import date, timedelta
-
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("TRADEX_LIVE_TESTS") != "1",
@@ -64,9 +63,7 @@ class TestLiveBrokerInfrastructure:
         token = live_infrastructure.quota.acquire(
             decision.primary_broker, "quotes", PriorityClass.PORTFOLIO_READ
         )
-        quote = await gw.get_quote_snapshot(
-            InstrumentRef("RELIANCE", "NSE"), quota=token
-        )
+        quote = await gw.get_quote_snapshot(InstrumentRef("RELIANCE", "NSE"), quota=token)
         assert quote.ltp > 0
 
     @pytest.mark.asyncio

@@ -25,17 +25,18 @@ def mock_url_resolver():
 
 # IPO Tests
 
+
 class TestUpstoxIpoAdapter:
     def test_get_ipos_returns_list(self, mock_http_client, mock_url_resolver):
-        from brokers.upstox.ipo.client import UpstoxIpoClient
         from brokers.upstox.ipo.adapter import UpstoxIpoAdapter
+        from brokers.upstox.ipo.client import UpstoxIpoClient
 
         mock_http_client.get_json.return_value = {
             "status": "success",
             "data": [
                 {"name": "IPO1", "status": "open"},
                 {"name": "IPO2", "status": "open"},
-            ]
+            ],
         }
 
         client = UpstoxIpoClient(mock_http_client, mock_url_resolver)
@@ -48,8 +49,8 @@ class TestUpstoxIpoAdapter:
         mock_http_client.get_json.assert_called_once()
 
     def test_get_ipos_empty_response(self, mock_http_client, mock_url_resolver):
-        from brokers.upstox.ipo.client import UpstoxIpoClient
         from brokers.upstox.ipo.adapter import UpstoxIpoAdapter
+        from brokers.upstox.ipo.client import UpstoxIpoClient
 
         mock_http_client.get_json.return_value = {"status": "success", "data": []}
 
@@ -63,14 +64,15 @@ class TestUpstoxIpoAdapter:
 
 # Payments Tests
 
+
 class TestUpstoxPaymentsAdapter:
     def test_initiate_payout(self, mock_http_client, mock_url_resolver):
-        from brokers.upstox.payments.client import UpstoxPaymentsClient
         from brokers.upstox.payments.adapter import UpstoxPaymentsAdapter
+        from brokers.upstox.payments.client import UpstoxPaymentsClient
 
         mock_http_client.post_json.return_value = {
             "status": "success",
-            "data": {"payout_id": "PAY123"}
+            "data": {"payout_id": "PAY123"},
         }
 
         client = UpstoxPaymentsClient(mock_http_client, mock_url_resolver)
@@ -81,12 +83,12 @@ class TestUpstoxPaymentsAdapter:
         assert result["data"]["payout_id"] == "PAY123"
 
     def test_get_payouts(self, mock_http_client, mock_url_resolver):
-        from brokers.upstox.payments.client import UpstoxPaymentsClient
         from brokers.upstox.payments.adapter import UpstoxPaymentsAdapter
+        from brokers.upstox.payments.client import UpstoxPaymentsClient
 
         mock_http_client.get_json.return_value = {
             "status": "success",
-            "data": [{"payout_id": "PAY123", "amount": 1000}]
+            "data": [{"payout_id": "PAY123", "amount": 1000}],
         }
 
         client = UpstoxPaymentsClient(mock_http_client, mock_url_resolver)
@@ -97,8 +99,8 @@ class TestUpstoxPaymentsAdapter:
         assert len(result) == 1
 
     def test_cancel_payout(self, mock_http_client, mock_url_resolver):
-        from brokers.upstox.payments.client import UpstoxPaymentsClient
         from brokers.upstox.payments.adapter import UpstoxPaymentsAdapter
+        from brokers.upstox.payments.client import UpstoxPaymentsClient
 
         mock_http_client.delete_json.return_value = {"status": "success"}
 
@@ -111,16 +113,17 @@ class TestUpstoxPaymentsAdapter:
 
 # Mutual Funds Tests
 
+
 class TestUpstoxMutualFundsAdapter:
     def test_get_holdings(self, mock_http_client, mock_url_resolver):
-        from brokers.upstox.mutual_funds.client import UpstoxMutualFundsClient
         from brokers.upstox.mutual_funds.adapter import UpstoxMutualFundsAdapter
+        from brokers.upstox.mutual_funds.client import UpstoxMutualFundsClient
 
         mock_http_client.get_json.return_value = {
             "status": "success",
             "data": [
                 {"fund_name": "HDFC Equity Fund", "units": 100.5},
-            ]
+            ],
         }
 
         client = UpstoxMutualFundsClient(mock_http_client, mock_url_resolver)
@@ -132,12 +135,12 @@ class TestUpstoxMutualFundsAdapter:
         assert result[0]["fund_name"] == "HDFC Equity Fund"
 
     def test_place_order(self, mock_http_client, mock_url_resolver):
-        from brokers.upstox.mutual_funds.client import UpstoxMutualFundsClient
         from brokers.upstox.mutual_funds.adapter import UpstoxMutualFundsAdapter
+        from brokers.upstox.mutual_funds.client import UpstoxMutualFundsClient
 
         mock_http_client.post_json.return_value = {
             "status": "success",
-            "data": {"order_id": "MF123"}
+            "data": {"order_id": "MF123"},
         }
 
         client = UpstoxMutualFundsClient(mock_http_client, mock_url_resolver)
@@ -150,10 +153,11 @@ class TestUpstoxMutualFundsAdapter:
 
 # Fundamentals Tests
 
+
 class TestUpstoxFundamentalsAdapter:
     def test_get_pnl(self, mock_http_client, mock_url_resolver):
-        from brokers.upstox.fundamentals.client import UpstoxFundamentalsClient
         from brokers.upstox.fundamentals.adapter import UpstoxFundamentalsAdapter
+        from brokers.upstox.fundamentals.client import UpstoxFundamentalsClient
 
         mock_http_client.get_json.return_value = {
             "status": "success",
@@ -161,7 +165,7 @@ class TestUpstoxFundamentalsAdapter:
                 "isin": "INE002A01018",
                 "revenue": 100000,
                 "profit": 25000,
-            }
+            },
         }
 
         client = UpstoxFundamentalsClient(mock_http_client, mock_url_resolver)
@@ -172,15 +176,15 @@ class TestUpstoxFundamentalsAdapter:
         assert result["data"]["isin"] == "INE002A01018"
 
     def test_get_ratios(self, mock_http_client, mock_url_resolver):
-        from brokers.upstox.fundamentals.client import UpstoxFundamentalsClient
         from brokers.upstox.fundamentals.adapter import UpstoxFundamentalsAdapter
+        from brokers.upstox.fundamentals.client import UpstoxFundamentalsClient
 
         mock_http_client.get_json.return_value = {
             "status": "success",
             "data": {
                 "pe_ratio": 25.5,
                 "pb_ratio": 3.2,
-            }
+            },
         }
 
         client = UpstoxFundamentalsClient(mock_http_client, mock_url_resolver)
@@ -193,11 +197,13 @@ class TestUpstoxFundamentalsAdapter:
 
 # Gateway Integration Tests
 
+
 class TestUpstoxGatewayNewFeatures:
     def test_gateway_ipo_property(self):
-        from brokers.upstox.gateway import UpstoxBrokerGateway
-        from brokers.upstox.broker import UpstoxBroker
         from unittest.mock import MagicMock
+
+        from brokers.upstox.broker import UpstoxBroker
+        from brokers.upstox.gateway import UpstoxBrokerGateway
 
         mock_broker = MagicMock(spec=UpstoxBroker)
         mock_broker.ipo = MagicMock()
@@ -206,12 +212,13 @@ class TestUpstoxGatewayNewFeatures:
 
         gateway = UpstoxBrokerGateway(mock_broker)
         assert gateway.extended is not None
-        assert hasattr(gateway.extended, 'get_ipos')
+        assert hasattr(gateway.extended, "get_ipos")
 
     def test_gateway_payments_property(self):
-        from brokers.upstox.gateway import UpstoxBrokerGateway
-        from brokers.upstox.broker import UpstoxBroker
         from unittest.mock import MagicMock
+
+        from brokers.upstox.broker import UpstoxBroker
+        from brokers.upstox.gateway import UpstoxBrokerGateway
 
         mock_broker = MagicMock(spec=UpstoxBroker)
         mock_broker.payments = MagicMock()
@@ -220,12 +227,13 @@ class TestUpstoxGatewayNewFeatures:
 
         gateway = UpstoxBrokerGateway(mock_broker)
         assert gateway.extended is not None
-        assert hasattr(gateway.extended, 'initiate_payout')
+        assert hasattr(gateway.extended, "initiate_payout")
 
     def test_gateway_mutual_funds_property(self):
-        from brokers.upstox.gateway import UpstoxBrokerGateway
-        from brokers.upstox.broker import UpstoxBroker
         from unittest.mock import MagicMock
+
+        from brokers.upstox.broker import UpstoxBroker
+        from brokers.upstox.gateway import UpstoxBrokerGateway
 
         mock_broker = MagicMock(spec=UpstoxBroker)
         mock_broker.mutual_funds = MagicMock()
@@ -234,12 +242,13 @@ class TestUpstoxGatewayNewFeatures:
 
         gateway = UpstoxBrokerGateway(mock_broker)
         assert gateway.extended is not None
-        assert hasattr(gateway.extended, 'get_mutual_fund_holdings')
+        assert hasattr(gateway.extended, "get_mutual_fund_holdings")
 
     def test_gateway_fundamentals_property(self):
-        from brokers.upstox.gateway import UpstoxBrokerGateway
-        from brokers.upstox.broker import UpstoxBroker
         from unittest.mock import MagicMock
+
+        from brokers.upstox.broker import UpstoxBroker
+        from brokers.upstox.gateway import UpstoxBrokerGateway
 
         mock_broker = MagicMock(spec=UpstoxBroker)
         mock_broker.fundamentals = MagicMock()
@@ -248,12 +257,13 @@ class TestUpstoxGatewayNewFeatures:
 
         gateway = UpstoxBrokerGateway(mock_broker)
         assert gateway.extended is not None
-        assert hasattr(gateway.extended, 'get_pnl')
+        assert hasattr(gateway.extended, "get_pnl")
 
     def test_gateway_capabilities_includes_new_features(self):
-        from brokers.upstox.gateway import UpstoxBrokerGateway
-        from brokers.upstox.broker import UpstoxBroker
         from unittest.mock import MagicMock
+
+        from brokers.upstox.broker import UpstoxBroker
+        from brokers.upstox.gateway import UpstoxBrokerGateway
 
         mock_broker = MagicMock(spec=UpstoxBroker)
         mock_broker.portfolio = MagicMock()

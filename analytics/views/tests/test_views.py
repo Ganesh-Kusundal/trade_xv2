@@ -197,8 +197,12 @@ class TestScannerViews:
 class TestQualityViews:
     def test_create_duplicate_candles(self, conn: duckdb.DuckDBPyConnection) -> None:
         # Create materialized tables that quality views now depend on
-        conn.execute("CREATE TABLE IF NOT EXISTS m_duplicate_candles (symbol VARCHAR, timestamp TIMESTAMP, duplicate_count BIGINT)")
-        conn.execute("CREATE TABLE IF NOT EXISTS m_missing_candles (symbol VARCHAR, trade_date DATE, minute_count BIGINT)")
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS m_duplicate_candles (symbol VARCHAR, timestamp TIMESTAMP, duplicate_count BIGINT)"
+        )
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS m_missing_candles (symbol VARCHAR, trade_date DATE, minute_count BIGINT)"
+        )
         views = QualityViews()
         views._create_duplicate_candles(conn)
         result = conn.execute("SELECT COUNT(*) FROM v_duplicate_candles").fetchone()
@@ -237,6 +241,7 @@ class TestViewManager:
 
     def test_materialize_creates_versioned_snapshot(self, tmp_path: Path) -> None:
         from analytics.views.manager import MATERIALIZED_DIR
+
         vm = ViewManager(catalog_path=tmp_path / "test.duckdb")
         try:
             vm.conn.execute("CREATE TABLE test_data AS SELECT 1 AS x, 'A' AS y")

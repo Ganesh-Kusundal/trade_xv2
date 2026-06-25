@@ -21,6 +21,7 @@ def _make_jwt(payload: dict) -> str:
 class TestJsonTokenStateStore:
     def test_save_and_load(self, tmp_path):
         from datetime import datetime
+
         store = JsonTokenStateStore(tmp_path / "token.json")
         state = TokenState(
             access_token="test_token",
@@ -47,6 +48,7 @@ class TestJsonTokenStateStore:
     def test_roundtrip_with_timestamps(self, tmp_path):
         store = JsonTokenStateStore(tmp_path / "token.json")
         from datetime import datetime
+
         now = datetime.now()
         state = TokenState(
             access_token="roundtrip_test",
@@ -97,15 +99,18 @@ class TestAuthManagerIntegration:
 
     def test_ensure_valid_does_not_proactively_refresh(self, tmp_path):
         from datetime import datetime, timedelta
+
         store = JsonTokenStateStore(tmp_path / "token.json")
         issued_at = datetime.now() - timedelta(hours=23, minutes=55)
         expires_at = datetime.now() + timedelta(minutes=4)
-        store.save(TokenState(
-            access_token="expiring_token",
-            source=TokenSource.TOTP,
-            issued_at=issued_at,
-            expires_at=expires_at,
-        ))
+        store.save(
+            TokenState(
+                access_token="expiring_token",
+                source=TokenSource.TOTP,
+                issued_at=issued_at,
+                expires_at=expires_at,
+            )
+        )
 
         refresh_called = {"count": 0}
 
@@ -128,15 +133,18 @@ class TestAuthManagerIntegration:
 
     def test_ensure_fresh_refreshes_when_needed(self, tmp_path):
         from datetime import datetime, timedelta
+
         store = JsonTokenStateStore(tmp_path / "token.json")
         issued_at = datetime.now() - timedelta(hours=23, minutes=55)
         expires_at = datetime.now() + timedelta(minutes=4)
-        store.save(TokenState(
-            access_token="expiring_token",
-            source=TokenSource.TOTP,
-            issued_at=issued_at,
-            expires_at=expires_at,
-        ))
+        store.save(
+            TokenState(
+                access_token="expiring_token",
+                source=TokenSource.TOTP,
+                issued_at=issued_at,
+                expires_at=expires_at,
+            )
+        )
 
         fresh_token = _make_jwt({"exp": int(time.time()) + 7200})
         auth = AuthManager(

@@ -8,9 +8,7 @@ from pathlib import Path
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
-def _find_function_definitions(
-    root: Path, func_name: str
-) -> list[tuple[Path, str]]:
+def _find_function_definitions(root: Path, func_name: str) -> list[tuple[Path, str]]:
     hits: list[tuple[Path, str]] = []
     for py_file in root.rglob("*.py"):
         rel = str(py_file.relative_to(_PROJECT_ROOT))

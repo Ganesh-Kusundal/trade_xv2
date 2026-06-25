@@ -36,7 +36,7 @@ def _make_catalog_with_daily(catalog_path, daily_rows: list[dict]) -> None:
         )
     """)
     if daily_rows:
-        df = pd.DataFrame(daily_rows)
+        pd.DataFrame(daily_rows)
         c.execute("INSERT INTO v_daily_summary SELECT * FROM df")
     c.close()
 
@@ -49,10 +49,12 @@ def _make_catalog_with_daily(catalog_path, daily_rows: list[dict]) -> None:
 class TestFindPivots:
     def test_simple_pivot_high(self) -> None:
         """Bar 3 is higher than bars 0-2 and 4-6 → resistance at bar 3."""
-        daily = _make_daily_df([
-            {"date": date(2026, 1, i + 1), "high": 100.0, "low": 90.0, "close": 95.0}
-            for i in range(7)
-        ])
+        daily = _make_daily_df(
+            [
+                {"date": date(2026, 1, i + 1), "high": 100.0, "low": 90.0, "close": 95.0}
+                for i in range(7)
+            ]
+        )
         daily.loc[3, "high"] = 120.0  # pivot high
         daily.loc[3, "low"] = 115.0
 
@@ -62,10 +64,12 @@ class TestFindPivots:
 
     def test_simple_pivot_low(self) -> None:
         """Bar 3 is lower than bars 0-2 and 4-6 → support at bar 3."""
-        daily = _make_daily_df([
-            {"date": date(2026, 1, i + 1), "high": 100.0, "low": 90.0, "close": 95.0}
-            for i in range(7)
-        ])
+        daily = _make_daily_df(
+            [
+                {"date": date(2026, 1, i + 1), "high": 100.0, "low": 90.0, "close": 95.0}
+                for i in range(7)
+            ]
+        )
         daily.loc[3, "low"] = 80.0  # pivot low
 
         supports, _ = _find_pivots(daily, window=2)
@@ -73,20 +77,24 @@ class TestFindPivots:
         assert supports[0] == (daily.loc[3, "date"], 80.0)
 
     def test_no_pivots_in_small_data(self) -> None:
-        daily = _make_daily_df([
-            {"date": date(2026, 1, i + 1), "high": 100.0, "low": 90.0, "close": 95.0}
-            for i in range(3)  # < 2*window+1 = 5
-        ])
+        daily = _make_daily_df(
+            [
+                {"date": date(2026, 1, i + 1), "high": 100.0, "low": 90.0, "close": 95.0}
+                for i in range(3)  # < 2*window+1 = 5
+            ]
+        )
         supports, resistances = _find_pivots(daily, window=2)
         assert supports == []
         assert resistances == []
 
     def test_pivot_window_excludes_self(self) -> None:
         """A bar higher than ITSELF is not a pivot (window excludes i)."""
-        daily = _make_daily_df([
-            {"date": date(2026, 1, i + 1), "high": 100.0, "low": 90.0, "close": 95.0}
-            for i in range(5)
-        ])
+        daily = _make_daily_df(
+            [
+                {"date": date(2026, 1, i + 1), "high": 100.0, "low": 90.0, "close": 95.0}
+                for i in range(5)
+            ]
+        )
         # All bars same price → no pivots (each bar is "equal" to its window)
         supports, resistances = _find_pivots(daily, window=2)
         assert supports == []
@@ -168,16 +176,18 @@ class TestFindSupportResistance:
         """Build 30 days of data with one clear pivot high and one clear pivot low."""
         rows = []
         for i in range(30):
-            rows.append({
-                "trade_date": date(2026, 1, 1) + timedelta(days=i),
-                "symbol": "RELIANCE",
-                "day_open": 100.0,
-                "day_high": 102.0,
-                "day_low": 98.0,
-                "day_close": 100.0,
-                "day_volume": 1000,
-                "day_oi": 0,
-            })
+            rows.append(
+                {
+                    "trade_date": date(2026, 1, 1) + timedelta(days=i),
+                    "symbol": "RELIANCE",
+                    "day_open": 100.0,
+                    "day_high": 102.0,
+                    "day_low": 98.0,
+                    "day_close": 100.0,
+                    "day_volume": 1000,
+                    "day_oi": 0,
+                }
+            )
         # Inject a clear pivot high at day 15
         rows[15]["day_high"] = 130.0
         # Inject a clear pivot low at day 20
@@ -195,18 +205,26 @@ class TestFindSupportResistance:
         """With 5 distinct pivot levels, top_n=2 returns only 2."""
         rows = []
         for i in range(30):
-            rows.append({
-                "trade_date": date(2026, 1, 1) + timedelta(days=i),
-                "symbol": "RELIANCE",
-                "day_open": 100.0,
-                "day_high": 102.0,
-                "day_low": 98.0,
-                "day_close": 100.0,
-                "day_volume": 1000,
-                "day_oi": 0,
-            })
+            rows.append(
+                {
+                    "trade_date": date(2026, 1, 1) + timedelta(days=i),
+                    "symbol": "RELIANCE",
+                    "day_open": 100.0,
+                    "day_high": 102.0,
+                    "day_low": 98.0,
+                    "day_close": 100.0,
+                    "day_volume": 1000,
+                    "day_oi": 0,
+                }
+            )
         # Inject 5 distinct resistance pivots
-        for pivot_idx, pivot_high in [(5, 130.0), (10, 140.0), (15, 150.0), (20, 160.0), (25, 170.0)]:
+        for pivot_idx, pivot_high in [
+            (5, 130.0),
+            (10, 140.0),
+            (15, 150.0),
+            (20, 160.0),
+            (25, 170.0),
+        ]:
             rows[pivot_idx]["day_high"] = pivot_high
 
         cat = tmp_path / "cat.duckdb"
@@ -228,12 +246,19 @@ class TestFindSupportResistance:
         today = date.today()
         rows = []
         for i in range(40):
-            rows.append({
-                "trade_date": today - timedelta(days=39 - i),  # day 0 = 39 days ago, day 39 = today
-                "symbol": "RELIANCE",
-                "day_open": 100.0, "day_high": 102.0, "day_low": 98.0, "day_close": 100.0,
-                "day_volume": 1000, "day_oi": 0,
-            })
+            rows.append(
+                {
+                    "trade_date": today
+                    - timedelta(days=39 - i),  # day 0 = 39 days ago, day 39 = today
+                    "symbol": "RELIANCE",
+                    "day_open": 100.0,
+                    "day_high": 102.0,
+                    "day_low": 98.0,
+                    "day_close": 100.0,
+                    "day_volume": 1000,
+                    "day_oi": 0,
+                }
+            )
         # Day 5 pivot (34 days ago) — should be EXCLUDED (outside 30-day window)
         rows[5]["day_high"] = 200.0
         # Day 25 pivot (14 days ago) — should be INCLUDED
@@ -243,7 +268,9 @@ class TestFindSupportResistance:
         _make_catalog_with_daily(cat, rows)
 
         result = find_support_resistance(
-            "RELIANCE", days=30, catalog_path=cat,
+            "RELIANCE",
+            days=30,
+            catalog_path=cat,
         )
         prices = [lvl.price for lvl in result["resistance"]]
         assert 150.0 in prices, f"Expected 150.0 in {prices}"
@@ -251,12 +278,18 @@ class TestFindSupportResistance:
 
     def test_symbol_normalization(self, tmp_path) -> None:
         """Symbol with -EQ suffix should match the normalized form."""
-        rows = [{
-            "trade_date": date(2026, 1, 1),
-            "symbol": "RELIANCE",  # stored without suffix
-            "day_open": 100.0, "day_high": 102.0, "day_low": 98.0, "day_close": 100.0,
-            "day_volume": 1000, "day_oi": 0,
-        }]
+        rows = [
+            {
+                "trade_date": date(2026, 1, 1),
+                "symbol": "RELIANCE",  # stored without suffix
+                "day_open": 100.0,
+                "day_high": 102.0,
+                "day_low": 98.0,
+                "day_close": 100.0,
+                "day_volume": 1000,
+                "day_oi": 0,
+            }
+        ]
         cat = tmp_path / "cat.duckdb"
         _make_catalog_with_daily(cat, rows)
 

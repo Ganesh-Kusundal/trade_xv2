@@ -20,11 +20,11 @@ prevents shotgun surgery when adding new brokers.
 """
 
 # Canonical interfaces (not broker-specific)
-from brokers.common.gateway import MarketDataGateway
 from brokers.common.factory import BrokerProviderFactory
+from brokers.common.gateway import MarketDataGateway
 
 __all__ = [
+    "BrokerProviderFactory",
     # Abstract interfaces
     "MarketDataGateway",
-    "BrokerProviderFactory",
 ]

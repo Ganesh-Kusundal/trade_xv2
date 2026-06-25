@@ -3,6 +3,7 @@
 All constants governing market hours, exchange identifiers, tick sizes,
 and timezone definitions.
 """
+
 from __future__ import annotations
 
 from datetime import timedelta, timezone

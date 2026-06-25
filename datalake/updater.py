@@ -73,15 +73,17 @@ class IncrementalUpdater:
     ) -> int:
         """Update a single symbol with latest data."""
         parquet_path = (
-            self._root / "equities" / "candles" / f"timeframe={timeframe}"
-            / f"symbol={symbol}" / "data.parquet"
+            self._root
+            / "equities"
+            / "candles"
+            / f"timeframe={timeframe}"
+            / f"symbol={symbol}"
+            / "data.parquet"
         )
 
         if not parquet_path.exists():
             # No existing data, do full download
-            return self._loader.download_symbol(
-                symbol, gateway, years=1, timeframe=timeframe
-            )
+            return self._loader.download_symbol(symbol, gateway, years=1, timeframe=timeframe)
 
         # Get last date in existing data
         try:

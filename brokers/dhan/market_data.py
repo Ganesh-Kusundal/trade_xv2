@@ -5,11 +5,10 @@ from __future__ import annotations
 import logging
 from decimal import Decimal
 
-from domain import DepthLevel, MarketDepth, Quote
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 from brokers.dhan.invariants import assert_dhan_identity
-from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
+from domain import DepthLevel, MarketDepth, Quote
 
 logger = logging.getLogger(__name__)
 
@@ -42,11 +41,18 @@ class MarketDataAdapter:
         segment_data = data.get("data", {}).get(segment, {})
         entry = segment_data.get(str(sid))
         if entry is None:
-            logger.warning("ltp_missing_for_security_id", extra={
-                "symbol": symbol, "security_id": sid, "segment": segment,
-                "available_keys": list(segment_data.keys())[:5],
-            })
-            raise ValueError(f"No LTP data for {symbol} on {exchange} (security_id={sid}, segment={segment})")
+            logger.warning(
+                "ltp_missing_for_security_id",
+                extra={
+                    "symbol": symbol,
+                    "security_id": sid,
+                    "segment": segment,
+                    "available_keys": list(segment_data.keys())[:5],
+                },
+            )
+            raise ValueError(
+                f"No LTP data for {symbol} on {exchange} (security_id={sid}, segment={segment})"
+            )
         ltp = Decimal(str(entry["last_price"]))
         logger.debug("ltp_fetched", extra={"symbol": symbol, "ltp": str(ltp)})
         return ltp
@@ -58,8 +64,8 @@ class MarketDataAdapter:
         data = self._client.post("/marketfeed/quote", json={segment: [sid]})
         raw = data["data"][segment][str(sid)]
         ohlc = raw.get("ohlc", {}) or {}
-        from brokers.dhan.domain import InstrumentType
-        display = ref.symbol if ref.instrument_type == InstrumentType.EQUITY else (ref.symbol)
+
+        display = ref.symbol
         quote = Quote(
             symbol=display,
             ltp=Decimal(str(raw.get("last_price", 0))),
@@ -70,7 +76,9 @@ class MarketDataAdapter:
             volume=int(raw.get("volume", 0)),
             change=Decimal(str(raw.get("net_change", 0))),
         )
-        logger.debug("quote_fetched", extra={"symbol": symbol, "ltp": str(quote.ltp), "volume": quote.volume})
+        logger.debug(
+            "quote_fetched", extra={"symbol": symbol, "ltp": str(quote.ltp), "volume": quote.volume}
+        )
         return quote
 
     def get_depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
@@ -80,17 +88,28 @@ class MarketDataAdapter:
         data = self._client.post("/marketfeed/quote", json={segment: [sid]})
         raw = data["data"][segment][str(sid)]
         bids = [
-            DepthLevel(price=Decimal(str(l["price"])), quantity=int(l["quantity"]), orders=int(l.get("orders", 0)))
-            for l in raw.get("depth", {}).get("buy", [])[:5]
+            DepthLevel(
+                price=Decimal(str(level["price"])),
+                quantity=int(level["quantity"]),
+                orders=int(level.get("orders", 0)),
+            )
+            for level in raw.get("depth", {}).get("buy", [])[:5]
         ]
         asks = [
-            DepthLevel(price=Decimal(str(l["price"])), quantity=int(l["quantity"]), orders=int(l.get("orders", 0)))
-            for l in raw.get("depth", {}).get("sell", [])[:5]
+            DepthLevel(
+                price=Decimal(str(level["price"])),
+                quantity=int(level["quantity"]),
+                orders=int(level.get("orders", 0)),
+            )
+            for level in raw.get("depth", {}).get("sell", [])[:5]
         ]
-        from brokers.dhan.domain import InstrumentType
-        display = ref.symbol if ref.instrument_type == InstrumentType.EQUITY else (ref.symbol)
-        depth = MarketDepth(symbol=display, bids=bids, asks=asks)
-        logger.debug("depth_fetched", extra={"symbol": symbol, "bid_levels": len(bids), "ask_levels": len(asks)})
+
+        display = ref.symbol
+        depth = MarketDepth(symbol=display, bids=bids, asks=asks, depth_type="DEPTH_5")
+        logger.debug(
+            "depth_fetched",
+            extra={"symbol": symbol, "bid_levels": len(bids), "ask_levels": len(asks)},
+        )
         return depth
 
     def get_ohlc(self, symbol: str, exchange: str = "NSE") -> dict:
@@ -113,13 +132,13 @@ class MarketDataAdapter:
                 assert_dhan_identity(sid, segment, context="market_data.get_batch_ltp")
                 segment_map.setdefault(segment, []).append(sid)
                 symbol_map[sid] = sym
-            except Exception:
+            except Exception:  # noqa: S112
                 continue
         if not segment_map:
             return {}
         data = self._client.post("/marketfeed/ltp", json=segment_map)
         result = {}
-        for seg, sids in data.get("data", {}).items():
+        for _seg, sids in data.get("data", {}).items():
             for sid_str, info in sids.items():
                 sid = int(sid_str)
                 if sid in symbol_map:
@@ -127,8 +146,8 @@ class MarketDataAdapter:
         return result
 
     def get_batch_quote(self, symbols: list[str], exchange: str = "NSE") -> dict[str, Quote]:
-        from brokers.dhan.domain import InstrumentType
         from domain import Quote as DhanQuote
+
         segment_map: dict[str, list[int]] = {}
         symbol_map: dict[int, str] = {}
         ref_map: dict[int, object] = {}
@@ -141,19 +160,19 @@ class MarketDataAdapter:
                 segment_map.setdefault(segment, []).append(sid)
                 symbol_map[sid] = sym
                 ref_map[sid] = ref
-            except Exception:
+            except Exception:  # noqa: S112
                 continue
         if not segment_map:
             return {}
         data = self._client.post("/marketfeed/quote", json=segment_map)
         result = {}
-        for seg, sids in data.get("data", {}).items():
+        for _seg, sids in data.get("data", {}).items():
             for sid_str, info in sids.items():
                 sid = int(sid_str)
                 if sid in symbol_map:
                     ref = ref_map[sid]
                     ohlc = info.get("ohlc", {}) or {}
-                    display = ref.symbol if ref.instrument_type == InstrumentType.EQUITY else (ref.symbol)
+                    display = ref.symbol
                     result[symbol_map[sid]] = DhanQuote(
                         symbol=display,
                         ltp=Decimal(str(info.get("last_price", 0))),

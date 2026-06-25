@@ -42,7 +42,7 @@ def mock_market_data_client():
         "data": {
             "NSE_EQ|INE002A01018": {"last_price": 2500.00},
             "NSE_EQ|INE467B01029": {"last_price": 3450.00},
-        }
+        },
     }
     return client
 

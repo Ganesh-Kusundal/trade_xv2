@@ -25,18 +25,33 @@ from datetime import datetime, timedelta, timezone
 import pandas as pd
 
 CANONICAL_COLUMNS: list[str] = [
-    "timestamp", "symbol", "underlying", "exchange",
-    "open", "high", "low", "close", "volume", "oi",
-    "iv", "spot", "strike",
-    "strike_offset", "option_type", "expiry_kind", "expiry_code",
-    "interval_min", "expiry_date",
+    "timestamp",
+    "symbol",
+    "underlying",
+    "exchange",
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
+    "oi",
+    "iv",
+    "spot",
+    "strike",
+    "strike_offset",
+    "option_type",
+    "expiry_kind",
+    "expiry_code",
+    "interval_min",
+    "expiry_date",
 ]
 
 _IST = timezone(timedelta(hours=5, minutes=30))
 
 
-def make_option_symbol(underlying: str, expiry_kind: str, expiry_code: int,
-                       strike_offset: int, option_type: str) -> str:
+def make_option_symbol(
+    underlying: str, expiry_kind: str, expiry_code: int, strike_offset: int, option_type: str
+) -> str:
     """Build a canonical option symbol string.
 
     Example: ("NIFTY", "WEEK", 1, -2, "CALL") → "NIFTY_WEEK_1_-2_CALL"
@@ -62,9 +77,14 @@ def convert_format(raw: pd.DataFrame) -> pd.DataFrame:
         .dt.tz_convert("Asia/Kolkata")
         .dt.tz_localize(None)
     )
-    for src, dst in [("open_paisa", "open"), ("high_paisa", "high"),
-                     ("low_paisa", "low"), ("close_paisa", "close"),
-                     ("spot_paisa", "spot"), ("strike_paisa", "strike")]:
+    for src, dst in [
+        ("open_paisa", "open"),
+        ("high_paisa", "high"),
+        ("low_paisa", "low"),
+        ("close_paisa", "close"),
+        ("spot_paisa", "spot"),
+        ("strike_paisa", "strike"),
+    ]:
         out[dst] = out[src] / 100.0
     out["symbol"] = [
         make_option_symbol(u, ek, ec, so, ot)
@@ -74,14 +94,16 @@ def convert_format(raw: pd.DataFrame) -> pd.DataFrame:
             out["expiry_code"],
             out["strike_offset"],
             out["option_type"].astype(str),
+            strict=False,
         )
     ]
     out["exchange"] = "NSE"
     return out
 
 
-def map_expiry_code_to_date(underlying: str, expiry_kind: str, expiry_code: int,
-                            reference_ts_ms: int) -> str:
+def map_expiry_code_to_date(
+    underlying: str, expiry_kind: str, expiry_code: int, reference_ts_ms: int
+) -> str:
     """Map (underlying, kind, code) to an ISO date string.
 
     Trade_J uses sequential codes (1, 2, ...) rather than actual dates.

@@ -6,23 +6,24 @@ from pathlib import Path
 
 import pandas as pd
 import pyarrow as pa
-import pytest
 
 from datalake.io import atomic_parquet_write
 from datalake.store import ParquetStore
 
 
 def _make_dataframe(symbol: str, n: int = 60) -> pd.DataFrame:
-    return pd.DataFrame({
-        "timestamp": pd.date_range("2026-06-01 09:15", periods=n, freq="1min"),
-        "symbol": symbol,
-        "exchange": "NSE",
-        "open": [100.0 + i * 0.1 for i in range(n)],
-        "high": [101.0 + i * 0.1 for i in range(n)],
-        "low": [99.0 + i * 0.1 for i in range(n)],
-        "close": [100.5 + i * 0.1 for i in range(n)],
-        "volume": [1000 + i for i in range(n)],
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2026-06-01 09:15", periods=n, freq="1min"),
+            "symbol": symbol,
+            "exchange": "NSE",
+            "open": [100.0 + i * 0.1 for i in range(n)],
+            "high": [101.0 + i * 0.1 for i in range(n)],
+            "low": [99.0 + i * 0.1 for i in range(n)],
+            "close": [100.5 + i * 0.1 for i in range(n)],
+            "volume": [1000 + i for i in range(n)],
+        }
+    )
 
 
 def _write_symbol(root: Path, symbol: str, timeframe: str = "1m", n: int = 60) -> Path:
@@ -88,4 +89,7 @@ def test_list_symbols_discovers_hive_partitions(tmp_path: Path) -> None:
 def test_parquet_path_matches_hive_layout(tmp_path: Path) -> None:
     store = ParquetStore(root=str(tmp_path))
     path = store.parquet_path("RELIANCE", "1m")
-    assert path == tmp_path / "equities" / "candles" / "timeframe=1m" / "symbol=RELIANCE" / "data.parquet"
+    assert (
+        path
+        == tmp_path / "equities" / "candles" / "timeframe=1m" / "symbol=RELIANCE" / "data.parquet"
+    )

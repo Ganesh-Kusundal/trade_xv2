@@ -2,14 +2,10 @@
 
 from __future__ import annotations
 
-import threading
-import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
-import pytest
-
-from infrastructure.lifecycle import HealthState
 from brokers.upstox.auth.totp_scheduler import TotpRefreshScheduler
+from infrastructure.lifecycle import HealthState
 
 
 class TestTotpRefreshSchedulerLifecycle:
@@ -19,20 +15,20 @@ class TestTotpRefreshSchedulerLifecycle:
         """Test scheduler starts successfully."""
         mock_token_manager = MagicMock()
         scheduler = TotpRefreshScheduler(mock_token_manager, refresh_hour=8, refresh_minute=0)
-        
+
         try:
             scheduler.start()
             assert scheduler.is_running is True
         finally:
             scheduler.stop()
-        
+
         assert scheduler.is_running is False
 
     def test_scheduler_stop_idempotent(self):
         """Test calling stop multiple times is safe."""
         mock_token_manager = MagicMock()
         scheduler = TotpRefreshScheduler(mock_token_manager)
-        
+
         scheduler.stop()  # Should not raise
         scheduler.stop()  # Should not raise
 
@@ -40,7 +36,7 @@ class TestTotpRefreshSchedulerLifecycle:
         """Test calling start multiple times is safe."""
         mock_token_manager = MagicMock()
         scheduler = TotpRefreshScheduler(mock_token_manager)
-        
+
         try:
             scheduler.start()
             scheduler.start()  # Should not raise
@@ -86,7 +82,7 @@ class TestTotpRefreshSchedulerHealth:
         """Test health reports stopped state."""
         mock_token_manager = MagicMock()
         scheduler = TotpRefreshScheduler(mock_token_manager)
-        
+
         health = scheduler.health()
         assert health.state == HealthState.STOPPED
 

@@ -23,7 +23,9 @@ from cli.services.broker_service import BrokerService
 logger = logging.getLogger(__name__)
 
 
-def show_risk_status(args: list[str], broker_service: BrokerService, console: Console) -> CommandResult:
+def show_risk_status(
+    args: list[str], broker_service: BrokerService, console: Console
+) -> CommandResult:
     """Display current risk manager state."""
     trading_ctx = broker_service.trading_context
     if trading_ctx is None:
@@ -78,7 +80,9 @@ def show_risk_status(args: list[str], broker_service: BrokerService, console: Co
         return CommandResult(success=False, error=str(exc))
 
 
-def toggle_kill_switch(args: list[str], broker_service: BrokerService, console: Console) -> CommandResult:
+def toggle_kill_switch(
+    args: list[str], broker_service: BrokerService, console: Console
+) -> CommandResult:
     """Toggle kill switch on/off."""
     if not args:
         console.print("[yellow]Usage: tradex risk kill-switch on|off[/yellow]")
@@ -113,7 +117,9 @@ def toggle_kill_switch(args: list[str], broker_service: BrokerService, console: 
         return CommandResult(success=False, error=str(exc))
 
 
-def show_risk_limits(args: list[str], broker_service: BrokerService, console: Console) -> CommandResult:
+def show_risk_limits(
+    args: list[str], broker_service: BrokerService, console: Console
+) -> CommandResult:
     """Display position limits."""
     trading_ctx = broker_service.trading_context
     if trading_ctx is None:
@@ -165,7 +171,9 @@ def show_risk_limits(args: list[str], broker_service: BrokerService, console: Co
         return CommandResult(success=False, error=str(exc))
 
 
-def show_daily_pnl(args: list[str], broker_service: BrokerService, console: Console) -> CommandResult:
+def show_daily_pnl(
+    args: list[str], broker_service: BrokerService, console: Console
+) -> CommandResult:
     """Display daily PnL."""
     trading_ctx = broker_service.trading_context
     if trading_ctx is None:
@@ -191,7 +199,9 @@ def show_daily_pnl(args: list[str], broker_service: BrokerService, console: Cons
         return CommandResult(success=False, error=str(exc))
 
 
-def reset_daily_pnl(args: list[str], broker_service: BrokerService, console: Console) -> CommandResult:
+def reset_daily_pnl(
+    args: list[str], broker_service: BrokerService, console: Console
+) -> CommandResult:
     """Reset daily PnL."""
     if "--confirm" not in args:
         console.print("[yellow]This will reset daily PnL counter.[/yellow]")
@@ -220,7 +230,9 @@ def reset_daily_pnl(args: list[str], broker_service: BrokerService, console: Con
 def run(args: list[str], broker_service: BrokerService, console: Console) -> CommandResult:
     """Entry point for risk commands."""
     if not args:
-        console.print("[yellow]Usage: tradex risk [status|kill-switch|limits|pnl|reset-pnl][/yellow]")
+        console.print(
+            "[yellow]Usage: tradex risk [status|kill-switch|limits|pnl|reset-pnl][/yellow]"
+        )
         return CommandResult(success=False, error="Missing subcommand")
 
     subcmd = args[0].lower()

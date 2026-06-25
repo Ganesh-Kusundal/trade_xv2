@@ -10,9 +10,9 @@ from typing import Any
 
 import requests
 
-from endpoints import Dhan
 from brokers.common.resilience.circuit_breaker import CircuitBreaker, CircuitState
 from brokers.dhan.exceptions import AuthenticationError, DhanError, RateLimitError
+from endpoints import Dhan
 
 logger = logging.getLogger(__name__)
 
@@ -26,11 +26,11 @@ _DEFAULT_BASE_URL = Dhan.REST_BASE
 # Quote APIs: 1 request per second (we use 0.15s for safety)
 _RATE_LIMITS: dict[str, float] = {
     "/marketfeed/quote": 0.15,  # 1 req/s documented, using 0.15s for safety
-    "/marketfeed/ltp": 0.15,    # 10 req/s documented
-    "/marketfeed/ohlc": 0.15,   # 10 req/s documented
-    "/optionchain": 0.35,       # 10 req/s documented
-    "/charts/": 0.15,           # 10 req/s documented
-    "/orders": 0.04,            # 25 req/s documented
+    "/marketfeed/ltp": 0.15,  # 10 req/s documented
+    "/marketfeed/ohlc": 0.15,  # 10 req/s documented
+    "/optionchain": 0.35,  # 10 req/s documented
+    "/charts/": 0.15,  # 10 req/s documented
+    "/orders": 0.04,  # 25 req/s documented
 }
 
 # Retry configuration
@@ -128,21 +128,25 @@ class DhanHttpClient:
         self._read_circuit_breaker = read_circuit_breaker or circuit_breaker
         self._write_circuit_breaker = write_circuit_breaker or circuit_breaker
         self._admin_circuit_breaker = admin_circuit_breaker or circuit_breaker
-        
+
         # Use provided session (from connection pool) or create own
         if session is not None:
             self._session = session
         else:
             self._session = requests.Session()
-            self._session.headers.update({
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-            })
-        
-        self._session.headers.update({
-            "client-id": client_id,
-            "access-token": access_token,
-        })
+            self._session.headers.update(
+                {
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                }
+            )
+
+        self._session.headers.update(
+            {
+                "client-id": client_id,
+                "access-token": access_token,
+            }
+        )
         self._last_request_time: dict[str, float] = {}
         self._adaptive_intervals: dict[str, float] = {}
         self._rate_lock = threading.Lock()
@@ -224,26 +228,23 @@ class DhanHttpClient:
 
     def _try_refresh_token(self) -> bool:
         """Attempt token refresh. Returns True if successful.
-        
+
         Implements exponential backoff when Dhan's rate limit is hit
         ("Token can be generated once every 2 minutes").
         """
         now = time.time()
-        
+
         # Check if we're in backoff period due to rate limiting
-        if hasattr(self, '_refresh_backoff_until') and now < self._refresh_backoff_until:
+        if hasattr(self, "_refresh_backoff_until") and now < self._refresh_backoff_until:
             remaining = self._refresh_backoff_until - now
-            logger.debug(
-                "token_refresh_backoff",
-                extra={"remaining_seconds": round(remaining, 1)}
-            )
+            logger.debug("token_refresh_backoff", extra={"remaining_seconds": round(remaining, 1)})
             return False
-        
+
         # Standard cooldown check
         if now - self._last_refresh_time < _REFRESH_COOLDOWN_SECONDS:
             logger.debug("token_refresh_skipped", extra={"reason": "cooldown_active"})
             return False
-            
+
         if self._token_refresh_fn is None:
             return False
         try:
@@ -252,8 +253,8 @@ class DhanHttpClient:
                 self._last_refresh_time = now
                 self.update_token(new_token)
                 # Clear any backoff state on success
-                if hasattr(self, '_refresh_backoff_until'):
-                    delattr(self, '_refresh_backoff_until')
+                if hasattr(self, "_refresh_backoff_until"):
+                    delattr(self, "_refresh_backoff_until")
                 logger.info("token_refreshed", extra={"client_id": self.client_id})
                 return True
             else:
@@ -268,8 +269,7 @@ class DhanHttpClient:
             # Detect Dhan's rate limit error
             if "once every 2 minutes" in error_msg or "rate limit" in error_msg.lower():
                 logger.warning(
-                    "dhan_token_rate_limit",
-                    extra={"backoff_seconds": _RATE_LIMIT_BACKOFF_SECONDS}
+                    "dhan_token_rate_limit", extra={"backoff_seconds": _RATE_LIMIT_BACKOFF_SECONDS}
                 )
                 self._refresh_backoff_until = now + _RATE_LIMIT_BACKOFF_SECONDS
             else:
@@ -282,9 +282,8 @@ class DhanHttpClient:
         # admin) is what stops a read-side failure storm from blocking
         # order placement. See PRODUCTION_CERTIFICATION_REPORT §B1.
         cb = self._get_circuit_breaker(endpoint)
-        if cb and cb.state == CircuitState.OPEN:
-            if not cb.allow_request():
-                raise DhanError(f"Circuit breaker open: {method} {endpoint}")
+        if cb and cb.state == CircuitState.OPEN and not cb.allow_request():
+            raise DhanError(f"Circuit breaker open: {method} {endpoint}")
 
         self._throttle(endpoint)
         url = f"{self._base_url}{endpoint}" if endpoint.startswith("/") else endpoint
@@ -301,21 +300,34 @@ class DhanHttpClient:
                     cb.on_failure()
                 if attempt < max_attempts:
                     delay = self._backoff_delay(attempt)
-                    logger.warning("http_retry", extra={
-                        "method": method, "endpoint": endpoint, "attempt": attempt, "delay_ms": int(delay * 1000),
-                    })
+                    logger.warning(
+                        "http_retry",
+                        extra={
+                            "method": method,
+                            "endpoint": endpoint,
+                            "attempt": attempt,
+                            "delay_ms": int(delay * 1000),
+                        },
+                    )
                     time.sleep(delay)
                     continue
                 raise last_exc from exc
 
-            logger.debug("http_response", extra={
-                "method": method, "endpoint": endpoint, "status": resp.status_code,
-            })
+            logger.debug(
+                "http_response",
+                extra={
+                    "method": method,
+                    "endpoint": endpoint,
+                    "status": resp.status_code,
+                },
+            )
 
             # 401 — try token refresh
             if resp.status_code == 401:
                 if attempt == 1 and self._try_refresh_token():
-                    logger.info("http_retry_after_refresh", extra={"method": method, "endpoint": endpoint})
+                    logger.info(
+                        "http_retry_after_refresh", extra={"method": method, "endpoint": endpoint}
+                    )
                     continue  # retry with new token
                 raise AuthenticationError(f"Token rejected: HTTP 401 on {method} {endpoint}")
 
@@ -327,15 +339,27 @@ class DhanHttpClient:
                         delay = retry_after
                         prefix = self._match_prefix(endpoint, _RATE_LIMITS)
                         key = prefix or endpoint
-                        self._adaptive_intervals[key] = max(delay, self._adaptive_intervals.get(key, 0))
-                        logger.info("http_adaptive_rate_adjust", extra={
-                            "endpoint": key, "retry_after_s": round(delay, 3),
-                        })
+                        self._adaptive_intervals[key] = max(
+                            delay, self._adaptive_intervals.get(key, 0)
+                        )
+                        logger.info(
+                            "http_adaptive_rate_adjust",
+                            extra={
+                                "endpoint": key,
+                                "retry_after_s": round(delay, 3),
+                            },
+                        )
                     else:
                         delay = self._backoff_delay(attempt)
-                    logger.warning("http_rate_limited_retry", extra={
-                        "method": method, "endpoint": endpoint, "attempt": attempt, "delay_ms": int(delay * 1000),
-                    })
+                    logger.warning(
+                        "http_rate_limited_retry",
+                        extra={
+                            "method": method,
+                            "endpoint": endpoint,
+                            "attempt": attempt,
+                            "delay_ms": int(delay * 1000),
+                        },
+                    )
                     time.sleep(delay)
                     continue
                 raise RateLimitError(f"Rate limited: HTTP 429 on {method} {endpoint}")
@@ -346,10 +370,16 @@ class DhanHttpClient:
                     cb.on_failure()
                 if attempt < max_attempts:
                     delay = self._backoff_delay(attempt)
-                    logger.warning("http_server_error_retry", extra={
-                        "method": method, "endpoint": endpoint, "status": resp.status_code,
-                        "attempt": attempt, "delay_ms": int(delay * 1000),
-                    })
+                    logger.warning(
+                        "http_server_error_retry",
+                        extra={
+                            "method": method,
+                            "endpoint": endpoint,
+                            "status": resp.status_code,
+                            "attempt": attempt,
+                            "delay_ms": int(delay * 1000),
+                        },
+                    )
                     time.sleep(delay)
                     continue
                 body = resp.text[:200]
@@ -359,14 +389,25 @@ class DhanHttpClient:
             if resp.status_code >= 400:
                 body = resp.text[:300]
                 # Dhan returns invalid token as HTTP 400 with DH-906 or DH-808
-                if resp.status_code == 400 and ("DH-906" in body or "DH-808" in body or "Invalid Token" in body):
+                if resp.status_code == 400 and (
+                    "DH-906" in body or "DH-808" in body or "Invalid Token" in body
+                ):
                     if attempt == 1 and self._try_refresh_token():
-                        logger.info("http_retry_after_token_refresh", extra={"method": method, "endpoint": endpoint})
+                        logger.info(
+                            "http_retry_after_token_refresh",
+                            extra={"method": method, "endpoint": endpoint},
+                        )
                         continue
                     raise AuthenticationError(f"Token rejected: DH-906 on {method} {endpoint}")
-                logger.warning("http_client_error", extra={
-                    "method": method, "endpoint": endpoint, "status": resp.status_code, "body": body,
-                })
+                logger.warning(
+                    "http_client_error",
+                    extra={
+                        "method": method,
+                        "endpoint": endpoint,
+                        "status": resp.status_code,
+                        "body": body,
+                    },
+                )
                 raise DhanError(f"Dhan API {method} {url} failed: HTTP {resp.status_code} — {body}")
 
             # Success

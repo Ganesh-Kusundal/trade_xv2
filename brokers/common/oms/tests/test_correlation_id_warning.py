@@ -6,8 +6,8 @@ import os
 
 import pytest
 
-from domain import Side
 from application.oms.order_manager import OmsOrderCommand
+from domain import Side
 
 
 class TestCorrelationIdRequirement:

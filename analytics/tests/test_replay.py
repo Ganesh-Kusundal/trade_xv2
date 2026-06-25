@@ -47,14 +47,16 @@ def sample_ohlcv() -> pd.DataFrame:
     down = up[-1] - np.cumsum(np.abs(np.random.randn(60)) * 1.5)
     close = np.concatenate([up, down])
     volume = np.random.randint(100000, 500000, n).astype(float)
-    return pd.DataFrame({
-        "timestamp": dates,
-        "open": close - np.random.rand(n),
-        "high": close + np.random.rand(n) * 2,
-        "low": close - np.random.rand(n) * 2,
-        "close": close,
-        "volume": volume,
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": dates,
+            "open": close - np.random.rand(n),
+            "high": close + np.random.rand(n) * 2,
+            "low": close - np.random.rand(n) * 2,
+            "close": close,
+            "volume": volume,
+        }
+    )
 
 
 @pytest.fixture
@@ -65,14 +67,16 @@ def bullish_ohlcv() -> pd.DataFrame:
     dates = pd.date_range("2026-01-01", periods=n, freq="D")
     close = 100 + np.arange(n) * 0.5 + np.cumsum(np.random.randn(n) * 0.3)
     volume = np.random.randint(200000, 800000, n).astype(float)
-    return pd.DataFrame({
-        "timestamp": dates,
-        "open": close - 0.5,
-        "high": close + 1,
-        "low": close - 1,
-        "close": close,
-        "volume": volume,
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": dates,
+            "open": close - 0.5,
+            "high": close + 1,
+            "low": close - 1,
+            "close": close,
+            "volume": volume,
+        }
+    )
 
 
 @pytest.fixture
@@ -93,16 +97,26 @@ def default_config() -> ReplayConfig:
 class TestBar:
     def test_bar_creation(self) -> None:
         bar = Bar(
-            symbol="TCS", timestamp=datetime(2026, 1, 1, tzinfo=timezone.utc),
-            open=100, high=105, low=98, close=103, volume=50000,
+            symbol="TCS",
+            timestamp=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            open=100,
+            high=105,
+            low=98,
+            close=103,
+            volume=50000,
         )
         assert bar.symbol == "TCS"
         assert bar.close == 103
 
     def test_bar_to_dict(self) -> None:
         bar = Bar(
-            symbol="TCS", timestamp=datetime(2026, 1, 1, tzinfo=timezone.utc),
-            open=100, high=105, low=98, close=103, volume=50000,
+            symbol="TCS",
+            timestamp=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            open=100,
+            high=105,
+            low=98,
+            close=103,
+            volume=50000,
         )
         d = bar.to_dict()
         assert d["symbol"] == "TCS"
@@ -111,8 +125,13 @@ class TestBar:
 
     def test_bar_frozen(self) -> None:
         bar = Bar(
-            symbol="TCS", timestamp=datetime(2026, 1, 1, tzinfo=timezone.utc),
-            open=100, high=105, low=98, close=103, volume=50000,
+            symbol="TCS",
+            timestamp=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            open=100,
+            high=105,
+            low=98,
+            close=103,
+            volume=50000,
         )
         with pytest.raises(AttributeError):
             bar.close = 110  # type: ignore[misc]
@@ -160,7 +179,10 @@ class TestReplaySession:
     def test_equity_with_position(self) -> None:
         session = ReplaySession(capital=80_000)
         session.position = SimulatedPosition(
-            symbol="TCS", side="BUY", entry_price=100, quantity=200,
+            symbol="TCS",
+            side="BUY",
+            entry_price=100,
+            quantity=200,
             entry_time=datetime.now(timezone.utc),
         )
         assert session.current_equity == 80_000 + 20_000  # 100 * 200
@@ -186,8 +208,13 @@ class TestReplaySession:
 class TestSimulatedTrade:
     def test_trade_creation(self) -> None:
         trade = SimulatedTrade(
-            symbol="TCS", side="BUY", entry_price=100, exit_price=110,
-            quantity=100, pnl=1000, pnl_pct=10.0,
+            symbol="TCS",
+            side="BUY",
+            entry_price=100,
+            exit_price=110,
+            quantity=100,
+            pnl=1000,
+            pnl_pct=10.0,
         )
         assert trade.pnl == 1000
         assert trade.pnl_pct == 10.0
@@ -200,7 +227,10 @@ class TestSimulatedTrade:
 
 class TestReplayEngine:
     def test_run_returns_result(
-        self, sample_ohlcv: pd.DataFrame, default_pipeline: FeaturePipeline, default_config: ReplayConfig
+        self,
+        sample_ohlcv: pd.DataFrame,
+        default_pipeline: FeaturePipeline,
+        default_config: ReplayConfig,
     ) -> None:
         engine = ReplayEngine(default_pipeline, config=default_config, oms_adapter=mock_oms_adapter)
         result = engine.run(sample_ohlcv, symbol="TEST")
@@ -228,14 +258,18 @@ class TestReplayEngine:
     def test_signals_generated(
         self, sample_ohlcv: pd.DataFrame, default_pipeline: FeaturePipeline
     ) -> None:
-        engine = ReplayEngine(default_pipeline, config=ReplayConfig(warmup_bars=20), oms_adapter=mock_oms_adapter)
+        engine = ReplayEngine(
+            default_pipeline, config=ReplayConfig(warmup_bars=20), oms_adapter=mock_oms_adapter
+        )
         result = engine.run(sample_ohlcv, symbol="TEST")
         assert result.signals_generated >= 0  # May or may not generate signals
 
     def test_equity_curve_grows(
         self, sample_ohlcv: pd.DataFrame, default_pipeline: FeaturePipeline
     ) -> None:
-        engine = ReplayEngine(default_pipeline, config=ReplayConfig(warmup_bars=20), oms_adapter=mock_oms_adapter)
+        engine = ReplayEngine(
+            default_pipeline, config=ReplayConfig(warmup_bars=20), oms_adapter=mock_oms_adapter
+        )
         result = engine.run(sample_ohlcv, symbol="TEST")
         # 1 initial entry + 101 post-warmup entries (bars 20-120 inclusive) = 102
         assert len(result.session.equity_curve) == 102
@@ -248,7 +282,9 @@ class TestReplayEngine:
     def test_summary_has_all_fields(
         self, sample_ohlcv: pd.DataFrame, default_pipeline: FeaturePipeline
     ) -> None:
-        engine = ReplayEngine(default_pipeline, config=ReplayConfig(warmup_bars=20), oms_adapter=mock_oms_adapter)
+        engine = ReplayEngine(
+            default_pipeline, config=ReplayConfig(warmup_bars=20), oms_adapter=mock_oms_adapter
+        )
         result = engine.run(sample_ohlcv, symbol="TEST")
         summary = result.summary
         assert "bars_processed" in summary
@@ -277,17 +313,15 @@ class TestReplayEngine:
         result = engine.run(sample_ohlcv, symbol="TEST")
         assert result.bars_processed == 120
 
-    def test_custom_pipeline(
-        self, sample_ohlcv: pd.DataFrame
-    ) -> None:
+    def test_custom_pipeline(self, sample_ohlcv: pd.DataFrame) -> None:
         pipeline = FeaturePipeline().add(RSI(14)).add(SMA(10))
-        engine = ReplayEngine(pipeline, config=ReplayConfig(warmup_bars=15), oms_adapter=mock_oms_adapter)
+        engine = ReplayEngine(
+            pipeline, config=ReplayConfig(warmup_bars=15), oms_adapter=mock_oms_adapter
+        )
         result = engine.run(sample_ohlcv, symbol="TEST")
         assert result.bars_processed == 120
 
-    def test_multi_symbol(
-        self, default_pipeline: FeaturePipeline
-    ) -> None:
+    def test_multi_symbol(self, default_pipeline: FeaturePipeline) -> None:
         np.random.seed(42)
         n = 60
         dates = pd.date_range("2026-01-01", periods=n, freq="D")
@@ -296,20 +330,30 @@ class TestReplayEngine:
             close = 100 + np.cumsum(np.random.randn(n) * 2)
             vol = np.random.randint(100000, 500000, n).astype(float)
             for i, d in enumerate(dates):
-                rows.append({
-                    "symbol": sym, "timestamp": d,
-                    "open": close[i]-1, "high": close[i]+2, "low": close[i]-2,
-                    "close": close[i], "volume": vol[i],
-                })
+                rows.append(
+                    {
+                        "symbol": sym,
+                        "timestamp": d,
+                        "open": close[i] - 1,
+                        "high": close[i] + 2,
+                        "low": close[i] - 2,
+                        "close": close[i],
+                        "volume": vol[i],
+                    }
+                )
         data = pd.DataFrame(rows)
-        engine = ReplayEngine(default_pipeline, config=ReplayConfig(warmup_bars=15), oms_adapter=mock_oms_adapter)
+        engine = ReplayEngine(
+            default_pipeline, config=ReplayConfig(warmup_bars=15), oms_adapter=mock_oms_adapter
+        )
         result = engine.run(data, symbol="MULTI")
-        assert result.bars_processed == 120  # 60 bars × 2 symbols
+        assert result.bars_processed == 120  # 60 bars x 2 symbols
 
     def test_total_return_pct(
         self, sample_ohlcv: pd.DataFrame, default_pipeline: FeaturePipeline
     ) -> None:
-        engine = ReplayEngine(default_pipeline, config=ReplayConfig(warmup_bars=20), oms_adapter=mock_oms_adapter)
+        engine = ReplayEngine(
+            default_pipeline, config=ReplayConfig(warmup_bars=20), oms_adapter=mock_oms_adapter
+        )
         result = engine.run(sample_ohlcv, symbol="TEST")
         # Return should be a finite number
         assert isinstance(result.total_return_pct, float)
@@ -321,9 +365,7 @@ class TestReplayEngine:
 
 
 class TestReplayMomentum:
-    def test_momentum_strategy_integration(
-        self, bullish_ohlcv: pd.DataFrame
-    ) -> None:
+    def test_momentum_strategy_integration(self, bullish_ohlcv: pd.DataFrame) -> None:
         pipeline = FeaturePipeline().add(RSI(14)).add(ATR(14)).add(SMA(20))
         strategy = StrategyPipeline(strategies=[MomentumStrategy()])
         config = ReplayConfig(initial_capital=100_000, warmup_bars=20)
@@ -336,7 +378,9 @@ class TestReplayMomentum:
     def test_no_strategy_default(
         self, sample_ohlcv: pd.DataFrame, default_pipeline: FeaturePipeline
     ) -> None:
-        engine = ReplayEngine(default_pipeline, config=ReplayConfig(warmup_bars=20), oms_adapter=mock_oms_adapter)
+        engine = ReplayEngine(
+            default_pipeline, config=ReplayConfig(warmup_bars=20), oms_adapter=mock_oms_adapter
+        )
         result = engine.run(sample_ohlcv, symbol="TEST")
         # Should use default StrategyPipeline
         assert result.bars_processed == 120
@@ -350,6 +394,7 @@ class TestReplayMomentum:
 class TestAnalyticsFacade:
     def test_analytics_has_replay(self) -> None:
         from analytics import Analytics
+
         a = Analytics()
         # replay() with no args should return a ReplayEngine or similar
         # (may fail if feature_builder doesn't have to_pipeline, that's ok)
@@ -363,6 +408,9 @@ class TestAnalyticsFacade:
         self, sample_ohlcv: pd.DataFrame, default_pipeline: FeaturePipeline
     ) -> None:
         from analytics.replay import ReplayConfig, ReplayEngine
-        engine = ReplayEngine(default_pipeline, config=ReplayConfig(warmup_bars=20), oms_adapter=mock_oms_adapter)
+
+        engine = ReplayEngine(
+            default_pipeline, config=ReplayConfig(warmup_bars=20), oms_adapter=mock_oms_adapter
+        )
         result = engine.run(sample_ohlcv, symbol="TEST")
         assert result.bars_processed == 120

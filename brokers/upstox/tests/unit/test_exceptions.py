@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from brokers.upstox.auth.exceptions import UpstoxApiError, UpstoxAuthError
 from brokers.common.resilience.errors import BrokerError
+from brokers.upstox.auth.exceptions import UpstoxApiError, UpstoxAuthError
 
 
 class TestUpstoxApiError:

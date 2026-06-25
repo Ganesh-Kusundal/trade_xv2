@@ -42,7 +42,9 @@ def run_halftrend(args: list[str], broker_service, console: Console) -> None:
             index += 1
 
     if not symbol:
-        console.print("[yellow]Usage: tradex analytics halftrend <SYMBOL> [--years 1] [--cooldown 500] [--period 10][/yellow]")
+        console.print(
+            "[yellow]Usage: tradex analytics halftrend <SYMBOL> [--years 1] [--cooldown 500] [--period 10][/yellow]"
+        )
         return
 
     gw = DataLakeGateway()
@@ -75,7 +77,9 @@ def run_halftrend(args: list[str], broker_service, console: Console) -> None:
     table.add_row("Current Trend", dir_str)
 
     last_close = float(result["close"].iloc[-1])
-    last_ht = float(result["halftrend"].iloc[-1]) if pd.notna(result["halftrend"].iloc[-1]) else None
+    last_ht = (
+        float(result["halftrend"].iloc[-1]) if pd.notna(result["halftrend"].iloc[-1]) else None
+    )
     if last_ht is not None:
         table.add_row("HalfTrend Line", f"{last_ht:.2f}")
         table.add_row("Distance", f"{((last_close - last_ht) / last_ht * 100):+.2f}%")
@@ -89,9 +93,13 @@ def run_halftrend(args: list[str], broker_service, console: Console) -> None:
         sig_table.add_column("Signal", style="bold")
         sig_table.add_column("Close", style="green")
         sig_table.add_column("HT Line", style="cyan")
-        
+
         for ts, halftrend_signal, close, halftrend in zip(
-            recent["timestamp"], recent["halftrend_signal"], recent["close"], recent["halftrend"]
+            recent["timestamp"],
+            recent["halftrend_signal"],
+            recent["close"],
+            recent["halftrend"],
+            strict=False,
         ):
             sig_style = "green" if halftrend_signal == "BUY" else "red"
             ht_val = f"{halftrend:.2f}" if pd.notna(halftrend) else "-"
@@ -132,7 +140,9 @@ def run_halftrend_scan(args: list[str], console: Console) -> None:
     symbols = gw.list_symbols()
     lookback_days = int(years * 365)
 
-    console.print(f"[dim]Scanning {len(symbols)} symbols with HalfTrend (cooldown={cooldown}, workers={max_workers})...[/dim]")
+    console.print(
+        f"[dim]Scanning {len(symbols)} symbols with HalfTrend (cooldown={cooldown}, workers={max_workers})...[/dim]"
+    )
 
     def _scan_symbol(sym: str) -> tuple | None:
         try:
@@ -144,7 +154,9 @@ def run_halftrend_scan(args: list[str], console: Console) -> None:
             last = result.iloc[-1]
             direction = last.get("halftrend_direction", 0)
             close = float(last.get("close", 0))
-            ht_val = float(last.get("halftrend", close)) if pd.notna(last.get("halftrend")) else close
+            ht_val = (
+                float(last.get("halftrend", close)) if pd.notna(last.get("halftrend")) else close
+            )
             distance = abs(close - ht_val) / ht_val * 100 if ht_val else 0
             return (sym, direction, close, ht_val, distance, len(df))
         except Exception:
@@ -153,9 +165,7 @@ def run_halftrend_scan(args: list[str], console: Console) -> None:
     scored = []
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         futures = {pool.submit(_scan_symbol, sym): sym for sym in symbols}
-        done_count = 0
-        for future in as_completed(futures):
-            done_count += 1
+        for done_count, future in enumerate(as_completed(futures), 1):
             if done_count % 100 == 0:
                 console.print(f"[dim]  Progress: {done_count}/{len(symbols)}[/dim]")
             result = future.result()
@@ -182,10 +192,13 @@ def run_halftrend_scan(args: list[str], console: Console) -> None:
         trend_style = "green" if direction == 1 else "red" if direction == -1 else "dim"
         trend_str = "UP" if direction == 1 else "DOWN" if direction == -1 else "FLAT"
         table.add_row(
-            str(i), sym,
+            str(i),
+            sym,
             f"[{trend_style}]{trend_str}[/{trend_style}]",
-            f"{close:.2f}", f"{ht_val:.2f}",
-            f"{distance:.2f}%", str(bars),
+            f"{close:.2f}",
+            f"{ht_val:.2f}",
+            f"{distance:.2f}%",
+            str(bars),
         )
     console.print(table)
 
@@ -213,10 +226,11 @@ def run_halftrend_scan(args: list[str], console: Console) -> None:
             m = bt_result.metrics
             ret_style = "green" if m.total_return_pct >= 0 else "red"
             return (
-                i, sym,
+                i,
+                sym,
                 f"[{ret_style}]{m.total_return_pct:+.2f}%[/{ret_style}]",
                 str(m.trade_analysis.total_trades),
-                f"{m.trade_analysis.win_rate*100:.0f}%",
+                f"{m.trade_analysis.win_rate * 100:.0f}%",
                 f"{m.sharpe_ratio:.2f}",
             )
         except Exception as e:

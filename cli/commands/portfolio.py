@@ -11,9 +11,9 @@ from decimal import Decimal
 from rich.console import Console
 from rich.table import Table
 
-from domain import Position
 from cli.commands.registry import CommandResult
 from cli.services.broker_service import BrokerService
+from domain import Position
 
 logger = logging.getLogger(__name__)
 
@@ -46,24 +46,29 @@ def show_holdings(broker_service: BrokerService, console: Console) -> CommandRes
                 f"{h.ltp:,.2f}",
                 f"[{pnl_style}]Rs. {pnl_val:,.2f}[/{pnl_style}]",
             )
-            holdings_data.append({
-                "symbol": h.symbol,
-                "quantity": h.quantity,
-                "avg_price": str(h.avg_price),
-                "ltp": str(h.ltp),
-                "pnl": str(pnl_val),
-            })
+            holdings_data.append(
+                {
+                    "symbol": h.symbol,
+                    "quantity": h.quantity,
+                    "avg_price": str(h.avg_price),
+                    "ltp": str(h.ltp),
+                    "pnl": str(pnl_val),
+                }
+            )
 
         pnl_style = "green" if total_pnl > 0 else ("red" if total_pnl < 0 else "white")
         table.add_section()
         table.add_row("Total", "", "", "", f"[{pnl_style}]Rs. {total_pnl:,.2f}[/{pnl_style}]")
 
         console.print(table)
-        return CommandResult(success=True, data={
-            "holdings": holdings_data,
-            "total_pnl": str(total_pnl),
-            "count": len(holdings),
-        })
+        return CommandResult(
+            success=True,
+            data={
+                "holdings": holdings_data,
+                "total_pnl": str(total_pnl),
+                "count": len(holdings),
+            },
+        )
     except Exception as exc:
         logger.exception("holdings_fetch_failed")
         console.print(f"[red]Error fetching holdings: {exc}[/red]")

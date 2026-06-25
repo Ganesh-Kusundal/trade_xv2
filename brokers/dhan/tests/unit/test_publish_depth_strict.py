@@ -50,10 +50,12 @@ class TestPublishDepthHappyPath:
     def test_publishes_when_both_sides_present(self):
         bus = mock.MagicMock()
         feed = _make_feed(event_bus=bus)
-        feed._publish_depth({
-            "symbol": "RELIANCE",
-            "depth": {"bids": _good_bids(), "asks": _good_asks()},
-        })
+        feed._publish_depth(
+            {
+                "symbol": "RELIANCE",
+                "depth": {"bids": _good_bids(), "asks": _good_asks()},
+            }
+        )
         bus.publish.assert_called_once()
         assert feed._published_depths == 1
         assert feed._dropped_depths == 0
@@ -61,20 +63,24 @@ class TestPublishDepthHappyPath:
     def test_publishes_when_only_bids_present(self):
         bus = mock.MagicMock()
         feed = _make_feed(event_bus=bus)
-        feed._publish_depth({
-            "symbol": "RELIANCE",
-            "depth": {"bids": _good_bids(), "asks": []},
-        })
+        feed._publish_depth(
+            {
+                "symbol": "RELIANCE",
+                "depth": {"bids": _good_bids(), "asks": []},
+            }
+        )
         bus.publish.assert_called_once()
         assert feed._published_depths == 1
 
     def test_publishes_when_only_asks_present(self):
         bus = mock.MagicMock()
         feed = _make_feed(event_bus=bus)
-        feed._publish_depth({
-            "symbol": "RELIANCE",
-            "depth": {"bids": [], "asks": _good_asks()},
-        })
+        feed._publish_depth(
+            {
+                "symbol": "RELIANCE",
+                "depth": {"bids": [], "asks": _good_asks()},
+            }
+        )
         bus.publish.assert_called_once()
         assert feed._published_depths == 1
 
@@ -86,9 +92,11 @@ class TestPublishDepthStrictModeDrops:
     def test_drops_when_symbol_missing(self):
         bus = mock.MagicMock()
         feed = _make_feed(event_bus=bus)
-        feed._publish_depth({
-            "depth": {"bids": _good_bids(), "asks": _good_asks()},
-        })
+        feed._publish_depth(
+            {
+                "depth": {"bids": _good_bids(), "asks": _good_asks()},
+            }
+        )
         bus.publish.assert_not_called()
         assert feed._dropped_depths == 1
         assert feed._published_depths == 0
@@ -96,10 +104,12 @@ class TestPublishDepthStrictModeDrops:
     def test_drops_when_symbol_is_empty_string(self):
         bus = mock.MagicMock()
         feed = _make_feed(event_bus=bus)
-        feed._publish_depth({
-            "symbol": "",
-            "depth": {"bids": _good_bids(), "asks": _good_asks()},
-        })
+        feed._publish_depth(
+            {
+                "symbol": "",
+                "depth": {"bids": _good_bids(), "asks": _good_asks()},
+            }
+        )
         bus.publish.assert_not_called()
         assert feed._dropped_depths == 1
 
@@ -113,26 +123,30 @@ class TestPublishDepthStrictModeDrops:
     def test_drops_when_top_bid_price_is_zero(self):
         bus = mock.MagicMock()
         feed = _make_feed(event_bus=bus)
-        feed._publish_depth({
-            "symbol": "RELIANCE",
-            "depth": {
-                "bids": [{"price": 0, "quantity": 100, "orders": 5}],
-                "asks": _good_asks(),
-            },
-        })
+        feed._publish_depth(
+            {
+                "symbol": "RELIANCE",
+                "depth": {
+                    "bids": [{"price": 0, "quantity": 100, "orders": 5}],
+                    "asks": _good_asks(),
+                },
+            }
+        )
         bus.publish.assert_not_called()
         assert feed._dropped_depths == 1
 
     def test_drops_when_top_ask_price_is_zero(self):
         bus = mock.MagicMock()
         feed = _make_feed(event_bus=bus)
-        feed._publish_depth({
-            "symbol": "RELIANCE",
-            "depth": {
-                "bids": _good_bids(),
-                "asks": [{"price": 0, "quantity": 100, "orders": 5}],
-            },
-        })
+        feed._publish_depth(
+            {
+                "symbol": "RELIANCE",
+                "depth": {
+                    "bids": _good_bids(),
+                    "asks": [{"price": 0, "quantity": 100, "orders": 5}],
+                },
+            }
+        )
         bus.publish.assert_not_called()
         assert feed._dropped_depths == 1
 
@@ -140,10 +154,12 @@ class TestPublishDepthStrictModeDrops:
         bus = mock.MagicMock()
         feed = _make_feed(event_bus=bus)
         for _ in range(5):
-            feed._publish_depth({
-                "symbol": "RELIANCE",
-                "depth": {"bids": [], "asks": []},
-            })
+            feed._publish_depth(
+                {
+                    "symbol": "RELIANCE",
+                    "depth": {"bids": [], "asks": []},
+                }
+            )
         assert feed._dropped_depths == 5
         assert feed._published_depths == 0
 
@@ -155,10 +171,12 @@ class TestPublishDepthNoBus:
     def test_publish_depth_is_silent_when_no_event_bus(self):
         feed = _make_feed(event_bus=None)
         # Must not raise; must not increment counters either.
-        feed._publish_depth({
-            "symbol": "RELIANCE",
-            "depth": {"bids": _good_bids(), "asks": _good_asks()},
-        })
+        feed._publish_depth(
+            {
+                "symbol": "RELIANCE",
+                "depth": {"bids": _good_bids(), "asks": _good_asks()},
+            }
+        )
         assert feed._published_depths == 0
         assert feed._dropped_depths == 0
 

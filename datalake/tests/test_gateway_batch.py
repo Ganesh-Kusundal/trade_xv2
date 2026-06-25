@@ -4,6 +4,7 @@ Specifically validates the parallel-batch implementation. We use a
 fake ``quote`` method that sleeps for a measurable amount of time
 so we can confirm ``quote_batch`` runs the calls concurrently.
 """
+
 from __future__ import annotations
 
 import time
@@ -19,17 +20,19 @@ from datalake.io import atomic_parquet_write
 
 
 def _make_dataframe(symbol: str, n: int = 5) -> pd.DataFrame:
-    return pd.DataFrame({
-        "timestamp": pd.date_range("2026-06-01 09:15", periods=n, freq="1min"),
-        "symbol": symbol,
-        "exchange": "NSE",
-        "open": [100.0] * n,
-        "high": [101.0] * n,
-        "low": [99.0] * n,
-        "close": [100.5] * n,
-        "volume": [1000] * n,
-        "oi": [0] * n,
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2026-06-01 09:15", periods=n, freq="1min"),
+            "symbol": symbol,
+            "exchange": "NSE",
+            "open": [100.0] * n,
+            "high": [101.0] * n,
+            "low": [99.0] * n,
+            "close": [100.5] * n,
+            "volume": [1000] * n,
+            "oi": [0] * n,
+        }
+    )
 
 
 def _write_symbol(root: Path, symbol: str, timeframe: str = "1m", n: int = 5) -> Path:
@@ -120,8 +123,10 @@ def test_quote_batch_runs_in_parallel(tmp_path: Path):
     def slow_quote(symbol, exchange="NSE"):
         time.sleep(sleep_seconds)
         from decimal import Decimal
+
         # Return a minimal Quote
         from domain import Quote
+
         return Quote(symbol=symbol, ltp=Decimal("100.0"))
 
     with patch.object(gw, "quote", side_effect=slow_quote):

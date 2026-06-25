@@ -12,22 +12,18 @@ Covers the 6 architecture fixes:
 from __future__ import annotations
 
 import threading
-import time
-from decimal import Decimal
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
+from brokers.dhan.depth_20 import DhanDepth20Feed
 from brokers.dhan.gateway import BrokerGateway
 from brokers.dhan.websocket import DhanMarketFeed
-from brokers.dhan.depth_20 import DhanDepth20Feed
-
 
 # ── Fix 1: Dual feed path prevention ────────────────────────────────────────
 
 
 class TestDualFeedPrevention:
-
     def _make_connection(self):
         conn = MagicMock()
         conn.client_id = "TEST"
@@ -83,7 +79,6 @@ class TestDualFeedPrevention:
 
 
 class TestStreamCallbackDedup:
-
     def _make_gateway(self):
         conn = MagicMock()
         conn.client_id = "TEST"
@@ -141,7 +136,6 @@ class TestStreamCallbackDedup:
 
 
 class TestSubscriptionLimitEnforcement:
-
     def test_max_instruments_constant(self):
         """DhanMarketFeed must declare MAX_INSTRUMENTS = 1000."""
         assert DhanMarketFeed.MAX_INSTRUMENTS == 1000
@@ -166,7 +160,6 @@ class TestSubscriptionLimitEnforcement:
 
 
 class TestUnstream:
-
     def _make_gateway_with_stream(self):
         gw = self._make_gateway()
 
@@ -227,7 +220,6 @@ class TestUnstream:
 
 
 class TestCacheEviction:
-
     def test_last_tick_time_evicted_on_unsubscribe(self):
         """unstream() should remove _last_tick_time entries for the symbol."""
         gw = self._make_gateway_with_feed()
@@ -295,7 +287,6 @@ class TestCacheEviction:
 
 
 class TestThreadSafeStreamCreation:
-
     def test_concurrent_stream_creates_single_feed(self):
         """Multiple threads calling stream() simultaneously should create only one feed."""
         conn = MagicMock()
@@ -331,7 +322,7 @@ class TestThreadSafeStreamCreation:
 
         assert not errors
         # All threads should get the same feed instance
-        assert len(set(id(r) for r in results)) == 1
+        assert len({id(r) for r in results}) == 1
 
     def test_stream_lock_exists(self):
         """BrokerGateway must have a _stream_lock attribute."""

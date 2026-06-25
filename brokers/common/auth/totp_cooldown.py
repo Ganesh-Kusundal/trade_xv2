@@ -7,6 +7,7 @@ import logging
 import threading
 import time
 from pathlib import Path
+from typing import ClassVar
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +21,8 @@ class TotpRateLimitError(RuntimeError):
 class TotpCooldownGuard:
     """Shared cooldown tracker for TOTP token generation attempts."""
 
-    _lock = threading.Lock()
-    _instances: dict[str, TotpCooldownGuard] = {}
+    _lock: ClassVar[threading.Lock] = threading.Lock()
+    _instances: ClassVar[dict[str, TotpCooldownGuard]] = {}
 
     def __init__(
         self,
@@ -37,7 +38,9 @@ class TotpCooldownGuard:
         self._load_state()
 
     @classmethod
-    def for_broker(cls, broker: str, cooldown_seconds: float = DEFAULT_COOLDOWN_SECONDS) -> TotpCooldownGuard:
+    def for_broker(
+        cls, broker: str, cooldown_seconds: float = DEFAULT_COOLDOWN_SECONDS
+    ) -> TotpCooldownGuard:
         key = broker.lower()
         with cls._lock:
             if key not in cls._instances:

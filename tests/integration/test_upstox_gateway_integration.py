@@ -17,48 +17,33 @@ Run with:
 
 from __future__ import annotations
 
-import asyncio
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from decimal import Decimal
-from typing import Any
-from unittest.mock import MagicMock, patch
 
 import pytest
 
-from domain import (
-    Balance,
-    Holding,
-    MarketDepth,
-    Order,
-    OrderResponse,
-    OrderStatus,
-    Position,
-    Quote,
-    Side,
-    Trade,
-)
 from brokers.common.gateway import BrokerCapabilities
 from brokers.common.intelligent_gateway import IntelligentGateway
 from brokers.upstox.gateway import UpstoxBrokerGateway
-
+from domain import (
+    Balance,
+    MarketDepth,
+    OrderResponse,
+    Quote,
+)
 from tests.integration.fixtures.upstox import (
-    MockWebsocket,
     make_cancel_response,
     make_depth_response,
-    make_funds_response,
-    make_holdings_response,
     make_instrument_defn,
     make_ltp_response,
     make_mock_broker,
-    make_order_response,
-    make_positions_response,
     make_quote_response,
 )
 
-
 # ─── Fixtures ──────────────────────────────────────────────────────────────
+
 
 @pytest.fixture
 def mock_broker():
@@ -97,6 +82,7 @@ def instrument_defn():
 
 # ─── Gateway Creation & Initialization ─────────────────────────────────────
 
+
 class TestGatewayCreation:
     """Test gateway creation and initialization."""
 
@@ -128,6 +114,7 @@ class TestGatewayCreation:
 
 
 # ─── Market Data Integration ───────────────────────────────────────────────
+
 
 class TestMarketDataIntegration:
     """Test market data operations through the gateway."""
@@ -184,9 +171,7 @@ class TestMarketDataIntegration:
         mock_broker.instrument_resolver.resolve.return_value = instrument_defn
         mock_broker.market_data_v2.get_quote.return_value = {
             "status": "success",
-            "data": {
-                "NSE_EQ|RELIANCE": {"last_price": 2500.0}
-            }
+            "data": {"NSE_EQ|RELIANCE": {"last_price": 2500.0}},
         }
 
         gateway = UpstoxBrokerGateway(mock_broker)
@@ -198,6 +183,7 @@ class TestMarketDataIntegration:
 
 
 # ─── Order Lifecycle Integration ──────────────────────────────────────────
+
 
 class TestOrderIntegration:
     """Test order operations through the gateway."""
@@ -289,7 +275,9 @@ class TestOrderIntegration:
 
     def test_cancel_order_failure(self, mock_broker):
         """cancel_order() should return failure on error."""
-        mock_broker.order_client.cancel_order.return_value = make_cancel_response("ORD-001", success=False)
+        mock_broker.order_client.cancel_order.return_value = make_cancel_response(
+            "ORD-001", success=False
+        )
 
         gateway = UpstoxBrokerGateway(mock_broker)
         result = gateway.cancel_order("ORD-001")
@@ -330,12 +318,12 @@ class TestOrderIntegration:
 
 # ─── Portfolio Integration ─────────────────────────────────────────────────
 
+
 class TestPortfolioIntegration:
     """Test portfolio operations through the gateway."""
 
     def test_funds_returns_balance(self, mock_broker):
         """funds() should return Balance dataclass."""
-        from brokers.upstox.market_data.portfolio_adapter import UpstoxPortfolioAdapter
 
         # Configure portfolio adapter mock
         mock_broker.portfolio.get_fund_limits.return_value = Balance(
@@ -388,6 +376,7 @@ class TestPortfolioIntegration:
 
 
 # ─── IntelligentGateway Integration ───────────────────────────────────────
+
 
 class TestIntelligentGatewayIntegration:
     """Test UpstoxGateway integration with IntelligentGateway."""
@@ -474,6 +463,7 @@ class TestIntelligentGatewayIntegration:
 
 # ─── Capabilities & Metadata ──────────────────────────────────────────────
 
+
 class TestCapabilitiesAndMetadata:
     """Test gateway capabilities and metadata."""
 
@@ -528,6 +518,7 @@ class TestCapabilitiesAndMetadata:
 
 # ─── Error Handling ───────────────────────────────────────────────────────
 
+
 class TestErrorHandling:
     """Test error scenarios."""
 
@@ -555,7 +546,12 @@ class TestErrorHandling:
         from domain import FutureChain
 
         mock_broker.futures.get_contracts.return_value = [
-            {"expiry": "2026-06-26", "symbol": "RELIANCE26JUNFUT", "lot_size": 250, "underlying": "RELIANCE"},
+            {
+                "expiry": "2026-06-26",
+                "symbol": "RELIANCE26JUNFUT",
+                "lot_size": 250,
+                "underlying": "RELIANCE",
+            },
         ]
         mock_broker.futures.get_expiries.return_value = ["2026-06-26"]
         gateway = UpstoxBrokerGateway(mock_broker)
@@ -568,6 +564,7 @@ class TestErrorHandling:
 
 
 # ─── Thread Safety ────────────────────────────────────────────────────────
+
 
 class TestThreadSafety:
     """Test concurrent operations don't corrupt state."""
@@ -641,6 +638,7 @@ class TestThreadSafety:
         def subscribe(i: int):
             def on_tick(tick):
                 pass
+
             gateway.stream(f"SYM{i}", exchange="NSE", mode="LTP", on_tick=on_tick)
 
         with ThreadPoolExecutor(max_workers=5) as executor:

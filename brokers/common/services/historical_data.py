@@ -230,10 +230,10 @@ class HistoricalDataService:
 
             df = pd.read_parquet(path)
             out: list[HistoricalCandle] = []
-            
+
             def to_timestamp(ts):
                 return ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else ts
-            
+
             out = [
                 HistoricalCandle(
                     timestamp=to_timestamp(ts),
@@ -244,7 +244,13 @@ class HistoricalDataService:
                     volume=int(volume),
                 )
                 for ts, open_val, high_val, low_val, close_val, volume in zip(
-                    df["timestamp"], df["open"], df["high"], df["low"], df["close"], df["volume"]
+                    df["timestamp"],
+                    df["open"],
+                    df["high"],
+                    df["low"],
+                    df["close"],
+                    df["volume"],
+                    strict=False,
                 )
             ]
             return out

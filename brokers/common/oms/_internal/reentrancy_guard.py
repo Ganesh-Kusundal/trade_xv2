@@ -1,3 +1,13 @@
+"""Deprecated shim — import from :mod:`application.oms._internal.reentrancy_guard`.
+
+This module is kept for backward compatibility. Remove after v0.2.
+"""
+
+from __future__ import annotations
+
+from application.oms._internal.reentrancy_guard import _ReentrancyGuard  # noqa: F401
+
+__all__ = ["_ReentrancyGuard"]
 """Shared re-entrancy guard for event handler depth tracking.
 
 Used by :class:`OrderManager` and :class:`PositionManager` to prevent

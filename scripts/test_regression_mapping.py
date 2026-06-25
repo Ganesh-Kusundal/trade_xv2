@@ -18,7 +18,17 @@ def validate_schema(result: dict) -> bool:
     # Check schema depending on F&O vs standard
     if "underlying" in result:
         # F&O schema check
-        expected_keys = {"underlying", "expiry", "strike", "optionType", "securityId", "exchange", "segment", "lotSize", "status"}
+        expected_keys = {
+            "underlying",
+            "expiry",
+            "strike",
+            "optionType",
+            "securityId",
+            "exchange",
+            "segment",
+            "lotSize",
+            "status",
+        }
         # Check all expected keys exist
         if not expected_keys.issubset(result.keys()):
             missing = expected_keys - result.keys()
@@ -46,13 +56,28 @@ def validate_schema(result: dict) -> bool:
     else:
         # Standard schema check
         if status == "VALID":
-            expected_keys = {"exchange", "segment", "tradingSymbol", "displayName", "securityId", "instrumentType", "status"}
+            expected_keys = {
+                "exchange",
+                "segment",
+                "tradingSymbol",
+                "displayName",
+                "securityId",
+                "instrumentType",
+                "status",
+            }
             if not expected_keys.issubset(result.keys()):
                 missing = expected_keys - result.keys()
                 print(f"Schema Error: Missing standard keys: {missing}")
                 return False
             # Type checks
-            for k in ["exchange", "segment", "tradingSymbol", "displayName", "securityId", "instrumentType"]:
+            for k in [
+                "exchange",
+                "segment",
+                "tradingSymbol",
+                "displayName",
+                "securityId",
+                "instrumentType",
+            ]:
                 if not isinstance(result[k], str):
                     return False
         elif status == "AMBIGUOUS":
@@ -62,7 +87,14 @@ def validate_schema(result: dict) -> bool:
             if not isinstance(result["candidates"], list):
                 return False
             for cand in result["candidates"]:
-                for k in ["exchange", "segment", "tradingSymbol", "displayName", "securityId", "instrumentType"]:
+                for k in [
+                    "exchange",
+                    "segment",
+                    "tradingSymbol",
+                    "displayName",
+                    "securityId",
+                    "instrumentType",
+                ]:
                     if k not in cand or not isinstance(cand[k], str):
                         return False
         else:
@@ -115,7 +147,7 @@ def main():
         # Verify unique securityId lookup, exchange and segment correctness where applicable
         checks = {
             "Symbol Normalization": "PASSED",
-            "JSON Schema Validity": "PASSED" if schema_ok else "FAILED"
+            "JSON Schema Validity": "PASSED" if schema_ok else "FAILED",
         }
 
         if not schema_ok:
@@ -129,7 +161,9 @@ def main():
 
             # Verify exchange correctness
             if exch and res.get("exchange") != exch.upper():
-                checks["Exchange Correctness"] = f"FAILED (Expected {exch}, Got {res.get('exchange')})"
+                checks["Exchange Correctness"] = (
+                    f"FAILED (Expected {exch}, Got {res.get('exchange')})"
+                )
                 all_passed = False
             else:
                 checks["Exchange Correctness"] = "PASSED"
@@ -149,7 +183,9 @@ def main():
                 all_passed = False
 
         elif status == "AMBIGUOUS":
-            checks["Unique securityId Lookup"] = f"AMBIGUOUS ({len(res.get('candidates', []))} candidates)"
+            checks["Unique securityId Lookup"] = (
+                f"AMBIGUOUS ({len(res.get('candidates', []))} candidates)"
+            )
             checks["Exchange Correctness"] = "N/A"
             checks["Segment Correctness"] = "N/A"
             checks["Instrument Type Correctness"] = "N/A"
@@ -176,12 +212,7 @@ def main():
         print(json.dumps(res, indent=2))
         print("-" * 55 + "\n")
 
-        report.append({
-            "symbol": sym,
-            "result": res,
-            "checks": checks,
-            "passed": all_passed
-        })
+        report.append({"symbol": sym, "result": res, "checks": checks, "passed": all_passed})
 
     print("=======================================================")
     if all_passed:
@@ -189,6 +220,7 @@ def main():
     else:
         print("✗ SOME REGRESSION TESTS FAILED OR NEED ATTENTION")
     print("=======================================================")
+
 
 if __name__ == "__main__":
     main()

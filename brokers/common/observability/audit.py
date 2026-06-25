@@ -1,3 +1,19 @@
+"""Structured audit event emission for multi-broker operations.
+
+All functions emit structured log events with consistent field names.
+Callers should not rely on side effects beyond the log emission — these
+are fire-and-forget observability hooks.
+"""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
 """Structured audit events and metrics catalog for the broker infrastructure.
 
 This module defines:
@@ -22,13 +38,6 @@ Usage in broker infrastructure code::
     emit_quota_event(token, wait_ms=12.3)
     emit_stream_state_change(session, from_state, to_state, reason)
 """
-
-from __future__ import annotations
-
-import logging
-from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
-from typing import Any
 
 logger = logging.getLogger("broker.audit")
 
@@ -62,7 +71,7 @@ class QuotaEvent:
     broker_id: str
     endpoint_class: str
     priority_class: str
-    event_type: str   # "acquire" | "reject"
+    event_type: str  # "acquire" | "reject"
     wait_ms: float
     token_id: str | None = None
     retry_after_s: float | None = None
@@ -80,7 +89,7 @@ class HistoricalChunkEvent:
     from_date: str
     to_date: str
     timeframe: str
-    event_type: str   # "start" | "complete" | "failed"
+    event_type: str  # "start" | "complete" | "failed"
     bar_count: int = 0
     latency_ms: float = 0.0
     error: str | None = None
@@ -138,7 +147,7 @@ class ExtensionResolveEvent:
 
     broker_id: str
     extension_name: str
-    hit: bool    # True if extension was found
+    hit: bool  # True if extension was found
     alternatives: list[str]
 
     event: str = "extension.resolve"
@@ -148,10 +157,10 @@ class ExtensionResolveEvent:
 class DegradedModeEvent:
     """Emitted when any subsystem enters degraded mode."""
 
-    subsystem: str   # "historical" | "stream" | "quota"
+    subsystem: str  # "historical" | "stream" | "quota"
     broker_id: str | None
     reason: str
-    severity: str = "warning"   # "warning" | "critical"
+    severity: str = "warning"  # "warning" | "critical"
 
     event: str = "degraded_mode"
 
@@ -172,7 +181,9 @@ def emit_routing_decision(decision: Any) -> None:
     """Emit a structured routing decision event."""
     evt = RoutingDecisionEvent(
         trace_id=decision.trace_id,
-        operation=decision.operation.value if hasattr(decision.operation, "value") else str(decision.operation),
+        operation=decision.operation.value
+        if hasattr(decision.operation, "value")
+        else str(decision.operation),
         primary_broker=decision.primary_broker,
         fallback_brokers=list(decision.fallback_brokers),
         parallel_brokers=list(decision.parallel_brokers),
@@ -419,21 +430,21 @@ ALERTING_RULES = [
         "severity": "critical",
         "condition": "rate(quota_rejections_total{priority_class='EXECUTION_CRITICAL'}[5m]) > 0",
         "description": "Execution-critical quota is being hard-rejected. "
-                       "Investigate quota headroom reservation and execution traffic volume.",
+        "Investigate quota headroom reservation and execution traffic volume.",
     },
     {
         "name": "HistoricalConsuming80PctBudget",
         "severity": "warning",
         "condition": "quota_utilization_ratio{endpoint_class='historical'} > 0.80",
         "description": "Historical backfill is consuming >80% of non-reserved quota. "
-                       "Risk of quota starvation for portfolio reads.",
+        "Risk of quota starvation for portfolio reads.",
     },
     {
         "name": "StreamStaleForBroker",
         "severity": "warning",
         "condition": "stream_staleness_seconds > 60",
         "description": "A stream session has not received valid data for >60 seconds. "
-                       "Check broker connectivity and subscription status.",
+        "Check broker connectivity and subscription status.",
     },
     {
         "name": "StreamSessionsUnhealthy",
@@ -452,14 +463,14 @@ ALERTING_RULES = [
         "severity": "warning",
         "condition": "rate(historical_chunks_total{event_type='failed'}[5m]) > 0",
         "description": "Historical fetch chunks are failing. "
-                       "Coordinator may be using degraded/fallback mode.",
+        "Coordinator may be using degraded/fallback mode.",
     },
     {
         "name": "MergeConflictsBurst",
         "severity": "warning",
         "condition": "rate(historical_merge_conflicts_total[10m]) > 10",
         "description": "High rate of OHLCV conflicts during multi-source merge. "
-                       "Investigate broker data quality alignment.",
+        "Investigate broker data quality alignment.",
     },
 ]
 

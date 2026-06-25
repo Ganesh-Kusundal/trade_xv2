@@ -42,7 +42,9 @@ def run_scan(args: list[str], console: Console) -> None:
 
     data = load_dataframe([file_path] if file_path else [])
     if data is None or data.empty:
-        console.print("[yellow]No data. Provide --file with OHLCV data (symbol,timestamp,open,high,low,close,volume).[/yellow]")
+        console.print(
+            "[yellow]No data. Provide --file with OHLCV data (symbol,timestamp,open,high,low,close,volume).[/yellow]"
+        )
         return
 
     result = Analytics().scan(data, scanner=scanner_name)
@@ -50,6 +52,7 @@ def run_scan(args: list[str], console: Console) -> None:
         print_scan_result(console, result, limit=limit)
     else:
         from .analytics_utils import print_records
+
         print_records(console, result.charts[0]["data"] if result.charts else [], limit=limit)
 
 
@@ -79,7 +82,9 @@ def run_rank(args: list[str], console: Console) -> None:
     print_records(console, result.charts[0]["data"] if result.charts else [], limit=limit)
 
 
-def run_scanner_command(scanner_name: str, args: list[str], broker_service, console: Console) -> None:
+def run_scanner_command(
+    scanner_name: str, args: list[str], broker_service, console: Console
+) -> None:
     """Run a specific scanner command."""
     limit = 10
     file_path = None
@@ -107,8 +112,12 @@ def run_scanner_command(scanner_name: str, args: list[str], broker_service, cons
         missing = required - set(universe.columns)
         if missing:
             console.print(f"[red]Missing required columns: {missing}[/red]")
-            console.print("[dim]Expected OHLCV data: symbol, timestamp, open, high, low, close, volume[/dim]")
-            console.print("[dim]Universe CSVs (only symbols) won't work — use market data with prices.[/dim]")
+            console.print(
+                "[dim]Expected OHLCV data: symbol, timestamp, open, high, low, close, volume[/dim]"
+            )
+            console.print(
+                "[dim]Universe CSVs (only symbols) won't work — use market data with prices.[/dim]"
+            )
             return
     else:
         gateway = broker_service.active_broker
@@ -139,6 +148,7 @@ def run_scanner_command(scanner_name: str, args: list[str], broker_service, cons
     # Persist scan results to DuckDB
     try:
         from datalake.scan_store import save_scan_result
+
         scan_id = save_scan_result(
             scanner=scanner_name,
             candidates=result.candidates,

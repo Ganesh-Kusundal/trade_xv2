@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/domain/entities/options.py
-# hypothesis_version: 6.155.7
-
-['0', 'CE', 'NFO', 'OPTION', 'PE', 'ask', 'bid', 'call', 'contracts', 'exchange', 'expiries', 'expiry', 'greeks', 'instrument_key', 'iv', 'lot_size', 'ltp', 'oi', 'put', 'security_id', 'spot', 'strike', 'strikePrice', 'strikes', 'symbol', 'tradingSymbol', 'trading_symbol', 'underlying', 'volume']

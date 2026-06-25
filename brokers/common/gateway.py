@@ -17,101 +17,15 @@ Methods are grouped into:
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
 import pandas as pd
 
-from domain.constants import DEFAULT_DERIVATIVES_EXCHANGE, DEFAULT_EXCHANGE
-from domain.entities import (
-    FutureChain,
-    OptionChain,
-    Balance,
-    Holding,
-    MarketDepth,
-    Order,
-    OrderResponse,
-    Position,
-    Quote,
-    Trade,
+from brokers.common.capabilities import (
+    BrokerCapabilities,
 )
-
-# ---------------------------------------------------------------------------
-# Capability Matrix
-# ---------------------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class BrokerCapabilities:
-    """Frozen capability matrix for a broker.
-
-    Returned by gateway.capabilities(). Consumers use this to decide
-    which features are available before calling methods.
-    """
-
-    # Market data capabilities
-    expired_options: bool = False
-    expired_futures: bool = False
-    depth_20: bool = False
-    depth_200: bool = False
-
-    # Historical data limits
-    max_intraday_days: int = 90
-    max_daily_days: int = 365 * 10  # 10 years typical
-    supported_timeframes: tuple[str, ...] = ("1m", "5m", "15m", "30m", "1h", "1D", "1d")
-
-    # Batch capabilities
-    parallel_history: bool = False
-    max_batch_size: int = 1
-
-    # Streaming capabilities
-    websocket: bool = False
-    polling_fallback: bool = True
-
-    # Trading capabilities
-    order_types: tuple[str, ...] = ("MARKET", "LIMIT", "STOP_LOSS", "STOP_LOSS_MARKET")
-    product_types: tuple[str, ...] = ("INTRADAY", "MARGIN")
-    validities: tuple[str, ...] = ("DAY", "IOC")
-
-    # Advanced order types
-    super_orders: bool = False
-    forever_orders: bool = False
-    conditional_triggers: bool = False
-    slice_orders: bool = False
-
-    # Order life-cycle
-    amo: bool = False
-
-    # Risk management
-    market_protection: bool = False
-
-    # Account management
-    ledger: bool = False
-    user_profile: bool = False
-    ip_management: bool = False
-    edis: bool = False
-    exit_all: bool = False
-    trade_pnl: bool = False
-    convert_position: bool = False
-
-    # Investment capabilities
-    ipo: bool = False
-    mutual_funds: bool = False
-    fundamentals: bool = False
-    payments: bool = False
-
-    # Instrument capabilities
-    load_instruments: bool = True
-    search: bool = True
-
-    # Rate limits
-    rate_limit_per_second: int = 10
-    rate_limit_per_minute: int = 200
-
-
-# ISP-focused interfaces for partial gateway implementations (REF-18).
-from brokers.common.gateway_interfaces import (  # noqa: F401
+from brokers.common.gateway_interfaces import (
     BatchMarketDataProvider,
     DerivativesProvider,
     InstrumentProvider,
@@ -121,7 +35,19 @@ from brokers.common.gateway_interfaces import (  # noqa: F401
     StreamProvider,
     TradingExecutor,
 )
-
+from domain.constants import DEFAULT_DERIVATIVES_EXCHANGE, DEFAULT_EXCHANGE
+from domain.entities import (
+    Balance,
+    FutureChain,
+    Holding,
+    MarketDepth,
+    OptionChain,
+    Order,
+    OrderResponse,
+    Position,
+    Quote,
+    Trade,
+)
 
 # ---------------------------------------------------------------------------
 # MarketDataGateway v1.0
@@ -401,16 +327,16 @@ class MarketDataGateway(
 
 class ObservabilityProvider:
     """Protocol for exposing broker-specific observability data.
-    
+
     This protocol decouples the CLI observability layer from broker
     internals. Instead of using getattr() chains to probe private
     attributes like _conn, _client, _token_scheduler, brokers implement
     this protocol to expose canonical observability data.
-    
+
     All methods have default implementations returning empty/no-op data,
     so brokers that don't support certain features (e.g., no WebSocket)
     don't need to implement anything.
-    
+
     Usage:
         # In broker adapter (e.g., DhanGateway):
         def get_connection_status(self) -> dict[str, bool]:
@@ -418,43 +344,43 @@ class ObservabilityProvider:
                 "market_feed": self.market_feed.is_connected if self.market_feed else False,
                 "order_stream": self.order_stream.is_connected if self.order_stream else False,
             }
-        
+
         # In CLI observability builder:
         status = gateway.get_connection_status()
         gauges["market_stream_connected"] = 1.0 if status.get("market_feed", False) else 0.0
     """
-    
+
     def get_connection_status(self) -> dict[str, bool]:
         """Return connection status for all streams.
-        
+
         Returns:
             Dict mapping stream name to connection status.
             Example: {"market_feed": True, "order_stream": False}
         """
         return {}  # Default: no streams
-    
+
     def get_circuit_breaker_states(self) -> dict[str, int]:
         """Return circuit breaker states.
-        
+
         Returns:
             Dict mapping circuit breaker name to state value.
             State values: 0=CLOSED, 1=OPEN, 2=HALF_OPEN
             Example: {"read_cb": 0, "write_cb": 1, "admin_cb": 0}
         """
         return {}  # Default: no circuit breakers
-    
+
     def get_token_refresh_metrics(self) -> dict[str, int]:
         """Return token refresh metrics.
-        
+
         Returns:
             Dict with token refresh statistics.
             Example: {"refresh_count": 42, "error_count": 0}
         """
         return {"refresh_count": 0, "error_count": 0}  # Default: no token refresh
-    
+
     def get_rate_limiter_metrics(self) -> dict[str, int]:
         """Return rate limiter metrics.
-        
+
         Returns:
             Dict with rate limiter statistics.
             Example: {"tokens_available": 10, "requests_throttled": 5}

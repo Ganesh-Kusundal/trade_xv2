@@ -40,6 +40,7 @@ class EventCapturer:
             self._all_events.append(event)
             if event.event_type in self._captured:
                 self._captured[event.event_type].append(event)
+
         return handler
 
     def events(self, event_type: str) -> list[DomainEvent]:

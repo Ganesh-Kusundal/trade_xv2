@@ -232,15 +232,24 @@ class DhanExtendedCapabilities:
         from brokers.dhan.segments import EXCHANGE_TO_SEGMENT
 
         mcx_underlyings = {
-            "CRUDEOIL", "CRUDEOILM", "GOLD", "SILVER", "COPPER",
-            "ZINC", "NATURALGAS", "ALUMINIUM", "LEAD", "NIKKEI",
+            "CRUDEOIL",
+            "CRUDEOILM",
+            "GOLD",
+            "SILVER",
+            "COPPER",
+            "ZINC",
+            "NATURALGAS",
+            "ALUMINIUM",
+            "LEAD",
+            "NIKKEI",
         }
         sec_id = None
         seg = None
         if underlying.upper() in mcx_underlyings and exchange.upper() == "MCX":
             seg = EXCHANGE_TO_SEGMENT.get("MCX", "MCX_COMM")
             futures = [
-                i for i in self._conn.instruments.all_instruments()
+                i
+                for i in self._conn.instruments.all_instruments()
                 if i.symbol.upper().startswith(underlying.upper() + "-")
                 and i.exchange.value == "MCX"
                 and i.is_future
@@ -250,10 +259,13 @@ class DhanExtendedCapabilities:
                 sec_id = int(futures[0].security_id)
         if expiry is None:
             if sec_id and seg:
-                response = self._conn._client.post("/optionchain/expirylist", json={
-                    "UnderlyingScrip": sec_id,
-                    "UnderlyingSeg": seg,
-                })
+                response = self._conn._client.post(
+                    "/optionchain/expirylist",
+                    json={
+                        "UnderlyingScrip": sec_id,
+                        "UnderlyingSeg": seg,
+                    },
+                )
                 raw = response.get("data", response)
                 if isinstance(raw, dict):
                     expiries = raw.get("expiryList") or raw.get("expiries") or []
@@ -267,7 +279,9 @@ class DhanExtendedCapabilities:
                 raise ValueError(f"No expiries found for {underlying}")
             expiry = expiries[0]
         if sec_id and seg:
-            return self._conn.options.get_option_chain(underlying, exchange, expiry, security_id=sec_id)
+            return self._conn.options.get_option_chain(
+                underlying, exchange, expiry, security_id=sec_id
+            )
         return self._conn.options.get_option_chain(underlying, exchange, expiry)
 
     # ── Futures (broker-specific) ────────────────────────────────────
@@ -294,4 +308,4 @@ class DhanExtendedCapabilities:
 
     def get_alerts(self) -> list[Any]:
         """Get all alerts."""
-        return self._conn.alerts.get_alerts() if hasattr(self._conn.alerts, 'get_alerts') else []
+        return self._conn.alerts.get_alerts() if hasattr(self._conn.alerts, "get_alerts") else []

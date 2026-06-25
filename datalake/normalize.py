@@ -49,11 +49,14 @@ def detect_timezone(
     """
     pattern = str(symbol_partition_path(data_root, symbol, DEFAULT_TIMEFRAME))
     try:
-        rows = conn.execute(f"""
+        rows = conn.execute(
+            """
             SELECT EXTRACT(HOUR FROM timestamp) as hr, COUNT(*) as cnt
-            FROM read_parquet('{pattern}')
+            FROM read_parquet(?)
             GROUP BY hr ORDER BY cnt DESC
-        """).fetchall()
+        """,
+            [pattern],
+        ).fetchall()
     except Exception:
         return "UNKNOWN"
 
@@ -105,19 +108,25 @@ def normalize_symbol(
         return tz
 
     if tz == "IST_SHIFTED":
-        conn.execute(f"""
+        conn.execute(
+            """
             CREATE TABLE _tmp AS
             SELECT * EXCLUDE (timestamp),
                    CAST(timestamp - INTERVAL '5 hours 30 minutes' AS TIMESTAMP) as timestamp
-            FROM read_parquet('{path}')
-        """)
+            FROM read_parquet(?)
+        """,
+            [str(path)],
+        )
     elif tz == "UTC":
-        conn.execute(f"""
+        conn.execute(
+            """
             CREATE TABLE _tmp AS
             SELECT * EXCLUDE (timestamp),
                    CAST(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata' AS TIMESTAMP) as timestamp
-            FROM read_parquet('{path}')
-        """)
+            FROM read_parquet(?)
+        """,
+            [str(path)],
+        )
     else:
         logger.warning("%s: MIXED timezone, manual review needed", symbol)
         return "MIXED"
@@ -128,6 +137,7 @@ def normalize_symbol(
         return "EMPTY"
 
     import pyarrow as pa
+
     reader = conn.execute("SELECT * FROM _tmp").arrow()
     table = reader.read_all() if hasattr(reader, "read_all") else pa.Table.from_batches(reader)
     expected = [c for c in CANONICAL_COLUMNS if c in table.column_names]
@@ -176,6 +186,7 @@ def main() -> int:
     # Initialize logging if not already configured
     if not logging.getLogger().handlers:
         from brokers.common.logging_config import setup_logging
+
         setup_logging()
 
     print("Scanning all symbols...")

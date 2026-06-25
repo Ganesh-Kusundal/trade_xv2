@@ -15,10 +15,10 @@ To rebuild the real generated file::
 from __future__ import annotations
 
 try:
-    from .market_feed_pb2 import *  # type: ignore
+    from .market_feed_pb2 import *  # type: ignore  # noqa: F403
 except Exception:
     try:
-        from market_feed_pb2 import *  # type: ignore
+        from market_feed_pb2 import *  # type: ignore  # noqa: F403
     except Exception:
         try:
             from google.protobuf import descriptor_pb2

@@ -160,24 +160,23 @@ def is_retryable_error(exc: Exception) -> bool:
     error_str = str(exc).lower()
 
     # Network-related errors are usually transient
-    if any(
-        keyword in error_str
-        for keyword in [
-            "connection",
-            "timeout",
-            "timed out",
-            "network",
-            "refused",
-            "429",
-            "rate limit",
-            "502",
-            "503",
-            "504",
-        ]
-    ):
-        return True
-
-    return False
+    return bool(
+        any(
+            keyword in error_str
+            for keyword in [
+                "connection",
+                "timeout",
+                "timed out",
+                "network",
+                "refused",
+                "429",
+                "rate limit",
+                "502",
+                "503",
+                "504",
+            ]
+        )
+    )
 
 
 def get_error_severity(exc: Exception) -> str:
@@ -205,23 +204,18 @@ def get_error_severity(exc: Exception) -> str:
     error_str = str(exc).lower()
 
     # Critical: authentication, authorization
-    if any(
-        keyword in error_str
-        for keyword in ["401", "unauthorized", "forbidden", "403"]
-    ):
+    if any(keyword in error_str for keyword in ["401", "unauthorized", "forbidden", "403"]):
         return "critical"
 
     # Error: order rejection, margin issues
     if any(
-        keyword in error_str
-        for keyword in ["rejected", "margin", "insufficient", "invalid order"]
+        keyword in error_str for keyword in ["rejected", "margin", "insufficient", "invalid order"]
     ):
         return "error"
 
     # Warning: rate limits, timeouts, no data
     if any(
-        keyword in error_str
-        for keyword in ["429", "rate limit", "timeout", "no data", "empty"]
+        keyword in error_str for keyword in ["429", "rate limit", "timeout", "no data", "empty"]
     ):
         return "warning"
 

@@ -38,7 +38,7 @@ def show_quote(
     exchange = resolve_exchange(symbol)
 
     def generate_table() -> Table:
-        quote = gw.market_data.get_quote(symbol, exchange)
+        quote = gw.quote(symbol, exchange)
         table = Table(
             title=f"Quote Terminal: {symbol.upper()} ({exchange})", header_style="bold green"
         )
@@ -84,7 +84,7 @@ def show_depth(
     exchange = resolve_exchange(symbol)
 
     def generate_table() -> Table:
-        depth = gw.market_data.get_depth(symbol, exchange)
+        depth = gw.depth(symbol, exchange)
         table = Table(title=f"Market Depth L2: {symbol.upper()}", header_style="bold magenta")
         table.add_column("Bid Qty", style="green", justify="right")
         table.add_column("Bid Price", style="bold green", justify="right")
@@ -223,9 +223,7 @@ def show_option_chain(
                 pe = entry.get("put", {}) or {}
 
                 # Determine ATM highlight
-                atm_dist = min(
-                    (abs(float(s["strike"]) - float(spot)) for s in strikes), default=0
-                )
+                atm_dist = min((abs(float(s["strike"]) - float(spot)) for s in strikes), default=0)
                 is_atm = abs(float(strike_val) - float(spot)) == atm_dist
                 strike_label = (
                     f"[bold yellow on blue] {float(strike_val):>10,.0f} [/bold yellow on blue]"
@@ -261,9 +259,7 @@ def show_option_chain(
         console.print(f"[dim]{traceback.format_exc()}[/dim]")
 
 
-def show_futures(
-    broker_service: BrokerService, symbol: str, console: Console
-) -> None:
+def show_futures(broker_service: BrokerService, symbol: str, console: Console) -> None:
     """Display futures contract details."""
     gw = broker_service.active_broker
     sym = symbol.upper().strip()
@@ -273,7 +269,8 @@ def show_futures(
         exchange = "MCX"
 
     try:
-        contracts = gw.futures.get_contracts(sym, exchange)
+        chain = gw.future_chain(sym, exchange)
+        contracts = chain.contracts if hasattr(chain, 'contracts') else []
 
         table = Table(title=f"Futures Contracts for {sym}", header_style="bold yellow")
         table.add_column("Expiry", style="bold white")
@@ -283,11 +280,16 @@ def show_futures(
 
         if contracts:
             for c in contracts:
+                expiry = c.expiry if hasattr(c, 'expiry') else (c.get("expiry", "N/A") if hasattr(c, 'get') else "N/A")
+                # P-2.3: Fixed - use c_symbol instead of shadowing function parameter
+                c_symbol = c.symbol if hasattr(c, 'symbol') else (c.get("symbol", "N/A") if hasattr(c, 'get') else "N/A")
+                security_id = c.security_id if hasattr(c, 'security_id') else (c.get("security_id", "N/A") if hasattr(c, 'get') else "N/A")
+                lot_size = c.lot_size if hasattr(c, 'lot_size') else (c.get("lot_size", "N/A") if hasattr(c, 'get') else "N/A")
                 table.add_row(
-                    c.get("expiry") or "N/A",
-                    c.get("symbol") or "N/A",
-                    str(c.get("security_id", "N/A")),
-                    str(c.get("lot_size", "N/A")),
+                    str(expiry),
+                    str(c_symbol),
+                    str(security_id),
+                    str(lot_size),
                 )
         else:
             table.add_row("No contracts found", "-", "-", "-")
@@ -297,17 +299,38 @@ def show_futures(
         console.print(f"[red]Error fetching futures details: {exc}[/red]")
 
 
-def show_historical(
-    broker_service: BrokerService, symbol: str, console: Console
-) -> None:
-    """Display historical candles summary and preview."""
-    gw = broker_service.active_broker
+def show_historical(broker_service: BrokerService, symbol: str, console: Console) -> None:
+    """Display historical candles summary and preview via MarketDataComposer."""
+    from cli.composer_helpers import get_market_data_composer
+    from brokers.common.async_compat import run_async_compat
+    from brokers.common.historical_coordinator import HistoricalQuery
+    from domain.historical import InstrumentRef
+
+    # Get MarketDataComposer (lazy-loaded, cached)
+    try:
+        composer = get_market_data_composer()
+    except Exception as exc:
+        console.print(f"[red]Failed to initialize MarketDataComposer: {exc}[/red]")
+        return
+
     exchange = resolve_exchange(symbol)
-    to_date = date.today().isoformat()
-    from_date = (date.today() - timedelta(days=10)).isoformat()
+    to_date = date.today()
+    from_date = to_date - timedelta(days=10)
 
     try:
-        df = gw.historical.get_historical(symbol, exchange, from_date, to_date, timeframe="1D")
+        # Build HistoricalQuery for composer
+        query = HistoricalQuery(
+            instrument=InstrumentRef(symbol=symbol, exchange=exchange),
+            timeframe="1D",
+            from_date=from_date,
+            to_date=to_date,
+        )
+
+        # Execute via composer (async -> sync bridge)
+        series, ledger = run_async_compat(
+            composer.fetch_historical(query),
+            fire_and_forget=False,
+        )
 
         table = Table(
             title=f"Historical Data Preview: {symbol.upper()}", header_style="bold magenta"
@@ -319,37 +342,43 @@ def show_historical(
         table.add_column("Close", justify="right")
         table.add_column("Volume", justify="right")
 
-        if df is not None and not df.empty:
-            for ts_val, open_val, high_val, low_val, close_val, volume in zip(
-                df["timestamp"].tail(5),
-                df["open"].tail(5),
-                df["high"].tail(5),
-                df["low"].tail(5),
-                df["close"].tail(5),
-                df["volume"].tail(5),
-            ):
+        if series and series.bars:
+            # Show last 5 bars
+            for bar in series.bars[-5:]:
                 ts_str = (
-                    ts_val.strftime("%Y-%m-%d")
-                    if isinstance(ts_val, datetime)
-                    else str(ts_val) if ts_val is not None else "N/A"
+                    bar.timestamp.strftime("%Y-%m-%d")
+                    if hasattr(bar.timestamp, "strftime")
+                    else str(bar.timestamp)
                 )
                 table.add_row(
                     ts_str,
-                    f"{open_val:,.2f}",
-                    f"{high_val:,.2f}",
-                    f"{low_val:,.2f}",
-                    f"{close_val:,.2f}",
-                    f"{int(volume):,}",
+                    f"{bar.open:,.2f}",
+                    f"{bar.high:,.2f}",
+                    f"{bar.low:,.2f}",
+                    f"{bar.close:,.2f}",
+                    f"{int(bar.volume):,}",
                 )
             console.print(table)
             console.print()
-            first_ts = df["timestamp"].iloc[0]
-            last_ts = df["timestamp"].iloc[-1]
-            first_str = first_ts.strftime("%Y-%m-%d") if isinstance(first_ts, datetime) else str(first_ts)
-            last_str = last_ts.strftime("%Y-%m-%d") if isinstance(last_ts, datetime) else str(last_ts)
-            console.print(
-                f"Total Rows: [bold cyan]{len(df)}[/bold cyan] candles | First: {first_str} | Last: {last_str}"
+
+            first_ts = series.bars[0].timestamp
+            last_ts = series.bars[-1].timestamp
+            first_str = (
+                first_ts.strftime("%Y-%m-%d")
+                if hasattr(first_ts, "strftime")
+                else str(first_ts)
             )
+            last_str = (
+                last_ts.strftime("%Y-%m-%d")
+                if hasattr(last_ts, "strftime")
+                else str(last_ts)
+            )
+            degraded_note = " [yellow](degraded)[/yellow]" if series.is_degraded else ""
+            console.print(
+                f"Total Rows: [bold cyan]{series.bar_count}[/bold cyan]{degraded_note} candles | First: {first_str} | Last: {last_str}"
+            )
+            if ledger.conflicts:
+                console.print(f"[dim]Data conflicts resolved: {len(ledger.conflicts)}[/dim]")
         else:
             table.add_row("No historical data found", "-", "-", "-", "-", "-")
             console.print(table)
@@ -372,9 +401,7 @@ def _build_stream_table(symbol: str, rows: list[list[str]]) -> Table:
     return tbl
 
 
-def show_stream(
-    broker_service: BrokerService, symbol: str, console: Console
-) -> None:
+def show_stream(broker_service: BrokerService, symbol: str, console: Console) -> None:
     """Stream live ticks via the broker WebSocket and display as a rolling table.
 
     Uses ``gateway.stream()`` which subscribes to the broker WebSocket and
@@ -404,26 +431,32 @@ def show_stream(
         # Accept canonical Quote OR raw dict (fallback path)
         try:
             if hasattr(quote, "ltp"):
-                ltp   = quote.ltp       # type: ignore[attr-defined]
-                open_ = quote.open      # type: ignore[attr-defined]
-                high  = quote.high      # type: ignore[attr-defined]
-                low   = quote.low       # type: ignore[attr-defined]
-                vol   = quote.volume    # type: ignore[attr-defined]
-                chg   = quote.change    # type: ignore[attr-defined]
-                ts    = quote.timestamp # type: ignore[attr-defined]
+                ltp = quote.ltp  # type: ignore[attr-defined]
+                open_ = quote.open  # type: ignore[attr-defined]
+                high = quote.high  # type: ignore[attr-defined]
+                low = quote.low  # type: ignore[attr-defined]
+                vol = quote.volume  # type: ignore[attr-defined]
+                chg = quote.change  # type: ignore[attr-defined]
+                ts = quote.timestamp  # type: ignore[attr-defined]
             elif isinstance(quote, dict):
                 payload = quote.get("payload", quote)
-                ltp   = payload.get("last_price", 0) if isinstance(payload, dict) else 0
+                ltp = payload.get("last_price", 0) if isinstance(payload, dict) else 0
                 open_ = high = low = chg = 0
-                vol   = 0
-                ts    = None
+                vol = 0
+                ts = None
             else:
                 return
 
             ts_str = (
-                ts.strftime("%H:%M:%S") if ts and hasattr(ts, "strftime") else datetime.now().strftime("%H:%M:%S")
+                ts.strftime("%H:%M:%S")
+                if ts and hasattr(ts, "strftime")
+                else datetime.now().strftime("%H:%M:%S")
             )
-            chg_str = f"[green]+{float(chg):,.2f}[/green]" if float(chg) >= 0 else f"[red]{float(chg):,.2f}[/red]"
+            chg_str = (
+                f"[green]+{float(chg):,.2f}[/green]"
+                if float(chg) >= 0
+                else f"[red]{float(chg):,.2f}[/red]"
+            )
 
             row = [
                 ts_str,
@@ -449,7 +482,9 @@ def show_stream(
         try:
             ws_handle = gw.stream(symbol, exchange=exchange, mode="LTP", on_tick=on_tick)
         except Exception as exc:
-            console.print(f"[yellow]WebSocket unavailable ({exc}), falling back to REST polling.[/yellow]")
+            console.print(
+                f"[yellow]WebSocket unavailable ({exc}), falling back to REST polling.[/yellow]"
+            )
             use_ws = False
 
     with Live(_build_stream_table(symbol, rows), console=console, refresh_per_second=2) as live:
@@ -460,7 +495,7 @@ def show_stream(
                 # Fallback: REST polling when WS is not available
                 if not use_ws:
                     try:
-                        quote = gw.market_data.get_quote(symbol, exchange)
+                        quote = gw.quote(symbol, exchange)
                         if quote is not None:
                             on_tick(quote)
                     except Exception as exc:

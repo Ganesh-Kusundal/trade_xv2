@@ -41,21 +41,24 @@ class QualityViews:
 
         Reads from materialized m_missing_candles table.
         """
-        conn.execute(f"""
+        conn.execute(
+            """
             CREATE OR REPLACE VIEW v_missing_candles AS
             SELECT
                 symbol,
                 trade_date,
                 minute_count,
                 CASE
-                    WHEN minute_count < {TRADING_MINUTES_PARTIAL} THEN 'INCOMPLETE'
-                    WHEN minute_count < {TRADING_MINUTES_PER_DAY} THEN 'PARTIAL'
+                    WHEN minute_count < ? THEN 'INCOMPLETE'
+                    WHEN minute_count < ? THEN 'PARTIAL'
                     ELSE 'COMPLETE'
                 END as status
             FROM m_missing_candles
-            WHERE minute_count < {TRADING_MINUTES_PER_DAY}
+            WHERE minute_count < ?
             ORDER BY trade_date DESC, symbol
-        """)
+        """,
+            [TRADING_MINUTES_PARTIAL, TRADING_MINUTES_PER_DAY, TRADING_MINUTES_PER_DAY],
+        )
         logger.debug("Created v_missing_candles")
 
     def _create_duplicate_candles(self, conn: duckdb.DuckDBPyConnection) -> None:
@@ -82,48 +85,33 @@ class QualityViews:
         Also previously used COUNT(days with < 375 candles) which gave
         near-100% scores even for symbols missing 1 candle per day.
         """
-        conn.execute(f"""
-            CREATE OR REPLACE VIEW v_quality_score AS
-            WITH completeness AS (
-                SELECT
-                    symbol,
-                    COUNT(DISTINCT trade_date) as trading_days,
-                    MIN(trade_date) as first_candle,
-                    MAX(trade_date) as last_candle
-                FROM m_trading_days
-                GROUP BY symbol
-            ),
-            duplicates AS (
-                SELECT symbol, COUNT(*) as dup_count
-                FROM m_duplicate_candles
-                GROUP BY symbol
-            ),
-            missing AS (
-                -- Sum actual missing minutes (not just count of incomplete days)
-                SELECT
-                    symbol,
-                    COALESCE(SUM({TRADING_MINUTES_PER_DAY} - minute_count), 0) as missing_minutes
-                FROM m_missing_candles
-                GROUP BY symbol
-            )
-            SELECT
-                c.symbol,
-                c.trading_days,
-                c.first_candle,
-                c.last_candle,
-                COALESCE(d.dup_count, 0) as duplicate_count,
-                CAST(COALESCE(m.missing_minutes, 0) AS BIGINT) as missing_count,
-                CASE
-                    WHEN c.trading_days = 0 THEN 0
-                    ELSE ROUND(
-                        (1.0 - COALESCE(m.missing_minutes, 0) / NULLIF(c.trading_days * {TRADING_MINUTES_PER_DAY}.0, 0)) *
-                        (1.0 - COALESCE(d.dup_count, 0) / NULLIF(c.trading_days * {TRADING_MINUTES_PER_DAY}.0, 0)) *
-                        100, 2
-                    )
-                END as quality_score
-            FROM completeness c
-            LEFT JOIN duplicates d ON c.symbol = d.symbol
-            LEFT JOIN missing m ON c.symbol = m.symbol
-            ORDER BY quality_score DESC
-        """)
+        conn.execute(
+            "CREATE OR REPLACE VIEW v_quality_score AS "  # noqa: S608
+            "WITH completeness AS ("
+            "SELECT symbol, COUNT(DISTINCT trade_date) as trading_days, "
+            "MIN(trade_date) as first_candle, MAX(trade_date) as last_candle "
+            "FROM m_trading_days GROUP BY symbol"
+            "), "
+            "duplicates AS ("
+            "SELECT symbol, COUNT(*) as dup_count "
+            "FROM m_duplicate_candles GROUP BY symbol"
+            "), "
+            "missing AS ("
+            "SELECT symbol, "
+            f"COALESCE(SUM({TRADING_MINUTES_PER_DAY} - minute_count), 0) as missing_minutes "
+            "FROM m_missing_candles GROUP BY symbol"
+            ") "
+            "SELECT c.symbol, c.trading_days, c.first_candle, c.last_candle, "
+            "COALESCE(d.dup_count, 0) as duplicate_count, "
+            "CAST(COALESCE(m.missing_minutes, 0) AS BIGINT) as missing_count, "
+            "CASE WHEN c.trading_days = 0 THEN 0 "
+            "ELSE ROUND("
+            f"(1.0 - COALESCE(m.missing_minutes, 0) / NULLIF(c.trading_days * {TRADING_MINUTES_PER_DAY}.0, 0)) * "
+            f"(1.0 - COALESCE(d.dup_count, 0) / NULLIF(c.trading_days * {TRADING_MINUTES_PER_DAY}.0, 0)) * "
+            "100, 2) END as quality_score "
+            "FROM completeness c "
+            "LEFT JOIN duplicates d ON c.symbol = d.symbol "
+            "LEFT JOIN missing m ON c.symbol = m.symbol "
+            "ORDER BY quality_score DESC"
+        )
         logger.debug("Created v_quality_score")

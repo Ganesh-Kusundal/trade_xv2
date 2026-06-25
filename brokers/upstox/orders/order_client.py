@@ -71,7 +71,9 @@ class UpstoxRestOrderClient:
         return trades
 
     def get_order_history(self, order_id: str) -> list[dict[str, Any]]:
-        body = self._http.get_json(f"{self._urls._v2()}/order/history", params={"order_id": order_id})
+        body = self._http.get_json(
+            f"{self._urls._v2()}/order/history", params={"order_id": order_id}
+        )
         return _data_list(body)
 
     def place_multi_order(self, payloads: list[dict[str, Any]]) -> dict[str, Any]:

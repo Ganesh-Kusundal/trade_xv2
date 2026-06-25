@@ -2,13 +2,13 @@
 
 import pytest
 
-from domain.historical import InstrumentRef
-from domain.requests import OrderRequest
-from domain.enums import OrderType, ProductType, Side, Validity
 from brokers.common.adapters.market_data_gateway_adapter import wrap_market_gateway
 from brokers.common.broker_port import HistoricalBarRequest, QuotaToken
 from brokers.common.capabilities import BrokerCapabilities
 from brokers.paper import PaperGateway
+from domain.enums import OrderType, ProductType, Side, Validity
+from domain.historical import InstrumentRef
+from domain.requests import OrderRequest
 
 
 @pytest.fixture

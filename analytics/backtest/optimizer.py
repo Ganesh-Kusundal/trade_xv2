@@ -126,7 +126,7 @@ def optimize_grid(
         "momentum": MomentumStrategy,
         "breakout": BreakoutStrategy,
     }
-    StrategyClass = strategies.get(strategy_name, MomentumStrategy)
+    strategy_class = strategies.get(strategy_name, MomentumStrategy)
 
     for combo in combinations:
         params = dict(zip(param_names, combo, strict=False))
@@ -143,7 +143,7 @@ def optimize_grid(
                 trend_slow=params.get("trend_slow", 50),
             )
 
-            strategy = StrategyPipeline(strategies=[StrategyClass()])
+            strategy = StrategyPipeline(strategies=[strategy_class()])
             config = BacktestConfig(initial_capital=initial_capital, warmup_bars=warmup_bars)
 
             engine = BacktestEngine(pipeline, strategy, config)

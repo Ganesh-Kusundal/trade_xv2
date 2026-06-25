@@ -3,6 +3,7 @@
 These tests verify parity with the deprecated analytics.indicators.technical
 module by testing the canonical Feature classes from analytics.pipeline.features.
 """
+
 from __future__ import annotations
 
 import math
@@ -23,8 +24,8 @@ from analytics.pipeline.features import (
     Momentum,
 )
 
-
 # ── Helpers — inlined from deprecated analytics.indicators.technical ────────
+
 
 def _acceleration(prices: pd.Series, periods: int = 1) -> pd.Series:
     """Price acceleration (second derivative)."""
@@ -61,13 +62,15 @@ def _realized_volatility(returns: pd.Series, annualization: int = 252) -> float:
 def ohlcv() -> pd.DataFrame:
     n = 50
     closes = [100 + i * 0.5 for i in range(n)]
-    return pd.DataFrame({
-        "open": [c - 0.5 for c in closes],
-        "high": [c + 2 for c in closes],
-        "low": [c - 2 for c in closes],
-        "close": closes,
-        "volume": [1000 + (i % 5) * 100 for i in range(n)],
-    })
+    return pd.DataFrame(
+        {
+            "open": [c - 0.5 for c in closes],
+            "high": [c + 2 for c in closes],
+            "low": [c - 2 for c in closes],
+            "close": closes,
+            "volume": [1000 + (i % 5) * 100 for i in range(n)],
+        }
+    )
 
 
 @pytest.fixture
@@ -128,7 +131,9 @@ def test_bollinger_bands(prices: pd.Series) -> None:
     assert "bb_lower" in result.columns
     assert "bb_pct_b" in result.columns
     assert "bb_bandwidth" in result.columns
-    assert result["bb_upper"].iloc[-1] >= result["bb_middle"].iloc[-1] >= result["bb_lower"].iloc[-1]
+    assert (
+        result["bb_upper"].iloc[-1] >= result["bb_middle"].iloc[-1] >= result["bb_lower"].iloc[-1]
+    )
 
 
 # ── VWAP ───────────────────────────────────────────────────────────────────

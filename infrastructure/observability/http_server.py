@@ -91,7 +91,9 @@ def render_prometheus_metrics(
             lines.append(f"tradexv2_events_total{{{labels}}} {count}")
 
     # ── Gauges for each ManagedService ─────────────────────────────────
-    lines.append("# HELP tradexv2_service_health Managed service health state (0=STOPPED, 1=STARTING, 2=HEALTHY, 3=DEGRADED, 4=UNHEALTHY, 5=STOPPING, 6=FAILED).")
+    lines.append(
+        "# HELP tradexv2_service_health Managed service health state (0=STOPPED, 1=STARTING, 2=HEALTHY, 3=DEGRADED, 4=UNHEALTHY, 5=STOPPING, 6=FAILED)."
+    )
     lines.append("# TYPE tradexv2_service_health gauge")
     state_to_int = {
         HealthState.STOPPED: 0,
@@ -226,9 +228,7 @@ class HttpObservabilityServer(ManagedService):
             not_ready.append((name, state.value))
         body = {
             "status": "ready" if not not_ready else "not_ready",
-            "services": {
-                name: info.get("state", "UNKNOWN") for name, info in snap.items()
-            },
+            "services": {name: info.get("state", "UNKNOWN") for name, info in snap.items()},
         }
         if not_ready:
             body["not_ready"] = not_ready

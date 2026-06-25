@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
-
-import pytest
 import time
+from unittest.mock import MagicMock, patch
 
 from brokers.common.auth import AuthManager, JsonTokenStateStore, TokenSource, TokenState
 from brokers.common.connection.authenticated_readiness import (
@@ -120,9 +118,7 @@ class TestAuthManagerForceRefresh:
     def test_force_refresh_bypasses_store(self, tmp_path):
         store_path = tmp_path / "token.json"
         store = JsonTokenStateStore(store_path)
-        store.save(
-            TokenState(access_token="stale", source=TokenSource.STATIC)
-        )
+        store.save(TokenState(access_token="stale", source=TokenSource.STATIC))
         calls = {"n": 0}
 
         def on_refresh():

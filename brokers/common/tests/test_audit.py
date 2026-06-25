@@ -2,7 +2,7 @@
 
 import logging
 
-from brokers.common.models import OperationKind, RouteDecision, RoutingRequest
+from brokers.common.models import OperationKind, RouteDecision
 from brokers.common.observability.audit import (
     ALERTING_RULES,
     FAILURE_TAXONOMY,
@@ -13,7 +13,6 @@ from brokers.common.observability.audit import (
     emit_routing_decision,
     emit_stream_state_change,
 )
-from datetime import datetime, timezone
 
 
 class TestAuditEmitters:

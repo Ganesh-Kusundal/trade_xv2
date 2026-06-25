@@ -47,7 +47,11 @@ class FuturesAnalytics:
             scores={"oi": float(oi_result.scores.get("oi", 50.0)), "future_strength": score},
             signals=[strength, *oi_result.signals],
             recommendations=["Confirm future strength with spot direction and OI build-up."],
-            raw={"basis": basis_result.to_dict(), "oi": oi_result.to_dict(), "rollover": rollover_result.to_dict()},
+            raw={
+                "basis": basis_result.to_dict(),
+                "oi": oi_result.to_dict(),
+                "rollover": rollover_result.to_dict(),
+            },
         )
 
     def basis(self, spot_price: float | None, future_price: float | None) -> AnalysisResult:
@@ -63,7 +67,13 @@ class FuturesAnalytics:
         return AnalysisResult(
             name="basis",
             summary=f"Future is at {basis_type.lower()} to spot.",
-            metrics={"spot": spot_price, "future": future_price, "basis": basis, "basis_pct": basis_pct, "basis_type": basis_type},
+            metrics={
+                "spot": spot_price,
+                "future": future_price,
+                "basis": basis,
+                "basis_pct": basis_pct,
+                "basis_type": basis_type,
+            },
         )
 
     def oi_state(self, price_change: float, oi_change: float) -> AnalysisResult:

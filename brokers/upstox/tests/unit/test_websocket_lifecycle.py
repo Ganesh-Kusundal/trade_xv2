@@ -6,9 +6,7 @@ with the LifecycleManager when lifecycle is provided.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 from infrastructure.lifecycle import LifecycleManager
 from infrastructure.lifecycle.lifecycle import HealthState

@@ -16,27 +16,29 @@ from contextlib import contextmanager
 from decimal import Decimal
 from typing import Any
 
-from infrastructure.event_bus import DomainEvent, EventBus
-from brokers.common.dtos import BrokerOrderPayload
-from domain import OrderResponse
 from application.oms._internal.risk_manager import RiskManager
-from endpoints import Dhan
-from domain import (
-    Order,
-    OrderStatus,
-    OrderType,
-    ProductType,
-    Side as OrderSide,
-    Trade,
-    Validity,
-)
+from brokers.common.dtos import BrokerOrderPayload
 from brokers.dhan.domain import Exchange
 from brokers.dhan.exceptions import DhanError, OrderError
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, DhanInstrumentRef, coerce_identity_provider
 from brokers.dhan.invariants import assert_dhan_payload
-from domain.field_mapping import DefaultFieldMapping
 from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
+from domain import (
+    Order,
+    OrderResponse,
+    OrderStatus,
+    OrderType,
+    ProductType,
+    Trade,
+    Validity,
+)
+from domain import (
+    Side as OrderSide,
+)
+from domain.field_mapping import DefaultFieldMapping
+from endpoints import Dhan
+from infrastructure.event_bus import DomainEvent, EventBus
 
 logger = logging.getLogger(__name__)
 
@@ -44,9 +46,15 @@ logger = logging.getLogger(__name__)
 _DHAN_MAPPING = DefaultFieldMapping()
 
 # Segments where only INTRADAY and MARGIN product types are allowed
-_DERIVATIVE_SEGMENTS = frozenset({
-    "NSE_FNO", "BSE_FNO", "MCX_COMM", "NSE_CURRENCY", "BSE_CURRENCY",
-})
+_DERIVATIVE_SEGMENTS = frozenset(
+    {
+        "NSE_FNO",
+        "BSE_FNO",
+        "MCX_COMM",
+        "NSE_CURRENCY",
+        "BSE_CURRENCY",
+    }
+)
 
 # Product types NOT allowed for derivatives
 _EQUITY_ONLY_PRODUCTS = frozenset({"CNC", "MTF"})
@@ -135,7 +143,11 @@ class OrdersAdapter:
             errors.append(f"Quantity must be positive, got {quantity}")
 
         ot_val = order_type.value if isinstance(order_type, OrderType) else str(order_type).upper()
-        pt_val = product_type.value if isinstance(product_type, ProductType) else str(product_type).upper()
+        pt_val = (
+            product_type.value
+            if isinstance(product_type, ProductType)
+            else str(product_type).upper()
+        )
 
         if ot_val in ("LIMIT", "STOP_LOSS") and (price is None or price <= 0):
             errors.append(f"LIMIT/SL orders require price > 0, got {price}")
@@ -144,21 +156,23 @@ class OrdersAdapter:
         try:
             inst = self._identity.resolver.resolve(symbol, exchange)
         except (DhanError, ValueError, KeyError) as exc:
-            logger.warning("instrument_resolve_failed", extra={"symbol": symbol, "exchange": exchange, "error": str(exc)})
+            logger.warning(
+                "instrument_resolve_failed",
+                extra={"symbol": symbol, "exchange": exchange, "error": str(exc)},
+            )
             errors.append(f"Instrument not found: {symbol} on {exchange}")
             return errors
 
         segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, DEFAULT_SEGMENT)
 
         # Lot size check for derivatives
-        if segment in _DERIVATIVE_SEGMENTS and inst.lot_size > 1:
-            if quantity % inst.lot_size != 0:
-                errors.append(
-                    f"Quantity {quantity} is not a multiple of lot size {inst.lot_size} "
-                    f"for {symbol} on {inst.exchange.value}"
-                )
+        if segment in _DERIVATIVE_SEGMENTS and inst.lot_size > 1 and quantity % inst.lot_size != 0:
+            errors.append(
+                f"Quantity {quantity} is not a multiple of lot size {inst.lot_size} "
+                f"for {symbol} on {inst.exchange.value}"
+            )
 
-        # Product type × segment check
+        # Product type x segment check
         if segment in _DERIVATIVE_SEGMENTS and pt_val in _EQUITY_ONLY_PRODUCTS:
             errors.append(
                 f"Product type {pt_val} is not valid for {segment}. "
@@ -206,9 +220,7 @@ class OrdersAdapter:
             so callers using the gateway see consistent error handling.
         """
         if not self._allow_live_orders:
-            raise OrderError(
-                "Live orders are disabled. Set DHAN_ALLOW_LIVE_ORDERS=1 to enable."
-            )
+            raise OrderError("Live orders are disabled. Set DHAN_ALLOW_LIVE_ORDERS=1 to enable.")
 
         correlation_id = request.correlation_id
         symbol = request.symbol or ""
@@ -229,14 +241,21 @@ class OrdersAdapter:
         with self._idempotency.lock(correlation_id):
             cached = self._idempotency.get(correlation_id)
             if cached is not None:
-                logger.info("idempotency_hit", extra={"correlation_id": correlation_id, "order_id": cached.order_id})
+                logger.info(
+                    "idempotency_hit",
+                    extra={"correlation_id": correlation_id, "order_id": cached.order_id},
+                )
                 return cached
 
             # Validation
-            errors = self.validate_order(symbol, exchange, quantity, order_type, product_type, price)
+            errors = self.validate_order(
+                symbol, exchange, quantity, order_type, product_type, price
+            )
             if errors:
                 msg = "; ".join(errors)
-                logger.warning("order_validation_failed", extra={"symbol": symbol, "errors": errors})
+                logger.warning(
+                    "order_validation_failed", extra={"symbol": symbol, "errors": errors}
+                )
                 raise OrderError(f"Order validation failed: {msg}")
 
             warnings = self.validate_order_warnings(quantity, price)
@@ -252,13 +271,18 @@ class OrdersAdapter:
             # string to a Dhan segment so the index-fallback is rejected
             # for derivatives queries (PR-C.4).
             from brokers.dhan.segments import EXCHANGE_TO_SEGMENT
+
             ref = self._identity.resolve_ref(
-                symbol, exchange,
+                symbol,
+                exchange,
                 expected_segment=EXCHANGE_TO_SEGMENT.get(exchange.upper()),
             )
             segment = ref.exchange_segment
             side_val, ot_val, pt_val, v_val = self._canonicalize_order_enums(
-                side, order_type, product_type, validity,
+                side,
+                order_type,
+                product_type,
+                validity,
             )
 
             # Pre-trade risk check (skipped when OMS already validated)
@@ -271,7 +295,9 @@ class OrdersAdapter:
                     order_type=OrderType(ot_val),
                     quantity=quantity,
                     price=price if price and price > 0 else Decimal("0"),
-                    trigger_price=trigger_price if trigger_price and trigger_price > 0 else Decimal("0"),
+                    trigger_price=trigger_price
+                    if trigger_price and trigger_price > 0
+                    else Decimal("0"),
                     product_type=ProductType(pt_val),
                     validity=Validity(v_val),
                 )
@@ -280,8 +306,16 @@ class OrdersAdapter:
                     raise OrderError(f"Risk check failed: {risk_result.reason}")
 
             payload = self._build_order_payload(
-                ref, segment, side_val, ot_val, pt_val, v_val,
-                quantity, price, trigger_price, correlation_id,
+                ref,
+                segment,
+                side_val,
+                ot_val,
+                pt_val,
+                v_val,
+                quantity,
+                price,
+                trigger_price,
+                correlation_id,
             )
             # PR-B: defence-in-depth. The carrier already enforced the
             # Dhan-internal contract, but a future change could build a
@@ -291,16 +325,32 @@ class OrdersAdapter:
             data = self._client.post("/orders", json=payload)
 
             order = self._build_placed_order(
-                data, symbol, ref.exchange,
-                side_val, ot_val, pt_val, v_val, quantity,
-                price, trigger_price, correlation_id,
+                data,
+                symbol,
+                ref.exchange,
+                side_val,
+                ot_val,
+                pt_val,
+                v_val,
+                quantity,
+                price,
+                trigger_price,
+                correlation_id,
             )
 
-            logger.info("order_placed", extra={
-                "order_id": order.order_id, "symbol": symbol, "side": side_val,
-                "quantity": quantity, "order_type": ot_val, "price": str(price or 0),
-                "product_type": pt_val, "exchange": ref.exchange.value,
-            })
+            logger.info(
+                "order_placed",
+                extra={
+                    "order_id": order.order_id,
+                    "symbol": symbol,
+                    "side": side_val,
+                    "quantity": quantity,
+                    "order_type": ot_val,
+                    "price": str(price or 0),
+                    "product_type": pt_val,
+                    "exchange": ref.exchange.value,
+                },
+            )
 
             self._idempotency.put(correlation_id, order)
             self._publish("ORDER_PLACED", order)
@@ -320,9 +370,7 @@ class OrdersAdapter:
         """
         # Safety guard: prevent live order modifications if disabled
         if not self._allow_live_orders:
-            raise OrderError(
-                "Live orders are disabled. Set DHAN_ALLOW_LIVE_ORDERS=1 to enable."
-            )
+            raise OrderError("Live orders are disabled. Set DHAN_ALLOW_LIVE_ORDERS=1 to enable.")
 
         payload = {k: v for k, v in changes.items() if v is not None}
         result = self._client.put(f"/orders/{order_id}", json=payload)
@@ -342,23 +390,31 @@ class OrdersAdapter:
         try:
             return Order.from_broker_dict(result, field_mapping=_DHAN_MAPPING)
         except (DhanError, ValueError) as exc:
-            logger.warning("modify_order_parse_fallback", extra={"order_id": order_id, "error": str(exc)})
+            logger.warning(
+                "modify_order_parse_fallback", extra={"order_id": order_id, "error": str(exc)}
+            )
             # Fallback: if the response doesn't have full order details,
             # construct from the payload + order_id
             return Order(
                 order_id=order_id,
                 symbol=str(result.get("tradingSymbol", changes.get("symbol", ""))),
                 exchange=str(result.get("exchangeSegment", changes.get("exchange", "NSE"))),
-                side=OrderSide(str(result.get("transactionType", changes.get("side", "BUY"))).upper()),
+                side=OrderSide(
+                    str(result.get("transactionType", changes.get("side", "BUY"))).upper()
+                ),
                 order_type=OrderType(
-                    _DHAN_MAPPING.map_order_type(result) if result.get("orderType")
+                    _DHAN_MAPPING.map_order_type(result)
+                    if result.get("orderType")
                     else str(changes.get("order_type", "MARKET")).upper()
                 ),
                 quantity=int(result.get("quantity", changes.get("quantity", 0))),
                 price=Decimal(str(result.get("price", changes.get("price", 0)))),
-                trigger_price=Decimal(str(result.get("triggerPrice", changes.get("trigger_price", 0)))),
+                trigger_price=Decimal(
+                    str(result.get("triggerPrice", changes.get("trigger_price", 0)))
+                ),
                 status=OrderStatus(
-                    _DHAN_MAPPING.map_status(result) if result.get("orderStatus")
+                    _DHAN_MAPPING.map_status(result)
+                    if result.get("orderStatus")
                     else str(changes.get("status", "OPEN")).upper()
                 ),
             )
@@ -382,9 +438,7 @@ class OrdersAdapter:
 
         # Safety guard: prevent live order cancellations if disabled
         if not self._allow_live_orders:
-            raise OrderError(
-                "Live orders are disabled. Set DHAN_ALLOW_LIVE_ORDERS=1 to enable."
-            )
+            raise OrderError("Live orders are disabled. Set DHAN_ALLOW_LIVE_ORDERS=1 to enable.")
 
         try:
             data = self._client.delete(f"/orders/{order_id}")
@@ -416,11 +470,7 @@ class OrdersAdapter:
             )
         # Failure path
         return OrderResponse.fail(
-            message=str(
-                data.get("errorMessage")
-                or data.get("message")
-                or "Cancel failed"
-            ),
+            message=str(data.get("errorMessage") or data.get("message") or "Cancel failed"),
             error_code=str(data.get("errorCode", "")),
             raw_payload=data,
         )
@@ -428,13 +478,13 @@ class OrdersAdapter:
     def cancel_all_orders(self) -> list[tuple[str, bool]]:
         # Safety guard: prevent live order cancellations if disabled
         if not self._allow_live_orders:
-            raise OrderError(
-                "Live orders are disabled. Set DHAN_ALLOW_LIVE_ORDERS=1 to enable."
-            )
+            raise OrderError("Live orders are disabled. Set DHAN_ALLOW_LIVE_ORDERS=1 to enable.")
 
         data = self._client.delete("/orders")
         items = data.get("data", []) if isinstance(data, dict) else []
-        result = [(str(i.get("orderId", i)), True) for i in (items if isinstance(items, list) else [])]
+        result = [
+            (str(i.get("orderId", i)), True) for i in (items if isinstance(items, list) else [])
+        ]
         logger.info("all_orders_cancelled", extra={"count": len(result)})
         return result
 
@@ -464,9 +514,7 @@ class OrdersAdapter:
     def kill_switch(self, enable: bool) -> bool:
         # Safety guard: prevent kill switch activation if live orders disabled
         if not self._allow_live_orders:
-            raise OrderError(
-                "Live orders are disabled. Set DHAN_ALLOW_LIVE_ORDERS=1 to enable."
-            )
+            raise OrderError("Live orders are disabled. Set DHAN_ALLOW_LIVE_ORDERS=1 to enable.")
 
         action = "ACTIVATE" if enable else "DEACTIVATE"
         data = self._client.post(f"/killswitch?killSwitchStatus={action}", json={})
@@ -498,7 +546,11 @@ class OrdersAdapter:
         """Canonicalize order enum/mixed values to uppercase strings."""
         sv = side.value if isinstance(side, OrderSide) else str(side).upper()
         ot = order_type.value if isinstance(order_type, OrderType) else str(order_type).upper()
-        pt = product_type.value if isinstance(product_type, ProductType) else str(product_type).upper()
+        pt = (
+            product_type.value
+            if isinstance(product_type, ProductType)
+            else str(product_type).upper()
+        )
         vl = validity.value if isinstance(validity, Validity) else str(validity).upper()
         return sv, ot, pt, vl
 
@@ -574,7 +626,9 @@ class OrdersAdapter:
 
     @staticmethod
     def _parse_order(raw: dict) -> Order:
-        return Order.from_broker_dict(raw, field_mapping=_DHAN_MAPPING, exchange_resolver=_parse_exchange)
+        return Order.from_broker_dict(
+            raw, field_mapping=_DHAN_MAPPING, exchange_resolver=_parse_exchange
+        )
 
     def place_slice_order(self, symbol: str, exchange: str, **kwargs) -> Order:
         """Place a slice order (automatically splits large orders).
@@ -584,9 +638,7 @@ class OrdersAdapter:
         """
         # Safety guard: prevent live slice orders if disabled
         if not self._allow_live_orders:
-            raise OrderError(
-                "Live orders are disabled. Set DHAN_ALLOW_LIVE_ORDERS=1 to enable."
-            )
+            raise OrderError("Live orders are disabled. Set DHAN_ALLOW_LIVE_ORDERS=1 to enable.")
 
         side = kwargs.get("side", "BUY")
         quantity: int = kwargs["quantity"]
@@ -605,31 +657,51 @@ class OrdersAdapter:
         ref = self._identity.resolve_ref(symbol, exchange)
         segment = ref.exchange_segment
         side_val, ot_val, pt_val, v_val = self._canonicalize_order_enums(
-            side, order_type, product_type, validity,
+            side,
+            order_type,
+            product_type,
+            validity,
         )
 
         # Pre-trade validation (no idempotency/risk — slice orders are broker-managed).
         self.validate_order(
-            symbol=symbol, exchange=exchange, quantity=quantity,
-            order_type=ot_val, product_type=pt_val,
+            symbol=symbol,
+            exchange=exchange,
+            quantity=quantity,
+            order_type=ot_val,
+            product_type=pt_val,
             price=price if price > 0 else None,
         )
 
         payload = self._build_order_payload(
-            ref, segment, side_val, ot_val, pt_val, v_val,
-            quantity, price, trigger_price, correlation_id,
+            ref,
+            segment,
+            side_val,
+            ot_val,
+            pt_val,
+            v_val,
+            quantity,
+            price,
+            trigger_price,
+            correlation_id,
         )
         # PR-B: defence-in-depth invariant assertion.
         assert_dhan_payload(payload, context="orders.place_slice_order")
 
-        data = self._client.post(Dhan.ORDERS_SLICING, json=payload)
+        data = self._client.post(Dhan.SLICE_ORDER, json=payload)
         order_data = data.get("data", data)
         order = self._parse_order(order_data)
 
-        logger.info("slice_order_placed", extra={
-            "order_id": order.order_id, "symbol": symbol, "exchange": exchange,
-            "side": side_val, "quantity": quantity,
-        })
+        logger.info(
+            "slice_order_placed",
+            extra={
+                "order_id": order.order_id,
+                "symbol": symbol,
+                "exchange": exchange,
+                "side": side_val,
+                "quantity": quantity,
+            },
+        )
 
         self._publish("ORDER_PLACED", order)
         return order
@@ -649,6 +721,7 @@ class OrdersAdapter:
             ValueError: If date format is invalid
         """
         import re
+
         date_pattern = re.compile(r"^\d{4}-\d{2}-\d{2}$")
         if not date_pattern.match(from_date):
             raise ValueError(f"Invalid from_date format: {from_date}. Expected YYYY-MM-DD")
@@ -659,12 +732,15 @@ class OrdersAdapter:
         items = data.get("data", []) if isinstance(data, dict) else []
         trades = [self._parse_trade(item) for item in (items if isinstance(items, list) else [])]
 
-        logger.info("trade_history_fetched", extra={
-            "from_date": from_date,
-            "to_date": to_date,
-            "page": page,
-            "count": len(trades),
-        })
+        logger.info(
+            "trade_history_fetched",
+            extra={
+                "from_date": from_date,
+                "to_date": to_date,
+                "page": page,
+                "count": len(trades),
+            },
+        )
         return trades
 
     @staticmethod
@@ -684,6 +760,7 @@ class OrdersAdapter:
 
 def _parse_exchange(seg: str) -> Exchange:
     from brokers.dhan.segments import SEGMENT_TO_EXCHANGE
+
     exch = SEGMENT_TO_EXCHANGE.get(str(seg), "NSE")
     return Exchange(exch)
 

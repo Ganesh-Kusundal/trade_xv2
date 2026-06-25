@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/brokers/common/connection/authenticated_readiness.py
-# hypothesis_version: 6.155.7
-
-[1000, '.env.local', '401', '403', 'AuthenticationError', 'UpstoxAuthError', '_auth', '_broker', '_client', '_conn', 'broadcast_token', 'broker', 'dh-808', 'dh-906', 'dhan', 'dhan.funds', 'forbidden', 'has_refresh', 'invalid token', 'is_totp', 'oauth_client', 'paper', 'paper_skip', 'probe', 'settings', 'token rejected', 'token_manager', 'unauthorized', 'upstox', 'upstox.funds', 'upstox.profile']

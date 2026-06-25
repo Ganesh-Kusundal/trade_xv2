@@ -218,7 +218,9 @@ class UpstoxSettingsLoader(SettingsLoaderBase):
         secrets = SecretsManager()
         mobile = cls._get(prefix, "MOBILE", default="")
         pin = cls._get(prefix, "PIN", default="") or secrets.get_upstox_pin()
-        totp_secret = cls._get(prefix, "TOTP_SECRET", default="") or secrets.get_upstox_totp_secret()
+        totp_secret = (
+            cls._get(prefix, "TOTP_SECRET", default="") or secrets.get_upstox_totp_secret()
+        )
         totp_refresh_hour = cls._get_int(prefix, "TOTP_REFRESH_HOUR", default=8)
         totp_refresh_minute = cls._get_int(prefix, "TOTP_REFRESH_MINUTE", default=0)
 

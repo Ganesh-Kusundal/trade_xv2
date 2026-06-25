@@ -54,22 +54,28 @@ class TestMarginAdapter:
 
     def test_calculate_margin_success(self, fake_client, resolver):
         """Should calculate margin and return MarginResponse."""
-        fake_client.set_response("POST", "/margincalculator", {
-            "data": {
-                "totalMargin": 1234.50,
-                "orderMargin": 1000.00,
-                "exposureMargin": 234.50,
-            }
-        })
+        fake_client.set_response(
+            "POST",
+            "/margincalculator",
+            {
+                "data": {
+                    "totalMargin": 1234.50,
+                    "orderMargin": 1000.00,
+                    "exposureMargin": 234.50,
+                }
+            },
+        )
 
         adapter = MarginAdapter(fake_client, resolver)
-        result = adapter.calculate(MarginRequest(
-            symbol="RELIANCE",
-            exchange="NSE",
-            quantity=1,
-            product_type="INTRADAY",
-            order_type="MARKET",
-        ))
+        result = adapter.calculate(
+            MarginRequest(
+                symbol="RELIANCE",
+                exchange="NSE",
+                quantity=1,
+                product_type="INTRADAY",
+                order_type="MARKET",
+            )
+        )
 
         assert isinstance(result, MarginResponse)
         assert result.total_margin == Decimal("1234.50")
@@ -81,59 +87,71 @@ class TestMarginAdapter:
         adapter = MarginAdapter(fake_client, resolver)
 
         with pytest.raises(ValueError, match="Quantity must be positive"):
-            adapter.calculate(MarginRequest(
-                symbol="RELIANCE",
-                exchange="NSE",
-                quantity=-1,
-                product_type="INTRADAY",
-                order_type="MARKET",
-            ))
+            adapter.calculate(
+                MarginRequest(
+                    symbol="RELIANCE",
+                    exchange="NSE",
+                    quantity=-1,
+                    product_type="INTRADAY",
+                    order_type="MARKET",
+                )
+            )
 
     def test_calculate_margin_validation_zero_quantity(self, fake_client, resolver):
         """Should reject zero quantity."""
         adapter = MarginAdapter(fake_client, resolver)
 
         with pytest.raises(ValueError, match="Quantity must be positive"):
-            adapter.calculate(MarginRequest(
-                symbol="RELIANCE",
-                exchange="NSE",
-                quantity=0,
-                product_type="INTRADAY",
-                order_type="MARKET",
-            ))
+            adapter.calculate(
+                MarginRequest(
+                    symbol="RELIANCE",
+                    exchange="NSE",
+                    quantity=0,
+                    product_type="INTRADAY",
+                    order_type="MARKET",
+                )
+            )
 
     def test_calculate_margin_validation_limit_no_price(self, fake_client, resolver):
         """Should reject LIMIT order without price."""
         adapter = MarginAdapter(fake_client, resolver)
 
         with pytest.raises(ValueError, match="require price"):
-            adapter.calculate(MarginRequest(
+            adapter.calculate(
+                MarginRequest(
+                    symbol="RELIANCE",
+                    exchange="NSE",
+                    quantity=1,
+                    product_type="INTRADAY",
+                    order_type="LIMIT",
+                )
+            )
+
+    def test_calculate_margin_with_price(self, fake_client, resolver):
+        """Should include price in API payload for LIMIT orders."""
+        fake_client.set_response(
+            "POST",
+            "/margincalculator",
+            {
+                "data": {
+                    "totalMargin": 500.00,
+                    "orderMargin": 400.00,
+                    "exposureMargin": 100.00,
+                }
+            },
+        )
+
+        adapter = MarginAdapter(fake_client, resolver)
+        adapter.calculate(
+            MarginRequest(
                 symbol="RELIANCE",
                 exchange="NSE",
                 quantity=1,
                 product_type="INTRADAY",
                 order_type="LIMIT",
-            ))
-
-    def test_calculate_margin_with_price(self, fake_client, resolver):
-        """Should include price in API payload for LIMIT orders."""
-        fake_client.set_response("POST", "/margincalculator", {
-            "data": {
-                "totalMargin": 500.00,
-                "orderMargin": 400.00,
-                "exposureMargin": 100.00,
-            }
-        })
-
-        adapter = MarginAdapter(fake_client, resolver)
-        adapter.calculate(MarginRequest(
-            symbol="RELIANCE",
-            exchange="NSE",
-            quantity=1,
-            product_type="INTRADAY",
-            order_type="LIMIT",
-            price=Decimal("2500.00"),
-        ))
+                price=Decimal("2500.00"),
+            )
+        )
 
         # Verify price was sent in payload
         payloads = fake_client.calls_for("POST", "/margincalculator")

@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
-
-import pytest
 
 from brokers.common.auth.credential_resolver import CredentialResolver
 from brokers.common.auth.credential_validator import CredentialValidator

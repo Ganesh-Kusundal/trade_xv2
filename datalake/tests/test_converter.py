@@ -11,7 +11,10 @@ from datalake.converter import convert_tradej_directory, convert_tradej_parquet
 
 
 def _make_tradej_parquet(
-    path: Path, symbol: str = "TEST", n: int = 10, start: str = "2026-01-01",
+    path: Path,
+    symbol: str = "TEST",
+    n: int = 10,
+    start: str = "2026-01-01",
 ) -> None:
     """Create a synthetic Trade_J Parquet file with valid OHLC."""
     np.random.seed(42)
@@ -19,16 +22,18 @@ def _make_tradej_parquet(
     high_offset = np.abs(np.random.randint(50, 200, n))
     low_offset = np.abs(np.random.randint(50, 200, n))
     open_offset = np.random.randint(-50, 50, n)
-    df = pd.DataFrame({
-        "bar_time_ms": pd.date_range(start, periods=n, freq="1min").astype(np.int64) // 10**6,
-        "open_paisa": close.astype(np.int64) + open_offset,
-        "high_paisa": close.astype(np.int64) + high_offset,
-        "low_paisa": close.astype(np.int64) - low_offset,
-        "close_paisa": close.astype(np.int64),
-        "volume": np.random.randint(100, 10000, n),
-        "interval": "1m",
-        "ingested_at_ms": np.zeros(n, dtype=np.int64),
-    })
+    df = pd.DataFrame(
+        {
+            "bar_time_ms": pd.date_range(start, periods=n, freq="1min").astype(np.int64) // 10**6,
+            "open_paisa": close.astype(np.int64) + open_offset,
+            "high_paisa": close.astype(np.int64) + high_offset,
+            "low_paisa": close.astype(np.int64) - low_offset,
+            "close_paisa": close.astype(np.int64),
+            "volume": np.random.randint(100, 10000, n),
+            "interval": "1m",
+            "ingested_at_ms": np.zeros(n, dtype=np.int64),
+        }
+    )
     path.parent.mkdir(parents=True, exist_ok=True)
     df.to_parquet(path, index=False)
 
@@ -42,7 +47,19 @@ class TestConvertSingleFile:
 
         assert len(result) == 10
         assert list(result.columns) == [
-            "timestamp", "symbol", "exchange", "open", "high", "low", "close", "volume", "oi",
+            "timestamp",
+            "symbol",
+            "exchange",
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "oi",
+            "event_time",
+            "published_at",
+            "ingested_at",
+            "is_correction",
         ]
 
     def test_paise_to_rupees(self, tmp_path: Path) -> None:

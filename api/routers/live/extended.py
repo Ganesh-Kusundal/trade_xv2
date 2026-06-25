@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response, status
 
 from api.auth import require_auth
-from api.deps import get_live_broker_name, get_broker_service, require_live_broker
+from api.deps import get_broker_service, get_live_broker_name, require_live_broker
 from api.routers.live.headers import apply_live_headers
 from api.routers.live.serialize import serialize_value
 
@@ -98,7 +98,9 @@ async def live_margin(
     if _broker_name() == "dhan":
         conn = getattr(gw, "_conn", None)
         if conn is None:
-            raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, detail="Dhan connection unavailable")
+            raise HTTPException(
+                status.HTTP_501_NOT_IMPLEMENTED, detail="Dhan connection unavailable"
+            )
         return serialize_value(conn.margin.calculate(payload))
     broker = getattr(gw, "_broker", None)
     if broker is not None:
@@ -171,7 +173,9 @@ async def live_set_ip(
 ) -> Any:
     apply_live_headers(response, get_live_broker_name())
     if _broker_name() == "dhan":
-        return serialize_value(_extended(gw).set_ip(payload.get("ip", ""), payload.get("type", "static")))
+        return serialize_value(
+            _extended(gw).set_ip(payload.get("ip", ""), payload.get("type", "static"))
+        )
     broker = getattr(gw, "_broker", None)
     if broker is not None:
         return serialize_value(broker.static_ip.set_static_ip(payload))
@@ -204,6 +208,7 @@ async def live_cover(
     if broker is None:
         raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, detail="Upstox broker unavailable")
     from decimal import Decimal
+
     from domain import OrderRequest, OrderType, ProductType, Side, Validity
 
     req = OrderRequest(
@@ -268,7 +273,9 @@ async def live_ipo(
 
 
 @router.get("/mutual-funds")
-async def live_mf_holdings(response: Response = None, gw: Any = Depends(require_live_broker)) -> Any:
+async def live_mf_holdings(
+    response: Response = None, gw: Any = Depends(require_live_broker)
+) -> Any:
     _require_broker("upstox")
     apply_live_headers(response, get_live_broker_name())
     return serialize_value(_extended(gw).get_mutual_fund_holdings())

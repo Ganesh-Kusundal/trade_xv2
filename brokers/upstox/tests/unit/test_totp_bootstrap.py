@@ -58,7 +58,7 @@ class TestTotpBootstrap:
     def test_bootstrap_totp_success(self, mock_jwt_expiry, mock_totp_client_class):
         """Test successful TOTP bootstrap."""
         settings = _make_settings()
-        
+
         # Mock TOTP client
         mock_totp_client = MagicMock()
         mock_totp_client.validate_config.return_value = True
@@ -68,13 +68,13 @@ class TestTotpBootstrap:
             "success": True,
         }
         mock_totp_client_class.return_value = mock_totp_client
-        
+
         # Mock JWT expiry
         mock_jwt_expiry.parse_expiry_epoch_ms.return_value = 9999999999999
-        
+
         token_manager = UpstoxTokenManager(settings)
         state = token_manager.bootstrap()
-        
+
         assert state.source == "TOTP"
         assert state.access_token == "test-token"
         assert state.refresh_token is None
@@ -83,13 +83,13 @@ class TestTotpBootstrap:
     def test_bootstrap_totp_invalid_config(self, mock_totp_client_class):
         """Test TOTP bootstrap with invalid config."""
         settings = _make_settings(mobile="")
-        
+
         mock_totp_client = MagicMock()
         mock_totp_client.validate_config.return_value = False
         mock_totp_client_class.return_value = mock_totp_client
-        
+
         token_manager = UpstoxTokenManager(settings)
-        
+
         with pytest.raises(UpstoxAuthError, match="TOTP configuration incomplete"):
             token_manager.bootstrap()
 
@@ -100,13 +100,13 @@ class TestTotpBootstrap:
             access_token="existing-token",
             refresh_token="existing-refresh-token",
         )
-        
+
         mock_totp_client = MagicMock()
         mock_totp_client.generate_token.side_effect = Exception("TOTP failed")
         mock_totp_client_class.return_value = mock_totp_client
-        
+
         token_manager = UpstoxTokenManager(settings)
-        
+
         # Should fall back to existing token
         state = token_manager.bootstrap()
         assert state.access_token == "existing-token"
@@ -118,13 +118,13 @@ class TestTotpBootstrap:
             access_token="",
             refresh_token="",
         )
-        
+
         mock_totp_client = MagicMock()
         mock_totp_client.generate_token.side_effect = Exception("TOTP failed")
         mock_totp_client_class.return_value = mock_totp_client
-        
+
         token_manager = UpstoxTokenManager(settings)
-        
+
         with pytest.raises(UpstoxAuthError, match="TOTP authentication failed"):
             token_manager.bootstrap()
 

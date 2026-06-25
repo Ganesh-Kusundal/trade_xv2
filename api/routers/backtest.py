@@ -8,17 +8,16 @@ from __future__ import annotations
 import logging
 import threading
 import uuid
-from typing import Optional
 
 import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from api.deps import get_datalake_gateway
 from api.auth import require_auth
+from api.deps import get_datalake_gateway
 from api.schemas import (
-    BacktestRunRequest,
-    BacktestResultResponse,
     BacktestMetrics,
+    BacktestResultResponse,
+    BacktestRunRequest,
 )
 from datalake.backtest_cache_store import BacktestCacheStore
 
@@ -78,10 +77,11 @@ async def run_backtest(
                 detail=f"No historical data for symbol '{req.symbol}'",
             )
 
-        from analytics.pipeline import FeaturePipeline, RSI, ATR, SMA
+        from analytics.pipeline import ATR, RSI, SMA, FeaturePipeline
+
         pipeline = FeaturePipeline().add(RSI(14)).add(ATR(14)).add(SMA(20))
 
-        from analytics.strategy import MomentumStrategy, BreakoutStrategy, StrategyPipeline
+        from analytics.strategy import BreakoutStrategy, MomentumStrategy, StrategyPipeline
 
         strategy_map = {
             "momentum": MomentumStrategy,
@@ -90,7 +90,7 @@ async def run_backtest(
         strategy_cls = strategy_map.get(req.strategy, MomentumStrategy)
         strategy = StrategyPipeline(strategies=[strategy_cls()])
 
-        from analytics.backtest import BacktestEngine, BacktestConfig
+        from analytics.backtest import BacktestConfig, BacktestEngine
 
         config = BacktestConfig(
             initial_capital=req.initial_capital,
@@ -130,7 +130,7 @@ async def run_backtest(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Backtest failed: {exc}",
-        )
+        ) from exc
 
 
 @router.get("/results/{backtest_id}", response_model=BacktestResultResponse)
@@ -151,7 +151,7 @@ async def get_backtest_result(backtest_id: str):
     return result
 
 
-def _resolve_run_ids(run_id: str, run_ids: Optional[str]) -> list[str]:
+def _resolve_run_ids(run_id: str, run_ids: str | None) -> list[str]:
     if run_ids:
         ids = [rid.strip() for rid in run_ids.split(",") if rid.strip()]
         if len(ids) >= 2:
@@ -162,7 +162,7 @@ def _resolve_run_ids(run_id: str, run_ids: Optional[str]) -> list[str]:
 @router.get("/comparison/{run_id}", response_model=dict)
 async def compare_backtests(
     run_id: str,
-    run_ids: Optional[str] = Query(None, description="Comma-separated run IDs to compare"),
+    run_ids: str | None = Query(None, description="Comma-separated run IDs to compare"),
 ):
     """Compare multiple backtest runs side by side."""
     ids = _resolve_run_ids(run_id, run_ids)
@@ -183,12 +183,14 @@ async def compare_backtests(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Backtest result '{rid}' not found.",
             )
-        comparisons.append({
-            "run_id": result.run_id,
-            "symbol": result.symbol,
-            "timeframe": result.timeframe,
-            "metrics": result.metrics.model_dump(),
-        })
+        comparisons.append(
+            {
+                "run_id": result.run_id,
+                "symbol": result.symbol,
+                "timeframe": result.timeframe,
+                "metrics": result.metrics.model_dump(),
+            }
+        )
 
     if len(comparisons) == 1:
         return {"runs": comparisons, "count": 1}

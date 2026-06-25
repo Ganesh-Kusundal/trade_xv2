@@ -10,15 +10,11 @@ Provides reusable fixtures for Upstox gateway integration tests:
 from __future__ import annotations
 
 import threading
-import time
-from decimal import Decimal
 from typing import Any
-from unittest.mock import MagicMock, patch
-
-import pytest
-
+from unittest.mock import MagicMock
 
 # ─── Mock WebSocket ───────────────────────────────────────────────────────
+
 
 class MockWebsocket:
     """Thread-safe mock WebSocket for stream testing."""
@@ -80,6 +76,7 @@ class MockWebsocket:
 
 
 # ─── Mock Broker Factory ──────────────────────────────────────────────────
+
 
 def make_mock_broker(
     *,
@@ -192,6 +189,7 @@ def make_instrument_defn(
 
 # ─── Market Data Response Factories ───────────────────────────────────────
 
+
 def make_ltp_response(symbol: str, price: float) -> dict[str, Any]:
     """Create a realistic Upstox LTP API response.
 
@@ -209,7 +207,7 @@ def make_ltp_response(symbol: str, price: float) -> dict[str, Any]:
                 "instrument_key": f"NSE_EQ|{symbol}",
                 "last_price": price,
             }
-        }
+        },
     }
 
 
@@ -235,13 +233,12 @@ def make_quote_response(symbol: str, **kwargs: Any) -> dict[str, Any]:
             "close": kwargs.get("close", 1475.0),
         },
     }
-    return {
-        "status": "success",
-        "data": {f"NSE_EQ|{symbol}": data}
-    }
+    return {"status": "success", "data": {f"NSE_EQ|{symbol}": data}}
 
 
-def make_depth_response(symbol: str, bids: list[dict] | None = None, asks: list[dict] | None = None) -> dict[str, Any]:
+def make_depth_response(
+    symbol: str, bids: list[dict] | None = None, asks: list[dict] | None = None
+) -> dict[str, Any]:
     """Create a realistic Upstox Depth API response.
 
     Args:
@@ -259,11 +256,7 @@ def make_depth_response(symbol: str, bids: list[dict] | None = None, asks: list[
 
     return {
         "status": "success",
-        "data": {
-            f"NSE_EQ|{symbol}": {
-                "depth": {"buy": bids, "sell": asks}
-            }
-        }
+        "data": {f"NSE_EQ|{symbol}": {"depth": {"buy": bids, "sell": asks}}},
     }
 
 
@@ -321,7 +314,7 @@ def make_funds_response(**kwargs: Any) -> dict[str, Any]:
                 "used_margin": kwargs.get("used", 0.0),
                 "total_margin": kwargs.get("total", 100000.0),
             }
-        }
+        },
     }
 
 
@@ -341,7 +334,7 @@ def make_positions_response(positions: list[dict] | None = None) -> dict[str, An
         "data": {
             "net": positions,
             "clearing": [],
-        }
+        },
     }
 
 
@@ -388,11 +381,12 @@ def make_tick_payload(
             "last_price": last_price,
             "close_price": close_price,
             "volume": volume,
-        }
+        },
     }
 
 
 # ─── Error Response Factories ─────────────────────────────────────────────
+
 
 def make_auth_error() -> dict[str, Any]:
     """Create an authentication error response."""

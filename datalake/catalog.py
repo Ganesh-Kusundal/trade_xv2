@@ -51,9 +51,7 @@ class DataCatalog:
     def _connection(self, *, write: bool = False) -> Iterator[duckdb.DuckDBPyConnection]:
         """Yield a DuckDB connection appropriate for read or write access."""
         if write and self._read_only:
-            raise duckdb.InvalidInputException(
-                "DataCatalog is read-only; writes are not allowed"
-            )
+            raise duckdb.InvalidInputException("DataCatalog is read-only; writes are not allowed")
         if self._read_only or not write:
             with duckdb_connection(self._db_path, read_only=True) as conn:
                 yield conn
@@ -125,7 +123,48 @@ class DataCatalog:
             )
         """)
 
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS universe_history (
+                universe VARCHAR,
+                symbol VARCHAR,
+                effective_date DATE NOT NULL,
+                end_date DATE,
+                added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (universe, symbol, effective_date)
+            )
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS symbol_metadata_history (
+                symbol VARCHAR,
+                effective_date DATE NOT NULL,
+                end_date DATE,
+                lot_size INTEGER,
+                tick_size DOUBLE,
+                sector VARCHAR,
+                isin VARCHAR,
+                instrument_type VARCHAR DEFAULT 'EQUITY',
+                added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (symbol, effective_date)
+            )
+        """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS data_versions (
+                table_name VARCHAR,
+                version_id BIGINT,
+                min_event_time TIMESTAMP,
+                max_event_time TIMESTAMP,
+                min_published_at TIMESTAMP,
+                max_published_at TIMESTAMP,
+                row_count BIGINT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (table_name, version_id)
+            )
+        """)
+
         from datalake.migrations import apply_migrations
+
         apply_migrations(conn)
 
     def register_symbol(
@@ -143,24 +182,23 @@ class DataCatalog:
         if self._read_only:
             raise duckdb.InvalidInputException("DataCatalog is read-only; writes are not allowed")
         symbol = normalize_symbol(symbol)
-        self.conn.execute("""
+        self.conn.execute(
+            """
             INSERT OR REPLACE INTO symbols
             (symbol, exchange, first_date, last_date, total_rows, timeframe, parquet_path, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        """, [symbol, exchange, first_date, last_date, total_rows, timeframe, parquet_path])
+        """,
+            [symbol, exchange, first_date, last_date, total_rows, timeframe, parquet_path],
+        )
 
     def get_symbol(self, symbol: str) -> dict | None:
         """Get symbol metadata."""
         symbol = normalize_symbol(symbol)
         with self._connection() as conn:
-            result = conn.execute(
-                "SELECT * FROM symbols WHERE symbol = ?", [symbol]
-            ).fetchone()
+            result = conn.execute("SELECT * FROM symbols WHERE symbol = ?", [symbol]).fetchone()
             if result is None:
                 return None
-            cursor = conn.execute(
-                "SELECT * FROM symbols WHERE symbol = ?", [symbol]
-            )
+            cursor = conn.execute("SELECT * FROM symbols WHERE symbol = ?", [symbol])
             cols = [desc[0] for desc in cursor.description]
             return dict(zip(cols, result, strict=False))
 
@@ -205,6 +243,7 @@ class DataCatalog:
 
             try:
                 import pandas as pd
+
                 df = pd.read_parquet(parquet_path, columns=["timestamp"])
                 total_rows = len(df)
                 if total_rows == 0:
@@ -228,6 +267,56 @@ class DataCatalog:
 
         return count
 
+    def register_universe_snapshot(self, universe: str, symbols: list[str], as_of_date: date | None = None) -> int:
+        if as_of_date is None:
+            as_of_date = date.today()
+
+        self.conn.execute("""
+            UPDATE universe_history
+            SET end_date = ?
+            WHERE universe = ? AND end_date IS NULL
+        """, [as_of_date, universe])
+
+        count = 0
+        for symbol in symbols:
+            self.conn.execute("""
+                INSERT OR IGNORE INTO universe_history
+                (universe, symbol, effective_date)
+                VALUES (?, ?, ?)
+            """, [universe, symbol, as_of_date])
+            count += 1
+
+        return count
+
+    def get_universe_as_of(self, universe: str, as_of_date: date) -> list[str]:
+        result = self.conn.execute("""
+            SELECT symbol FROM universe_history
+            WHERE universe = ?
+              AND effective_date <= ?
+              AND (end_date IS NULL OR end_date > ?)
+            ORDER BY symbol
+        """, [universe, as_of_date, as_of_date]).fetchall()
+        return [r[0] for r in result]
+
+    def register_symbol_metadata_snapshot(
+        self,
+        symbol: str,
+        lot_size: int = 1,
+        tick_size: float = 0.05,
+        sector: str = "",
+        isin: str = "",
+        instrument_type: str = "EQUITY",
+        as_of_date: date | None = None
+    ) -> None:
+        if as_of_date is None:
+            as_of_date = date.today()
+
+        self.conn.execute("""
+            INSERT OR REPLACE INTO symbol_metadata_history
+            (symbol, effective_date, lot_size, tick_size, sector, isin, instrument_type)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, [symbol, as_of_date, lot_size, tick_size, sector, isin, instrument_type])
+
     def record_quality(
         self,
         symbol: str,
@@ -243,14 +332,59 @@ class DataCatalog:
     ) -> None:
         """Record data quality metrics for a symbol."""
         from datetime import date as date_type
+
         check_date = date_type.today()
-        self.conn.execute("""
+        self.conn.execute(
+            """
             INSERT OR REPLACE INTO data_quality
             (symbol, check_date, timeframe, total_rows, missing_candles, duplicate_candles,
              gap_days, min_date, max_date, completeness_pct, status)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, [symbol, check_date, timeframe, total_rows, missing_candles, duplicate_candles,
-              gap_days, min_date, max_date, completeness_pct, status])
+        """,
+            [
+                symbol,
+                check_date,
+                timeframe,
+                total_rows,
+                missing_candles,
+                duplicate_candles,
+                gap_days,
+                min_date,
+                max_date,
+                completeness_pct,
+                status,
+            ],
+        )
+
+    def import_universe_from_csv(self, universe_name: str, csv_path: str | Path) -> int:
+        """Import symbols from a legacy CSV file into universe_symbols table.
+
+        Reads the CSV (expected to have a ``symbol`` column;
+        ``nifty_sector_mapping.csv`` uses ``symbol, sector``),
+        normalises each symbol, and inserts into the DuckDB
+        ``universe_symbols`` table.
+
+        Args:
+            universe_name: Universe or sector name (e.g. ``'NIFTY50'``, ``'BANKING'``).
+            csv_path: Path to the CSV file.
+
+        Returns:
+            Number of symbols imported.
+        """
+        import pandas as pd
+
+        df = pd.read_csv(csv_path)
+        col = "symbol" if "symbol" in df.columns else df.columns[0]
+        symbols = [normalize_symbol(s) for s in df[col].dropna().unique()]
+
+        self.conn.executemany(
+            "INSERT OR IGNORE INTO universe_symbols (universe, symbol) VALUES (?, ?)",
+            [(universe_name, s) for s in symbols],
+        )
+        logger.info(
+            "Imported %d symbols into universe '%s' from %s", len(symbols), universe_name, csv_path
+        )
+        return len(symbols)
 
     def summary(self) -> dict:
         """Get catalog summary."""

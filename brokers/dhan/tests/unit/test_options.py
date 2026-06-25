@@ -6,69 +6,73 @@ from brokers.dhan.options import OptionsAdapter
 
 
 def test_option_chain_parsing(fake_client, resolver):
-    fake_client.set_response("POST", "/optionchain", {
-        "data": {
-            "last_price": 24500.0,
-            "oc": {
-                "24000": {
-                    "ce": {
-                        "last_price": 520.0,
-                        "oi": 12345,
-                        "volume": 6789,
-                        "implied_volatility": 14.5,
-                        "security_id": "55500",
-                        "greeks": {
-                            "delta": 0.65,
-                            "theta": -12.3,
-                            "gamma": 0.0012,
-                            "vega": 15.4,
+    fake_client.set_response(
+        "POST",
+        "/optionchain",
+        {
+            "data": {
+                "last_price": 24500.0,
+                "oc": {
+                    "24000": {
+                        "ce": {
+                            "last_price": 520.0,
+                            "oi": 12345,
+                            "volume": 6789,
+                            "implied_volatility": 14.5,
+                            "security_id": "55500",
+                            "greeks": {
+                                "delta": 0.65,
+                                "theta": -12.3,
+                                "gamma": 0.0012,
+                                "vega": 15.4,
+                            },
+                        },
+                        "pe": {
+                            "last_price": 30.0,
+                            "oi": 9876,
+                            "volume": 4321,
+                            "implied_volatility": 15.2,
+                            "security_id": "55501",
+                            "greeks": {
+                                "delta": -0.12,
+                                "theta": -8.1,
+                                "gamma": 0.0010,
+                                "vega": 13.2,
+                            },
                         },
                     },
-                    "pe": {
-                        "last_price": 30.0,
-                        "oi": 9876,
-                        "volume": 4321,
-                        "implied_volatility": 15.2,
-                        "security_id": "55501",
-                        "greeks": {
-                            "delta": -0.12,
-                            "theta": -8.1,
-                            "gamma": 0.0010,
-                            "vega": 13.2,
+                    "25000": {
+                        "ce": {
+                            "last_price": 120.0,
+                            "oi": 22222,
+                            "volume": 11111,
+                            "implied_volatility": 13.0,
+                            "security_id": "55600",
+                            "greeks": {
+                                "delta": 0.35,
+                                "theta": -10.0,
+                                "gamma": 0.0015,
+                                "vega": 16.0,
+                            },
+                        },
+                        "pe": {
+                            "last_price": 620.0,
+                            "oi": 33333,
+                            "volume": 22222,
+                            "implied_volatility": 16.0,
+                            "security_id": "55601",
+                            "greeks": {
+                                "delta": -0.60,
+                                "theta": -14.0,
+                                "gamma": 0.0008,
+                                "vega": 11.0,
+                            },
                         },
                     },
                 },
-                "25000": {
-                    "ce": {
-                        "last_price": 120.0,
-                        "oi": 22222,
-                        "volume": 11111,
-                        "implied_volatility": 13.0,
-                        "security_id": "55600",
-                        "greeks": {
-                            "delta": 0.35,
-                            "theta": -10.0,
-                            "gamma": 0.0015,
-                            "vega": 16.0,
-                        },
-                    },
-                    "pe": {
-                        "last_price": 620.0,
-                        "oi": 33333,
-                        "volume": 22222,
-                        "implied_volatility": 16.0,
-                        "security_id": "55601",
-                        "greeks": {
-                            "delta": -0.60,
-                            "theta": -14.0,
-                            "gamma": 0.0008,
-                            "vega": 11.0,
-                        },
-                    },
-                },
-            },
-        }
-    })
+            }
+        },
+    )
     adapter = OptionsAdapter(fake_client, resolver)
     chain = adapter.get_option_chain("NIFTY", "INDEX", "2026-06-26")
 
@@ -92,17 +96,21 @@ def test_option_chain_parsing(fake_client, resolver):
 
 
 def test_option_chain_mcx_direct(fake_client, resolver):
-    fake_client.set_response("POST", "/optionchain", {
-        "data": {
-            "last_price": 72000.0,
-            "oc": {
-                "72000": {
-                    "ce": {"last_price": 1500.0, "oi": 100, "volume": 50, "greeks": {}},
-                    "pe": {"last_price": 1400.0, "oi": 80, "volume": 40, "greeks": {}},
+    fake_client.set_response(
+        "POST",
+        "/optionchain",
+        {
+            "data": {
+                "last_price": 72000.0,
+                "oc": {
+                    "72000": {
+                        "ce": {"last_price": 1500.0, "oi": 100, "volume": 50, "greeks": {}},
+                        "pe": {"last_price": 1400.0, "oi": 80, "volume": 40, "greeks": {}},
+                    },
                 },
-            },
-        }
-    })
+            }
+        },
+    )
     adapter = OptionsAdapter(fake_client, resolver)
     chain = adapter.get_option_chain("GOLD", "MCX", "2026-08-05", security_id=114)
 
@@ -116,48 +124,52 @@ def test_option_chain_mcx_direct(fake_client, resolver):
 
 
 def test_get_expiries(fake_client, resolver):
-    fake_client.set_response("POST", "/optionchain/expirylist", {
-        "data": {
-            "expiryList": ["2026-06-26", "2026-07-31", "2026-08-28"]
-        }
-    })
+    fake_client.set_response(
+        "POST",
+        "/optionchain/expirylist",
+        {"data": {"expiryList": ["2026-06-26", "2026-07-31", "2026-08-28"]}},
+    )
     adapter = OptionsAdapter(fake_client, resolver)
     expiries = adapter.get_expiries("NIFTY", "INDEX")
     assert expiries == ["2026-06-26", "2026-07-31", "2026-08-28"]
 
 
 def test_option_chain_greeks_extracted(fake_client, resolver):
-    fake_client.set_response("POST", "/optionchain", {
-        "data": {
-            "last_price": 24500.0,
-            "oc": {
-                "24500": {
-                    "ce": {
-                        "last_price": 300.0,
-                        "oi": 5000,
-                        "volume": 2000,
-                        "greeks": {
-                            "delta": 0.52,
-                            "theta": -11.5,
-                            "gamma": 0.0014,
-                            "vega": 14.8,
+    fake_client.set_response(
+        "POST",
+        "/optionchain",
+        {
+            "data": {
+                "last_price": 24500.0,
+                "oc": {
+                    "24500": {
+                        "ce": {
+                            "last_price": 300.0,
+                            "oi": 5000,
+                            "volume": 2000,
+                            "greeks": {
+                                "delta": 0.52,
+                                "theta": -11.5,
+                                "gamma": 0.0014,
+                                "vega": 14.8,
+                            },
                         },
-                    },
-                    "pe": {
-                        "last_price": 280.0,
-                        "oi": 4500,
-                        "volume": 1800,
-                        "greeks": {
-                            "delta": -0.48,
-                            "theta": -10.2,
-                            "gamma": 0.0013,
-                            "vega": 13.9,
+                        "pe": {
+                            "last_price": 280.0,
+                            "oi": 4500,
+                            "volume": 1800,
+                            "greeks": {
+                                "delta": -0.48,
+                                "theta": -10.2,
+                                "gamma": 0.0013,
+                                "vega": 13.9,
+                            },
                         },
                     },
                 },
-            },
-        }
-    })
+            }
+        },
+    )
     adapter = OptionsAdapter(fake_client, resolver)
     chain = adapter.get_option_chain("NIFTY", "INDEX", "2026-06-26")
 

@@ -15,7 +15,6 @@ from typing import Any
 from urllib.parse import urlencode
 
 from brokers.common.auth import AuthManager, JsonTokenStateStore, TokenSource, TokenState
-from brokers.common.env_loader import load_env_file
 from brokers.common.factory import BrokerProviderFactory
 from brokers.common.gateway import MarketDataGateway
 from brokers.dhan.connection import DhanConnection
@@ -52,12 +51,20 @@ class BrokerFactory(BrokerProviderFactory):
         refresh_lock = threading.Lock()
 
         # ── HTTP client ────────────────────────────────────────────
-        client = self._create_http_client(settings, auth, cid, token, env_path or Path(".env.local"), refresh_lock)
+        client = self._create_http_client(
+            settings, auth, cid, token, env_path or Path(".env.local"), refresh_lock
+        )
 
         # ── Connection + Gateway ───────────────────────────────────
         gateway = self._create_connection_and_gateway(
-            client, auth, settings, event_bus, risk_manager, reconciliation_service,
-            backfill_callback, lifecycle,
+            client,
+            auth,
+            settings,
+            event_bus,
+            risk_manager,
+            reconciliation_service,
+            backfill_callback,
+            lifecycle,
         )
 
         if load_instruments:
@@ -68,7 +75,13 @@ class BrokerFactory(BrokerProviderFactory):
 
         # ── Token refresh scheduler ────────────────────────────────
         self._setup_token_refresh_scheduler(
-            gateway, auth, client, settings, env_path or Path(".env.local"), lifecycle, refresh_lock,
+            gateway,
+            auth,
+            client,
+            settings,
+            env_path or Path(".env.local"),
+            lifecycle,
+            refresh_lock,
         )
 
         return gateway
@@ -104,7 +117,8 @@ class BrokerFactory(BrokerProviderFactory):
             if not state or not state.is_valid():
                 fresh = _generate_totp_token(settings)
                 if fresh:
-                    from datetime import datetime, timedelta
+                    from datetime import datetime
+
                     now = datetime.now()
                     state = TokenState(
                         access_token=fresh,
@@ -120,6 +134,7 @@ class BrokerFactory(BrokerProviderFactory):
 
             if not state or not state.access_token:
                 from brokers.dhan.exceptions import ConfigurationError
+
                 raise ConfigurationError("DHAN_ACCESS_TOKEN not configured and TOTP refresh failed")
 
             token = state.access_token
@@ -214,12 +229,15 @@ class BrokerFactory(BrokerProviderFactory):
             access_token_fn=access_token_fn,
         )
 
-        logger.info("websocket_wired", extra={
-            "market_feed": "dhan.market_feed",
-            "order_stream": "dhan.order_stream",
-            "depth_20": "on_demand",
-            "depth_200": "on_demand",
-        })
+        logger.info(
+            "websocket_wired",
+            extra={
+                "market_feed": "dhan.market_feed",
+                "order_stream": "dhan.order_stream",
+                "depth_20": "on_demand",
+                "depth_200": "on_demand",
+            },
+        )
 
     def _setup_token_refresh_scheduler(
         self,
@@ -232,6 +250,7 @@ class BrokerFactory(BrokerProviderFactory):
         refresh_lock: threading.Lock,
     ) -> None:
         """Create and register the token refresh scheduler."""
+
         def _on_token_refresh(new_token: str) -> None:
             client.update_token(new_token)
             if env_file.exists():
@@ -296,11 +315,9 @@ def _next_token_expiry(now: Any, lifetime_seconds: int) -> Any:
     simple timedelta if the calculation fails.
     """
     from datetime import datetime, timedelta, timezone
+
     try:
-        if now.tzinfo is None:
-            utc_now = datetime.now(timezone.utc)
-        else:
-            utc_now = now.astimezone(timezone.utc)
+        utc_now = datetime.now(timezone.utc) if now.tzinfo is None else now.astimezone(timezone.utc)
         session_end_today = utc_now.replace(hour=0, minute=30, second=0, microsecond=0)
         if utc_now < session_end_today:
             return session_end_today
@@ -312,7 +329,7 @@ def _next_token_expiry(now: Any, lifetime_seconds: int) -> Any:
 
 def _generate_totp_token(settings: DhanConnectionSettings | None = None) -> str | None:
     """Generate a fresh access token via TOTP. Returns None on failure.
-    
+
     Raises RuntimeError with descriptive message if Dhan's rate limit
     is hit ("Token can be generated once every 2 minutes").
 
@@ -327,25 +344,27 @@ def _generate_totp_token(settings: DhanConnectionSettings | None = None) -> str 
         pin = _read_secret("DHAN_PIN", "DHAN_PIN_FILE")
         totp_secret = _read_secret("DHAN_TOTP_SECRET", "DHAN_TOTP_SECRET_FILE")
         from brokers.dhan.settings import _GENERATE_TOKEN_URL
+
         token_url = _GENERATE_TOKEN_URL
     if not pin or not totp_secret:
         return None
     try:
         import pyotp
         import requests as _requests
+
         totp_code = pyotp.TOTP(totp_secret).now()
         client_id = settings.client_id if settings else os.environ.get("DHAN_CLIENT_ID", "")
         params = {"dhanClientId": client_id, "pin": pin, "totp": totp_code}
         url = f"{token_url}?{urlencode(params)}"
         resp = _requests.post(url, timeout=15)
-        
+
         # Parse response body regardless of status code
         try:
             body = resp.json()
         except (ValueError, TypeError, KeyError) as exc:
             logger.warning("totp_response_parse_failed", extra={"error": str(exc)})
             body = {}
-        
+
         # Check for rate limit error (even on HTTP 200)
         message = body.get("message", "")
         status = body.get("status", "")
@@ -353,11 +372,11 @@ def _generate_totp_token(settings: DhanConnectionSettings | None = None) -> str 
             error_msg = f"Dhan token rate limit: {message}"
             logger.warning(error_msg)
             raise RuntimeError(error_msg)
-        
+
         if resp.status_code != 200:
             logger.warning("TOTP token generation failed: HTTP %d", resp.status_code)
             return None
-            
+
         data = body.get("data", body)
         result: str = data.get("accessToken") or data.get("access_token") or ""
         return result or None
@@ -455,5 +474,3 @@ def _update_env_token(env_path: Path, token: str) -> None:
                 os.close(fd)
             except Exception as exc:
                 logger.debug("file_close_failed: %s", exc)
-
-

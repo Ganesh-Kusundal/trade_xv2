@@ -1,4 +1,0 @@
-# file: /workspaces/trade_xv2/brokers/dhan/futures.py
-# hypothesis_version: 6.155.7
-
-['ALUMINIUM', 'BANKEX', 'BANKNIFTY', 'BFO', 'COPPER', 'CRUDEOIL', 'CRUDEOILM', 'FINNIFTY', 'GOLD', 'GOLDM', 'IDX_I', 'INDEX', 'LEAD', 'MIDCPNIFTY', 'NATURALGAS', 'NFO', 'NICKEL', 'NIFTY', 'NIFTY_NEXT50', 'SENSEX', 'SILVER', 'SILVERM', 'ZINC', 'exchange', 'expiry', 'lot_size', 'security_id', 'symbol', 'underlying']

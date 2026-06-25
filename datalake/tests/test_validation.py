@@ -13,17 +13,19 @@ from datalake.validation import validate_candles, validate_parquet_file
 
 def _valid_df(n: int = 10) -> pd.DataFrame:
     """Create a valid candle DataFrame."""
-    return pd.DataFrame({
-        "timestamp": pd.date_range("2026-01-01 09:15", periods=n, freq="1min"),
-        "symbol": "TEST",
-        "exchange": "NSE",
-        "open": [100.0] * n,
-        "high": [101.0] * n,
-        "low": [99.0] * n,
-        "close": [100.5] * n,
-        "volume": [1000] * n,
-        "oi": [0] * n,
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2026-01-01 09:15", periods=n, freq="1min"),
+            "symbol": "TEST",
+            "exchange": "NSE",
+            "open": [100.0] * n,
+            "high": [101.0] * n,
+            "low": [99.0] * n,
+            "close": [100.5] * n,
+            "volume": [1000] * n,
+            "oi": [0] * n,
+        }
+    )
 
 
 class TestValidateCandlesValid:

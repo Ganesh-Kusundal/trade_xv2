@@ -179,12 +179,8 @@ class UnifiedReplayOrchestrator:
         UnifiedReplayResult:
             Replay output with state assertion results.
         """
-        target_date = datetime.strptime(date, "%Y-%m-%d").replace(
-            tzinfo=timezone.utc
-        )
-        day_end = target_date.replace(
-            hour=23, minute=59, second=59, microsecond=999999
-        )
+        target_date = datetime.strptime(date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        day_end = target_date.replace(hour=23, minute=59, second=59, microsecond=999999)
 
         # Step 1: Load events from event log
         event_items = self._load_events(target_date, day_end)
@@ -225,17 +221,13 @@ class UnifiedReplayOrchestrator:
         # Note: ReplayEngine handles the actual bar-by-bar processing
         # This is a simplified version - full implementation would
         # integrate with existing ReplayEngine
-        replay_result = self._execute_replay(
-            combined_df, merged, replay_bus
-        )
+        replay_result = self._execute_replay(combined_df, merged, replay_bus)
 
         # Step 7: State assertion
         state_matches = True
         state_diff: dict[str, Any] = {}
         if assert_state and event_items:
-            state_matches, state_diff = self._assert_state(
-                replay_result, event_items
-            )
+            state_matches, state_diff = self._assert_state(replay_result, event_items)
 
         return UnifiedReplayResult(
             replay_result=replay_result,
@@ -272,19 +264,18 @@ class UnifiedReplayOrchestrator:
                 except Exception as exc:
                     logger.warning(
                         "Failed to load bars for %s on %s: %s",
-                        sym, date, exc,
+                        sym,
+                        date,
+                        exc,
                     )
         else:
             logger.warning(
-                "No symbols specified for replay. "
-                "Provide symbols list for deterministic replay."
+                "No symbols specified for replay. Provide symbols list for deterministic replay."
             )
 
         return items
 
-    def _df_to_items(
-        self, df: pd.DataFrame, symbol: str, seq_start: int = 0
-    ) -> list[ReplayItem]:
+    def _df_to_items(self, df: pd.DataFrame, symbol: str, seq_start: int = 0) -> list[ReplayItem]:
         """Convert a DataFrame of OHLCV data to ReplayItems (vectorized)."""
         ts_col = "timestamp" if "timestamp" in df.columns else "date"
         timestamps = pd.to_datetime(df[ts_col]).dt.tz_localize(timezone.utc)
@@ -305,12 +296,10 @@ class UnifiedReplayOrchestrator:
                     "volume": float(row.get("volume", 0)),
                 },
             )
-            for i, (ts, row) in enumerate(zip(timestamps, df.itertuples(index=False)))
+            for i, (ts, row) in enumerate(zip(timestamps, df.itertuples(index=False), strict=False))
         ]
 
-    def _load_events(
-        self, day_start: datetime, day_end: datetime
-    ) -> list[ReplayItem]:
+    def _load_events(self, day_start: datetime, day_end: datetime) -> list[ReplayItem]:
         """Load domain events from the event log for the target day."""
         if self._event_log is None:
             return []
@@ -322,13 +311,15 @@ class UnifiedReplayOrchestrator:
             for evt in events:
                 if evt.timestamp > day_end:
                     break
-                items.append(ReplayItem(
-                    timestamp=evt.timestamp,
-                    sequence=evt.sequence_number,
-                    kind="event",
-                    symbol=evt.symbol,
-                    event=evt,
-                ))
+                items.append(
+                    ReplayItem(
+                        timestamp=evt.timestamp,
+                        sequence=evt.sequence_number,
+                        kind="event",
+                        symbol=evt.symbol,
+                        event=evt,
+                    )
+                )
 
             logger.info("Loaded %d events from event log", len(items))
             return items
@@ -336,9 +327,7 @@ class UnifiedReplayOrchestrator:
             logger.warning("Failed to load events: %s", exc)
             return []
 
-    def _merge_streams(
-        self, bars: list[ReplayItem], events: list[ReplayItem]
-    ) -> list[ReplayItem]:
+    def _merge_streams(self, bars: list[ReplayItem], events: list[ReplayItem]) -> list[ReplayItem]:
         """Merge bars and events into a single time-ordered stream."""
         merged = sorted(bars + events)
         return merged
@@ -454,9 +443,7 @@ class UnifiedReplayOrchestrator:
             actual["event_count"] = len(event_items)
             actual["trade_count"] = result.session.total_trades
             actual["equity_final"] = (
-                float(result.session.equity_curve[-1][1])
-                if result.session.equity_curve
-                else 0.0
+                float(result.session.equity_curve[-1][1]) if result.session.equity_curve else 0.0
             )
             actual["trades"] = [
                 (t.symbol, str(t.side), t.quantity, str(t.entry_price))
@@ -465,7 +452,8 @@ class UnifiedReplayOrchestrator:
             actual["open_positions"] = 1 if result.session.position is not None else 0
 
         trade_events = [
-            i for i in event_items
+            i
+            for i in event_items
             if i.event is not None and i.event.event_type in ("TRADE", "TRADE_APPLIED")
         ]
         expected["trade_count"] = len(trade_events)
@@ -486,7 +474,7 @@ class UnifiedReplayOrchestrator:
 
 
 __all__ = [
+    "ReplayItem",
     "UnifiedReplayOrchestrator",
     "UnifiedReplayResult",
-    "ReplayItem",
 ]

@@ -25,10 +25,10 @@ logger = logging.getLogger(__name__)
 class RotationPhase(str, Enum):
     """RRG (Relative Rotation Graph) quadrants."""
 
-    LEADING = "Leading"       # Strong RS + positive momentum
-    IMPROVING = "Improving"   # Weak RS + positive momentum
-    LAGGING = "Lagging"       # Weak RS + negative momentum
-    WEAKENING = "Weakening"   # Strong RS + negative momentum
+    LEADING = "Leading"  # Strong RS + positive momentum
+    IMPROVING = "Improving"  # Weak RS + positive momentum
+    LAGGING = "Lagging"  # Weak RS + negative momentum
+    WEAKENING = "Weakening"  # Strong RS + negative momentum
 
 
 @dataclass
@@ -37,11 +37,11 @@ class SectorRotation:
 
     sector: str
     phase: RotationPhase
-    rs_ratio: float          # Relative strength vs benchmark (100 = neutral)
-    rs_momentum: float       # Rate of change of RS ratio
-    volume_trend: float      # Volume change vs 20-period average
-    score: float             # Composite rotation score 0-100
-    signal: str              # " inflow" / "outflow" / "neutral"
+    rs_ratio: float  # Relative strength vs benchmark (100 = neutral)
+    rs_momentum: float  # Rate of change of RS ratio
+    volume_trend: float  # Volume change vs 20-period average
+    score: float  # Composite rotation score 0-100
+    signal: str  # " inflow" / "outflow" / "neutral"
 
 
 @dataclass
@@ -156,15 +156,17 @@ class RotationAnalyzer:
             else:
                 signal = "neutral"
 
-            sectors.append(SectorRotation(
-                sector=col,
-                phase=phase,
-                rs_ratio=round(rs_current, 2),
-                rs_momentum=round(rs_momentum, 2),
-                volume_trend=round(vol_trend, 2),
-                score=round(score, 1),
-                signal=signal,
-            ))
+            sectors.append(
+                SectorRotation(
+                    sector=col,
+                    phase=phase,
+                    rs_ratio=round(rs_current, 2),
+                    rs_momentum=round(rs_momentum, 2),
+                    volume_trend=round(vol_trend, 2),
+                    score=round(score, 1),
+                    signal=signal,
+                )
+            )
 
         # Sort by score descending
         sectors.sort(key=lambda s: s.score, reverse=True)
@@ -174,7 +176,9 @@ class RotationAnalyzer:
 
         # Leading / lagging
         leading = [s.sector for s in sectors if s.phase == RotationPhase.LEADING]
-        lagging = [s.sector for s in sectors if s.phase in (RotationPhase.LAGGING, RotationPhase.WEAKENING)]
+        lagging = [
+            s.sector for s in sectors if s.phase in (RotationPhase.LAGGING, RotationPhase.WEAKENING)
+        ]
 
         # Breadth: % of sectors with positive momentum
         positive_momentum = sum(1 for s in sectors if s.rs_momentum > 0)

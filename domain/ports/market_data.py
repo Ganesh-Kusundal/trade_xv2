@@ -20,8 +20,7 @@ class MarketDataPort(Protocol):
         *,
         interval: str = "1m",
         exchange: str = "NSE",
-    ) -> pd.DataFrame | None:
-        ...
+    ) -> pd.DataFrame | None: ...
 
 
 class GatewayMarketDataAdapter:

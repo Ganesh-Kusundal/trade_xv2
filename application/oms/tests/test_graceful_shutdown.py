@@ -14,23 +14,22 @@ Covers:
 from __future__ import annotations
 
 import asyncio
-import threading
 from decimal import Decimal
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
-from domain import Order, OrderStatus, OrderType, ProductType, Side, Trade
-from domain.events.types import EventType
-from infrastructure.event_bus import DomainEvent, EventBus
-from infrastructure.event_log import EventLog
-from infrastructure.lifecycle import LifecycleManager
 from application.oms.context import TradingContext
 from application.oms.order_manager import OmsOrderCommand
-
+from domain import Order, OrderStatus, Side, Trade
+from domain.events.types import EventType
+from infrastructure.event_bus import DomainEvent
+from infrastructure.event_log import EventLog
+from infrastructure.lifecycle import LifecycleManager
 
 # -- Helpers ----------------------------------------------------------------
+
 
 def _make_submit_fn(fill_price: Decimal | None = None):
     """Create a mock submit_fn that returns an open order."""
@@ -60,6 +59,7 @@ def _run_shutdown(ctx: TradingContext, **kwargs) -> dict:
 
 # -- Test: shutdown cancels all open orders ---------------------------------
 
+
 class TestShutdownCancelsOpenOrders:
     """Verify shutdown() cancels all open orders via the gateway."""
 
@@ -71,10 +71,7 @@ class TestShutdownCancelsOpenOrders:
         ctx.order_manager.place_order(cmd1, submit_fn=_make_submit_fn())
         ctx.order_manager.place_order(cmd2, submit_fn=_make_submit_fn())
 
-        open_before = [
-            o for o in ctx.order_manager.get_orders()
-            if o.status == OrderStatus.OPEN
-        ]
+        open_before = [o for o in ctx.order_manager.get_orders() if o.status == OrderStatus.OPEN]
         assert len(open_before) == 2
 
         mock_gateway = MagicMock()
@@ -86,10 +83,7 @@ class TestShutdownCancelsOpenOrders:
         assert result["orders_failed"] == 0
         assert mock_gateway.cancel_order.call_count == 2
 
-        open_after = [
-            o for o in ctx.order_manager.get_orders()
-            if o.status == OrderStatus.OPEN
-        ]
+        open_after = [o for o in ctx.order_manager.get_orders() if o.status == OrderStatus.OPEN]
         assert len(open_after) == 0
 
     def test_shutdown_skips_cancellation_when_flag_false(self) -> None:
@@ -151,6 +145,7 @@ class TestShutdownCancelsOpenOrders:
 
 # -- Test: shutdown with cancellation failures --------------------------------
 
+
 class TestShutdownCancellationFailures:
     """Verify shutdown handles partial cancellation failures gracefully."""
 
@@ -191,9 +186,7 @@ class TestShutdownCancellationFailures:
         ctx.order_manager.place_order(cmd2, submit_fn=_make_submit_fn())
 
         mock_gateway = MagicMock()
-        mock_gateway.cancel_order.return_value = MagicMock(
-            success=False, message="API down"
-        )
+        mock_gateway.cancel_order.return_value = MagicMock(success=False, message="API down")
 
         result = _run_shutdown(ctx, cancel_orders=True, gateway=mock_gateway)
 
@@ -216,6 +209,7 @@ class TestShutdownCancellationFailures:
 
 
 # -- Test: shutdown event log flush ------------------------------------------
+
 
 class TestShutdownEventLogFlush:
     """Verify shutdown flushes the event log."""
@@ -242,6 +236,7 @@ class TestShutdownEventLogFlush:
 
 
 # -- Test: shutdown idempotency -----------------------------------------------
+
 
 class TestShutdownIdempotency:
     """Verify shutdown() can be called multiple times safely."""
@@ -278,6 +273,7 @@ class TestShutdownIdempotency:
 
 # -- Test: shutdown emits SYSTEM_SHUTDOWN event --------------------------------
 
+
 class TestShutdownEventEmission:
     """Verify shutdown emits SYSTEM_SHUTDOWN event."""
 
@@ -294,14 +290,14 @@ class TestShutdownEventEmission:
         _run_shutdown(ctx, cancel_orders=False)
 
         shutdown_events = [
-            e for e in received_events
-            if e.event_type == EventType.SYSTEM_SHUTDOWN.value
+            e for e in received_events if e.event_type == EventType.SYSTEM_SHUTDOWN.value
         ]
         assert len(shutdown_events) == 1
         assert "shutdown_complete" in shutdown_events[0].payload.get("detail", "").lower()
 
 
 # -- Test: ManagedService protocol compliance ----------------------------------
+
 
 class TestManagedServiceProtocol:
     """Verify TradingContext implements the ManagedService protocol."""
@@ -334,7 +330,6 @@ class TestManagedServiceProtocol:
 
     def test_trading_context_health(self) -> None:
         """health() should return a HealthStatus."""
-        from infrastructure.lifecycle import HealthState
 
         ctx = TradingContext()
         status = ctx.health()
@@ -353,6 +348,7 @@ class TestManagedServiceProtocol:
 
 
 # -- Test: cancel_all_open_orders ----------------------------------------------
+
 
 class TestCancelAllOpenOrders:
     """Verify cancel_all_open_orders() helper."""
@@ -394,6 +390,7 @@ class TestCancelAllOpenOrders:
 
 
 # -- Test: signal handler integration ------------------------------------------
+
 
 class TestSignalHandler:
     """Verify signal handler triggers shutdown."""

@@ -9,8 +9,7 @@ from concurrent.futures import TimeoutError as FuturesTimeoutError
 
 import pytest
 
-from brokers.common.async_compat import run_async_compat, connect_async_then
-
+from brokers.common.async_compat import connect_async_then, run_async_compat
 
 # ── Helpers ────────────────────────────────────────────────────────────
 
@@ -109,9 +108,7 @@ class TestAsyncContext:
     def _loop_thread(self) -> None:
         """Start a background event loop thread for async-context tests."""
         self._loop = asyncio.new_event_loop()
-        self._loop_thread = threading.Thread(
-            target=self._loop.run_forever, daemon=True
-        )
+        self._loop_thread = threading.Thread(target=self._loop.run_forever, daemon=True)
         self._loop_thread.start()
         yield
         self._loop.call_soon_threadsafe(self._loop.stop)
@@ -120,7 +117,6 @@ class TestAsyncContext:
 
     def _run_on_loop(self, fn, timeout: float = 5) -> object:
         """Run *fn* on the loop thread via run_coroutine_threadsafe."""
-        import concurrent.futures
 
         async def _wrap() -> object:
             return fn()
@@ -128,15 +124,11 @@ class TestAsyncContext:
         future = asyncio.run_coroutine_threadsafe(_wrap(), self._loop)
         return future.result(timeout=timeout)
 
-    def test_fire_and_forget_schedules_and_returns_none(
-        self, _loop_thread: None
-    ) -> None:
+    def test_fire_and_forget_schedules_and_returns_none(self, _loop_thread: None) -> None:
         """fire_and_forget=True should schedule the coroutine and return None."""
         import time
 
-        result = self._run_on_loop(
-            lambda: run_async_compat(_async_add(3, 4), fire_and_forget=True)
-        )
+        result = self._run_on_loop(lambda: run_async_compat(_async_add(3, 4), fire_and_forget=True))
         assert result is None
         # Give the scheduled coroutine time to complete
         time.sleep(0.2)
@@ -149,13 +141,9 @@ class TestAsyncContext:
             r = await _async_add(100, 200)
             result_box.append(r)
 
-        self._run_on_loop(
-            lambda: run_async_compat(_capture(), fire_and_forget=True)
-        )
+        self._run_on_loop(lambda: run_async_compat(_capture(), fire_and_forget=True))
         time.sleep(0.2)
         assert result_box == [300]
-
-
 
     def test_non_fire_and_forget_blocks(self, _loop_thread: None) -> None:
         """fire_and_forget=False should block and return the result.
@@ -168,9 +156,7 @@ class TestAsyncContext:
 
         def _caller() -> None:
             try:
-                r = run_async_compat(
-                    _async_add(50, 60), fire_and_forget=False, timeout=5
-                )
+                r = run_async_compat(_async_add(50, 60), fire_and_forget=False, timeout=5)
                 results.append(r)
             except BaseException as exc:
                 errors.append(exc)
@@ -182,9 +168,7 @@ class TestAsyncContext:
         assert not errors, f"Thread raised: {errors}"
         assert results == [110]
 
-    def test_non_fire_and_forget_exception_propagates(
-        self, _loop_thread: None
-    ) -> None:
+    def test_non_fire_and_forget_exception_propagates(self, _loop_thread: None) -> None:
         """fire_and_forget=False should propagate exceptions.
 
         Must be called from a thread other than the loop thread.
@@ -193,9 +177,7 @@ class TestAsyncContext:
 
         def _caller() -> None:
             try:
-                run_async_compat(
-                    _async_raises(), fire_and_forget=False, timeout=5
-                )
+                run_async_compat(_async_raises(), fire_and_forget=False, timeout=5)
             except BaseException as exc:
                 errors.append(exc)
 
@@ -217,9 +199,7 @@ class TestAsyncContext:
                 # This runs on the main thread, but calls run_async_compat
                 # which detects the running loop on the loop thread via
                 # run_coroutine_threadsafe.
-                r = run_async_compat(
-                    _async_add(9, 10), fire_and_forget=False, timeout=5
-                )
+                r = run_async_compat(_async_add(9, 10), fire_and_forget=False, timeout=5)
                 results.append(r)
             except BaseException as exc:
                 errors.append(exc)
@@ -239,9 +219,7 @@ class TestAsyncContext:
         """
         with pytest.raises(FuturesTimeoutError):
             self._run_on_loop(
-                lambda: run_async_compat(
-                    _async_slow(10), fire_and_forget=False, timeout=0.1
-                )
+                lambda: run_async_compat(_async_slow(10), fire_and_forget=False, timeout=0.1)
             )
 
 
@@ -267,6 +245,7 @@ class TestWithSubscribe:
 
     def test_sync_context_callback_error_propagates(self) -> None:
         """If the callback raises, the exception propagates in sync context."""
+
         async def _connect() -> None:
             await asyncio.sleep(0)
 

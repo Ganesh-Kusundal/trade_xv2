@@ -37,8 +37,10 @@ def test_dhan_place_order_with_read_cb_open_still_posts_order() -> None:
         "test-write", CircuitBreakerConfig(failure_threshold=10, open_duration_ms=30_000)
     )
     client = DhanHttpClient(
-        client_id="X", access_token="T",
-        read_circuit_breaker=cb_read, write_circuit_breaker=cb_write,
+        client_id="X",
+        access_token="T",
+        read_circuit_breaker=cb_read,
+        write_circuit_breaker=cb_write,
     )
     # Bypass throttle to keep the test fast.
     client._throttle = lambda *a, **kw: None  # type: ignore[assignment]
@@ -74,7 +76,8 @@ def test_dhan_post_orders_with_write_cb_open_fails_fast() -> None:
         "test-write", CircuitBreakerConfig(failure_threshold=1, open_duration_ms=30_000)
     )
     client = DhanHttpClient(
-        client_id="X", access_token="T",
+        client_id="X",
+        access_token="T",
         write_circuit_breaker=cb_write,
     )
     client._throttle = lambda *a, **kw: None  # type: ignore[assignment]

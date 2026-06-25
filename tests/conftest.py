@@ -21,14 +21,14 @@ logger = logging.getLogger(__name__)
 @pytest.fixture(scope="session", autouse=True)
 def _register_domain_runtime_hooks() -> None:
     """Wire broker factories into domain hooks for analytics engines in tests."""
+    from application.execution.factory import create_oms_backtest_adapter
+    from application.oms.factory import create_trading_context
     from domain.runtime_hooks import (
         register_domain_event_factory,
         register_oms_backtest_factory,
         register_trading_context_factory,
     )
-    from application.execution.factory import create_oms_backtest_adapter
     from infrastructure.event_bus.factory import create_domain_event
-    from application.oms.factory import create_trading_context
 
     register_oms_backtest_factory(create_oms_backtest_adapter)
     register_domain_event_factory(create_domain_event)
@@ -93,8 +93,7 @@ def market_is_open():
     if not is_market_open():
         now = now_ist()
         pytest.skip(
-            f"Market is closed (IST {now.strftime('%H:%M')}, "
-            f"trading hours 09:15-15:30 Mon-Fri)"
+            f"Market is closed (IST {now.strftime('%H:%M')}, trading hours 09:15-15:30 Mon-Fri)"
         )
 
 
@@ -110,6 +109,7 @@ def live_credentials():
         pytest.skip(".env.local not found")
 
     from dotenv import load_dotenv
+
     load_dotenv(env_path, override=True)
 
     client_id = os.environ.get("DHAN_CLIENT_ID", "")
@@ -136,6 +136,7 @@ def upstox_credentials():
         pytest.skip(".env.upstox not found")
 
     from dotenv import load_dotenv
+
     load_dotenv(env_path, override=True)
 
     api_key = os.environ.get("UPSTOX_API_KEY", "")
@@ -152,27 +153,19 @@ def upstox_credentials():
 
 def pytest_configure(config):
     """Register custom markers."""
+    config.addinivalue_line("markers", "market_hours: mark test as requiring open market hours")
     config.addinivalue_line(
-        "markers",
-        "market_hours: mark test as requiring open market hours"
+        "markers", "live_api: mark test as requiring live API credentials and open market"
     )
     config.addinivalue_line(
-        "markers",
-        "live_api: mark test as requiring live API credentials and open market"
+        "markers", "sandbox: test requires sandbox environment (write operations)"
     )
     config.addinivalue_line(
-        "markers",
-        "sandbox: test requires sandbox environment (write operations)"
+        "markers", "live_read: test requires live environment (read-only operations)"
     )
     config.addinivalue_line(
-        "markers",
-        "live_read: test requires live environment (read-only operations)"
+        "markers", "live_write: test requires live environment with order execution enabled"
     )
     config.addinivalue_line(
-        "markers",
-        "live_write: test requires live environment with order execution enabled"
-    )
-    config.addinivalue_line(
-        "markers",
-        "split_env: test uses split read/write routing (reads live, writes sandbox)"
+        "markers", "split_env: test uses split read/write routing (reads live, writes sandbox)"
     )

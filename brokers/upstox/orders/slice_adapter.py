@@ -13,12 +13,12 @@ import logging
 import time
 from typing import Any
 
-from brokers.common.gateway_interfaces import SliceOrderCommand
 from brokers.common.dtos import BrokerOrderPayload
-from domain import Order, SliceOrderRequest
+from brokers.common.gateway_interfaces import SliceOrderCommand
 from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from brokers.upstox.orders.order_client import UpstoxRestOrderClient
+from domain import Order, SliceOrderRequest
 
 logger = logging.getLogger(__name__)
 

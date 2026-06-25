@@ -5,8 +5,6 @@ from decimal import Decimal
 
 import pytest
 
-from domain.historical import HistoricalBar, InstrumentRef
-from domain.provenance import DataProvenance
 from brokers.common.capabilities import dhan_capabilities, upstox_capabilities
 from brokers.common.historical_coordinator import HistoricalDataCoordinator, HistoricalQuery
 from brokers.common.policy import auto_dual_broker_policy
@@ -14,6 +12,8 @@ from brokers.common.quota_scheduler import PriorityClass, QuotaScheduler
 from brokers.common.registry import BrokerRegistry
 from brokers.common.router import BrokerRouter
 from brokers.common.tests.fixtures.in_memory_gateway import InMemoryBrokerGateway, _bar
+from domain.historical import HistoricalBar, InstrumentRef
+from domain.provenance import DataProvenance
 
 
 def _make_coordinator(
@@ -28,7 +28,9 @@ def _make_coordinator(
         scheduler.register_profile("dhan", profile)
     for profile in upstox_capabilities().rate_limit_profiles:
         scheduler.register_profile("upstox", profile)
-    router = BrokerRouter(registry, auto_dual_broker_policy(), quota_headroom_fn=scheduler.headroom_for)
+    router = BrokerRouter(
+        registry, auto_dual_broker_policy(), quota_headroom_fn=scheduler.headroom_for
+    )
     return HistoricalDataCoordinator(
         registry=registry,
         router=router,
@@ -125,17 +127,13 @@ class TestHistoricalDataCoordinator:
                 _bar(instrument, "1D", ts, Decimal("200.00"), "upstox", request.request_id),
             ]
 
-        dhan = InMemoryBrokerGateway(
-            "dhan", dhan_capabilities(), historical_fn=dhan_bars
-        )
-        upstox = InMemoryBrokerGateway(
-            "upstox", upstox_capabilities(), historical_fn=upstox_bars
-        )
+        dhan = InMemoryBrokerGateway("dhan", dhan_capabilities(), historical_fn=dhan_bars)
+        upstox = InMemoryBrokerGateway("upstox", upstox_capabilities(), historical_fn=upstox_bars)
         coordinator = _make_coordinator(dhan, upstox)
 
         # Force both brokers to return overlapping same-day bars by using 1D and short range
         today = date.today()
-        query = HistoricalQuery(
+        HistoricalQuery(
             instrument=instrument,
             timeframe="1D",
             from_date=today - timedelta(days=1),
@@ -145,7 +143,6 @@ class TestHistoricalDataCoordinator:
         )
 
         # Manually merge test: inject same timestamp bars via coordinator internals
-        coordinator._registry  # noqa: B018 — ensure wired
         # Run fetch — if both brokers serve overlapping window, conflict may occur
         # Use direct _merge test for deterministic conflict behavior
         bar_dhan = HistoricalBar(
@@ -170,7 +167,7 @@ class TestHistoricalDataCoordinator:
             volume=1,
             provenance=DataProvenance.now("upstox", "r2"),
         )
-        merged, conflicts = coordinator._merge(  # noqa: SLF001
+        merged, conflicts = coordinator._merge(
             [bar_dhan, bar_upstox],
             chunk_bars={"c1": [bar_dhan], "c2": [bar_upstox]},
             strategy="fail_on_conflict",

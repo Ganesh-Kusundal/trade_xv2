@@ -17,14 +17,20 @@ from pathlib import Path
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 _BROKERS_DIR = _PROJECT_ROOT / "brokers"
 
-_CANONICAL_TYPES = {"Quote", "Balance", "DepthLevel", "MarketDepth", "Order", "Position", "OptionChain"}
+_CANONICAL_TYPES = {
+    "Quote",
+    "Balance",
+    "DepthLevel",
+    "MarketDepth",
+    "Order",
+    "Position",
+    "OptionChain",
+}
 
 _CANONICAL_PACKAGE = "domain"
 
 
-def _find_class_definitions(
-    root: Path, class_names: set[str]
-) -> list[tuple[Path, str]]:
+def _find_class_definitions(root: Path, class_names: set[str]) -> list[tuple[Path, str]]:
     """Walk Python files under root, return (file, class_name) for definitions."""
     hits: list[tuple[Path, str]] = []
     for py_file in root.rglob("*.py"):
@@ -79,9 +85,7 @@ def test_depth_types_are_single_source() -> None:
     assert not non_canonical, (
         "DepthLevel/MarketDepth must NOT be defined outside "
         "domain/. Found duplicates:\n"
-        + "\n".join(
-            f"  {c} in {f.relative_to(_PROJECT_ROOT)}" for f, c in non_canonical
-        )
+        + "\n".join(f"  {c} in {f.relative_to(_PROJECT_ROOT)}" for f, c in non_canonical)
     )
 
 
@@ -93,7 +97,5 @@ def test_all_canonical_domain_types_are_single_source() -> None:
     assert not non_canonical, (
         "The following domain types are defined outside "
         "domain/ and must be consolidated:\n"
-        + "\n".join(
-            f"  {c} in {f.relative_to(_PROJECT_ROOT)}" for f, c in non_canonical
-        )
+        + "\n".join(f"  {c} in {f.relative_to(_PROJECT_ROOT)}" for f, c in non_canonical)
     )

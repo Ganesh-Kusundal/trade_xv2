@@ -43,7 +43,7 @@ class BacktestConfig(ReplayConfig):
     """
 
     benchmark_symbol: str = "NIFTY"
-    risk_free_rate: float = 0.065   # Annual risk-free rate (6.5% for India)
+    risk_free_rate: float = 0.065  # Annual risk-free rate (6.5% for India)
     annualization_factor: int = 252  # Trading days per year
 
 

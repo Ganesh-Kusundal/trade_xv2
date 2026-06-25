@@ -83,14 +83,16 @@ def probe_depth(gw: Any) -> list[dict[str, Any]]:
             depth = gw.depth(symbol, "NSE")
             bids = getattr(depth, "bids", []) or []
             asks = getattr(depth, "asks", []) or []
-            rows.append({
-                "probe": f"D-{symbol}",
-                "pass": len(bids) >= 1 and len(asks) >= 1 and len(bids) <= 5 and len(asks) <= 5,
-                "detail": (
-                    f"bids={len(bids)} asks={len(asks)} "
-                    "endpoint=GET /v2/market-quote/quotes?quote=BEST_FIVE"
-                ),
-            })
+            rows.append(
+                {
+                    "probe": f"D-{symbol}",
+                    "pass": len(bids) >= 1 and len(asks) >= 1 and len(bids) <= 5 and len(asks) <= 5,
+                    "detail": (
+                        f"bids={len(bids)} asks={len(asks)} "
+                        "endpoint=GET /v2/market-quote/quotes?quote=BEST_FIVE"
+                    ),
+                }
+            )
         except Exception as exc:
             rows.append({"probe": f"D-{symbol}", "pass": False, "detail": str(exc)})
     return rows
@@ -100,19 +102,24 @@ def probe_options(gw: Any) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     try:
         expiries = gw._broker.options.get_expiries("NIFTY", "NFO")
-        rows.append({
-            "probe": "O1-expiries",
-            "pass": len(expiries) >= 1 and all(e >= date.today().isoformat() for e in expiries[:5]),
-            "detail": f"count={len(expiries)} sample={expiries[:3]}",
-        })
+        rows.append(
+            {
+                "probe": "O1-expiries",
+                "pass": len(expiries) >= 1
+                and all(e >= date.today().isoformat() for e in expiries[:5]),
+                "detail": f"count={len(expiries)} sample={expiries[:3]}",
+            }
+        )
         chain = gw.option_chain("NIFTY", exchange="NFO", expiry=expiries[0] if expiries else None)
         data = chain.to_dict() if hasattr(chain, "to_dict") else {}
         strikes = data.get("strikes", [])
-        rows.append({
-            "probe": "O2-chain",
-            "pass": len(strikes) >= 1,
-            "detail": f"expiry={data.get('expiry')} strikes={len(strikes)}",
-        })
+        rows.append(
+            {
+                "probe": "O2-chain",
+                "pass": len(strikes) >= 1,
+                "detail": f"expiry={data.get('expiry')} strikes={len(strikes)}",
+            }
+        )
     except Exception as exc:
         rows.append({"probe": "O-options", "pass": False, "detail": str(exc)})
     return rows
@@ -133,25 +140,29 @@ def probe_futures(gw: Any) -> list[dict[str, Any]]:
             client._urls.expired_future_contracts_url(),
             params={"instrument_key": resolved_key},
         )
-        rows.append({
-            "probe": "F1-expired-api",
-            "pass": True,
-            "detail": (
-                f"bare_count={len(_data_list(bare))} "
-                f"resolved_key={resolved_key!r} resolved_count={len(_data_list(resolved))}"
-            ),
-        })
+        rows.append(
+            {
+                "probe": "F1-expired-api",
+                "pass": True,
+                "detail": (
+                    f"bare_count={len(_data_list(bare))} "
+                    f"resolved_key={resolved_key!r} resolved_count={len(_data_list(resolved))}"
+                ),
+            }
+        )
         im_count = len(resolver.list_future_contracts("NIFTY")) if resolver.is_loaded() else 0
         live = gw.future_chain("NIFTY", "NFO")
         live_data = live.to_dict() if hasattr(live, "to_dict") else {}
-        rows.append({
-            "probe": "F4-gateway-future_chain",
-            "pass": im_count > 0 or len(live_data.get("contracts", [])) > 0,
-            "detail": (
-                f"instrument_master={im_count} "
-                f"gateway_contracts={len(live_data.get('contracts', []))}"
-            ),
-        })
+        rows.append(
+            {
+                "probe": "F4-gateway-future_chain",
+                "pass": im_count > 0 or len(live_data.get("contracts", [])) > 0,
+                "detail": (
+                    f"instrument_master={im_count} "
+                    f"gateway_contracts={len(live_data.get('contracts', []))}"
+                ),
+            }
+        )
     except Exception as exc:
         rows.append({"probe": "F-futures", "pass": False, "detail": str(exc)})
     return rows
@@ -167,11 +178,13 @@ def probe_history(gw: Any) -> list[dict[str, Any]]:
         if df is not None and not df.empty and "timestamp" in df.columns:
             ts = df["timestamp"].iloc[0]
             tz = str(getattr(ts, "tzinfo", None))
-        rows.append({
-            "probe": "H1-gateway-history",
-            "pass": df is not None and not df.empty,
-            "detail": f"rows={len(df)} first_tz={tz}",
-        })
+        rows.append(
+            {
+                "probe": "H1-gateway-history",
+                "pass": df is not None and not df.empty,
+                "detail": f"rows={len(df)} first_tz={tz}",
+            }
+        )
     except Exception as exc:
         rows.append({"probe": "H-history", "pass": False, "detail": str(exc)})
     return rows
@@ -194,11 +207,13 @@ async def probe_websocket(gw: Any, *, soak_seconds: float = 30.0) -> list[dict[s
         key = gw._resolve_instrument_key("RELIANCE", "NSE")
         mux.subscribe([key], mode="ltpc")
         await asyncio.sleep(soak_seconds)
-        return [{
-            "probe": "W1-connect-ticks",
-            "pass": mux.is_connected and ticks > 0,
-            "detail": f"connected={mux.is_connected} ticks={ticks} soak_s={soak_seconds}",
-        }]
+        return [
+            {
+                "probe": "W1-connect-ticks",
+                "pass": mux.is_connected and ticks > 0,
+                "detail": f"connected={mux.is_connected} ticks={ticks} soak_s={soak_seconds}",
+            }
+        ]
     except Exception as exc:
         return [{"probe": "W1-ws", "pass": False, "detail": str(exc)}]
     finally:

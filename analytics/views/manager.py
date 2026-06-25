@@ -22,14 +22,14 @@ from datalake.options_analytics_sql import SQL_M_IV_SURFACE, SQL_M_MAX_PAIN, SQL
 
 logger = logging.getLogger(__name__)
 
-MATERIALIZED_DIR = Path("market_data/materialized")
+MATERIALIZED_DIR = Path("analytics_cache")
 VERSION_KEEP_COUNT = 3
 
 # Named constants for magic numbers
 MIN_SYMBOLS_FOR_FULL_DAY = 100  # minimum distinct symbols to consider a day "full"
-DAILY_LOOKBACK_DAYS = 50        # days of daily candles for indicator warmup
-TRADING_MINUTES_PER_DAY = 375   # NSE market hours: 9:15-15:30 = 375 minutes
-TRADING_MINUTES_PARTIAL = 345   # threshold for "PARTIAL" day classification
+DAILY_LOOKBACK_DAYS = 50  # days of daily candles for indicator warmup
+TRADING_MINUTES_PER_DAY = 375  # NSE market hours: 9:15-15:30 = 375 minutes
+TRADING_MINUTES_PARTIAL = 345  # threshold for "PARTIAL" day classification
 
 
 class ViewManager:
@@ -106,7 +106,9 @@ class ViewManager:
                 COPY ({sql}) TO '{parquet_path}'
                 (FORMAT PARQUET, COMPRESSION 'SNAPPY')
             """)
-            self._write_latest(table_name, f"versions/{table_name}/{version_ts}.parquet", partitioned=False)
+            self._write_latest(
+                table_name, f"versions/{table_name}/{version_ts}.parquet", partitioned=False
+            )
 
         self._cleanup_old_versions(table_name)
 
@@ -116,11 +118,13 @@ class ViewManager:
 
     def _write_latest(self, table_name: str, version_path: str, partitioned: bool) -> None:
         import json
+
         latest_file = MATERIALIZED_DIR / "versions" / table_name / "latest.json"
         latest_file.write_text(json.dumps({"path": version_path, "partitioned": partitioned}))
 
     def _read_latest(self, table_name: str) -> dict[str, Any] | None:
         import json
+
         latest_file = MATERIALIZED_DIR / "versions" / table_name / "latest.json"
         if not latest_file.exists():
             return None
@@ -139,6 +143,7 @@ class ViewManager:
         )
         to_remove = entries[:-VERSION_KEEP_COUNT]
         import shutil
+
         for entry in to_remove:
             try:
                 if entry.is_dir():
@@ -165,15 +170,17 @@ class ViewManager:
         temp_table = f"{table_name}_new_{int(time.time() * 1_000_000)}"
         try:
             if latest.get("partitioned") or partition_by:
-                self.conn.execute(f"""
-                    CREATE TABLE {temp_table} AS
-                    SELECT * FROM read_parquet('{version_path}/**/*.parquet', hive_partitioning=true)
-                """)
+                sql = (
+                    f"CREATE TABLE {temp_table} AS "  # noqa: S608
+                    "SELECT * FROM read_parquet(?, hive_partitioning=true)"
+                )
+                self.conn.execute(sql, [f"{version_path}/**/*.parquet"])
             else:
-                self.conn.execute(f"""
-                    CREATE TABLE {temp_table} AS
-                    SELECT * FROM read_parquet('{version_path}')
-                """)
+                sql = (
+                    f"CREATE TABLE {temp_table} AS "  # noqa: S608
+                    "SELECT * FROM read_parquet(?)"
+                )
+                self.conn.execute(sql, [str(version_path)])
             # Atomic swap: drop old, rename new.
             self.conn.execute(f"DROP TABLE IF EXISTS {table_name}")
             self.conn.execute(f"ALTER TABLE {temp_table} RENAME TO {table_name}")
@@ -187,6 +194,7 @@ class ViewManager:
         version_dir = MATERIALIZED_DIR / "versions" / table_name
         if version_dir.exists():
             import shutil
+
             shutil.rmtree(version_dir)
 
     # ─── View Creation ───────────────────────────────────────────────────────
@@ -231,7 +239,9 @@ class ViewManager:
         tables = [
             # ─── Intraday: Current day's 1m candles ────────────────────────────
             # Use the most recent date with >= 100 symbols (full trading day)
-            ("m_intraday", """
+            (
+                "m_intraday",
+                """
                 WITH latest_full_day AS (
                     SELECT CAST(timestamp AS DATE) as trade_date
                     FROM v_candles_1m
@@ -251,9 +261,12 @@ class ViewManager:
                     i.oi
                 FROM v_candles_1m i
                 INNER JOIN latest_full_day d ON CAST(i.timestamp AS DATE) = d.trade_date
-            """),
+            """,
+            ),
             # ─── Recent daily: Last 50 days for indicator warmup ────────────────
-            ("m_recent_daily", """
+            (
+                "m_recent_daily",
+                """
                 WITH daily AS (
                     SELECT
                         CAST(timestamp AS DATE) as trade_date,
@@ -293,9 +306,12 @@ class ViewManager:
                     LAG(close, 10) OVER (PARTITION BY symbol ORDER BY trade_date) as close_10d,
                     LAG(close, 20) OVER (PARTITION BY symbol ORDER BY trade_date) as close_20d
                 FROM daily
-            """),
+            """,
+            ),
             # ─── Symbol snapshot: Latest candle + all indicators (~500 rows) ────
-            ("m_symbol_snapshot", """
+            (
+                "m_symbol_snapshot",
+                """
                 WITH latest AS (
                     SELECT
                         symbol,
@@ -366,9 +382,12 @@ class ViewManager:
                 LEFT JOIN today_intraday t ON l.symbol = t.symbol
                 LEFT JOIN m_recent_daily r ON l.symbol = r.symbol
                     AND r.trade_date = (SELECT MAX(trade_date) FROM m_recent_daily WHERE symbol = l.symbol)
-            """),
+            """,
+            ),
             # ─── Intraday snapshot: Final scanner view (~500 rows) ─────────────
-            ("m_intraday_snapshot", """
+            (
+                "m_intraday_snapshot",
+                """
                 SELECT
                     s.symbol,
                     s.close as ltp,
@@ -432,7 +451,8 @@ class ViewManager:
                     END as signal
                 FROM m_symbol_snapshot s
                 WHERE s.bars_today > 0
-            """),
+            """,
+            ),
         ]
 
         for table_name, sql in tables:
@@ -456,12 +476,17 @@ class ViewManager:
             # ─── Trading days: distinct (symbol, trade_date) pairs ───────────
             # Used by v_quality_score for accurate completeness calculation
             # across full history (not just the 50-day m_recent_daily window).
-            ("m_trading_days", """
+            (
+                "m_trading_days",
+                """
                 SELECT DISTINCT symbol, CAST(timestamp AS DATE) as trade_date
                 FROM v_candles_1m
-            """),
+            """,
+            ),
             # ─── Duplicate candles: GROUP BY symbol, timestamp on 231M rows ────
-            ("m_duplicate_candles", """
+            (
+                "m_duplicate_candles",
+                """
                 SELECT
                     symbol,
                     timestamp,
@@ -469,9 +494,12 @@ class ViewManager:
                 FROM v_candles_1m
                 GROUP BY symbol, timestamp
                 HAVING COUNT(*) > 1
-            """),
+            """,
+            ),
             # ─── Missing candles: GROUP BY symbol, date on 231M rows ──────────
-            ("m_missing_candles", """
+            (
+                "m_missing_candles",
+                """
                 SELECT
                     symbol,
                     CAST(timestamp AS DATE) as trade_date,
@@ -479,7 +507,8 @@ class ViewManager:
                 FROM v_candles_1m
                 WHERE EXTRACT(HOUR FROM timestamp) BETWEEN 9 AND 15
                 GROUP BY symbol, CAST(timestamp AS DATE)
-            """),
+            """,
+            ),
         ]
 
         for table_name, sql in tables:
@@ -528,11 +557,20 @@ class ViewManager:
             try:
                 self.conn.execute(f"DROP VIEW IF EXISTS {v['name']}")
             except Exception as exc:
-                logger.debug("view_drop_failed: %s: %s", v['name'], exc)
+                logger.debug("view_drop_failed: %s: %s", v["name"], exc)
         # Drop materialized tables
-        for tbl in ["m_intraday", "m_recent_daily", "m_symbol_snapshot", "m_intraday_snapshot",
-                     "m_duplicate_candles", "m_missing_candles", "m_trading_days",
-                     "m_pcr", "m_max_pain", "m_iv_surface"]:
+        for tbl in [
+            "m_intraday",
+            "m_recent_daily",
+            "m_symbol_snapshot",
+            "m_intraday_snapshot",
+            "m_duplicate_candles",
+            "m_missing_candles",
+            "m_trading_days",
+            "m_pcr",
+            "m_max_pain",
+            "m_iv_surface",
+        ]:
             self.conn.execute(f"DROP TABLE IF EXISTS {tbl}")
         logger.info("Dropped views and materialized tables")
 
@@ -550,10 +588,7 @@ class ViewManager:
                 return self.conn.execute(sql, params)
             return self.conn.execute(sql)
         with self._query_connection() as conn:
-            if params:
-                df = conn.execute(sql, params).fetchdf()
-            else:
-                df = conn.execute(sql).fetchdf()
+            df = conn.execute(sql, params).fetchdf() if params else conn.execute(sql).fetchdf()
         return duckdb.from_df(df)
 
     def query_df(self, sql: str, params: list | None = None) -> Any:

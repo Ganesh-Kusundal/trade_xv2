@@ -23,8 +23,7 @@ class OrderTransportPort(Protocol):
         product_type: str = "INTRADAY",
         correlation_id: str | None = None,
         transport_only: bool = False,
-    ) -> OrderResponse:
-        ...
+    ) -> OrderResponse: ...
 
 
 __all__ = ["OrderTransportPort"]

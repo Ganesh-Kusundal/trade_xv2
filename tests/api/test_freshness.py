@@ -5,9 +5,8 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 import pandas as pd
-import pytest
 
-from api.freshness import check_data_freshness, FreshnessResult
+from api.freshness import FreshnessResult, check_data_freshness
 
 
 class TestDataFreshness:
@@ -16,11 +15,13 @@ class TestDataFreshness:
     def test_fresh_intraday_data(self):
         """Today's data should be fresh for intraday timeframes."""
         today = date.today()
-        df = pd.DataFrame({
-            "timestamp": pd.to_datetime([today]),
-            "open": [100.0],
-            "close": [101.0],
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": pd.to_datetime([today]),
+                "open": [100.0],
+                "close": [101.0],
+            }
+        )
 
         result = check_data_freshness(df, "1m")
         assert result.is_stale is False
@@ -30,11 +31,13 @@ class TestDataFreshness:
     def test_stale_intraday_data(self):
         """Yesterday's data should be stale for 1m timeframe."""
         yesterday = date.today() - timedelta(days=1)
-        df = pd.DataFrame({
-            "timestamp": pd.to_datetime([yesterday]),
-            "open": [100.0],
-            "close": [101.0],
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": pd.to_datetime([yesterday]),
+                "open": [100.0],
+                "close": [101.0],
+            }
+        )
 
         result = check_data_freshness(df, "1m")
         assert result.is_stale is True
@@ -44,11 +47,13 @@ class TestDataFreshness:
     def test_fresh_daily_data(self):
         """2-day-old data should be fresh for 1d timeframe."""
         two_days_ago = date.today() - timedelta(days=2)
-        df = pd.DataFrame({
-            "timestamp": pd.to_datetime([two_days_ago]),
-            "open": [100.0],
-            "close": [101.0],
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": pd.to_datetime([two_days_ago]),
+                "open": [100.0],
+                "close": [101.0],
+            }
+        )
 
         result = check_data_freshness(df, "1d")
         assert result.is_stale is False  # Threshold is 2 days
@@ -57,11 +62,13 @@ class TestDataFreshness:
     def test_stale_daily_data(self):
         """5-day-old data should be stale for 1d timeframe."""
         five_days_ago = date.today() - timedelta(days=5)
-        df = pd.DataFrame({
-            "timestamp": pd.to_datetime([five_days_ago]),
-            "open": [100.0],
-            "close": [101.0],
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": pd.to_datetime([five_days_ago]),
+                "open": [100.0],
+                "close": [101.0],
+            }
+        )
 
         result = check_data_freshness(df, "1d")
         assert result.is_stale is True
@@ -70,11 +77,13 @@ class TestDataFreshness:
     def test_fresh_weekly_data(self):
         """5-day-old data should be fresh for 1w timeframe."""
         five_days_ago = date.today() - timedelta(days=5)
-        df = pd.DataFrame({
-            "timestamp": pd.to_datetime([five_days_ago]),
-            "open": [100.0],
-            "close": [101.0],
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": pd.to_datetime([five_days_ago]),
+                "open": [100.0],
+                "close": [101.0],
+            }
+        )
 
         result = check_data_freshness(df, "1w")
         assert result.is_stale is False  # Threshold is 7 days
@@ -97,10 +106,12 @@ class TestDataFreshness:
     def test_4h_timeframe_allows_1_day_old(self):
         """4h timeframe allows data up to 1 day old."""
         yesterday = date.today() - timedelta(days=1)
-        df = pd.DataFrame({
-            "timestamp": pd.to_datetime([yesterday]),
-            "open": [100.0],
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": pd.to_datetime([yesterday]),
+                "open": [100.0],
+            }
+        )
 
         result = check_data_freshness(df, "4h")
         assert result.is_stale is False  # Threshold is 1 day
@@ -109,10 +120,12 @@ class TestDataFreshness:
     def test_custom_timestamp_column(self):
         """Should support custom timestamp column name."""
         today = date.today()
-        df = pd.DataFrame({
-            "datetime": pd.to_datetime([today]),
-            "open": [100.0],
-        })
+        df = pd.DataFrame(
+            {
+                "datetime": pd.to_datetime([today]),
+                "open": [100.0],
+            }
+        )
 
         result = check_data_freshness(df, "1m", timestamp_col="datetime")
         assert result.is_stale is False
@@ -120,9 +133,12 @@ class TestDataFreshness:
     def test_uses_index_if_no_timestamp_column(self):
         """Should use DatetimeIndex if timestamp column missing."""
         today = date.today()
-        df = pd.DataFrame({
-            "open": [100.0],
-        }, index=pd.DatetimeIndex([today]))
+        df = pd.DataFrame(
+            {
+                "open": [100.0],
+            },
+            index=pd.DatetimeIndex([today]),
+        )
 
         result = check_data_freshness(df, "1m")
         assert result.is_stale is False
@@ -130,10 +146,12 @@ class TestDataFreshness:
     def test_freshness_result_has_all_fields(self):
         """FreshnessResult should contain all expected fields."""
         today = date.today()
-        df = pd.DataFrame({
-            "timestamp": pd.to_datetime([today]),
-            "open": [100.0],
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": pd.to_datetime([today]),
+                "open": [100.0],
+            }
+        )
 
         result = check_data_freshness(df, "5m")
         assert isinstance(result, FreshnessResult)

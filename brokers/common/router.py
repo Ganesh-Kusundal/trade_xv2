@@ -12,14 +12,13 @@ be replayed and explained after the fact.
 
 from __future__ import annotations
 
+import contextlib
 import logging
-import uuid
+from collections.abc import Callable
 from datetime import datetime, timezone
-from typing import Callable
 
 from brokers.common.errors import RoutingError
 from brokers.common.models import (
-    BrokerHealthSnapshot,
     OperationKind,
     RouteDecision,
     RoutingRequest,
@@ -48,7 +47,7 @@ class BrokerRouter:
         """
         quota_headroom_fn
             Optional callback ``(broker_id, endpoint_class) -> float`` returning
-            the fraction of non-reserved quota remaining (0.0–1.0).  When
+            the fraction of non-reserved quota remaining (0.0-1.0).  When
             provided and the policy mode is ``"quota_aware"``, the router
             prefers the broker with the most headroom.  When None, quota-aware
             mode falls back to priority-list ordering.
@@ -113,9 +112,7 @@ class BrokerRouter:
             )
 
         # 3. Order by policy mode
-        primary, fallbacks, parallel = self._apply_mode(
-            healthy, op_policy, request.operation
-        )
+        primary, fallbacks, parallel = self._apply_mode(healthy, op_policy, request.operation)
 
         reason_codes = self._build_reason_codes(op_policy.mode, primary, rejected)
 
@@ -139,12 +136,10 @@ class BrokerRouter:
             rejected=rejected,
             policy_version=self._policy.policy_version,
         )
-        try:
+        with contextlib.suppress(Exception):
             from brokers.common.observability.audit import emit_routing_decision
 
             emit_routing_decision(decision)
-        except Exception:
-            pass
         return decision
 
     # ------------------------------------------------------------------

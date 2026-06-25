@@ -73,7 +73,11 @@ class MarketStructureAnalyzer:
         range_pct = (rolling_high - rolling_low) / df["close"].replace(0, 1e-10)
 
         close = df["close"]
-        relative_volume = df["relative_volume"] if "relative_volume" in df.columns else pd.Series(1.0, index=df.index)
+        relative_volume = (
+            df["relative_volume"]
+            if "relative_volume" in df.columns
+            else pd.Series(1.0, index=df.index)
+        )
         atr_vals = df["atr"] if "atr" in df.columns else pd.Series(0.0, index=df.index)
         atr_ratio = atr_vals / df["close"].replace(0, 1e-10)
 
@@ -88,7 +92,11 @@ class MarketStructureAnalyzer:
         result[breakout_mask] = "Breakout"
         result[~breakout_mask & pullback_mask] = "Pullback"
         result[~breakout_mask & ~pullback_mask & continuation_mask] = "Trend Continuation"
-        result[~breakout_mask & ~pullback_mask & ~continuation_mask & compression_mask] = "Compression"
-        result[~breakout_mask & ~pullback_mask & ~continuation_mask & ~compression_mask & range_mask] = "Range"
+        result[~breakout_mask & ~pullback_mask & ~continuation_mask & compression_mask] = (
+            "Compression"
+        )
+        result[
+            ~breakout_mask & ~pullback_mask & ~continuation_mask & ~compression_mask & range_mask
+        ] = "Range"
 
         return result

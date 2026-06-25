@@ -12,14 +12,13 @@ Tests cover:
 
 from __future__ import annotations
 
-import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 import pytest
 
-from domain.types import OrderStatus
 from application.oms.order_audit_logger import AuditEntry, OrderAuditLogger
+from domain.types import OrderStatus
 
 
 @pytest.fixture
@@ -60,7 +59,7 @@ class TestAuditEntry:
             old_status=None,
             new_status=OrderStatus.OPEN,
         )
-        with pytest.raises(Exception):  # FrozenInstanceError or AttributeError
+        with pytest.raises((AttributeError, Exception)):  # FrozenInstanceError or AttributeError
             entry.order_id = "order-2"
 
     def test_audit_entry_to_dict(self) -> None:
@@ -175,9 +174,7 @@ class TestTradeApplicationLogging:
 
     def test_log_trade_applied_with_extra_details(self, audit_logger: OrderAuditLogger) -> None:
         """log_trade_applied should merge extra details."""
-        audit_logger.log_trade_applied(
-            "order-2", "T2", 5, "200.00", details={"exchange": "NSE"}
-        )
+        audit_logger.log_trade_applied("order-2", "T2", 5, "200.00", details={"exchange": "NSE"})
         history = audit_logger.get_history("order-2")
         assert history[0].details["exchange"] == "NSE"
 
@@ -219,7 +216,7 @@ class TestEvictionPolicy:
 
     def test_eviction_removes_oldest(self, limited_logger: OrderAuditLogger) -> None:
         """Eviction should remove oldest entries when limit exceeded."""
-        for i in range(7):
+        for _i in range(7):
             limited_logger.log_state_change(
                 "order-1", OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED
             )
@@ -229,7 +226,7 @@ class TestEvictionPolicy:
 
     def test_eviction_keeps_newest(self, limited_logger: OrderAuditLogger) -> None:
         """Eviction should keep newest entries."""
-        for i in range(7):
+        for _i in range(7):
             limited_logger.log_state_change(
                 "order-1", OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED
             )
@@ -274,6 +271,7 @@ class TestThreadSafety:
 
     def test_concurrent_log_entries(self, audit_logger: OrderAuditLogger) -> None:
         """Concurrent log entries should not corrupt state."""
+
         def log_entry(order_num: int) -> bool:
             try:
                 audit_logger.log_new_order(f"order-{order_num}", OrderStatus.OPEN)

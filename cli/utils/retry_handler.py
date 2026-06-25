@@ -14,13 +14,14 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from functools import wraps
-from typing import Any, Callable, Type
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 # Default retryable exceptions
-DEFAULT_RETRYABLE_ERRORS: tuple[Type[Exception], ...] = (
+DEFAULT_RETRYABLE_ERRORS: tuple[type[Exception], ...] = (
     ConnectionError,
     TimeoutError,
     OSError,
@@ -32,7 +33,7 @@ def with_retry(
     *,
     max_retries: int = 3,
     backoff_factor: float = 1.0,
-    retryable_errors: tuple[Type[Exception], ...] = DEFAULT_RETRYABLE_ERRORS,
+    retryable_errors: tuple[type[Exception], ...] = DEFAULT_RETRYABLE_ERRORS,
     on_retry: Callable | None = None,
 ) -> Callable:
     """Decorator to retry failed operations with exponential backoff.
@@ -117,7 +118,7 @@ def retry_with_backoff(
     *args: Any,
     max_retries: int = 3,
     backoff_factor: float = 1.0,
-    retryable_errors: tuple[Type[Exception], ...] = DEFAULT_RETRYABLE_ERRORS,
+    retryable_errors: tuple[type[Exception], ...] = DEFAULT_RETRYABLE_ERRORS,
     **kwargs: Any,
 ) -> Any:
     """Execute function with retry logic (non-decorator version).

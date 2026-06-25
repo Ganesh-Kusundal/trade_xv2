@@ -55,10 +55,9 @@ import fnmatch
 import logging
 import threading
 import time
-from collections import defaultdict
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable
 
 from infrastructure.observability.event_metrics import EventMetrics
 
@@ -368,11 +367,10 @@ class AlertingEngine:
             try:
                 rule.callback(alert)
             except Exception as exc:
-                logger.error(
+                logger.exception(
                     "Alert rule callback failed for %s: %s",
                     rule.name,
                     exc,
-                    exc_info=True,
                 )
 
         return alert
@@ -415,9 +413,7 @@ class AlertingEngine:
                     found = True
                     if rule.is_rate:
                         # For rate rules, use the rate() method.
-                        rate_value = self._metrics.rate(
-                            event_type, outcome, rule.rate_window
-                        )
+                        rate_value = self._metrics.rate(event_type, outcome, rule.rate_window)
                         total_value += rate_value
                     else:
                         total_value += float(value)
@@ -471,11 +467,10 @@ class AlertingEngine:
                 try:
                     callback(alert)
                 except Exception as exc:
-                    logger.error(
+                    logger.exception(
                         "Alert callback failed for %s: %s",
                         callback,
                         exc,
-                        exc_info=True,
                     )
 
     def get_fired_alerts(self, limit: int = 100) -> list[Alert]:
@@ -595,8 +590,8 @@ def create_default_alert_rules() -> list[AlertRule]:
 
 
 __all__ = [
-    "AlertLevel",
     "Alert",
+    "AlertLevel",
     "AlertRule",
     "AlertingEngine",
     "create_default_alert_rules",

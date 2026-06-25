@@ -24,6 +24,7 @@ malformed payload cannot sneak past the dedup check.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -31,7 +32,7 @@ import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from domain.constants import (
     DEFAULT_STOP_TIMEOUT_SECONDS,
@@ -61,9 +62,7 @@ class TradeIdKey:
         # Defensive normalisation.
         object.__setattr__(self, "trade_id", str(self.trade_id).strip())
         if self.broker_trade_id is not None:
-            object.__setattr__(
-                self, "broker_trade_id", str(self.broker_trade_id).strip()
-            )
+            object.__setattr__(self, "broker_trade_id", str(self.broker_trade_id).strip())
         if self.order_id is not None:
             object.__setattr__(self, "order_id", str(self.order_id).strip())
 
@@ -136,8 +135,8 @@ class ProcessedTradeRepository:
     """
 
     # P0.6: Singleton registry - one instance per persistence path
-    _instances: dict[str, ProcessedTradeRepository] = {}
-    _singleton_lock = threading.Lock()  # Thread-safe singleton creation
+    _instances: ClassVar[dict[str, ProcessedTradeRepository]] = {}
+    _singleton_lock: ClassVar[threading.Lock] = threading.Lock()  # Thread-safe singleton creation
 
     @classmethod
     def get_instance(
@@ -188,11 +187,11 @@ class ProcessedTradeRepository:
         False
         """
         key = str(persistence_path) if persistence_path else "default"
-        
+
         # Fast path: check without lock (common case)
         if key in cls._instances:
             return cls._instances[key]
-        
+
         # Slow path: create with lock (thread-safe)
         with cls._singleton_lock:
             # Double-check after acquiring lock
@@ -207,16 +206,16 @@ class ProcessedTradeRepository:
     @classmethod
     def clear_instances(cls) -> None:
         """Clear all singleton instances from the registry.
-        
+
         This method is primarily intended for test isolation and long-running
         process health. In production, instances should persist for the
         lifetime of the process.
-        
+
         Thread Safety
         -------------
         This method is thread-safe. It acquires _singleton_lock before
         clearing the registry.
-        
+
         Examples
         --------
         >>> # Clear all instances (e.g., between tests)
@@ -230,16 +229,15 @@ class ProcessedTradeRepository:
     @classmethod
     def get_instance_count(cls) -> int:
         """Return the number of singleton instances currently registered.
-        
+
         Useful for monitoring and debugging memory leaks.
-        
+
         Returns
         -------
         int
             Number of instances in the registry.
         """
         return len(cls._instances)
-
 
     def __init__(
         self,
@@ -279,10 +277,7 @@ class ProcessedTradeRepository:
         if self._auto_cleanup_thread and self._auto_cleanup_thread.is_alive():
             return
         if self._max_age_seconds <= 0:
-            logger.debug(
-                "ProcessedTradeRepository: auto-cleanup disabled "
-                "(max_age_seconds<=0)"
-            )
+            logger.debug("ProcessedTradeRepository: auto-cleanup disabled (max_age_seconds<=0)")
             return
         self._auto_cleanup_interval = max(1, int(interval_seconds))
         self._auto_cleanup_stop.clear()
@@ -293,15 +288,12 @@ class ProcessedTradeRepository:
         )
         self._auto_cleanup_thread.start()
         logger.info(
-            "ProcessedTradeRepository: auto-cleanup started "
-            "(interval=%ds, retention=%ds)",
+            "ProcessedTradeRepository: auto-cleanup started (interval=%ds, retention=%ds)",
             self._auto_cleanup_interval,
             self._max_age_seconds,
         )
 
-    def stop_auto_cleanup(
-        self, timeout_seconds: float = DEFAULT_STOP_TIMEOUT_SECONDS
-    ) -> None:
+    def stop_auto_cleanup(self, timeout_seconds: float = DEFAULT_STOP_TIMEOUT_SECONDS) -> None:
         """Stop the auto-cleanup thread. Idempotent."""
         if not self._auto_cleanup_thread:
             return
@@ -345,9 +337,7 @@ class ProcessedTradeRepository:
                         "ProcessedTradeRepository: auto-cleanup iteration failed: %s",
                         exc,
                     )
-                if self._auto_cleanup_stop.wait(
-                    timeout=self._auto_cleanup_interval
-                ):
+                if self._auto_cleanup_stop.wait(timeout=self._auto_cleanup_interval):
                     break
         finally:
             logger.debug("ProcessedTradeRepository: auto-cleanup thread exiting")
@@ -366,8 +356,7 @@ class ProcessedTradeRepository:
         """
         if not key.trade_id:
             raise ValueError(
-                "ProcessedTradeRepository.mark_processed requires a "
-                "non-empty trade_id"
+                "ProcessedTradeRepository.mark_processed requires a non-empty trade_id"
             )
         import time
 
@@ -378,9 +367,7 @@ class ProcessedTradeRepository:
                     try:
                         self._on_duplicate(key)
                     except Exception:
-                        logger.exception(
-                            "ProcessedTradeRepository: on_duplicate raised"
-                        )
+                        logger.exception("ProcessedTradeRepository: on_duplicate raised")
                 logger.info(
                     "ProcessedTradeRepository: duplicate trade %s ignored",
                     key.trade_id,
@@ -461,11 +448,9 @@ class ProcessedTradeRepository:
         with open(self._path, "a", encoding="utf-8") as f:
             f.write(line + "\n")
             f.flush()
-            try:
+            with contextlib.suppress(OSError, ValueError):
                 os.fsync(f.fileno())
-            except (OSError, ValueError):
                 # Filesystem may not support fsync (e.g. some CI sandboxes).
-                pass
 
     def _load_from_disk(self) -> None:
         assert self._path is not None

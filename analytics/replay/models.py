@@ -29,9 +29,9 @@ from analytics.strategy.models import Signal
 class ReplayMode(str, Enum):
     """How the replay engine processes bars."""
 
-    BAR_BY_BAR = "bar_by_bar"          # Process every bar
-    ON_CLOSE = "on_close"              # Only process close of each bar
-    CUSTOM = "custom"                  # User-defined filter
+    BAR_BY_BAR = "bar_by_bar"  # Process every bar
+    ON_CLOSE = "on_close"  # Only process close of each bar
+    CUSTOM = "custom"  # User-defined filter
 
 
 # ---------------------------------------------------------------------------
@@ -103,8 +103,8 @@ class ReplayConfig:
 
     initial_capital: float = 100_000.0
     mode: ReplayMode = ReplayMode.BAR_BY_BAR
-    window_size: int = 0           # 0 = use all bars from start
-    warmup_bars: int = 0           # Skip first N bars for indicator warmup
+    window_size: int = 0  # 0 = use all bars from start
+    warmup_bars: int = 0  # Skip first N bars for indicator warmup
     max_position_pct: float = 100.0  # Max % per position
     slippage_pct: float = 0.0
     commission_flat: float = 0.0
@@ -133,7 +133,7 @@ class SimulatedTrade:
     """
 
     symbol: str
-    side: str                     # "BUY" or "SELL"
+    side: str  # "BUY" or "SELL"
     entry_price: float
     exit_price: float | None = None
     quantity: int = 0
@@ -301,11 +301,12 @@ class ReplayResult:
         if not returns:
             return 0.0
         import numpy as np
+
         mean_ret = float(np.mean(returns))
         std_ret = float(np.std(returns))
         if std_ret == 0:
             return 0.0
-        return round(mean_ret / std_ret * (252 ** 0.5), 2)  # Annualized
+        return round(mean_ret / std_ret * (252**0.5), 2)  # Annualized
 
     @property
     def summary(self) -> dict[str, Any]:

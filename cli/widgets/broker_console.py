@@ -11,6 +11,7 @@ from textual.containers import Container, Grid, Horizontal
 from textual.widgets import Button, DataTable, Label, Static
 
 from cli.services.broker_service import BrokerService
+from brokers.common.connection.errors import BrokerNotReadyError
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +79,11 @@ class BrokerConsoleWidget(Static):
 
     def refresh_broker_data(self) -> None:
         """Fetch current portfolio information and refresh tables."""
-        broker = self._broker_service.active_broker
+        try:
+            broker = self._broker_service.active_broker
+        except BrokerNotReadyError:
+            self.notify("Broker not ready", severity="warning")
+            return
 
         # Update metrics
         try:
@@ -132,4 +137,6 @@ class BrokerConsoleWidget(Static):
                     Text(f"Rs. {h_pnl:,.2f}", style=pnl_style),
                 )
         except Exception as exc:
-            logger.debug("holdings_display_failed: %s", exc)  # Fallback for display stability if API returns errors
+            logger.debug(
+                "holdings_display_failed: %s", exc
+            )  # Fallback for display stability if API returns errors

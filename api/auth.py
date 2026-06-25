@@ -27,7 +27,6 @@ from __future__ import annotations
 import logging
 import os
 import secrets
-from typing import Optional
 
 from fastapi import Header, HTTPException, WebSocket, status
 from fastapi.security import APIKeyHeader
@@ -57,14 +56,16 @@ api_key_header = APIKeyHeader(
 
 # ── Public Paths ──────────────────────────────────────────────────────────────
 
-PUBLIC_PATHS = frozenset({
-    "/healthz",
-    "/readyz",
-    "/metrics",
-    "/docs",
-    "/redoc",
-    "/openapi.json",
-})
+PUBLIC_PATHS = frozenset(
+    {
+        "/healthz",
+        "/readyz",
+        "/metrics",
+        "/docs",
+        "/redoc",
+        "/openapi.json",
+    }
+)
 
 
 def is_public_path(path: str) -> bool:
@@ -113,8 +114,9 @@ async def reject_ws_if_unauthorized(websocket: WebSocket) -> bool:
 
 # ── Authentication Dependency ─────────────────────────────────────────────────
 
+
 async def require_auth(
-    x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
+    x_api_key: str | None = Header(None, alias="X-API-Key"),
 ) -> None:
     """FastAPI dependency that validates API key.
 
@@ -130,6 +132,7 @@ async def require_auth(
 
 
 # ── Utility Functions ─────────────────────────────────────────────────────────
+
 
 def get_api_key() -> str:
     """Return the current API key (for CLI scripts to display)."""

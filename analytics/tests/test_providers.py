@@ -8,14 +8,16 @@ from analytics.core.providers import CsvMarketDataProvider, DataFrameMarketDataP
 
 
 def _sample_df() -> pd.DataFrame:
-    return pd.DataFrame({
-        "timestamp": pd.date_range("2026-01-01", periods=5),
-        "open": [100, 101, 102, 103, 104],
-        "high": [102, 103, 104, 105, 106],
-        "low": [99, 100, 101, 102, 103],
-        "close": [101, 102, 103, 104, 105],
-        "volume": [1000, 1100, 1200, 1300, 1400],
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2026-01-01", periods=5),
+            "open": [100, 101, 102, 103, 104],
+            "high": [102, 103, 104, 105, 106],
+            "low": [99, 100, 101, 102, 103],
+            "close": [101, 102, 103, 104, 105],
+            "volume": [1000, 1100, 1200, 1300, 1400],
+        }
+    )
 
 
 def test_dataframe_provider_history() -> None:
@@ -42,15 +44,17 @@ def test_dataframe_provider_ltp() -> None:
 
 
 def test_csv_provider_with_symbol_column(tmp_path) -> None:
-    df = pd.DataFrame({
-        "symbol": ["RELIANCE", "RELIANCE", "TCS", "TCS"],
-        "timestamp": pd.date_range("2026-01-01", periods=4),
-        "open": [100, 101, 200, 201],
-        "high": [102, 103, 202, 203],
-        "low": [99, 100, 199, 200],
-        "close": [101, 102, 201, 202],
-        "volume": [1000, 1100, 2000, 2100],
-    })
+    df = pd.DataFrame(
+        {
+            "symbol": ["RELIANCE", "RELIANCE", "TCS", "TCS"],
+            "timestamp": pd.date_range("2026-01-01", periods=4),
+            "open": [100, 101, 200, 201],
+            "high": [102, 103, 202, 203],
+            "low": [99, 100, 199, 200],
+            "close": [101, 102, 201, 202],
+            "volume": [1000, 1100, 2000, 2100],
+        }
+    )
     csv_path = tmp_path / "data.csv"
     df.to_csv(csv_path, index=False)
 
@@ -62,15 +66,17 @@ def test_csv_provider_with_symbol_column(tmp_path) -> None:
 
 
 def test_csv_provider_caches(tmp_path) -> None:
-    df = pd.DataFrame({
-        "symbol": ["A", "A"],
-        "timestamp": pd.date_range("2026-01-01", periods=2),
-        "open": [100, 101],
-        "high": [102, 103],
-        "low": [99, 100],
-        "close": [101, 102],
-        "volume": [1000, 1100],
-    })
+    df = pd.DataFrame(
+        {
+            "symbol": ["A", "A"],
+            "timestamp": pd.date_range("2026-01-01", periods=2),
+            "open": [100, 101],
+            "high": [102, 103],
+            "low": [99, 100],
+            "close": [101, 102],
+            "volume": [1000, 1100],
+        }
+    )
     csv_path = tmp_path / "data.csv"
     df.to_csv(csv_path, index=False)
 

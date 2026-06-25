@@ -1,4 +1,0 @@
-# file: /workspaces/trade_xv2/cli/commands/analytics_scanner.py
-# hypothesis_version: 6.155.7
-
-['#', ', ', '-', '--', '--csv', '--file', '--limit', '--scan', '--scanner', 'Reasons', 'Score', 'Symbol', 'bold cyan', 'bold white', 'breakout', 'candidates', 'close', 'cyan', 'data', 'dim', 'green', 'momentum', 'ranking', 'rs', 'volume']

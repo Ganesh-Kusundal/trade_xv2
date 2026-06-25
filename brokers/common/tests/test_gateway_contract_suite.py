@@ -34,10 +34,9 @@ from domain.entities import (
     Quote,
     Trade,
 )
-from domain.types import OrderStatus
 
 
-class GatewayContractSuite(ABC):
+class GatewayContractSuite(ABC):  # noqa: B024
     """Abstract contract tests for MarketDataGateway implementations.
 
     Subclasses MUST provide a ``gateway`` fixture that returns an instance
@@ -158,10 +157,12 @@ class GatewayContractSuite(ABC):
 # PaperGateway conformance (inline, no separate file needed)
 # ---------------------------------------------------------------------------
 
+
 class TestPaperGatewayContract(GatewayContractSuite):
     """PaperGateway passes the full MarketDataGateway contract."""
 
     @pytest.fixture
     def gateway(self):
         from brokers.paper.paper_gateway import PaperGateway
+
         return PaperGateway()

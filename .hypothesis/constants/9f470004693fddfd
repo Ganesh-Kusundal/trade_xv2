@@ -1,4 +1,0 @@
-# file: /workspaces/trade_xv2/datalake/schema.py
-# hypothesis_version: 6.155.7
-
-[375, '..', '15m', '1d', '1h', '1m', '1w', '30m', '5m', 'NIFTY100', 'NIFTY200', 'NIFTY50', 'NIFTY500', 'bar_time_ms', 'close', 'close_paisa', 'data/universes', 'exchange', 'high', 'high_paisa', 'low', 'low_paisa', 'ns', 'oi', 'open', 'open_paisa', 'symbol', 'timestamp', 'timestamp_ms', 'trade_count', 'trade_xv2', 'volume', 'vwap']

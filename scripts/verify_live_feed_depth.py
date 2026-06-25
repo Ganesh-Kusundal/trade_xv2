@@ -6,10 +6,12 @@ Tests:
 3. depth_200 (200-level WebSocket depth) — verifies depth data arrives
 4. REST depth (5-level) — baseline comparison
 """
-import sys
+
+import contextlib
 import os
-import time
+import sys
 import threading
+import time
 from decimal import Decimal
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -17,6 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 PASS = "PASS"
 FAIL = "FAIL"
 results: list[tuple[str, str, str, str]] = []
+
 
 def record(test: str, segment: str, status: str, detail: str = ""):
     results.append((test, segment, status, detail))
@@ -48,6 +51,7 @@ def test_live_feed_and_depth():
     # NFO Futures — nearest NIFTY future
     nfo_futs = conn.instruments.get_futures("NIFTY", "NFO")
     from datetime import date
+
     today = str(date.today())
     active_futs = [f for f in nfo_futs if f.expiry and f.expiry >= today]
     if active_futs:
@@ -58,6 +62,7 @@ def test_live_feed_and_depth():
     try:
         # Get nearest expiry option
         from brokers.dhan.extended import DhanExtendedCapabilities
+
         ext = DhanExtendedCapabilities(conn)
         expiries = ext.get_option_expiries("NIFTY", "NFO")
         if expiries:
@@ -81,11 +86,15 @@ def test_live_feed_and_depth():
     for segment, label, inst in instruments:
         try:
             d = gw.depth(inst.symbol if segment != "IDX_I" else "NIFTY", segment)
-            bids = len(d.bids) if d and hasattr(d, 'bids') else 0
-            asks = len(d.asks) if d and hasattr(d, 'asks') else 0
+            bids = len(d.bids) if d and hasattr(d, "bids") else 0
+            asks = len(d.asks) if d and hasattr(d, "asks") else 0
             if bids > 0 and asks > 0:
-                record("REST depth (5-level)", segment, PASS,
-                       f"{label}: {bids} bids, {asks} asks, top_bid={d.bids[0].price if d.bids else 'N/A'}")
+                record(
+                    "REST depth (5-level)",
+                    segment,
+                    PASS,
+                    f"{label}: {bids} bids, {asks} asks, top_bid={d.bids[0].price if d.bids else 'N/A'}",
+                )
             else:
                 record("REST depth (5-level)", segment, FAIL, f"{label}: bids={bids}, asks={asks}")
         except Exception as e:
@@ -101,6 +110,7 @@ def test_live_feed_and_depth():
         def on_tick(data):
             with tick_lock:
                 ticks_received.setdefault(seg_label, []).append(data)
+
         return on_tick
 
     feeds = []
@@ -119,14 +129,15 @@ def test_live_feed_and_depth():
     time.sleep(10)
 
     # Check results
-    for segment, label, inst in instruments:
+    for segment, label, _ in instruments:
         with tick_lock:
             ticks = ticks_received.get(label, [])
         if ticks:
             sample = ticks[0]
-            ltp = sample.get("ltp", "?") if isinstance(sample, dict) else getattr(sample, "ltp", "?")
-            record("Stream FULL ticks", segment, PASS,
-                   f"{label}: {len(ticks)} ticks, LTP={ltp}")
+            ltp = (
+                sample.get("ltp", "?") if isinstance(sample, dict) else getattr(sample, "ltp", "?")
+            )
+            record("Stream FULL ticks", segment, PASS, f"{label}: {len(ticks)} ticks, LTP={ltp}")
         else:
             record("Stream FULL ticks", segment, FAIL, f"{label}: 0 ticks in 10s")
 
@@ -139,21 +150,25 @@ def test_live_feed_and_depth():
         def on_depth(d):
             with depth_20_lock:
                 depth_20_results.setdefault(seg_label, []).append(d)
+
         return on_depth
 
     depth_20_instruments = [
-        (seg, label, inst) for seg, label, inst in instruments
-        if seg in ("NSE", "IDX_I", "NFO")
+        (seg, label, inst) for seg, label, inst in instruments if seg in ("NSE", "IDX_I", "NFO")
     ]
 
     for segment, label, inst in depth_20_instruments:
         try:
             sym = inst.symbol if segment != "IDX_I" else "NIFTY"
             d = gw.depth_20(sym, segment, on_depth=on_depth_20_factory(label))
-            bids = len(d.bids) if d and hasattr(d, 'bids') else 0
-            asks = len(d.asks) if d and hasattr(d, 'asks') else 0
-            record("Depth 20 initial", segment, PASS if bids > 0 else FAIL,
-                   f"{label}: {bids} bids, {asks} asks (REST fallback)")
+            bids = len(d.bids) if d and hasattr(d, "bids") else 0
+            asks = len(d.asks) if d and hasattr(d, "asks") else 0
+            record(
+                "Depth 20 initial",
+                segment,
+                PASS if bids > 0 else FAIL,
+                f"{label}: {bids} bids, {asks} asks (REST fallback)",
+            )
         except Exception as e:
             record("Depth 20 initial", segment, FAIL, f"{label}: {type(e).__name__}: {e}")
         time.sleep(0.15)
@@ -161,15 +176,19 @@ def test_live_feed_and_depth():
     print("  ⏳ Waiting 8 seconds for depth updates...")
     time.sleep(8)
 
-    for segment, label, inst in depth_20_instruments:
+    for segment, label, _ in depth_20_instruments:
         with depth_20_lock:
             updates = depth_20_results.get(label, [])
         if updates:
             last = updates[-1]
-            bids = len(last.bids) if hasattr(last, 'bids') else 0
-            asks = len(last.asks) if hasattr(last, 'asks') else 0
-            record("Depth 20 live updates", segment, PASS if bids > 0 else FAIL,
-                   f"{label}: {len(updates)} updates, last: {bids} bids, {asks} asks")
+            bids = len(last.bids) if hasattr(last, "bids") else 0
+            asks = len(last.asks) if hasattr(last, "asks") else 0
+            record(
+                "Depth 20 live updates",
+                segment,
+                PASS if bids > 0 else FAIL,
+                f"{label}: {len(updates)} updates, last: {bids} bids, {asks} asks",
+            )
         else:
             record("Depth 20 live updates", segment, FAIL, f"{label}: 0 WS updates in 8s")
 
@@ -182,6 +201,7 @@ def test_live_feed_and_depth():
         def on_depth(d):
             with depth_200_lock:
                 depth_200_results.setdefault(seg_label, []).append(d)
+
         return on_depth
 
     # Depth 200 allows only ONE instrument per connection
@@ -189,10 +209,14 @@ def test_live_feed_and_depth():
     if nse_inst:
         try:
             d = gw.depth_200(nse_inst.symbol, "NSE", on_depth=on_depth_200_factory(nse_inst.symbol))
-            bids = len(d.bids) if d and hasattr(d, 'bids') else 0
-            asks = len(d.asks) if d and hasattr(d, 'asks') else 0
-            record("Depth 200 initial", "NSE", PASS if bids > 0 else FAIL,
-                   f"{nse_inst.symbol}: {bids} bids, {asks} asks (REST fallback)")
+            bids = len(d.bids) if d and hasattr(d, "bids") else 0
+            asks = len(d.asks) if d and hasattr(d, "asks") else 0
+            record(
+                "Depth 200 initial",
+                "NSE",
+                PASS if bids > 0 else FAIL,
+                f"{nse_inst.symbol}: {bids} bids, {asks} asks (REST fallback)",
+            )
         except Exception as e:
             record("Depth 200 initial", "NSE", FAIL, f"{nse_inst.symbol}: {type(e).__name__}: {e}")
 
@@ -203,10 +227,14 @@ def test_live_feed_and_depth():
             updates = depth_200_results.get(nse_inst.symbol, [])
         if updates:
             last = updates[-1]
-            bids = len(last.bids) if hasattr(last, 'bids') else 0
-            asks = len(last.asks) if hasattr(last, 'asks') else 0
-            record("Depth 200 live updates", "NSE", PASS if bids > 0 else FAIL,
-                   f"{nse_inst.symbol}: {len(updates)} updates, last: {bids} bids, {asks} asks")
+            bids = len(last.bids) if hasattr(last, "bids") else 0
+            asks = len(last.asks) if hasattr(last, "asks") else 0
+            record(
+                "Depth 200 live updates",
+                "NSE",
+                PASS if bids > 0 else FAIL,
+                f"{nse_inst.symbol}: {len(updates)} updates, last: {bids} bids, {asks} asks",
+            )
         else:
             record("Depth 200 live updates", "NSE", FAIL, f"{nse_inst.symbol}: 0 WS updates in 8s")
 
@@ -226,13 +254,12 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"\n💥 FATAL: {e}")
         import traceback
+
         traceback.print_exc()
     finally:
         if gw:
-            try:
+            with contextlib.suppress(Exception):
                 gw._conn.close()
-            except Exception:
-                pass
 
     # ── Summary ──────────────────────────────────────────────────────────
     print("\n" + "=" * 70)

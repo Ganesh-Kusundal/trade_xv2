@@ -16,7 +16,9 @@ def test_super_order_returns_501_on_non_dhan_broker() -> None:
 
     app = create_app(
         config=APIConfig(auth_mode="none"),
-        broker_service=SimpleNamespace(active_broker=StubLiveGateway(), active_broker_name="upstox"),
+        broker_service=SimpleNamespace(
+            active_broker=StubLiveGateway(), active_broker_name="upstox"
+        ),
     )
     client = TestClient(app)
     resp = client.post("/api/v1/live/orders/super", json={"symbol": "RELIANCE"})
@@ -25,7 +27,9 @@ def test_super_order_returns_501_on_non_dhan_broker() -> None:
 
 
 def test_edis_returns_501_on_non_dhan_broker(live_client: TestClient) -> None:
-    resp = live_client.post("/api/v1/live/edis/authorize", json={"isin": "INE002A01018", "quantity": 1})
+    resp = live_client.post(
+        "/api/v1/live/edis/authorize", json={"isin": "INE002A01018", "quantity": 1}
+    )
     assert resp.status_code == 501
     assert resp.headers.get("X-Data-Source") == "live_broker"
 

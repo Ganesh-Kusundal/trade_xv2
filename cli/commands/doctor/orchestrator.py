@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SectionResult:
     """Result of a named check section.
-    
+
     Attributes
     ----------
     section_name : str
@@ -34,6 +34,7 @@ class SectionResult:
     elapsed_s : float
         Time taken to execute this section.
     """
+
     section_name: str
     results: list[CheckResult]
     elapsed_s: float = 0.0
@@ -41,11 +42,11 @@ class SectionResult:
 
 class CheckOrchestrator:
     """Orchestrates parallel execution of diagnostic check strategies.
-    
+
     This class manages a collection of named check strategies, runs them
     concurrently using a thread pool, and aggregates results in a
     thread-safe manner.
-    
+
     Parameters
     ----------
     checks : list[tuple[str, CheckStrategy]]
@@ -54,7 +55,7 @@ class CheckOrchestrator:
         Maximum number of parallel threads (default: 4).
     timeout_per_check : int
         Timeout in seconds for each individual check (default: 15).
-    
+
     Example
     -------
     >>> checks = [
@@ -64,7 +65,7 @@ class CheckOrchestrator:
     >>> orchestrator = CheckOrchestrator(checks, max_workers=4)
     >>> results = orchestrator.run_all(broker_service)
     """
-    
+
     def __init__(
         self,
         checks: list[tuple[str, CheckStrategy]],
@@ -74,15 +75,15 @@ class CheckOrchestrator:
         self._checks = checks
         self._max_workers = max_workers
         self._timeout_per_check = timeout_per_check
-    
+
     def run_all(self, broker_service: BrokerService | None) -> dict[str, SectionResult]:
         """Execute all checks and return aggregated results.
-        
+
         Parameters
         ----------
         broker_service : BrokerService | None
             The active broker service instance passed to each strategy.
-        
+
         Returns
         -------
         dict[str, SectionResult]
@@ -90,7 +91,7 @@ class CheckOrchestrator:
             check results and execution time.
         """
         results: dict[str, SectionResult] = {}
-        
+
         def _execute_check(
             section_name: str,
             strategy: CheckStrategy,
@@ -110,7 +111,7 @@ class CheckOrchestrator:
                     "doctor_check_failed",
                     extra={"check": section_name, "error": str(exc)},
                 )
-                elapsed = time.monotonic() - start if 'start' in dir() else 0.0
+                elapsed = time.monotonic() - start if "start" in dir() else 0.0
                 return (
                     section_name,
                     SectionResult(
@@ -119,21 +120,19 @@ class CheckOrchestrator:
                         elapsed,
                     ),
                 )
-        
+
         with ThreadPoolExecutor(max_workers=self._max_workers) as executor:
             futures = {
                 executor.submit(_execute_check, name, strategy): name
                 for name, strategy in self._checks
             }
-            
+
             for future in as_completed(futures):
-                section_name, section_result = future.result(
-                    timeout=self._timeout_per_check
-                )
+                section_name, section_result = future.result(timeout=self._timeout_per_check)
                 results[section_name] = section_result
-        
+
         return results
-    
+
     @property
     def check_count(self) -> int:
         """Number of check strategies registered."""

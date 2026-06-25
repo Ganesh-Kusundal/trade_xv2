@@ -66,7 +66,7 @@ class BenchmarkReport:
 
     def compute_summaries(self) -> None:
         """Compute avg/p50/p95/p99 latencies per broker."""
-        for broker, summary in self.broker_summaries.items():
+        for _broker, summary in self.broker_summaries.items():
             lats = sorted(summary["latencies"])
             if not lats:
                 summary["avg_ms"] = 0
@@ -119,8 +119,13 @@ class BenchmarkSuite:
 
         report = BenchmarkReport()
         all_tests = tests or [
-            "historical", "quote", "ltp", "depth",
-            "option_chain", "future_chain", "search",
+            "historical",
+            "quote",
+            "ltp",
+            "depth",
+            "option_chain",
+            "future_chain",
+            "search",
         ]
 
         for broker_name, gw in self._gateways.items():
@@ -145,7 +150,9 @@ class BenchmarkSuite:
                     except Exception as exc:
                         result.success = False
                         result.error = str(exc)
-                        logger.warning("Benchmark %s/%s/%s failed: %s", broker_name, test_name, symbol, exc)
+                        logger.warning(
+                            "Benchmark %s/%s/%s failed: %s", broker_name, test_name, symbol, exc
+                        )
 
                     report.add(result)
 
@@ -164,9 +171,7 @@ class BenchmarkSuite:
             latencies.append((time.perf_counter() - t0) * 1000)
         return self._stats(latencies)
 
-    def _bench_quote(
-        self, gw: Any, symbol: str, iterations: int, *args: Any
-    ) -> dict:
+    def _bench_quote(self, gw: Any, symbol: str, iterations: int, *args: Any) -> dict:
         latencies = []
         for _ in range(iterations):
             t0 = time.perf_counter()
@@ -174,9 +179,7 @@ class BenchmarkSuite:
             latencies.append((time.perf_counter() - t0) * 1000)
         return self._stats(latencies)
 
-    def _bench_ltp(
-        self, gw: Any, symbol: str, iterations: int, *args: Any
-    ) -> dict:
+    def _bench_ltp(self, gw: Any, symbol: str, iterations: int, *args: Any) -> dict:
         latencies = []
         for _ in range(iterations):
             t0 = time.perf_counter()
@@ -184,9 +187,7 @@ class BenchmarkSuite:
             latencies.append((time.perf_counter() - t0) * 1000)
         return self._stats(latencies)
 
-    def _bench_depth(
-        self, gw: Any, symbol: str, iterations: int, *args: Any
-    ) -> dict:
+    def _bench_depth(self, gw: Any, symbol: str, iterations: int, *args: Any) -> dict:
         latencies = []
         for _ in range(iterations):
             t0 = time.perf_counter()
@@ -194,9 +195,7 @@ class BenchmarkSuite:
             latencies.append((time.perf_counter() - t0) * 1000)
         return self._stats(latencies)
 
-    def _bench_option_chain(
-        self, gw: Any, symbol: str, iterations: int, *args: Any
-    ) -> dict:
+    def _bench_option_chain(self, gw: Any, symbol: str, iterations: int, *args: Any) -> dict:
         latencies = []
         for _ in range(iterations):
             t0 = time.perf_counter()
@@ -204,9 +203,7 @@ class BenchmarkSuite:
             latencies.append((time.perf_counter() - t0) * 1000)
         return self._stats(latencies)
 
-    def _bench_future_chain(
-        self, gw: Any, symbol: str, iterations: int, *args: Any
-    ) -> dict:
+    def _bench_future_chain(self, gw: Any, symbol: str, iterations: int, *args: Any) -> dict:
         latencies = []
         for _ in range(iterations):
             t0 = time.perf_counter()
@@ -214,9 +211,7 @@ class BenchmarkSuite:
             latencies.append((time.perf_counter() - t0) * 1000)
         return self._stats(latencies)
 
-    def _bench_search(
-        self, gw: Any, symbol: str, iterations: int, *args: Any
-    ) -> dict:
+    def _bench_search(self, gw: Any, symbol: str, iterations: int, *args: Any) -> dict:
         latencies = []
         for _ in range(iterations):
             t0 = time.perf_counter()
@@ -236,7 +231,9 @@ class BenchmarkSuite:
             "p50_ms": statistics.median(sorted_lats),
             "p95_ms": sorted_lats[int(n * 0.95)] if n >= 2 else sorted_lats[-1],
             "p99_ms": sorted_lats[int(n * 0.99)] if n >= 2 else sorted_lats[-1],
-            "throughput": 1000.0 / statistics.mean(sorted_lats) if statistics.mean(sorted_lats) > 0 else 0,
+            "throughput": 1000.0 / statistics.mean(sorted_lats)
+            if statistics.mean(sorted_lats) > 0
+            else 0,
             "iterations": n,
         }
 
@@ -248,20 +245,28 @@ class BenchmarkSuite:
         # Per-broker summary
         for broker, summary in sorted(report.broker_summaries.items()):
             lines.append(f"Broker: {broker}")
-            lines.append(f"  Tests: {summary['tests']} | Passed: {summary['passed']} | Failed: {summary['failed']}")
+            lines.append(
+                f"  Tests: {summary['tests']} | Passed: {summary['passed']} | Failed: {summary['failed']}"
+            )
             if summary["latencies"]:
-                lines.append(f"  Latency: avg={summary['avg_ms']:.1f}ms  p50={summary['p50_ms']:.1f}ms  p95={summary['p95_ms']:.1f}ms  p99={summary['p99_ms']:.1f}ms")
+                lines.append(
+                    f"  Latency: avg={summary['avg_ms']:.1f}ms  p50={summary['p50_ms']:.1f}ms  p95={summary['p95_ms']:.1f}ms  p99={summary['p99_ms']:.1f}ms"
+                )
             lines.append("")
 
         # Per-test breakdown
         lines.append("-" * 70)
-        lines.append(f"{'Test':<20} {'Broker':<10} {'Symbol':<12} {'Avg(ms)':>10} {'P50(ms)':>10} {'P95(ms)':>10} {'Status':>8}")
+        lines.append(
+            f"{'Test':<20} {'Broker':<10} {'Symbol':<12} {'Avg(ms)':>10} {'P50(ms)':>10} {'P95(ms)':>10} {'Status':>8}"
+        )
         lines.append("-" * 70)
 
         for r in report.results:
             status = "OK" if r.success else "FAIL"
             avg = f"{r.latency_ms:.1f}" if r.success else r.error[:10]
-            lines.append(f"{r.test_name:<20} {r.broker:<10} {r.symbol:<12} {avg:>10} {r.metadata.get('p50_ms', 0):>10.1f} {r.metadata.get('p95_ms', 0):>10.1f} {status:>8}")
+            lines.append(
+                f"{r.test_name:<20} {r.broker:<10} {r.symbol:<12} {avg:>10} {r.metadata.get('p50_ms', 0):>10.1f} {r.metadata.get('p95_ms', 0):>10.1f} {status:>8}"
+            )
 
         lines.append("=" * 70)
         return "\n".join(lines)

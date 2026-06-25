@@ -15,7 +15,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from decimal import Decimal
-from typing import Sequence
 
 
 @dataclass(frozen=True)
@@ -40,9 +39,7 @@ class ChunkRecord:
     bars_fetched: int
     error: str | None = None
     fetch_latency_ms: float = 0.0
-    fetched_at: datetime = field(
-        default_factory=lambda: datetime.now(tz=timezone.utc)
-    )
+    fetched_at: datetime = field(default_factory=lambda: datetime.now(tz=timezone.utc))
 
     @property
     def succeeded(self) -> bool:
@@ -79,7 +76,7 @@ class ConflictRecord:
     primary_close: Decimal
     secondary_close: Decimal
     delta_pct: Decimal
-    resolution: str    # "prefer_primary" | "prefer_newest" | "flagged"
+    resolution: str  # "prefer_primary" | "prefer_newest" | "flagged"
 
 
 @dataclass
@@ -104,9 +101,7 @@ class ProvenanceLedger:
     merge_strategy: str = "prefer_primary"
     degraded: bool = False
     degraded_reason: str = ""
-    created_at: datetime = field(
-        default_factory=lambda: datetime.now(tz=timezone.utc)
-    )
+    created_at: datetime = field(default_factory=lambda: datetime.now(tz=timezone.utc))
 
     def add_chunk(self, chunk: ChunkRecord) -> None:
         self.chunks.append(chunk)

@@ -23,8 +23,8 @@ from typing import TYPE_CHECKING
 
 from cachetools import TTLCache
 
-from infrastructure.state_machine import IllegalTransitionError, StateMachine
 from domain.types import ORDER_STATUS_TRANSITIONS, OrderStatus
+from infrastructure.state_machine import IllegalTransitionError, StateMachine
 
 if TYPE_CHECKING:
     pass
@@ -58,7 +58,7 @@ class OrderStateValidator:
         ttl_seconds: int = 86400,
     ) -> None:
         """Initialize the state validator.
-        
+
         Parameters
         ----------
         transitions:

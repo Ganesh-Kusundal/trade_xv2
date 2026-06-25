@@ -8,10 +8,8 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from domain import OrderType, ProductType, Side
 from application.execution.execution_mode_adapter import (
     ExecutionModeAdapter,
-    ReplayOMSAdapter,
     create_execution_adapter,
 )
 from application.execution.simulated_fill import (
@@ -22,6 +20,7 @@ from application.execution.simulated_fill import (
 )
 from application.oms.context import TradingContext
 from application.oms.order_manager import OmsOrderCommand
+from domain import OrderType, ProductType, Side
 
 if TYPE_CHECKING:
     pass
@@ -189,7 +188,9 @@ class OmsBacktestAdapter:
         """Modify an open order. Returns True if modification accepted."""
         for order in self._orders:
             if order.order_id == order_id and not order.is_complete:
-                logger.info("backtest_order_modified: %s price=%s qty=%s", order_id, price, quantity)
+                logger.info(
+                    "backtest_order_modified: %s price=%s qty=%s", order_id, price, quantity
+                )
                 return True
         return False
 

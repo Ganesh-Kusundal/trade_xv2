@@ -15,22 +15,26 @@ def _write_parquet(path: Path, df: pd.DataFrame) -> None:
     df.to_parquet(path, index=False)
 
 
-def _make_canonical_df(n: int = 100, symbol: str = "TEST", start: str = "2026-01-01") -> pd.DataFrame:
+def _make_canonical_df(
+    n: int = 100, symbol: str = "TEST", start: str = "2026-01-01"
+) -> pd.DataFrame:
     """Create a canonical DataFrame with valid OHLCV data."""
     np.random.seed(42)
     dates = pd.date_range(start, periods=n, freq="1min")
     close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-    return pd.DataFrame({
-        "timestamp": dates,
-        "symbol": symbol,
-        "exchange": "NSE",
-        "open": close + np.random.randn(n) * 0.2,
-        "high": close + np.abs(np.random.randn(n) * 0.5),
-        "low": close - np.abs(np.random.randn(n) * 0.5),
-        "close": close,
-        "volume": np.random.randint(1000, 10000, n),
-        "oi": np.zeros(n, dtype=np.int64),
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": dates,
+            "symbol": symbol,
+            "exchange": "NSE",
+            "open": close + np.random.randn(n) * 0.2,
+            "high": close + np.abs(np.random.randn(n) * 0.5),
+            "low": close - np.abs(np.random.randn(n) * 0.5),
+            "close": close,
+            "volume": np.random.randint(1000, 10000, n),
+            "oi": np.zeros(n, dtype=np.int64),
+        }
+    )
 
 
 class TestQualityReport:
@@ -60,7 +64,9 @@ class TestCheckMissingSymbol:
 class TestCheckValidSymbol:
     def test_valid_symbol(self, tmp_path: Path) -> None:
         df = _make_canonical_df(n=500)
-        parquet_path = tmp_path / "equities" / "candles" / "timeframe=1m" / "symbol=TEST" / "data.parquet"
+        parquet_path = (
+            tmp_path / "equities" / "candles" / "timeframe=1m" / "symbol=TEST" / "data.parquet"
+        )
         _write_parquet(parquet_path, df)
 
         engine = DataQualityEngine(root=str(tmp_path))
@@ -72,7 +78,9 @@ class TestCheckValidSymbol:
         assert report.max_date is not None
 
     def test_empty_file(self, tmp_path: Path) -> None:
-        parquet_path = tmp_path / "equities" / "candles" / "timeframe=1m" / "symbol=TEST" / "data.parquet"
+        parquet_path = (
+            tmp_path / "equities" / "candles" / "timeframe=1m" / "symbol=TEST" / "data.parquet"
+        )
         _write_parquet(parquet_path, pd.DataFrame())
 
         engine = DataQualityEngine(root=str(tmp_path))
@@ -87,7 +95,9 @@ class TestCheckDuplicates:
         dup = df.iloc[:5]
         df = pd.concat([df, dup], ignore_index=True)
 
-        parquet_path = tmp_path / "equities" / "candles" / "timeframe=1m" / "symbol=TEST" / "data.parquet"
+        parquet_path = (
+            tmp_path / "equities" / "candles" / "timeframe=1m" / "symbol=TEST" / "data.parquet"
+        )
         _write_parquet(parquet_path, df)
 
         engine = DataQualityEngine(root=str(tmp_path))
@@ -104,7 +114,9 @@ class TestCheckOHLConsistency:
         df.loc[0, "high"] = 50.0
         df.loc[0, "low"] = 200.0
 
-        parquet_path = tmp_path / "equities" / "candles" / "timeframe=1m" / "symbol=TEST" / "data.parquet"
+        parquet_path = (
+            tmp_path / "equities" / "candles" / "timeframe=1m" / "symbol=TEST" / "data.parquet"
+        )
         _write_parquet(parquet_path, df)
 
         engine = DataQualityEngine(root=str(tmp_path))
@@ -119,7 +131,9 @@ class TestCheckZeroVolume:
         df.loc[0, "volume"] = 0
         df.loc[1, "volume"] = 0
 
-        parquet_path = tmp_path / "equities" / "candles" / "timeframe=1m" / "symbol=TEST" / "data.parquet"
+        parquet_path = (
+            tmp_path / "equities" / "candles" / "timeframe=1m" / "symbol=TEST" / "data.parquet"
+        )
         _write_parquet(parquet_path, df)
 
         engine = DataQualityEngine(root=str(tmp_path))
@@ -139,12 +153,20 @@ class TestCheckUniverse:
         # Create data for both symbols
         for sym in ["SYM_A", "SYM_B"]:
             df = _make_canonical_df(n=100, symbol=sym)
-            parquet_path = tmp_path / "equities" / "candles" / "timeframe=1m" / f"symbol={sym}" / "data.parquet"
+            parquet_path = (
+                tmp_path
+                / "equities"
+                / "candles"
+                / "timeframe=1m"
+                / f"symbol={sym}"
+                / "data.parquet"
+            )
             _write_parquet(parquet_path, df)
 
         engine = DataQualityEngine(root=str(tmp_path))
         # Monkey-patch UNIVERSE_FILES to use our test CSV
         from datalake.schema import UNIVERSE_FILES
+
         UNIVERSE_FILES["TEST5"] = str(csv_path)
 
         reports = engine.check_universe("TEST5")
@@ -159,7 +181,9 @@ class TestCheckWithCatalog:
         from datalake.catalog import DataCatalog
 
         df = _make_canonical_df(n=100)
-        parquet_path = tmp_path / "equities" / "candles" / "timeframe=1m" / "symbol=TEST" / "data.parquet"
+        parquet_path = (
+            tmp_path / "equities" / "candles" / "timeframe=1m" / "symbol=TEST" / "data.parquet"
+        )
         _write_parquet(parquet_path, df)
 
         catalog = DataCatalog(root=str(tmp_path))
@@ -167,8 +191,6 @@ class TestCheckWithCatalog:
         engine.check("TEST")
 
         # Should have recorded quality in catalog
-        result = catalog.conn.execute(
-            "SELECT * FROM data_quality WHERE symbol = 'TEST'"
-        ).fetchone()
+        result = catalog.conn.execute("SELECT * FROM data_quality WHERE symbol = 'TEST'").fetchone()
         assert result is not None
         catalog.close()

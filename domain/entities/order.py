@@ -8,6 +8,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any, Protocol
 
+from domain.status_mapper import StatusMapperRegistry
 from domain.types import (
     OrderStatus,
     OrderType,
@@ -15,7 +16,6 @@ from domain.types import (
     Side,
     Validity,
 )
-from domain.status_mapper import StatusMapperRegistry
 
 
 class FieldMapping(Protocol):

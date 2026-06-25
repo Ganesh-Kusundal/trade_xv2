@@ -6,16 +6,10 @@ registry, router, coordinator, and stream orchestrator with real components.
 
 from __future__ import annotations
 
-import asyncio
+from collections.abc import Callable, Sequence
 from datetime import date, datetime, timezone
 from decimal import Decimal
-from typing import Callable, Sequence
 
-from domain.entities import Balance, Order, OrderResponse, Position, Quote, Trade
-from domain.entities.market import MarketDepth
-from domain.historical import HistoricalBar, InstrumentRef
-from domain.provenance import DataProvenance
-from domain.requests import ModifyOrderRequest, OrderRequest
 from brokers.common.broker_port import (
     BrokerHealthSnapshot,
     BrokerStreamHandle,
@@ -24,6 +18,11 @@ from brokers.common.broker_port import (
     QuotaToken,
 )
 from brokers.common.capabilities import BrokerCapabilities, CapabilityDescriptor
+from domain.entities import Balance, Order, OrderResponse, Position, Quote, Trade
+from domain.entities.market import MarketDepth
+from domain.historical import HistoricalBar, InstrumentRef
+from domain.provenance import DataProvenance
+from domain.requests import ModifyOrderRequest, OrderRequest
 
 
 def _bar(
@@ -79,9 +78,7 @@ class InMemoryBrokerGateway:
         capabilities: BrokerCapabilities,
         *,
         extensions: frozenset[str] = frozenset(),
-        historical_fn: Callable[
-            [HistoricalBarRequest, QuotaToken], Sequence[HistoricalBar]
-        ]
+        historical_fn: Callable[[HistoricalBarRequest, QuotaToken], Sequence[HistoricalBar]]
         | None = None,
         fail_historical: bool = False,
         alive: bool = True,
@@ -104,9 +101,7 @@ class InMemoryBrokerGateway:
     def supports(self, feature: str) -> bool:
         return self._capabilities.supports(feature)
 
-    async def place_order(
-        self, request: OrderRequest, *, quota: QuotaToken
-    ) -> OrderResponse:
+    async def place_order(self, request: OrderRequest, *, quota: QuotaToken) -> OrderResponse:
         return OrderResponse.ok(order_id="test-order-1")
 
     async def cancel_order(self, order_id: str, *, quota: QuotaToken) -> OrderResponse:
@@ -129,9 +124,7 @@ class InMemoryBrokerGateway:
     async def get_trades(self, *, quota: QuotaToken) -> list[Trade]:
         return []
 
-    async def get_quote_snapshot(
-        self, instrument: InstrumentRef, *, quota: QuotaToken
-    ) -> Quote:
+    async def get_quote_snapshot(self, instrument: InstrumentRef, *, quota: QuotaToken) -> Quote:
         return Quote(symbol=instrument.symbol, ltp=Decimal("100"))
 
     async def get_depth_snapshot(

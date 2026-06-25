@@ -1,9 +1,9 @@
 """Integration tests for replay endpoints wired to real ReplayEngine."""
 
 from __future__ import annotations
-from contextlib import contextmanager
 
 import threading
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
@@ -11,9 +11,9 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
-from api.main import create_app
 from api.config import APIConfig
 from api.deps import reset_container
+from api.main import create_app
 
 
 def _build_sample_ohlcv(n_bars: int = 50) -> pd.DataFrame:
@@ -25,14 +25,16 @@ def _build_sample_ohlcv(n_bars: int = 50) -> pd.DataFrame:
     base_price = 1000.0
     prices = base_price + 30 * np.sin(t)
 
-    df = pd.DataFrame({
-        "timestamp": dates,
-        "open": prices - 1,
-        "high": prices + 2,
-        "low": prices - 2,
-        "close": prices,
-        "volume": 10000 + 1000 * np.sin(t),
-    })
+    df = pd.DataFrame(
+        {
+            "timestamp": dates,
+            "open": prices - 1,
+            "high": prices + 2,
+            "low": prices - 2,
+            "close": prices,
+            "volume": 10000 + 1000 * np.sin(t),
+        }
+    )
     return df
 
 
@@ -40,6 +42,7 @@ def _build_sample_ohlcv(n_bars: int = 50) -> pd.DataFrame:
 def isolate_replay_state():
     """Reset replay session store and container before each test."""
     import api.routers.replay as replay_mod
+
     replay_mod._session_store = replay_mod.ReplaySessionStore()
     reset_container()
     yield
@@ -72,6 +75,7 @@ class TestReplaySessionLifecycle:
     @pytest.fixture(autouse=True)
     def setup_isolation(self):
         import api.routers.replay as replay_mod
+
         replay_mod._session_store = replay_mod.ReplaySessionStore()
         reset_container()
         yield
@@ -84,7 +88,13 @@ class TestReplaySessionLifecycle:
         with _make_client_with_gateway() as client:
             response = client.post(
                 "/api/v1/replay/sessions",
-                json={"symbol": "RELIANCE", "date": "2024-01-15", "timeframe": "1m", "universe": "NIFTY50", "speed": 5},
+                json={
+                    "symbol": "RELIANCE",
+                    "date": "2024-01-15",
+                    "timeframe": "1m",
+                    "universe": "NIFTY50",
+                    "speed": 5,
+                },
             )
             assert response.status_code == 200
             data = response.json()
@@ -110,8 +120,14 @@ class TestReplaySessionLifecycle:
 
     def test_list_sessions_shows_created(self):
         with _make_client_with_gateway() as client:
-            client.post("/api/v1/replay/sessions", json={"symbol": "RELIANCE", "date": "2024-01-15", "timeframe": "1m"})
-            client.post("/api/v1/replay/sessions", json={"symbol": "TCS", "date": "2024-01-15", "timeframe": "1m"})
+            client.post(
+                "/api/v1/replay/sessions",
+                json={"symbol": "RELIANCE", "date": "2024-01-15", "timeframe": "1m"},
+            )
+            client.post(
+                "/api/v1/replay/sessions",
+                json={"symbol": "TCS", "date": "2024-01-15", "timeframe": "1m"},
+            )
             response = client.get("/api/v1/replay/sessions")
             assert response.json()["count"] == 2
 
@@ -120,6 +136,7 @@ class TestReplayPlayWithRealEngine:
     @pytest.fixture(autouse=True)
     def setup_isolation(self):
         import api.routers.replay as replay_mod
+
         replay_mod._session_store = replay_mod.ReplaySessionStore()
         reset_container()
         yield
@@ -172,6 +189,7 @@ class TestReplayPauseAndStop:
     @pytest.fixture(autouse=True)
     def setup_isolation(self):
         import api.routers.replay as replay_mod
+
         replay_mod._session_store = replay_mod.ReplaySessionStore()
         reset_container()
         yield
@@ -180,7 +198,10 @@ class TestReplayPauseAndStop:
 
     def test_pause_session(self):
         with _make_client_with_gateway() as client:
-            create_resp = client.post("/api/v1/replay/sessions", json={"symbol": "RELIANCE", "date": "2024-01-15", "timeframe": "1m"})
+            create_resp = client.post(
+                "/api/v1/replay/sessions",
+                json={"symbol": "RELIANCE", "date": "2024-01-15", "timeframe": "1m"},
+            )
             session_id = create_resp.json()["session_id"]
             response = client.post(f"/api/v1/replay/sessions/{session_id}/pause")
             assert response.status_code == 200
@@ -188,7 +209,10 @@ class TestReplayPauseAndStop:
 
     def test_stop_session(self):
         with _make_client_with_gateway() as client:
-            create_resp = client.post("/api/v1/replay/sessions", json={"symbol": "RELIANCE", "date": "2024-01-15", "timeframe": "1m"})
+            create_resp = client.post(
+                "/api/v1/replay/sessions",
+                json={"symbol": "RELIANCE", "date": "2024-01-15", "timeframe": "1m"},
+            )
             session_id = create_resp.json()["session_id"]
             response = client.post(f"/api/v1/replay/sessions/{session_id}/stop")
             assert response.status_code == 200
@@ -208,6 +232,7 @@ class TestReplaySpeedControl:
     @pytest.fixture(autouse=True)
     def setup_isolation(self):
         import api.routers.replay as replay_mod
+
         replay_mod._session_store = replay_mod.ReplaySessionStore()
         reset_container()
         yield
@@ -216,28 +241,47 @@ class TestReplaySpeedControl:
 
     def test_set_valid_speed(self):
         with _make_client_with_gateway() as client:
-            create_resp = client.post("/api/v1/replay/sessions", json={"symbol": "RELIANCE", "date": "2024-01-15", "timeframe": "1m"})
+            create_resp = client.post(
+                "/api/v1/replay/sessions",
+                json={"symbol": "RELIANCE", "date": "2024-01-15", "timeframe": "1m"},
+            )
             session_id = create_resp.json()["session_id"]
-            response = client.post(f"/api/v1/replay/sessions/{session_id}/speed", json={"action": "set_speed", "speed": 10})
+            response = client.post(
+                f"/api/v1/replay/sessions/{session_id}/speed",
+                json={"action": "set_speed", "speed": 10},
+            )
             assert response.status_code == 200
             assert response.json()["speed"] == 10
 
     def test_set_invalid_speed_returns_400(self):
         with _make_client_with_gateway() as client:
-            create_resp = client.post("/api/v1/replay/sessions", json={"symbol": "RELIANCE", "date": "2024-01-15", "timeframe": "1m"})
+            create_resp = client.post(
+                "/api/v1/replay/sessions",
+                json={"symbol": "RELIANCE", "date": "2024-01-15", "timeframe": "1m"},
+            )
             session_id = create_resp.json()["session_id"]
-            response = client.post(f"/api/v1/replay/sessions/{session_id}/speed", json={"action": "set_speed", "speed": 99})
+            response = client.post(
+                f"/api/v1/replay/sessions/{session_id}/speed",
+                json={"action": "set_speed", "speed": 99},
+            )
             assert response.status_code == 400
 
     def test_set_speed_nonexistent_session_returns_404(self):
         with _make_client_with_gateway() as client:
-            assert client.post("/api/v1/replay/sessions/fake_session/speed", json={"action": "set_speed", "speed": 5}).status_code == 404
+            assert (
+                client.post(
+                    "/api/v1/replay/sessions/fake_session/speed",
+                    json={"action": "set_speed", "speed": 5},
+                ).status_code
+                == 404
+            )
 
 
 class TestReplaySeek:
     @pytest.fixture(autouse=True)
     def setup_isolation(self):
         import api.routers.replay as replay_mod
+
         replay_mod._session_store = replay_mod.ReplaySessionStore()
         reset_container()
         yield
@@ -246,22 +290,36 @@ class TestReplaySeek:
 
     def test_seek_updates_progress(self):
         with _make_client_with_gateway() as client:
-            create_resp = client.post("/api/v1/replay/sessions", json={"symbol": "RELIANCE", "date": "2024-01-15", "timeframe": "1m"})
+            create_resp = client.post(
+                "/api/v1/replay/sessions",
+                json={"symbol": "RELIANCE", "date": "2024-01-15", "timeframe": "1m"},
+            )
             session_id = create_resp.json()["session_id"]
-            mid_day_ts = int(datetime(2024, 1, 15, 12, 0, 0, tzinfo=timezone.utc).timestamp() * 1000)
-            response = client.post(f"/api/v1/replay/sessions/{session_id}/seek", params={"timestamp_ms": mid_day_ts})
+            mid_day_ts = int(
+                datetime(2024, 1, 15, 12, 0, 0, tzinfo=timezone.utc).timestamp() * 1000
+            )
+            response = client.post(
+                f"/api/v1/replay/sessions/{session_id}/seek", params={"timestamp_ms": mid_day_ts}
+            )
             assert response.status_code == 200
             assert response.json()["progress"] >= 0.0
 
     def test_seek_nonexistent_session_returns_404(self):
         with _make_client_with_gateway() as client:
-            assert client.post("/api/v1/replay/sessions/fake_session/seek", params={"timestamp_ms": 1705300000000}).status_code == 404
+            assert (
+                client.post(
+                    "/api/v1/replay/sessions/fake_session/seek",
+                    params={"timestamp_ms": 1705300000000},
+                ).status_code
+                == 404
+            )
 
 
 class TestReplayStateValidation:
     @pytest.fixture(autouse=True)
     def setup_isolation(self):
         import api.routers.replay as replay_mod
+
         replay_mod._session_store = replay_mod.ReplaySessionStore()
         reset_container()
         yield
@@ -270,7 +328,10 @@ class TestReplayStateValidation:
 
     def test_cannot_play_stopped_session(self):
         with _make_client_with_gateway() as client:
-            create_resp = client.post("/api/v1/replay/sessions", json={"symbol": "RELIANCE", "date": "2024-01-15", "timeframe": "1m"})
+            create_resp = client.post(
+                "/api/v1/replay/sessions",
+                json={"symbol": "RELIANCE", "date": "2024-01-15", "timeframe": "1m"},
+            )
             session_id = create_resp.json()["session_id"]
             client.post(f"/api/v1/replay/sessions/{session_id}/stop")
             response = client.post(f"/api/v1/replay/sessions/{session_id}/play")
@@ -278,7 +339,10 @@ class TestReplayStateValidation:
 
     def test_cannot_play_completed_session(self):
         with _make_client_with_gateway() as client:
-            create_resp = client.post("/api/v1/replay/sessions", json={"symbol": "RELIANCE", "date": "2024-01-15", "timeframe": "1m"})
+            create_resp = client.post(
+                "/api/v1/replay/sessions",
+                json={"symbol": "RELIANCE", "date": "2024-01-15", "timeframe": "1m"},
+            )
             session_id = create_resp.json()["session_id"]
             client.post(f"/api/v1/replay/sessions/{session_id}/play")
             response = client.post(f"/api/v1/replay/sessions/{session_id}/play")
@@ -286,7 +350,10 @@ class TestReplayStateValidation:
 
     def test_can_pause_after_play(self):
         with _make_client_with_gateway() as client:
-            create_resp = client.post("/api/v1/replay/sessions", json={"symbol": "RELIANCE", "date": "2024-01-15", "timeframe": "1m"})
+            create_resp = client.post(
+                "/api/v1/replay/sessions",
+                json={"symbol": "RELIANCE", "date": "2024-01-15", "timeframe": "1m"},
+            )
             session_id = create_resp.json()["session_id"]
             client.post(f"/api/v1/replay/sessions/{session_id}/play")
             response = client.post(f"/api/v1/replay/sessions/{session_id}/pause")
@@ -297,6 +364,7 @@ class TestReplayDeterministicResults:
     @pytest.fixture(autouse=True)
     def setup_isolation(self):
         import api.routers.replay as replay_mod
+
         replay_mod._session_store = replay_mod.ReplaySessionStore()
         reset_container()
         yield
@@ -305,13 +373,17 @@ class TestReplayDeterministicResults:
 
     def test_same_data_produces_same_trades(self):
         with _make_client_with_gateway() as tc:
-            sample_df = _build_sample_ohlcv(50)
+            _build_sample_ohlcv(50)
             results = []
             for _ in range(2):
                 reset_container()
                 import api.routers.replay as replay_mod
+
                 replay_mod._session_store = replay_mod.ReplaySessionStore()
-                create_resp = tc.post("/api/v1/replay/sessions", json={"symbol": "RELIANCE", "date": "2024-01-15", "timeframe": "1m"})
+                create_resp = tc.post(
+                    "/api/v1/replay/sessions",
+                    json={"symbol": "RELIANCE", "date": "2024-01-15", "timeframe": "1m"},
+                )
                 session_id = create_resp.json()["session_id"]
                 play_resp = tc.post(f"/api/v1/replay/sessions/{session_id}/play")
                 results.append(play_resp.json())
@@ -324,6 +396,7 @@ class TestReplayErrorHandling:
     @pytest.fixture(autouse=True)
     def setup_isolation(self):
         import api.routers.replay as replay_mod
+
         replay_mod._session_store = replay_mod.ReplaySessionStore()
         reset_container()
         yield
@@ -332,7 +405,10 @@ class TestReplayErrorHandling:
 
     def test_gateway_unavailable_handles_gracefully(self):
         with _make_client_no_gateway() as client:
-            create_resp = client.post("/api/v1/replay/sessions", json={"symbol": "RELIANCE", "date": "2024-01-15", "timeframe": "1m"})
+            create_resp = client.post(
+                "/api/v1/replay/sessions",
+                json={"symbol": "RELIANCE", "date": "2024-01-15", "timeframe": "1m"},
+            )
             session_id = create_resp.json()["session_id"]
             response = client.post(f"/api/v1/replay/sessions/{session_id}/play")
             assert response.status_code == 200
@@ -341,7 +417,10 @@ class TestReplayErrorHandling:
         with _make_client_with_gateway() as client:
             gateway = MagicMock()
             gateway.history.side_effect = ValueError("Symbol not found")
-            create_resp = client.post("/api/v1/replay/sessions", json={"symbol": "INVALID", "date": "2024-01-15", "timeframe": "1m"})
+            create_resp = client.post(
+                "/api/v1/replay/sessions",
+                json={"symbol": "INVALID", "date": "2024-01-15", "timeframe": "1m"},
+            )
             session_id = create_resp.json()["session_id"]
             response = client.post(f"/api/v1/replay/sessions/{session_id}/play")
             assert response.status_code == 200
@@ -351,6 +430,7 @@ class TestReplayConcurrency:
     @pytest.fixture(autouse=True)
     def setup_isolation(self):
         import api.routers.replay as replay_mod
+
         replay_mod._session_store = replay_mod.ReplaySessionStore()
         reset_container()
         yield
@@ -360,14 +440,23 @@ class TestReplayConcurrency:
     def test_concurrent_session_creation(self):
         with _make_client_with_gateway() as client:
             errors = []
+
             def create_session(symbol):
                 try:
-                    resp = client.post("/api/v1/replay/sessions", json={"symbol": symbol, "date": "2024-01-15", "timeframe": "1m"})
+                    resp = client.post(
+                        "/api/v1/replay/sessions",
+                        json={"symbol": symbol, "date": "2024-01-15", "timeframe": "1m"},
+                    )
                     assert resp.status_code == 200
                 except Exception as e:
                     errors.append(e)
-            threads = [threading.Thread(target=create_session, args=(f"SYM{i}",)) for i in range(10)]
-            for t in threads: t.start()
-            for t in threads: t.join()
+
+            threads = [
+                threading.Thread(target=create_session, args=(f"SYM{i}",)) for i in range(10)
+            ]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
             assert not errors
             assert client.get("/api/v1/replay/sessions").json()["count"] == 10

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import inspect
 
 
@@ -13,10 +14,8 @@ def _get_public_methods(cls: type) -> dict[str, inspect.Signature]:
             continue
         obj = getattr(cls, name, None)
         if callable(obj) and not isinstance(obj, property | staticmethod | classmethod):
-            try:
+            with contextlib.suppress(ValueError, TypeError):
                 methods[name] = inspect.signature(obj)
-            except (ValueError, TypeError):
-                pass
     return methods
 
 

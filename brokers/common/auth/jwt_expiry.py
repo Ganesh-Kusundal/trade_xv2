@@ -28,6 +28,14 @@ class JwtExpiry:
             return -1
 
     @staticmethod
+    def parse_expiry_datetime(jwt: str | None) -> datetime | None:
+        """Parse JWT exp claim and return as naive local datetime, or None on failure."""
+        exp_ms = JwtExpiry.parse_expiry_epoch_ms(jwt)
+        if exp_ms < 0:
+            return None
+        return datetime.fromtimestamp(exp_ms / 1000)
+
+    @staticmethod
     def is_expired(jwt: str | None, clock_skew_ms: int = 0) -> bool:
         """Check whether *jwt* has expired (or will within *clock_skew_ms*)."""
         exp_ms = JwtExpiry.parse_expiry_epoch_ms(jwt)

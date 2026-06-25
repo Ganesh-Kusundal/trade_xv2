@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Response
 
@@ -34,7 +34,11 @@ async def live_ltp(
     gw: Any = Depends(require_live_broker),
 ) -> dict[str, Any]:
     apply_live_headers(response, get_live_broker_name())
-    return {"symbol": symbol, "exchange": exchange, "ltp": serialize_value(gw.ltp(symbol, exchange))}
+    return {
+        "symbol": symbol,
+        "exchange": exchange,
+        "ltp": serialize_value(gw.ltp(symbol, exchange)),
+    }
 
 
 @router.get("/depth/{symbol}")

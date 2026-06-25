@@ -112,10 +112,10 @@ class TestDhanDepth200Feed:
             access_token="TOKEN",
         )
 
-        assert hasattr(feed, 'name')
-        assert hasattr(feed, 'start')
-        assert hasattr(feed, 'stop')
-        assert hasattr(feed, 'health')
+        assert hasattr(feed, "name")
+        assert hasattr(feed, "start")
+        assert hasattr(feed, "stop")
+        assert hasattr(feed, "health")
         assert feed.name == "dhan.depth_200"
 
     def test_depth_200_health_not_started(self):

@@ -10,10 +10,9 @@ from decimal import Decimal
 
 import pytest
 
-from brokers.paper.paper_gateway import PaperGateway
 from brokers.paper.mock_broker import create_seeded_mock_broker
+from brokers.paper.paper_gateway import PaperGateway
 from tests.e2e.fixtures.trading_context_factory import create_paper_trading_context
-
 
 # ---------------------------------------------------------------------------
 # Pytest fixtures

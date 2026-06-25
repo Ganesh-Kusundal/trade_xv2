@@ -32,8 +32,9 @@ from __future__ import annotations
 import logging
 import threading
 import time as _time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
+from application.oms.risk_manager import RiskManager
 from domain.constants import (
     DAILY_PNL_POLL_INTERVAL_SECONDS,
     DAILY_PNL_ROLLOVER_HOUR_IST,
@@ -46,7 +47,6 @@ from infrastructure.lifecycle.lifecycle import (
     ManagedService,
     now_monotonic,
 )
-from application.oms.risk_manager import RiskManager
 
 logger = logging.getLogger(__name__)
 
@@ -86,13 +86,9 @@ class DailyPnlResetScheduler(ManagedService):
         poll_interval_seconds: float = _DEFAULT_POLL_INTERVAL_SECONDS,
     ) -> None:
         if not 0 <= rollover_hour_ist <= 23:
-            raise ValueError(
-                f"rollover_hour_ist must be in 0..23, got {rollover_hour_ist}"
-            )
+            raise ValueError(f"rollover_hour_ist must be in 0..23, got {rollover_hour_ist}")
         if poll_interval_seconds <= 0:
-            raise ValueError(
-                f"poll_interval_seconds must be positive, got {poll_interval_seconds}"
-            )
+            raise ValueError(f"poll_interval_seconds must be positive, got {poll_interval_seconds}")
         self._risk_manager = risk_manager
         self._rollover_hour = rollover_hour_ist
         self._poll_interval = poll_interval_seconds

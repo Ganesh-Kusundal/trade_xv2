@@ -6,13 +6,7 @@ Tests verify real data flows through ScannerRunner and scan results.
 
 from __future__ import annotations
 
-import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import MagicMock, patch
-from datetime import datetime
-
-from analytics.scanner.models import Candidate, ScanResult
-from analytics.scanner.runner import ScannerRunner, ScannerTaskResult
 
 
 class TestScannerResultsEndpoint:
@@ -56,18 +50,14 @@ class TestRunScanEndpoint:
     def test_run_scan_with_valid_scanner(self, client: TestClient):
         """Should accept scanner run request."""
         response = client.post(
-            "/api/v1/scanner/run",
-            params={"scanner_name": "momentum", "universe": "NIFTY500"}
+            "/api/v1/scanner/run", params={"scanner_name": "momentum", "universe": "NIFTY500"}
         )
         # Will return 200 once wired, or 503 if service unavailable
         assert response.status_code in (200, 503)
 
     def test_run_scan_returns_scan_id(self, client: TestClient):
         """Should return a scan_id for tracking."""
-        response = client.post(
-            "/api/v1/scanner/run",
-            params={"scanner_name": "momentum"}
-        )
+        response = client.post("/api/v1/scanner/run", params={"scanner_name": "momentum"})
         if response.status_code == 200:
             data = response.json()
             assert "scan_id" in data or "status" in data

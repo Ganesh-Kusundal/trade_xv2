@@ -10,6 +10,7 @@ in ``cli/commands/journal.py`` and tests keep working without modification.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import sqlite3
@@ -101,7 +102,9 @@ class TradeJournal:
                 if self._is_healthy(conn):
                     return conn
                 else:
-                    logger.warning("TradeJournal: stale connection for thread %d, reconnecting", tid)
+                    logger.warning(
+                        "TradeJournal: stale connection for thread %d, reconnecting", tid
+                    )
                     try:
                         conn.close()
                     except Exception as exc:
@@ -172,10 +175,19 @@ class TradeJournal:
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
-                trade_id, symbol.upper(), strategy,
-                _iso(entry_time), _iso(exit_time),
-                entry_price, exit_price, quantity, side,
-                pnl, pnl_pct, status, notes,
+                trade_id,
+                symbol.upper(),
+                strategy,
+                _iso(entry_time),
+                _iso(exit_time),
+                entry_price,
+                exit_price,
+                quantity,
+                side,
+                pnl,
+                pnl_pct,
+                status,
+                notes,
                 json.dumps(metadata) if metadata else None,
             ],
         )
@@ -217,9 +229,7 @@ class TradeJournal:
     def get_trade(self, trade_id: str) -> dict | None:
         """Get a single trade by ID."""
         conn = self._ensure_conn()
-        row = conn.execute(
-            "SELECT * FROM trade_journal WHERE trade_id = ?", [trade_id]
-        ).fetchone()
+        row = conn.execute("SELECT * FROM trade_journal WHERE trade_id = ?", [trade_id]).fetchone()
         return _row_to_dict(row) if row else None
 
     def get_trades(
@@ -289,6 +299,7 @@ class TradeJournal:
             "win_rate": win_rate,
         }
 
+
 def _iso(value: datetime | None) -> str | None:
     """Serialize a datetime as ISO 8601 string (matching DuckDB's TIMESTAMP format)."""
     return value.isoformat() if value is not None else None
@@ -298,8 +309,6 @@ def _row_to_dict(row: sqlite3.Row) -> dict:
     """Convert a Row to a dict, parsing JSON metadata back to a Python object."""
     d = dict(row)
     if d.get("metadata"):
-        try:
+        with contextlib.suppress(json.JSONDecodeError, TypeError):
             d["metadata"] = json.loads(d["metadata"])
-        except (json.JSONDecodeError, TypeError):
-            pass
     return d

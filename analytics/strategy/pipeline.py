@@ -72,7 +72,13 @@ class MomentumStrategy:
 
     def evaluate(self, candidate: Candidate, features: pd.DataFrame) -> Signal:
         if features.empty:
-            return Signal(symbol=candidate.symbol, signal_type=SignalType.HOLD, confidence=0.0, strategy=self.name, reasons=["No data"])
+            return Signal(
+                symbol=candidate.symbol,
+                signal_type=SignalType.HOLD,
+                confidence=0.0,
+                strategy=self.name,
+                reasons=["No data"],
+            )
 
         last = features.iloc[-1]
         rsi = float(last.get("rsi", 50.0))
@@ -115,11 +121,15 @@ class MomentumStrategy:
         # Compute suggested entry/stop/target from ATR if available
         atr = float(last.get("atr", 0.0))
         entry_price = close if close > 0 else None
-        stop_loss = (close - 1.5 * atr) if atr > 0 and signal_type == SignalType.BUY else (
-            (close + 1.5 * atr) if atr > 0 and signal_type == SignalType.SELL else None
+        stop_loss = (
+            (close - 1.5 * atr)
+            if atr > 0 and signal_type == SignalType.BUY
+            else ((close + 1.5 * atr) if atr > 0 and signal_type == SignalType.SELL else None)
         )
-        target = (close + 3.0 * atr) if atr > 0 and signal_type == SignalType.BUY else (
-            (close - 3.0 * atr) if atr > 0 and signal_type == SignalType.SELL else None
+        target = (
+            (close + 3.0 * atr)
+            if atr > 0 and signal_type == SignalType.BUY
+            else ((close - 3.0 * atr) if atr > 0 and signal_type == SignalType.SELL else None)
         )
 
         metadata = {"rsi": rsi, "roc": roc, "atr": atr, "weakened": weakened}
@@ -148,7 +158,13 @@ class BreakoutStrategy:
 
     def evaluate(self, candidate: Candidate, features: pd.DataFrame) -> Signal:
         if features.empty:
-            return Signal(symbol=candidate.symbol, signal_type=SignalType.HOLD, confidence=0.0, strategy=self.name, reasons=["No data"])
+            return Signal(
+                symbol=candidate.symbol,
+                signal_type=SignalType.HOLD,
+                confidence=0.0,
+                strategy=self.name,
+                reasons=["No data"],
+            )
 
         last = features.iloc[-1]
         close = float(last.get("close", 0.0))
@@ -203,7 +219,9 @@ class StrategyPipeline:
         Defaults to [MomentumStrategy, BreakoutStrategy].
     """
 
-    strategies: list[Strategy] = field(default_factory=lambda: [MomentumStrategy(), BreakoutStrategy()])
+    strategies: list[Strategy] = field(
+        default_factory=lambda: [MomentumStrategy(), BreakoutStrategy()]
+    )
 
     def evaluate(
         self,
@@ -242,7 +260,9 @@ class StrategyPipeline:
                     signals.append(signal)
                     evaluated += 1
                 except Exception as exc:
-                    logger.warning("Strategy %s failed on %s: %s", strategy.name, candidate.symbol, exc)
+                    logger.warning(
+                        "Strategy %s failed on %s: %s", strategy.name, candidate.symbol, exc
+                    )
                     signals.append(
                         Signal(
                             symbol=candidate.symbol,
@@ -261,8 +281,13 @@ class StrategyPipeline:
                     evaluated=evaluated,
                 )
             )
-            logger.info("Strategy %s: %d signals (%d actionable) from %d candidates",
-                        strategy.name, len(signals), len([s for s in signals if s.is_actionable]), evaluated)
+            logger.info(
+                "Strategy %s: %d signals (%d actionable) from %d candidates",
+                strategy.name,
+                len(signals),
+                len([s for s in signals if s.is_actionable]),
+                evaluated,
+            )
 
         return results
 

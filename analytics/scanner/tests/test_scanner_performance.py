@@ -26,9 +26,7 @@ from analytics.scanner.scanners import (
 )
 
 
-def _generate_universe(
-    n_symbols: int = 50, n_bars: int = 200, seed: int = 42
-) -> pd.DataFrame:
+def _generate_universe(n_symbols: int = 50, n_bars: int = 200, seed: int = 42) -> pd.DataFrame:
     """Generate synthetic OHLCV universe for performance testing."""
     import numpy as np
 
@@ -43,15 +41,17 @@ def _generate_universe(
         returns = rng.normal(0.0001, 0.002, n_bars)
         price = 100.0 * (1 + returns).cumprod()
 
-        df = pd.DataFrame({
-            "timestamp": timestamps,
-            "symbol": sym,
-            "open": price * (1 + rng.uniform(-0.001, 0.001, n_bars)),
-            "high": price * (1 + rng.uniform(0, 0.003, n_bars)),
-            "low": price * (1 - rng.uniform(0, 0.003, n_bars)),
-            "close": price,
-            "volume": rng.integers(1000, 100000, n_bars),
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": timestamps,
+                "symbol": sym,
+                "open": price * (1 + rng.uniform(-0.001, 0.001, n_bars)),
+                "high": price * (1 + rng.uniform(0, 0.003, n_bars)),
+                "low": price * (1 - rng.uniform(0, 0.003, n_bars)),
+                "close": price,
+                "volume": rng.integers(1000, 100000, n_bars),
+            }
+        )
         frames.append(df)
 
     return pd.concat(frames, ignore_index=True)
@@ -272,14 +272,16 @@ class TestScannerEdgeCases:
     def test_single_symbol_performance(self) -> None:
         """Scanner should handle single symbol efficiently."""
         timestamps = pd.date_range("2026-01-01", periods=100, freq="1min")
-        universe = pd.DataFrame({
-            "timestamp": timestamps,
-            "open": [100.0 + i * 0.01 for i in range(100)],
-            "high": [101.0 + i * 0.01 for i in range(100)],
-            "low": [99.0 + i * 0.01 for i in range(100)],
-            "close": [100.5 + i * 0.01 for i in range(100)],
-            "volume": [1000 + i for i in range(100)],
-        })
+        universe = pd.DataFrame(
+            {
+                "timestamp": timestamps,
+                "open": [100.0 + i * 0.01 for i in range(100)],
+                "high": [101.0 + i * 0.01 for i in range(100)],
+                "low": [99.0 + i * 0.01 for i in range(100)],
+                "close": [100.5 + i * 0.01 for i in range(100)],
+                "volume": [1000 + i for i in range(100)],
+            }
+        )
 
         scanner = MomentumScanner(top_n=5)
         _, avg_time = _benchmark_time(scanner.scan, universe, iterations=5)

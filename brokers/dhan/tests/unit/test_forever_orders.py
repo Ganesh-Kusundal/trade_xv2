@@ -4,15 +4,13 @@ from decimal import Decimal
 
 import pytest
 
-from brokers.dhan.domain import ForeverOrder, ForeverOrderRequest
+from brokers.dhan.domain import ForeverOrderRequest
 from brokers.dhan.forever_orders import ForeverOrdersAdapter
 
 
 def test_place_forever_order_single(fake_client, resolver):
     """Verify SINGLE mode payload."""
-    fake_client.set_response("POST", "/forever/orders", {
-        "data": {"orderId": "FO123456"}
-    })
+    fake_client.set_response("POST", "/forever/orders", {"data": {"orderId": "FO123456"}})
     adapter = ForeverOrdersAdapter(fake_client, resolver)
     request = ForeverOrderRequest(
         symbol="RELIANCE",
@@ -26,7 +24,7 @@ def test_place_forever_order_single(fake_client, resolver):
         trigger_price=Decimal("2460.00"),
     )
     order = adapter.place_forever_order(request)
-    
+
     payloads = fake_client.calls_for("POST", "/forever/orders")
     assert len(payloads) == 1
     payload = payloads[0]
@@ -45,19 +43,23 @@ def test_place_forever_order_single(fake_client, resolver):
 
 def test_place_forever_order_oco(fake_client, resolver):
     """Verify OCO mode with price1/trigger_price1/quantity1."""
-    fake_client.set_response("POST", "/forever/orders", {
-        "data": {
-            "orderId": "FO789012",
-            "tradingSymbol": "RELIANCE",
-            "exchangeSegment": "NSE_EQ",
-            "orderFlag": "OCO",
-            "transactionType": "BUY",
-            "quantity": 10,
-            "price": 2450.0,
-            "triggerPrice": 2460.0,
-            "orderStatus": "OPEN",
-        }
-    })
+    fake_client.set_response(
+        "POST",
+        "/forever/orders",
+        {
+            "data": {
+                "orderId": "FO789012",
+                "tradingSymbol": "RELIANCE",
+                "exchangeSegment": "NSE_EQ",
+                "orderFlag": "OCO",
+                "transactionType": "BUY",
+                "quantity": 10,
+                "price": 2450.0,
+                "triggerPrice": 2460.0,
+                "orderStatus": "OPEN",
+            }
+        },
+    )
     adapter = ForeverOrdersAdapter(fake_client, resolver)
     request = ForeverOrderRequest(
         symbol="RELIANCE",
@@ -74,7 +76,7 @@ def test_place_forever_order_oco(fake_client, resolver):
         quantity1=10,
     )
     order = adapter.place_forever_order(request)
-    
+
     payloads = fake_client.calls_for("POST", "/forever/orders")
     assert len(payloads) == 1
     payload = payloads[0]
@@ -87,19 +89,23 @@ def test_place_forever_order_oco(fake_client, resolver):
 
 def test_modify_forever_order(fake_client, resolver):
     """Verify PUT /forever/orders/{id}."""
-    fake_client.set_response("PUT", "/forever/orders/FO123456", {
-        "data": {
-            "orderId": "FO123456",
-            "tradingSymbol": "RELIANCE",
-            "exchangeSegment": "NSE_EQ",
-            "orderFlag": "SINGLE",
-            "transactionType": "BUY",
-            "quantity": 20,
-            "price": 2470.0,
-            "triggerPrice": 2480.0,
-            "orderStatus": "OPEN",
-        }
-    })
+    fake_client.set_response(
+        "PUT",
+        "/forever/orders/FO123456",
+        {
+            "data": {
+                "orderId": "FO123456",
+                "tradingSymbol": "RELIANCE",
+                "exchangeSegment": "NSE_EQ",
+                "orderFlag": "SINGLE",
+                "transactionType": "BUY",
+                "quantity": 20,
+                "price": 2470.0,
+                "triggerPrice": 2480.0,
+                "orderStatus": "OPEN",
+            }
+        },
+    )
     adapter = ForeverOrdersAdapter(fake_client, resolver)
     request = ForeverOrderRequest(
         symbol="RELIANCE",
@@ -113,7 +119,7 @@ def test_modify_forever_order(fake_client, resolver):
         trigger_price=Decimal("2480.00"),
     )
     order = adapter.modify_forever_order("FO123456", request)
-    
+
     payloads = fake_client.calls_for("PUT", "/forever/orders/FO123456")
     assert len(payloads) == 1
     payload = payloads[0]
@@ -125,9 +131,7 @@ def test_modify_forever_order(fake_client, resolver):
 
 def test_cancel_forever_order(fake_client, resolver):
     """Verify DELETE /forever/orders/{id}."""
-    fake_client.set_response("DELETE", "/forever/orders/FO123456", {
-        "status": "success"
-    })
+    fake_client.set_response("DELETE", "/forever/orders/FO123456", {"status": "success"})
     adapter = ForeverOrdersAdapter(fake_client, resolver)
     result = adapter.cancel_forever_order("FO123456")
     assert result.success is True
@@ -138,32 +142,36 @@ def test_cancel_forever_order(fake_client, resolver):
 
 def test_get_all_forever_orders(fake_client, resolver):
     """Verify GET /forever/all."""
-    fake_client.set_response("GET", "/forever/all", {
-        "data": [
-            {
-                "orderId": "FO001",
-                "tradingSymbol": "RELIANCE",
-                "exchangeSegment": "NSE_EQ",
-                "orderFlag": "SINGLE",
-                "transactionType": "BUY",
-                "quantity": 10,
-                "price": 2450.0,
-                "triggerPrice": 2460.0,
-                "orderStatus": "OPEN",
-            },
-            {
-                "orderId": "FO002",
-                "tradingSymbol": "TCS",
-                "exchangeSegment": "NSE_EQ",
-                "orderFlag": "OCO",
-                "transactionType": "SELL",
-                "quantity": 5,
-                "price": 3900.0,
-                "triggerPrice": 3890.0,
-                "orderStatus": "CLOSED",
-            },
-        ]
-    })
+    fake_client.set_response(
+        "GET",
+        "/forever/all",
+        {
+            "data": [
+                {
+                    "orderId": "FO001",
+                    "tradingSymbol": "RELIANCE",
+                    "exchangeSegment": "NSE_EQ",
+                    "orderFlag": "SINGLE",
+                    "transactionType": "BUY",
+                    "quantity": 10,
+                    "price": 2450.0,
+                    "triggerPrice": 2460.0,
+                    "orderStatus": "OPEN",
+                },
+                {
+                    "orderId": "FO002",
+                    "tradingSymbol": "TCS",
+                    "exchangeSegment": "NSE_EQ",
+                    "orderFlag": "OCO",
+                    "transactionType": "SELL",
+                    "quantity": 5,
+                    "price": 3900.0,
+                    "triggerPrice": 3890.0,
+                    "orderStatus": "CLOSED",
+                },
+            ]
+        },
+    )
     adapter = ForeverOrdersAdapter(fake_client, resolver)
     orders = adapter.get_all_forever_orders()
     assert len(orders) == 2

@@ -19,11 +19,13 @@ Usage::
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from brokers.common.auth.credential_resolver import CANONICAL_ENV_FILES, CredentialResolver
 from brokers.common.auth.credential_validator import CredentialValidator
+from brokers.common.connection.authenticated_readiness import authenticated_readiness_probe
 from brokers.common.connection.bootstrap_result import (
     BootstrapResult,
     BootstrapStatus,
@@ -31,7 +33,6 @@ from brokers.common.connection.bootstrap_result import (
     structural_readiness_probe,
 )
 from brokers.common.connection.errors import BrokerNotReadyError
-from brokers.common.connection.authenticated_readiness import authenticated_readiness_probe
 
 logger = logging.getLogger(__name__)
 
@@ -142,9 +143,7 @@ def bootstrap_gateway(
         )
 
     status = (
-        BootstrapStatus.REAUTH_REQUIRED
-        if auth_result.token_rejected
-        else BootstrapStatus.FAILED
+        BootstrapStatus.REAUTH_REQUIRED if auth_result.token_rejected else BootstrapStatus.FAILED
     )
     return BootstrapResult(
         status=status,
@@ -224,15 +223,14 @@ def list_available_brokers() -> list[dict[str, Any]]:
     """Return registered brokers with credential-aware availability."""
     result: list[dict[str, Any]] = []
     for name, env_file in ENV_FILES.items():
-        if name == "paper":
-            available = True
-        else:
-            available = CredentialValidator.broker_available(name)
-        result.append({
-            "name": name,
-            "env_file": env_file,
-            "available": available,
-        })
+        available = True if name == "paper" else CredentialValidator.broker_available(name)
+        result.append(
+            {
+                "name": name,
+                "env_file": env_file,
+                "available": available,
+            }
+        )
     return result
 
 
@@ -246,7 +244,7 @@ def _create_dhan(
     event_bus: Any | None = None,
     lifecycle: Any | None = None,
     risk_manager: Any | None = None,
-    analytics_only: bool = False,  # noqa: ARG001
+    analytics_only: bool = False,
 ) -> Any:
     from brokers.dhan.factory import BrokerFactory
 
@@ -283,8 +281,8 @@ def _create_upstox(
 
 
 def _create_paper(
-    env_path: Path | None = None,  # noqa: ARG001
-    **kwargs: Any,  # noqa: ARG001
+    env_path: Path | None = None,
+    **kwargs: Any,
 ) -> Any:
     from brokers.paper import PaperGateway
 

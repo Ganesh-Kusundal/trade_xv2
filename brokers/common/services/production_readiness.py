@@ -19,6 +19,7 @@ start an unsafe configuration rather than silently degrading. Every
 prior production failure class started as a "looks fine at boot, breaks
 under load" defect; this guard closes that pattern at the boundary.
 """
+
 from __future__ import annotations
 
 import logging
@@ -46,7 +47,7 @@ class ProductionReadinessError(RuntimeError):
     failed and why.
     """
 
-    def __init__(self, report: "ReadinessReport") -> None:
+    def __init__(self, report: ReadinessReport) -> None:
         self.report = report
         super().__init__(report.summary())
 
@@ -63,9 +64,8 @@ class ReadinessReport:
     def summary(self) -> str:
         if self.passed:
             return f"PRODUCTION READY — {len(self.checks)} checks passed"
-        return (
-            f"PRODUCTION UNSAFE — {len(self.failed)} blocking check(s) failed: "
-            + ", ".join(self.failed)
+        return f"PRODUCTION UNSAFE — {len(self.failed)} blocking check(s) failed: " + ", ".join(
+            self.failed
         )
 
 
@@ -272,9 +272,7 @@ class ProductionReadinessChecker:
                 "to enable the production safety gate. Phantom-capital trading "
                 "must never go live."
             )
-        return True, (
-            "RISK_FAIL_OPEN is unset/0; capital_fn must use real broker balance"
-        )
+        return True, ("RISK_FAIL_OPEN is unset/0; capital_fn must use real broker balance")
 
     def _check_dhan_credentials(self) -> tuple[bool, str]:
         cid = os.environ.get("DHAN_CLIENT_ID", "").strip()
@@ -293,9 +291,7 @@ class ProductionReadinessChecker:
                     "DHAN_ACCESS_TOKEN unset but DHAN_PIN + DHAN_TOTP_SECRET present — "
                     "TOTP path will regenerate the token on startup"
                 )
-            return False, (
-                "DHAN_ACCESS_TOKEN is empty AND no TOTP credentials are available"
-            )
+            return False, ("DHAN_ACCESS_TOKEN is empty AND no TOTP credentials are available")
         return True, "DHAN_ACCESS_TOKEN is set"
 
     def _check_upstox_credentials(self) -> tuple[bool, str]:
@@ -316,9 +312,7 @@ class ProductionReadinessChecker:
                 pin = os.environ.get("UPSTOX_PIN", "").strip()
                 secret = os.environ.get("UPSTOX_TOTP_SECRET", "").strip()
                 if mobile and pin and secret:
-                    return True, (
-                        "UPSTOX_ACCESS_TOKEN unset but TOTP credentials present"
-                    )
+                    return True, ("UPSTOX_ACCESS_TOKEN unset but TOTP credentials present")
             return False, "UPSTOX_ACCESS_TOKEN is empty and no TOTP path configured"
         return True, "UPSTOX_ACCESS_TOKEN is set"
 
@@ -328,17 +322,14 @@ class ProductionReadinessChecker:
         required = ("upstox.websocket", "upstox.portfolio_stream")
         missing = [n for n in required if n not in names]
         if missing:
-            return False, (
-                f"Upstox WebSocket services not lifecycle-registered: {missing}"
-            )
+            return False, (f"Upstox WebSocket services not lifecycle-registered: {missing}")
         return True, "Upstox WebSocket services are lifecycle-owned"
 
     def _check_http_observability(self) -> tuple[bool, str]:
         http = getattr(self._svc, "_http_observability", None)
         if http is None:
             return False, (
-                "HTTP observability server is not started — /healthz, /readyz, "
-                "/metrics are offline"
+                "HTTP observability server is not started — /healthz, /readyz, /metrics are offline"
             )
         return True, "HTTP observability server is started"
 

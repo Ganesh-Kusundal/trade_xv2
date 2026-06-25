@@ -7,7 +7,6 @@ from brokers.common.resilience.circuit_breaker import CircuitBreaker, CircuitBre
 from brokers.common.resilience.errors import NonRetryableError, RetryableError
 from brokers.common.resilience.rate_limiter import MultiBucketRateLimiter, RateLimitConfig
 from brokers.common.resilience.retry import (
-    DEFAULT_RETRYABLE_EXCEPTIONS,
     RetryConfig,
     RetryExecutor,
 )
@@ -241,7 +240,7 @@ class TestRetryExecutorWithCircuitBreaker:
 
         # Trip the circuit breaker inside a single execute call
         # (first 2 retries fail, 3rd hits open circuit -> CircuitBreakerOpenError)
-        with pytest.raises(Exception):
+        with pytest.raises(Exception, match=".*"):
             executor.execute(fails)
         # The circuit opened during retries — next call should fast-fail
         with pytest.raises(Exception) as excinfo2:

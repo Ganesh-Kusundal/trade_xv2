@@ -8,14 +8,12 @@ Ensures:
 
 from __future__ import annotations
 
-import hashlib
 from pathlib import Path
 
 import pandas as pd
-import pytest
 
+from analytics.pipeline.features import ATR, RSI
 from analytics.pipeline.pipeline import FeaturePipeline
-from analytics.pipeline.features import RSI, ATR
 
 
 class TestFeaturePipelineDeterminism:
@@ -23,15 +21,17 @@ class TestFeaturePipelineDeterminism:
 
     def test_pipeline_is_deterministic(self) -> None:
         """Same input DataFrame → same output on multiple runs."""
-        df = pd.DataFrame({
-            "timestamp": pd.date_range("2024-01-01", periods=100, freq="1min"),
-            "open": [100.0 + i * 0.1 for i in range(100)],
-            "high": [101.0 + i * 0.1 for i in range(100)],
-            "low": [99.0 + i * 0.1 for i in range(100)],
-            "close": [100.5 + i * 0.1 for i in range(100)],
-            "volume": [1000 + i * 10 for i in range(100)],
-            "oi": [500] * 100,
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": pd.date_range("2024-01-01", periods=100, freq="1min"),
+                "open": [100.0 + i * 0.1 for i in range(100)],
+                "high": [101.0 + i * 0.1 for i in range(100)],
+                "low": [99.0 + i * 0.1 for i in range(100)],
+                "close": [100.5 + i * 0.1 for i in range(100)],
+                "volume": [1000 + i * 10 for i in range(100)],
+                "oi": [500] * 100,
+            }
+        )
 
         pipeline = FeaturePipeline().add(RSI(14)).add(ATR(14))
 
@@ -43,25 +43,29 @@ class TestFeaturePipelineDeterminism:
 
     def test_pipeline_no_internal_state_leakage(self) -> None:
         """Pipeline must not retain state between runs."""
-        df1 = pd.DataFrame({
-            "timestamp": pd.date_range("2024-01-01", periods=50, freq="1min"),
-            "open": [100.0] * 50,
-            "high": [101.0] * 50,
-            "low": [99.0] * 50,
-            "close": [100.5] * 50,
-            "volume": [1000] * 50,
-            "oi": [500] * 50,
-        })
+        df1 = pd.DataFrame(
+            {
+                "timestamp": pd.date_range("2024-01-01", periods=50, freq="1min"),
+                "open": [100.0] * 50,
+                "high": [101.0] * 50,
+                "low": [99.0] * 50,
+                "close": [100.5] * 50,
+                "volume": [1000] * 50,
+                "oi": [500] * 50,
+            }
+        )
 
-        df2 = pd.DataFrame({
-            "timestamp": pd.date_range("2024-01-02", periods=50, freq="1min"),
-            "open": [200.0] * 50,
-            "high": [201.0] * 50,
-            "low": [199.0] * 50,
-            "close": [200.5] * 50,
-            "volume": [2000] * 50,
-            "oi": [600] * 50,
-        })
+        df2 = pd.DataFrame(
+            {
+                "timestamp": pd.date_range("2024-01-02", periods=50, freq="1min"),
+                "open": [200.0] * 50,
+                "high": [201.0] * 50,
+                "low": [199.0] * 50,
+                "close": [200.5] * 50,
+                "volume": [2000] * 50,
+                "oi": [600] * 50,
+            }
+        )
 
         pipeline = FeaturePipeline().add(RSI(14))
 
@@ -110,15 +114,17 @@ class TestBacktestPathCacheDisable:
 
     def test_pipeline_run_creates_no_cache_files(self, tmp_path: Path) -> None:
         """FeaturePipeline.run() must not create cache files."""
-        df = pd.DataFrame({
-            "timestamp": pd.date_range("2024-01-01", periods=50, freq="1min"),
-            "open": [100.0] * 50,
-            "high": [101.0] * 50,
-            "low": [99.0] * 50,
-            "close": [100.5] * 50,
-            "volume": [1000] * 50,
-            "oi": [500] * 50,
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": pd.date_range("2024-01-01", periods=50, freq="1min"),
+                "open": [100.0] * 50,
+                "high": [101.0] * 50,
+                "low": [99.0] * 50,
+                "close": [100.5] * 50,
+                "volume": [1000] * 50,
+                "oi": [500] * 50,
+            }
+        )
 
         pipeline = FeaturePipeline().add(RSI(14))
         result = pipeline.run(df)
@@ -130,15 +136,17 @@ class TestBacktestPathCacheDisable:
 
     def test_multiple_runs_produce_identical_features(self) -> None:
         """Running pipeline multiple times must produce identical feature values."""
-        df = pd.DataFrame({
-            "timestamp": pd.date_range("2024-01-01", periods=100, freq="1min"),
-            "open": [100.0 + i for i in range(100)],
-            "high": [102.0 + i for i in range(100)],
-            "low": [98.0 + i for i in range(100)],
-            "close": [100.5 + i for i in range(100)],
-            "volume": [1000 + i * 5 for i in range(100)],
-            "oi": [500] * 100,
-        })
+        df = pd.DataFrame(
+            {
+                "timestamp": pd.date_range("2024-01-01", periods=100, freq="1min"),
+                "open": [100.0 + i for i in range(100)],
+                "high": [102.0 + i for i in range(100)],
+                "low": [98.0 + i for i in range(100)],
+                "close": [100.5 + i for i in range(100)],
+                "volume": [1000 + i * 5 for i in range(100)],
+                "oi": [500] * 100,
+            }
+        )
 
         pipeline = FeaturePipeline().add(RSI(14)).add(ATR(14))
 

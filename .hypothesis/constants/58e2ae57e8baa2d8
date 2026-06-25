@@ -1,4 +1,0 @@
-# file: /workspaces/trade_xv2/datalake/updater.py
-# hypothesis_version: 6.155.7
-
-['1m', 'NIFTY500', 'NSE', 'Progress: %d/%d', 'Unknown universe: %s', 'candles', 'data.parquet', 'equities', 'market_data', 'snappy', 'symbol', 'timestamp']

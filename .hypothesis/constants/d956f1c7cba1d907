@@ -1,4 +1,0 @@
-# file: /workspaces/trade_xv2/cli/commands/risk_controls.py
-# hypothesis_version: 6.155.7
-
-['--confirm', '0.00', 'ACTIVE', 'Available Capital', 'Daily PnL', 'Description', 'Kill Switch', 'Limit', 'Max Daily Loss', 'Max Gross Exposure', 'Max Position Size', 'Missing subcommand', 'Of available capital', 'Parameter', 'Per symbol', 'Status', 'Total portfolio', 'Value', '[green]OK[/green]', 'bold cyan', 'bold white', 'bold yellow', 'capital', 'daily_pnl', 'green', 'inactive', 'kill-switch', 'kill_switch', 'limits', 'max_daily_loss_pct', 'max_position_pct', 'off', 'on', 'pnl', 'red', 'reset-pnl', 'right', 'status', '📊 Risk Limits']

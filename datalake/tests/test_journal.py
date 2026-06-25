@@ -177,10 +177,28 @@ class TestTradeJournalSummary:
         assert summary["win_rate"] == 0
 
     def test_summary_with_trades(self, journal: TradeJournal) -> None:
-        journal.record_trade("S01", "RELIANCE", "m", datetime.now(), 100, 1, "BUY",
-                           exit_time=datetime.now(), exit_price=110)
-        journal.record_trade("S02", "INFY", "m", datetime.now(), 100, 1, "BUY",
-                           exit_time=datetime.now(), exit_price=90)
+        journal.record_trade(
+            "S01",
+            "RELIANCE",
+            "m",
+            datetime.now(),
+            100,
+            1,
+            "BUY",
+            exit_time=datetime.now(),
+            exit_price=110,
+        )
+        journal.record_trade(
+            "S02",
+            "INFY",
+            "m",
+            datetime.now(),
+            100,
+            1,
+            "BUY",
+            exit_time=datetime.now(),
+            exit_price=90,
+        )
         summary = journal.get_trade_summary()
         assert summary["total_trades"] == 2
         assert summary["total_pnl"] == 0  # 10 + (-10)
@@ -189,23 +207,58 @@ class TestTradeJournalSummary:
         assert summary["win_rate"] == 0.5
 
     def test_summary_filter_strategy(self, journal: TradeJournal) -> None:
-        journal.record_trade("S10", "RELIANCE", "momentum", datetime.now(), 100, 1, "BUY",
-                           exit_time=datetime.now(), exit_price=120)
-        journal.record_trade("S11", "INFY", "breakout", datetime.now(), 100, 1, "BUY",
-                           exit_time=datetime.now(), exit_price=90)
+        journal.record_trade(
+            "S10",
+            "RELIANCE",
+            "momentum",
+            datetime.now(),
+            100,
+            1,
+            "BUY",
+            exit_time=datetime.now(),
+            exit_price=120,
+        )
+        journal.record_trade(
+            "S11",
+            "INFY",
+            "breakout",
+            datetime.now(),
+            100,
+            1,
+            "BUY",
+            exit_time=datetime.now(),
+            exit_price=90,
+        )
         summary = journal.get_trade_summary(strategy="momentum")
         assert summary["total_trades"] == 1
         assert summary["total_pnl"] == 20
 
     def test_summary_filter_symbol(self, journal: TradeJournal) -> None:
-        journal.record_trade("S20", "RELIANCE", "m", datetime.now(), 100, 1, "BUY",
-                           exit_time=datetime.now(), exit_price=110)
-        journal.record_trade("S21", "INFY", "m", datetime.now(), 100, 1, "BUY",
-                           exit_time=datetime.now(), exit_price=90)
+        journal.record_trade(
+            "S20",
+            "RELIANCE",
+            "m",
+            datetime.now(),
+            100,
+            1,
+            "BUY",
+            exit_time=datetime.now(),
+            exit_price=110,
+        )
+        journal.record_trade(
+            "S21",
+            "INFY",
+            "m",
+            datetime.now(),
+            100,
+            1,
+            "BUY",
+            exit_time=datetime.now(),
+            exit_price=90,
+        )
         summary = journal.get_trade_summary(symbol="RELIANCE")
         assert summary["total_trades"] == 1
         assert summary["total_pnl"] == 10
-
 
 
 class TestTradeJournalThreadSafety:

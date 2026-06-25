@@ -38,15 +38,17 @@ def _generate_broker_data(
     noise = rng.normal(0, broker_noise, bars)
     price_with_noise = price * (1 + noise)
 
-    return pd.DataFrame({
-        "timestamp": timestamps,
-        "open": price_with_noise * (1 + rng.uniform(-0.001, 0.001, bars)),
-        "high": price_with_noise * (1 + rng.uniform(0, 0.003, bars)),
-        "low": price_with_noise * (1 - rng.uniform(0, 0.003, bars)),
-        "close": price_with_noise,
-        "volume": rng.integers(1000, 100000, bars),
-        "symbol": symbol,
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": timestamps,
+            "open": price_with_noise * (1 + rng.uniform(-0.001, 0.001, bars)),
+            "high": price_with_noise * (1 + rng.uniform(0, 0.003, bars)),
+            "low": price_with_noise * (1 - rng.uniform(0, 0.003, bars)),
+            "close": price_with_noise,
+            "volume": rng.integers(1000, 100000, bars),
+            "symbol": symbol,
+        }
+    )
 
 
 @pytest.mark.cross_broker_parity
@@ -66,7 +68,7 @@ class TestCrossBrokerParity:
         # Must produce identical candidates
         assert len(result_a.candidates) == len(result_b.candidates)
 
-        for cand_a, cand_b in zip(result_a.candidates, result_b.candidates):
+        for cand_a, cand_b in zip(result_a.candidates, result_b.candidates, strict=False):
             assert cand_a.symbol == cand_b.symbol
             assert abs(cand_a.score - cand_b.score) < 1e-9
 
@@ -86,9 +88,7 @@ class TestCrossBrokerParity:
 
         # At least 80% overlap (allow for minor ranking changes)
         overlap = len(symbols_a & symbols_b) / max(len(symbols_a), 1)
-        assert overlap >= 0.8, (
-            f"Too much divergence: only {overlap:.0%} overlap in top candidates"
-        )
+        assert overlap >= 0.8, f"Too much divergence: only {overlap:.0%} overlap in top candidates"
 
     def test_feature_parity_across_brokers(self) -> None:
         """Feature pipeline should produce similar outputs for similar inputs."""
@@ -128,7 +128,7 @@ class TestCrossBrokerParity:
                 return []
 
         pipeline = FeaturePipeline().add(SMA(period=20))
-        strategy = StrategyPipeline(strategies=[SimpleStrategy()])
+        StrategyPipeline(strategies=[SimpleStrategy()])
 
         data = _generate_broker_data(seed=42)
         features = pipeline.run(data)
@@ -158,6 +158,6 @@ def test_scanner_determinism_with_noise(noise_level: float) -> None:
 
     assert len(result_1.candidates) == len(result_2.candidates)
 
-    for c1, c2 in zip(result_1.candidates, result_2.candidates):
+    for c1, c2 in zip(result_1.candidates, result_2.candidates, strict=False):
         assert c1.symbol == c2.symbol
         assert c1.score == pytest.approx(c2.score, rel=1e-9)

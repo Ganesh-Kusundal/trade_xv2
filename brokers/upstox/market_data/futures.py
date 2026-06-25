@@ -35,7 +35,12 @@ class UpstoxFuturesClient:
         if self._resolver is not None:
             seg = exchange_segment
             if underlying.upper() in {
-                "NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "SENSEX", "BANKEX",
+                "NIFTY",
+                "BANKNIFTY",
+                "FINNIFTY",
+                "MIDCPNIFTY",
+                "SENSEX",
+                "BANKEX",
             }:
                 normalized = upstox_index_segment(underlying)
                 if normalized:
@@ -48,20 +53,20 @@ class UpstoxFuturesClient:
     def get_contracts(self, underlying: str, exchange_segment: str = "NFO") -> list[dict[str, Any]]:
         """Return active future contracts for *underlying* from instrument master."""
         if self._resolver is None:
-            raise RuntimeError(
-                "Upstox instruments not loaded; cannot list live future contracts"
-            )
+            raise RuntimeError("Upstox instruments not loaded; cannot list live future contracts")
         rows: list[dict[str, Any]] = []
         for defn in self._resolver.list_future_contracts(underlying):
-            rows.append({
-                "instrument_key": defn.instrument_key,
-                "symbol": defn.trading_symbol or defn.symbol,
-                "trading_symbol": defn.trading_symbol or defn.symbol,
-                "expiry": (defn.expiry or "")[:10],
-                "lot_size": defn.lot_size or defn.minimum_lot or 1,
-                "underlying": defn.underlying_symbol or underlying,
-                "exchange_segment": defn.exchange_segment,
-            })
+            rows.append(
+                {
+                    "instrument_key": defn.instrument_key,
+                    "symbol": defn.trading_symbol or defn.symbol,
+                    "trading_symbol": defn.trading_symbol or defn.symbol,
+                    "expiry": (defn.expiry or "")[:10],
+                    "lot_size": defn.lot_size or defn.minimum_lot or 1,
+                    "underlying": defn.underlying_symbol or underlying,
+                    "exchange_segment": defn.exchange_segment,
+                }
+            )
         if rows:
             return rows
         # Fallback: expired API with resolved instrument_key (historical contracts)
@@ -72,7 +77,9 @@ class UpstoxFuturesClient:
         )
         return _data_list(body)
 
-    def get_nearest_contract(self, underlying: str, exchange_segment: str = "NFO") -> dict[str, Any]:
+    def get_nearest_contract(
+        self, underlying: str, exchange_segment: str = "NFO"
+    ) -> dict[str, Any]:
         contracts = self.get_contracts(underlying, exchange_segment)
         return contracts[0] if contracts else {}
 

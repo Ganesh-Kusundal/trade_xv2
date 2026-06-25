@@ -13,7 +13,6 @@ from datetime import datetime
 from enum import Enum
 from typing import Literal
 
-
 # ---------------------------------------------------------------------------
 # Transport layer
 # ---------------------------------------------------------------------------
@@ -40,11 +39,11 @@ class TransportState(str, Enum):
 class SubscriptionState(str, Enum):
     """State of the instrument subscription layer on top of the transport."""
 
-    IDLE = "IDLE"                    # connected, nothing subscribed yet
-    SUBSCRIBING = "SUBSCRIBING"      # subscription in flight
-    ACKNOWLEDGED = "ACKNOWLEDGED"    # broker confirmed all subscriptions
-    PARTIAL = "PARTIAL"              # some subscriptions rejected
-    DEGRADED = "DEGRADED"            # material fraction of subs missing
+    IDLE = "IDLE"  # connected, nothing subscribed yet
+    SUBSCRIBING = "SUBSCRIBING"  # subscription in flight
+    ACKNOWLEDGED = "ACKNOWLEDGED"  # broker confirmed all subscriptions
+    PARTIAL = "PARTIAL"  # some subscriptions rejected
+    DEGRADED = "DEGRADED"  # material fraction of subs missing
 
     def is_usable(self) -> bool:
         return self in {SubscriptionState.ACKNOWLEDGED, SubscriptionState.PARTIAL}
@@ -58,10 +57,10 @@ class SubscriptionState(str, Enum):
 class FreshnessState(str, Enum):
     """Whether valid data has been received recently."""
 
-    UNKNOWN = "UNKNOWN"         # no data received yet (just connected)
-    FRESH = "FRESH"             # within SLA window
-    STALE = "STALE"             # last valid tick beyond SLA threshold
-    NO_DATA = "NO_DATA"         # never received any valid tick since connect
+    UNKNOWN = "UNKNOWN"  # no data received yet (just connected)
+    FRESH = "FRESH"  # within SLA window
+    STALE = "STALE"  # last valid tick beyond SLA threshold
+    NO_DATA = "NO_DATA"  # never received any valid tick since connect
 
     def within_sla(self) -> bool:
         return self == FreshnessState.FRESH
@@ -124,8 +123,8 @@ class StreamSession:
     session_id: str
     broker_id: str
     stream_kind: Literal["market", "order", "portfolio"]
-    instruments: frozenset[str]   # InstrumentRef strings ("SYMBOL:EXCHANGE")
-    modes: frozenset[str]         # e.g. {"LTP", "FULL"} for market; empty for order
+    instruments: frozenset[str]  # InstrumentRef strings ("SYMBOL:EXCHANGE")
+    modes: frozenset[str]  # e.g. {"LTP", "FULL"} for market; empty for order
     health: StreamHealth = field(default_factory=StreamHealth)
     reconnect_generation: int = 0
     created_at: datetime | None = None

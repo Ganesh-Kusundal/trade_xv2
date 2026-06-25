@@ -184,7 +184,11 @@ class HistoricalDownloadEngine:
             if hasattr(cap, "max_intraday_days"):
                 broker_max = cap.max_intraday_days if timeframe != "1D" else 3650
             else:
-                broker_max = cap.get("max_intraday_days", max_days) if timeframe != "1D" else cap.get("max_daily_days", 3650)
+                broker_max = (
+                    cap.get("max_intraday_days", max_days)
+                    if timeframe != "1D"
+                    else cap.get("max_daily_days", 3650)
+                )
         else:
             broker_max = max_days
         effective_max = min(max_days, broker_max)
@@ -195,12 +199,16 @@ class HistoricalDownloadEngine:
 
         logger.info(
             "Downloading %d symbols, %d chunks each, timeframe=%s",
-            len(sym_list), len(chunks), timeframe,
+            len(sym_list),
+            len(chunks),
+            timeframe,
         )
 
         if parallel and len(sym_list) > 1:
             workers = max_workers or self._config.max_workers
-            frames = self._download_parallel(sym_list, chunks, timeframe, exchange, progress, workers)
+            frames = self._download_parallel(
+                sym_list, chunks, timeframe, exchange, progress, workers
+            )
         else:
             frames = self._download_sequential(sym_list, chunks, timeframe, exchange, progress)
 
@@ -237,9 +245,7 @@ class HistoricalDownloadEngine:
 
         return df
 
-    def _compute_chunks(
-        self, start: date, end: date, max_days: int
-    ) -> list[tuple[date, date]]:
+    def _compute_chunks(self, start: date, end: date, max_days: int) -> list[tuple[date, date]]:
         """Split date range into broker-compatible chunks."""
         chunks = []
         current = start
@@ -299,7 +305,9 @@ class HistoricalDownloadEngine:
                 except Exception as exc:
                     progress.failed_chunks += 1
                     progress.errors.append(f"{sym} {chunk_start}..{chunk_end}: {exc}")
-                    logger.warning("Download failed for %s %s..%s: %s", sym, chunk_start, chunk_end, exc)
+                    logger.warning(
+                        "Download failed for %s %s..%s: %s", sym, chunk_start, chunk_end, exc
+                    )
 
                 if self._on_progress:
                     self._on_progress(progress)
@@ -331,7 +339,13 @@ class HistoricalDownloadEngine:
                     # Ensure required columns
                     for col in ["symbol", "exchange", "timeframe"]:
                         if col not in df.columns:
-                            df[col] = symbol if col == "symbol" else exchange if col == "exchange" else timeframe
+                            df[col] = (
+                                symbol
+                                if col == "symbol"
+                                else exchange
+                                if col == "exchange"
+                                else timeframe
+                            )
                     return df
 
                 return pd.DataFrame()
@@ -339,13 +353,18 @@ class HistoricalDownloadEngine:
             except Exception as exc:
                 if attempt < self._config.max_retries:
                     delay = min(
-                        self._config.retry_base_delay * (2 ** attempt),
+                        self._config.retry_base_delay * (2**attempt),
                         self._config.retry_max_delay,
                     )
                     logger.warning(
                         "Retry %d/%d for %s %s..%s in %.1fs: %s",
-                        attempt + 1, self._config.max_retries,
-                        symbol, from_date, to_date, delay, exc,
+                        attempt + 1,
+                        self._config.max_retries,
+                        symbol,
+                        from_date,
+                        to_date,
+                        delay,
+                        exc,
                     )
                     time.sleep(delay)
                 else:
@@ -353,7 +372,11 @@ class HistoricalDownloadEngine:
                     progress.errors.append(f"{symbol} {from_date}..{to_date}: {exc}")
                     logger.error(
                         "Failed after %d retries for %s %s..%s: %s",
-                        self._config.max_retries, symbol, from_date, to_date, exc,
+                        self._config.max_retries,
+                        symbol,
+                        from_date,
+                        to_date,
+                        exc,
                     )
                     return None
 

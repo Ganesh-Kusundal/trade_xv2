@@ -1,4 +1,0 @@
-# file: /workspaces/trade_xv2/cli/utils/retry_handler.py
-# hypothesis_version: 6.155.7
-
-[1.0, 'attempt', 'attempts', 'error', 'function', 'max_retries', 'retry_attempt', 'retry_exhausted', 'wait_time']

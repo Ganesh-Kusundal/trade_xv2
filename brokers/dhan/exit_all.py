@@ -34,11 +34,14 @@ class ExitAllAdapter:
         response_data = data.get("data", data)
         response = self._parse_response(response_data)
 
-        logger.info("exit_all_executed", extra={
-            "positions_closed": response.positions_closed,
-            "orders_cancelled": response.orders_cancelled,
-            "success": response.success,
-        })
+        logger.info(
+            "exit_all_executed",
+            extra={
+                "positions_closed": response.positions_closed,
+                "orders_cancelled": response.orders_cancelled,
+                "success": response.success,
+            },
+        )
         return response
 
     def _parse_response(self, data: dict) -> ExitAllResponse:

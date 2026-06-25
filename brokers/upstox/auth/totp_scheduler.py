@@ -11,20 +11,20 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from collections.abc import Callable
 from datetime import datetime, timedelta
-from typing import Callable
 
-from infrastructure.lifecycle import HealthState, ManagedService, build_health
 from brokers.upstox.auth.token_manager import UpstoxTokenManager
+from infrastructure.lifecycle import HealthState, ManagedService, build_health
 
 logger = logging.getLogger(__name__)
 
 
 class TotpRefreshScheduler(ManagedService):
     """Background scheduler that refreshes TOTP tokens daily.
-    
+
     Usage::
-    
+
         token_manager = UpstoxTokenManager(settings)
         scheduler = TotpRefreshScheduler(
             token_manager,
@@ -34,9 +34,9 @@ class TotpRefreshScheduler(ManagedService):
         lifecycle.register(scheduler)
         lifecycle.start_all()
     """
-    
+
     name: str = "upstox.totp_refresh_scheduler"
-    
+
     def __init__(
         self,
         token_manager: UpstoxTokenManager,
@@ -55,15 +55,15 @@ class TotpRefreshScheduler(ManagedService):
         self._refresh_count = 0
         self._last_refresh_at: float | None = None
         self._last_error: str | None = None
-    
+
     # ── ManagedService contract ──────────────────────────────────────────
-    
+
     def start(self) -> None:
         """Start the background refresh thread. Idempotent."""
         if self._thread and self._thread.is_alive():
             logger.debug("TOTP refresh scheduler already running")
             return
-        
+
         self._stop_event.clear()
         self._thread = threading.Thread(
             target=self._run,
@@ -76,7 +76,7 @@ class TotpRefreshScheduler(ManagedService):
             self._refresh_hour,
             self._refresh_minute,
         )
-    
+
     def stop(self, timeout_seconds: float = 30.0) -> None:
         """Stop the background refresh thread. Idempotent."""
         self._stop_event.set()
@@ -92,7 +92,7 @@ class TotpRefreshScheduler(ManagedService):
             "TOTP refresh scheduler stopped (refreshed %d times)",
             self._refresh_count,
         )
-    
+
     def health(self):  # type: ignore[override]
         running = self._thread is not None and self._thread.is_alive()
         if not running:
@@ -104,7 +104,7 @@ class TotpRefreshScheduler(ManagedService):
         else:
             state = HealthState.HEALTHY
             detail = f"refreshed {self._refresh_count} times"
-        
+
         return build_health(
             self.name,
             state,
@@ -114,23 +114,23 @@ class TotpRefreshScheduler(ManagedService):
                 "refresh_time": f"{self._refresh_hour:02d}:{self._refresh_minute:02d}",
             },
         )
-    
+
     # ── Public helpers ───────────────────────────────────────────────────
-    
+
     def refresh_now(self) -> bool:
         """Trigger an immediate token refresh. Returns True if successful."""
         return self._do_refresh()
-    
+
     @property
     def is_running(self) -> bool:
         return self._thread is not None and self._thread.is_alive()
-    
+
     @property
     def refresh_count(self) -> int:
         return self._refresh_count
-    
+
     # ── Background loop ──────────────────────────────────────────────────
-    
+
     def _run(self) -> None:
         """Main scheduler loop — check every 60 seconds if it's time to refresh."""
         while not self._stop_event.is_set():
@@ -142,25 +142,25 @@ class TotpRefreshScheduler(ManagedService):
                     second=0,
                     microsecond=0,
                 )
-                
+
                 # If target time has passed today, schedule for tomorrow
                 if now >= target_time:
                     target_time += timedelta(days=1)
-                
+
                 wait_seconds = (target_time - now).total_seconds()
-                
+
                 # Sleep in 60-second increments to allow graceful shutdown
                 while wait_seconds > 60 and not self._stop_event.is_set():
                     self._stop_event.wait(timeout=60)
                     wait_seconds -= 60
-                
+
                 if not self._stop_event.is_set() and wait_seconds > 0:
                     self._stop_event.wait(timeout=wait_seconds)
-                
+
                 # Time to refresh!
                 if not self._stop_event.is_set():
                     self._do_refresh()
-                    
+
             except Exception as exc:
                 self._last_error = f"{type(exc).__name__}: {exc}"
                 logger.error("TOTP scheduler error: %s", exc)
@@ -169,7 +169,7 @@ class TotpRefreshScheduler(ManagedService):
                         self._on_error(exc)
                     except Exception as exc2:
                         logger.debug("error_callback_failed: %s", exc2)
-    
+
     def _do_refresh(self) -> bool:
         """Perform token refresh via TOTP or OAuth refresh grant when needed."""
         try:
@@ -202,29 +202,29 @@ class TotpRefreshScheduler(ManagedService):
                 self._token_manager.refresh_totp()
             else:
                 self._token_manager.force_refresh()
-            
+
             self._refresh_count += 1
             self._last_refresh_at = time.monotonic()
             self._last_error = None
-            
+
             logger.info("TOTP token refresh successful (count=%d)", self._refresh_count)
-            
+
             if self._on_success:
                 try:
                     self._on_success()
                 except Exception as exc:
                     logger.debug("success_callback_failed: %s", exc)
-            
+
             return True
-            
+
         except Exception as exc:
             self._last_error = f"{type(exc).__name__}: {exc}"
             logger.error("TOTP token refresh failed: %s", exc)
-            
+
             if self._on_error:
                 try:
                     self._on_error(exc)
                 except Exception as exc2:
                     logger.debug("error_callback_failed: %s", exc2)
-            
+
             return False

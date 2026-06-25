@@ -11,10 +11,11 @@ alongside other modes.  Callers must account for combined caps from
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import Protocol, Sequence
+from typing import Protocol
 
 from domain.historical import InstrumentRef
 

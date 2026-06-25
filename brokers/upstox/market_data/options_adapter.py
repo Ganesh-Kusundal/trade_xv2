@@ -6,9 +6,9 @@ import logging
 from typing import TYPE_CHECKING
 
 from brokers.common.gateway_interfaces import OptionsProvider
-from domain import OptionContract
-from brokers.upstox.market_data.options_client import UpstoxOptionsClient
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
+from brokers.upstox.market_data.options_client import UpstoxOptionsClient
+from domain import OptionContract
 
 if TYPE_CHECKING:
     from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
@@ -20,7 +20,7 @@ class UpstoxOptionsAdapter(OptionsProvider):
     def __init__(
         self,
         client: UpstoxOptionsClient,
-        instrument_resolver: "UpstoxInstrumentResolver | None" = None,
+        instrument_resolver: UpstoxInstrumentResolver | None = None,
     ) -> None:
         self._client = client
         self._resolver = instrument_resolver
@@ -33,9 +33,7 @@ class UpstoxOptionsAdapter(OptionsProvider):
         ``/v2/option/expiry`` endpoint is deprecated and returns HTTP 400.
         """
         if self._resolver is None:
-            raise RuntimeError(
-                "Upstox instruments not loaded; cannot derive option expiries"
-            )
+            raise RuntimeError("Upstox instruments not loaded; cannot derive option expiries")
         return self._resolver.list_option_expiries(underlying)
 
     def _resolve_instrument(self, underlying: str, exchange_segment: str) -> str:
@@ -59,9 +57,16 @@ class UpstoxOptionsAdapter(OptionsProvider):
             from indices import upstox_index_segment
 
             seg = exchange_segment
-            if underlying.upper() in {"NIFTY", "BANKNIFTY", "FINNIFTY",
-                                       "MIDCPNIFTY", "SENSEX", "BANKEX",
-                                       "NIFTY50", "NIFTYBANK"}:
+            if underlying.upper() in {
+                "NIFTY",
+                "BANKNIFTY",
+                "FINNIFTY",
+                "MIDCPNIFTY",
+                "SENSEX",
+                "BANKEX",
+                "NIFTY50",
+                "NIFTYBANK",
+            }:
                 normalized = upstox_index_segment(underlying)
                 if normalized:
                     seg = normalized

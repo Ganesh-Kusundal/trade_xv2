@@ -12,10 +12,22 @@ logger = logging.getLogger(__name__)
 
 # Known Indian indices
 KNOWN_INDICES = {
-    "NIFTY", "NIFTY50", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY",
-    "SENSEX", "SENSEX50", "BANKEX",
-    "NIFTYNXT50", "NIFTY100", "NIFTY200", "NIFTY500",
-    "NIFTYINFRA", "NIFTYIT", "NIFTYPHARMA", "NIFTYFMCG",
+    "NIFTY",
+    "NIFTY50",
+    "BANKNIFTY",
+    "FINNIFTY",
+    "MIDCPNIFTY",
+    "SENSEX",
+    "SENSEX50",
+    "BANKEX",
+    "NIFTYNXT50",
+    "NIFTY100",
+    "NIFTY200",
+    "NIFTY500",
+    "NIFTYINFRA",
+    "NIFTYIT",
+    "NIFTYPHARMA",
+    "NIFTYFMCG",
     "INDIAVIX",
 }
 
@@ -55,12 +67,15 @@ def mark_as_indices(
 
     try:
         for symbol in symbols:
-            conn.execute("""
+            conn.execute(
+                """
                 UPDATE symbols
                 SET instrument_type = 'INDEX',
                     exchange = 'NSE_INDEX'
                 WHERE symbol = ?
-            """, [symbol])
+            """,
+                [symbol],
+            )
             logger.info("Marked %s as INDEX", symbol)
 
         conn.commit()
@@ -116,6 +131,7 @@ def main():
     args = parser.parse_args()
 
     from brokers.common.logging_config import setup_logging
+
     setup_logging()
 
     # Identify indices

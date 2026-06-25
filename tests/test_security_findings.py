@@ -32,21 +32,25 @@ class TestNoPickleLoad:
                 continue
 
             for node in ast.walk(tree):
-                if isinstance(node, ast.Call):
-                    if isinstance(node.func, ast.Attribute):
-                        if node.func.attr == "load":
-                            if isinstance(node.func.value, ast.Name):
-                                if node.func.value.id == "pickle":
-                                    # Check if it's in a migration function
-                                    is_migration = False
-                                    for parent in ast.walk(tree):
-                                        if isinstance(parent, ast.FunctionDef):
-                                            if parent.lineno <= node.lineno <= parent.end_lineno:
-                                                if 'migrate' in parent.name.lower():
-                                                    is_migration = True
-                                                    break
-                                    if not is_migration:
-                                        violations.append(f"{py_file}:{node.lineno}")
+                if (
+                    isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "load"
+                    and isinstance(node.func.value, ast.Name)
+                    and node.func.value.id == "pickle"
+                ):
+                    # Check if it's in a migration function
+                    is_migration = False
+                    for parent in ast.walk(tree):
+                        if (
+                            isinstance(parent, ast.FunctionDef)
+                            and parent.lineno <= node.lineno <= parent.end_lineno
+                            and "migrate" in parent.name.lower()
+                        ):
+                            is_migration = True
+                            break
+                    if not is_migration:
+                        violations.append(f"{py_file}:{node.lineno}")
 
         if violations:
             pytest.skip(
@@ -71,17 +75,17 @@ class TestNoPickleLoad:
                 continue
 
             for node in ast.walk(tree):
-                if isinstance(node, ast.Call):
-                    if isinstance(node.func, ast.Attribute):
-                        if node.func.attr == "load":
-                            if isinstance(node.func.value, ast.Name):
-                                if node.func.value.id == "pickle":
-                                    violations.append(f"{py_file}:{node.lineno}")
+                if (
+                    isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "load"
+                    and isinstance(node.func.value, ast.Name)
+                    and node.func.value.id == "pickle"
+                ):
+                    violations.append(f"{py_file}:{node.lineno}")
 
         if violations:
-            pytest.skip(
-                f"pickle.load found in: {violations}. Run Phase 1.1 to fix."
-            )
+            pytest.skip(f"pickle.load found in: {violations}. Run Phase 1.1 to fix.")
 
         assert not violations, f"pickle.load found in: {violations}"
 
@@ -92,6 +96,7 @@ class TestAllowLiveOrdersGuards:
     def test_place_order_has_guard(self):
         """place_order must check allow_live_orders."""
         from unittest.mock import Mock
+
         from brokers.upstox.gateway import UpstoxBrokerGateway
 
         mock_settings = Mock()
@@ -101,14 +106,15 @@ class TestAllowLiveOrdersGuards:
         mock_broker.settings = mock_settings
 
         gateway = UpstoxBrokerGateway(mock_broker)
-        result = gateway.place_order('RELIANCE', 'NSE', 'BUY', 10)
-        
-        assert result.success == False
-        assert 'disabled' in result.message.lower()
+        result = gateway.place_order("RELIANCE", "NSE", "BUY", 10)
+
+        assert result.success is False
+        assert "disabled" in result.message.lower()
 
     def test_cancel_order_has_guard(self):
         """cancel_order must check allow_live_orders."""
         from unittest.mock import Mock
+
         from brokers.upstox.gateway import UpstoxBrokerGateway
 
         mock_settings = Mock()
@@ -118,14 +124,15 @@ class TestAllowLiveOrdersGuards:
         mock_broker.settings = mock_settings
 
         gateway = UpstoxBrokerGateway(mock_broker)
-        
-        result = gateway.cancel_order('ORD123')
+
+        result = gateway.cancel_order("ORD123")
         assert result.success is False, f"cancel_order should be blocked: {result.message}"
-        assert 'disabled' in str(result.message).lower()
+        assert "disabled" in str(result.message).lower()
 
     def test_modify_order_has_guard(self):
         """modify_order must check allow_live_orders."""
         from unittest.mock import Mock
+
         from brokers.upstox.gateway import UpstoxBrokerGateway
 
         mock_settings = Mock()
@@ -135,14 +142,15 @@ class TestAllowLiveOrdersGuards:
         mock_broker.settings = mock_settings
 
         gateway = UpstoxBrokerGateway(mock_broker)
-        
-        result = gateway.modify_order('ORD123', quantity=20)
+
+        result = gateway.modify_order("ORD123", quantity=20)
         assert result.success is False, f"modify_order should be blocked: {result.message}"
-        assert 'disabled' in str(result.message).lower()
+        assert "disabled" in str(result.message).lower()
 
     def test_initiate_payout_has_guard(self):
         """initiate_payout must check allow_live_orders."""
         from unittest.mock import Mock
+
         from brokers.upstox.extended import UpstoxExtendedCapabilities
 
         mock_settings = Mock()
@@ -152,16 +160,17 @@ class TestAllowLiveOrdersGuards:
         mock_broker.settings = mock_settings
 
         extended = UpstoxExtendedCapabilities(mock_broker)
-        
+
         try:
-            extended.initiate_payout({'amount': 1000})
+            extended.initiate_payout({"amount": 1000})
             assert False, "Should have raised RuntimeError"
         except RuntimeError as e:
-            assert 'disabled' in str(e).lower()
+            assert "disabled" in str(e).lower()
 
     def test_place_mutual_fund_order_has_guard(self):
         """place_mutual_fund_order must check allow_live_orders."""
         from unittest.mock import Mock
+
         from brokers.upstox.extended import UpstoxExtendedCapabilities
 
         mock_settings = Mock()
@@ -171,12 +180,12 @@ class TestAllowLiveOrdersGuards:
         mock_broker.settings = mock_settings
 
         extended = UpstoxExtendedCapabilities(mock_broker)
-        
+
         try:
-            extended.place_mutual_fund_order({'scheme': 'TEST'})
+            extended.place_mutual_fund_order({"scheme": "TEST"})
             assert False, "Should have raised RuntimeError"
         except RuntimeError as e:
-            assert 'disabled' in str(e).lower()
+            assert "disabled" in str(e).lower()
 
 
 class TestDhanWriteOperationGuards:
@@ -185,8 +194,9 @@ class TestDhanWriteOperationGuards:
     def test_dhan_modify_order_has_guard(self):
         """Dhan modify_order must check allow_live_orders."""
         from unittest.mock import Mock
-        from brokers.dhan.orders import OrdersAdapter
+
         from brokers.dhan.exceptions import OrderError
+        from brokers.dhan.orders import OrdersAdapter
 
         mock_client = Mock()
         adapter = OrdersAdapter(
@@ -200,16 +210,17 @@ class TestDhanWriteOperationGuards:
         )
 
         try:
-            adapter.modify_order('ORD123', quantity=20)
+            adapter.modify_order("ORD123", quantity=20)
             assert False, "Should have raised OrderError"
         except OrderError as e:
-            assert 'disabled' in str(e).lower()
+            assert "disabled" in str(e).lower()
 
     def test_dhan_cancel_order_has_guard(self):
         """Dhan cancel_order must check allow_live_orders."""
         from unittest.mock import Mock
-        from brokers.dhan.orders import OrdersAdapter
+
         from brokers.dhan.exceptions import OrderError
+        from brokers.dhan.orders import OrdersAdapter
 
         mock_client = Mock()
         adapter = OrdersAdapter(
@@ -223,16 +234,17 @@ class TestDhanWriteOperationGuards:
         )
 
         try:
-            adapter.cancel_order('ORD123')
+            adapter.cancel_order("ORD123")
             assert False, "Should have raised OrderError"
         except OrderError as e:
-            assert 'disabled' in str(e).lower()
+            assert "disabled" in str(e).lower()
 
     def test_dhan_cancel_all_orders_has_guard(self):
         """Dhan cancel_all_orders must check allow_live_orders."""
         from unittest.mock import Mock
-        from brokers.dhan.orders import OrdersAdapter
+
         from brokers.dhan.exceptions import OrderError
+        from brokers.dhan.orders import OrdersAdapter
 
         mock_client = Mock()
         adapter = OrdersAdapter(
@@ -249,13 +261,14 @@ class TestDhanWriteOperationGuards:
             adapter.cancel_all_orders()
             assert False, "Should have raised OrderError"
         except OrderError as e:
-            assert 'disabled' in str(e).lower()
+            assert "disabled" in str(e).lower()
 
     def test_dhan_kill_switch_has_guard(self):
         """Dhan kill_switch must check allow_live_orders."""
         from unittest.mock import Mock
-        from brokers.dhan.orders import OrdersAdapter
+
         from brokers.dhan.exceptions import OrderError
+        from brokers.dhan.orders import OrdersAdapter
 
         mock_client = Mock()
         adapter = OrdersAdapter(
@@ -272,18 +285,19 @@ class TestDhanWriteOperationGuards:
             adapter.kill_switch(True)
             assert False, "Should have raised OrderError"
         except OrderError as e:
-            assert 'disabled' in str(e).lower()
+            assert "disabled" in str(e).lower()
 
     def test_dhan_place_slice_order_has_guard(self):
         """Dhan place_slice_order must check allow_live_orders."""
         from unittest.mock import Mock
-        from brokers.dhan.orders import OrdersAdapter
+
         from brokers.dhan.exceptions import OrderError
+        from brokers.dhan.orders import OrdersAdapter
 
         mock_client = Mock()
         mock_identity = Mock()
         mock_identity.resolve_ref = Mock()
-        
+
         adapter = OrdersAdapter(
             client=mock_client,
             identity=mock_identity,
@@ -295,10 +309,10 @@ class TestDhanWriteOperationGuards:
         )
 
         try:
-            adapter.place_slice_order('TCS', 'NSE', side='BUY', quantity=10, order_type='MARKET')
+            adapter.place_slice_order("TCS", "NSE", side="BUY", quantity=10, order_type="MARKET")
             assert False, "Should have raised OrderError"
         except OrderError as e:
-            assert 'disabled' in str(e).lower()
+            assert "disabled" in str(e).lower()
 
 
 class TestOrderPayloadValidation:
@@ -343,9 +357,12 @@ class TestSecretsNotLogged:
                 stripped = line.strip()
                 if stripped.startswith("#"):
                     continue
-                if "logger." in line and ("token=%s" in line or 'token="{}"' in line):
-                    if "REDACTED" not in line:
-                        violations.append(f"{py_file}:{lineno}")
+                if (
+                    "logger." in line
+                    and ("token=%s" in line or 'token="{}"' in line)
+                    and "REDACTED" not in line
+                ):
+                    violations.append(f"{py_file}:{lineno}")
         assert not violations, f"Potential token logging: {violations}"
 
 

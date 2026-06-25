@@ -22,8 +22,8 @@ def run(args: list[str], broker_service, console: Console) -> None:
         from brokers.common.intelligent_gateway import IntelligentGateway
         from cli.services.broker_registry import create_gateway
 
-        dhan = create_gateway("dhan", env_path=Path('.env.local'), load_instruments=True)
-        upstox = create_gateway("upstox", env_path=Path('.env.upstox'), load_instruments=True)
+        dhan = create_gateway("dhan", env_path=Path(".env.local"), load_instruments=True)
+        upstox = create_gateway("upstox", env_path=Path(".env.upstox"), load_instruments=True)
         if dhan and upstox:
             gw = IntelligentGateway(dhan_gateway=dhan, upstox_gateway=upstox)
         elif dhan:
@@ -37,7 +37,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
         console.print(f"[red]Error creating gateway: {e}[/red]")
         return
 
-    symbols = ['TCS', 'INFY', 'RELIANCE', 'HDFCBANK', 'ICICIBANK']
+    symbols = ["TCS", "INFY", "RELIANCE", "HDFCBANK", "ICICIBANK"]
 
     # 1. Historical Data Benchmark
     console.print("[cyan]Testing Historical Data...[/cyan]")
@@ -53,7 +53,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
         t0 = time.time()
         for s in syms:
             try:
-                gw.dhan.history(s, timeframe='1D', lookback_days=30)
+                gw.dhan.history(s, timeframe="1D", lookback_days=30)
             except Exception as exc:
                 logger.debug("benchmark_dhan_history_failed: %s", exc)
         t_dhan = (time.time() - t0) * 1000
@@ -61,7 +61,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
         t0 = time.time()
         for s in syms:
             try:
-                gw.upstox.history(s, timeframe='1D', lookback_days=30)
+                gw.upstox.history(s, timeframe="1D", lookback_days=30)
             except Exception as exc:
                 logger.debug("benchmark_upstox_history_failed: %s", exc)
         t_up = (time.time() - t0) * 1000
@@ -138,16 +138,16 @@ def run(args: list[str], broker_service, console: Console) -> None:
     # 4. Option Chain Benchmark
     console.print("\n[cyan]Testing Option Chain...[/cyan]")
     t0 = time.time()
-    chain = gw.dhan.option_chain('NIFTY')
+    chain = gw.dhan.option_chain("NIFTY")
     t_dhan = (time.time() - t0) * 1000
-    strikes = len(chain.get('strikes', []))
+    strikes = len(chain.get("strikes", []))
     console.print(f"  Dhan NIFTY: {t_dhan:.0f}ms ({strikes} strikes)")
     console.print("  Upstox: N/A (deprecated)")
 
     # 5. Summary
-    console.print("\n" + "="*50)
+    console.print("\n" + "=" * 50)
     console.print("[bold]BENCHMARK SUMMARY[/bold]")
-    console.print("="*50)
+    console.print("=" * 50)
 
     summary = Table(show_header=True, header_style="bold")
     summary.add_column("Workload", style="cyan")

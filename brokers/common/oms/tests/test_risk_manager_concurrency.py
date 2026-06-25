@@ -21,14 +21,14 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from domain import Order, OrderStatus, OrderType, ProductType, Side
-from infrastructure.lifecycle.lifecycle import HealthState
 from application.oms import (
     DailyPnlResetScheduler,
     PositionManager,
     RiskConfig,
     RiskManager,
 )
+from domain import Order, OrderStatus, OrderType, ProductType, Side
+from infrastructure.lifecycle.lifecycle import HealthState
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -62,9 +62,7 @@ def capital_fn() -> MagicMock:
 
 
 @pytest.fixture
-def risk_manager(
-    position_manager: PositionManager, capital_fn: MagicMock
-) -> RiskManager:
+def risk_manager(position_manager: PositionManager, capital_fn: MagicMock) -> RiskManager:
     return RiskManager(
         position_manager=position_manager,
         config=RiskConfig(),
@@ -261,6 +259,7 @@ def test_daily_pnl_property_is_thread_safe(risk_manager: RiskManager) -> None:
 
 def test_snapshot_is_json_serializable(risk_manager: RiskManager) -> None:
     import json
+
     risk_manager.update_daily_pnl(Decimal("-1000"))
     risk_manager.set_kill_switch(True)
     snap = risk_manager.snapshot()
@@ -278,15 +277,15 @@ def test_daily_loss_check_blocks_after_reset_clears_the_block(
     Capital is set high enough that the per-position percentage check
     (20% of capital) does not fire before the daily-loss check (5% of
     capital) — otherwise the test would exercise the wrong code path.
-    
+
     B1: Loss CB threshold is set high (10%) so it doesn't interfere with
     this test which is specifically testing the daily-loss check.
     """
     from application.oms._internal.loss_circuit_breaker import LossCircuitBreakerConfig
-    
+
     order = _make_order(price=Decimal("50"))  # notional = 10 * 50 = 500
     capital_fn.return_value = Decimal("100000")  # 500/100000*100 = 0.5% < 20%
-    
+
     # Set loss CB threshold high so it doesn't trip before daily loss check
     loss_cb_config = LossCircuitBreakerConfig(
         loss_threshold_pct=Decimal("10.0"),
@@ -294,8 +293,8 @@ def test_daily_loss_check_blocks_after_reset_clears_the_block(
         window_seconds=86400,
     )
     rm = RiskManager(
-        position_manager, 
-        RiskConfig(), 
+        position_manager,
+        RiskConfig(),
         capital_fn=capital_fn,
         loss_cb_config=loss_cb_config,
     )
@@ -337,6 +336,7 @@ def test_scheduler_is_managed_service(risk_manager: RiskManager) -> None:
     """The scheduler must implement the ManagedService Protocol so
     it can be registered with a LifecycleManager (A4 / A5 contract)."""
     from infrastructure.lifecycle.lifecycle import ManagedService
+
     s = DailyPnlResetScheduler(risk_manager)
     assert isinstance(s, ManagedService)
     assert s.name == "daily-pnl-reset"
@@ -459,7 +459,13 @@ def test_scheduler_last_rollover_unix_for_ist_midnight() -> None:
     # Just after IST midnight → rollover was the boundary itself
     assert abs(s._last_rollover_unix(ist_00_01.timestamp()) - ist_00_00.timestamp()) < 0.001
     # Just before IST midnight → rollover was the previous day
-    assert abs(s._last_rollover_unix(ist_23_59.timestamp()) - (ist_00_00 - timedelta(days=1)).timestamp()) < 0.001
+    assert (
+        abs(
+            s._last_rollover_unix(ist_23_59.timestamp())
+            - (ist_00_00 - timedelta(days=1)).timestamp()
+        )
+        < 0.001
+    )
 
 
 def test_scheduler_custom_rollover_hour() -> None:

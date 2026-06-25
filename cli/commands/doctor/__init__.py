@@ -55,26 +55,26 @@ logger = logging.getLogger(__name__)
 
 # Re-export for backward compatibility
 __all__ = [
+    "CheckOrchestrator",
     "CheckResult",
     "CheckStrategy",
     "CheckStrategy",
-    "CheckOrchestrator",
     "ResultRenderer",
-    "run_doctor",
-    "run",
-    "_status_str",
-    "_render_table",
-    "_run_checks_in_parallel",
+    "_check_active_broker",
     "_check_broker_registry",
     "_check_gateway_creation",
-    "_check_active_broker",
+    "_check_http_observability",
     "_check_instrument_catalog",
+    "_check_lifecycle",
     "_check_market_data",
+    "_check_oms_risk_manager",
     "_check_order_api",
     "_check_portfolio",
-    "_check_lifecycle",
-    "_check_oms_risk_manager",
-    "_check_http_observability",
+    "_render_table",
+    "_run_checks_in_parallel",
+    "_status_str",
+    "run",
+    "run_doctor",
 ]
 
 
@@ -86,7 +86,7 @@ def _render_table(
     show_header: bool = True,
 ) -> None:
     """Render a diagnostics table for a group of checks.
-    
+
     Backward-compatible wrapper around ResultRenderer.
     """
     renderer = ResultRenderer(console)
@@ -99,24 +99,23 @@ def _run_checks_in_parallel(
     timeout_per_check: int = 15,
 ) -> dict[str, list[CheckResult]]:
     """Run independent diagnostic checks in parallel.
-    
+
     Backward-compatible wrapper around CheckOrchestrator.
     """
-    from cli.commands.doctor.checks import CheckStrategy
-    from cli.services.broker_service import BrokerService
-    
+
     class _LegacyAdapter:
         """Adapter that wraps a legacy check function as a CheckStrategy."""
+
         def __init__(self, fn: Any):
             self._fn = fn
-        
+
         def execute(self, broker_service: BrokerService | None) -> list[CheckResult]:
             return self._fn()
-    
+
     adapted = [(name, _LegacyAdapter(fn)) for name, fn in checks]
     orchestrator = CheckOrchestrator(adapted, max_workers, timeout_per_check)
     section_results = orchestrator.run_all(None)
-    
+
     return {name: sr.results for name, sr in section_results.items()}
 
 
@@ -205,22 +204,16 @@ def run_doctor(
         If ``True``, run independent checks in parallel using ThreadPoolExecutor.
         Provides 40-60% speedup for full diagnostics.
     """
-    start_time = time.monotonic()
+    time.monotonic()
 
     console.print()
-    console.print(
-        "[bold cyan]╔═══════════════════════════════════════════════════╗[/bold cyan]"
-    )
-    console.print(
-        "[bold cyan]║    TradeXV2 Unified Broker Diagnostics Report     ║[/bold cyan]"
-    )
+    console.print("[bold cyan]╔═══════════════════════════════════════════════════╗[/bold cyan]")
+    console.print("[bold cyan]║    TradeXV2 Unified Broker Diagnostics Report     ║[/bold cyan]")
     if parallel_mode:
         console.print(
             "[bold cyan]║         ⚡ Parallel Execution Mode Enabled          ║[/bold cyan]"
         )
-    console.print(
-        "[bold cyan]╚═══════════════════════════════════════════════════╝[/bold cyan]"
-    )
+    console.print("[bold cyan]╚═══════════════════════════════════════════════════╝[/bold cyan]")
     console.print()
 
     renderer = ResultRenderer(console)
@@ -249,9 +242,7 @@ def run_doctor(
         console.print("[dim]⚡ Running checks in parallel...[/dim]\n")
 
         # Run independent checks in parallel
-        orchestrator_checks = [
-            (name, strategy) for name, _, strategy in check_strategies
-        ]
+        orchestrator_checks = [(name, strategy) for name, _, strategy in check_strategies]
         orchestrator = CheckOrchestrator(orchestrator_checks, max_workers=4, timeout_per_check=15)
         parallel_results: dict[str, SectionResult] = orchestrator.run_all(broker_service)
 

@@ -13,7 +13,6 @@ from rich.console import Console
 from cli.commands.doctor.checks import CheckResult
 from cli.commands.doctor.renderer import ResultRenderer, _status_str
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -85,7 +84,7 @@ class TestResultRenderer:
             CheckResult("Check2", "FAIL", "Error"),
         ]
         renderer.render_section("Test Section", results)
-        
+
         output = console.export_text()
         assert "Test Section" in output
         assert "Check1" in output
@@ -94,7 +93,7 @@ class TestResultRenderer:
     def test_render_section_empty(self, renderer, console):
         """Test that empty sections are not rendered."""
         renderer.render_section("Empty Section", [])
-        
+
         output = console.export_text()
         assert "Empty Section" not in output
 
@@ -102,7 +101,7 @@ class TestResultRenderer:
         """Test rendering without column headers."""
         results = [CheckResult("Check1", "PASS")]
         renderer.render_section("No Header", results, show_header=False)
-        
+
         output = console.export_text()
         # Should still render but without headers
         assert "No Header" in output
@@ -114,7 +113,7 @@ class TestResultRenderer:
             ("Section2", [CheckResult("Check2", "WARN")]),
         ]
         renderer.render_sections(sections)
-        
+
         output = console.export_text()
         assert "Section1" in output
         assert "Section2" in output
@@ -126,7 +125,7 @@ class TestResultRenderer:
             CheckResult("Check2", "PASS"),
         ]
         renderer.render_summary(results)
-        
+
         output = console.export_text()
         assert "Summary:" in output
         assert "2 passed" in output
@@ -140,7 +139,7 @@ class TestResultRenderer:
             CheckResult("Check4", "INFO"),
         ]
         renderer.render_summary(results)
-        
+
         output = console.export_text()
         assert "1 passed" in output
         assert "1 warnings" in output
@@ -153,14 +152,14 @@ class TestResultRenderer:
             CheckResult("Check1", "ERROR", "Exception"),
         ]
         renderer.render_summary(results)
-        
+
         output = console.export_text()
         assert "1 error" in output
 
     def test_render_summary_empty(self, renderer, console):
         """Test summary with no results."""
         renderer.render_summary([])
-        
+
         output = console.export_text()
         assert "Summary:" in output
         assert "0 checks total" in output

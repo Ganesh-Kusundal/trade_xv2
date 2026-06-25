@@ -17,16 +17,16 @@ from datetime import datetime, timezone
 
 import pytest
 
+from brokers.common.observability.event_metrics import EventMetrics
+from brokers.common.observability.http_server import (
+    HttpObservabilityServer,
+    render_prometheus_metrics,
+)
 from infrastructure.lifecycle.lifecycle import (
     HealthState,
     HealthStatus,
     LifecycleManager,
     ManagedService,
-)
-from brokers.common.observability.event_metrics import EventMetrics
-from brokers.common.observability.http_server import (
-    HttpObservabilityServer,
-    render_prometheus_metrics,
 )
 
 # ── Prometheus renderer ───────────────────────────────────────────────────
@@ -50,7 +50,10 @@ def test_render_event_counters() -> None:
     em.inc("ORDER_PLACED", "handler_error:ValueError")
     out = render_prometheus_metrics(em.snapshot(), {})
     assert 'tradexv2_events_total{event_type="TICK", outcome="published"} 2' in out
-    assert 'tradexv2_events_total{event_type="ORDER_PLACED", outcome="handler_error:ValueError"} 1' in out
+    assert (
+        'tradexv2_events_total{event_type="ORDER_PLACED", outcome="handler_error:ValueError"} 1'
+        in out
+    )
 
 
 def test_render_lifecycle_health_gauge() -> None:
@@ -60,21 +63,32 @@ def test_render_lifecycle_health_gauge() -> None:
     class _Rec(ManagedService):
         name = "rec"
 
-        def start(self): pass
-        def stop(self, timeout_seconds=5.0): pass
+        def start(self):
+            pass
+
+        def stop(self, timeout_seconds=5.0):
+            pass
+
         def health(self):
             return HealthStatus(
-                state=HealthState.HEALTHY, service="rec",
+                state=HealthState.HEALTHY,
+                service="rec",
                 last_check=datetime.now(timezone.utc),
             )
 
     class _Dead(ManagedService):
         name = "dead"
-        def start(self): pass
-        def stop(self, timeout_seconds=5.0): pass
+
+        def start(self):
+            pass
+
+        def stop(self, timeout_seconds=5.0):
+            pass
+
         def health(self):
             return HealthStatus(
-                state=HealthState.FAILED, service="dead",
+                state=HealthState.FAILED,
+                service="dead",
                 last_check=datetime.now(timezone.utc),
             )
 
@@ -102,11 +116,11 @@ def test_render_extra_gauges() -> None:
 def test_render_label_value_escaping() -> None:
     """Special characters in label values are escaped."""
     em = EventMetrics()
-    em.inc('EVT-WITH"QUOTE', 'line\nbreak')
+    em.inc('EVT-WITH"QUOTE', "line\nbreak")
     out = render_prometheus_metrics(em.snapshot(), {})
     # The quote is escaped, the newline is escaped.
     assert '\\"' in out
-    assert '\\n' in out
+    assert "\\n" in out
 
 
 def test_render_is_prometheus_text_format() -> None:
@@ -141,7 +155,8 @@ def test_health_before_start() -> None:
 @pytest.fixture
 def server():
     s = HttpObservabilityServer(
-        host="127.0.0.1", port=0,
+        host="127.0.0.1",
+        port=0,
         event_metrics=EventMetrics(),
     )
     s.start()
@@ -164,11 +179,14 @@ def _get_port(server: HttpObservabilityServer) -> int:
 @pytest.mark.asyncio
 async def test_healthz_returns_200(server: HttpObservabilityServer) -> None:
     import aiohttp
+
     port = _get_port(server)
-    async with aiohttp.ClientSession() as session:
-        async with session.get(f"http://127.0.0.1:{port}/healthz") as resp:
-            assert resp.status == 200
-            data = await resp.json()
+    async with (
+        aiohttp.ClientSession() as session,
+        session.get(f"http://127.0.0.1:{port}/healthz") as resp,
+    ):
+        assert resp.status == 200
+        data = await resp.json()
     assert data["status"] == "alive"
     assert data["service"] == "http.observability"
     assert "uptime_seconds" in data
@@ -179,11 +197,14 @@ async def test_healthz_returns_200(server: HttpObservabilityServer) -> None:
 async def test_readyz_no_lifecycle_returns_200(server: HttpObservabilityServer) -> None:
     """When no lifecycle is wired, /readyz returns 200."""
     import aiohttp
+
     port = _get_port(server)
-    async with aiohttp.ClientSession() as session:
-        async with session.get(f"http://127.0.0.1:{port}/readyz") as resp:
-            assert resp.status == 200
-            data = await resp.json()
+    async with (
+        aiohttp.ClientSession() as session,
+        session.get(f"http://127.0.0.1:{port}/readyz") as resp,
+    ):
+        assert resp.status == 200
+        data = await resp.json()
     assert data["status"] == "ready"
     assert data["services"] == {}
 
@@ -192,14 +213,17 @@ async def test_readyz_no_lifecycle_returns_200(server: HttpObservabilityServer) 
 async def test_metrics_renders_event_metrics(server: HttpObservabilityServer) -> None:
     """The /metrics endpoint serializes EventMetrics correctly."""
     import aiohttp
+
     server._event_metrics.inc("TICK", "published")
     server._event_metrics.inc("TICK", "dispatched")
     port = _get_port(server)
-    async with aiohttp.ClientSession() as session:
-        async with session.get(f"http://127.0.0.1:{port}/metrics") as resp:
-            assert resp.status == 200
-            assert resp.content_type == "text/plain"
-            text = await resp.text()
+    async with (
+        aiohttp.ClientSession() as session,
+        session.get(f"http://127.0.0.1:{port}/metrics") as resp,
+    ):
+        assert resp.status == 200
+        assert resp.content_type == "text/plain"
+        text = await resp.text()
     assert 'tradexv2_events_total{event_type="TICK", outcome="published"} 1' in text
     assert 'tradexv2_events_total{event_type="TICK", outcome="dispatched"} 1' in text
 
@@ -207,11 +231,11 @@ async def test_metrics_renders_event_metrics(server: HttpObservabilityServer) ->
 @pytest.mark.asyncio
 async def test_root_endpoint_returns_endpoints(server: HttpObservabilityServer) -> None:
     import aiohttp
+
     port = _get_port(server)
-    async with aiohttp.ClientSession() as session:
-        async with session.get(f"http://127.0.0.1:{port}/") as resp:
-            assert resp.status == 200
-            data = await resp.json()
+    async with aiohttp.ClientSession() as session, session.get(f"http://127.0.0.1:{port}/") as resp:
+        assert resp.status == 200
+        data = await resp.json()
     assert "endpoints" in data
     assert "/healthz" in data["endpoints"]
     assert "/readyz" in data["endpoints"]
@@ -229,21 +253,33 @@ def test_readyz_returns_503_when_a_service_failed() -> None:
 
     class _Dead(ManagedService):
         name = "dead-svc"
-        def start(self): pass
-        def stop(self, timeout_seconds=5.0): pass
+
+        def start(self):
+            pass
+
+        def stop(self, timeout_seconds=5.0):
+            pass
+
         def health(self):
             return HealthStatus(
-                state=HealthState.FAILED, service="dead-svc",
+                state=HealthState.FAILED,
+                service="dead-svc",
                 last_check=datetime.now(timezone.utc),
             )
 
     class _Healthy(ManagedService):
         name = "healthy-svc"
-        def start(self): pass
-        def stop(self, timeout_seconds=5.0): pass
+
+        def start(self):
+            pass
+
+        def stop(self, timeout_seconds=5.0):
+            pass
+
         def health(self):
             return HealthStatus(
-                state=HealthState.HEALTHY, service="healthy-svc",
+                state=HealthState.HEALTHY,
+                service="healthy-svc",
                 last_check=datetime.now(timezone.utc),
             )
 
@@ -262,9 +298,13 @@ def test_readyz_returns_503_when_a_service_failed() -> None:
 
         async def _check():
             import aiohttp
-            async with aiohttp.ClientSession() as session:
-                async with session.get(f"http://127.0.0.1:{port}/readyz") as resp:
-                    return resp.status, await resp.json()
+
+            async with (
+                aiohttp.ClientSession() as session,
+                session.get(f"http://127.0.0.1:{port}/readyz") as resp,
+            ):
+                return resp.status, await resp.json()
+
         status, body = asyncio.run(_check())
         assert status == 503
         assert body["status"] == "not_ready"
@@ -304,19 +344,25 @@ def test_extra_gauges_fn_failure_does_not_break_metrics() -> None:
     """If the extra_gauges_fn raises, the /metrics endpoint must
     still return 200 (with no extras)."""
     s = HttpObservabilityServer(
-        host="127.0.0.1", port=0,
+        host="127.0.0.1",
+        port=0,
         extra_gauges_fn=lambda: (_ for _ in ()).throw(RuntimeError("boom")),
     )
     s.start()
     try:
         import asyncio
+
         port = _get_port(s)
 
         async def _check():
             import aiohttp
-            async with aiohttp.ClientSession() as session:
-                async with session.get(f"http://127.0.0.1:{port}/metrics") as resp:
-                    return resp.status, await resp.text()
+
+            async with (
+                aiohttp.ClientSession() as session,
+                session.get(f"http://127.0.0.1:{port}/metrics") as resp,
+            ):
+                return resp.status, await resp.text()
+
         status, text = asyncio.run(_check())
         assert status == 200
         # The /metrics body is still well-formed
@@ -328,6 +374,7 @@ def test_extra_gauges_fn_failure_does_not_break_metrics() -> None:
 def test_extra_gauges_fn_provides_custom_gauges() -> None:
     """The extra_gauges_fn is called on every /metrics scrape."""
     counter = {"n": 0}
+
     def fn():
         counter["n"] += 1
         return {"scrape_count": float(counter["n"])}
@@ -336,13 +383,18 @@ def test_extra_gauges_fn_provides_custom_gauges() -> None:
     s.start()
     try:
         import asyncio
+
         port = _get_port(s)
 
         async def _scrape():
             import aiohttp
-            async with aiohttp.ClientSession() as session:
-                async with session.get(f"http://127.0.0.1:{port}/metrics") as resp:
-                    return await resp.text()
+
+            async with (
+                aiohttp.ClientSession() as session,
+                session.get(f"http://127.0.0.1:{port}/metrics") as resp,
+            ):
+                return await resp.text()
+
         text1 = asyncio.run(_scrape())
         text2 = asyncio.run(_scrape())
         assert "tradexv2_scrape_count 1" in text1

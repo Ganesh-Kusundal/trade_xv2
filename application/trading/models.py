@@ -28,8 +28,7 @@ class ExecutionResult:
 
 @runtime_checkable
 class FeatureFetcher(Protocol):
-    def fetch(self, symbol: str) -> pd.DataFrame | None:
-        ...
+    def fetch(self, symbol: str) -> pd.DataFrame | None: ...
 
 
 __all__ = ["ExecutionRequest", "ExecutionResult", "FeatureFetcher"]

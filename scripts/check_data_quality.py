@@ -1,10 +1,11 @@
 """Quick data quality analysis using DuckDB."""
 
-import duckdb
 from pathlib import Path
 
+import duckdb
+
 # Connect to catalog
-conn = duckdb.connect('market_data/catalog.duckdb')
+conn = duckdb.connect("market_data/catalog.duckdb")
 
 # Get overview
 print("=" * 80)
@@ -15,7 +16,7 @@ print("=" * 80)
 print("\n📊 BASIC STATISTICS")
 print("-" * 80)
 result = conn.execute("""
-    SELECT 
+    SELECT
         COUNT(*) as total_symbols,
         SUM(total_rows) as total_candles,
         MIN(first_date) as earliest_date,
@@ -30,8 +31,8 @@ print(f"Date Range: {result[2]} to {result[3]}")
 print("\n📅 DATE RANGE DISTRIBUTION")
 print("-" * 80)
 result = conn.execute("""
-    SELECT 
-        CASE 
+    SELECT
+        CASE
             WHEN DATEDIFF('day', first_date, last_date) < 30 THEN '< 1 month'
             WHEN DATEDIFF('day', first_date, last_date) < 90 THEN '1-3 months'
             WHEN DATEDIFF('day', first_date, last_date) < 180 THEN '3-6 months'
@@ -53,8 +54,8 @@ for row in result:
 print("\n📦 DATA VOLUME DISTRIBUTION")
 print("-" * 80)
 result = conn.execute("""
-    SELECT 
-        CASE 
+    SELECT
+        CASE
             WHEN total_rows < 10000 THEN '< 10K candles'
             WHEN total_rows < 50000 THEN '10K-50K'
             WHEN total_rows < 100000 THEN '50K-100K'
@@ -85,12 +86,12 @@ print(f"Symbols with no data: {result[0]}")
 print("\n🔍 SAMPLE DATA QUALITY (Top 20 by Volume)")
 print("-" * 80)
 
-parquet_dir = Path('market_data/equities/candles/timeframe=1m')
+parquet_dir = Path("market_data/equities/candles/timeframe=1m")
 if parquet_dir.exists():
-    parquet_pattern = str(parquet_dir / 'symbol=*' / 'data.parquet')
-    
+    parquet_pattern = str(parquet_dir / "symbol=*" / "data.parquet")
+
     result = conn.execute(f"""
-        SELECT 
+        SELECT
             symbol,
             COUNT(*) as total_candles,
             MIN(timestamp)::DATE as first_date,
@@ -104,26 +105,30 @@ if parquet_dir.exists():
         ORDER BY total_candles DESC
         LIMIT 20
     """).fetchall()
-    
-    print(f"{'Symbol':<15} {'Candles':>10} {'Days':>6} {'First':>12} {'Last':>12} {'Zero Vol':>10} {'OHLC Err':>10}")
+
+    print(
+        f"{'Symbol':<15} {'Candles':>10} {'Days':>6} {'First':>12} {'Last':>12} {'Zero Vol':>10} {'OHLC Err':>10}"
+    )
     print("-" * 80)
     for row in result:
         symbol, candles, first, last, days, zero_vol, ohlc_err, avg_range = row
-        print(f"{symbol:<15} {candles:>10,} {days:>6} {str(first):>12} {str(last):>12} {zero_vol:>10,} {ohlc_err:>10}")
-    
+        print(
+            f"{symbol:<15} {candles:>10,} {days:>6} {first!s:>12} {last!s:>12} {zero_vol:>10,} {ohlc_err:>10}"
+        )
+
     # 6. Quality Summary Statistics
     print("\n📈 OVERALL QUALITY METRICS")
     print("-" * 80)
-    
+
     result = conn.execute(f"""
-        SELECT 
+        SELECT
             COUNT(DISTINCT symbol) as total_symbols,
             SUM(CASE WHEN zero_volume > 0 THEN 1 ELSE 0 END) as symbols_with_zero_vol,
             SUM(CASE WHEN ohlc_errors > 0 THEN 1 ELSE 0 END) as symbols_with_ohlc_errors,
             AVG(trading_days) as avg_trading_days,
             SUM(total_candles) as total_candles
         FROM (
-            SELECT 
+            SELECT
                 symbol,
                 COUNT(*) as total_candles,
                 COUNT(DISTINCT DATE_TRUNC('day', timestamp)) as trading_days,
@@ -133,32 +138,36 @@ if parquet_dir.exists():
             GROUP BY symbol
         )
     """).fetchone()
-    
+
     total_symbols = result[0]
     zero_vol_symbols = result[1]
     ohlc_error_symbols = result[2]
     avg_days = result[3]
     total_candles = result[4]
-    
+
     print(f"Total Symbols Analyzed: {total_symbols:,}")
     print(f"Total Candles: {total_candles:,}")
     print(f"Avg Trading Days per Symbol: {avg_days:.0f}")
-    print(f"Symbols with Zero Volume Issues: {zero_vol_symbols} ({zero_vol_symbols/total_symbols*100:.1f}%)")
-    print(f"Symbols with OHLC Errors: {ohlc_error_symbols} ({ohlc_error_symbols/total_symbols*100:.1f}%)")
-    
+    print(
+        f"Symbols with Zero Volume Issues: {zero_vol_symbols} ({zero_vol_symbols / total_symbols * 100:.1f}%)"
+    )
+    print(
+        f"Symbols with OHLC Errors: {ohlc_error_symbols} ({ohlc_error_symbols / total_symbols * 100:.1f}%)"
+    )
+
     # 7. Symbols with Most Issues
     print("\n🚨 SYMBOLS WITH MOST DATA QUALITY ISSUES")
     print("-" * 80)
-    
+
     result = conn.execute(f"""
-        SELECT 
+        SELECT
             symbol,
             total_candles,
             zero_volume,
             ohlc_errors,
             trading_days
         FROM (
-            SELECT 
+            SELECT
                 symbol,
                 COUNT(*) as total_candles,
                 COUNT(DISTINCT DATE_TRUNC('day', timestamp)) as trading_days,
@@ -171,7 +180,7 @@ if parquet_dir.exists():
         ORDER BY zero_volume DESC, ohlc_errors DESC
         LIMIT 20
     """).fetchall()
-    
+
     if result:
         print(f"{'Symbol':<15} {'Candles':>10} {'Days':>6} {'Zero Vol':>10} {'OHLC Err':>10}")
         print("-" * 80)

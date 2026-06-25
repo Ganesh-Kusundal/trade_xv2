@@ -15,10 +15,9 @@ from __future__ import annotations
 
 import logging
 
+from brokers.dhan.depth_feed_base import BinaryDepthFeed
 from domain import MarketDepth
 from infrastructure.event_bus import EventBus
-
-from brokers.dhan.depth_feed_base import BinaryDepthFeed
 
 __all__ = ["DhanDepth200Feed"]
 
@@ -78,16 +77,11 @@ class DhanDepth200Feed(BinaryDepthFeed):
                 error message ``"Only 1 instrument allowed for 200-level depth"``
                 is preserved for backwards-compatible test assertions).
         """
-        if isinstance(instrument, list):
-            instruments = instrument
-        else:
-            instruments = [instrument]
+        instruments = instrument if isinstance(instrument, list) else [instrument]
 
         # Legacy: depth-200 raises "Only 1 instrument allowed..." even when
         # the unified limit check would accept a single new instrument.
-        existing = [
-            i for i in instruments if i in self._subscriptions
-        ]
+        [i for i in instruments if i in self._subscriptions]
         new_instruments = [i for i in instruments if i not in self._subscriptions]
         if not new_instruments:
             return

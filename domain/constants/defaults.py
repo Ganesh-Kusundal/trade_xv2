@@ -29,29 +29,21 @@ def _env_decimal(name: str, default: str) -> Decimal:
 
 # ── Risk / capital ──────────────────────────────────────────────────────────
 
-RISK_FALLBACK_CAPITAL: Decimal = _env_decimal(
-    "RISK_FALLBACK_CAPITAL", "100000"
-)
+RISK_FALLBACK_CAPITAL: Decimal = _env_decimal("RISK_FALLBACK_CAPITAL", "100000")
 """Capital returned by :class:`GatewayCapitalProvider` when the gateway is
 unavailable or ``funds()`` fails.  Prevents silent zero-capital risk checks."""
 
-RISK_FAIL_OPEN_THRESHOLD: Decimal = _env_decimal(
-    "RISK_FAIL_OPEN_THRESHOLD", "1000000"
-)
-"""Legacy placeholder used when ``RISK_FAIL_OPEN=1`` is set.  
+RISK_FAIL_OPEN_THRESHOLD: Decimal = _env_decimal("RISK_FAIL_OPEN_THRESHOLD", "1000000")
+"""Legacy placeholder used when ``RISK_FAIL_OPEN=1`` is set.
 Deprecated; production deployments should use ``RISK_FALLBACK_CAPITAL``."""
 
 
 # ── Paper trading ───────────────────────────────────────────────────────────
 
-PAPER_INITIAL_CAPITAL: Decimal = _env_decimal(
-    "PAPER_INITIAL_CAPITAL", "1000000"
-)
+PAPER_INITIAL_CAPITAL: Decimal = _env_decimal("PAPER_INITIAL_CAPITAL", "1000000")
 """Default initial capital for :class:`~brokers.paper.PaperGateway`."""
 
-PAPER_MAX_POSITION_PCT: Decimal = _env_decimal(
-    "PAPER_MAX_POSITION_PCT", "10000"
-)
+PAPER_MAX_POSITION_PCT: Decimal = _env_decimal("PAPER_MAX_POSITION_PCT", "10000")
 """Default max position / gross exposure / daily loss percentages for
 the unrestricted paper-trading risk config."""
 

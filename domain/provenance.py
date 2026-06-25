@@ -35,6 +35,21 @@ class ProvenanceConfidence(str, Enum):
 
 
 @dataclass(frozen=True, slots=True)
+class TimestampSemantics:
+    """Describes the temporal semantics of a market data artifact.
+
+    event_time      — when the market event occurred (bar open/close, tick time).
+    ingest_time     — when the platform received the data from the broker.
+    effective_time  — bar label convention (left-labeled vs right-labeled);
+                      required on HistoricalBar to disambiguate timestamp meaning.
+    """
+
+    event_time: datetime
+    ingest_time: datetime
+    effective_time: datetime
+
+
+@dataclass(frozen=True, slots=True)
 class SourceIdentity:
     """Identifies the broker source of a normalized artifact.
 

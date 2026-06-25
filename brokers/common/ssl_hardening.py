@@ -40,15 +40,16 @@ each broker's leaf or intermediate key, which changes on every
 rotation. We rely on the system trust store for now. A future
 revision can layer pinning on top of this helper.
 """
+
 from __future__ import annotations
 
+import importlib
 import ssl
 from typing import Final
 
+import requests
 from requests.adapters import HTTPAdapter
-from urllib3 import PoolManager
 from urllib3.util.ssl_ import create_urllib3_context
-
 
 # TLS configuration. ``ssl.OP_NO_TLSv1`` and ``ssl.OP_NO_TLSv1_1``
 # are deprecated in Python 3.10+ but still respected — leaving them
@@ -96,18 +97,18 @@ class HardenedHTTPSAdapter(HTTPAdapter):
     ``https://`` URLs, which is what production traffic should use.
     """
 
-    def init_poolmanager(self, *args, **kwargs):  # noqa: D401
+    def init_poolmanager(self, *args, **kwargs):
         context = hardened_ssl_context()
         kwargs["ssl_context"] = context
         super().init_poolmanager(*args, **kwargs)
 
-    def proxy_manager_for(self, *args, **kwargs):  # noqa: D401
+    def proxy_manager_for(self, *args, **kwargs):
         context = hardened_ssl_context()
         kwargs["ssl_context"] = context
         return super().proxy_manager_for(*args, **kwargs)
 
 
-def create_pinned_session() -> "requests.Session":  # type: ignore[name-defined]  # noqa: F821
+def create_pinned_session() -> requests.Session:  # type: ignore[name-defined]
     """Build a :class:`requests.Session` with hardened HTTPS defaults.
 
     The session is otherwise vanilla — it does not add any default
@@ -134,15 +135,11 @@ def assert_secure_session(session) -> None:
     sessions that pre-date this module will fail the check unless
     they are explicitly migrated.
     """
-    try:
-        import requests  # noqa: F401
-    except ImportError as exc:
-        raise RuntimeError("requests not installed") from exc
+    if importlib.util.find_spec("requests") is None:
+        raise RuntimeError("requests not installed")
 
     if session.verify is not True:
-        raise RuntimeError(
-            f"insecure session: verify={session.verify!r}; must be True"
-        )
+        raise RuntimeError(f"insecure session: verify={session.verify!r}; must be True")
 
     https_adapter = session.get_adapter("https://example.invalid/")
     if not isinstance(https_adapter, HardenedHTTPSAdapter):

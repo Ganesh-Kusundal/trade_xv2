@@ -6,16 +6,15 @@ mapping hold their invariants across a wide range of inputs.
 
 from __future__ import annotations
 
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
 import hypothesis.strategies as st
 import pandas as pd
-import pytest
-from hypothesis import given, settings, strategies as st
+from hypothesis import given, settings
 
-from domain import OrderStatus, Side, OrderType
-from domain.status_mapper import StatusMapperRegistry
+from domain import OrderStatus, OrderType, Side
 from domain.entities import Order, Position, Trade
+from domain.status_mapper import StatusMapperRegistry
 
 # Order limits (inline since not in constants yet)
 MAX_ORDER_QUANTITY = 1000000
@@ -39,7 +38,9 @@ price_strategy = st.decimals(
 quantity_strategy = st.integers(min_value=1, max_value=MAX_ORDER_QUANTITY)
 
 # Valid order IDs
-order_id_strategy = st.text(min_size=1, max_size=50, alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-")
+order_id_strategy = st.text(
+    min_size=1, max_size=50, alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-"
+)
 
 # Valid symbols
 symbol_strategy = st.text(min_size=1, max_size=20, alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.")
@@ -57,7 +58,9 @@ symbol_strategy = st.text(min_size=1, max_size=20, alphabet="ABCDEFGHIJKLMNOPQRS
     price=price_strategy,
 )
 @settings(max_examples=100)
-def test_order_creation_invariants(order_id: str, symbol: str, quantity: int, price: Decimal) -> None:
+def test_order_creation_invariants(
+    order_id: str, symbol: str, quantity: int, price: Decimal
+) -> None:
     """Orders maintain invariants regardless of input."""
     order = Order(
         order_id=order_id,
@@ -150,7 +153,9 @@ def test_position_pnl_symmetry(quantity: int, avg_price: Decimal, ltp: Decimal) 
     price1=price_strategy,
     price2=price_strategy,
 )
-def test_position_averaging_invariant(qty1: int, qty2: int, price1: Decimal, price2: Decimal) -> None:
+def test_position_averaging_invariant(
+    qty1: int, qty2: int, price1: Decimal, price2: Decimal
+) -> None:
     """Multiple fills produce correct average price."""
     position = Position(symbol="RELIANCE", exchange="NSE")
 
@@ -246,20 +251,29 @@ def test_scanner_score_bounds(
     from analytics.scanner.scanners import MomentumScanner
 
     # Create a single-row DataFrame
-    df = pd.DataFrame({
-        "symbol": ["TEST"],
-        "rsi": [rsi],
-        "roc": [roc],
-        "trend": [trend],
-        "relative_volume": [volume],
-        "momentum": [momentum],
-    })
+    df = pd.DataFrame(
+        {
+            "symbol": ["TEST"],
+            "rsi": [rsi],
+            "roc": [roc],
+            "trend": [trend],
+            "relative_volume": [volume],
+            "momentum": [momentum],
+        }
+    )
 
     scanner = MomentumScanner(top_n=10)
     scored = scanner._score(df)
 
     # Invariant: all score columns in [0, 100]
-    for col in ["score_rsi", "score_roc", "score_trend", "score_volume", "score_momentum", "composite_score"]:
+    for col in [
+        "score_rsi",
+        "score_roc",
+        "score_trend",
+        "score_volume",
+        "score_momentum",
+        "composite_score",
+    ]:
         if col in scored.columns:
             val = scored[col].iloc[0]
             assert 0.0 <= val <= 100.0, f"{col} = {val} out of bounds"

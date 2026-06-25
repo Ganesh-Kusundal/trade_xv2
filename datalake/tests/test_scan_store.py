@@ -20,6 +20,7 @@ from datalake.scan_store import (
 @dataclass
 class _Candidate:
     """Mock candidate for testing."""
+
     symbol: str
     score: float
     reasons: list[str] | None = None
@@ -71,7 +72,9 @@ class TestSaveScanResult:
     def test_save_with_metadata(self, conn: duckdb.DuckDBPyConnection) -> None:
         candidates = [_Candidate("RELIANCE", 85.0)]
         scan_id = save_scan_result(
-            "momentum", candidates, 500,
+            "momentum",
+            candidates,
+            500,
             metadata={"universe": "nifty500"},
             conn=conn,
         )
@@ -106,7 +109,7 @@ class TestGetRecentScans:
 
     def test_limit(self, conn: duckdb.DuckDBPyConnection) -> None:
         candidates = [_Candidate("RELIANCE", 85.0)]
-        for i in range(5):
+        for _i in range(5):
             save_scan_result("momentum", candidates, 500, conn=conn)
         scans = get_recent_scans(limit=3, conn=conn)
         assert len(scans) == 3
@@ -151,18 +154,28 @@ class TestCompareScans:
 
     def test_added_symbols(self, conn: duckdb.DuckDBPyConnection) -> None:
         id1 = save_scan_result("momentum", [_Candidate("RELIANCE", 85.0)], 500, conn=conn)
-        id2 = save_scan_result("momentum", [
-            _Candidate("RELIANCE", 85.0),
-            _Candidate("INFY", 72.0),
-        ], 500, conn=conn)
+        id2 = save_scan_result(
+            "momentum",
+            [
+                _Candidate("RELIANCE", 85.0),
+                _Candidate("INFY", 72.0),
+            ],
+            500,
+            conn=conn,
+        )
         result = compare_scans(id1, id2, conn)
         assert "INFY" in result["added"]
 
     def test_removed_symbols(self, conn: duckdb.DuckDBPyConnection) -> None:
-        id1 = save_scan_result("momentum", [
-            _Candidate("RELIANCE", 85.0),
-            _Candidate("INFY", 72.0),
-        ], 500, conn=conn)
+        id1 = save_scan_result(
+            "momentum",
+            [
+                _Candidate("RELIANCE", 85.0),
+                _Candidate("INFY", 72.0),
+            ],
+            500,
+            conn=conn,
+        )
         id2 = save_scan_result("momentum", [_Candidate("RELIANCE", 85.0)], 500, conn=conn)
         result = compare_scans(id1, id2, conn)
         assert "INFY" in result["removed"]
@@ -176,10 +189,15 @@ class TestCompareScans:
 
     def test_summary(self, conn: duckdb.DuckDBPyConnection) -> None:
         id1 = save_scan_result("momentum", [_Candidate("RELIANCE", 80.0)], 500, conn=conn)
-        id2 = save_scan_result("momentum", [
-            _Candidate("RELIANCE", 90.0),
-            _Candidate("INFY", 72.0),
-        ], 500, conn=conn)
+        id2 = save_scan_result(
+            "momentum",
+            [
+                _Candidate("RELIANCE", 90.0),
+                _Candidate("INFY", 72.0),
+            ],
+            500,
+            conn=conn,
+        )
         result = compare_scans(id1, id2, conn)
         assert "Added 1" in result["summary"]
         assert "Changed 1" in result["summary"]

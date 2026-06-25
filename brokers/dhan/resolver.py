@@ -11,10 +11,10 @@ import logging
 import threading
 from collections.abc import Iterable
 
-from indices import is_index, get_index_entry
 from brokers.dhan.domain import Exchange, Instrument, InstrumentType, OptionType
 from brokers.dhan.exceptions import InstrumentNotFoundError
 from brokers.dhan.segments import SEGMENT_TO_EXCHANGE
+from indices import get_index_entry, is_index
 
 logger = logging.getLogger(__name__)
 
@@ -33,8 +33,10 @@ _NAME_TO_TYPE: dict[str, InstrumentType] = {
 }
 
 _DHAN_OPTION_TYPE: dict[str, OptionType] = {
-    "CE": OptionType.CALL, "CALL": OptionType.CALL,
-    "PE": OptionType.PUT, "PUT": OptionType.PUT,
+    "CE": OptionType.CALL,
+    "CALL": OptionType.CALL,
+    "PE": OptionType.PUT,
+    "PUT": OptionType.PUT,
 }
 
 
@@ -48,9 +50,11 @@ class SymbolResolver:
         self._loaded = False
         self._lock = threading.RLock()
 
-    def resolve(self, symbol: str, exchange: str, *, expected_segment: str | None = None) -> Instrument:
+    def resolve(
+        self, symbol: str, exchange: str, *, expected_segment: str | None = None
+    ) -> Instrument:
         """Resolve symbol to Instrument.
-        
+
         Args:
             symbol: Trading symbol
             exchange: Exchange code
@@ -99,7 +103,7 @@ class SymbolResolver:
 
     def load_from_rows(self, rows: Iterable[dict]) -> dict[str, int | float]:
         """Load instruments from CSV rows with atomic swap.
-        
+
         Returns:
             Dict with keys: total, skipped, skip_rate
         """
@@ -136,23 +140,22 @@ class SymbolResolver:
             # an expired currency option.
             for k in alt_keys:
                 existing = new_by_symbol.get((k, inst.exchange))
-                if existing is None:
-                    new_by_symbol[(k, inst.exchange)] = inst
-                elif existing.is_option and not inst.is_option:
+                if existing is None or (existing.is_option and not inst.is_option):
                     new_by_symbol[(k, inst.exchange)] = inst
                 elif existing.is_future and inst.is_future:
                     # Prefer the nearest active future (closest expiry >= today)
                     from datetime import date
+
                     today = str(date.today())
                     e_exp = existing.expiry or ""
                     i_exp = inst.expiry or ""
                     e_active = e_exp >= today
                     i_active = i_exp >= today
-                    if i_active and not e_active:
-                        new_by_symbol[(k, inst.exchange)] = inst
-                    elif i_active and e_active and i_exp < e_exp:
-                        new_by_symbol[(k, inst.exchange)] = inst
-                    elif not i_active and not e_active and i_exp > e_exp:
+                    if (
+                        (i_active and not e_active)
+                        or (i_active and e_active and i_exp < e_exp)
+                        or (not i_active and not e_active and i_exp > e_exp)
+                    ):
                         new_by_symbol[(k, inst.exchange)] = inst
 
             new_by_sid[inst.security_id] = inst
@@ -186,16 +189,20 @@ class SymbolResolver:
 
         logger.info(
             "instrument cache loaded: total=%d skipped=%d skip_rate=%.2f%%",
-            total_loaded, skipped, skip_rate * 100,
+            total_loaded,
+            skipped,
+            skip_rate * 100,
         )
 
         return result
 
     # ── internals ──
 
-    def _find(self, symbol: str, exch: Exchange, *, expected_segment: str | None = None) -> Instrument | None:
+    def _find(
+        self, symbol: str, exch: Exchange, *, expected_segment: str | None = None
+    ) -> Instrument | None:
         """Find instrument with progressive lookup.
-        
+
         Args:
             symbol: Trading symbol
             exch: Exchange enum
@@ -254,17 +261,28 @@ class SymbolResolver:
             if entry and entry.dhan_security_id:
                 # Guard against index fallback when derivatives expected
                 if expected_segment:
-                    derivative_segments = {"NSE_FNO", "BSE_FNO", "MCX_COMM", "NSE_CURRENCY", "BSE_CURRENCY"}
+                    derivative_segments = {
+                        "NSE_FNO",
+                        "BSE_FNO",
+                        "MCX_COMM",
+                        "NSE_CURRENCY",
+                        "BSE_CURRENCY",
+                    }
                     if expected_segment in derivative_segments:
                         raise InstrumentNotFoundError(
                             f"{symbol} is an index; specify the derivative contract symbol "
                             f"e.g. NIFTY 26 JUN 25000 CE for {expected_segment}"
                         )
-                
+
                 from decimal import Decimal
+
                 logger.info(
                     "index_resolved_via_hardcoded_id",
-                    extra={"symbol": clean, "security_id": entry.dhan_security_id, "name": entry.canonical_name},
+                    extra={
+                        "symbol": clean,
+                        "security_id": entry.dhan_security_id,
+                        "canonical_name": entry.canonical_name,
+                    },
                 )
                 return Instrument(
                     symbol=clean,
@@ -284,10 +302,10 @@ class SymbolResolver:
         up = exchange.strip().upper()
         try:
             return Exchange(up)
-        except ValueError:
+        except ValueError as e:
             mapped = SEGMENT_TO_EXCHANGE.get(up)
             if mapped is None:
-                raise InstrumentNotFoundError(f"Unknown exchange: {exchange!r}")
+                raise InstrumentNotFoundError(f"Unknown exchange: {exchange!r}") from e
             return Exchange(mapped)
 
     @staticmethod
@@ -330,7 +348,11 @@ class SymbolResolver:
             if itype == InstrumentType.OPTION:
                 opt_raw = (row.get("SEM_OPTION_TYPE") or "").strip().upper()
                 option_type = _DHAN_OPTION_TYPE.get(opt_raw)
-                strike_price = _safe_decimal(row.get("SEM_STRIKE_PRICE")) if row.get("SEM_STRIKE_PRICE") is not None else None
+                strike_price = (
+                    _safe_decimal(row.get("SEM_STRIKE_PRICE"))
+                    if row.get("SEM_STRIKE_PRICE") is not None
+                    else None
+                )
 
             # Prefer SM_SYMBOL_NAME for underlying (root cause fix)
             if sm_symbol_name:
@@ -341,6 +363,7 @@ class SymbolResolver:
                 underlying = symbol.split("-", 1)[0].upper()
             else:
                 import re
+
                 m = re.match(r"^([A-Z]+)\d+[A-Z]{3}FUT$", symbol.upper())
                 underlying = (m.group(1) if m else symbol).upper()
 
@@ -370,6 +393,7 @@ def _safe_int(value, default: int = 0) -> int:
 
 def _safe_decimal(value, default: str = "0"):
     from decimal import Decimal
+
     if value is None:
         return Decimal(default)
     try:
@@ -421,10 +445,11 @@ def _generate_alternate_keys(
     if (is_option or is_future) and expiry and underlying:
         try:
             from datetime import datetime
+
             dt = datetime.strptime(expiry[:10], "%Y-%m-%d")
             dd = dt.strftime("%d")
             dd_strip = str(int(dd))
-            MMM = dt.strftime("%b").upper()
+            mmm = dt.strftime("%b").upper()
             yy = dt.strftime("%y")
             yyyy = dt.strftime("%Y")
 
@@ -449,40 +474,40 @@ def _generate_alternate_keys(
                         strike_str = str(strike)
 
                 # Generate spaced option forms with CE/PE:
-                keys.append(f"{und_up} {dd} {MMM} {yy} {strike_str} {ce_pe}")
-                keys.append(f"{und_up} {dd_strip} {MMM} {yy} {strike_str} {ce_pe}")
-                keys.append(f"{und_up} {dd} {MMM} {yyyy} {strike_str} {ce_pe}")
-                keys.append(f"{und_up} {dd_strip} {MMM} {yyyy} {strike_str} {ce_pe}")
-                keys.append(f"{und_up} {dd} {MMM} {strike_str} {ce_pe}")
-                keys.append(f"{und_up} {dd_strip} {MMM} {strike_str} {ce_pe}")
+                keys.append(f"{und_up} {dd} {mmm} {yy} {strike_str} {ce_pe}")
+                keys.append(f"{und_up} {dd_strip} {mmm} {yy} {strike_str} {ce_pe}")
+                keys.append(f"{und_up} {dd} {mmm} {yyyy} {strike_str} {ce_pe}")
+                keys.append(f"{und_up} {dd_strip} {mmm} {yyyy} {strike_str} {ce_pe}")
+                keys.append(f"{und_up} {dd} {mmm} {strike_str} {ce_pe}")
+                keys.append(f"{und_up} {dd_strip} {mmm} {strike_str} {ce_pe}")
 
                 # Generate spaced option forms with CALL/PUT:
-                keys.append(f"{und_up} {dd} {MMM} {strike_str} {call_put}")
-                keys.append(f"{und_up} {dd_strip} {MMM} {strike_str} {call_put}")
+                keys.append(f"{und_up} {dd} {mmm} {strike_str} {call_put}")
+                keys.append(f"{und_up} {dd_strip} {mmm} {strike_str} {call_put}")
 
                 # Generate compact option forms:
-                keys.append(f"{und_up}{dd}{MMM}{yy}{strike_str}{ce_pe}")
-                keys.append(f"{und_up}{dd_strip}{MMM}{yy}{strike_str}{ce_pe}")
-                keys.append(f"{und_up}{dd}{MMM}{yyyy}{strike_str}{ce_pe}")
-                keys.append(f"{und_up}{dd_strip}{MMM}{yyyy}{strike_str}{ce_pe}")
-                keys.append(f"{und_up}{dd}{MMM}{strike_str}{ce_pe}")
-                keys.append(f"{und_up}{dd_strip}{MMM}{strike_str}{ce_pe}")
+                keys.append(f"{und_up}{dd}{mmm}{yy}{strike_str}{ce_pe}")
+                keys.append(f"{und_up}{dd_strip}{mmm}{yy}{strike_str}{ce_pe}")
+                keys.append(f"{und_up}{dd}{mmm}{yyyy}{strike_str}{ce_pe}")
+                keys.append(f"{und_up}{dd_strip}{mmm}{yyyy}{strike_str}{ce_pe}")
+                keys.append(f"{und_up}{dd}{mmm}{strike_str}{ce_pe}")
+                keys.append(f"{und_up}{dd_strip}{mmm}{strike_str}{ce_pe}")
 
                 # Weekly format: e.g. NIFTY2662525000CE
                 keys.append(f"{und_up}{yy}{month_char}{dd}{strike_str}{ce_pe}")
                 keys.append(f"{und_up}{yy}{month_char}{dd_strip}{strike_str}{ce_pe}")
 
             elif is_future:
-                keys.append(f"{und_up} {MMM} FUT")
-                keys.append(f"{und_up} {yy} {MMM} FUT")
-                keys.append(f"{und_up} {yyyy} {MMM} FUT")
-                keys.append(f"{und_up} {dd} {MMM} FUT")
+                keys.append(f"{und_up} {mmm} FUT")
+                keys.append(f"{und_up} {yy} {mmm} FUT")
+                keys.append(f"{und_up} {yyyy} {mmm} FUT")
+                keys.append(f"{und_up} {dd} {mmm} FUT")
                 keys.append(f"{und_up} FUT")
 
-                keys.append(f"{und_up}{MMM}FUT")
-                keys.append(f"{und_up}{yy}{MMM}FUT")
-                keys.append(f"{und_up}{yyyy}{MMM}FUT")
-                keys.append(f"{und_up}{dd}{MMM}FUT")
+                keys.append(f"{und_up}{mmm}FUT")
+                keys.append(f"{und_up}{yy}{mmm}FUT")
+                keys.append(f"{und_up}{yyyy}{mmm}FUT")
+                keys.append(f"{und_up}{dd}{mmm}FUT")
                 keys.append(f"{und_up}FUT")
         except Exception as exc:
             logger.debug("alternate_key_generation_failed: %s", exc)

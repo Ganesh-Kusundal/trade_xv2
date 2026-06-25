@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/application/oms/order_manager.py
-# hypothesis_version: 6.155.7
-
-['0', 'Broker cancel failed', 'Order already final', 'Order not found', 'OrderManager', 'PYTEST_CURRENT_TEST', 'User requested', '_lock', '_owner', 'avg_price', 'correlation_id', 'exchange', 'filled_quantity', 'isoformat', 'limit', 'order', 'order_id', 'order_type', 'price', 'product_type', 'quantity', 'reason', 'reentered', 'rule', 'side', 'status', 'symbol', 'timestamp', 'trade', 'trade_duplicated', 'trade_processed', 'value']

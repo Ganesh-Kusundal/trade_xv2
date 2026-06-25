@@ -104,9 +104,14 @@ def check_unit_tests() -> CheckResult:
     try:
         result = run_command(
             [
-                sys.executable, "-m", "pytest",
-                "-m", "not integration and not sandbox and not live_readonly",
-                "-x", "--tb=short", "-q",
+                sys.executable,
+                "-m",
+                "pytest",
+                "-m",
+                "not integration and not sandbox and not live_readonly",
+                "-x",
+                "--tb=short",
+                "-q",
                 "tests/",
             ],
             timeout=180,
@@ -151,8 +156,12 @@ def check_chaos_tests() -> CheckResult:
     try:
         result = run_command(
             [
-                sys.executable, "-m", "pytest",
-                "-x", "--tb=short", "-q",
+                sys.executable,
+                "-m",
+                "pytest",
+                "-x",
+                "--tb=short",
+                "-q",
                 "tests/chaos/",
             ],
             timeout=180,
@@ -196,8 +205,12 @@ def check_memory_tests() -> CheckResult:
     try:
         result = run_command(
             [
-                sys.executable, "-m", "pytest",
-                "-x", "--tb=short", "-q",
+                sys.executable,
+                "-m",
+                "pytest",
+                "-x",
+                "--tb=short",
+                "-q",
                 "tests/regression/test_memory_leaks.py",
             ],
             timeout=180,
@@ -241,9 +254,14 @@ def check_test_coverage() -> CheckResult:
     try:
         result = run_command(
             [
-                sys.executable, "-m", "pytest",
-                "-m", "not integration and not sandbox and not live_readonly",
-                "--cov=brokers", "--cov=cli", "--cov=datalake",
+                sys.executable,
+                "-m",
+                "pytest",
+                "-m",
+                "not integration and not sandbox and not live_readonly",
+                "--cov=brokers",
+                "--cov=cli",
+                "--cov=datalake",
                 "--cov=analytics",
                 "--cov-report=term",
                 "--cov-fail-under=90",
@@ -265,6 +283,7 @@ def check_test_coverage() -> CheckResult:
             output = result.stderr + result.stdout
             # Extract coverage percentage
             import re
+
             match = re.search(r"TOTAL\s+\d+\s+\d+\s+(\d+)%", output)
             coverage_pct = match.group(1) if match else "unknown"
             return CheckResult(
@@ -296,10 +315,17 @@ def check_security_scan() -> CheckResult:
     try:
         result = run_command(
             [
-                sys.executable, "-m", "bandit",
-                "-r", "brokers/", "cli/", "datalake/", "analytics/",
+                sys.executable,
+                "-m",
+                "bandit",
+                "-r",
+                "brokers/",
+                "cli/",
+                "datalake/",
+                "analytics/",
                 "-ll",  # high severity only
-                "-f", "json",
+                "-f",
+                "json",
             ],
             timeout=120,
         )
@@ -470,6 +496,7 @@ def check_mypy() -> CheckResult:
             output = result.stderr + result.stdout
             # Extract error count
             import re
+
             match = re.search(r"Found (\d+) errors?", output)
             error_count = match.group(1) if match else "unknown"
             return CheckResult(
@@ -589,16 +616,16 @@ def run_certification(verbose: bool = False, json_output: bool = False) -> Certi
         report.overall = CheckStatus.PASS
 
     if verbose:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"Production Certification Report")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         print(f"Timestamp: {report.timestamp}")
         print(f"Total Duration: {total_duration:.1f}s")
         print(f"Overall: {report.overall.value}")
         print(f"Passed: {len(report.passed)}/{len(report.checks)}")
         print(f"Failed: {len(report.failed)}/{len(report.checks)}")
         print(f"Warnings: {len(report.warnings)}/{len(report.checks)}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         if report.failed:
             print("\n❌ FAILED CHECKS:")

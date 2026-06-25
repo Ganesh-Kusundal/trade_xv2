@@ -44,8 +44,12 @@ def run_compare(args: list[str], console: Console) -> None:
 
     if not file_path:
         console.print("[yellow]Usage: tradex analytics compare --file ohlcv.csv[/yellow]")
-        console.print("[dim]Compare strategies: tradex analytics compare --file ohlcv.csv --strategies momentum,breakout[/dim]")
-        console.print("[dim]Compare parameters: tradex analytics compare --file ohlcv.csv --rsi 7,14,21 --sma 10,20,30[/dim]")
+        console.print(
+            "[dim]Compare strategies: tradex analytics compare --file ohlcv.csv --strategies momentum,breakout[/dim]"
+        )
+        console.print(
+            "[dim]Compare parameters: tradex analytics compare --file ohlcv.csv --rsi 7,14,21 --sma 10,20,30[/dim]"
+        )
         return
 
     try:
@@ -70,7 +74,9 @@ def run_compare(args: list[str], console: Console) -> None:
                 param_sets.append({"sma_period": sma})
 
         console.print(f"[dim]Comparing {len(param_sets)} parameter sets...[/dim]")
-        result = compare_parameters(data, symbol=symbol, param_sets=param_sets, initial_capital=capital)
+        result = compare_parameters(
+            data, symbol=symbol, param_sets=param_sets, initial_capital=capital
+        )
         _print_param_comparison(console, result)
     else:
         # Compare strategies
@@ -78,7 +84,9 @@ def run_compare(args: list[str], console: Console) -> None:
             strategies = ["momentum", "breakout"]
 
         console.print(f"[dim]Comparing {len(strategies)} strategies: {', '.join(strategies)}[/dim]")
-        result = compare_strategies(data, symbol=symbol, strategies=strategies, initial_capital=capital)
+        result = compare_strategies(
+            data, symbol=symbol, strategies=strategies, initial_capital=capital
+        )
         _print_strategy_comparison(console, result)
 
 
@@ -104,19 +112,21 @@ def _print_strategy_comparison(console: Console, result) -> None:
         table.add_row(
             row["strategy"],
             f"[{ret_style}]{row['total_return_pct']:+.2f}%[/{ret_style}]",
-            f"{row['cagr']*100:+.2f}%",
+            f"{row['cagr'] * 100:+.2f}%",
             f"{row['sharpe_ratio']:.2f}",
             f"{row['sortino_ratio']:.2f}",
             f"{row['max_drawdown_pct']:.1f}%",
             str(row["total_trades"]),
-            f"{row['win_rate']*100:.0f}%",
+            f"{row['win_rate'] * 100:.0f}%",
             f"{row['profit_factor']:.2f}",
         )
 
     console.print(table)
 
     if result.best:
-        console.print(f"\n[bold]Best Strategy:[/bold] {result.best['strategy']} (Sharpe: {result.best['sharpe_ratio']:.2f})")
+        console.print(
+            f"\n[bold]Best Strategy:[/bold] {result.best['strategy']} (Sharpe: {result.best['sharpe_ratio']:.2f})"
+        )
 
 
 def _print_param_comparison(console: Console, result) -> None:
@@ -140,15 +150,17 @@ def _print_param_comparison(console: Console, result) -> None:
         table.add_row(
             str(row["params"]),
             f"[{ret_style}]{row['total_return_pct']:+.2f}%[/{ret_style}]",
-            f"{row['cagr']*100:+.2f}%",
+            f"{row['cagr'] * 100:+.2f}%",
             f"{row['sharpe_ratio']:.2f}",
             f"{row['max_drawdown_pct']:.1f}%",
             str(row["total_trades"]),
-            f"{row['win_rate']*100:.0f}%",
+            f"{row['win_rate'] * 100:.0f}%",
             f"{row['profit_factor']:.2f}",
         )
 
     console.print(table)
 
     if result.best:
-        console.print(f"\n[bold]Best Parameters:[/bold] {result.best['params']} (Sharpe: {result.best['sharpe_ratio']:.2f})")
+        console.print(
+            f"\n[bold]Best Parameters:[/bold] {result.best['params']} (Sharpe: {result.best['sharpe_ratio']:.2f})"
+        )

@@ -75,19 +75,29 @@ def run_probability(args: list[str], console: Console) -> None:
             index += 1
 
     if not metrics:
-        console.print("[yellow]Usage: tradex analytics probability --trend 70 --momentum 60 --volume 80 [--oi 50] [--rs 65] [--symbol RELIANCE][/yellow]")
+        console.print(
+            "[yellow]Usage: tradex analytics probability --trend 70 --momentum 60 --volume 80 [--oi 50] [--rs 65] [--symbol RELIANCE][/yellow]"
+        )
         console.print("[dim]All values 0-100. Defaults to 50 if not provided.[/dim]")
         return
 
     engine = ProbabilityEngine()
     result = engine.analyze(metrics, symbol=symbol)
 
-    table = Table(title=f"Probability Score{f': {symbol}' if symbol else ''}", header_style="bold cyan")
+    table = Table(
+        title=f"Probability Score{f': {symbol}' if symbol else ''}", header_style="bold cyan"
+    )
     table.add_column("Component", style="bold white")
     table.add_column("Score", style="green")
     table.add_column("Weight", style="dim")
 
-    weights = {"trend": "25%", "momentum": "25%", "volume": "15%", "oi": "15%", "relative_strength": "20%"}
+    weights = {
+        "trend": "25%",
+        "momentum": "25%",
+        "volume": "15%",
+        "oi": "15%",
+        "relative_strength": "20%",
+    }
     for key, weight in weights.items():
         val = result.scores.get(f"{key}_score", 50)
         table.add_row(key.replace("_", " ").title(), f"{val:.1f}", weight)

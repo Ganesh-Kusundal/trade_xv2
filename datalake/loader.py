@@ -10,14 +10,22 @@ All symbols are normalized (uppercased, stripped) before writing.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, time as dt_time
+from datetime import datetime
+from datetime import time as dt_time
 from pathlib import Path
 
 import pandas as pd
 import pyarrow as pa
 
 from datalake.io import atomic_parquet_write
-from datalake.schema import CANONICAL_COLUMNS, MARKET_CLOSE_HOUR, MARKET_CLOSE_MINUTE, MARKET_OPEN_HOUR, MARKET_OPEN_MINUTE
+from datalake.schema import (
+    CANONICAL_COLUMNS,
+    MARKET_CLOSE_HOUR,
+    MARKET_CLOSE_MINUTE,
+    MARKET_OPEN_HOUR,
+    MARKET_OPEN_MINUTE,
+    TEMPORAL_COLUMNS,
+)
 from datalake.symbols import normalize_symbol
 from datalake.validation import validate_candles
 
@@ -52,7 +60,9 @@ class HistoricalDataLoader:
         """
         symbol = normalize_symbol(symbol)
         try:
-            df = gateway.history(symbol, exchange=exchange, timeframe=timeframe, lookback_days=years * 365)
+            df = gateway.history(
+                symbol, exchange=exchange, timeframe=timeframe, lookback_days=years * 365
+            )
         except Exception as exc:
             logger.error("Failed to download %s: %s", symbol, exc)
             return {"rows": 0, "duplicates_dropped": 0, "invalid_dropped": 0}
@@ -78,7 +88,8 @@ class HistoricalDataLoader:
             if completeness < 0.90:  # Less than 90% complete
                 logger.warning(
                     "%s: Intraday completeness only %.1f%% (expected ~375 candles/day for 1m)",
-                    symbol, completeness * 100
+                    symbol,
+                    completeness * 100,
                 )
 
         # Write to Parquet
@@ -181,7 +192,9 @@ class HistoricalDataLoader:
                 incomplete_day = True
                 logger.warning(
                     "%s: Last day incomplete (%d/%d candles)",
-                    symbol, last_day_candles, expected_last_day
+                    symbol,
+                    last_day_candles,
+                    expected_last_day,
                 )
 
         if days_missing <= 1 and not incomplete_day:
@@ -191,9 +204,7 @@ class HistoricalDataLoader:
         logger.info("%s: downloading %d missing days", symbol, days_missing)
         return self.download_symbol(symbol, gateway, years=1, timeframe=timeframe)["rows"]
 
-    def _normalize(
-        self, df: pd.DataFrame, symbol: str, exchange: str
-    ) -> pd.DataFrame:
+    def _normalize(self, df: pd.DataFrame, symbol: str, exchange: str) -> pd.DataFrame:
         """Normalize broker DataFrame to canonical schema (IST timestamps)."""
         col_map = {
             "bar_time_ms": "timestamp",
@@ -219,6 +230,8 @@ class HistoricalDataLoader:
         if not pd.api.types.is_datetime64_any_dtype(df["timestamp"]):
             df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
 
+        df["event_time"] = df["timestamp"]
+
         # Convert paise to rupees if needed
         for col in ["open", "high", "low", "close"]:
             if df[col].max() > 100000:
@@ -234,14 +247,17 @@ class HistoricalDataLoader:
                 df[col] = 0 if col in ("volume", "oi") else ""
         df = df[CANONICAL_COLUMNS].dropna(subset=["timestamp"])
 
+        now_ist = pd.Timestamp.now(tz="Asia/Kolkata").tz_localize(None)
+        df["published_at"] = now_ist
+        df["ingested_at"] = now_ist
+        df["is_correction"] = False
+
         # Validate (drops invalid rows, logs)
         df = validate_candles(df, symbol=symbol, drop_invalid=True)
 
         return df
 
-    def _write_parquet(
-        self, df: pd.DataFrame, symbol: str, timeframe: str
-    ) -> tuple[int, int]:
+    def _write_parquet(self, df: pd.DataFrame, symbol: str, timeframe: str) -> tuple[int, int]:
         """Write DataFrame to hive-partitioned Parquet atomically."""
         target = self._parquet_path(symbol, timeframe)
 
@@ -256,6 +272,7 @@ class HistoricalDataLoader:
 
     def _parquet_path(self, symbol: str, timeframe: str = "1m") -> Path:
         from datalake.symbols import symbol_to_path
+
         return (
             self._root
             / "equities"

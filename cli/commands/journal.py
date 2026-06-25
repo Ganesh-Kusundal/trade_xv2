@@ -35,7 +35,9 @@ def _print_help(console: Console) -> None:
     """Print help."""
     console.print("[bold]Trade Journal[/bold]")
     console.print("[dim]Commands:[/dim]")
-    console.print("  record --id ID --symbol SYM --strategy STR --entry-price P --quantity Q --side BUY|SELL")
+    console.print(
+        "  record --id ID --symbol SYM --strategy STR --entry-price P --quantity Q --side BUY|SELL"
+    )
     console.print("  close --id ID --exit-price P")
     console.print("  list [--symbol SYM] [--strategy STR] [--status open|closed]")
     console.print("  summary [--strategy STR] [--symbol SYM]")
@@ -212,7 +214,7 @@ def _show_summary(args: list[str], console: Console) -> None:
         console.print(f"  Total Trades: {summary['total_trades']}")
         console.print(f"  Total P&L: ₹{summary['total_pnl']:.2f}")
         console.print(f"  Average P&L: ₹{summary['avg_pnl']:.2f}")
-        console.print(f"  Win Rate: {summary['win_rate']*100:.1f}%")
+        console.print(f"  Win Rate: {summary['win_rate'] * 100:.1f}%")
         console.print(f"  Winning: {summary['winning_trades']}")
         console.print(f"  Losing: {summary['losing_trades']}")
     finally:

@@ -14,8 +14,6 @@ from __future__ import annotations
 from decimal import Decimal
 from unittest import mock
 
-import pytest
-
 from brokers.dhan.websocket import DhanMarketFeed
 
 
@@ -47,16 +45,18 @@ class TestPublishTickHappyPath:
     def test_publishes_when_ltp_is_positive(self):
         bus = mock.MagicMock()
         feed = _make_feed(event_bus=bus)
-        feed._publish_tick({
-            "symbol": "RELIANCE",
-            "ltp": Decimal("2450.55"),
-            "open": Decimal("2440"),
-            "high": Decimal("2460"),
-            "low": Decimal("2435"),
-            "close": Decimal("2445"),
-            "volume": 1000,
-            "change": Decimal("5.55"),
-        })
+        feed._publish_tick(
+            {
+                "symbol": "RELIANCE",
+                "ltp": Decimal("2450.55"),
+                "open": Decimal("2440"),
+                "high": Decimal("2460"),
+                "low": Decimal("2435"),
+                "close": Decimal("2445"),
+                "volume": 1000,
+                "change": Decimal("5.55"),
+            }
+        )
         bus.publish.assert_called_once()
         assert feed._published_ticks == 1
         assert feed._dropped_ticks == 0
@@ -65,14 +65,16 @@ class TestPublishTickHappyPath:
         """OHLC == 0 is legal for a freshly-listed symbol; only LTP == 0 drops."""
         bus = mock.MagicMock()
         feed = _make_feed(event_bus=bus)
-        feed._publish_tick({
-            "symbol": "NEWLIST",
-            "ltp": Decimal("100"),
-            "open": Decimal("0"),
-            "high": Decimal("0"),
-            "low": Decimal("0"),
-            "close": Decimal("0"),
-        })
+        feed._publish_tick(
+            {
+                "symbol": "NEWLIST",
+                "ltp": Decimal("100"),
+                "open": Decimal("0"),
+                "high": Decimal("0"),
+                "low": Decimal("0"),
+                "close": Decimal("0"),
+            }
+        )
         bus.publish.assert_called_once()
         assert feed._published_ticks == 1
 

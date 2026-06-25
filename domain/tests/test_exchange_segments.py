@@ -1,4 +1,5 @@
 """REF-2: typed exchange-segment helper tests."""
+
 from __future__ import annotations
 
 import pytest
@@ -89,7 +90,9 @@ class TestIsEquitySegment:
 
 
 class TestIsDerivativeSegment:
-    @pytest.mark.parametrize("seg", ["NSE_FNO", "BSE_FNO", "MCX", "MCXCOMM", "NSE_CURRENCY", "BSE_CURRENCY"])
+    @pytest.mark.parametrize(
+        "seg", ["NSE_FNO", "BSE_FNO", "MCX", "MCXCOMM", "NSE_CURRENCY", "BSE_CURRENCY"]
+    )
     def test_true(self, seg):
         assert is_derivative_segment(seg) is True
 

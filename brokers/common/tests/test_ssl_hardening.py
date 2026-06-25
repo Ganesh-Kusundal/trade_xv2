@@ -4,6 +4,7 @@ These tests run against the in-process objects — no network calls.
 The goal is to validate the hardening policy, not to assert that
 certificates chain to a real CA.
 """
+
 from __future__ import annotations
 
 import ssl
@@ -17,7 +18,6 @@ from brokers.common.ssl_hardening import (
     create_pinned_session,
     hardened_ssl_context,
 )
-
 
 # ---------- context-level tests ----------
 

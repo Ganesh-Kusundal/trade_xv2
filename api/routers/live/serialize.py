@@ -17,7 +17,7 @@ def serialize_value(obj: Any) -> Any:
         return serialize_value(obj.to_dict())
     if is_dataclass(obj):
         return {k: serialize_value(v) for k, v in asdict(obj).items()}
-    if isinstance(obj, (list, tuple)):
+    if isinstance(obj, list | tuple):
         return [serialize_value(item) for item in obj]
     if isinstance(obj, dict):
         return {str(k): serialize_value(v) for k, v in obj.items()}

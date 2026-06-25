@@ -125,14 +125,17 @@ class DataQualityMonitor:
         self, conn: duckdb.DuckDBPyConnection, pattern: str, report: OverallReport
     ) -> OverallReport:
         """Check basic statistics."""
-        result = conn.execute(f"""
+        result = conn.execute(
+            """
             SELECT
                 COUNT(DISTINCT symbol) as total_symbols,
                 COUNT(*) as total_candles,
                 MIN(timestamp)::DATE as min_date,
                 MAX(timestamp)::DATE as max_date
-            FROM read_parquet('{pattern}')
-        """).fetchone()
+            FROM read_parquet(?)
+        """,
+            [pattern],
+        ).fetchone()
 
         report.total_symbols = result[0]
         report.total_candles = result[1]
@@ -144,17 +147,20 @@ class DataQualityMonitor:
         self, conn: duckdb.DuckDBPyConnection, pattern: str, report: OverallReport
     ) -> OverallReport:
         """Check data freshness for each symbol."""
-        today = date.today()
+        date.today()
 
         # Get latest date per symbol
-        result = conn.execute(f"""
+        result = conn.execute(
+            """
             SELECT
                 symbol,
                 MAX(timestamp)::DATE as latest_date,
                 DATEDIFF('day', MAX(timestamp)::DATE, CURRENT_DATE) as days_old
-            FROM read_parquet('{pattern}')
+            FROM read_parquet(?)
             GROUP BY symbol
-        """).fetchall()
+        """,
+            [pattern],
+        ).fetchall()
 
         for symbol, latest_date, days_old in result:
             sq = SymbolQuality(symbol=symbol)
@@ -167,13 +173,15 @@ class DataQualityMonitor:
             else:
                 status = "FAIL"
 
-            sq.metrics.append(QualityMetric(
-                name="freshness",
-                value=days_old,
-                threshold=7.0,
-                status=status,
-                details=f"Last update: {latest_date} ({days_old} days ago)"
-            ))
+            sq.metrics.append(
+                QualityMetric(
+                    name="freshness",
+                    value=days_old,
+                    threshold=7.0,
+                    status=status,
+                    details=f"Last update: {latest_date} ({days_old} days ago)",
+                )
+            )
 
             if status != "PASS":
                 sq.issues.append(f"Data is {days_old} days old")
@@ -198,7 +206,8 @@ class DataQualityMonitor:
         expected_per_day = int(candles_per_hour * 6.25)  # 6.25 trading hours
 
         # Get candle count per symbol per day
-        result = conn.execute(f"""
+        result = conn.execute(
+            """
             SELECT
                 symbol,
                 SUM(daily_count) as total_candles,
@@ -209,13 +218,15 @@ class DataQualityMonitor:
                     symbol,
                     DATE_TRUNC('day', timestamp) as day,
                     COUNT(*) as daily_count
-                FROM read_parquet('{pattern}')
+                FROM read_parquet(?)
                 GROUP BY symbol, DATE_TRUNC('day', timestamp)
             )
             GROUP BY symbol
-        """).fetchall()
+        """,
+            [pattern],
+        ).fetchall()
 
-        for symbol, total_candles, trading_days, avg_candles in result:
+        for symbol, _total_candles, _trading_days, avg_candles in result:
             # Find or create symbol report
             sq = next((s for s in report.symbol_reports if s.symbol == symbol), None)
             if sq is None:
@@ -232,16 +243,20 @@ class DataQualityMonitor:
             else:
                 status = "FAIL"
 
-            sq.metrics.append(QualityMetric(
-                name="completeness",
-                value=completeness * 100,
-                threshold=90.0,
-                status=status,
-                details=f"{avg_candles:.0f}/{expected_per_day} candles/day ({completeness*100:.1f}%)"
-            ))
+            sq.metrics.append(
+                QualityMetric(
+                    name="completeness",
+                    value=completeness * 100,
+                    threshold=90.0,
+                    status=status,
+                    details=f"{avg_candles:.0f}/{expected_per_day} candles/day ({completeness * 100:.1f}%)",
+                )
+            )
 
             if status != "PASS":
-                sq.issues.append(f"Only {completeness*100:.0f}% complete ({avg_candles:.0f}/{expected_per_day} candles/day)")
+                sq.issues.append(
+                    f"Only {completeness * 100:.0f}% complete ({avg_candles:.0f}/{expected_per_day} candles/day)"
+                )
 
         return report
 
@@ -249,15 +264,18 @@ class DataQualityMonitor:
         self, conn: duckdb.DuckDBPyConnection, pattern: str, report: OverallReport
     ) -> OverallReport:
         """Check data integrity (zero volume, OHLC errors)."""
-        result = conn.execute(f"""
+        result = conn.execute(
+            """
             SELECT
                 symbol,
                 COUNT(*) as total_candles,
                 SUM(CASE WHEN volume = 0 THEN 1 ELSE 0 END) as zero_volume,
                 SUM(CASE WHEN high < low THEN 1 ELSE 0 END) as ohlc_errors
-            FROM read_parquet('{pattern}')
+            FROM read_parquet(?)
             GROUP BY symbol
-        """).fetchall()
+        """,
+            [pattern],
+        ).fetchall()
 
         for symbol, total_candles, zero_volume, ohlc_errors in result:
             # Find or create symbol report
@@ -276,35 +294,41 @@ class DataQualityMonitor:
             else:
                 status = "FAIL"
 
-            sq.metrics.append(QualityMetric(
-                name="zero_volume",
-                value=zero_pct,
-                threshold=10.0,
-                status=status,
-                details=f"{zero_volume:,}/{total_candles:,} ({zero_pct:.1f}%)"
-            ))
+            sq.metrics.append(
+                QualityMetric(
+                    name="zero_volume",
+                    value=zero_pct,
+                    threshold=10.0,
+                    status=status,
+                    details=f"{zero_volume:,}/{total_candles:,} ({zero_pct:.1f}%)",
+                )
+            )
 
             if status != "PASS":
                 sq.issues.append(f"{zero_pct:.1f}% zero volume bars")
 
             # OHLC errors metric
             if ohlc_errors == 0:
-                sq.metrics.append(QualityMetric(
-                    name="ohlc_integrity",
-                    value=0,
-                    threshold=0,
-                    status="PASS",
-                    details="No errors"
-                ))
+                sq.metrics.append(
+                    QualityMetric(
+                        name="ohlc_integrity",
+                        value=0,
+                        threshold=0,
+                        status="PASS",
+                        details="No errors",
+                    )
+                )
             else:
                 error_pct = ohlc_errors / total_candles * 100
-                sq.metrics.append(QualityMetric(
-                    name="ohlc_integrity",
-                    value=error_pct,
-                    threshold=0,
-                    status="FAIL",
-                    details=f"{ohlc_errors} errors ({error_pct:.2f}%)"
-                ))
+                sq.metrics.append(
+                    QualityMetric(
+                        name="ohlc_integrity",
+                        value=error_pct,
+                        threshold=0,
+                        status="FAIL",
+                        details=f"{ohlc_errors} errors ({error_pct:.2f}%)",
+                    )
+                )
                 sq.issues.append(f"{ohlc_errors} OHLC errors")
 
         return report
@@ -325,28 +349,28 @@ class DataQualityMonitor:
                 value=pass_count,
                 threshold=report.total_symbols * 0.8,
                 status="PASS" if pass_count >= report.total_symbols * 0.8 else "FAIL",
-                details=f"{pass_count}/{report.total_symbols} symbols"
+                details=f"{pass_count}/{report.total_symbols} symbols",
             ),
             QualityMetric(
                 name="symbols_warning",
                 value=warn_count,
                 threshold=report.total_symbols * 0.15,
                 status="WARNING" if warn_count <= report.total_symbols * 0.15 else "FAIL",
-                details=f"{warn_count}/{report.total_symbols} symbols"
+                details=f"{warn_count}/{report.total_symbols} symbols",
             ),
             QualityMetric(
                 name="symbols_fail",
                 value=fail_count,
                 threshold=report.total_symbols * 0.05,
                 status="PASS" if fail_count <= report.total_symbols * 0.05 else "FAIL",
-                details=f"{fail_count}/{report.total_symbols} symbols"
+                details=f"{fail_count}/{report.total_symbols} symbols",
             ),
             QualityMetric(
                 name="health_score",
                 value=report.health_score,
                 threshold=80.0,
                 status="PASS" if report.health_score >= 80 else "FAIL",
-                details=f"{report.health_score:.1f}/100"
+                details=f"{report.health_score:.1f}/100",
             ),
         ]
 
@@ -358,7 +382,7 @@ class DataQualityMonitor:
         print("DATA QUALITY MONITORING REPORT")
         print("=" * 80)
 
-        print(f"\n📊 OVERVIEW")
+        print("\n📊 OVERVIEW")
         print("-" * 80)
         print(f"Total Symbols: {report.total_symbols:,}")
         print(f"Total Candles: {report.total_candles:,}")
@@ -369,7 +393,9 @@ class DataQualityMonitor:
         print("-" * 80)
 
         for metric in report.summary_metrics:
-            status_icon = "✅" if metric.status == "PASS" else "⚠️" if metric.status == "WARNING" else "❌"
+            status_icon = (
+                "✅" if metric.status == "PASS" else "⚠️" if metric.status == "WARNING" else "❌"
+            )
             print(f"{status_icon} {metric.name}: {metric.details}")
 
         # Symbols with issues

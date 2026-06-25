@@ -7,10 +7,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from domain import OrderStatus, Side
-from domain.entities import OrderResponse
 from application.execution.gateway_submit import make_gateway_submit_fn, order_from_response
 from application.oms.order_manager import OmsOrderCommand
+from domain import OrderStatus, Side
+from domain.entities import OrderResponse
 
 
 def test_order_from_response_success() -> None:

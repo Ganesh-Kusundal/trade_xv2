@@ -6,10 +6,10 @@ with error isolation and completion-order result delivery.
 Usage
 -----
     runner = ScannerRunner(max_workers=4)
-    
+
     # Run all scanners and collect results
     results = runner.run_all(scanners, universe_df)
-    
+
     # Stream results as they complete
     for result in runner.run_streaming(scanners, universe_df):
         if result.success:
@@ -28,13 +28,13 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Generator
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
-from typing import Generator
 
 import pandas as pd
 
-from analytics.scanner.models import Candidate, ScanResult, Scanner
+from analytics.scanner.models import Scanner, ScanResult
 
 logger = logging.getLogger(__name__)
 
@@ -59,9 +59,7 @@ class ScannerTaskResult:
     def to_scan_result(self) -> ScanResult:
         """Convert to ScanResult if successful, raises otherwise."""
         if not self.success or self.scan_result is None:
-            raise RuntimeError(
-                f"Scanner '{self.scanner_name}' failed: {self.error}"
-            )
+            raise RuntimeError(f"Scanner '{self.scanner_name}' failed: {self.error}")
         return self.scan_result
 
 
@@ -143,9 +141,7 @@ class ScannerRunner:
                 future_to_scanner[future] = scanner
 
             # Collect results in completion order
-            for future in as_completed(
-                future_to_scanner, timeout=self.timeout_seconds
-            ):
+            for future in as_completed(future_to_scanner, timeout=self.timeout_seconds):
                 scanner = future_to_scanner[future]
                 try:
                     task_result = future.result()
@@ -153,11 +149,10 @@ class ScannerRunner:
                 except Exception as exc:
                     # Should not happen due to _execute_scanner error handling,
                     # but guard against unexpected executor failures
-                    logger.error(
+                    logger.exception(
                         "Unexpected executor error for scanner '%s': %s",
                         scanner.name,
                         exc,
-                        exc_info=True,
                     )
                     results.append(
                         ScannerTaskResult(
@@ -211,19 +206,16 @@ class ScannerRunner:
                 future = executor.submit(self._execute_scanner, scanner, universe)
                 future_to_scanner[future] = scanner
 
-            for future in as_completed(
-                future_to_scanner, timeout=self.timeout_seconds
-            ):
+            for future in as_completed(future_to_scanner, timeout=self.timeout_seconds):
                 scanner = future_to_scanner[future]
                 try:
                     task_result = future.result()
                     yield task_result
                 except Exception as exc:
-                    logger.error(
+                    logger.exception(
                         "Unexpected executor error for scanner '%s': %s",
                         scanner.name,
                         exc,
-                        exc_info=True,
                     )
                     yield ScannerTaskResult(
                         scanner_name=scanner.name,
@@ -330,12 +322,11 @@ class ScannerRunner:
         except Exception as exc:
             execution_time_ms = (time.perf_counter() - start_time) * 1000
 
-            logger.error(
+            logger.exception(
                 "Scanner '%s' failed after %.0fms: %s",
                 scanner.name,
                 execution_time_ms,
                 exc,
-                exc_info=True,
             )
 
             return ScannerTaskResult(

@@ -81,7 +81,7 @@ def test_enable_retry_removed():
 
 
 def test_read_circuit_breaker_does_not_block_write():
-    from brokers.common.resilience.circuit_breaker import CircuitBreaker, CircuitState
+    from brokers.common.resilience.circuit_breaker import CircuitState
     from brokers.common.resilience.errors import CircuitBreakerOpenError
 
     session = MagicMock()

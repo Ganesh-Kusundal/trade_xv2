@@ -24,6 +24,4 @@ def should_generate_token(
         return True
     if not state.is_valid():
         return True
-    if allow_proactive and state.refresh_recommended(buffer_seconds):
-        return True
-    return False
+    return bool(allow_proactive and state.refresh_recommended(buffer_seconds))

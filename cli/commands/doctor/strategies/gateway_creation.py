@@ -6,15 +6,15 @@ registered broker.
 
 from __future__ import annotations
 
+from brokers.common.connection.bootstrap_result import BootstrapStatus
 from cli.commands.doctor.checks import CheckResult, CheckStrategy
 from cli.services.broker_registry import bootstrap_gateway, list_available_brokers
-from brokers.common.connection.bootstrap_result import BootstrapStatus
 from cli.services.broker_service import BrokerService
 
 
 class GatewayCreationCheck(CheckStrategy):
     """Smoke-test gateway creation via ``create_gateway()`` for each broker.
-    
+
     This is a lightweight check — it validates the factory can create
     a gateway without full initialization (load_instruments=False).
     """

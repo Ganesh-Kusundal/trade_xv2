@@ -1,12 +1,8 @@
 """Analytics endpoints tests."""
-from __future__ import annotations
-import pytest
-from fastapi.testclient import TestClient
-from unittest.mock import MagicMock, patch
 
-import pytest
+from __future__ import annotations
+
 from fastapi.testclient import TestClient
-from unittest.mock import MagicMock, patch
 
 
 class TestIndicatorsEndpoint:
@@ -14,7 +10,9 @@ class TestIndicatorsEndpoint:
 
     def test_indicators_invalid_type(self, client: TestClient):
         """Should reject invalid indicator type."""
-        response = client.get("/api/v1/analytics/indicators?symbol=RELIANCE&type=invalid&timeframe=1m")
+        response = client.get(
+            "/api/v1/analytics/indicators?symbol=RELIANCE&type=invalid&timeframe=1m"
+        )
         assert response.status_code in (400, 404, 503)
 
     def test_indicators_missing_symbol(self, client: TestClient):
@@ -29,7 +27,9 @@ class TestIndicatorsEndpoint:
 
     def test_indicators_valid_params(self, client: TestClient):
         """Should accept valid parameters."""
-        response = client.get("/api/v1/analytics/indicators?symbol=RELIANCE&type=rsi&timeframe=1m&limit=100")
+        response = client.get(
+            "/api/v1/analytics/indicators?symbol=RELIANCE&type=rsi&timeframe=1m&limit=100"
+        )
         assert response.status_code in (200, 500, 503)
 
 

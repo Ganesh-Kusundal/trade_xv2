@@ -337,7 +337,11 @@ class HistoricalVolatility:
         _ensure_columns(df, ["close"])
         returns = df["close"].apply(math.log).diff()
         df = df.copy()
-        df[self.name] = returns.rolling(window=self.period, min_periods=self.period).std() * math.sqrt(self.annualization) * 100
+        df[self.name] = (
+            returns.rolling(window=self.period, min_periods=self.period).std()
+            * math.sqrt(self.annualization)
+            * 100
+        )
         return df
 
 
@@ -394,7 +398,11 @@ class Correlation:
     def compute(self, df: pd.DataFrame) -> pd.DataFrame:
         _ensure_columns(df, [self.source1, self.source2])
         df = df.copy()
-        df[self.name] = df[self.source1].rolling(window=self.period, min_periods=self.period).corr(df[self.source2])
+        df[self.name] = (
+            df[self.source1]
+            .rolling(window=self.period, min_periods=self.period)
+            .corr(df[self.source2])
+        )
         return df
 
 
@@ -424,7 +432,7 @@ class Beta:
         cov = asset_ret.rolling(window=self.period, min_periods=self.period).cov(bench_ret)
         var = bench_ret.rolling(window=self.period, min_periods=self.period).var()
 
-        df[self.name] = (cov / var.replace(0, float('nan'))).fillna(0)
+        df[self.name] = (cov / var.replace(0, float("nan"))).fillna(0)
         return df
 
 
@@ -444,8 +452,12 @@ class PercentRank:
     def compute(self, df: pd.DataFrame) -> pd.DataFrame:
         _ensure_columns(df, [self.source])
         df = df.copy()
-        df[self.name] = df[self.source].rolling(window=self.period, min_periods=1).apply(
-            lambda x: (pd.Series(x).rank(pct=True).iloc[-1] * 100) if len(x) > 1 else 50.0,
-            raw=False
+        df[self.name] = (
+            df[self.source]
+            .rolling(window=self.period, min_periods=1)
+            .apply(
+                lambda x: (pd.Series(x).rank(pct=True).iloc[-1] * 100) if len(x) > 1 else 50.0,
+                raw=False,
+            )
         )
         return df

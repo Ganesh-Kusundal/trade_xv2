@@ -73,9 +73,7 @@ class TradePnLCalculator:
 
         # Calculate percentage
         pnl_percentage = (
-            (price_diff / average_price * Decimal("100"))
-            if average_price > 0
-            else Decimal("0")
+            (price_diff / average_price * Decimal("100")) if average_price > 0 else Decimal("0")
         )
 
         return TradePnL(

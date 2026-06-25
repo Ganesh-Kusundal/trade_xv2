@@ -10,7 +10,6 @@ from brokers.dhan.exceptions import ConditionalTriggerError
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 from brokers.dhan.invariants import assert_dhan_payload
-from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
 
 logger = logging.getLogger(__name__)
 
@@ -43,11 +42,14 @@ class ConditionalTriggersAdapter:
         errors = self._validate_trigger(request)
         if errors:
             msg = "; ".join(errors)
-            logger.warning("conditional_trigger_validation_failed", extra={
-                "symbol": request.symbol,
-                "operator": request.operator,
-                "errors": errors,
-            })
+            logger.warning(
+                "conditional_trigger_validation_failed",
+                extra={
+                    "symbol": request.symbol,
+                    "operator": request.operator,
+                    "errors": errors,
+                },
+            )
             raise ValueError(f"Conditional trigger validation failed: {msg}")
 
         ref = self._identity.resolve_ref(request.symbol, request.exchange)
@@ -80,12 +82,15 @@ class ConditionalTriggersAdapter:
         trigger_data = data.get("data", data)
         trigger = self._parse_trigger(trigger_data)
 
-        logger.info("conditional_trigger_placed", extra={
-            "alert_id": trigger.alert_id,
-            "symbol": request.symbol,
-            "operator": request.operator,
-            "comparing_value": str(request.comparing_value),
-        })
+        logger.info(
+            "conditional_trigger_placed",
+            extra={
+                "alert_id": trigger.alert_id,
+                "symbol": request.symbol,
+                "operator": request.operator,
+                "comparing_value": str(request.comparing_value),
+            },
+        )
 
         return trigger
 
@@ -130,14 +135,19 @@ class ConditionalTriggersAdapter:
         try:
             data = self._client.put(f"/alerts/orders/{alert_id}", json=payload)
         except Exception as exc:
-            raise ConditionalTriggerError(f"Conditional trigger modification failed: {exc}") from exc
+            raise ConditionalTriggerError(
+                f"Conditional trigger modification failed: {exc}"
+            ) from exc
 
         trigger_data = data.get("data", data)
         trigger = self._parse_trigger(trigger_data)
 
-        logger.info("conditional_trigger_modified", extra={
-            "alert_id": alert_id,
-        })
+        logger.info(
+            "conditional_trigger_modified",
+            extra={
+                "alert_id": alert_id,
+            },
+        )
 
         return trigger
 
@@ -159,10 +169,13 @@ class ConditionalTriggersAdapter:
             raise ConditionalTriggerError(f"Conditional trigger deletion failed: {exc}") from exc
 
         success = isinstance(data, dict) and data.get("status") == "success"
-        logger.info("conditional_trigger_deleted", extra={
-            "alert_id": alert_id,
-            "success": success,
-        })
+        logger.info(
+            "conditional_trigger_deleted",
+            extra={
+                "alert_id": alert_id,
+                "success": success,
+            },
+        )
         return success
 
     def get_trigger(self, alert_id: str) -> ConditionalTrigger:
@@ -185,9 +198,12 @@ class ConditionalTriggersAdapter:
         trigger_data = data.get("data", data)
         trigger = self._parse_trigger(trigger_data)
 
-        logger.info("conditional_trigger_fetched", extra={
-            "alert_id": alert_id,
-        })
+        logger.info(
+            "conditional_trigger_fetched",
+            extra={
+                "alert_id": alert_id,
+            },
+        )
         return trigger
 
     def get_all_triggers(self) -> list[ConditionalTrigger]:
@@ -205,7 +221,9 @@ class ConditionalTriggersAdapter:
             raise ConditionalTriggerError(f"Failed to fetch conditional triggers: {exc}") from exc
 
         items = data.get("data", []) if isinstance(data, dict) else []
-        triggers = [self._parse_trigger(item) for item in (items if isinstance(items, list) else [])]
+        triggers = [
+            self._parse_trigger(item) for item in (items if isinstance(items, list) else [])
+        ]
 
         logger.info("conditional_triggers_fetched", extra={"count": len(triggers)})
         return triggers
@@ -222,7 +240,9 @@ class ConditionalTriggersAdapter:
             errors.append(f"comparing_value must be positive, got {request.comparing_value}")
 
         if request.comparison_type != "PRICE_WITH_VALUE":
-            errors.append(f"Only PRICE_WITH_VALUE comparison type is supported, got {request.comparison_type}")
+            errors.append(
+                f"Only PRICE_WITH_VALUE comparison type is supported, got {request.comparison_type}"
+            )
 
         return errors
 
@@ -241,6 +261,8 @@ class ConditionalTriggersAdapter:
             orders=data.get("orders", []),
             created_time=data.get("createdAt"),
             triggered_time=data.get("triggeredAt"),
-            last_price=Decimal(str(data["lastPrice"])) if data.get("lastPrice") is not None else None,
+            last_price=Decimal(str(data["lastPrice"]))
+            if data.get("lastPrice") is not None
+            else None,
             user_note=data.get("userNote"),
         )

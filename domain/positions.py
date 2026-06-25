@@ -67,13 +67,11 @@ class Position:
                 new_avg = old_avg
         else:
             new_realized = self.realized_pnl
-            new_avg = (Decimal(str(old_qty)) * old_avg + Decimal(str(delta)) * price) / Decimal(str(new_qty))
+            new_avg = (Decimal(str(old_qty)) * old_avg + Decimal(str(delta)) * price) / Decimal(
+                str(new_qty)
+            )
 
-        unrealized = (
-            Decimal(str(new_qty)) * (price - new_avg)
-            if new_qty != 0
-            else Decimal("0")
-        )
+        unrealized = Decimal(str(new_qty)) * (price - new_avg) if new_qty != 0 else Decimal("0")
         return replace(
             self,
             quantity=new_qty,
@@ -131,30 +129,40 @@ class PositionState(str, Enum):
 # Position state machine transition table
 # Used by PositionManager to validate position updates
 POSITION_STATE_TRANSITIONS: dict[PositionState, frozenset[PositionState]] = {
-    PositionState.FLAT: frozenset({
-        PositionState.OPEN,
-        PositionState.REVERSED,
-    }),
-    PositionState.OPEN: frozenset({
-        PositionState.OPEN,  # Add to position
-        PositionState.REDUCING,
-        PositionState.CLOSED,
-        PositionState.REVERSED,
-    }),
-    PositionState.REDUCING: frozenset({
-        PositionState.FLAT,
-        PositionState.OPEN,
-        PositionState.REVERSED,
-    }),
-    PositionState.CLOSED: frozenset({
-        PositionState.FLAT,  # Reset for new session
-    }),
-    PositionState.REVERSED: frozenset({
-        PositionState.FLAT,
-        PositionState.OPEN,
-        PositionState.REDUCING,
-        PositionState.CLOSED,
-    }),
+    PositionState.FLAT: frozenset(
+        {
+            PositionState.OPEN,
+            PositionState.REVERSED,
+        }
+    ),
+    PositionState.OPEN: frozenset(
+        {
+            PositionState.OPEN,  # Add to position
+            PositionState.REDUCING,
+            PositionState.CLOSED,
+            PositionState.REVERSED,
+        }
+    ),
+    PositionState.REDUCING: frozenset(
+        {
+            PositionState.FLAT,
+            PositionState.OPEN,
+            PositionState.REVERSED,
+        }
+    ),
+    PositionState.CLOSED: frozenset(
+        {
+            PositionState.FLAT,  # Reset for new session
+        }
+    ),
+    PositionState.REVERSED: frozenset(
+        {
+            PositionState.FLAT,
+            PositionState.OPEN,
+            PositionState.REDUCING,
+            PositionState.CLOSED,
+        }
+    ),
 }
 
 

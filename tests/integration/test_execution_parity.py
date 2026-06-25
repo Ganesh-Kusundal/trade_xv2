@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
-
 import pandas as pd
 import pytest
 
@@ -22,14 +20,16 @@ from application.oms.factory import create_trading_context
 def _sample_ohlcv(rows: int = 80) -> pd.DataFrame:
     ts = pd.date_range("2026-01-02 09:15", periods=rows, freq="1min")
     price = 100 + pd.Series(range(rows)).astype(float) * 0.1
-    return pd.DataFrame({
-        "timestamp": ts,
-        "open": price,
-        "high": price + 0.5,
-        "low": price - 0.5,
-        "close": price,
-        "volume": 10000,
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": ts,
+            "open": price,
+            "high": price + 0.5,
+            "low": price - 0.5,
+            "close": price,
+            "volume": 10000,
+        }
+    )
 
 
 class AlwaysBuyStrategy:

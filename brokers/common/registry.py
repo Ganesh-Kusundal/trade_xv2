@@ -9,8 +9,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from datetime import datetime, timezone
-from typing import Callable, Sequence
+from collections.abc import Callable
 
 from brokers.common.broker_port import CommonBrokerGateway
 from brokers.common.capabilities import BrokerCapabilities, CapabilityDescriptor
@@ -75,9 +74,7 @@ class BrokerRegistry:
             "broker.registered",
             extra={
                 "broker_id": broker_id,
-                "extensions": list(
-                    bundle.registered_names() if bundle else []
-                ),
+                "extensions": list(bundle.registered_names() if bundle else []),
             },
         )
 
@@ -145,11 +142,7 @@ class BrokerRegistry:
     ) -> list[str]:
         """Return broker_ids whose capabilities satisfy the given predicate."""
         with self._lock:
-            return [
-                bid
-                for bid, desc in self._capabilities.items()
-                if predicate(desc.capabilities)
-            ]
+            return [bid for bid, desc in self._capabilities.items() if predicate(desc.capabilities)]
 
     def snapshot(self) -> RegistrySnapshot:
         """Return a point-in-time snapshot of the entire registry state."""
@@ -200,6 +193,4 @@ class BrokerRegistry:
             try:
                 await gw.close()
             except Exception:
-                logger.exception(
-                    "broker.close.error", extra={"broker_id": gw.broker_id}
-                )
+                logger.exception("broker.close.error", extra={"broker_id": gw.broker_id})

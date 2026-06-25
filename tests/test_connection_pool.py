@@ -26,13 +26,12 @@ from brokers.common.connection_pool import (
     reset_connection_pool,
 )
 
-
 # ---------------------------------------------------------------------------
 # Basic creation and configuration tests
 # ---------------------------------------------------------------------------
 
-class TestConnectionPoolCreation:
 
+class TestConnectionPoolCreation:
     def test_default_configuration(self) -> None:
         pool = ConnectionPoolManager()
         stats = pool.get_stats()
@@ -58,8 +57,8 @@ class TestConnectionPoolCreation:
 # Session creation and reuse tests
 # ---------------------------------------------------------------------------
 
-class TestSessionManagement:
 
+class TestSessionManagement:
     def test_get_session_creates_session(self) -> None:
         pool = ConnectionPoolManager()
         session = pool.get_session("upstox")
@@ -104,8 +103,8 @@ class TestSessionManagement:
 # Thread safety tests
 # ---------------------------------------------------------------------------
 
-class TestThreadSafety:
 
+class TestThreadSafety:
     def test_concurrent_session_creation_same_key(self) -> None:
         """Multiple threads requesting the same broker key should get the same session."""
         pool = ConnectionPoolManager()
@@ -155,10 +154,7 @@ class TestThreadSafety:
         futures_results: list[requests.Session] = []
 
         with ThreadPoolExecutor(max_workers=8) as executor:
-            futs = [
-                executor.submit(pool.get_session, f"tp_broker_{i}")
-                for i in range(16)
-            ]
+            futs = [executor.submit(pool.get_session, f"tp_broker_{i}") for i in range(16)]
             for f in as_completed(futs):
                 futures_results.append(f.result())
 
@@ -172,8 +168,8 @@ class TestThreadSafety:
 # Close lifecycle tests
 # ---------------------------------------------------------------------------
 
-class TestCloseLifecycle:
 
+class TestCloseLifecycle:
     def test_close_all_closes_sessions(self) -> None:
         pool = ConnectionPoolManager()
         pool.get_session("upstox")
@@ -211,8 +207,8 @@ class TestCloseLifecycle:
 # Context manager tests
 # ---------------------------------------------------------------------------
 
-class TestContextManager:
 
+class TestContextManager:
     def test_context_manager_closes_on_exit(self) -> None:
         with ConnectionPoolManager() as pool:
             pool.get_session("ctx")
@@ -238,8 +234,8 @@ class TestContextManager:
 # Singleton tests
 # ---------------------------------------------------------------------------
 
-class TestSingleton:
 
+class TestSingleton:
     def teardown_method(self) -> None:
         reset_connection_pool()
 
@@ -277,8 +273,8 @@ class TestSingleton:
 # get_stats tests
 # ---------------------------------------------------------------------------
 
-class TestGetStats:
 
+class TestGetStats:
     def test_initial_stats(self) -> None:
         pool = ConnectionPoolManager()
         stats = pool.get_stats()

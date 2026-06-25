@@ -20,7 +20,6 @@ from pathlib import Path
 
 import pytest
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -81,11 +80,14 @@ def run_cli(tradex_python: str, project_root: Path, tmp_path: Path):
     events) land in a per-test scratch space and never touch the
     real ``runtime-dev/`` tree.
     """
-    captured: dict[str, CliResult] = {}
 
-    def _invoke(argv: list[str], *, timeout: int = 30,
-                env_overrides: dict[str, str] | None = None,
-                expect_exit_override: int | None = None) -> CliResult:
+    def _invoke(
+        argv: list[str],
+        *,
+        timeout: int = 30,
+        env_overrides: dict[str, str] | None = None,
+        expect_exit_override: int | None = None,
+    ) -> CliResult:
         env = os.environ.copy()
         env["PYTHONPATH"] = str(project_root) + os.pathsep + env.get("PYTHONPATH", "")
         # Force isolated, deterministic caching per test
@@ -128,7 +130,9 @@ def run_cli(tradex_python: str, project_root: Path, tmp_path: Path):
             return CliResult(
                 returncode=-1,
                 stdout=exc.stdout.decode() if isinstance(exc.stdout, bytes) else (exc.stdout or ""),
-                stderr=(exc.stderr.decode() if isinstance(exc.stderr, bytes) else (exc.stderr or ""))
+                stderr=(
+                    exc.stderr.decode() if isinstance(exc.stderr, bytes) else (exc.stderr or "")
+                )
                 + f"\n[timeout after {timeout}s]",
                 timeout=True,
             )
@@ -162,10 +166,7 @@ def live_dhan_available() -> bool:
 
 @pytest.fixture(scope="session")
 def sandbox_enabled() -> bool:
-    return (
-        os.environ.get("DHAN_INTEGRATION") == "1"
-        and _env_local_has_credentials()
-    )
+    return os.environ.get("DHAN_INTEGRATION") == "1" and _env_local_has_credentials()
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
@@ -180,13 +181,11 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     for item in items:
         markers = {m.name for m in item.iter_markers()}
         if "cli_endpoint_live" in markers and not live_ok:
-            item.add_marker(pytest.mark.skip(
-                reason="live Dhan credentials not configured in .env.local"
-            ))
+            item.add_marker(
+                pytest.mark.skip(reason="live Dhan credentials not configured in .env.local")
+            )
         if "cli_endpoint_sandbox" in markers and not sandbox_ok:
-            item.add_marker(pytest.mark.skip(
-                reason="DHAN_INTEGRATION=1 not set or creds missing"
-            ))
+            item.add_marker(pytest.mark.skip(reason="DHAN_INTEGRATION=1 not set or creds missing"))
 
 
 def _seed_empty_state(tmp_path: Path) -> None:
@@ -204,6 +203,7 @@ def _seed_empty_state(tmp_path: Path) -> None:
     journal_db = journal_dir / "journal.sqlite"
     if not journal_db.exists():
         import sqlite3
+
         conn = sqlite3.connect(str(journal_db))
         conn.executescript(
             "CREATE TABLE IF NOT EXISTS trade_journal ("

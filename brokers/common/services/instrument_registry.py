@@ -30,6 +30,8 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any
 
+from domain import OptionChain
+
 logger = logging.getLogger(__name__)
 
 
@@ -44,7 +46,7 @@ class CanonicalInstrument:
     exchange: str
     name: str = ""
     instrument_type: str = ""  # EQUITY, FUTURE, OPTION, INDEX
-    option_type: str = ""      # CE, PE, or empty
+    option_type: str = ""  # CE, PE, or empty
     strike_price: float = 0.0
     expiry: str = ""
     underlying: str = ""
@@ -167,9 +169,11 @@ class CanonicalInstrumentRegistry:
         self._ensure_loaded()
 
         # Get option chain
-        chain = self._gateway.option_chain(
-            underlying, exchange=exchange, expiry=expiry
-        ) if hasattr(self._gateway, "option_chain") else {}
+        chain = (
+            self._gateway.option_chain(underlying, exchange=exchange, expiry=expiry)
+            if hasattr(self._gateway, "option_chain")
+            else {}
+        )
 
         strikes = chain.get("strikes", [])
         if not strikes:
@@ -242,9 +246,11 @@ class CanonicalInstrumentRegistry:
         """
         self._ensure_loaded()
 
-        chain = self._gateway.future_chain(
-            underlying, exchange=exchange
-        ) if hasattr(self._gateway, "future_chain") else {}
+        chain = (
+            self._gateway.future_chain(underlying, exchange=exchange)
+            if hasattr(self._gateway, "future_chain")
+            else {}
+        )
 
         contracts = chain.get("contracts", [])
         if not contracts:
@@ -274,9 +280,11 @@ class CanonicalInstrumentRegistry:
         """
         self._ensure_loaded()
 
-        chain = self._gateway.option_chain(
-            underlying, exchange=exchange, expiry=expiry
-        ) if hasattr(self._gateway, "option_chain") else OptionChain(underlying="", exchange="", expiry="")
+        chain = (
+            self._gateway.option_chain(underlying, exchange=exchange, expiry=expiry)
+            if hasattr(self._gateway, "option_chain")
+            else OptionChain(underlying="", exchange="", expiry="")
+        )
 
         if hasattr(chain, "strikes"):
             return [row.to_dict() for row in chain.strikes]
@@ -296,9 +304,11 @@ class CanonicalInstrumentRegistry:
         """
         self._ensure_loaded()
 
-        chain = self._gateway.future_chain(
-            underlying, exchange=exchange
-        ) if hasattr(self._gateway, "future_chain") else None
+        chain = (
+            self._gateway.future_chain(underlying, exchange=exchange)
+            if hasattr(self._gateway, "future_chain")
+            else None
+        )
 
         if chain is not None and hasattr(chain, "contracts"):
             return [c.to_dict() for c in chain.contracts]

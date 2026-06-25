@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from domain import Position
-from domain.repositories import PositionRepository
 from application.oms.position_manager import PositionManager
+from domain import Position
 
 
 class PositionManagerRepository:

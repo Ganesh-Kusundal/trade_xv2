@@ -14,11 +14,11 @@ from typing import Any
 
 from rich.console import Console
 from rich.live import Live
-
-logger = logging.getLogger(__name__)
 from rich.table import Table
 
 from cli.services.broker_service import BrokerService
+
+logger = logging.getLogger(__name__)
 
 
 def _ws_status(broker_service: BrokerService) -> dict[str, Any]:
@@ -90,8 +90,7 @@ def _build_ws_table(stats: dict[str, Any], elapsed: int) -> Table:
         return "[green]CONNECTED[/green]" if val else "[red]DISCONNECTED[/red]"
 
     table = Table(
-        title=f"WebSocket Diagnostics — {stats['broker_name']} "
-              f"(running {elapsed}s)",
+        title=f"WebSocket Diagnostics — {stats['broker_name']} (running {elapsed}s)",
         header_style="bold blue",
     )
     table.add_column("Metric", style="bold white", min_width=30)

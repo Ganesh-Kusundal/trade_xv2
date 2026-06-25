@@ -33,6 +33,7 @@ constants on the enum are the same as the legacy strings. A future
 audit pass can tighten this — for now the goal is to provide a
 single, grep-able source of truth, not to break callers.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass

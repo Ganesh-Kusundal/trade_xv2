@@ -23,6 +23,7 @@ from analytics.scanner.models import BaseScanner, ScanResult
 
 def _build_momentum_pipeline() -> FeaturePipeline:
     from analytics.pipeline import ROC, RSI, SMA, Momentum, RelativeVolume, Trend
+
     return (
         FeaturePipeline()
         .add(RSI(period=14))
@@ -36,6 +37,7 @@ def _build_momentum_pipeline() -> FeaturePipeline:
 
 def _build_volume_pipeline() -> FeaturePipeline:
     from analytics.pipeline import ATR, RSI, VWAP, RelativeVolume, VolumeSMA
+
     return (
         FeaturePipeline()
         .add(RelativeVolume(period=20))
@@ -48,6 +50,7 @@ def _build_volume_pipeline() -> FeaturePipeline:
 
 def _build_rs_pipeline() -> FeaturePipeline:
     from analytics.pipeline import ATR, ROC, RSI, SMA, Momentum, Trend
+
     return (
         FeaturePipeline()
         .add(RSI(period=14))
@@ -61,6 +64,7 @@ def _build_rs_pipeline() -> FeaturePipeline:
 
 def _build_breakout_pipeline() -> FeaturePipeline:
     from analytics.pipeline import ATR, RSI, VWAP, BollingerBands, RelativeVolume, SwingHighLow
+
     return (
         FeaturePipeline()
         .add(ATR(period=14))

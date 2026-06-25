@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
-
 import pandas as pd
 import pytest
 
@@ -60,8 +58,12 @@ def test_paper_replay_parity_same_trades(trading_context) -> None:
     df = _ohlcv()
     symbol = "TEST"
 
-    replay_cfg = ReplayConfig(initial_capital=100_000, warmup_bars=5, max_position_pct=100.0, slippage_pct=0.0)
-    paper_cfg = PaperConfig(initial_capital=100_000, warmup_bars=5, max_position_pct=100.0, slippage_pct=0.0)
+    replay_cfg = ReplayConfig(
+        initial_capital=100_000, warmup_bars=5, max_position_pct=100.0, slippage_pct=0.0
+    )
+    paper_cfg = PaperConfig(
+        initial_capital=100_000, warmup_bars=5, max_position_pct=100.0, slippage_pct=0.0
+    )
 
     replay = ReplayEngine(
         pipeline,

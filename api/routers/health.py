@@ -5,10 +5,9 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, status
 from starlette.responses import PlainTextResponse
 
-from api.deps import get_trading_context
 from api.schemas import HealthResponse, ReadinessResponse
 
 logger = logging.getLogger(__name__)
@@ -19,7 +18,7 @@ router = APIRouter()
 @router.get("", response_model=HealthResponse, summary="Liveness probe")
 async def health_check():
     """Check if the API server is alive.
-    
+
     Returns 200 OK if the process is running.
     """
     return HealthResponse(
@@ -32,16 +31,16 @@ async def health_check():
 @router.get("/readyz", response_model=ReadinessResponse, summary="Readiness probe")
 async def readiness_check():
     """Check if the API server is ready to serve traffic.
-    
+
     Verifies container services and, when live broker intent is set,
     production readiness checks aligned with the CLI live path.
     Returns 503 if any critical service is unavailable.
     """
     from api.deps import get_container
-    
+
     checks = {}
     all_ready = False
-    
+
     try:
         container = get_container()
         checks["datalake_gateway"] = container.datalake_gateway is not None
@@ -51,10 +50,7 @@ async def readiness_check():
         all_ready = all(checks.values())
 
         broker_service = getattr(container, "broker_service", None)
-        live_intent = (
-            broker_service is not None
-            and getattr(broker_service, "_live_intent", False)
-        )
+        live_intent = broker_service is not None and getattr(broker_service, "_live_intent", False)
         if live_intent and broker_service is not None:
             from brokers.common.services.production_readiness import (
                 ProductionReadinessChecker,
@@ -68,17 +64,17 @@ async def readiness_check():
             all_ready = all_ready and report.passed
         elif broker_service is not None:
             checks["live_broker"] = getattr(broker_service, "live_actionable", False)
-        
+
         if not all_ready:
             failed = [k for k, v in checks.items() if v is False]
             logger.warning("Readiness check failed: %s", failed)
-            
+
     except Exception as exc:
         logger.exception("Readiness check failed with exception")
         checks["error"] = str(exc)
         checks["container_initialized"] = False
         all_ready = False
-    
+
     if not all_ready:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -88,7 +84,7 @@ async def readiness_check():
                 "message": "Service not ready for traffic",
             },
         )
-    
+
     return ReadinessResponse(
         ready=all_ready,
         checks=checks,
@@ -105,10 +101,12 @@ async def get_metrics():
     and processed trade stats.
     """
     from api.middleware import http_metrics
+
     result: dict = {"http_requests": http_metrics.snapshot()}
 
     try:
         from api.deps import get_container
+
         ctx = get_container().trading_context
         if ctx is not None:
             result["event_metrics"] = ctx.metrics.snapshot()
@@ -128,5 +126,6 @@ async def get_metrics_prometheus():
     Useful for Prometheus scrapers and Grafana data sources.
     """
     from api.middleware import http_metrics
+
     body = http_metrics.render_prometheus()
     return PlainTextResponse(content=body, media_type="text/plain")

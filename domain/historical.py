@@ -13,7 +13,6 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Sequence
 
 from domain.provenance import DataProvenance
 

@@ -32,19 +32,21 @@ def _load_credentials():
 
 @pytest.mark.skipif(not LIVE_DHAN, reason=".env.local required")
 class TestLiveWebSocket:
-
     def test_market_feed_is_connected_default_false(self):
         from brokers.dhan.websocket import DhanMarketFeed
+
         feed = DhanMarketFeed(client_id="test", access_token="test", instruments=[])
         assert feed.is_connected is False
 
     def test_order_stream_is_connected_default_false(self):
         from brokers.dhan.websocket import DhanOrderStream
+
         stream = DhanOrderStream(client_id="test", access_token="test")
         assert stream.is_connected is False
 
     def test_market_feed_callback_registration(self):
         from brokers.dhan.websocket import DhanMarketFeed
+
         feed = DhanMarketFeed(client_id="test", access_token="test", instruments=[])
         ticks = []
         feed.on_quote(lambda t: ticks.append(t))
@@ -52,6 +54,7 @@ class TestLiveWebSocket:
 
     def test_order_stream_callback_registration(self):
         from brokers.dhan.websocket import DhanOrderStream
+
         stream = DhanOrderStream(client_id="test", access_token="test")
         updates = []
         stream.on_order_update(lambda u: updates.append(u))
@@ -106,6 +109,7 @@ class TestLiveWebSocket:
             stream.connect()
             # Give it a moment to establish connection
             import time
+
             time.sleep(2)
             # Order stream may or may not connect depending on market hours
             # Just verify no crash

@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from collections.abc import Generator, Iterator
 from datetime import datetime
 from decimal import Decimal
 
@@ -55,9 +56,8 @@ from analytics.scanner.models import Candidate
 from analytics.strategy.models import Signal
 from analytics.strategy.pipeline import StrategyPipeline
 from domain.execution import compute_order_quantity
-from domain.runtime_hooks import create_oms_backtest_adapter
 from domain.ports.oms_backtest_adapter import OmsBacktestAdapterPort
-from collections.abc import Generator, Iterator
+from domain.runtime_hooks import create_oms_backtest_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -137,9 +137,7 @@ class PaperTradingEngine:
 
         df = data.copy()
         ts_col = (
-            "timestamp"
-            if "timestamp" in df.columns
-            else "date" if "date" in df.columns else None
+            "timestamp" if "timestamp" in df.columns else "date" if "date" in df.columns else None
         )
         if ts_col is None:
             raise ValueError("Data must have a 'timestamp' or 'date' column")
@@ -186,7 +184,8 @@ class PaperTradingEngine:
         session._window.append(bar.to_dict())  # type: ignore[attr-defined]
 
         window_df = self._build_window(
-            session._window, self._config.window_size  # type: ignore[attr-defined]
+            session._window,
+            self._config.window_size,  # type: ignore[attr-defined]
         )
 
         # Run FeaturePipeline
@@ -274,9 +273,7 @@ class PaperTradingEngine:
             try:
                 features = self._pipeline.run(window_df)
             except Exception as exc:
-                logger.warning(
-                    "FeaturePipeline failed at bar %d: %s", session.bar_count, exc
-                )
+                logger.warning("FeaturePipeline failed at bar %d: %s", session.bar_count, exc)
                 features = window_df
 
             # Construct candidate and evaluate through strategy pipeline
@@ -303,9 +300,7 @@ class PaperTradingEngine:
         session.peak_equity = config.initial_capital
         session.equity_curve.append((df[ts_col].iloc[0], config.initial_capital))
 
-        signals_all = self._process_bar_stream(
-            self._iter_bars(df, symbol, ts_col), session
-        )
+        signals_all = self._process_bar_stream(self._iter_bars(df, symbol, ts_col), session)
 
         # Close any open positions at end
         if not df.empty:
@@ -321,7 +316,10 @@ class PaperTradingEngine:
             )
             for sym in list(session.positions.keys()):
                 self._close_position(
-                    sym, last_bar.close, last_bar.timestamp, session,
+                    sym,
+                    last_bar.close,
+                    last_bar.timestamp,
+                    session,
                     "End of paper trading",
                 )
 
@@ -343,9 +341,7 @@ class PaperTradingEngine:
 
         for sym in symbols:
             sym_df = df[df["symbol"] == sym].sort_values(ts_col).reset_index(drop=True)
-            signals = self._process_bar_stream(
-                self._iter_bars(sym_df, sym, ts_col), session
-            )
+            signals = self._process_bar_stream(self._iter_bars(sym_df, sym, ts_col), session)
             all_signals.extend(signals)
 
         # Close remaining positions using the last symbol's last bar
@@ -361,9 +357,7 @@ class PaperTradingEngine:
             volume=float(last_row.get("volume", 0)),
         )
         for sym in list(session.positions.keys()):
-            self._close_position(
-                sym, last_bar.close, last_bar.timestamp, session, "End"
-            )
+            self._close_position(sym, last_bar.close, last_bar.timestamp, session, "End")
 
         return PaperResult(
             session=session,
@@ -484,11 +478,7 @@ class PaperTradingEngine:
         else:
             pnl = (pos.entry_price - exit_price) * pos.quantity
 
-        pnl_pct = (
-            ((exit_price / pos.entry_price) - 1) * 100
-            if pos.entry_price > 0
-            else 0.0
-        )
+        pnl_pct = ((exit_price / pos.entry_price) - 1) * 100 if pos.entry_price > 0 else 0.0
         if pos.side == PositionSide.SHORT:
             pnl_pct = -pnl_pct
 
@@ -552,16 +542,22 @@ class PaperTradingEngine:
         pos = session.positions[bar.symbol]
 
         # Stop-loss check
-        if pos.stop_loss is not None:
-            if pos.side == PositionSide.LONG and bar.low <= pos.stop_loss or pos.side == PositionSide.SHORT and bar.high >= pos.stop_loss:
-                self._close_position(bar.symbol, pos.stop_loss, bar.timestamp, session, "Stop-loss hit")
-                return
+        if pos.stop_loss is not None and (
+            (pos.side == PositionSide.LONG and bar.low <= pos.stop_loss)
+            or (pos.side == PositionSide.SHORT and bar.high >= pos.stop_loss)
+        ):
+            self._close_position(bar.symbol, pos.stop_loss, bar.timestamp, session, "Stop-loss hit")
+            return
 
         # Take-profit check
-        if pos.take_profit is not None:
-            if pos.side == PositionSide.LONG and bar.high >= pos.take_profit or pos.side == PositionSide.SHORT and bar.low <= pos.take_profit:
-                self._close_position(bar.symbol, pos.take_profit, bar.timestamp, session, "Take-profit hit")
-                return
+        if pos.take_profit is not None and (
+            (pos.side == PositionSide.LONG and bar.high >= pos.take_profit)
+            or (pos.side == PositionSide.SHORT and bar.low <= pos.take_profit)
+        ):
+            self._close_position(
+                bar.symbol, pos.take_profit, bar.timestamp, session, "Take-profit hit"
+            )
+            return
 
     # -----------------------------------------------------------------------
     # Helpers

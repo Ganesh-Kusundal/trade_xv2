@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from decimal import Decimal
-from typing import Any, Sequence
+from typing import Any
 
-from domain.enums import OrderStatus, OrderType, ProductType, Side, Validity
 from brokers.common.broker_port import QuotaToken
 from brokers.common.extensions import ExtensionBundle
 from brokers.common.extensions.forever_order import (
@@ -96,9 +96,7 @@ class DhanForeverOrderExtension(ForeverOrderProvider):
         order_id = str(getattr(result, "order_id", "") or "")
         return ForeverOrderResult(success=bool(order_id), order_id=order_id)
 
-    async def cancel_forever_order(
-        self, order_id: str, *, quota: object
-    ) -> ForeverOrderResult:
+    async def cancel_forever_order(self, order_id: str, *, quota: object) -> ForeverOrderResult:
         self._extended.cancel_forever_order(order_id)
         return ForeverOrderResult(success=True, order_id=order_id)
 
@@ -125,17 +123,17 @@ class DhanNativeSliceExtension(NativeSliceOrderProvider):
     def __init__(self, gateway: MarketDataGateway) -> None:
         self._orders = gateway.extended.orders
 
-    async def place_slice_order(
-        self, spec: SliceOrderSpec, *, quota: object
-    ) -> Sequence[Any]:
-        return [self._orders.place_slice_order(
-            symbol=spec.symbol,
-            exchange=spec.exchange,
-            side=spec.side.value,
-            quantity=spec.quantity,
-            order_type=spec.order_type.value,
-            product_type=spec.product_type.value,
-        )]
+    async def place_slice_order(self, spec: SliceOrderSpec, *, quota: object) -> Sequence[Any]:
+        return [
+            self._orders.place_slice_order(
+                symbol=spec.symbol,
+                exchange=spec.exchange,
+                side=spec.side.value,
+                quantity=spec.quantity,
+                order_type=spec.order_type.value,
+                product_type=spec.product_type.value,
+            )
+        ]
 
 
 def register_dhan_extensions(gateway: MarketDataGateway) -> ExtensionBundle:

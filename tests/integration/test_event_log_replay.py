@@ -89,7 +89,9 @@ def test_event_log_replay_filters_by_event_type(tmp_path: Path) -> None:
     finally:
         log.close()
 
-    events = EventLog(events_dir=tmp_path / "events").replay(event_types={EventType.TRADE.value})  # P1-3: Migrated to EventType enum
+    events = EventLog(events_dir=tmp_path / "events").replay(
+        event_types={EventType.TRADE.value}
+    )  # P1-3: Migrated to EventType enum
     assert [e.event_type for e in events] == ["TRADE"]
 
 

@@ -99,6 +99,7 @@ class FastBacktestEngine:
 
         # Build result
         from analytics.replay.models import ReplayResult, ReplaySession
+
         session = ReplaySession(capital=self._config.initial_capital)
         session.trades = []
         session.equity_curve = equity_curve
@@ -142,7 +143,7 @@ class FastBacktestEngine:
 
         for idx in range(warmup, len(features)):
             row = features.iloc[idx]
-            bar_df = features.iloc[:idx + 1]  # View up to current bar (no copy)
+            bar_df = features.iloc[: idx + 1]  # View up to current bar (no copy)
 
             candidate = Candidate(symbol=symbol, score=50.0, reasons=["fast_backtest"])
 
@@ -156,7 +157,10 @@ class FastBacktestEngine:
                 price = float(row["close"])
                 ts = row[ts_col]
 
-                if signal.signal_type in (SignalType.BUY, SignalType.STRONG_BUY) and position is None:
+                if (
+                    signal.signal_type in (SignalType.BUY, SignalType.STRONG_BUY)
+                    and position is None
+                ):
                     qty = int((capital * config.max_position_pct) / price) if price > 0 else 0
                     if qty > 0:
                         slippage = price * (config.slippage_pct / 100)
@@ -173,7 +177,10 @@ class FastBacktestEngine:
                         }
                         capital -= commission
 
-                elif signal.signal_type in (SignalType.SELL, SignalType.STRONG_SELL) and position is not None:
+                elif (
+                    signal.signal_type in (SignalType.SELL, SignalType.STRONG_SELL)
+                    and position is not None
+                ):
                     price = float(row["close"])
                     slippage = price * (config.slippage_pct / 100)
                     exit_price = price - slippage
@@ -245,7 +252,11 @@ class FastBacktestEngine:
         win_rate = len(winning) / len(trades) if trades else 0
         avg_win = np.mean([t.pnl for t in winning]) if winning else 0
         avg_loss = np.mean([t.pnl for t in losing]) if losing else 0
-        profit_factor = abs(sum(t.pnl for t in winning) / sum(t.pnl for t in losing)) if losing and sum(t.pnl for t in losing) != 0 else 0
+        profit_factor = (
+            abs(sum(t.pnl for t in winning) / sum(t.pnl for t in losing))
+            if losing and sum(t.pnl for t in losing) != 0
+            else 0
+        )
 
         trade_analysis = TradeAnalysis(
             total_trades=len(trades),

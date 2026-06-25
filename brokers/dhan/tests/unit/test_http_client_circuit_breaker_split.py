@@ -103,9 +103,15 @@ def _stub_response(
 def test_read_endpoint_failures_do_not_open_write_circuit_breaker() -> None:
     """5xx on a read endpoint must be recorded on the read CB only.
     The write CB must remain CLOSED so order placement is unaffected."""
-    cb_read = CircuitBreaker("test-read", CircuitBreakerConfig(failure_threshold=2, open_duration_ms=30_000))
-    cb_write = CircuitBreaker("test-write", CircuitBreakerConfig(failure_threshold=2, open_duration_ms=30_000))
-    cb_admin = CircuitBreaker("test-admin", CircuitBreakerConfig(failure_threshold=2, open_duration_ms=30_000))
+    cb_read = CircuitBreaker(
+        "test-read", CircuitBreakerConfig(failure_threshold=2, open_duration_ms=30_000)
+    )
+    cb_write = CircuitBreaker(
+        "test-write", CircuitBreakerConfig(failure_threshold=2, open_duration_ms=30_000)
+    )
+    cb_admin = CircuitBreaker(
+        "test-admin", CircuitBreakerConfig(failure_threshold=2, open_duration_ms=30_000)
+    )
     client = _make_client(cb_read=cb_read, cb_write=cb_write, cb_admin=cb_admin)
 
     # Drive the read CB past its threshold with 2 failed reads.
@@ -121,9 +127,15 @@ def test_read_endpoint_failures_do_not_open_write_circuit_breaker() -> None:
 
 def test_write_endpoint_failures_do_not_open_read_circuit_breaker() -> None:
     """A failed place_order must NOT take out the read or admin CBs."""
-    cb_read = CircuitBreaker("test-read", CircuitBreakerConfig(failure_threshold=10, open_duration_ms=30_000))
-    cb_write = CircuitBreaker("test-write", CircuitBreakerConfig(failure_threshold=2, open_duration_ms=30_000))
-    cb_admin = CircuitBreaker("test-admin", CircuitBreakerConfig(failure_threshold=10, open_duration_ms=30_000))
+    cb_read = CircuitBreaker(
+        "test-read", CircuitBreakerConfig(failure_threshold=10, open_duration_ms=30_000)
+    )
+    cb_write = CircuitBreaker(
+        "test-write", CircuitBreakerConfig(failure_threshold=2, open_duration_ms=30_000)
+    )
+    cb_admin = CircuitBreaker(
+        "test-admin", CircuitBreakerConfig(failure_threshold=10, open_duration_ms=30_000)
+    )
     client = _make_client(cb_read=cb_read, cb_write=cb_write, cb_admin=cb_admin)
 
     for _ in range(2):
@@ -138,9 +150,15 @@ def test_write_endpoint_failures_do_not_open_read_circuit_breaker() -> None:
 
 def test_admin_endpoint_failures_do_not_open_read_or_write_circuit_breaker() -> None:
     """A failed /positions call must NOT take out the read or write CBs."""
-    cb_read = CircuitBreaker("test-read", CircuitBreakerConfig(failure_threshold=10, open_duration_ms=30_000))
-    cb_write = CircuitBreaker("test-write", CircuitBreakerConfig(failure_threshold=10, open_duration_ms=30_000))
-    cb_admin = CircuitBreaker("test-admin", CircuitBreakerConfig(failure_threshold=2, open_duration_ms=30_000))
+    cb_read = CircuitBreaker(
+        "test-read", CircuitBreakerConfig(failure_threshold=10, open_duration_ms=30_000)
+    )
+    cb_write = CircuitBreaker(
+        "test-write", CircuitBreakerConfig(failure_threshold=10, open_duration_ms=30_000)
+    )
+    cb_admin = CircuitBreaker(
+        "test-admin", CircuitBreakerConfig(failure_threshold=2, open_duration_ms=30_000)
+    )
     client = _make_client(cb_read=cb_read, cb_write=cb_write, cb_admin=cb_admin)
 
     for _ in range(2):
@@ -160,9 +178,15 @@ def test_open_read_circuit_breaker_does_not_block_writes() -> None:
     """When the read CB is OPEN, read requests fast-fail but a write
     request must still go through to the wire. This is the
     pre-A1 failure mode we are fixing."""
-    cb_read = CircuitBreaker("test-read", CircuitBreakerConfig(failure_threshold=1, open_duration_ms=30_000))
-    cb_write = CircuitBreaker("test-write", CircuitBreakerConfig(failure_threshold=10, open_duration_ms=30_000))
-    cb_admin = CircuitBreaker("test-admin", CircuitBreakerConfig(failure_threshold=10, open_duration_ms=30_000))
+    cb_read = CircuitBreaker(
+        "test-read", CircuitBreakerConfig(failure_threshold=1, open_duration_ms=30_000)
+    )
+    cb_write = CircuitBreaker(
+        "test-write", CircuitBreakerConfig(failure_threshold=10, open_duration_ms=30_000)
+    )
+    cb_admin = CircuitBreaker(
+        "test-admin", CircuitBreakerConfig(failure_threshold=10, open_duration_ms=30_000)
+    )
     client = _make_client(cb_read=cb_read, cb_write=cb_write, cb_admin=cb_admin)
 
     # Trip the read CB.
@@ -179,9 +203,15 @@ def test_open_read_circuit_breaker_does_not_block_writes() -> None:
 
 def test_open_write_circuit_breaker_does_not_block_reads() -> None:
     """Symmetric: an OPEN write CB must not block reads."""
-    cb_read = CircuitBreaker("test-read", CircuitBreakerConfig(failure_threshold=10, open_duration_ms=30_000))
-    cb_write = CircuitBreaker("test-write", CircuitBreakerConfig(failure_threshold=1, open_duration_ms=30_000))
-    cb_admin = CircuitBreaker("test-admin", CircuitBreakerConfig(failure_threshold=10, open_duration_ms=30_000))
+    cb_read = CircuitBreaker(
+        "test-read", CircuitBreakerConfig(failure_threshold=10, open_duration_ms=30_000)
+    )
+    cb_write = CircuitBreaker(
+        "test-write", CircuitBreakerConfig(failure_threshold=1, open_duration_ms=30_000)
+    )
+    cb_admin = CircuitBreaker(
+        "test-admin", CircuitBreakerConfig(failure_threshold=10, open_duration_ms=30_000)
+    )
     client = _make_client(cb_read=cb_read, cb_write=cb_write, cb_admin=cb_admin)
 
     _stub_response(client, "/orders", status=503)
@@ -202,7 +232,9 @@ def test_legacy_single_circuit_breaker_routes_to_all_categories() -> None:
     category uses that single CB. This preserves every existing
     test fixture and external caller.
     """
-    legacy = CircuitBreaker("legacy", CircuitBreakerConfig(failure_threshold=2, open_duration_ms=30_000))
+    legacy = CircuitBreaker(
+        "legacy", CircuitBreakerConfig(failure_threshold=2, open_duration_ms=30_000)
+    )
     client = _make_client(cb_legacy=legacy)
 
     # A read failure increments the same CB.
@@ -230,8 +262,12 @@ def test_specific_cbs_override_legacy_when_both_provided() -> None:
     passed, the category-specific one wins. The legacy is used only
     for any category that does NOT have its own CB.
     """
-    legacy = CircuitBreaker("legacy", CircuitBreakerConfig(failure_threshold=2, open_duration_ms=30_000))
-    cb_write = CircuitBreaker("write", CircuitBreakerConfig(failure_threshold=2, open_duration_ms=30_000))
+    legacy = CircuitBreaker(
+        "legacy", CircuitBreakerConfig(failure_threshold=2, open_duration_ms=30_000)
+    )
+    cb_write = CircuitBreaker(
+        "write", CircuitBreakerConfig(failure_threshold=2, open_duration_ms=30_000)
+    )
     client = _make_client(cb_write=cb_write, cb_legacy=legacy)
 
     # 2 write failures open ONLY the write CB.

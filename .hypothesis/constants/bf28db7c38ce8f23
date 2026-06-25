@@ -1,4 +1,0 @@
-# file: /workspaces/trade_xv2/datalake/option_format.py
-# hypothesis_version: 6.155.7
-
-[100.0, 1000, '%Y-%m-%d', 'Asia/Kolkata', 'BANKNIFTY', 'MONTH', 'NIFTY', 'NSE', 'WEEK', 'bar_time_ms', 'close', 'close_paisa', 'exchange', 'expiry_code', 'expiry_date', 'expiry_kind', 'high', 'high_paisa', 'interval_min', 'iv', 'low', 'low_paisa', 'ms', 'oi', 'open', 'open_paisa', 'option_type', 'spot', 'spot_paisa', 'strike', 'strike_offset', 'strike_paisa', 'symbol', 'timestamp', 'underlying', 'volume']

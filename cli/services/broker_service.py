@@ -5,28 +5,27 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
+from application.execution.execution_service import ExecutionService
+from application.execution.gateway_submit import make_gateway_submit_fn
+from application.oms.context import TradingContext
+from application.oms.oms_gateway_proxy import OMSGatewayProxy
+from application.oms.order_manager import OmsOrderCommand, OrderResult
+from brokers.common.async_compat import run_async_compat
+from brokers.common.bootstrap import bootstrap_from_gateways, policy_from_env
+from brokers.common.connection.errors import BrokerNotReadyError
 from brokers.common.connection_pool import get_connection_pool
 from brokers.common.gateway import MarketDataGateway
 from brokers.common.infrastructure import BrokerInfrastructure
-from infrastructure.lifecycle import LifecycleManager
-from application.oms.capital_provider import CapitalProvider, GatewayCapitalProvider
-from application.oms.context import TradingContext
 from brokers.common.observability.http_server import HttpObservabilityServer
 from brokers.paper import PaperGateway
-
-from application.execution.execution_service import ExecutionService
-from application.oms.order_manager import OmsOrderCommand, OrderResult
-from application.oms.oms_gateway_proxy import OMSGatewayProxy
+from brokers.paper.mock_broker import MockBroker, create_seeded_mock_broker
 from cli.services.broker_registry import bootstrap_gateway, create_gateway, resolve_env_path
-from brokers.common.bootstrap import bootstrap_from_gateways, policy_from_env
-from brokers.common.async_compat import run_async_compat
-from brokers.common.connection.errors import BrokerNotReadyError
-from cli.services.capital_provider import TrackedCapitalProvider
 from cli.services.observability_setup import start_http_observability
-
 from cli.services.oms_setup import build_risk_manager, register_oms_services
+from domain.entities import Order
+from infrastructure.lifecycle import LifecycleManager
 
 logger = logging.getLogger(__name__)
 
@@ -35,15 +34,10 @@ logger = logging.getLogger(__name__)
 # ``broker_registry.resolve_env_path()``.
 _ENV_PATH = Path(__file__).resolve().parent.parent.parent / ".env.local"
 
-
-# ---------------------------------------------------------------------------
-# Mock broker — uses the shared MockBroker from brokers.paper.mock_broker
-# ---------------------------------------------------------------------------
-from brokers.paper.mock_broker import MockBroker, create_seeded_mock_broker
-
 # ---------------------------------------------------------------------------
 # BrokerService
 # ---------------------------------------------------------------------------
+
 
 class BrokerService:
     """Resolves and manages the active broker (live Dhan gateway or mock).
@@ -69,6 +63,7 @@ class BrokerService:
         *,
         load_instruments: bool = True,
         event_bus: Any | None = None,
+        readonly: bool = False,  # NEW: skip TradingContext for read-only commands
     ) -> None:
         self._gateway: MarketDataGateway | None = None
         self._upstox_gateway: MarketDataGateway | None = None
@@ -100,6 +95,7 @@ class BrokerService:
         # CLI can control instrument loading and share the event bus.
         self._load_instruments = load_instruments
         self._event_bus = event_bus
+        self._readonly = readonly  # NEW: readonly mode flag
         self._readiness_report: Any = None
         self._live_intent = False  # set True when .env.local exists at init
         self._dhan_bootstrap: Any = None
@@ -129,7 +125,7 @@ class BrokerService:
 
     def _start_http_observability_server(self, risk_manager: Any) -> None:
         """B8+B9 followup: spin up the HTTP observability server.
-        
+
         Delegates to observability_setup.start_http_observability()
         for separation of concerns.
         """
@@ -180,6 +176,15 @@ class BrokerService:
                         f"(authenticated={bootstrap.authenticated})"
                     )
                 self._gateway = bootstrap.gateway
+                
+                # NEW: In readonly mode, skip OMS/TradingContext initialization
+                # Read-only commands (quote, depth, history) don't need OMS lock
+                if self._readonly:
+                    logger.debug("readonly_mode: skipping TradingContext initialization")
+                    # P-1.3: Readonly mode - gateway exists but no OMS/TradingContext
+                    return
+                
+                # P-1.3: Full mode - continue with OMS/TradingContext initialization
                 # P2-2: now that the gateway exists, update the
                 # capital_provider with the real gateway reference.
                 # From this point on, the risk check uses the real
@@ -198,6 +203,26 @@ class BrokerService:
                 # Register the OMS services with the lifecycle so
                 # they are drained on close().
                 self._build_and_register_oms_services(oms_risk_manager)
+                
+                # P-1.5: Run production readiness check BEFORE starting any services
+                # This prevents orphaned background threads when readiness fails
+                try:
+                    from brokers.common.services.production_readiness import (
+                        ProductionReadinessChecker,
+                        ProductionReadinessError,
+                    )
+
+                    self._readiness_report = ProductionReadinessChecker(self).run_or_raise()
+                except ProductionReadinessError as exc:
+                    # P-1.5: Cleanup before returning - nothing started yet
+                    self._dhan_load_error = str(exc)
+                    self._gateway = None
+                    self._oms_proxy = None
+                    self._oms_risk_manager = None
+                    logger.error("production_readiness_failed: %s", exc)
+                    return
+                
+                # P-1.5: ONLY NOW start services - readiness check passed
                 # B-4: start the WebSocket services through the
                 # lifecycle so they participate in deterministic
                 # start/stop and the reconnect backoff never escapes
@@ -211,31 +236,10 @@ class BrokerService:
                 # so /healthz, /readyz, and /metrics are live in production.
                 # Registered with the lifecycle so close() drains it.
                 self._start_http_observability_server(oms_risk_manager)
-                # M-7: production readiness gate. REF-17: this gate
-                # now FAILS CLOSED — a failed check raises
-                # ProductionReadinessError, which is caught above and
-                # recorded as ``_dhan_load_error``. The CLI must
-                # refuse to enter the live trading path when the gate
-                # fails (see BrokerService.live_actionable). Calling
-                # ``run()`` directly (without ``run_or_raise``) is the
-                # legacy log-only path retained only for diagnostic
-                # inspection of the report.
-                try:
-                    from brokers.common.services.production_readiness import (
-                        ProductionReadinessChecker,
-                        ProductionReadinessError,
-                    )
-                    self._readiness_report = ProductionReadinessChecker(
-                        self
-                    ).run_or_raise()
-                except ProductionReadinessError as exc:
-                    self._dhan_load_error = str(exc)
-                    self._gateway = None
-                    self._oms_proxy = None
-                    logger.error("production_readiness_failed: %s", exc)
-                    return
                 logger.info("Dhan BrokerGateway created with lifecycle + OMS + HTTP /metrics")
             except Exception as exc:
+                # P-1.5: If exception occurs after services started, stop them before returning
+                self._lifecycle.stop_all()
                 self._dhan_load_error = str(exc)
                 self._gateway = None
                 self._oms_proxy = None
@@ -338,14 +342,14 @@ class BrokerService:
 
     def _build_oms_risk_manager(self) -> tuple[Any, Any]:
         """B7: build a RiskManager for the OMS that the live path will consult.
-        
+
         Delegates to oms_setup.build_risk_manager() for separation of concerns.
         """
         return build_risk_manager(self)
 
     def _build_and_register_oms_services(self, risk_manager: Any) -> None:
         """B7: construct the OMS-side services and register with lifecycle.
-        
+
         Delegates to oms_setup.register_oms_services() for separation
         of concerns.
         """
@@ -367,7 +371,7 @@ class BrokerService:
         if gw is None:
             return None
         # B4: Accept both raw MarketDataGateway and OMSGatewayProxy
-        if not isinstance(gw, (MarketDataGateway, OMSGatewayProxy)):
+        if not isinstance(gw, MarketDataGateway | OMSGatewayProxy):
             return None
         return ExecutionService(
             trading_context=self._trading_context,
@@ -380,7 +384,7 @@ class BrokerService:
     @property
     def active_broker(self) -> MarketDataGateway | PaperGateway | MockBroker:
         """Return the active broker: live Dhan, live Upstox, paper, or mock.
-        
+
         B4: When a live gateway is active and the OMS proxy has been
         created, the proxy is returned instead of the raw gateway.
         This ensures ALL order operations check the kill switch before
@@ -423,7 +427,7 @@ class BrokerService:
     @property
     def oms_proxy(self) -> OMSGatewayProxy | None:
         """B4: The OMS gateway proxy (enforces kill switch on order ops).
-        
+
         Returns None when using paper/mock mode or before initialization.
         Tests and internal code can use this to verify enforcement state.
         """
@@ -448,9 +452,7 @@ class BrokerService:
         if bootstrap is None or not getattr(bootstrap, "live_ready", False):
             return False
         report = self._readiness_report
-        if report is not None and not getattr(report, "passed", True):
-            return False
-        return True
+        return not (report is not None and not getattr(report, "passed", True))
 
     @property
     def upstox_authenticated(self) -> bool:
@@ -491,7 +493,9 @@ class BrokerService:
                 raise ValueError("Upstox broker not available. Check .env.upstox credentials.")
             self._active_name = "upstox"
         else:
-            raise ValueError(f"Broker '{name}' is not registered. Use 'dhan', 'upstox', or 'paper'.")
+            raise ValueError(
+                f"Broker '{name}' is not registered. Use 'dhan', 'upstox', or 'paper'."
+            )
         self._active_name = name_lower
 
     def use_paper(self) -> None:
@@ -525,8 +529,8 @@ class BrokerService:
         if gateway is None:
             raise RuntimeError("No broker gateway configured")
 
-        submit_fn = make_gateway_submit_fn(gateway, transport_only=True)
-        return submit_fn(command)
+        fn = make_gateway_submit_fn(gateway, transport_only=True)
+        return fn(command)
 
     def place_order_through_oms(self, command: OmsOrderCommand) -> OrderResult:
         """Place an order through OMS with broker transport as ``submit_fn``."""

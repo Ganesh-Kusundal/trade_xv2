@@ -101,20 +101,28 @@ class SqliteOrderStore:
 
     def _acquire_writer_lock(self) -> None:
         if fcntl is None:
-            logger.warning(
-                "fcntl unavailable — OMS single-writer lock skipped on this platform"
-            )
+            logger.warning("fcntl unavailable — OMS single-writer lock skipped on this platform")
             return
-        self._lock_fd = open(self._lock_path, "w", encoding="utf-8")
         try:
-            fcntl.flock(self._lock_fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError as exc:
-            raise OmsWriterLockError(
-                f"Another process holds the OMS writer lock at {self._lock_path}. "
-                "Only one live TradingContext may write to this store."
-            ) from exc
-        self._lock_fd.write(str(os.getpid()))
-        self._lock_fd.flush()
+            self._lock_fd = open(self._lock_path, "w", encoding="utf-8")  # noqa: SIM115 — fd kept open for lock lifecycle
+            try:
+                fcntl.flock(self._lock_fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as exc:
+                # P-1.4 Bug 1: Close FD before raising to prevent leak
+                self._lock_fd.close()
+                self._lock_fd = None
+                raise OmsWriterLockError(
+                    f"Another process holds the OMS writer lock at {self._lock_path}. "
+                    "Only one live TradingContext may write to this store."
+                ) from exc
+            self._lock_fd.write(str(os.getpid()))
+            self._lock_fd.flush()
+        except Exception:
+            # P-1.4: Ensure FD is closed on any exception
+            if self._lock_fd is not None:
+                self._lock_fd.close()
+                self._lock_fd = None
+            raise
 
     def writer_lock_held(self) -> bool:
         """True when this process holds the cross-process writer lock."""
@@ -179,9 +187,10 @@ class SqliteOrderStore:
     def close(self) -> None:
         with self._lock:
             self._conn.close()
-        if self._lock_fd is not None and fcntl is not None:
-            try:
-                fcntl.flock(self._lock_fd.fileno(), fcntl.LOCK_UN)
-            finally:
-                self._lock_fd.close()
-                self._lock_fd = None
+            # P-1.4 Bug 2: Move lock_fd cleanup INSIDE lock to prevent race condition
+            if self._lock_fd is not None and fcntl is not None:
+                try:
+                    fcntl.flock(self._lock_fd.fileno(), fcntl.LOCK_UN)
+                finally:
+                    self._lock_fd.close()
+                    self._lock_fd = None

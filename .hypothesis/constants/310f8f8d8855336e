@@ -1,4 +1,0 @@
-# file: /workspaces/trade_xv2/analytics/backtest/models.py
-# hypothesis_version: 6.155.7
-
-[0.0, 0.065, 100, 252, 'NIFTY', 'alpha', 'avg_holding_bars', 'bars_processed', 'beta', 'cagr', 'calmar_ratio', 'final_equity', 'information_ratio', 'max_consecutive_wins', 'max_drawdown_pct', 'profit_factor', 'sharpe_ratio', 'sortino_ratio', 'total_return_pct', 'total_trades', 'volatility', 'win_rate']

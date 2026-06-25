@@ -58,8 +58,12 @@ class DataQualityEngine:
         report = QualityReport(symbol=symbol, timeframe=timeframe)
 
         parquet_path = (
-            self._root / "equities" / "candles" / f"timeframe={timeframe}"
-            / f"symbol={symbol}" / "data.parquet"
+            self._root
+            / "equities"
+            / "candles"
+            / f"timeframe={timeframe}"
+            / f"symbol={symbol}"
+            / "data.parquet"
         )
         if not parquet_path.exists():
             report.status = "MISSING"
@@ -114,9 +118,7 @@ class DataQualityEngine:
                 report.status = "WARNING"
             # Zero-range candles (open=high=low=close) may indicate missing data
             zero_range = (
-                (df["open"] == df["high"]) &
-                (df["high"] == df["low"]) &
-                (df["low"] == df["close"])
+                (df["open"] == df["high"]) & (df["high"] == df["low"]) & (df["low"] == df["close"])
             ).sum()
             if zero_range > 0:
                 report.issues.append(f"{zero_range} zero-range candles (possible stale data)")
@@ -132,7 +134,9 @@ class DataQualityEngine:
             total_days = (report.max_date - report.min_date).days
             expected_trading_days = int(total_days * 5 / 7)  # rough estimate
             if expected_trading_days > 0:
-                report.completeness_pct = max(0, 100 - (report.gap_days / expected_trading_days * 100))
+                report.completeness_pct = max(
+                    0, 100 - (report.gap_days / expected_trading_days * 100)
+                )
 
         # Record in catalog
         if self._catalog:
@@ -151,7 +155,9 @@ class DataQualityEngine:
 
         return report
 
-    def check_universe(self, universe: str = "NIFTY500", timeframe: str = "1m") -> list[QualityReport]:
+    def check_universe(
+        self, universe: str = "NIFTY500", timeframe: str = "1m"
+    ) -> list[QualityReport]:
         """Check quality for all symbols in a universe (I-17: DuckDB first)."""
         from datalake.schema import load_universe
 

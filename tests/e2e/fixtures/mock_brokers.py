@@ -9,7 +9,6 @@ Provides controllable broker behavior:
 from __future__ import annotations
 
 import time
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
@@ -23,9 +22,7 @@ from domain import (
     OrderResponse,
     OrderStatus,
     OrderType,
-    ProductType,
     Quote,
-    Side,
 )
 
 
@@ -63,7 +60,7 @@ class MockBrokerGateway:
             price=request.price,
             product_type=request.product_type,
             status=OrderStatus.OPEN,
-            correlation_id=getattr(request, 'correlation_id', None),
+            correlation_id=getattr(request, "correlation_id", None),
         )
 
         # Auto-fill market orders immediately
@@ -198,10 +195,11 @@ class MockFailingBroker:
         return FundLimits()
 
     def _maybe_fail(self, operation: str) -> None:
-        if operation in self.fail_operations:
-            if self.max_fails < 0 or self.fail_count < self.max_fails:
-                self.fail_count += 1
-                raise RuntimeError(f"{self.name}: {operation} failed (#{self.fail_count})")
+        if operation in self.fail_operations and (
+            self.max_fails < 0 or self.fail_count < self.max_fails
+        ):
+            self.fail_count += 1
+            raise RuntimeError(f"{self.name}: {operation} failed (#{self.fail_count})")
 
     def reset(self) -> None:
         self.fail_count = 0

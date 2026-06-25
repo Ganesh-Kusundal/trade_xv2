@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -15,7 +15,6 @@ from cli.commands.risk_controls import (
     show_risk_status,
     toggle_kill_switch,
 )
-from cli.commands.registry import CommandResult
 
 
 @pytest.fixture()
@@ -84,7 +83,9 @@ class TestShowRiskStatus:
         assert result.success is False
         assert "RiskManager not configured" in result.error
 
-    def test_show_risk_status_with_kill_switch_active(self, mock_broker_service, mock_console, mock_risk_manager):
+    def test_show_risk_status_with_kill_switch_active(
+        self, mock_broker_service, mock_console, mock_risk_manager
+    ):
         """Test risk status when kill switch is active."""
         mock_risk_manager.kill_switch = True
         mock_broker_service.trading_context.order_manager.risk_manager = mock_risk_manager
@@ -94,7 +95,9 @@ class TestShowRiskStatus:
         assert result.success is True
         assert result.data["kill_switch"] is True
 
-    def test_show_risk_status_negative_pnl(self, mock_broker_service, mock_console, mock_risk_manager):
+    def test_show_risk_status_negative_pnl(
+        self, mock_broker_service, mock_console, mock_risk_manager
+    ):
         """Test risk status with negative daily PnL."""
         mock_risk_manager.daily_pnl = Decimal("-2500.00")
         mock_broker_service.trading_context.order_manager.risk_manager = mock_risk_manager
@@ -153,7 +156,9 @@ class TestToggleKillSwitch:
         assert result.success is False
         assert "Invalid action" in result.error
 
-    def test_toggle_kill_switch_case_insensitive(self, mock_broker_service, mock_console, mock_risk_manager):
+    def test_toggle_kill_switch_case_insensitive(
+        self, mock_broker_service, mock_console, mock_risk_manager
+    ):
         """Test kill switch with case-insensitive arguments."""
         mock_broker_service.trading_context.order_manager.risk_manager = mock_risk_manager
 
@@ -412,7 +417,9 @@ class TestRiskManagementIntegration:
         kill_off_result = toggle_kill_switch(["off"], mock_broker_service, mock_console)
         assert kill_off_result.success is True
 
-    def test_risk_status_after_pnl_reset(self, mock_broker_service, mock_console, mock_risk_manager):
+    def test_risk_status_after_pnl_reset(
+        self, mock_broker_service, mock_console, mock_risk_manager
+    ):
         """Test risk status reflects PnL reset."""
         mock_broker_service.trading_context.order_manager.risk_manager = mock_risk_manager
 
@@ -432,14 +439,18 @@ class TestRiskManagementEdgeCases:
 
     def test_risk_status_large_capital(self, mock_broker_service, mock_console, mock_risk_manager):
         """Test risk status with large capital."""
-        mock_risk_manager._capital_provider.get_available_balance.return_value = Decimal("100000000")
+        mock_risk_manager._capital_provider.get_available_balance.return_value = Decimal(
+            "100000000"
+        )
         mock_broker_service.trading_context.order_manager.risk_manager = mock_risk_manager
 
         result = show_risk_status([], mock_broker_service, mock_console)
 
         assert result.success is True
 
-    def test_risk_status_large_negative_pnl(self, mock_broker_service, mock_console, mock_risk_manager):
+    def test_risk_status_large_negative_pnl(
+        self, mock_broker_service, mock_console, mock_risk_manager
+    ):
         """Test risk status with large negative PnL."""
         mock_risk_manager.daily_pnl = Decimal("-500000.00")
         mock_broker_service.trading_context.order_manager.risk_manager = mock_risk_manager

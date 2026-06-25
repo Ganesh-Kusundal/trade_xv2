@@ -6,11 +6,11 @@ from decimal import Decimal
 
 import pytest
 
-from domain import Order, OrderType, ProductType, Side
 from application.execution.execution_service import ExecutionService
 from application.oms.factory import create_trading_context
 from application.oms.order_manager import OmsOrderCommand
 from brokers.paper.paper_gateway import PaperGateway
+from domain import Order, OrderType, ProductType, Side
 
 
 @pytest.fixture

@@ -15,7 +15,6 @@ from datalake.option_format import (
 )
 from datalake.sync_options import _get_watermark, sync_options
 
-
 # ============================================================
 # Tests for option_format module
 # ============================================================
@@ -68,25 +67,27 @@ class TestMapExpiryCodeToDate:
 
 class TestConvertFormat:
     def test_paise_to_rupees(self) -> None:
-        raw = pd.DataFrame({
-            "open_paisa": [10000, 20000],
-            "high_paisa": [10500, 21000],
-            "low_paisa": [9500, 19000],
-            "close_paisa": [10200, 20500],
-            "spot_paisa": [2360000, 5500000],
-            "strike_paisa": [2350000, 5500000],
-            "bar_time_ms": [1772496000000, 1772496000000],
-            "underlying": ["NIFTY", "BANKNIFTY"],
-            "expiry_kind": ["WEEK", "WEEK"],
-            "expiry_code": [1, 1],
-            "strike_offset": [-2, 5],
-            "option_type": ["CALL", "PUT"],
-            "interval_min": [5, 5],
-            "volume": [1000, 2000],
-            "iv": [15.0, 16.0],
-            "oi": [5000, 8000],
-            "ingested_at_ms": [1772496000000, 1772496000000],
-        })
+        raw = pd.DataFrame(
+            {
+                "open_paisa": [10000, 20000],
+                "high_paisa": [10500, 21000],
+                "low_paisa": [9500, 19000],
+                "close_paisa": [10200, 20500],
+                "spot_paisa": [2360000, 5500000],
+                "strike_paisa": [2350000, 5500000],
+                "bar_time_ms": [1772496000000, 1772496000000],
+                "underlying": ["NIFTY", "BANKNIFTY"],
+                "expiry_kind": ["WEEK", "WEEK"],
+                "expiry_code": [1, 1],
+                "strike_offset": [-2, 5],
+                "option_type": ["CALL", "PUT"],
+                "interval_min": [5, 5],
+                "volume": [1000, 2000],
+                "iv": [15.0, 16.0],
+                "oi": [5000, 8000],
+                "ingested_at_ms": [1772496000000, 1772496000000],
+            }
+        )
         out = convert_format(raw)
         assert out["open"].iloc[0] == 100.0
         assert out["close"].iloc[1] == 205.0
@@ -94,49 +95,105 @@ class TestConvertFormat:
         assert out["strike"].iloc[0] == 23500.0
 
     def test_timestamp_ist_no_tz(self) -> None:
-        raw = pd.DataFrame({
-            "open_paisa": [10000], "high_paisa": [10500], "low_paisa": [9500], "close_paisa": [10200],
-            "spot_paisa": [2360000], "strike_paisa": [2350000],
-            "bar_time_ms": [1772409600000],  # 2026-03-02 00:00 UTC = 2026-03-02 05:30 IST
-            "underlying": ["NIFTY"], "expiry_kind": ["WEEK"], "expiry_code": [1],
-            "strike_offset": [-2], "option_type": ["CALL"], "interval_min": [5],
-            "volume": [1000], "iv": [15.0], "oi": [5000], "ingested_at_ms": [1772409600000],
-        })
+        raw = pd.DataFrame(
+            {
+                "open_paisa": [10000],
+                "high_paisa": [10500],
+                "low_paisa": [9500],
+                "close_paisa": [10200],
+                "spot_paisa": [2360000],
+                "strike_paisa": [2350000],
+                "bar_time_ms": [1772409600000],  # 2026-03-02 00:00 UTC = 2026-03-02 05:30 IST
+                "underlying": ["NIFTY"],
+                "expiry_kind": ["WEEK"],
+                "expiry_code": [1],
+                "strike_offset": [-2],
+                "option_type": ["CALL"],
+                "interval_min": [5],
+                "volume": [1000],
+                "iv": [15.0],
+                "oi": [5000],
+                "ingested_at_ms": [1772409600000],
+            }
+        )
         out = convert_format(raw)
         ts = out["timestamp"].iloc[0]
         assert ts.tz is None  # naive
         assert ts == pd.Timestamp("2026-03-02 05:30")  # IST = UTC+5:30
 
     def test_symbol_construction(self) -> None:
-        raw = pd.DataFrame({
-            "open_paisa": [10000], "high_paisa": [10500], "low_paisa": [9500], "close_paisa": [10200],
-            "spot_paisa": [2360000], "strike_paisa": [2350000],
-            "bar_time_ms": [1772496000000],
-            "underlying": ["NIFTY"], "expiry_kind": ["WEEK"], "expiry_code": [1],
-            "strike_offset": [-2], "option_type": ["CALL"], "interval_min": [5],
-            "volume": [1000], "iv": [15.0], "oi": [5000], "ingested_at_ms": [1772496000000],
-        })
+        raw = pd.DataFrame(
+            {
+                "open_paisa": [10000],
+                "high_paisa": [10500],
+                "low_paisa": [9500],
+                "close_paisa": [10200],
+                "spot_paisa": [2360000],
+                "strike_paisa": [2350000],
+                "bar_time_ms": [1772496000000],
+                "underlying": ["NIFTY"],
+                "expiry_kind": ["WEEK"],
+                "expiry_code": [1],
+                "strike_offset": [-2],
+                "option_type": ["CALL"],
+                "interval_min": [5],
+                "volume": [1000],
+                "iv": [15.0],
+                "oi": [5000],
+                "ingested_at_ms": [1772496000000],
+            }
+        )
         out = convert_format(raw)
         assert out["symbol"].iloc[0] == "NIFTY_WEEK_1_-2_CALL"
 
     def test_exchange_set_to_nse(self) -> None:
-        raw = pd.DataFrame({
-            "open_paisa": [10000], "high_paisa": [10500], "low_paisa": [9500], "close_paisa": [10200],
-            "spot_paisa": [2360000], "strike_paisa": [2350000],
-            "bar_time_ms": [1772496000000],
-            "underlying": ["NIFTY"], "expiry_kind": ["WEEK"], "expiry_code": [1],
-            "strike_offset": [-2], "option_type": ["CALL"], "interval_min": [5],
-            "volume": [1000], "iv": [15.0], "oi": [5000], "ingested_at_ms": [1772496000000],
-        })
+        raw = pd.DataFrame(
+            {
+                "open_paisa": [10000],
+                "high_paisa": [10500],
+                "low_paisa": [9500],
+                "close_paisa": [10200],
+                "spot_paisa": [2360000],
+                "strike_paisa": [2350000],
+                "bar_time_ms": [1772496000000],
+                "underlying": ["NIFTY"],
+                "expiry_kind": ["WEEK"],
+                "expiry_code": [1],
+                "strike_offset": [-2],
+                "option_type": ["CALL"],
+                "interval_min": [5],
+                "volume": [1000],
+                "iv": [15.0],
+                "oi": [5000],
+                "ingested_at_ms": [1772496000000],
+            }
+        )
         out = convert_format(raw)
         assert (out["exchange"] == "NSE").all()
 
     def test_canonical_columns_complete(self) -> None:
         """All required columns for the option schema are listed."""
-        required = {"timestamp", "symbol", "underlying", "exchange", "open", "high",
-                    "low", "close", "volume", "oi", "iv", "spot", "strike",
-                    "strike_offset", "option_type", "expiry_kind", "expiry_code",
-                    "interval_min", "expiry_date"}
+        required = {
+            "timestamp",
+            "symbol",
+            "underlying",
+            "exchange",
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "oi",
+            "iv",
+            "spot",
+            "strike",
+            "strike_offset",
+            "option_type",
+            "expiry_kind",
+            "expiry_code",
+            "interval_min",
+            "expiry_date",
+        }
         assert required.issubset(set(CANONICAL_COLUMNS))
 
 
@@ -179,16 +236,26 @@ def _insert_option_rows(conn: duckdb.DuckDBPyConnection, rows: list[dict]) -> No
     conn.unregister("rows_df")
 
 
-def _make_option_row(underlying: str, ek: str, ec: int, so: int, ot: str,
-                     bar_time_ms: int, price_paisa: int = 10000) -> dict:
+def _make_option_row(
+    underlying: str, ek: str, ec: int, so: int, ot: str, bar_time_ms: int, price_paisa: int = 10000
+) -> dict:
     return {
-        "underlying": underlying, "expiry_kind": ek, "expiry_code": ec,
-        "strike_offset": so, "option_type": ot, "interval_min": 5,
+        "underlying": underlying,
+        "expiry_kind": ek,
+        "expiry_code": ec,
+        "strike_offset": so,
+        "option_type": ot,
+        "interval_min": 5,
         "bar_time_ms": bar_time_ms,
-        "open_paisa": price_paisa, "high_paisa": price_paisa + 500,
-        "low_paisa": price_paisa - 500, "close_paisa": price_paisa + 100,
-        "volume": 1000, "iv": 15.0, "oi": 5000,
-        "spot_paisa": 2360000, "strike_paisa": 2350000,
+        "open_paisa": price_paisa,
+        "high_paisa": price_paisa + 500,
+        "low_paisa": price_paisa - 500,
+        "close_paisa": price_paisa + 100,
+        "volume": 1000,
+        "iv": 15.0,
+        "oi": 5000,
+        "spot_paisa": 2360000,
+        "strike_paisa": 2350000,
         "ingested_at_ms": bar_time_ms,
     }
 
@@ -208,7 +275,9 @@ class TestSyncOptions:
         assert summary["files_created"] == 1
         assert summary["files_merged"] == 0
         assert summary["new_rows"] == 2
-        out_file = tgt_path / "underlying=NIFTY" / "expiry_kind=WEEK" / "expiry_code=1" / "data.parquet"
+        out_file = (
+            tgt_path / "underlying=NIFTY" / "expiry_kind=WEEK" / "expiry_code=1" / "data.parquet"
+        )
         assert out_file.exists()
 
     def test_idempotent_second_run(self, tmp_path: Path) -> None:
@@ -246,7 +315,9 @@ class TestSyncOptions:
         # Add a new bar (later timestamp), then a duplicate of that new bar
         c = duckdb.connect(str(tj_path))
         rows2 = [
-            _make_option_row("NIFTY", "WEEK", 1, -2, "CALL", 1772496900000, price_paisa=20000),  # +15min
+            _make_option_row(
+                "NIFTY", "WEEK", 1, -2, "CALL", 1772496900000, price_paisa=20000
+            ),  # +15min
             # Duplicate of the new bar (same bar_time_ms, same symbol)
             _make_option_row("NIFTY", "WEEK", 1, -2, "CALL", 1772496900000, price_paisa=99999),
         ]
@@ -257,7 +328,9 @@ class TestSyncOptions:
         assert s["new_rows"] == 2  # both new rows picked up
         # After dedup (keep=last), the file should have 2 distinct rows
         # (original at t=1772496000000 + one at t=1772496900000 after dedup)
-        out_file = tgt_path / "underlying=NIFTY" / "expiry_kind=WEEK" / "expiry_code=1" / "data.parquet"
+        out_file = (
+            tgt_path / "underlying=NIFTY" / "expiry_kind=WEEK" / "expiry_code=1" / "data.parquet"
+        )
         df_out = pd.read_parquet(out_file)
         assert len(df_out) == 2  # deduped from 3 to 2
         # Verify the kept one is the last (price_paisa=99999 → close=999.99)
@@ -279,7 +352,9 @@ class TestSyncOptions:
 
         s = sync_options(trade_j_duckdb=tj_path, target_root=tgt_path)
         assert s["new_rows"] == 1
-        out_file = tgt_path / "underlying=NIFTY" / "expiry_kind=WEEK" / "expiry_code=1" / "data.parquet"
+        out_file = (
+            tgt_path / "underlying=NIFTY" / "expiry_kind=WEEK" / "expiry_code=1" / "data.parquet"
+        )
         df_out = pd.read_parquet(out_file)
         assert len(df_out) == 2  # 1 original + 1 new
 
@@ -290,7 +365,9 @@ class TestSyncOptions:
         """Verify src connection is closed after sync (no leak)."""
         tj_path = tmp_path / "tj.duckdb"
         tgt_path = tmp_path / "options"
-        _make_trade_j_duckdb(tj_path, [_make_option_row("NIFTY", "WEEK", 1, -2, "CALL", 1772496000000)])
+        _make_trade_j_duckdb(
+            tj_path, [_make_option_row("NIFTY", "WEEK", 1, -2, "CALL", 1772496000000)]
+        )
         sync_options(trade_j_duckdb=tj_path, target_root=tgt_path)
         # No assertion — just verifying it doesn't hang
         assert True

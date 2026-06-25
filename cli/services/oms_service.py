@@ -6,11 +6,11 @@ import uuid
 from decimal import Decimal
 from typing import Any
 
-from domain import Order, OrderStatus, Side, Trade
 from application.execution.execution_service import ExecutionService
-from brokers.common.gateway import MarketDataGateway
 from application.oms.context import TradingContext
 from application.oms.order_manager import OmsOrderCommand
+from brokers.common.gateway import MarketDataGateway
+from domain import Order, OrderStatus, Side, Trade
 
 
 class OmsService:
@@ -57,7 +57,9 @@ class OmsService:
         if gw is None:
             if self._ctx is not None:
                 raise RuntimeError("TradingContext does not expose a gateway.")
-            raise RuntimeError("No broker gateway available. Configure .env.local with valid credentials.")
+            raise RuntimeError(
+                "No broker gateway available. Configure .env.local with valid credentials."
+            )
         return gw
 
     def get_order_stats(self) -> dict[str, int]:
@@ -126,7 +128,8 @@ class OmsService:
                 "Configure BrokerService with a live trading context."
             )
 
-        from domain import OrderType as Ot, ProductType as Pt
+        from domain import OrderType as Ot
+        from domain import ProductType as Pt
 
         try:
             ot = Ot(order_type)

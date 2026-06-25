@@ -5,10 +5,16 @@ from __future__ import annotations
 import importlib
 import inspect
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 
 from brokers.common.gateway import MarketDataGateway
+from cli.tests.endpoint_manifest import (
+    LIVE_READONLY_ENDPOINTS,
+    SANDBOX_ENDPOINTS,
+    CliEndpoint,
+)
 from domain.capabilities import Capability
 from domain.capability_manifest import (
     CAPABILITY_SURFACES,
@@ -18,11 +24,6 @@ from domain.capability_manifest import (
     classify_exposure,
     mapped_capability_values,
     surface_by_id,
-)
-from cli.tests.endpoint_manifest import (
-    LIVE_READONLY_ENDPOINTS,
-    SANDBOX_ENDPOINTS,
-    CliEndpoint,
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -79,11 +80,10 @@ class TestCapabilityEnumCoverage:
     def test_all_enum_values_accounted_for(self) -> None:
         all_caps = all_capability_enum_values()
         mapped = mapped_capability_values()
-        broker_only = broker_only_capabilities()
+        broker_only_capabilities()
         unmapped = all_caps - mapped
         assert not unmapped, (
-            f"Capability enum values without manifest surface: "
-            f"{[c.value for c in unmapped]}"
+            f"Capability enum values without manifest surface: {[c.value for c in unmapped]}"
         )
 
     def test_each_mapped_capability_has_surface(self) -> None:
@@ -104,13 +104,15 @@ class TestCliEndpointMapping:
         if endpoint.capability_id is None:
             pytest.skip(f"No capability_id on {endpoint.id}")
         surface = surface_by_id(endpoint.capability_id)
-        assert surface is not None, f"Unknown capability_id {endpoint.capability_id!r} for {endpoint.id}"
+        assert surface is not None, (
+            f"Unknown capability_id {endpoint.capability_id!r} for {endpoint.id}"
+        )
 
 
 class TestBrokerMethodPaths:
     """Broker method references resolve to real adapter modules."""
 
-    _DHAN_ADAPTER_MODULES: dict[str, str] = {
+    _DHAN_ADAPTER_MODULES: ClassVar[dict[str, str]] = {
         "historical": "brokers.dhan.historical",
         "market_data": "brokers.dhan.market_data",
         "options": "brokers.dhan.options",
@@ -146,10 +148,7 @@ class TestBrokerMethodPaths:
                 if hasattr(cls, method):
                     return True
         # Fallback: any class in module with the method
-        for _, cls in inspect.getmembers(mod, inspect.isclass):
-            if method in dir(cls):
-                return True
-        return False
+        return any(method in dir(cls) for _, cls in inspect.getmembers(mod, inspect.isclass))
 
     def test_dhan_broker_method_refs_resolve(self) -> None:
         failures: list[str] = []

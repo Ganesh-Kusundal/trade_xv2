@@ -5,14 +5,13 @@ from decimal import Decimal
 
 import pytest
 
-from domain import Side
-from domain import Balance, Quote
 from brokers.dhan.domain import (
     Exchange,
     Instrument,
     InstrumentType,
     OptionType,
 )
+from domain import Balance, Quote, Side
 
 
 def test_exchange_enum_values():
@@ -51,8 +50,15 @@ def test_order_side_enum():
 
 def test_balance_fields():
     b = Balance()
-    fields = {"available_balance", "sod_limit", "collateral_amount",
-              "utilized_amount", "withdrawable_balance", "used_margin", "total_margin"}
+    fields = {
+        "available_balance",
+        "sod_limit",
+        "collateral_amount",
+        "utilized_amount",
+        "withdrawable_balance",
+        "used_margin",
+        "total_margin",
+    }
     assert set(b.__dataclass_fields__.keys()) == fields
     # All default to zero
     assert all(getattr(b, f) == Decimal("0") for f in fields)

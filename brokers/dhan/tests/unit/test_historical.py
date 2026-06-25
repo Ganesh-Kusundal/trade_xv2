@@ -6,11 +6,22 @@ from brokers.dhan.historical import HistoricalAdapter
 
 
 def test_daily_uses_historical_endpoint(fake_client, resolver):
-    fake_client.set_response("POST", "/charts/historical", {
-        "data": [
-            {"date": "2026-01-02", "open": 2440, "high": 2460, "low": 2435, "close": 2455, "volume": 1000000},
-        ]
-    })
+    fake_client.set_response(
+        "POST",
+        "/charts/historical",
+        {
+            "data": [
+                {
+                    "date": "2026-01-02",
+                    "open": 2440,
+                    "high": 2460,
+                    "low": 2435,
+                    "close": 2455,
+                    "volume": 1000000,
+                },
+            ]
+        },
+    )
     adapter = HistoricalAdapter(fake_client, resolver)
     adapter.get_historical("RELIANCE", "NSE", "2026-01-01", "2026-01-31", timeframe="1D")
 
@@ -21,11 +32,22 @@ def test_daily_uses_historical_endpoint(fake_client, resolver):
 
 
 def test_intraday_uses_intraday_endpoint(fake_client, resolver):
-    fake_client.set_response("POST", "/charts/intraday", {
-        "data": [
-            {"timestamp": 1735780500, "open": 2440, "high": 2445, "low": 2438, "close": 2443, "volume": 5000},
-        ]
-    })
+    fake_client.set_response(
+        "POST",
+        "/charts/intraday",
+        {
+            "data": [
+                {
+                    "timestamp": 1735780500,
+                    "open": 2440,
+                    "high": 2445,
+                    "low": 2438,
+                    "close": 2443,
+                    "volume": 5000,
+                },
+            ]
+        },
+    )
     adapter = HistoricalAdapter(fake_client, resolver)
     adapter.get_historical("RELIANCE", "NSE", "2026-01-02", "2026-01-02", timeframe="5")
 
@@ -40,11 +62,22 @@ def test_intraday_uses_intraday_endpoint(fake_client, resolver):
 
 
 def test_mcx_session_times(fake_client, resolver):
-    fake_client.set_response("POST", "/charts/intraday", {
-        "data": [
-            {"timestamp": 1735780500, "open": 72000, "high": 72100, "low": 71900, "close": 72050, "volume": 100},
-        ]
-    })
+    fake_client.set_response(
+        "POST",
+        "/charts/intraday",
+        {
+            "data": [
+                {
+                    "timestamp": 1735780500,
+                    "open": 72000,
+                    "high": 72100,
+                    "low": 71900,
+                    "close": 72050,
+                    "volume": 100,
+                },
+            ]
+        },
+    )
     adapter = HistoricalAdapter(fake_client, resolver)
     adapter.get_historical("GOLD", "MCX", "2026-01-02", "2026-01-02", timeframe="5")
 
@@ -76,17 +109,57 @@ def test_instrument_type_detection(resolver):
 
 
 def test_parse_dataframe(fake_client, resolver):
-    fake_client.set_response("POST", "/charts/historical", {
-        "data": [
-            {"date": "2026-01-02", "open": 2440, "high": 2460, "low": 2435, "close": 2455, "volume": 1000000},
-            {"date": "2026-01-03", "open": 2455, "high": 2475, "low": 2450, "close": 2470, "volume": 1200000},
-        ]
-    })
+    fake_client.set_response(
+        "POST",
+        "/charts/historical",
+        {
+            "data": [
+                {
+                    "date": "2026-01-02",
+                    "open": 2440,
+                    "high": 2460,
+                    "low": 2435,
+                    "close": 2455,
+                    "volume": 1000000,
+                },
+                {
+                    "date": "2026-01-03",
+                    "open": 2455,
+                    "high": 2475,
+                    "low": 2450,
+                    "close": 2470,
+                    "volume": 1200000,
+                },
+            ]
+        },
+    )
     adapter = HistoricalAdapter(fake_client, resolver)
     df = adapter.get_historical("RELIANCE", "NSE", "2026-01-01", "2026-01-31", timeframe="1D")
 
     assert isinstance(df, pd.DataFrame)
-    required_cols = {"timestamp", "open", "high", "low", "close", "volume", "oi", "symbol", "exchange", "timeframe"}
+    required_cols = {
+        "timestamp",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "oi",
+        "symbol",
+        "exchange",
+        "timeframe",
+    }
     assert required_cols.issubset(set(df.columns))
     assert len(df) == 2
-    assert list(df.columns) == ["timestamp", "open", "high", "low", "close", "volume", "oi", "symbol", "exchange", "timeframe"]
+    assert list(df.columns) == [
+        "timestamp",
+        "open",
+        "high",
+        "low",
+        "close",
+        "volume",
+        "oi",
+        "symbol",
+        "exchange",
+        "timeframe",
+    ]

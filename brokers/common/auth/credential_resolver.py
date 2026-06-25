@@ -6,7 +6,6 @@ should use :class:`CredentialResolver` instead of hard-coding paths.
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 from brokers.common.env_loader import load_env_file

@@ -1,4 +1,0 @@
-# file: /workspaces/trade_xv2/analytics/probability/probability.py
-# hypothesis_version: 6.155.7
-
-[0.0, 0.15, 0.2, 0.25, 50.0, 100.0, 100, 'Neutral', 'composite_score', 'momentum', 'momentum_score', 'oi', 'oi_score', 'probability', 'relative_strength', 'trend', 'trend_score', 'volume', 'volume_score']

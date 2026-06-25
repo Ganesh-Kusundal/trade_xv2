@@ -30,7 +30,11 @@ class OrderFlowAnalytics:
         required = {"price", "quantity", "side"}
         if not required.issubset(df.columns):
             logger.warning("OrderFlow: trades missing columns %s", required - set(df.columns))
-            return AnalysisResult(name="order_flow", summary="Trades missing required columns (price, quantity, side).", metrics={})
+            return AnalysisResult(
+                name="order_flow",
+                summary="Trades missing required columns (price, quantity, side).",
+                metrics={},
+            )
 
         df["quantity"] = pd.to_numeric(df["quantity"], errors="coerce").fillna(0)
         df["price"] = pd.to_numeric(df["price"], errors="coerce").fillna(0)
@@ -43,11 +47,23 @@ class OrderFlowAnalytics:
 
         threshold = float(df["quantity"].quantile(large_trade_pct)) if not df.empty else 0
         large_trades = df[df["quantity"] >= threshold]
-        large_buy = float(large_trades.loc[large_trades["side"].isin(["BUY", "B"]), "quantity"].sum())
-        large_sell = float(large_trades.loc[large_trades["side"].isin(["SELL", "S"]), "quantity"].sum())
+        large_buy = float(
+            large_trades.loc[large_trades["side"].isin(["BUY", "B"]), "quantity"].sum()
+        )
+        large_sell = float(
+            large_trades.loc[large_trades["side"].isin(["SELL", "S"]), "quantity"].sum()
+        )
 
-        buy_value = float(df.loc[df["side"].isin(["BUY", "B"]), "price"].mul(df.loc[df["side"].isin(["BUY", "B"]), "quantity"]).sum())
-        sell_value = float(df.loc[df["side"].isin(["SELL", "S"]), "price"].mul(df.loc[df["side"].isin(["SELL", "S"]), "quantity"]).sum())
+        buy_value = float(
+            df.loc[df["side"].isin(["BUY", "B"]), "price"]
+            .mul(df.loc[df["side"].isin(["BUY", "B"]), "quantity"])
+            .sum()
+        )
+        sell_value = float(
+            df.loc[df["side"].isin(["SELL", "S"]), "price"]
+            .mul(df.loc[df["side"].isin(["SELL", "S"]), "quantity"])
+            .sum()
+        )
 
         absorption = self._detect_absorption(df)
         if absorption:
@@ -93,8 +109,14 @@ class OrderFlowAnalytics:
 
         call_vol = float(calls["volume"].sum()) if not calls.empty and "volume" in calls else 0.0
         put_vol = float(puts["volume"].sum()) if not puts.empty and "volume" in puts else 0.0
-        call_oi_change = float(calls["change_in_oi"].sum()) if not calls.empty and "change_in_oi" in calls else 0.0
-        put_oi_change = float(puts["change_in_oi"].sum()) if not puts.empty and "change_in_oi" in puts else 0.0
+        call_oi_change = (
+            float(calls["change_in_oi"].sum())
+            if not calls.empty and "change_in_oi" in calls
+            else 0.0
+        )
+        put_oi_change = (
+            float(puts["change_in_oi"].sum()) if not puts.empty and "change_in_oi" in puts else 0.0
+        )
 
         delta = call_vol - put_vol
         total = call_vol + put_vol
@@ -139,10 +161,16 @@ class OrderFlowAnalytics:
 
         window = max(len(df) // 5, 5)
         rolling_vol = df["quantity"].rolling(window, min_periods=1).sum()
-        rolling_delta = df.apply(
-            lambda r: r["quantity"] if str(r["side"]).upper() in ("BUY", "B") else -r["quantity"],
-            axis=1,
-        ).rolling(window, min_periods=1).sum()
+        rolling_delta = (
+            df.apply(
+                lambda r: r["quantity"]
+                if str(r["side"]).upper() in ("BUY", "B")
+                else -r["quantity"],
+                axis=1,
+            )
+            .rolling(window, min_periods=1)
+            .sum()
+        )
 
         high_vol = rolling_vol > rolling_vol.quantile(0.8)
         small_delta = rolling_delta.abs() < rolling_vol * 0.1

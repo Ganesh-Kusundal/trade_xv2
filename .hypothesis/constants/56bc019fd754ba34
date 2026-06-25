@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/brokers/dhan/factory.py
-# hypothesis_version: 6.155.7
-
-[5.0, 15000, 30000, '.env.local', 'BrokerFactory', '_next_token_expiry', '_refresh_via_auth', '_update_env_token', 'depth_20', 'depth_200', 'dhan-admin-cb', 'dhan-read-cb', 'dhan-write-cb', 'dhan.market_feed', 'dhan.order_stream', 'dhan_token_refreshed', 'market_feed', 'on_demand', 'order_stream', 'receivers', 'runtime', 'token_suffix', 'tzinfo', 'websocket_wired']

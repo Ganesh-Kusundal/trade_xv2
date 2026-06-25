@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from domain import (
     ExchangeSegment,
     FundLimits,
@@ -19,7 +20,6 @@ from domain import (
     Trade,
     Validity,
 )
-from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 
 
 def test_status_normalisation():

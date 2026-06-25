@@ -44,7 +44,7 @@ class TestGatewayAllowLiveOrdersGuard:
         mock_broker.settings.allow_live_orders = True
         mock_broker.settings.analytics_only = False  # Gateway allows, but adapter checks
         mock_broker.instrument_resolver = MagicMock()
-        
+
         # Mock order_command to simulate the allow_live_orders check
         mock_broker.order_command.cancel_order.return_value = OrderResponse.fail(
             "Live order cancellation is disabled. Set allow_live_orders=True in configuration."
@@ -178,8 +178,8 @@ class TestResolveInstrumentKey:
     def test_index_symbol_resolves_to_nse_index(self):
         """Index symbols (NIFTY) should resolve to NSE_INDEX segment."""
         from brokers.upstox.gateway import UpstoxBrokerGateway
-        from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
         from brokers.upstox.instruments.definition import UpstoxInstrumentDefinition
+        from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
         from domain.market_enums import ExchangeSegment
 
         mock_broker = MagicMock()
@@ -208,8 +208,8 @@ class TestResolveInstrumentKey:
     def test_equity_symbol_resolves_to_isin(self):
         """Equity symbols should resolve to NSE_EQ|ISIN format."""
         from brokers.upstox.gateway import UpstoxBrokerGateway
-        from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
         from brokers.upstox.instruments.definition import UpstoxInstrumentDefinition
+        from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
         from domain.market_enums import ExchangeSegment
 
         mock_broker = MagicMock()

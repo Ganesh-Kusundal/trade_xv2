@@ -69,7 +69,7 @@ class ExponentialBackoff(BackoffStrategy):
         capped_delay = min(raw_delay, self._max_delay_ms)
 
         # Add jitter: ±jitter_factor% of the capped delay
-        jitter = capped_delay * self._jitter_factor * (2 * random.random() - 1)
+        jitter = capped_delay * self._jitter_factor * (2 * random.random() - 1)  # noqa: S311
         delay_ms = capped_delay + jitter
         delay_ms = max(delay_ms, 0.0)
         delay_ms = min(delay_ms, self._max_delay_ms)

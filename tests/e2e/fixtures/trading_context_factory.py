@@ -8,14 +8,13 @@ from __future__ import annotations
 
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
 
+from application.oms.context import TradingContext
+from application.oms.risk_manager import RiskConfig, RiskManager
+from brokers.common.observability.event_metrics import EventMetrics
 from infrastructure.event_bus import EventBus
 from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
 from infrastructure.event_log import EventLog
-from brokers.common.observability.event_metrics import EventMetrics
-from application.oms.context import TradingContext
-from application.oms.risk_manager import RiskConfig, RiskManager
 
 
 def create_test_trading_context(
@@ -56,6 +55,7 @@ def create_test_trading_context(
 
     if risk_manager is None:
         from application.oms.position_manager import PositionManager
+
         if position_manager is None:
             position_manager = PositionManager(
                 event_bus=event_bus,

@@ -9,18 +9,17 @@ METRICS_UPDATED.
 
 from __future__ import annotations
 
-import pytest
-
 from infrastructure.event_bus import DomainEvent, EventBus, EventType
 
 
 class TestScannerEvents:
-
     def test_scan_started_publish_and_subscribe(self):
         bus = EventBus()
         received: list[DomainEvent] = []
         bus.subscribe(EventType.SCAN_STARTED.value, received.append)
-        event = DomainEvent.now(EventType.SCAN_STARTED.value, {"scanner": "nifty50"}, source="scanner")
+        event = DomainEvent.now(
+            EventType.SCAN_STARTED.value, {"scanner": "nifty50"}, source="scanner"
+        )
         bus.publish(event)
         assert len(received) == 1
         assert received[0].payload["scanner"] == "nifty50"
@@ -54,7 +53,6 @@ class TestScannerEvents:
 
 
 class TestStrategyEvents:
-
     def test_strategy_activated(self):
         bus = EventBus()
         received: list[DomainEvent] = []
@@ -96,7 +94,6 @@ class TestStrategyEvents:
 
 
 class TestPositionLifecycleEvents:
-
     def test_position_opened(self):
         bus = EventBus()
         received: list[DomainEvent] = []
@@ -127,7 +124,6 @@ class TestPositionLifecycleEvents:
 
 
 class TestRiskDecisionEvents:
-
     def test_risk_approved(self):
         bus = EventBus()
         received: list[DomainEvent] = []
@@ -158,7 +154,6 @@ class TestRiskDecisionEvents:
 
 
 class TestHealthEvents:
-
     def test_health_check_passed(self):
         bus = EventBus()
         received: list[DomainEvent] = []
@@ -187,7 +182,6 @@ class TestHealthEvents:
 
 
 class TestPortfolioAndMetricsEvents:
-
     def test_portfolio_updated(self):
         bus = EventBus()
         received: list[DomainEvent] = []
@@ -216,7 +210,6 @@ class TestPortfolioAndMetricsEvents:
 
 
 class TestEventIsolation:
-
     def test_unrelated_events_do_not_cross_contaminate(self):
         bus = EventBus()
         scan_events: list = []

@@ -9,7 +9,9 @@ import pandas as pd
 
 from analytics.core.feature_builder import FeatureBuilder
 from analytics.core.models import AnalysisResult
+
 # Volatility helpers — migrated from deprecated analytics.indicators.technical
+
 
 def _historical_volatility(
     prices: pd.Series,
@@ -18,17 +20,22 @@ def _historical_volatility(
 ) -> pd.Series:
     """Calculate historical volatility (annualized)."""
     import math
+
     returns = prices.apply(math.log).diff()
-    return returns.rolling(window=periods, min_periods=periods).std() * math.sqrt(annualization) * 100
+    return (
+        returns.rolling(window=periods, min_periods=periods).std() * math.sqrt(annualization) * 100
+    )
 
 
 def _realized_volatility(returns: pd.Series, annualization: int = 252) -> float:
     """Calculate realized volatility from returns series."""
     import math
+
     clean = returns.dropna()
     if clean.empty:
         return 0.0
     return float(clean.std() * math.sqrt(annualization) * 100)
+
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +69,9 @@ class VolatilityAnalytics:
             hist = pd.Series(iv_history, dtype="float64").dropna()
             if not hist.empty:
                 iv_low, iv_high = float(hist.min()), float(hist.max())
-                ivr = max(0.0, min(100.0, (current_iv - iv_low) / max(iv_high - iv_low, 1e-10) * 100))
+                ivr = max(
+                    0.0, min(100.0, (current_iv - iv_low) / max(iv_high - iv_low, 1e-10) * 100)
+                )
                 ivp = float((hist <= current_iv).mean() * 100)
 
         parkinson = self._parkinson_volatility(features)
@@ -71,7 +80,9 @@ class VolatilityAnalytics:
         expansion = current_iv > current_hv * 1.25 if current_hv > 0 else False
         contraction = current_iv < current_hv * 0.75 if current_hv > 0 else False
         regime = "High" if ivr >= 70 else "Low" if ivr <= 30 else "Normal"
-        score = max(0.0, min(100.0, 50.0 + (current_iv - current_hv) / max(current_hv, 0.0001) * 50.0))
+        score = max(
+            0.0, min(100.0, 50.0 + (current_iv - current_hv) / max(current_hv, 0.0001) * 50.0)
+        )
 
         metrics = {
             "atr": float(features["atr"].iloc[-1]) if pd.notna(features["atr"].iloc[-1]) else 0.0,
@@ -112,7 +123,11 @@ class VolatilityAnalytics:
         if valid.sum() < 2:
             return 0.0
         log_hl = (high[valid] / low[valid]).apply(math.log)
-        return float(math.sqrt((log_hl**2).sum() / (4 * len(log_hl) * math.log(2))) * math.sqrt(annualization) * 100)
+        return float(
+            math.sqrt((log_hl**2).sum() / (4 * len(log_hl) * math.log(2)))
+            * math.sqrt(annualization)
+            * 100
+        )
 
     @staticmethod
     def _garman_klass_volatility(df: pd.DataFrame, annualization: int = 252) -> float:
@@ -129,4 +144,8 @@ class VolatilityAnalytics:
         log_hl = (h[valid] / lo[valid]).apply(math.log) ** 2
         log_co = (c[valid] / o[valid]).apply(math.log) ** 2
         n = len(log_hl)
-        return float(math.sqrt((log_hl.sum() / n + (math.log(2) - 1) * log_co.sum() / n) / (2 * math.log(2))) * math.sqrt(annualization) * 100)
+        return float(
+            math.sqrt((log_hl.sum() / n + (math.log(2) - 1) * log_co.sum() / n) / (2 * math.log(2)))
+            * math.sqrt(annualization)
+            * 100
+        )

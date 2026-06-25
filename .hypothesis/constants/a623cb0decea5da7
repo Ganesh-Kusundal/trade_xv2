@@ -1,4 +1,0 @@
-# file: /workspaces/trade_xv2/brokers/dhan/ws_subscription.py
-# hypothesis_version: 6.155.7
-
-[0.8, 1000, 'current', 'max']

@@ -14,14 +14,13 @@ threads inside constructors and never stopping them.
 
 Rule of thumb: **no thread without a lifecycle.**
 """
+
 from __future__ import annotations
 
 import logging
 import threading
 import time
-from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from enum import Enum
 from typing import Any, Protocol, runtime_checkable
 
 from domain.constants import DEFAULT_STOP_TIMEOUT_SECONDS
@@ -250,12 +249,11 @@ class LifecycleManager:
                 self._start_failed.discard(name)
             logger.info("LifecycleManager: %s started", name)
         except Exception as exc:
-            logger.error(
+            logger.exception(
                 "LifecycleManager: %s failed to start: %s: %s",
                 name,
                 type(exc).__name__,
                 exc,
-                exc_info=True,
             )
             with self._lock:
                 self._start_failed.add(name)
@@ -266,9 +264,7 @@ class LifecycleManager:
                     detail=f"start raised: {type(exc).__name__}: {exc}",
                 )
 
-    def _stop_one(
-        self, name: str, timeout_seconds: float | None = None
-    ) -> None:
+    def _stop_one(self, name: str, timeout_seconds: float | None = None) -> None:
         with self._lock:
             service = self._services.get(name)
             if name not in self._started:
@@ -323,9 +319,7 @@ class LifecycleManager:
         logger.info("LifecycleManager: %s stopped", name)
 
     @staticmethod
-    def _run_stop(
-        service: ManagedService, container: dict[str, BaseException | None]
-    ) -> None:
+    def _run_stop(service: ManagedService, container: dict[str, BaseException | None]) -> None:
         try:
             service.stop()
         except BaseException as exc:

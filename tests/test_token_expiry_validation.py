@@ -6,8 +6,6 @@ import base64
 import json
 import time
 
-import pytest
-
 from tests.conftest import is_token_expired
 
 

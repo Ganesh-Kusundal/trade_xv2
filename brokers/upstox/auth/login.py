@@ -169,7 +169,10 @@ def _persist_state(settings: UpstoxConnectionSettings, result: dict) -> None:
     try:
         os.chmod(settings.token_state_file, 0o600)
     except OSError as exc:
-        logger.warning("token_file_permissions_failed", extra={"file": str(settings.token_state_file), "error": str(exc)})
+        logger.warning(
+            "token_file_permissions_failed",
+            extra={"file": str(settings.token_state_file), "error": str(exc)},
+        )
     logger.info("token_state_persisted", extra={"file": str(settings.token_state_file)})
 
 
@@ -181,6 +184,7 @@ def main(argv: list | None = None) -> int:
     # If run standalone, initialize here
     if not logging.getLogger().handlers:
         from brokers.common.logging_config import setup_logging
+
         setup_logging()
 
     try:

@@ -87,15 +87,15 @@ def _dumps(value) -> str:
 
     def convert_types(obj):
         """Convert numpy types to Python native types."""
-        if isinstance(obj, (np.integer,)):
+        if isinstance(obj, np.integer):
             return int(obj)
-        elif isinstance(obj, (np.floating,)):
+        elif isinstance(obj, np.floating):
             return float(obj)
         elif isinstance(obj, np.ndarray):
             return obj.tolist()
         elif isinstance(obj, dict):
             return {str(k): convert_types(v) for k, v in obj.items()}
-        elif isinstance(obj, (list, tuple)):
+        elif isinstance(obj, list | tuple):
             return [convert_types(item) for item in obj]
         return obj
 
@@ -105,6 +105,7 @@ def _dumps(value) -> str:
 
 def _create_simple_strategy() -> StrategyPipeline:
     """Create a simple strategy for replay baseline."""
+
     class SimpleStrategy:
         @property
         def name(self) -> str:
@@ -113,6 +114,7 @@ def _create_simple_strategy() -> StrategyPipeline:
         def evaluate(self, candidate, features):
             if features.empty:
                 from analytics.strategy.models import Signal, SignalType
+
                 return Signal(
                     symbol=candidate.symbol,
                     signal_type=SignalType.HOLD,
@@ -132,7 +134,7 @@ def _create_simple_strategy() -> StrategyPipeline:
                         score=70.0,
                         stop_loss=features["close"].iloc[-1] * 0.98,
                         target=features["close"].iloc[-1] * 1.05,
-                        )
+                    )
 
                 elif latest_rsi > 70:
                     return Signal(
@@ -141,8 +143,7 @@ def _create_simple_strategy() -> StrategyPipeline:
                         strategy="baseline_rsi",
                         confidence=70.0,
                         score=70.0,
-                        )
-
+                    )
 
             return Signal(
                 symbol=candidate.symbol,
@@ -172,15 +173,12 @@ def baseline_scanner_determinism(mode: str) -> dict:
         candidates_list = []
         for _ in range(10):
             result = scanner.scan(universe)
-            candidates_list.append([
-                {"symbol": c.symbol, "score": c.score}
-                for c in result.candidates
-            ])
+            candidates_list.append(
+                [{"symbol": c.symbol, "score": c.score} for c in result.candidates]
+            )
 
         # Check all runs produced identical results
-        is_deterministic = all(
-            c == candidates_list[0] for c in candidates_list[1:]
-        )
+        is_deterministic = all(c == candidates_list[0] for c in candidates_list[1:])
 
         results[name] = {
             "is_deterministic": is_deterministic,
@@ -223,12 +221,14 @@ def baseline_replay_pnl(mode: str) -> dict:
     runs = []
     for _ in range(5):
         result = engine.run(df)
-        runs.append({
-            "bars_processed": result.bars_processed,
-            "signals_generated": result.signals_generated,
-            "trades": len(result.session.trades),
-            "final_equity": result.session.current_equity,
-        })
+        runs.append(
+            {
+                "bars_processed": result.bars_processed,
+                "signals_generated": result.signals_generated,
+                "trades": len(result.session.trades),
+                "final_equity": result.session.current_equity,
+            }
+        )
 
     is_deterministic = all(r == runs[0] for r in runs[1:])
 
@@ -253,17 +253,26 @@ def baseline_resample_correctness(mode: str) -> dict:
     df = _generate_synthetic_ohlcv(bars=1000)
 
     # Resample using pandas directly (reference)
-    df_5m = df.set_index("timestamp").resample("5min").agg(
-        {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"}
-    ).dropna()
+    df_5m = (
+        df.set_index("timestamp")
+        .resample("5min")
+        .agg({"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"})
+        .dropna()
+    )
 
-    df_15m = df.set_index("timestamp").resample("15min").agg(
-        {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"}
-    ).dropna()
+    df_15m = (
+        df.set_index("timestamp")
+        .resample("15min")
+        .agg({"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"})
+        .dropna()
+    )
 
-    df_1h = df.set_index("timestamp").resample("1h").agg(
-        {"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"}
-    ).dropna()
+    df_1h = (
+        df.set_index("timestamp")
+        .resample("1h")
+        .agg({"open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum"})
+        .dropna()
+    )
 
     result = {
         "test": "resample_correctness",
@@ -351,7 +360,10 @@ def verify_baseline() -> int:
             if r.get("is_deterministic") != golden.get("is_deterministic"):
                 logger.error("MISMATCH: %s determinism changed", test_name)
                 all_pass = False
-            elif r.get("all_deterministic") is not None and golden.get("all_deterministic") is not None:
+            elif (
+                r.get("all_deterministic") is not None
+                and golden.get("all_deterministic") is not None
+            ):
                 if r["all_deterministic"] != golden["all_deterministic"]:
                     logger.error("MISMATCH: %s all_deterministic changed", test_name)
                     all_pass = False
@@ -397,10 +409,7 @@ def main() -> int:
         test_name = r["test"]
         print(f"{status} {test_name}")
 
-    all_pass = all(
-        r.get("is_deterministic", r.get("all_deterministic", True))
-        for r in results
-    )
+    all_pass = all(r.get("is_deterministic", r.get("all_deterministic", True)) for r in results)
     print(f"\n{'All tests passed!' if all_pass else 'Some tests failed!'}")
 
     return 0 if all_pass else 1

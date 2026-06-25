@@ -58,7 +58,8 @@ class PortfolioCheck(CheckStrategy):
                     CheckResult(
                         "Funds",
                         "PASS",
-                        f"Available: Rs. {available:,.2f}" + (f" | SOD Limit: Rs. {sod:,.2f}" if sod else ""),
+                        f"Available: Rs. {available:,.2f}"
+                        + (f" | SOD Limit: Rs. {sod:,.2f}" if sod else ""),
                     )
                 )
             else:

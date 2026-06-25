@@ -9,12 +9,12 @@ from decimal import Decimal
 from typing import Any
 
 from brokers.common.gateway_interfaces import GttOrderProvider
+from brokers.upstox.orders.gtt_client import UpstoxGttClient
 from domain import (
     ConditionalAlert,
     ConditionalAlertRequest,
     Order,
 )
-from brokers.upstox.orders.gtt_client import UpstoxGttClient
 
 
 class UpstoxGttAdapter(GttOrderProvider):

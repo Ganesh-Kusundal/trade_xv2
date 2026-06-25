@@ -7,6 +7,7 @@ import logging
 from rich.console import Console
 
 from cli.commands.registry import CommandResult
+
 from .analytics_backtest import run_backtest, run_paper
 from .analytics_compare import run_compare
 from .analytics_datalake import run_datalake_backtest
@@ -23,20 +24,23 @@ from .analytics_sector import (
     run_sector_strength,
     run_sector_volume,
 )
-from .analytics_walkforward import run_walkforward
+from .analytics_stock import run_symbol_command
 from .analytics_strategies import run_strategies
+from .analytics_walkforward import run_walkforward
 
 logger = logging.getLogger(__name__)
 
 
 def run(args: list[str], broker_service, console: Console) -> CommandResult:
     """Route analytics subcommands and return CommandResult for --json mode.
-    
+
     Phase 5.2: Standardized to return CommandResult instead of None.
     """
     if not args:
         console.print("[yellow]Usage: tradex analytics <command> [args][/yellow]")
-        console.print("[dim]Commands: stock, future, option, volatility, volume-profile, breadth, sector, sector-rotation, sector-volume, sector-strength, sector-full, backtest, paper, replay, walkforward, strategies, scan, rank, scan-momentum, scan-volume, scan-rs, scan-breakout, halftrend, halftrend-scan, datalake-backtest, orderflow, probability, optimize, compare[/dim]")
+        console.print(
+            "[dim]Commands: stock, future, option, volatility, volume-profile, breadth, sector, sector-rotation, sector-volume, sector-strength, sector-full, backtest, paper, replay, walkforward, strategies, scan, rank, scan-momentum, scan-volume, scan-rs, scan-breakout, halftrend, halftrend-scan, datalake-backtest, orderflow, probability, optimize, compare[/dim]"
+        )
         return CommandResult(success=False, error="Missing analytics subcommand")
 
     command = args[0].lower()

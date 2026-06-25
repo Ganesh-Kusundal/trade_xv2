@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/brokers/common/services/production_readiness.py
-# hypothesis_version: 6.155.7
-
-[', ', '0', '1', 'DHAN_ACCESS_TOKEN', 'DHAN_CLIENT_ID', 'DHAN_PIN', 'DHAN_TOTP_SECRET', 'RISK_FAIL_OPEN', 'ReadinessReport', 'STATIC', 'TOTP', 'UPSTOX_ACCESS_TOKEN', 'UPSTOX_API_KEY', 'UPSTOX_AUTH_MODE', 'UPSTOX_CLIENT_ID', 'UPSTOX_MOBILE', 'UPSTOX_PIN', 'UPSTOX_TOTP_SECRET', '_conn', '_event_log', '_gateway', '_http_observability', '_http_sessions', '_oms_risk_manager', '_trading_context', '_upstox_gateway', 'dhan.market_feed', 'dhan.order_stream', 'dhan_token_present', 'eventlog_wired', 'lifecycle_started', 'max_daily_loss_pct', 'reconciliation_wired', 'ssl_hardening', 'upstox.websocket', 'upstox_authenticated', 'upstox_token_present']

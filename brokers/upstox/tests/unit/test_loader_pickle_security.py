@@ -18,6 +18,7 @@ The contract this module enforces is:
 These tests construct a real ``.pkl`` file in a temporary directory
 and verify the loader never invokes ``pickle.load`` on it.
 """
+
 from __future__ import annotations
 
 import json
@@ -25,8 +26,6 @@ import pickle
 import sys
 import types
 from pathlib import Path
-
-import pytest
 
 from brokers.upstox.instruments.loader import UpstoxInstrumentLoader
 
@@ -86,8 +85,10 @@ def test_pickle_load_is_not_invoked(monkeypatch, tmp_path: Path) -> None:
 
     # Inject a sentinel pickle module that raises if anyone calls .load.
     sentinel = types.ModuleType("pickle")
+
     def _explode(*_args, **_kwargs):
         raise AssertionError("pickle.load was called by the loader")
+
     sentinel.load = _explode
     sentinel.loads = _explode
     monkeypatch.setitem(sys.modules, "pickle", sentinel)

@@ -158,7 +158,12 @@ class TestDhanMarketFeed:
             "security_id": 2885,
             "LTP": "2450.50",
             "depth": [
-                {"bid_quantity": 100, "ask_quantity": 50, "bid_price": "2450.00", "ask_price": "2451.00"},
+                {
+                    "bid_quantity": 100,
+                    "ask_quantity": 50,
+                    "bid_price": "2450.00",
+                    "ask_price": "2451.00",
+                },
             ],
         }
 
@@ -170,6 +175,7 @@ class TestDhanMarketFeed:
 
     def test_on_message_publishes_tick_event(self):
         from infrastructure.event_bus import EventBus
+
         bus = EventBus()
         received = []
         bus.subscribe("TICK", lambda e: received.append(e))
@@ -179,22 +185,26 @@ class TestDhanMarketFeed:
             instruments=[],
             event_bus=bus,
         )
-        feed._on_message(None, {
-            "type": "Quote Data",
-            "security_id": 2885,
-            "LTP": "2450.50",
-            "open": "2440.00",
-            "high": "2460.00",
-            "low": "2435.00",
-            "close": "2445.00",
-            "volume": 1234567,
-        })
+        feed._on_message(
+            None,
+            {
+                "type": "Quote Data",
+                "security_id": 2885,
+                "LTP": "2450.50",
+                "open": "2440.00",
+                "high": "2460.00",
+                "low": "2435.00",
+                "close": "2445.00",
+                "volume": 1234567,
+            },
+        )
         assert len(received) == 1
         assert received[0].event_type == "TICK"
         assert received[0].payload["quote"].symbol == "2885"
 
     def test_on_message_publishes_depth_event(self):
         from infrastructure.event_bus import EventBus
+
         bus = EventBus()
         received = []
         bus.subscribe("DEPTH", lambda e: received.append(e))
@@ -204,12 +214,15 @@ class TestDhanMarketFeed:
             instruments=[],
             event_bus=bus,
         )
-        feed._on_message(None, {
-            "type": "Market Depth",
-            "security_id": 2885,
-            "LTP": "2450.50",
-            "depth": {"bids": [{"price": "2450.00", "quantity": 100, "orders": 5}], "asks": []},
-        })
+        feed._on_message(
+            None,
+            {
+                "type": "Market Depth",
+                "security_id": 2885,
+                "LTP": "2450.50",
+                "depth": {"bids": [{"price": "2450.00", "quantity": 100, "orders": 5}], "asks": []},
+            },
+        )
         assert len(received) == 1
         assert received[0].event_type == "DEPTH"
 
@@ -322,22 +335,25 @@ class TestDhanOrderStream:
         assert len(received) == 0
 
         # Send a valid order update
-        stream._on_order_update({
-            "Type": "order_alert",
-            "Data": {
-                "orderNo": "999",
-                "status": "COMPLETE",
-                "tradingSymbol": "INFY",
-                "quantity": 5,
-                "filledQty": 5,
-                "price": "1500.00",
-            },
-        })
+        stream._on_order_update(
+            {
+                "Type": "order_alert",
+                "Data": {
+                    "orderNo": "999",
+                    "status": "COMPLETE",
+                    "tradingSymbol": "INFY",
+                    "quantity": 5,
+                    "filledQty": 5,
+                    "price": "1500.00",
+                },
+            }
+        )
         assert len(received) == 1
         assert received[0]["order_id"] == "999"
 
     def test_on_order_update_publishes_event(self):
         from infrastructure.event_bus import EventBus
+
         bus = EventBus()
         received = []
         bus.subscribe("ORDER_UPDATED", lambda e: received.append(e))
@@ -347,23 +363,25 @@ class TestDhanOrderStream:
             access_token="TOKEN",
             event_bus=bus,
         )
-        stream._on_order_update({
-            "Type": "order_alert",
-            "Data": {
-                "orderNo": "999",
-                "status": "COMPLETE",
-                "tradingSymbol": "INFY",
-                "exchangeSegment": "NSE_EQ",
-                "transactionType": "BUY",
-                "quantity": 5,
-                "filledQty": 5,
-                "price": "1500.00",
-                "averagePrice": "1500.00",
-                "productType": "INTRADAY",
-                "orderType": "MARKET",
-                "validity": "DAY",
-            },
-        })
+        stream._on_order_update(
+            {
+                "Type": "order_alert",
+                "Data": {
+                    "orderNo": "999",
+                    "status": "COMPLETE",
+                    "tradingSymbol": "INFY",
+                    "exchangeSegment": "NSE_EQ",
+                    "transactionType": "BUY",
+                    "quantity": 5,
+                    "filledQty": 5,
+                    "price": "1500.00",
+                    "averagePrice": "1500.00",
+                    "productType": "INTRADAY",
+                    "orderType": "MARKET",
+                    "validity": "DAY",
+                },
+            }
+        )
         assert len(received) == 2
         assert received[0].event_type == "ORDER_UPDATED"
         assert received[0].payload["order"].order_id == "999"
@@ -419,18 +437,20 @@ class TestDhanOrderStream:
         )
         assert stream._message_count == 0
         assert stream._last_message_at is None
-        stream._on_order_update({
-            "Type": "order_alert",
-            "Data": {
-                "orderNo": "1",
-                "status": "COMPLETE",
-                "tradingSymbol": "INFY",
-                "quantity": 1,
-                "filledQty": 1,
-                "price": "1500.00",
-                "averagePrice": "1500.00",
-            },
-        })
+        stream._on_order_update(
+            {
+                "Type": "order_alert",
+                "Data": {
+                    "orderNo": "1",
+                    "status": "COMPLETE",
+                    "tradingSymbol": "INFY",
+                    "quantity": 1,
+                    "filledQty": 1,
+                    "price": "1500.00",
+                    "averagePrice": "1500.00",
+                },
+            }
+        )
         assert stream._message_count == 1
         assert stream._last_message_at is not None
 
@@ -487,6 +507,7 @@ class TestConnectionWiring:
 # ---------------------------------------------------------------------------
 # PollingMarketFeed tests
 # ---------------------------------------------------------------------------
+
 
 class TestPollingMarketFeed:
     """Verify PollingMarketFeed API surface and behavior."""
@@ -584,13 +605,16 @@ class TestPollingMarketFeed:
 # Backfill tests
 # ---------------------------------------------------------------------------
 
+
 class TestDhanMarketFeedBackfill:
     """Verify reconnect backfill logic."""
 
     def test_backfill_callback_stored(self):
         """backfill_callback must be stored on construction."""
+
         def cb(symbol, from_dt, to_dt):
             return []
+
         feed = DhanMarketFeed(
             client_id="CLIENT",
             access_token="TOKEN",
@@ -611,6 +635,7 @@ class TestDhanMarketFeedBackfill:
     def test_track_tick_time(self):
         """_track_tick_time must record latest tick time per symbol."""
         from datetime import datetime
+
         feed = DhanMarketFeed(
             client_id="CLIENT",
             access_token="TOKEN",
@@ -623,6 +648,7 @@ class TestDhanMarketFeedBackfill:
     def test_on_close_records_disconnect_time(self):
         """_on_close must record disconnect_time."""
         from datetime import datetime
+
         feed = DhanMarketFeed(
             client_id="CLIENT",
             access_token="TOKEN",
@@ -635,6 +661,7 @@ class TestDhanMarketFeedBackfill:
     def test_on_connect_clears_disconnect_time(self):
         """_on_connect must clear disconnect_time after backfill."""
         from datetime import datetime, timezone
+
         feed = DhanMarketFeed(
             client_id="CLIENT",
             access_token="TOKEN",
@@ -647,10 +674,22 @@ class TestDhanMarketFeedBackfill:
     def test_backfill_calls_callback(self):
         """_backfill_gap must call backfill_callback for each symbol."""
         from datetime import datetime, timezone
+
         called_with = []
+
         def backfill(symbol, from_dt, to_dt):
             called_with.append((symbol, from_dt, to_dt))
-            return [{"symbol": symbol, "ltp": 100, "open": 100, "high": 100, "low": 100, "close": 100, "volume": 1}]
+            return [
+                {
+                    "symbol": symbol,
+                    "ltp": 100,
+                    "open": 100,
+                    "high": 100,
+                    "low": 100,
+                    "close": 100,
+                    "volume": 1,
+                }
+            ]
 
         feed = DhanMarketFeed(
             client_id="CLIENT",
@@ -669,12 +708,23 @@ class TestDhanMarketFeedBackfill:
         from datetime import datetime, timezone
 
         from infrastructure.event_bus import EventBus
+
         bus = EventBus()
         received = []
         bus.subscribe("TICK", lambda e: received.append(e))
 
         def backfill(symbol, from_dt, to_dt):
-            return [{"symbol": symbol, "ltp": 100, "open": 100, "high": 100, "low": 100, "close": 100, "volume": 1}]
+            return [
+                {
+                    "symbol": symbol,
+                    "ltp": 100,
+                    "open": 100,
+                    "high": 100,
+                    "low": 100,
+                    "close": 100,
+                    "volume": 1,
+                }
+            ]
 
         feed = DhanMarketFeed(
             client_id="CLIENT",

@@ -21,19 +21,40 @@ from domain import (
 
 class TestOrderImmutable:
     def test_order_is_frozen(self):
-        o = Order(order_id="O1", symbol="RELIANCE", exchange="NSE", side=Side.BUY, order_type=OrderType.LIMIT, quantity=10)
+        o = Order(
+            order_id="O1",
+            symbol="RELIANCE",
+            exchange="NSE",
+            side=Side.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=10,
+        )
         with pytest.raises(FrozenInstanceError):
             o.status = OrderStatus.FILLED
 
     def test_with_status_returns_new_instance(self):
-        o = Order(order_id="O1", symbol="RELIANCE", exchange="NSE", side=Side.BUY, order_type=OrderType.LIMIT, quantity=10)
+        o = Order(
+            order_id="O1",
+            symbol="RELIANCE",
+            exchange="NSE",
+            side=Side.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=10,
+        )
         o2 = o.with_status(OrderStatus.FILLED)
         assert o2 is not o
         assert o.status == OrderStatus.OPEN
         assert o2.status == OrderStatus.FILLED
 
     def test_with_fill_returns_new_instance(self):
-        o = Order(order_id="O1", symbol="RELIANCE", exchange="NSE", side=Side.BUY, order_type=OrderType.LIMIT, quantity=10)
+        o = Order(
+            order_id="O1",
+            symbol="RELIANCE",
+            exchange="NSE",
+            side=Side.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=10,
+        )
         o2 = o.with_fill(10, Decimal("2500"))
         assert o2 is not o
         assert o.filled_quantity == 0
@@ -106,7 +127,14 @@ class TestPositionImmutable:
 
 class TestTradeImmutable:
     def test_trade_is_frozen(self):
-        t = Trade(trade_id="T1", order_id="O1", symbol="RELIANCE", exchange="NSE", side=Side.BUY, quantity=10)
+        t = Trade(
+            trade_id="T1",
+            order_id="O1",
+            symbol="RELIANCE",
+            exchange="NSE",
+            side=Side.BUY,
+            quantity=10,
+        )
         with pytest.raises(FrozenInstanceError):
             t.price = Decimal("100")
 

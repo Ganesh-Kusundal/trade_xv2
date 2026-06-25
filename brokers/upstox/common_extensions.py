@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Sequence
 
 from brokers.common.broker_port import QuotaToken
 from brokers.common.extensions import ExtensionBundle
@@ -73,9 +73,7 @@ class UpstoxFundamentalsExtension(FundamentalsProvider):
     def __init__(self, gateway: MarketDataGateway) -> None:
         self._extended = gateway.extended
 
-    async def fetch_fundamentals(
-        self, isin: str, *, quota: QuotaToken
-    ) -> FundamentalsSnapshot:
+    async def fetch_fundamentals(self, isin: str, *, quota: QuotaToken) -> FundamentalsSnapshot:
         ratios = self._extended.get_ratios(isin) if hasattr(self._extended, "get_ratios") else {}
         return FundamentalsSnapshot(
             isin=isin,
@@ -131,9 +129,7 @@ class UpstoxForeverOrderExtension(ForeverOrderProvider):
     ) -> ForeverOrderResult:
         return ForeverOrderResult(success=False, message="use Upstox GTT adapter directly")
 
-    async def cancel_forever_order(
-        self, order_id: str, *, quota: object
-    ) -> ForeverOrderResult:
+    async def cancel_forever_order(self, order_id: str, *, quota: object) -> ForeverOrderResult:
         self._gtt.cancel_gtt(order_id)
         return ForeverOrderResult(success=True, order_id=order_id)
 

@@ -12,8 +12,10 @@ used for ``place_order`` — market-data and execution accounts are independent.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal, Sequence
+from typing import TYPE_CHECKING, Literal
 
+if TYPE_CHECKING:
+    from brokers.common.models import OperationKind
 
 # ---------------------------------------------------------------------------
 # Per-operation-class routing policy
@@ -87,7 +89,7 @@ class SourceSelectionPolicy:
     instrument_metadata: RoutingPolicy
     policy_version: str = "1.0.0"
 
-    def for_operation_kind(self, kind: "OperationKind") -> RoutingPolicy:  # type: ignore[name-defined]
+    def for_operation_kind(self, kind: OperationKind) -> RoutingPolicy:  # type: ignore[name-defined]
         """Return the applicable RoutingPolicy for the given OperationKind."""
         from brokers.common.models import OperationKind
 

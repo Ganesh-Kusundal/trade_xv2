@@ -10,10 +10,8 @@ from __future__ import annotations
 import threading
 from decimal import Decimal
 
-import pytest
-
-from domain import Order, OrderStatus, OrderType, Side, Trade
 from application.oms.order_manager import OrderManager
+from domain import Order, OrderStatus, OrderType, Side, Trade
 
 
 def _make_order(quantity: int = 100, order_id: str = "ORD-001") -> Order:
@@ -30,19 +28,23 @@ def _make_order(quantity: int = 100, order_id: str = "ORD-001") -> Order:
 
 
 class TestConcurrentRapidFills:
-
     def test_concurrent_identical_fills_counted_once(self):
         om = OrderManager()
         order = _make_order(quantity=100)
         om._orders[order.order_id] = order
 
         trade = Trade(
-            trade_id="T1", order_id=order.order_id, symbol="RELIANCE",
-            exchange="NSE", side=Side.BUY, quantity=50,
+            trade_id="T1",
+            order_id=order.order_id,
+            symbol="RELIANCE",
+            exchange="NSE",
+            side=Side.BUY,
+            quantity=50,
             price=Decimal("2500"),
         )
 
         errors: list[Exception] = []
+
         def apply_trade():
             try:
                 om.record_trade(trade)
@@ -66,14 +68,19 @@ class TestConcurrentRapidFills:
 
         trades = [
             Trade(
-                trade_id=f"T{i}", order_id=order.order_id, symbol="RELIANCE",
-                exchange="NSE", side=Side.BUY, quantity=10,
+                trade_id=f"T{i}",
+                order_id=order.order_id,
+                symbol="RELIANCE",
+                exchange="NSE",
+                side=Side.BUY,
+                quantity=10,
                 price=Decimal("2500"),
             )
             for i in range(5)
         ]
 
         errors: list[Exception] = []
+
         def apply_trade(t):
             try:
                 om.record_trade(t)
@@ -97,8 +104,12 @@ class TestConcurrentRapidFills:
         om._orders[order.order_id] = order
 
         t1 = Trade(
-            trade_id="T1", order_id=order.order_id, symbol="RELIANCE",
-            exchange="NSE", side=Side.BUY, quantity=30,
+            trade_id="T1",
+            order_id=order.order_id,
+            symbol="RELIANCE",
+            exchange="NSE",
+            side=Side.BUY,
+            quantity=30,
             price=Decimal("2500"),
         )
         om.record_trade(t1)
@@ -106,8 +117,12 @@ class TestConcurrentRapidFills:
         om.record_trade(t1)
 
         t2 = Trade(
-            trade_id="T2", order_id=order.order_id, symbol="RELIANCE",
-            exchange="NSE", side=Side.BUY, quantity=70,
+            trade_id="T2",
+            order_id=order.order_id,
+            symbol="RELIANCE",
+            exchange="NSE",
+            side=Side.BUY,
+            quantity=70,
             price=Decimal("2501"),
         )
         om.record_trade(t2)
@@ -123,8 +138,12 @@ class TestConcurrentRapidFills:
 
         for i in range(10):
             trade = Trade(
-                trade_id=f"T{i}", order_id=order.order_id, symbol="RELIANCE",
-                exchange="NSE", side=Side.BUY, quantity=10,
+                trade_id=f"T{i}",
+                order_id=order.order_id,
+                symbol="RELIANCE",
+                exchange="NSE",
+                side=Side.BUY,
+                quantity=10,
                 price=Decimal("2500"),
             )
             om.record_trade(trade)

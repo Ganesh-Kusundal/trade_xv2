@@ -38,7 +38,14 @@ class SignalDTO:
 
     @property
     def is_actionable(self) -> bool:
-        return self.signal_type in ("BUY", "SELL", "STRONG_BUY", "STRONG_SELL", "ENTRY", "EXIT") and self.confidence > Decimal("0")
+        return self.signal_type in (
+            "BUY",
+            "SELL",
+            "STRONG_BUY",
+            "STRONG_SELL",
+            "ENTRY",
+            "EXIT",
+        ) and self.confidence > Decimal("0")
 
 
 __all__ = ["CandidateDTO", "SignalDTO"]

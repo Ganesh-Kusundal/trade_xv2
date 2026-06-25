@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from collections.abc import Callable
 
-from domain import Order, OrderResponse, OrderStatus, OrderType, ProductType, Side
-from domain.repositories import OrderRepository
-from domain.requests import OrderRequest
 from application.oms.order_manager import OmsOrderCommand, OrderManager, OrderResult
+from domain import Order, OrderResponse, OrderStatus, OrderType, ProductType, Side
+from domain.requests import OrderRequest
 
 
 def _request_to_command(request: OrderRequest) -> OmsOrderCommand:

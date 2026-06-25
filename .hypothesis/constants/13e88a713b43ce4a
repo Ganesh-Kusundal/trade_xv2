@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/brokers/common/intelligent_gateway.py
-# hypothesis_version: 6.155.7
-
-['1D', '1m', 'Dhan', 'Dhan (more complete)', 'INDEX', 'LTP', 'NSE', 'No broker available', 'Upstox', 'Upstox (faster)', 'broker', 'broker_degraded_mode', 'brokers', 'cancel_order', 'contracts', 'delete_slice_order', 'depth', 'dhan', 'exception_message', 'exception_type', 'exchange', 'expires_at', 'expiries', 'funds', 'future_chain', 'health_status', 'history', 'history_batch', 'holdings', 'ltp', 'ltp_batch', 'modify_order', 'operation', 'option_chain', 'place_order', 'place_slice_order', 'positions', 'quote', 'quote_batch', 'reason', 'routing', 'search', 'skipped_broker', 'stream', 'symbol', 'trades', 'ttl', 'underlying', 'unhealthy', 'upstox', 'value']

@@ -15,7 +15,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
         return
 
     compare_type = args[0].lower()
-    symbol = args[1].upper() if len(args) > 1 else 'TCS'
+    symbol = args[1].upper() if len(args) > 1 else "TCS"
 
     console.print(f"\n[bold]Broker Comparison: {compare_type.upper()} {symbol}[/bold]\n")
 
@@ -26,8 +26,8 @@ def run(args: list[str], broker_service, console: Console) -> None:
         from brokers.common.intelligent_gateway import IntelligentGateway
         from cli.services.broker_registry import create_gateway
 
-        dhan = create_gateway("dhan", env_path=Path('.env.local'), load_instruments=True)
-        upstox = create_gateway("upstox", env_path=Path('.env.upstox'), load_instruments=True)
+        dhan = create_gateway("dhan", env_path=Path(".env.local"), load_instruments=True)
+        upstox = create_gateway("upstox", env_path=Path(".env.upstox"), load_instruments=True)
         if dhan and upstox:
             gw = IntelligentGateway(dhan_gateway=dhan, upstox_gateway=upstox)
         elif dhan:
@@ -41,11 +41,11 @@ def run(args: list[str], broker_service, console: Console) -> None:
         console.print(f"[red]Error creating gateway: {e}[/red]")
         return
 
-    if compare_type == 'quote':
+    if compare_type == "quote":
         _compare_quote(gw, symbol, console)
-    elif compare_type == 'ltp':
+    elif compare_type == "ltp":
         _compare_ltp(gw, symbol, console)
-    elif compare_type == 'history':
+    elif compare_type == "history":
         _compare_history(gw, symbol, console)
     else:
         console.print(f"[yellow]Unknown comparison type: {compare_type}[/yellow]")
@@ -67,8 +67,8 @@ def _compare_quote(gw, symbol: str, console: Console) -> None:
             t0 = time.time()
             q = broker.quote(symbol)
             latency = (time.time() - t0) * 1000
-            bid_str = f"₹{q.bid}" if hasattr(q, 'bid') and q.bid else "N/A"
-            ask_str = f"₹{q.ask}" if hasattr(q, 'ask') and q.ask else "N/A"
+            bid_str = f"₹{q.bid}" if hasattr(q, "bid") and q.bid else "N/A"
+            ask_str = f"₹{q.ask}" if hasattr(q, "ask") and q.ask else "N/A"
             table.add_row(name, f"₹{q.ltp}", bid_str, ask_str, f"{q.volume:,}", f"{latency:.0f}ms")
             results[name] = q
         except Exception as e:
@@ -126,11 +126,11 @@ def _compare_history(gw, symbol: str, console: Console) -> None:
     for name, broker in [("Dhan", gw.dhan), ("Upstox", gw.upstox)]:
         try:
             t0 = time.time()
-            df = broker.history(symbol, timeframe='1D', lookback_days=30)
+            df = broker.history(symbol, timeframe="1D", lookback_days=30)
             latency = (time.time() - t0) * 1000
             rows = len(df)
-            start = str(df['timestamp'].min())[:10] if not df.empty else "N/A"
-            end = str(df['timestamp'].max())[:10] if not df.empty else "N/A"
+            start = str(df["timestamp"].min())[:10] if not df.empty else "N/A"
+            end = str(df["timestamp"].max())[:10] if not df.empty else "N/A"
             table.add_row(name, str(rows), start, end, f"{latency:.0f}ms")
         except Exception as e:
             table.add_row(name, "ERROR", "-", "-", str(e)[:20])

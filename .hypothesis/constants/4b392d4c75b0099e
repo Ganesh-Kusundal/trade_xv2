@@ -1,4 +1,0 @@
-# file: /workspaces/trade_xv2/cli/commands/cache_management.py
-# hypothesis_version: 6.155.7
-
-[3600.0, 1024, '%Y-%m-%d %H:%M:%S', '--confirm', '.tmp', 'Age', 'Cache Directory', 'Cache Size', 'Cached At', 'Latest Cache', 'Metric', 'Missing subcommand', 'Newest Cache', 'Oldest Cache', 'Property', 'Status', 'Total Cache Files', 'Total Files', 'Total Size', 'Value', 'age_hours', 'bold cyan', 'bold magenta', 'bold white', 'cached', 'clear', 'cleared', 'elapsed_seconds', 'file_count', 'instruments', 'instruments_*.csv', 'instruments_loaded', 'latest_cache', 'refresh', 'right', 'runtime-dev', 'stats', 'status', 'total_size_mb']

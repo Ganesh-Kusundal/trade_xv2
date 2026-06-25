@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import logging
 from decimal import Decimal
+from typing import Any
 
 from brokers.common.api import MarginCalculationError, MarginProvider, MarginResult
 
@@ -47,7 +48,7 @@ class BrokerMarginProvider(MarginProvider):
         )
     """
 
-    def __init__(self, broker_margin_provider: BrokerMarginPort | None = None) -> None:
+    def __init__(self, broker_margin_provider: Any | None = None) -> None:
         self._broker_margin_provider = broker_margin_provider
 
     def calculate_margin(self, payload: dict) -> dict:
@@ -104,7 +105,7 @@ class BrokerMarginProvider(MarginProvider):
         # We call the generic calculate_margin with a standardised payload.
         # Broker adapters that implement calculate_margin_for_order directly
         # should be detected and used instead.
-        if hasattr(self._broker_margin_provider, 'calculate_margin_for_order'):
+        if hasattr(self._broker_margin_provider, "calculate_margin_for_order"):
             return self._broker_margin_provider.calculate_margin_for_order(
                 symbol=symbol,
                 exchange=exchange,
@@ -146,7 +147,13 @@ class BrokerMarginProvider(MarginProvider):
         """
         # Extract required margin — try various field names
         required = Decimal("0")
-        for key in ("total_margin", "totalMargin", "order_margin", "orderMargin", "required_margin"):
+        for key in (
+            "total_margin",
+            "totalMargin",
+            "order_margin",
+            "orderMargin",
+            "required_margin",
+        ):
             if key in raw:
                 required = Decimal(str(raw[key]))
                 break

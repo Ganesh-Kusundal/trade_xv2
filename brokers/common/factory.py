@@ -2,6 +2,12 @@
 
 Both BrokerFactory (Dhan) and UpstoxBrokerFactory should implement this
 interface so BrokerService can call either factory polymorphically.
+
+.. note::
+    This factory returns ``MarketDataGateway`` (the legacy ABC). To use the
+    new ``CommonBrokerGateway`` Protocol, wrap the result with
+    ``brokers.common.adapters.wrap_market_gateway()``.  See
+    ``brokers.common.bootstrap`` for the full wiring sequence.
 """
 
 from __future__ import annotations

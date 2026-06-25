@@ -54,6 +54,7 @@ from datalake.validation import validate_candles
 # Initialize logging if not already configured
 if not logging.getLogger().handlers:
     from brokers.common.logging_config import setup_logging
+
     setup_logging()
 logger = logging.getLogger(__name__)
 
@@ -76,15 +77,17 @@ def _get_watermark(target_file: Path, conn: duckdb.DuckDBPyConnection) -> int:
     try:
         result = conn.execute(
             "SELECT COALESCE(MAX(CAST(EPOCH(timestamp - INTERVAL '5 hours 30 minutes') * 1000 AS BIGINT)), 0) "
-            f"FROM read_parquet('{target_file}')"
+            "FROM read_parquet(?)",
+            [str(target_file)],
         ).fetchone()
         return int(result[0])
     except Exception:
         return 0
 
 
-def sync_options(trade_j_duckdb: str | Path | None = None,
-                 target_root: str | Path | None = None) -> dict:
+def sync_options(
+    trade_j_duckdb: str | Path | None = None, target_root: str | Path | None = None
+) -> dict:
     """Run incremental sync. Returns summary dict.
 
     Parameters
@@ -115,17 +118,21 @@ def sync_options(trade_j_duckdb: str | Path | None = None,
         """).fetchall()
 
         for underlying, ek, ec in groups:
-            target_dir = tgt_root / f"underlying={normalize_symbol(underlying)}" / f"expiry_kind={ek}" / f"expiry_code={ec}"
+            target_dir = (
+                tgt_root
+                / f"underlying={normalize_symbol(underlying)}"
+                / f"expiry_kind={ek}"
+                / f"expiry_code={ec}"
+            )
             target_dir.mkdir(parents=True, exist_ok=True)
             target_file = target_dir / "data.parquet"
 
             watermark = _get_watermark(target_file, src)
-            logger.info(
-                f"{underlying} {ek} code={ec}: watermark={watermark}"
-            )
+            logger.info("%s %s code=%s: watermark=%s", underlying, ek, ec, watermark)
 
             # Read only new data from Trade_J (incremental)
-            new_rows = src.execute(f"""
+            new_rows = src.execute(
+                """
                 SELECT
                     underlying, expiry_kind, expiry_code, strike_offset, option_type,
                     interval_min, bar_time_ms, open_paisa, high_paisa, low_paisa,
@@ -134,14 +141,16 @@ def sync_options(trade_j_duckdb: str | Path | None = None,
                 WHERE underlying = ? AND expiry_kind = ? AND expiry_code = ?
                   AND bar_time_ms > ?
                 ORDER BY bar_time_ms, strike_offset, option_type
-            """, [underlying, ek, ec, watermark]).fetchdf()
+            """,
+                [underlying, ek, ec, watermark],
+            ).fetchdf()
 
             if new_rows.empty and target_file.exists():
-                logger.info(f"  No new data, skipping")
+                logger.info("  No new data, skipping")
                 continue
 
             new_count = len(new_rows)
-            logger.info(f"  Read {new_count:,} new rows from Trade_J")
+            logger.info("  Read %d new rows from Trade_J", new_count)
 
             # Convert new data
             if new_count > 0:
@@ -155,14 +164,18 @@ def sync_options(trade_j_duckdb: str | Path | None = None,
             if target_file.exists():
                 existing = pd.read_parquet(target_file)
                 before_count = len(existing)
-                combined = pd.concat([existing, new_rows], ignore_index=True) if new_count > 0 else existing
+                combined = (
+                    pd.concat([existing, new_rows], ignore_index=True)
+                    if new_count > 0
+                    else existing
+                )
                 # Dedup on (timestamp, symbol)
                 combined = combined.drop_duplicates(subset=["timestamp", "symbol"], keep="last")
                 combined = combined.sort_values(["timestamp", "symbol"]).reset_index(drop=True)
                 after_count = len(combined)
                 deduped = before_count + new_count - after_count
                 if deduped > 0:
-                    logger.info(f"  Deduped {deduped:,} duplicate rows")
+                    logger.info("  Deduped %d duplicate rows", deduped)
                 summary["files_merged"] += 1
             else:
                 combined = new_rows.sort_values(["timestamp", "symbol"]).reset_index(drop=True)
@@ -178,14 +191,16 @@ def sync_options(trade_j_duckdb: str | Path | None = None,
 
             summary["new_rows"] += new_count
             summary["total_rows_after"] += after_count
-            summary["groups"].append({
-                "underlying": underlying,
-                "expiry_kind": ek,
-                "expiry_code": int(ec),
-                "new_rows": new_count,
-                "total_rows": after_count,
-            })
-            logger.info(f"  ✓ Wrote {after_count:,} rows to {target_file}")
+            summary["groups"].append(
+                {
+                    "underlying": underlying,
+                    "expiry_kind": ek,
+                    "expiry_code": int(ec),
+                    "new_rows": new_count,
+                    "total_rows": after_count,
+                }
+            )
+            logger.info("  Wrote %d rows to %s", after_count, target_file)
     finally:
         src.close()
     return summary
@@ -198,8 +213,11 @@ def main() -> int:
     summary = sync_options()
     logger.info("=" * 60)
     logger.info(
-        f"DONE: {summary['files_created']} created, {summary['files_merged']} merged, "
-        f"{summary['new_rows']:,} new rows, {summary['total_rows_after']:,} total"
+        "DONE: %s created, %s merged, %s new rows, %s total",
+        summary["files_created"],
+        summary["files_merged"],
+        "{:,}".format(summary["new_rows"]),
+        "{:,}".format(summary["total_rows_after"]),
     )
     logger.info("=" * 60)
     return 0

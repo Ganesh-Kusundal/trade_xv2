@@ -8,7 +8,9 @@ import math
 import pandas as pd
 
 from analytics.core.models import AnalysisResult
+
 # IV helper functions — migrated from deprecated analytics.indicators.technical
+
 
 def _iv_rank(current_iv: float, iv_low: float, iv_high: float) -> float:
     """Calculate IV Rank (position of current IV in historical range)."""
@@ -23,6 +25,7 @@ def _iv_percentile(current_iv: float, history: list[float] | pd.Series) -> float
     if values.empty:
         return 50.0
     return float((values <= current_iv).mean() * 100)
+
 
 logger = logging.getLogger(__name__)
 
@@ -111,10 +114,29 @@ class OptionsAnalytics:
         if missing:
             raise ValueError(f"Option chain missing required columns: {sorted(missing)}")
 
-        for column in ["strike", "oi", "change_in_oi", "volume", "iv", "ltp", "ltp_change", "price_change", "delta", "gamma", "vega", "theta"]:
+        for column in [
+            "strike",
+            "oi",
+            "change_in_oi",
+            "volume",
+            "iv",
+            "ltp",
+            "ltp_change",
+            "price_change",
+            "delta",
+            "gamma",
+            "vega",
+            "theta",
+        ]:
             if column in df:
                 df[column] = pd.to_numeric(df[column], errors="coerce").fillna(0)
-        df["option_type"] = df["option_type"].astype(str).str.upper().str.replace("CALL", "CE", regex=False).str.replace("PUT", "PE", regex=False)
+        df["option_type"] = (
+            df["option_type"]
+            .astype(str)
+            .str.upper()
+            .str.replace("CALL", "CE", regex=False)
+            .str.replace("PUT", "PE", regex=False)
+        )
         return df
 
 
@@ -127,7 +149,9 @@ class OpenInterestAnalytics:
         total_oi = float(chain["oi"].sum()) if not chain.empty else 0.0
         concentration = 0.0
         if total_oi > 0:
-            concentration = float(chain.nlargest(concentration_top_n, "oi")["oi"].sum() / total_oi * 100)
+            concentration = float(
+                chain.nlargest(concentration_top_n, "oi")["oi"].sum() / total_oi * 100
+            )
         oi_shift = float(chain["change_in_oi"].sum()) if "change_in_oi" in chain else 0.0
         return AnalysisResult(
             name="open_interest",
@@ -168,7 +192,13 @@ class PCRAnalytics:
         return AnalysisResult(
             name="pcr",
             summary=f"PCR {pcr:.2f}, regime {regime}.",
-            metrics={"pcr": pcr, "pcr_trend": trend, "pcr_regime": regime, "put_oi": puts, "call_oi": calls},
+            metrics={
+                "pcr": pcr,
+                "pcr_trend": trend,
+                "pcr_regime": regime,
+                "put_oi": puts,
+                "call_oi": calls,
+            },
             scores={"pcr": score},
             signals=[regime],
         )
@@ -177,15 +207,23 @@ class PCRAnalytics:
 class MaxPainAnalytics:
     def analyze(self, chain: pd.DataFrame, spot_price: float | None = None) -> AnalysisResult:
         if chain.empty:
-            return AnalysisResult(name="max_pain", summary="No strikes available", metrics={"max_pain": None})
+            return AnalysisResult(
+                name="max_pain", summary="No strikes available", metrics={"max_pain": None}
+            )
         calls = chain[chain["option_type"] == "CE"].set_index("strike")["oi"]
         puts = chain[chain["option_type"] == "PE"].set_index("strike")["oi"]
         strikes = sorted(chain["strike"].unique())
         strike_series = pd.Series(strikes, index=strikes, dtype="float64")
         pain = {}
         for strike in strikes:
-            call_pain = float((calls.reindex(strikes, fill_value=0) * (strike_series - strike).clip(lower=0)).sum())
-            put_pain = float((puts.reindex(strikes, fill_value=0) * (strike - strike_series).clip(lower=0)).sum())
+            call_pain = float(
+                (
+                    calls.reindex(strikes, fill_value=0) * (strike_series - strike).clip(lower=0)
+                ).sum()
+            )
+            put_pain = float(
+                (puts.reindex(strikes, fill_value=0) * (strike - strike_series).clip(lower=0)).sum()
+            )
             pain[strike] = call_pain + put_pain
         max_pain = min(pain, key=pain.get)
         shift = None if spot_price is None else float(max_pain - spot_price)
@@ -197,7 +235,9 @@ class MaxPainAnalytics:
 
 
 class IVAnalytics:
-    def analyze(self, chain: pd.DataFrame, history: list[float] | pd.Series | None = None) -> AnalysisResult:
+    def analyze(
+        self, chain: pd.DataFrame, history: list[float] | pd.Series | None = None
+    ) -> AnalysisResult:
         iv = chain["iv"] if "iv" in chain else pd.Series(dtype="float64")
         current_iv = float(iv.mean()) if not iv.empty else 0.0
         iv_low = float(iv.min()) if not iv.empty else 0.0
@@ -210,7 +250,13 @@ class IVAnalytics:
         return AnalysisResult(
             name="iv",
             summary=f"IV regime is {regime}.",
-            metrics={"current_iv": current_iv, "iv_percentile": ivp, "iv_rank": ivr, "iv_expansion": expansion, "iv_contraction": contraction},
+            metrics={
+                "current_iv": current_iv,
+                "iv_percentile": ivp,
+                "iv_rank": ivr,
+                "iv_expansion": expansion,
+                "iv_contraction": contraction,
+            },
             scores={"iv": ivr},
             signals=[regime],
         )
@@ -275,26 +321,32 @@ class GreeksAnalytics:
         if days_to_expiry is None:
             days_to_expiry = 30.0
         t = max(days_to_expiry / 365.0, 1 / 365.0)
-        
+
         # Pre-allocate columns
         df["delta"] = 0.0
         df["theta"] = 0.0
         df["gamma"] = 0.0
         df["vega"] = 0.0
-        
+
         # Vectorized computation where possible, fallback to row iteration for complex logic
         strikes = df["strike"].values
         ivs = df["iv"].fillna(0.2).clip(lower=0.01).values
         option_types = df["option_type"].fillna("CE").str.upper().values
-        
-        for i, (strike, iv, opt_type) in enumerate(zip(strikes, ivs, option_types)):
+
+        for i, (strike, iv, opt_type) in enumerate(zip(strikes, ivs, option_types, strict=False)):
             d1, d2 = self._d1_d2(spot, float(strike), t, risk_free_rate, float(iv))
             if opt_type in ("CE", "CALL"):
                 df.iat[i, df.columns.get_loc("delta")] = self._call_delta(d1)
-                df.iat[i, df.columns.get_loc("theta")] = self._call_theta(spot, float(strike), t, risk_free_rate, float(iv), d1, d2) / 365.0
+                df.iat[i, df.columns.get_loc("theta")] = (
+                    self._call_theta(spot, float(strike), t, risk_free_rate, float(iv), d1, d2)
+                    / 365.0
+                )
             else:
                 df.iat[i, df.columns.get_loc("delta")] = self._put_delta(d1)
-                df.iat[i, df.columns.get_loc("theta")] = self._put_theta(spot, float(strike), t, risk_free_rate, float(iv), d1, d2) / 365.0
+                df.iat[i, df.columns.get_loc("theta")] = (
+                    self._put_theta(spot, float(strike), t, risk_free_rate, float(iv), d1, d2)
+                    / 365.0
+                )
             df.iat[i, df.columns.get_loc("gamma")] = self._gamma(spot, t, float(iv), d1)
             df.iat[i, df.columns.get_loc("vega")] = self._vega(spot, t, float(iv), d1) / 100.0
 
@@ -327,14 +379,28 @@ class GreeksAnalytics:
         return spot * self._norm_pdf(d1) * math.sqrt(t) / 100.0
 
     def _call_theta(
-        self, spot: float, strike: float, t: float, r: float, iv: float, d1: float, d2: float,
+        self,
+        spot: float,
+        strike: float,
+        t: float,
+        r: float,
+        iv: float,
+        d1: float,
+        d2: float,
     ) -> float:
         term1 = -(spot * self._norm_pdf(d1) * iv) / (2 * math.sqrt(t))
         term2 = r * strike * math.exp(-r * t) * self._norm_cdf(d2)
         return term1 - term2
 
     def _put_theta(
-        self, spot: float, strike: float, t: float, r: float, iv: float, d1: float, d2: float,
+        self,
+        spot: float,
+        strike: float,
+        t: float,
+        r: float,
+        iv: float,
+        d1: float,
+        d2: float,
     ) -> float:
         term1 = -(spot * self._norm_pdf(d1) * iv) / (2 * math.sqrt(t))
         term2 = -r * strike * math.exp(-r * t) * self._norm_cdf(-d2)
@@ -355,8 +421,16 @@ class OptionFlowAnalytics:
             price_change_col = "price_change"
         else:
             price_change_col = ""
-        call_price_change = float(calls[price_change_col].sum()) if price_change_col and price_change_col in calls else 0.0
-        put_price_change = float(puts[price_change_col].sum()) if price_change_col and price_change_col in puts else 0.0
+        call_price_change = (
+            float(calls[price_change_col].sum())
+            if price_change_col and price_change_col in calls
+            else 0.0
+        )
+        put_price_change = (
+            float(puts[price_change_col].sum())
+            if price_change_col and price_change_col in puts
+            else 0.0
+        )
 
         signals = []
         if call_volume > 0 and call_oi_change > 0 and call_price_change > 0:
@@ -370,7 +444,12 @@ class OptionFlowAnalytics:
         if not signals:
             signals.append("Neutral Flow")
 
-        score = 50.0 + (call_oi_change - put_oi_change) / max(call_oi_change + abs(put_oi_change), 1.0) * 25.0
+        score = (
+            50.0
+            + (call_oi_change - put_oi_change)
+            / max(call_oi_change + abs(put_oi_change), 1.0)
+            * 25.0
+        )
         return AnalysisResult(
             name="option_flow",
             summary=", ".join(signals),
@@ -395,7 +474,9 @@ class StrikeAnalytics:
         highest_put = chain.loc[chain["option_type"] == "PE", "oi"].idxmax()
         highest_call = chain.loc[chain["option_type"] == "CE", "oi"].idxmax()
         threshold = float(chain["liquidity"].quantile(0.90)) if not chain.empty else 0.0
-        walls = chain.loc[chain["liquidity"] >= threshold, ["strike", "option_type", "liquidity"]].to_dict("records")
+        walls = chain.loc[
+            chain["liquidity"] >= threshold, ["strike", "option_type", "liquidity"]
+        ].to_dict("records")
         support = float(chain.loc[highest_put, "strike"]) if pd.notna(highest_put) else None
         resistance = float(chain.loc[highest_call, "strike"]) if pd.notna(highest_call) else None
         balance = 50.0
@@ -411,7 +492,9 @@ class StrikeAnalytics:
                 "support": support,
                 "resistance": resistance,
                 "oi_walls": walls,
-                "liquidity_zones": chain.nlargest(5, "liquidity")[["strike", "option_type", "liquidity"]].to_dict("records"),
+                "liquidity_zones": chain.nlargest(5, "liquidity")[
+                    ["strike", "option_type", "liquidity"]
+                ].to_dict("records"),
             },
             scores={"strike_balance": balance},
         )

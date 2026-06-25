@@ -10,8 +10,6 @@ from datetime import date
 from typing import Any
 from urllib.parse import quote
 
-import requests
-
 logger = logging.getLogger(__name__)
 
 
@@ -38,11 +36,11 @@ class UpstoxHistoricalV3Client:
             from_date: Start date (optional)
         """
         # URL-encode the instrument key (contains pipe character)
-        encoded_key = quote(instrument_key, safe='')
+        encoded_key = quote(instrument_key, safe="")
         url = f"{self._base_url}/historical-candle/{encoded_key}/{unit}/{interval}/{to_date.isoformat()}"
         if from_date:
             url += f"/{from_date.isoformat()}"
-        
+
         logger.debug("Fetching historical candles: %s", url)
         return self._http.get_json(url)
 
@@ -54,6 +52,6 @@ class UpstoxHistoricalV3Client:
         to_date: date,
     ) -> dict[str, Any]:
         """Fetch intraday candles using V3 API."""
-        encoded_key = quote(instrument_key, safe='')
+        encoded_key = quote(instrument_key, safe="")
         url = f"{self._base_url}/intraday-candle/{encoded_key}/{unit}/{interval}/{to_date.isoformat()}"
         return self._http.get_json(url)

@@ -41,6 +41,7 @@ from brokers.common.resilience.rate_limiter import (
 from brokers.common.resilience.retry import DEFAULT_RETRYABLE_EXCEPTIONS, RetryConfig, RetryExecutor
 
 __all__ = [
+    "DEFAULT_RETRYABLE_EXCEPTIONS",
     "AuthenticationError",
     "BackoffStrategy",
     "BrokerDegradedError",
@@ -53,7 +54,6 @@ __all__ = [
     "CircuitState",
     "ConfigError",
     "DataError",
-    "DEFAULT_RETRYABLE_EXCEPTIONS",
     "ExponentialBackoff",
     "FixedBackoff",
     "InstrumentNotFoundError",

@@ -14,7 +14,13 @@ class BreadthAnalytics:
         *,
         history: pd.DataFrame | None = None,
     ) -> AnalysisResult:
-        data = pd.Series(snapshot) if isinstance(snapshot, dict) else snapshot.iloc[-1] if not snapshot.empty else pd.Series(dtype="float64")
+        data = (
+            pd.Series(snapshot)
+            if isinstance(snapshot, dict)
+            else snapshot.iloc[-1]
+            if not snapshot.empty
+            else pd.Series(dtype="float64")
+        )
         if data.empty:
             return AnalysisResult(name="breadth", summary="No breadth data")
 
@@ -24,7 +30,9 @@ class BreadthAnalytics:
         new_highs = float(data.get("new_highs", 0.0))
         new_lows = float(data.get("new_lows", 0.0))
         total = advances + declines + unchanged
-        adv_decline_ratio = advances / declines if declines > 0 else float("inf") if advances > 0 else 0.0
+        adv_decline_ratio = (
+            advances / declines if declines > 0 else float("inf") if advances > 0 else 0.0
+        )
         breadth_score = 50.0
         if total > 0:
             breadth_score = advances / total * 100
@@ -33,7 +41,9 @@ class BreadthAnalytics:
         else:
             breadth_score -= min(20.0, (new_lows - new_highs) / max(total, 1.0) * 100)
         breadth_score = max(0.0, min(100.0, breadth_score))
-        regime = "Positive" if breadth_score >= 60 else "Negative" if breadth_score <= 40 else "Neutral"
+        regime = (
+            "Positive" if breadth_score >= 60 else "Negative" if breadth_score <= 40 else "Neutral"
+        )
 
         metrics = {
             "advances": advances,
@@ -46,7 +56,9 @@ class BreadthAnalytics:
         }
         signals = [regime]
 
-        trin = self._compute_trin(advances, declines, data.get("up_volume", 0.0), data.get("down_volume", 0.0))
+        trin = self._compute_trin(
+            advances, declines, data.get("up_volume", 0.0), data.get("down_volume", 0.0)
+        )
         if trin is not None:
             metrics["trin"] = trin
             if trin < 0.5:
@@ -73,7 +85,9 @@ class BreadthAnalytics:
         )
 
     @staticmethod
-    def _compute_trin(advances: float, declines: float, up_volume: float, down_volume: float) -> float | None:
+    def _compute_trin(
+        advances: float, declines: float, up_volume: float, down_volume: float
+    ) -> float | None:
         if declines == 0 or down_volume == 0:
             return None
         ad_ratio = advances / declines
@@ -114,6 +128,10 @@ class SectorAnalytics:
                 "sector_rotation": rotation,
                 "relative_strength": df[["sector", "relative_strength"]].to_dict("records"),
             },
-            scores={"sector_strength": max(0.0, min(100.0, 50.0 + float(df["relative_strength"].mean())))},
+            scores={
+                "sector_strength": max(
+                    0.0, min(100.0, 50.0 + float(df["relative_strength"].mean()))
+                )
+            },
             signals=[rotation],
         )

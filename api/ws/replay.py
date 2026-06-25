@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Any
 
 import pandas as pd
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -72,7 +71,11 @@ async def _stream_replay_candles(
     if session is None:
         await replay_manager.send_to_client(
             connection_id,
-            {"type": "error", "code": "SESSION_NOT_FOUND", "message": f"Unknown session {session_id}"},
+            {
+                "type": "error",
+                "code": "SESSION_NOT_FOUND",
+                "message": f"Unknown session {session_id}",
+            },
         )
         return
 
@@ -149,7 +152,9 @@ async def _stream_replay_candles(
     )
 
 
-def _start_stream(connection_id: str, session_id: str, *, speed: float = 1.0, seek_ts: int | None = None) -> None:
+def _start_stream(
+    connection_id: str, session_id: str, *, speed: float = 1.0, seek_ts: int | None = None
+) -> None:
     _cancel_stream(connection_id)
     _stream_tasks[connection_id] = asyncio.create_task(
         _stream_replay_candles(connection_id, session_id, speed=speed, seek_ts=seek_ts)
@@ -179,7 +184,12 @@ async def replay_websocket(websocket: WebSocket, session_id: str):
                 _start_stream(connection_id, session_id, speed=speed)
                 await replay_manager.send_to_client(
                     connection_id,
-                    {"type": "replay_state", "session_id": session_id, "state": "PLAYING", "speed": speed},
+                    {
+                        "type": "replay_state",
+                        "session_id": session_id,
+                        "state": "PLAYING",
+                        "speed": speed,
+                    },
                 )
 
             elif action == "pause":

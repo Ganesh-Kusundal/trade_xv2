@@ -36,8 +36,9 @@ from __future__ import annotations
 import itertools
 import threading
 import time
+from collections.abc import Callable
 from datetime import datetime, timezone
-from typing import Callable, Generic, TypeVar
+from typing import Generic, TypeVar
 
 _CallbackT = TypeVar("_CallbackT", bound=Callable[..., None])
 
@@ -82,9 +83,7 @@ class ReconnectingServiceMixin(Generic[_CallbackT]):
 
     # ── Callback registration (lock + snapshot discipline) ─────────────────
 
-    def _register_callback(
-        self, callback_list: list[_CallbackT], callback: _CallbackT
-    ) -> None:
+    def _register_callback(self, callback_list: list[_CallbackT], callback: _CallbackT) -> None:
         """Append *callback* to *callback_list* under the mixin's lock.
 
         Subclasses pass their own list — the mixin does not own the list,
@@ -95,9 +94,7 @@ class ReconnectingServiceMixin(Generic[_CallbackT]):
         with self._callback_lock:
             callback_list.append(callback)
 
-    def _snapshot_callbacks(
-        self, callback_list: list[_CallbackT]
-    ) -> list[_CallbackT]:
+    def _snapshot_callbacks(self, callback_list: list[_CallbackT]) -> list[_CallbackT]:
         """Return a snapshot of *callback_list* for safe iteration.
 
         Iteration is outside the lock so a slow callback cannot block

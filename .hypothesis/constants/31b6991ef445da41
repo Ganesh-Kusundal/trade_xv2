@@ -1,4 +1,0 @@
-# file: /workspaces/trade_xv2/brokers/dhan/reconnecting_service.py
-# hypothesis_version: 6.155.7
-
-[1.0, 30.0, '_CallbackT', 'ws']

@@ -191,8 +191,8 @@ class DhanInstrumentRef:
     is_synthetic_index: bool = False
     underlying: str | None = None
     expiry: str | None = None
-    strike_price: "object | None" = None  # Decimal | None — avoid extra import
-    option_type: "object | None" = None  # OptionType | None
+    strike_price: object | None = None  # Decimal | None — avoid extra import
+    option_type: object | None = None  # OptionType | None
 
     def __post_init__(self) -> None:
         # Normalise exchange to the Enum form (accepts strings for
@@ -213,13 +213,11 @@ class DhanInstrumentRef:
             )
         if not self.security_id or not self.security_id.isdigit():
             raise DhanIdentityError(
-                f"Invalid security_id: {self.security_id!r} "
-                f"(must be a positive digit string)"
+                f"Invalid security_id: {self.security_id!r} (must be a positive digit string)"
             )
         if int(self.security_id) <= 0:
             raise DhanIdentityError(
-                f"Invalid security_id: {self.security_id!r} "
-                f"(must be a positive digit string)"
+                f"Invalid security_id: {self.security_id!r} (must be a positive digit string)"
             )
 
     # ── Convenience properties for the common payload-building cases ──
@@ -309,7 +307,7 @@ class DhanIdentityProvider:
             return self._synthetic_index_count
 
     @staticmethod
-    def to_payload_security_id(ref: "DhanInstrumentRef") -> str:
+    def to_payload_security_id(ref: DhanInstrumentRef) -> str:
         """Return the carrier's ``security_id`` formatted for an HTTP payload.
 
         Always returns a ``str`` of digits (Dhan's official JSON wire
@@ -319,9 +317,7 @@ class DhanIdentityProvider:
         representation) cannot silently break payload formatting.
         """
         if ref is None:
-            raise DhanIdentityError(
-                "to_payload_security_id: ref is None"
-            )
+            raise DhanIdentityError("to_payload_security_id: ref is None")
         return ref.security_id_str()
 
     def resolve_ref(
@@ -417,10 +413,7 @@ class DhanIdentityProvider:
         # in the exception hierarchy as other identity-contract failures;
         # the message ("resolved to index") is the canonical signal to
         # the caller that they crossed the index/derivative boundary.
-        if (
-            expected_segment in self._DERIVATIVE_SEGMENTS
-            and segment == "IDX_I"
-        ):
+        if expected_segment in self._DERIVATIVE_SEGMENTS and segment == "IDX_I":
             raise DhanIdentityError(
                 f"{inst.symbol!r} resolved to index (segment=IDX_I) but "
                 f"caller expected derivative segment {expected_segment!r}. "
@@ -434,11 +427,7 @@ class DhanIdentityProvider:
             )
 
         is_synthetic = inst.name == "INDEX" and inst.sm_symbol_name is None
-        source = (
-            DhanIdentitySource.HARDCODED_INDEX
-            if is_synthetic
-            else DhanIdentitySource.CSV
-        )
+        source = DhanIdentitySource.HARDCODED_INDEX if is_synthetic else DhanIdentitySource.CSV
         # Normalise security_id to a string. Some callers (and the
         # ``Instrument`` dataclass itself) carry the id as an int; the
         # carrier requires a string of digits for invariant checks and
@@ -480,9 +469,9 @@ class DhanIdentityProvider:
 
 
 def coerce_identity_provider(
-    identity: "DhanIdentityProvider | SymbolResolver | object",
+    identity: DhanIdentityProvider | SymbolResolver | object,
     allow_duck: bool = False,
-) -> "DhanIdentityProvider":
+) -> DhanIdentityProvider:
     """Return a :class:`DhanIdentityProvider` for *identity*.
 
     Accepts any of:
@@ -532,8 +521,10 @@ def coerce_identity_provider(
     # Duck-typed fallback: only when the caller has explicitly opted in.
     # Default ``False`` means production code paths reject anything that
     # is not a real ``DhanIdentityProvider`` or ``SymbolResolver``.
-    if allow_duck and callable(getattr(identity, "resolve", None)) and callable(
-        getattr(identity, "get_by_security_id", None)
+    if (
+        allow_duck
+        and callable(getattr(identity, "resolve", None))
+        and callable(getattr(identity, "get_by_security_id", None))
     ):
         return DhanIdentityProvider(identity)  # type: ignore[arg-type]
     raise TypeError(

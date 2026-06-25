@@ -63,7 +63,10 @@ class FeaturePipeline:
         for feature in self.features:
             try:
                 result = feature.compute(result)
-                logger.debug("Computed feature: %s", feature.name if hasattr(feature, "name") else type(feature).__name__)
+                logger.debug(
+                    "Computed feature: %s",
+                    feature.name if hasattr(feature, "name") else type(feature).__name__,
+                )
             except Exception as exc:
                 logger.warning("Feature %s failed: %s", type(feature).__name__, exc)
 

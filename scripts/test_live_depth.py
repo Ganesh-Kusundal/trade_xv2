@@ -20,11 +20,11 @@ from dotenv import load_dotenv
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
+from brokers.common.logging_config import setup_logging
+from brokers.dhan.factory import BrokerFactory
 from infrastructure.event_bus import EventBus
 from infrastructure.lifecycle import LifecycleManager
-from brokers.dhan.factory import BrokerFactory
 
-from brokers.common.logging_config import setup_logging
 setup_logging()
 logger = logging.getLogger(__name__)
 
@@ -45,8 +45,8 @@ def test_depth_20_live():
         event_bus=event_bus,
     )
 
-    logger.info(f"Gateway created: {gateway}")
-    logger.info(f"Capabilities: depth_20={gateway.capabilities().depth_20}")
+    logger.info("Gateway created: %s", gateway)
+    logger.info("Capabilities: depth_20=%s", gateway.capabilities().depth_20)
 
     # Start lifecycle (auto-starts WebSocket services)
     lifecycle.start_all()
@@ -54,19 +54,19 @@ def test_depth_20_live():
 
     # Check health
     health = lifecycle.health_snapshot()
-    logger.info(f"Lifecycle health: {health}")
+    logger.info("Lifecycle health: %s", health)
 
     # Try to get depth
     try:
         logger.info("Fetching 20-level depth for RELIANCE...")
         depth = gateway.depth_20("RELIANCE", "NSE")
-        logger.info(f"Depth received: {depth.symbol if depth else 'None'}")
+        logger.info("Depth received: %s", depth.symbol if depth else "None")
         if depth:
-            logger.info(f"  Bids: {len(depth.bids) if depth.bids else 0}")
-            logger.info(f"  Asks: {len(depth.asks) if depth.asks else 0}")
-            logger.info(f"  Depth type: {depth.depth_type}")
+            logger.info("  Bids: %s", len(depth.bids) if depth.bids else 0)
+            logger.info("  Asks: %s", len(depth.asks) if depth.asks else 0)
+            logger.info("  Depth type: %s", depth.depth_type)
     except Exception as exc:
-        logger.error(f"Error fetching depth: {exc}", exc_info=True)
+        logger.exception("Error fetching depth: %s", exc)
 
     # Wait for some messages
     logger.info("Waiting 10 seconds for depth updates...")
@@ -93,8 +93,8 @@ def test_depth_200_live():
         event_bus=event_bus,
     )
 
-    logger.info(f"Gateway created: {gateway}")
-    logger.info(f"Capabilities: depth_200={gateway.capabilities().depth_200}")
+    logger.info("Gateway created: %s", gateway)
+    logger.info("Capabilities: depth_200=%s", gateway.capabilities().depth_200)
 
     # Start lifecycle
     lifecycle.start_all()
@@ -102,19 +102,19 @@ def test_depth_200_live():
 
     # Check health
     health = lifecycle.health_snapshot()
-    logger.info(f"Lifecycle health: {health}")
+    logger.info("Lifecycle health: %s", health)
 
     # Try to get depth
     try:
         logger.info("Fetching 200-level depth for RELIANCE...")
         depth = gateway.depth_200("RELIANCE", "NSE")
-        logger.info(f"Depth received: {depth.symbol if depth else 'None'}")
+        logger.info("Depth received: %s", depth.symbol if depth else "None")
         if depth:
-            logger.info(f"  Bids: {len(depth.bids) if depth.bids else 0}")
-            logger.info(f"  Asks: {len(depth.asks) if depth.asks else 0}")
-            logger.info(f"  Depth type: {depth.depth_type}")
+            logger.info("  Bids: %s", len(depth.bids) if depth.bids else 0)
+            logger.info("  Asks: %s", len(depth.asks) if depth.asks else 0)
+            logger.info("  Depth type: %s", depth.depth_type)
     except Exception as exc:
-        logger.error(f"Error fetching depth: {exc}", exc_info=True)
+        logger.exception("Error fetching depth: %s", exc)
 
     # Wait for some messages
     logger.info("Waiting 10 seconds for depth updates...")
@@ -137,27 +137,27 @@ def test_basic_connection():
         # Test LTP
         logger.info("Fetching LTP for RELIANCE...")
         ltp = gateway.ltp("RELIANCE", "NSE")
-        logger.info(f"RELIANCE LTP: ₹{ltp}")
+        logger.info("RELIANCE LTP: %s", ltp)
 
         # Test quote
         logger.info("Fetching quote for RELIANCE...")
         quote = gateway.quote("RELIANCE", "NSE")
-        logger.info(f"Quote: LTP={quote.ltp}, Volume={quote.volume}")
+        logger.info("Quote: LTP=%s, Volume=%s", quote.ltp, quote.volume)
 
         # Test depth (5-level)
         logger.info("Fetching 5-level depth for RELIANCE...")
         depth = gateway.depth("RELIANCE", "NSE")
-        logger.info(f"Depth: {len(depth.bids)} bids, {len(depth.asks)} asks")
+        logger.info("Depth: %s bids, %s asks", len(depth.bids), len(depth.asks))
 
         # Test balance
         logger.info("Fetching account balance...")
         balance = gateway.funds()
-        logger.info(f"Available balance: ₹{balance.available_balance}")
+        logger.info("Available balance: %s", balance.available_balance)
 
-        logger.info("✅ Basic connection test PASSED")
+        logger.info("Basic connection test PASSED")
 
     except Exception as exc:
-        logger.error(f"❌ Basic connection test FAILED: {exc}", exc_info=True)
+        logger.exception("Basic connection test FAILED: %s", exc)
     finally:
         gateway.close()
 
@@ -167,7 +167,7 @@ if __name__ == "__main__":
     env_file = project_root / ".env.local"
     if env_file.exists():
         load_dotenv(env_file)
-        logger.info(f"Loaded .env.local")
+        logger.info("Loaded .env.local")
 
     # Check credentials
     client_id = os.getenv("DHAN_CLIENT_ID")
@@ -191,5 +191,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         logger.info("Test interrupted by user")
     except Exception as exc:
-        logger.error(f"Test failed: {exc}", exc_info=True)
+        logger.exception("Test failed: %s", exc)
         sys.exit(1)

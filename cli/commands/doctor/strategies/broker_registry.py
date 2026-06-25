@@ -12,7 +12,7 @@ from cli.services.broker_service import BrokerService
 
 class BrokerRegistryCheck(CheckStrategy):
     """Validates broker registry and environment file status.
-    
+
     This check does not require a broker_service instance — it queries
     the registry directly.
     """
@@ -23,9 +23,7 @@ class BrokerRegistryCheck(CheckStrategy):
         brokers = list_available_brokers()
 
         if not brokers:
-            results.append(
-                CheckResult("Registered Brokers", "FAIL", "No brokers registered!")
-            )
+            results.append(CheckResult("Registered Brokers", "FAIL", "No brokers registered!"))
             return results
 
         results.append(

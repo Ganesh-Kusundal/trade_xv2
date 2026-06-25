@@ -25,9 +25,5 @@ def test_audit_broker_methods_json_structure() -> None:
     assert data["upstox"]["total_methods"] > 20
     assert "domains" in data["dhan"]
     dhan_domains = data["dhan"]["domains"]
-    all_files = [
-        f["file"]
-        for domain in dhan_domains.values()
-        for f in domain.get("files", [])
-    ]
+    all_files = [f["file"] for domain in dhan_domains.values() for f in domain.get("files", [])]
     assert any("orders" in f for f in all_files)

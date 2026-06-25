@@ -121,7 +121,8 @@ def run(args: list[str], broker_service: BrokerService, console: Console) -> Non
     # 4. Search all instruments for partial matches
     all_instruments = resolver.all_instruments()
     partial_matches = [
-        i for i in all_instruments
+        i
+        for i in all_instruments
         if symbol in i.symbol.upper() and i.instrument_type.value in ("EQUITY", "FUTURE")
     ]
     if partial_matches and not resolved:

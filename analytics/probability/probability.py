@@ -12,7 +12,13 @@ class ProbabilityEngine:
         volume = self._score(metrics.get("volume", 50.0))
         oi = self._score(metrics.get("oi", 50.0))
         relative_strength = self._score(metrics.get("relative_strength", 50.0))
-        composite = (trend * 0.25) + (momentum * 0.25) + (volume * 0.15) + (oi * 0.15) + (relative_strength * 0.20)
+        composite = (
+            (trend * 0.25)
+            + (momentum * 0.25)
+            + (volume * 0.15)
+            + (oi * 0.15)
+            + (relative_strength * 0.20)
+        )
         return {
             "trend_score": trend,
             "momentum_score": momentum,
@@ -25,7 +31,13 @@ class ProbabilityEngine:
     def analyze(self, metrics: dict[str, float], *, symbol: str | None = None) -> AnalysisResult:
         scores = self.scores(metrics)
         composite = scores["composite_score"]
-        regime = "High Probability Long" if composite >= 70 else "High Probability Short" if composite <= 30 else "Neutral"
+        regime = (
+            "High Probability Long"
+            if composite >= 70
+            else "High Probability Short"
+            if composite <= 30
+            else "Neutral"
+        )
         return AnalysisResult(
             name="probability",
             symbol=symbol,
@@ -33,7 +45,9 @@ class ProbabilityEngine:
             metrics=metrics,
             scores=scores,
             signals=[regime],
-            recommendations=["Use probability scores as research inputs, not standalone order signals."],
+            recommendations=[
+                "Use probability scores as research inputs, not standalone order signals."
+            ],
         )
 
     def _score(self, value: float) -> float:

@@ -8,7 +8,7 @@ for env_path works correctly.
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -81,9 +81,7 @@ class TestCreateGatewayEventBusForwarding:
                 captured.update(kwargs)
                 return FakeGateway()
 
-        monkeypatch.setattr(
-            "brokers.dhan.factory.BrokerFactory", FakeFactory
-        )
+        monkeypatch.setattr("brokers.dhan.factory.BrokerFactory", FakeFactory)
 
         create_gateway(
             "dhan",
@@ -114,9 +112,7 @@ class TestCreateGatewayEventBusForwarding:
                 captured.update(kwargs)
                 return FakeGateway()
 
-        monkeypatch.setattr(
-            "brokers.upstox.factory.UpstoxBrokerFactory", FakeFactory
-        )
+        monkeypatch.setattr("brokers.upstox.factory.UpstoxBrokerFactory", FakeFactory)
 
         create_gateway(
             "upstox",
@@ -146,9 +142,7 @@ class TestCreateGatewayEventBusForwarding:
                 captured.update(kwargs)
                 return FakeGateway()
 
-        monkeypatch.setattr(
-            "brokers.dhan.factory.BrokerFactory", FakeFactory
-        )
+        monkeypatch.setattr("brokers.dhan.factory.BrokerFactory", FakeFactory)
 
         create_gateway("dhan", env_path=tmp_path / ".env", load_instruments=False)
 
@@ -177,9 +171,7 @@ class TestCreateGatewayLifecycleForwarding:
                 captured.update(kwargs)
                 return FakeGateway()
 
-        monkeypatch.setattr(
-            "brokers.dhan.factory.BrokerFactory", FakeFactory
-        )
+        monkeypatch.setattr("brokers.dhan.factory.BrokerFactory", FakeFactory)
 
         create_gateway(
             "dhan",
@@ -210,9 +202,7 @@ class TestCreateGatewayLifecycleForwarding:
                 captured.update(kwargs)
                 return FakeGateway()
 
-        monkeypatch.setattr(
-            "brokers.upstox.factory.UpstoxBrokerFactory", FakeFactory
-        )
+        monkeypatch.setattr("brokers.upstox.factory.UpstoxBrokerFactory", FakeFactory)
 
         create_gateway(
             "upstox",
@@ -242,9 +232,7 @@ class TestCreateGatewayLifecycleForwarding:
                 captured.update(kwargs)
                 return FakeGateway()
 
-        monkeypatch.setattr(
-            "brokers.dhan.factory.BrokerFactory", FakeFactory
-        )
+        monkeypatch.setattr("brokers.dhan.factory.BrokerFactory", FakeFactory)
 
         create_gateway("dhan", env_path=tmp_path / ".env", load_instruments=False)
 
@@ -272,9 +260,7 @@ class TestCreateGatewayEnvPathConversion:
                 captured.update(kwargs)
                 return FakeGateway()
 
-        monkeypatch.setattr(
-            "brokers.dhan.factory.BrokerFactory", FakeFactory
-        )
+        monkeypatch.setattr("brokers.dhan.factory.BrokerFactory", FakeFactory)
 
         create_gateway("dhan", env_path="/some/path/.env", load_instruments=False)
 
@@ -300,9 +286,7 @@ class TestCreateGatewayEnvPathConversion:
                 captured.update(kwargs)
                 return FakeGateway()
 
-        monkeypatch.setattr(
-            "brokers.dhan.factory.BrokerFactory", FakeFactory
-        )
+        monkeypatch.setattr("brokers.dhan.factory.BrokerFactory", FakeFactory)
 
         create_gateway("dhan", env_path=None, load_instruments=False)
 
@@ -322,9 +306,7 @@ class TestCreateGatewayErrorHandling:
             def create(**kwargs):
                 raise RuntimeError("simulated failure")
 
-        monkeypatch.setattr(
-            "brokers.dhan.factory.BrokerFactory", FailingFactory
-        )
+        monkeypatch.setattr("brokers.dhan.factory.BrokerFactory", FailingFactory)
 
         result = create_gateway("dhan", env_path=tmp_path / ".env")
         assert result is None
@@ -338,9 +320,7 @@ class TestCreateGatewayErrorHandling:
             def create(**kwargs):
                 raise RuntimeError("simulated failure")
 
-        monkeypatch.setattr(
-            "brokers.upstox.factory.UpstoxBrokerFactory", FailingFactory
-        )
+        monkeypatch.setattr("brokers.upstox.factory.UpstoxBrokerFactory", FailingFactory)
 
         result = create_gateway("upstox", env_path=tmp_path / ".env")
         assert result is None

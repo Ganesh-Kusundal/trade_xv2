@@ -1,8 +1,8 @@
 """Integration tests for backtest endpoints wired to real BacktestEngine."""
 
 from __future__ import annotations
-from contextlib import contextmanager
 
+from contextlib import contextmanager
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -10,9 +10,9 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
-from api.main import create_app
 from api.config import APIConfig
 from api.deps import reset_container
+from api.main import create_app
 
 
 def _build_sample_ohlcv(n_bars: int = 200) -> pd.DataFrame:
@@ -22,20 +22,23 @@ def _build_sample_ohlcv(n_bars: int = 200) -> pd.DataFrame:
     base_price = 1500.0
     trend = np.linspace(0, 200, n_bars)
     prices = base_price + trend + 50 * np.sin(t)
-    return pd.DataFrame({
-        "timestamp": dates,
-        "open": prices - 2,
-        "high": prices + 5,
-        "low": prices - 5,
-        "close": prices,
-        "volume": 1000000 + 200000 * np.sin(t),
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": dates,
+            "open": prices - 2,
+            "high": prices + 5,
+            "low": prices - 5,
+            "close": prices,
+            "volume": 1000000 + 200000 * np.sin(t),
+        }
+    )
 
 
 @pytest.fixture
 def isolate_backtest_state():
     """Reset backtest cache and container before each test."""
     import api.routers.backtest as bt_mod
+
     with bt_mod._backtest_cache_lock:
         bt_mod._backtest_cache.clear()
     reset_container()
@@ -62,6 +65,7 @@ class TestBacktestRunRealEngine:
     @pytest.fixture(autouse=True)
     def setup_isolation(self):
         import api.routers.backtest as bt_mod
+
         with bt_mod._backtest_cache_lock:
             bt_mod._backtest_cache.clear()
         reset_container()
@@ -74,7 +78,13 @@ class TestBacktestRunRealEngine:
         with _make_client_with_gateway() as client:
             response = client.post(
                 "/api/v1/backtest/run",
-                json={"symbol": "RELIANCE", "years": 1, "timeframe": "1d", "initial_capital": 100_000, "strategy": "momentum"},
+                json={
+                    "symbol": "RELIANCE",
+                    "years": 1,
+                    "timeframe": "1d",
+                    "initial_capital": 100_000,
+                    "strategy": "momentum",
+                },
             )
             assert response.status_code == 200
             data = response.json()
@@ -90,7 +100,13 @@ class TestBacktestRunRealEngine:
         with _make_client_with_gateway() as client:
             response = client.post(
                 "/api/v1/backtest/run",
-                json={"symbol": "TCS", "years": 1, "timeframe": "1d", "initial_capital": 500_000, "strategy": "breakout"},
+                json={
+                    "symbol": "TCS",
+                    "years": 1,
+                    "timeframe": "1d",
+                    "initial_capital": 500_000,
+                    "strategy": "breakout",
+                },
             )
             assert response.status_code == 200
             assert response.json()["symbol"] == "TCS"
@@ -99,7 +115,13 @@ class TestBacktestRunRealEngine:
         with _make_client_with_gateway() as client:
             response = client.post(
                 "/api/v1/backtest/run",
-                json={"symbol": "RELIANCE", "years": 1, "timeframe": "1d", "initial_capital": 100_000, "strategy": "momentum"},
+                json={
+                    "symbol": "RELIANCE",
+                    "years": 1,
+                    "timeframe": "1d",
+                    "initial_capital": 100_000,
+                    "strategy": "momentum",
+                },
             )
             assert response.status_code == 200
             run_id = response.json()["run_id"]
@@ -111,22 +133,35 @@ class TestBacktestRunRealEngine:
         with _make_client_with_gateway() as client:
             response = client.post(
                 "/api/v1/backtest/run",
-                json={"symbol": "RELIANCE", "years": 1, "timeframe": "1d", "initial_capital": 100_000, "strategy": "unknown_strategy"},
+                json={
+                    "symbol": "RELIANCE",
+                    "years": 1,
+                    "timeframe": "1d",
+                    "initial_capital": 100_000,
+                    "strategy": "unknown_strategy",
+                },
             )
             assert response.status_code == 200
 
     def test_run_backtest_deterministic(self):
         with _make_client_with_gateway() as tc:
-            sample_df = _build_sample_ohlcv(200)
+            _build_sample_ohlcv(200)
             results = []
             for _ in range(2):
                 reset_container()
                 import api.routers.backtest as bt_mod
+
                 with bt_mod._backtest_cache_lock:
                     bt_mod._backtest_cache.clear()
                 resp = tc.post(
                     "/api/v1/backtest/run",
-                    json={"symbol": "RELIANCE", "years": 1, "timeframe": "1d", "initial_capital": 100_000, "strategy": "momentum"},
+                    json={
+                        "symbol": "RELIANCE",
+                        "years": 1,
+                        "timeframe": "1d",
+                        "initial_capital": 100_000,
+                        "strategy": "momentum",
+                    },
                 )
                 assert resp.status_code == 200
                 results.append(resp.json())
@@ -138,6 +173,7 @@ class TestBacktestErrorHandling:
     @pytest.fixture(autouse=True)
     def setup_isolation(self):
         import api.routers.backtest as bt_mod
+
         with bt_mod._backtest_cache_lock:
             bt_mod._backtest_cache.clear()
         reset_container()
@@ -152,16 +188,28 @@ class TestBacktestErrorHandling:
             gateway.history.return_value = pd.DataFrame()
             response = client.post(
                 "/api/v1/backtest/run",
-                json={"symbol": "NOSYMBOL", "years": 1, "timeframe": "1d", "initial_capital": 100_000, "strategy": "momentum"},
+                json={
+                    "symbol": "NOSYMBOL",
+                    "years": 1,
+                    "timeframe": "1d",
+                    "initial_capital": 100_000,
+                    "strategy": "momentum",
+                },
             )
             assert response.status_code == 404
 
     def test_gateway_none_returns_503(self):
+        app = create_app(config=APIConfig(auth_mode="none"), datalake_gateway=None)
         with TestClient(app) as tc:
-            app = create_app(config=APIConfig(auth_mode="none"), datalake_gateway=None)
             response = tc.post(
                 "/api/v1/backtest/run",
-                json={"symbol": "RELIANCE", "years": 1, "timeframe": "1d", "initial_capital": 100_000, "strategy": "momentum"},
+                json={
+                    "symbol": "RELIANCE",
+                    "years": 1,
+                    "timeframe": "1d",
+                    "initial_capital": 100_000,
+                    "strategy": "momentum",
+                },
             )
             assert response.status_code == 503
 
@@ -171,7 +219,13 @@ class TestBacktestErrorHandling:
             gateway.history.side_effect = RuntimeError("Data lake connection failed")
             response = client.post(
                 "/api/v1/backtest/run",
-                json={"symbol": "RELIANCE", "years": 1, "timeframe": "1d", "initial_capital": 100_000, "strategy": "momentum"},
+                json={
+                    "symbol": "RELIANCE",
+                    "years": 1,
+                    "timeframe": "1d",
+                    "initial_capital": 100_000,
+                    "strategy": "momentum",
+                },
             )
             assert response.status_code == 500
 
@@ -190,6 +244,7 @@ class TestBacktestMetricsCorrectness:
     @pytest.fixture(autouse=True)
     def setup_isolation(self):
         import api.routers.backtest as bt_mod
+
         with bt_mod._backtest_cache_lock:
             bt_mod._backtest_cache.clear()
         reset_container()
@@ -202,17 +257,23 @@ class TestBacktestMetricsCorrectness:
         with _make_client_with_gateway() as client:
             response = client.post(
                 "/api/v1/backtest/run",
-                json={"symbol": "RELIANCE", "years": 1, "timeframe": "1d", "initial_capital": 100_000, "strategy": "momentum"},
+                json={
+                    "symbol": "RELIANCE",
+                    "years": 1,
+                    "timeframe": "1d",
+                    "initial_capital": 100_000,
+                    "strategy": "momentum",
+                },
             )
             assert response.status_code == 200
             metrics = response.json()["metrics"]
-            assert isinstance(metrics["total_return_pct"], (int, float))
-            assert isinstance(metrics["annualized_return_pct"], (int, float))
-            assert isinstance(metrics["sharpe_ratio"], (int, float))
-            assert isinstance(metrics["sortino_ratio"], (int, float))
-            assert isinstance(metrics["max_drawdown_pct"], (int, float))
-            assert isinstance(metrics["profit_factor"], (int, float))
-            assert isinstance(metrics["win_rate"], (int, float))
+            assert isinstance(metrics["total_return_pct"], int | float)
+            assert isinstance(metrics["annualized_return_pct"], int | float)
+            assert isinstance(metrics["sharpe_ratio"], int | float)
+            assert isinstance(metrics["sortino_ratio"], int | float)
+            assert isinstance(metrics["max_drawdown_pct"], int | float)
+            assert isinstance(metrics["profit_factor"], int | float)
+            assert isinstance(metrics["win_rate"], int | float)
             assert isinstance(metrics["total_trades"], int)
             assert isinstance(metrics["winning_trades"], int)
             assert isinstance(metrics["losing_trades"], int)
@@ -221,7 +282,13 @@ class TestBacktestMetricsCorrectness:
         with _make_client_with_gateway() as client:
             response = client.post(
                 "/api/v1/backtest/run",
-                json={"symbol": "RELIANCE", "years": 1, "timeframe": "1d", "initial_capital": 100_000, "strategy": "momentum"},
+                json={
+                    "symbol": "RELIANCE",
+                    "years": 1,
+                    "timeframe": "1d",
+                    "initial_capital": 100_000,
+                    "strategy": "momentum",
+                },
             )
             assert response.status_code == 200
             metrics = response.json()["metrics"]
@@ -231,7 +298,13 @@ class TestBacktestMetricsCorrectness:
         with _make_client_with_gateway() as client:
             response = client.post(
                 "/api/v1/backtest/run",
-                json={"symbol": "RELIANCE", "years": 1, "timeframe": "1d", "initial_capital": 100_000, "strategy": "momentum"},
+                json={
+                    "symbol": "RELIANCE",
+                    "years": 1,
+                    "timeframe": "1d",
+                    "initial_capital": 100_000,
+                    "strategy": "momentum",
+                },
             )
             assert response.status_code == 200
             metrics = response.json()["metrics"]
@@ -242,6 +315,7 @@ class TestBacktestValidation:
     @pytest.fixture(autouse=True)
     def setup_isolation(self):
         import api.routers.backtest as bt_mod
+
         with bt_mod._backtest_cache_lock:
             bt_mod._backtest_cache.clear()
         reset_container()
@@ -254,7 +328,13 @@ class TestBacktestValidation:
         with _make_client_with_gateway() as client:
             response = client.post(
                 "/api/v1/backtest/run",
-                json={"symbol": "RELIANCE", "years": 20, "timeframe": "1d", "initial_capital": 100_000, "strategy": "momentum"},
+                json={
+                    "symbol": "RELIANCE",
+                    "years": 20,
+                    "timeframe": "1d",
+                    "initial_capital": 100_000,
+                    "strategy": "momentum",
+                },
             )
             assert response.status_code == 422
 
@@ -262,6 +342,12 @@ class TestBacktestValidation:
         with _make_client_with_gateway() as client:
             response = client.post(
                 "/api/v1/backtest/run",
-                json={"symbol": "RELIANCE", "years": 0, "timeframe": "1d", "initial_capital": 100_000, "strategy": "momentum"},
+                json={
+                    "symbol": "RELIANCE",
+                    "years": 0,
+                    "timeframe": "1d",
+                    "initial_capital": 100_000,
+                    "strategy": "momentum",
+                },
             )
             assert response.status_code == 422

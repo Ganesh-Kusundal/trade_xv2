@@ -43,7 +43,9 @@ def run_replay(args: list[str], console: Console) -> None:
             index += 1
 
     if not file_path:
-        console.print("[yellow]Usage: tradex analytics replay --file ohlcv.csv [--symbol RELIANCE] [--warmup 20] [--slippage 0.01] [--commission 0.0003][/yellow]")
+        console.print(
+            "[yellow]Usage: tradex analytics replay --file ohlcv.csv [--symbol RELIANCE] [--warmup 20] [--slippage 0.01] [--commission 0.0003][/yellow]"
+        )
         return
 
     try:
@@ -81,7 +83,11 @@ def run_replay(args: list[str], console: Console) -> None:
     if session.trades:
         wins = sum(1 for t in session.trades if t.pnl > 0)
         losses = sum(1 for t in session.trades if t.pnl <= 0)
-        console.print(f"[bold]Win Rate:[/bold] {wins/(wins+losses)*100:.1f}%" if (wins + losses) > 0 else "[bold]Win Rate:[/bold] N/A")
+        console.print(
+            f"[bold]Win Rate:[/bold] {wins / (wins + losses) * 100:.1f}%"
+            if (wins + losses) > 0
+            else "[bold]Win Rate:[/bold] N/A"
+        )
         console.print(f"[bold]Total P&L:[/bold] ₹{session.total_pnl:.2f}")
         console.print(f"[bold]Commission:[/bold] ₹{session.total_commission:.2f}")
 
@@ -118,4 +124,6 @@ def run_replay(args: list[str], console: Console) -> None:
         console.print(f"\n[bold]Open Positions:[/bold] {len(session.open_positions)}")
         for p in session.open_positions:
             pnl_style = "green" if p.unrealized_pnl >= 0 else "red"
-            console.print(f"  {p.symbol}: {p.side.value} {p.quantity} @ ₹{p.entry_price:.2f} → ₹{p.current_price:.2f} ([{pnl_style}]₹{p.unrealized_pnl:.2f}[/{pnl_style}])")
+            console.print(
+                f"  {p.symbol}: {p.side.value} {p.quantity} @ ₹{p.entry_price:.2f} → ₹{p.current_price:.2f} ([{pnl_style}]₹{p.unrealized_pnl:.2f}[/{pnl_style}])"
+            )

@@ -3,6 +3,7 @@
 All constants governing retry logic, circuit breaker thresholds, and
 exponential backoff parameters.
 """
+
 from __future__ import annotations
 
 # ── Resilience timing ──────────────────────────────────────────────────────

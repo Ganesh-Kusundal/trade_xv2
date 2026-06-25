@@ -12,7 +12,7 @@ Uses real ReplayEngine with synthetic data for deterministic results.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 import numpy as np
@@ -21,29 +21,23 @@ import pytest
 
 pytestmark = pytest.mark.e2e
 
-from analytics.pipeline.pipeline import FeaturePipeline
-from analytics.pipeline import RSI, ROC, SMA, ATR, Momentum
-from analytics.strategy.pipeline import StrategyPipeline, MomentumStrategy
-from analytics.strategy.models import Signal, SignalType
-from analytics.replay.engine import ReplayEngine
-from analytics.replay.models import (
-    Bar,
+from analytics.pipeline import ATR, ROC, RSI, SMA  # noqa: E402
+from analytics.pipeline.pipeline import FeaturePipeline  # noqa: E402
+from analytics.replay.engine import ReplayEngine  # noqa: E402
+from analytics.replay.models import (  # noqa: E402
     ReplayConfig,
     ReplayResult,
     ReplaySession,
-    SimulatedPosition,
     SimulatedTrade,
-    ReplayMode,
 )
-from analytics.scanner.models import Candidate
-
-from tests.e2e.fixtures.data_generators import (
-    generate_ohlcv_data,
-    generate_trending_data,
+from analytics.scanner.models import Candidate  # noqa: E402
+from analytics.strategy.models import SignalType  # noqa: E402
+from analytics.strategy.pipeline import MomentumStrategy, StrategyPipeline  # noqa: E402
+from tests.e2e.fixtures.data_generators import (  # noqa: E402
     generate_mean_reverting_data,
+    generate_trending_data,
 )
-from tests.e2e.fixtures.trading_context_factory import create_paper_trading_context
-
+from tests.e2e.fixtures.trading_context_factory import create_paper_trading_context  # noqa: E402
 
 # ── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -169,12 +163,14 @@ class TestStrategySignalGeneration:
 
     def test_momentum_strategy_generates_buy_on_oversold(self):
         """MomentumStrategy should BUY when RSI < oversold and ROC > 0."""
-        features = pd.DataFrame({
-            "rsi": [30.0],
-            "roc": [2.0],
-            "close": [100.0],
-            "atr": [1.0],
-        })
+        features = pd.DataFrame(
+            {
+                "rsi": [30.0],
+                "roc": [2.0],
+                "close": [100.0],
+                "atr": [1.0],
+            }
+        )
         candidate = Candidate(symbol="TEST", score=50.0)
 
         strategy = MomentumStrategy(rsi_oversold=35)
@@ -185,12 +181,14 @@ class TestStrategySignalGeneration:
 
     def test_momentum_strategy_generates_sell_on_overbought(self):
         """MomentumStrategy should SELL when RSI > overbought and ROC < 0."""
-        features = pd.DataFrame({
-            "rsi": [75.0],
-            "roc": [-2.0],
-            "close": [100.0],
-            "atr": [1.0],
-        })
+        features = pd.DataFrame(
+            {
+                "rsi": [75.0],
+                "roc": [-2.0],
+                "close": [100.0],
+                "atr": [1.0],
+            }
+        )
         candidate = Candidate(symbol="TEST", score=50.0)
 
         strategy = MomentumStrategy(rsi_overbought=70)
@@ -201,12 +199,14 @@ class TestStrategySignalGeneration:
 
     def test_momentum_strategy_holds_in_neutral(self):
         """MomentumStrategy should HOLD when no conditions met."""
-        features = pd.DataFrame({
-            "rsi": [50.0],
-            "roc": [0.0],
-            "close": [100.0],
-            "atr": [1.0],
-        })
+        features = pd.DataFrame(
+            {
+                "rsi": [50.0],
+                "roc": [0.0],
+                "close": [100.0],
+                "atr": [1.0],
+            }
+        )
         candidate = Candidate(symbol="TEST", score=50.0)
 
         strategy = MomentumStrategy()
@@ -217,12 +217,14 @@ class TestStrategySignalGeneration:
 
     def test_signal_includes_entry_stop_target(self):
         """Signals should include entry, stop-loss, and target prices."""
-        features = pd.DataFrame({
-            "rsi": [30.0],
-            "roc": [2.0],
-            "close": [100.0],
-            "atr": [2.0],
-        })
+        features = pd.DataFrame(
+            {
+                "rsi": [30.0],
+                "roc": [2.0],
+                "close": [100.0],
+                "atr": [2.0],
+            }
+        )
         candidate = Candidate(symbol="TEST", score=50.0)
 
         strategy = MomentumStrategy()
@@ -244,13 +246,19 @@ class TestTradeExecution:
         """BUY signal should open a long position."""
         # Create data that will trigger a buy early
         data = generate_mean_reverting_data(
-            n_bars=100, start_price=80.0, symbol="TEST",
-            mean=100.0, reversion_speed=0.1, seed=42,
+            n_bars=100,
+            start_price=80.0,
+            symbol="TEST",
+            mean=100.0,
+            reversion_speed=0.1,
+            seed=42,
         )
 
         config = ReplayConfig(
-            warmup_bars=20, initial_capital=100000,
-            max_position_pct=100.0, slippage_pct=0.0,
+            warmup_bars=20,
+            initial_capital=100000,
+            max_position_pct=100.0,
+            slippage_pct=0.0,
         )
         engine = ReplayEngine(
             pipeline=basic_pipeline,
@@ -269,13 +277,19 @@ class TestTradeExecution:
     def test_sell_closes_position(self, basic_pipeline, momentum_strategy):
         """SELL signal should close an open position."""
         data = generate_mean_reverting_data(
-            n_bars=200, start_price=120.0, symbol="TEST",
-            mean=100.0, reversion_speed=0.03, seed=42,
+            n_bars=200,
+            start_price=120.0,
+            symbol="TEST",
+            mean=100.0,
+            reversion_speed=0.03,
+            seed=42,
         )
 
         config = ReplayConfig(
-            warmup_bars=20, initial_capital=100000,
-            max_position_pct=100.0, slippage_pct=0.0,
+            warmup_bars=20,
+            initial_capital=100000,
+            max_position_pct=100.0,
+            slippage_pct=0.0,
         )
         engine = ReplayEngine(
             pipeline=basic_pipeline,
@@ -295,12 +309,16 @@ class TestTradeExecution:
         data = generate_trending_data(n_bars=100, symbol="TEST", seed=42)
 
         config_no_slip = ReplayConfig(
-            warmup_bars=20, initial_capital=100000,
-            max_position_pct=100.0, slippage_pct=0.0,
+            warmup_bars=20,
+            initial_capital=100000,
+            max_position_pct=100.0,
+            slippage_pct=0.0,
         )
         config_with_slip = ReplayConfig(
-            warmup_bars=20, initial_capital=100000,
-            max_position_pct=100.0, slippage_pct=0.1,  # 0.1% slippage
+            warmup_bars=20,
+            initial_capital=100000,
+            max_position_pct=100.0,
+            slippage_pct=0.1,  # 0.1% slippage
         )
 
         engine_no_slip = ReplayEngine(
@@ -326,8 +344,10 @@ class TestTradeExecution:
         data = generate_trending_data(n_bars=100, symbol="TEST", seed=42)
 
         config = ReplayConfig(
-            warmup_bars=20, initial_capital=100000,
-            max_position_pct=100.0, slippage_pct=0.0,
+            warmup_bars=20,
+            initial_capital=100000,
+            max_position_pct=100.0,
+            slippage_pct=0.0,
             commission_flat=10.0,  # ₹10 per trade
         )
         engine = ReplayEngine(
@@ -355,13 +375,37 @@ class TestBacktestMetrics:
         """Win rate should be wins / total trades."""
         session = ReplaySession(capital=100000)
         session.trades = [
-            SimulatedTrade(symbol="A", side="BUY", entry_price=100, exit_price=110, quantity=10, pnl=100, pnl_pct=10),
-            SimulatedTrade(symbol="B", side="BUY", entry_price=100, exit_price=90, quantity=10, pnl=-100, pnl_pct=-10),
-            SimulatedTrade(symbol="C", side="BUY", entry_price=100, exit_price=120, quantity=10, pnl=200, pnl_pct=20),
+            SimulatedTrade(
+                symbol="A",
+                side="BUY",
+                entry_price=100,
+                exit_price=110,
+                quantity=10,
+                pnl=100,
+                pnl_pct=10,
+            ),
+            SimulatedTrade(
+                symbol="B",
+                side="BUY",
+                entry_price=100,
+                exit_price=90,
+                quantity=10,
+                pnl=-100,
+                pnl_pct=-10,
+            ),
+            SimulatedTrade(
+                symbol="C",
+                side="BUY",
+                entry_price=100,
+                exit_price=120,
+                quantity=10,
+                pnl=200,
+                pnl_pct=20,
+            ),
         ]
         result = ReplayResult(session=session, bars_processed=100, signals_generated=10)
 
-        assert result.session.win_rate == pytest.approx(2/3, abs=0.01)
+        assert result.session.win_rate == pytest.approx(2 / 3, abs=0.01)
 
     def test_max_drawdown_calculation(self):
         """Max drawdown should be calculated from equity curve."""
@@ -369,7 +413,7 @@ class TestBacktestMetrics:
         session.equity_curve = [
             (datetime(2026, 1, 1), 100000),
             (datetime(2026, 1, 2), 105000),  # peak
-            (datetime(2026, 1, 3), 95000),   # drawdown: (105000-95000)/105000
+            (datetime(2026, 1, 3), 95000),  # drawdown: (105000-95000)/105000
             (datetime(2026, 1, 4), 110000),  # new peak
             (datetime(2026, 1, 5), 100000),  # drawdown: (110000-100000)/110000
         ]
@@ -383,7 +427,9 @@ class TestBacktestMetrics:
         session = ReplaySession(capital=100000)
         # Create equity curve with positive returns
         equities = [100000 + i * 100 for i in range(50)]
-        session.equity_curve = [(datetime(2026, 1, 1) + timedelta(days=i), eq) for i, eq in enumerate(equities)]
+        session.equity_curve = [
+            (datetime(2026, 1, 1) + timedelta(days=i), eq) for i, eq in enumerate(equities)
+        ]
         result = ReplayResult(session=session, bars_processed=100, signals_generated=10)
 
         sharpe = result.sharpe_ratio
@@ -416,9 +462,14 @@ class TestBacktestMetrics:
 
         summary = result.summary
         expected_keys = [
-            "bars_processed", "signals_generated", "total_trades",
-            "win_rate", "final_equity", "total_return_pct",
-            "max_drawdown_pct", "sharpe_ratio",
+            "bars_processed",
+            "signals_generated",
+            "total_trades",
+            "win_rate",
+            "final_equity",
+            "total_return_pct",
+            "max_drawdown_pct",
+            "sharpe_ratio",
         ]
         for key in expected_keys:
             assert key in summary
@@ -426,15 +477,17 @@ class TestBacktestMetrics:
     def test_no_trades_yields_zero_metrics(self, basic_pipeline, momentum_strategy):
         """If no trades execute, metrics should be zero."""
         # Create data that won't trigger signals
-        data = pd.DataFrame({
-            "timestamp": [datetime(2026, 1, 1) + timedelta(days=i) for i in range(50)],
-            "open": [100.0] * 50,
-            "high": [101.0] * 50,
-            "low": [99.0] * 50,
-            "close": [100.0] * 50,
-            "volume": [10000.0] * 50,
-            "symbol": ["FLAT"] * 50,
-        })
+        data = pd.DataFrame(
+            {
+                "timestamp": [datetime(2026, 1, 1) + timedelta(days=i) for i in range(50)],
+                "open": [100.0] * 50,
+                "high": [101.0] * 50,
+                "low": [99.0] * 50,
+                "close": [100.0] * 50,
+                "volume": [10000.0] * 50,
+                "symbol": ["FLAT"] * 50,
+            }
+        )
 
         config = ReplayConfig(warmup_bars=45, initial_capital=100000)
         engine = ReplayEngine(
@@ -457,13 +510,19 @@ class TestIntraBarStopTarget:
     def test_stop_loss_triggered_on_low(self, basic_pipeline, momentum_strategy):
         """Stop-loss should trigger when bar low hits stop level."""
         data = generate_mean_reverting_data(
-            n_bars=100, start_price=80.0, symbol="TEST",
-            mean=100.0, reversion_speed=0.1, seed=42,
+            n_bars=100,
+            start_price=80.0,
+            symbol="TEST",
+            mean=100.0,
+            reversion_speed=0.1,
+            seed=42,
         )
 
         config = ReplayConfig(
-            warmup_bars=20, initial_capital=100000,
-            max_position_pct=100.0, slippage_pct=0.0,
+            warmup_bars=20,
+            initial_capital=100000,
+            max_position_pct=100.0,
+            slippage_pct=0.0,
         )
         engine = ReplayEngine(
             pipeline=basic_pipeline,
@@ -478,13 +537,18 @@ class TestIntraBarStopTarget:
     def test_target_triggered_on_high(self, basic_pipeline, momentum_strategy):
         """Target should trigger when bar high hits target level."""
         data = generate_trending_data(
-            n_bars=100, start_price=100.0, symbol="TEST",
-            trend_strength=0.005, seed=42,
+            n_bars=100,
+            start_price=100.0,
+            symbol="TEST",
+            trend_strength=0.005,
+            seed=42,
         )
 
         config = ReplayConfig(
-            warmup_bars=20, initial_capital=100000,
-            max_position_pct=100.0, slippage_pct=0.0,
+            warmup_bars=20,
+            initial_capital=100000,
+            max_position_pct=100.0,
+            slippage_pct=0.0,
         )
         engine = ReplayEngine(
             pipeline=basic_pipeline,
@@ -498,13 +562,18 @@ class TestIntraBarStopTarget:
     def test_position_closed_at_end_of_replay(self, basic_pipeline, momentum_strategy):
         """Open positions should be closed at end of replay."""
         data = generate_trending_data(
-            n_bars=100, start_price=80.0, symbol="TEST",
-            trend_strength=0.01, seed=42,
+            n_bars=100,
+            start_price=80.0,
+            symbol="TEST",
+            trend_strength=0.01,
+            seed=42,
         )
 
         config = ReplayConfig(
-            warmup_bars=20, initial_capital=100000,
-            max_position_pct=100.0, slippage_pct=0.0,
+            warmup_bars=20,
+            initial_capital=100000,
+            max_position_pct=100.0,
+            slippage_pct=0.0,
         )
         engine = ReplayEngine(
             pipeline=basic_pipeline,
@@ -527,8 +596,11 @@ class TestOMSIntegration:
     def test_replay_with_trading_context(self, tmp_path, basic_pipeline, momentum_strategy):
         """Replay with TradingContext should route through OMS."""
         data = generate_trending_data(
-            n_bars=100, start_price=100.0, symbol="TEST",
-            trend_strength=0.005, seed=42,
+            n_bars=100,
+            start_price=100.0,
+            symbol="TEST",
+            trend_strength=0.005,
+            seed=42,
         )
 
         ctx = create_paper_trading_context(
@@ -537,8 +609,10 @@ class TestOMSIntegration:
         )
 
         config = ReplayConfig(
-            warmup_bars=20, initial_capital=100000,
-            max_position_pct=100.0, slippage_pct=0.0,
+            warmup_bars=20,
+            initial_capital=100000,
+            max_position_pct=100.0,
+            slippage_pct=0.0,
         )
         engine = ReplayEngine(
             pipeline=basic_pipeline,
@@ -557,13 +631,18 @@ class TestOMSIntegration:
     def test_replay_without_trading_context_uses_simulated(self, basic_pipeline, momentum_strategy):
         """Replay without TradingContext should use simulated positions."""
         data = generate_trending_data(
-            n_bars=100, start_price=100.0, symbol="TEST",
-            trend_strength=0.005, seed=42,
+            n_bars=100,
+            start_price=100.0,
+            symbol="TEST",
+            trend_strength=0.005,
+            seed=42,
         )
 
         config = ReplayConfig(
-            warmup_bars=20, initial_capital=100000,
-            max_position_pct=100.0, slippage_pct=0.0,
+            warmup_bars=20,
+            initial_capital=100000,
+            max_position_pct=100.0,
+            slippage_pct=0.0,
         )
         engine = ReplayEngine(
             pipeline=basic_pipeline,
@@ -588,7 +667,7 @@ class TestDeterminism:
         """Same data + same config should produce identical results."""
         data = generate_trending_data(n_bars=100, symbol="TEST", seed=42)
         config = ReplayConfig(warmup_bars=20, initial_capital=100000, slippage_pct=0.05)
-        
+
         engine1 = ReplayEngine(
             pipeline=basic_pipeline,
             strategy_pipeline=StrategyPipeline(strategies=[momentum_strategy]),
@@ -616,23 +695,30 @@ class TestDeterminism:
 class TestBacktestVsLiveParity:
     """Tests: Backtest results match live trading for identical inputs."""
 
-    def test_oms_position_matches_replay_position(self, tmp_path, basic_pipeline, momentum_strategy):
+    def test_oms_position_matches_replay_position(
+        self, tmp_path, basic_pipeline, momentum_strategy
+    ):
         """Position opened in replay should match OMS position."""
         data = generate_trending_data(
-            n_bars=100, start_price=100.0, symbol="TEST",
-            trend_strength=0.01, seed=42,
+            n_bars=100,
+            start_price=100.0,
+            symbol="TEST",
+            trend_strength=0.01,
+            seed=42,
         )
-        
+
         # Create TradingContext for OMS integration
         ctx = create_paper_trading_context(
             capital=Decimal("100000"),
             max_position_pct=Decimal("100"),
             events_dir=tmp_path / "events-parity",
         )
-        
+
         config = ReplayConfig(
-            warmup_bars=20, initial_capital=100000,
-            max_position_pct=100.0, slippage_pct=0.0,
+            warmup_bars=20,
+            initial_capital=100000,
+            max_position_pct=100.0,
+            slippage_pct=0.0,
         )
         engine = ReplayEngine(
             pipeline=basic_pipeline,
@@ -640,9 +726,9 @@ class TestBacktestVsLiveParity:
             config=config,
             trading_context=ctx,
         )
-        
+
         result = engine.run(data, symbol="TEST")
-        
+
         # If trades occurred, verify OMS tracked them
         if result.session.trades:
             oms_positions = ctx.position_manager.get_positions()
@@ -653,19 +739,25 @@ class TestBacktestVsLiveParity:
     def test_replay_pnl_matches_oms_pnl(self, tmp_path, basic_pipeline, momentum_strategy):
         """PnL calculated in replay should match OMS PnL."""
         data = generate_mean_reverting_data(
-            n_bars=150, start_price=100.0, symbol="TEST",
-            mean=100.0, reversion_speed=0.05, seed=42,
+            n_bars=150,
+            start_price=100.0,
+            symbol="TEST",
+            mean=100.0,
+            reversion_speed=0.05,
+            seed=42,
         )
-        
+
         ctx = create_paper_trading_context(
             capital=Decimal("100000"),
             max_position_pct=Decimal("100"),
             events_dir=tmp_path / "events-pnl-parity",
         )
-        
+
         config = ReplayConfig(
-            warmup_bars=20, initial_capital=100000,
-            max_position_pct=100.0, slippage_pct=0.0,
+            warmup_bars=20,
+            initial_capital=100000,
+            max_position_pct=100.0,
+            slippage_pct=0.0,
         )
         engine = ReplayEngine(
             pipeline=basic_pipeline,
@@ -673,16 +765,16 @@ class TestBacktestVsLiveParity:
             config=config,
             trading_context=ctx,
         )
-        
+
         result = engine.run(data, symbol="TEST")
-        
+
         # Compare PnL
         replay_pnl = result.session.capital - result.config.initial_capital
-        
+
         # OMS should track the same PnL
         oms_balance = ctx.risk_manager.capital_fn()
         oms_pnl = oms_balance - Decimal("100000")
-        
+
         # Should match (within floating point tolerance)
         if result.session.trades:
             assert abs(replay_pnl - float(oms_pnl)) < 1.0  # Within ₹1
@@ -690,11 +782,13 @@ class TestBacktestVsLiveParity:
     def test_commission_consistency_across_modes(self, basic_pipeline, momentum_strategy):
         """Commission should be applied identically in replay and OMS."""
         data = generate_trending_data(n_bars=100, symbol="TEST", seed=42)
-        
+
         # Replay with commission
         config = ReplayConfig(
-            warmup_bars=20, initial_capital=100000,
-            max_position_pct=100.0, slippage_pct=0.0,
+            warmup_bars=20,
+            initial_capital=100000,
+            max_position_pct=100.0,
+            slippage_pct=0.0,
             commission_flat=10.0,
         )
         engine = ReplayEngine(
@@ -702,13 +796,17 @@ class TestBacktestVsLiveParity:
             strategy_pipeline=StrategyPipeline(strategies=[momentum_strategy]),
             config=config,
         )
-        
+
         result = engine.run(data, symbol="TEST")
-        
+
         # If trades occurred, verify commission was deducted
         if result.session.trades:
-            expected_commission = len(result.session.trades) * 10.0
-            actual_commission = result.config.initial_capital - result.session.capital + result.session.position_value
+            len(result.session.trades) * 10.0
+            actual_commission = (
+                result.config.initial_capital
+                - result.session.capital
+                + result.session.position_value
+            )
             # Commission should be deducted
             assert actual_commission > 0
 
@@ -723,12 +821,14 @@ class TestMultiSymbolBacktestParity:
         """Replay with multiple symbols should track each independently."""
         # Generate data for 3 symbols
         data_rel = generate_trending_data(n_bars=100, symbol="RELIANCE", seed=42)
-        data_tcs = generate_mean_reverting_data(n_bars=100, start_price=100.0, symbol="TCS", seed=43)
+        data_tcs = generate_mean_reverting_data(
+            n_bars=100, start_price=100.0, symbol="TCS", seed=43
+        )
         data_hdfc = generate_trending_data(n_bars=100, symbol="HDFCBANK", seed=44)
-        
+
         # Run separate replays for each symbol
         config = ReplayConfig(warmup_bars=20, initial_capital=100000)
-        
+
         results = {}
         for sym, data in [("RELIANCE", data_rel), ("TCS", data_tcs), ("HDFCBANK", data_hdfc)]:
             engine = ReplayEngine(
@@ -737,9 +837,9 @@ class TestMultiSymbolBacktestParity:
                 config=config,
             )
             results[sym] = engine.run(data, symbol=sym)
-        
+
         # Each symbol should have independent results
-        for sym, result in results.items():
+        for _sym, result in results.items():
             assert result.bars_processed == 100
             assert isinstance(result.session.trades, list)
 
@@ -747,11 +847,11 @@ class TestMultiSymbolBacktestParity:
         """Portfolio PnL should equal sum of individual symbol PnLs."""
         symbols_data = {}
         results = {}
-        
+
         for i, sym in enumerate(["RELIANCE", "TCS", "HDFCBANK"]):
-            data = generate_trending_data(n_bars=100, symbol=sym, seed=40+i)
+            data = generate_trending_data(n_bars=100, symbol=sym, seed=40 + i)
             symbols_data[sym] = data
-            
+
             config = ReplayConfig(warmup_bars=20, initial_capital=33333.33)
             engine = ReplayEngine(
                 pipeline=basic_pipeline,
@@ -759,13 +859,12 @@ class TestMultiSymbolBacktestParity:
                 config=config,
             )
             results[sym] = engine.run(data, symbol=sym)
-        
+
         # Sum individual PnLs
         individual_pnls = sum(
-            result.final_equity - result.config.initial_capital
-            for result in results.values()
+            result.final_equity - result.config.initial_capital for result in results.values()
         )
-        
+
         # This test documents current behavior
         # Production systems may aggregate differently
         assert isinstance(individual_pnls, float)
@@ -781,16 +880,16 @@ class TestReplayEdgeCases:
         """Replay should handle large datasets without memory issues."""
         # Generate 10,000 bars (stress test)
         data = generate_trending_data(n_bars=10000, symbol="LARGE", seed=42)
-        
+
         config = ReplayConfig(warmup_bars=100, initial_capital=100000)
         engine = ReplayEngine(
             pipeline=basic_pipeline,
             strategy_pipeline=StrategyPipeline(strategies=[momentum_strategy]),
             config=config,
         )
-        
+
         result = engine.run(data, symbol="LARGE")
-        
+
         assert result.bars_processed == 10000
         assert isinstance(result, ReplayResult)
 
@@ -799,48 +898,50 @@ class TestReplayEdgeCases:
         # Create data with gaps
         timestamps = []
         current = datetime(2026, 1, 1)
-        for i in range(50):
+        for _i in range(50):
             timestamps.append(current)
             # Skip weekends
             current += timedelta(days=1)
             while current.weekday() >= 5:  # Skip Sat, Sun
                 current += timedelta(days=1)
-        
-        data = pd.DataFrame({
-            "timestamp": timestamps,
-            "open": [100.0 + i * 0.5 for i in range(50)],
-            "high": [101.0 + i * 0.5 for i in range(50)],
-            "low": [99.5 + i * 0.5 for i in range(50)],
-            "close": [100.5 + i * 0.5 for i in range(50)],
-            "volume": [10000.0] * 50,
-            "symbol": ["GAPY"] * 50,
-        })
-        
+
+        data = pd.DataFrame(
+            {
+                "timestamp": timestamps,
+                "open": [100.0 + i * 0.5 for i in range(50)],
+                "high": [101.0 + i * 0.5 for i in range(50)],
+                "low": [99.5 + i * 0.5 for i in range(50)],
+                "close": [100.5 + i * 0.5 for i in range(50)],
+                "volume": [10000.0] * 50,
+                "symbol": ["GAPY"] * 50,
+            }
+        )
+
         config = ReplayConfig(warmup_bars=20, initial_capital=100000)
         engine = ReplayEngine(
             pipeline=basic_pipeline,
             strategy_pipeline=StrategyPipeline(strategies=[momentum_strategy]),
             config=config,
         )
-        
+
         result = engine.run(data, symbol="GAPY")
         assert result.bars_processed == 50
 
     def test_replay_with_missing_values(self, basic_pipeline, momentum_strategy):
         """Replay should handle NaN values gracefully."""
         data = generate_trending_data(n_bars=100, symbol="NAN", seed=42)
-        
+
         # Introduce some NaN values
         data.loc[10, "close"] = np.nan
         data.loc[20, "volume"] = np.nan
-        
+
         config = ReplayConfig(warmup_bars=20, initial_capital=100000)
         engine = ReplayEngine(
             pipeline=basic_pipeline,
             strategy_pipeline=StrategyPipeline(strategies=[momentum_strategy]),
             config=config,
         )
-        
+
         # Should not crash - should handle NaN gracefully
         try:
             result = engine.run(data, symbol="NAN")
@@ -853,13 +954,13 @@ class TestReplayEdgeCases:
         """Replay should handle zero volume bars."""
         data = generate_trending_data(n_bars=100, symbol="ZEROVOL", seed=42)
         data.loc[10:15, "volume"] = 0.0
-        
+
         config = ReplayConfig(warmup_bars=20, initial_capital=100000)
         engine = ReplayEngine(
             pipeline=basic_pipeline,
             strategy_pipeline=StrategyPipeline(strategies=[momentum_strategy]),
             config=config,
         )
-        
+
         result = engine.run(data, symbol="ZEROVOL")
         assert result.bars_processed == 100

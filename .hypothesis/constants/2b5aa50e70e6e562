@@ -1,4 +1,0 @@
-# file: /workspaces/trade_xv2/cli/commands/compare.py
-# hypothesis_version: 6.155.7
-
-[1000, '-', '.env.local', '.env.upstox', '1D', '401', 'Ask', 'Bid', 'Broker', 'Dhan', 'ERROR', 'End', 'LTP', 'Latency', 'N/A', 'Rows', 'Start', 'TCS', 'Upstox', 'Volume', 'ask', 'auth', 'bid', 'bold', 'cyan', 'dhan', 'history', 'ltp', 'quote', 'right', 'timestamp', 'token expired', 'upstox']

@@ -1,4 +1,4 @@
-# file: /workspaces/trade_xv2/cli/commands/account.py
+# file: /Users/apple/Downloads/Trade_XV2/cli/commands/account.py
 # hypothesis_version: 6.155.7
 
 ['Available Balance', 'Collateral Amount', 'Metric', 'Realized Day PnL', 'SOD Limit / Equity', 'Total Day PnL', 'Unrealized Day PnL', 'Utilized Amount', 'Value', 'Withdrawable Balance', 'bold magenta', 'bold white', 'right']

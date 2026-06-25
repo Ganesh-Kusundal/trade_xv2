@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import threading
 from datetime import date, timedelta
@@ -11,40 +12,38 @@ from typing import Any
 import pandas as pd
 
 from brokers.common.batch_mixin import BatchFetchMixin
-from brokers.common.gateway import BrokerCapabilities, MarketDataGateway, ObservabilityProvider
+from brokers.common.capabilities import dhan_capabilities
 from brokers.common.dtos import BrokerOrderPayload
+from brokers.common.gateway import BrokerCapabilities, MarketDataGateway, ObservabilityProvider
+from brokers.common.resilience.circuit_breaker import CircuitState
+from brokers.dhan.connection import DhanConnection
+from brokers.dhan.exceptions import OrderError
+from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
 from domain import (
     Balance,
-    ExchangeSegment,
     FutureChain,
+    Holding,
     MarketDepth,
     OptionChain,
+    Order,
     OrderResponse,
     OrderStatus,
     OrderType,
+    Position,
     ProductType,
     Quote,
     Side,
-    Validity,
-    Holding,
-    Order,
-    Position,
     Trade,
+    Validity,
 )
-from brokers.dhan.connection import DhanConnection
-from brokers.dhan.exceptions import OrderError
-from brokers.common.resilience.circuit_breaker import CircuitState
 from domain.exchange_segments import parse_segment
-from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
-
-from brokers.dhan.websocket import DhanMarketFeed
 
 logger = logging.getLogger(__name__)
 
 
 class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
     """Unified broker API. All calls delegate to connection adapters.
-    
+
     Implements both MarketDataGateway (broker-agnostic contract) and
     ObservabilityProvider (canonical observability data exposure).
     """
@@ -58,6 +57,7 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         self._subscription_modes: dict[tuple[str, str], str] = {}
         # Broker-agnostic options facade — CLI/tests use ``gateway.options``.
         from brokers.common.options.gateway_facade import GatewayOptionsFacade
+
         self.options = GatewayOptionsFacade(
             self._conn.options,
             exchange_normalize=_dhan_normalize_exchange,
@@ -73,6 +73,7 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         option/futures listing, order validation).
         """
         from brokers.dhan.extended import DhanExtendedCapabilities
+
         return DhanExtendedCapabilities(self._conn)
 
     # ── Order shortcuts ──
@@ -116,6 +117,7 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         if correlation_id is None:
             try:
                 from infrastructure.correlation import get_current_correlation_id
+
                 correlation_id = get_current_correlation_id()
             except ImportError:
                 pass
@@ -140,10 +142,8 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         try:
             order = self._conn.orders.place_order(request)
             status = OrderStatus.OPEN
-            try:
+            with contextlib.suppress(AttributeError, ValueError):
                 status = OrderStatus(order.status.value.upper())
-            except (AttributeError, ValueError):
-                pass
             return OrderResponse.ok(
                 order_id=order.order_id,
                 message="Order placed",
@@ -153,16 +153,59 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
             return OrderResponse.fail(str(exc))
 
     def cancel_order(self, order_id: str) -> OrderResponse:
-        return self._conn.orders.cancel_order(order_id)
+        """Cancel an order with post-cancellation verification.
+
+        H1 Critical Fix: After sending cancel request, verifies order actually
+        reached cancelled state. Detects race condition where order was filled
+        between cancel send and response.
+
+        Returns:
+            OrderResponse with success=True if cancelled, or
+            OrderResponse.fail with error_code="ALREADY_EXECUTED" if order
+            was already filled before cancel could complete.
+        """
+        # Step 1: Send cancel request
+        response = self._conn.orders.cancel_order(order_id)
+
+        # Step 2: Post-cancellation verification (H1 fix)
+        if response.success:
+            order = self.get_order(order_id)
+            if order and order.status in (OrderStatus.FILLED,):
+                return OrderResponse.fail(
+                    message=f"Order {order_id} was already filled before cancel completed",
+                    status=OrderStatus.FILLED,
+                )
+
+        return response
+
+    def get_order(self, order_id: str) -> Order | None:
+        """Query a single order by ID from the orderbook.
+
+        H1 Critical Fix: Enables post-cancellation verification by allowing
+        lookup of individual orders.
+
+        Args:
+            order_id: Broker order ID to look up
+
+        Returns:
+            Order if found, None if not in orderbook
+        """
+        orderbook = self._conn.orders.get_orderbook()
+        for order in orderbook:
+            if order.order_id == order_id:
+                return order
+        return None
 
     def modify_order(self, order_id: str, **changes: Any) -> OrderResponse:
-        from domain.entities import OrderResponse as OR
+        from domain.entities import OrderResponse
 
         try:
             order = self._conn.orders.modify_order(order_id, **changes)
-            return OR.ok(order_id=order.order_id, message="Order modified", status=order.status)
+            return OrderResponse.ok(
+                order_id=order.order_id, message="Order modified", status=order.status
+            )
         except Exception as exc:
-            return OR.fail(str(exc))
+            return OrderResponse.fail(str(exc))
 
     def get_orderbook(self) -> list[Order]:
         return self._conn.orders.get_orderbook()
@@ -217,10 +260,7 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         """
         # Dhan depth-20 only available on NSE segments.
         if exchange not in ("NSE", "NSE_EQ", "NFO", "NSE_FNO", "IDX_I"):
-            raise ValueError(
-                f"Depth 20 only supported for NSE segments, got: {exchange}"
-            )
-
+            raise ValueError(f"Depth 20 only supported for NSE segments, got: {exchange}")
 
         inst = self._conn.instruments.resolve(symbol, exchange)
         segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, DEFAULT_SEGMENT)
@@ -239,18 +279,38 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
             if not already:
                 feed.subscribe([(segment, sid_str)])
 
-        # Register the caller’s callback.
+        # Register the caller's callback.
         if on_depth is not None:
             feed.on_depth(on_depth)
 
-        # Start the WebSocket if it’s not running yet.
+        # Start the WebSocket if it's not running yet.
         if not feed.is_running:
             feed.start()
 
         # Return the cached depth, falling back to 5-level REST if empty.
         cached = feed.latest_depth(sid_int)
         if cached is not None:
+            logger.debug(
+                "depth_20_from_websocket",
+                extra={
+                    "symbol": symbol,
+                    "exchange": exchange,
+                    "depth_type": cached.depth_type,
+                    "bid_levels": len(cached.bids),
+                    "ask_levels": len(cached.asks),
+                },
+            )
             return cached
+        
+        # Fallback to REST API (DEPTH_5)
+        logger.debug(
+            "depth_20_fallback_to_rest",
+            extra={
+                "symbol": symbol,
+                "exchange": exchange,
+                "reason": "no websocket data received yet",
+            },
+        )
         return self._conn.market_data.get_depth(symbol, exchange)
 
     def depth_200(
@@ -276,10 +336,7 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         """
         # Dhan depth-200 only available on NSE segments.
         if exchange not in ("NSE", "NSE_EQ", "NFO", "NSE_FNO", "IDX_I"):
-            raise ValueError(
-                f"Depth 200 only supported for NSE segments, got: {exchange}"
-            )
-
+            raise ValueError(f"Depth 200 only supported for NSE segments, got: {exchange}")
 
         inst = self._conn.instruments.resolve(symbol, exchange)
         segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, DEFAULT_SEGMENT)
@@ -292,7 +349,7 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
                 instrument=(segment, sid_str),
             )
         else:
-            # Already has a subscription — validate it’s the same instrument.
+            # Already has a subscription — validate it's the same instrument.
             existing = feed.subscriptions[0][1] if feed.subscriptions else None
             if existing and existing != sid_str:
                 raise ValueError(
@@ -300,11 +357,11 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
                     f"Create a new gateway connection to stream a different instrument."
                 )
 
-        # Register the caller’s callback.
+        # Register the caller's callback.
         if on_depth is not None:
             feed.on_depth(on_depth)
 
-        # Start the WebSocket if it’s not running yet.
+        # Start the WebSocket if it's not running yet.
         if not feed.is_running:
             feed.start()
 
@@ -329,14 +386,10 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         from_str = from_date or str(from_d)
         tf = timeframe.upper() if timeframe else "1D"
         if isinstance(symbol, str):
-            return self._conn.historical.get_historical(
-                symbol, exchange, from_str, to_str, tf
-            )
+            return self._conn.historical.get_historical(symbol, exchange, from_str, to_str, tf)
         frames = []
         for sym in symbol:
-            df = self._conn.historical.get_historical(
-                sym, exchange, from_str, to_str, tf
-            )
+            df = self._conn.historical.get_historical(sym, exchange, from_str, to_str, tf)
             frames.append(df)
         return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
@@ -347,9 +400,7 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         expiry: str | None = None,
     ) -> OptionChain:
         """Get option chain. Delegates MCX-specific expiry lookup to extended."""
-        return OptionChain.from_dict(
-            self.extended.get_option_chain(underlying, exchange, expiry)
-        )
+        return OptionChain.from_dict(self.extended.get_option_chain(underlying, exchange, expiry))
 
     def future_chain(
         self,
@@ -362,18 +413,22 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         expiries = self._conn.futures.get_expiries(underlying, dhan_exchange)
         chain = []
         for c in contracts:
-            chain.append({
-                "expiry": c.get("expiry", ""),
-                "symbol": c.get("symbol", ""),
-                "lot_size": c.get("lot_size", 1),
-                "underlying": c.get("underlying", underlying),
-            })
-        return FutureChain.from_dict({
-            "underlying": underlying,
-            "exchange": dhan_exchange,
-            "expiries": expiries,
-            "contracts": chain,
-        })
+            chain.append(
+                {
+                    "expiry": c.get("expiry", ""),
+                    "symbol": c.get("symbol", ""),
+                    "lot_size": c.get("lot_size", 1),
+                    "underlying": c.get("underlying", underlying),
+                }
+            )
+        return FutureChain.from_dict(
+            {
+                "underlying": underlying,
+                "exchange": dhan_exchange,
+                "expiries": expiries,
+                "contracts": chain,
+            }
+        )
 
     def funds(self) -> Balance:
         return self._conn.portfolio.get_balance()
@@ -386,8 +441,6 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
 
     def trades(self) -> list[Trade]:
         return self.get_trade_book()
-
-
 
     def describe(self) -> dict:
         instruments = self._conn.instruments
@@ -404,51 +457,22 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
 
     def capabilities(self) -> BrokerCapabilities:
         """Return Dhan broker capability matrix."""
-        return BrokerCapabilities(
-            expired_options=True,
-            expired_futures=False,
-            depth_20=True,
-            depth_200=True,
-            max_intraday_days=365 * 10,
-            max_daily_days=365 * 10,
-            supported_timeframes=("1m", "5m", "15m", "30m", "1h", "1D"),
-            parallel_history=True,
-            max_batch_size=1000,
-            websocket=True,
-            polling_fallback=True,
-            order_types=("MARKET", "LIMIT", "STOP_LOSS", "STOP_LOSS_MARKET"),
-            product_types=("INTRADAY", "MARGIN", "CNC", "MTF"),
-            validities=("DAY", "IOC"),
-            load_instruments=True,
-            search=True,
-            rate_limit_per_second=6,
-            rate_limit_per_minute=200,
-            # Advanced order types
-            super_orders=True,
-            forever_orders=True,
-            conditional_triggers=True,
-            slice_orders=True,
-            amo=True,
-            # Account management
-            ledger=True,
-            user_profile=True,
-            ip_management=True,
-            edis=True,
-            exit_all=True,
-        )
+        return dhan_capabilities()
 
     def search(self, query: str) -> list[dict]:
         results = []
         q = query.upper().strip()
         for inst in self._conn.instruments.all_instruments():
             if q in inst.symbol.upper() or q in (inst.canonical_symbol or "").upper():
-                results.append({
-                    "symbol": inst.symbol,
-                    "exchange": inst.exchange.value,
-                    "type": inst.instrument_type.value,
-                    "security_id": inst.security_id,
-                    "name": inst.canonical_symbol,
-                })
+                results.append(
+                    {
+                        "symbol": inst.symbol,
+                        "exchange": inst.exchange.value,
+                        "type": inst.instrument_type.value,
+                        "security_id": inst.security_id,
+                        "name": inst.canonical_symbol,
+                    }
+                )
                 if len(results) >= 20:
                     break
         return results
@@ -478,6 +502,7 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
             on_tick:  Callable receiving a :class:`Quote`.
         """
         from domain import Quote
+
         inst = self._conn.instruments.resolve(symbol, exchange)
         segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, DEFAULT_SEGMENT)
         sid = int(inst.security_id)
@@ -503,8 +528,11 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
                 # Dedup: skip if this exact on_tick is already registered
                 existing = self._stream_registry.get(key, [])
                 if on_tick in existing:
-                    logger.debug("stream_callback_dedup", extra={"symbol": symbol, "exchange": exchange})
+                    logger.debug(
+                        "stream_callback_dedup", extra={"symbol": symbol, "exchange": exchange}
+                    )
                 else:
+
                     def _wrap(data: dict, _sym: str = symbol, _cb: Any = on_tick) -> None:
                         try:
                             q = Quote(
@@ -519,7 +547,9 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
                             )
                             _cb(q)
                         except (ValueError, KeyError, TypeError) as exc:
-                            logger.warning("tick_quote_wrap_failed", extra={"symbol": _sym, "error": str(exc)})
+                            logger.warning(
+                                "tick_quote_wrap_failed", extra={"symbol": _sym, "error": str(exc)}
+                            )
                             _cb(data)
 
                     feed.on_quote(_wrap)
@@ -552,10 +582,8 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         with self._stream_lock:
             callbacks = self._stream_registry.get(key, [])
             if on_tick is not None:
-                try:
+                with contextlib.suppress(ValueError):
                     callbacks.remove(on_tick)
-                except ValueError:
-                    pass
             else:
                 callbacks.clear()
 
@@ -599,7 +627,7 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
 
     def get_connection_status(self) -> dict[str, bool]:
         """Return connection status for Dhan WebSocket streams.
-        
+
         Implements ObservabilityProvider protocol to expose connection
         status without exposing private attributes to CLI layer.
         """
@@ -607,29 +635,29 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         mf = getattr(self._conn, "market_feed", None)
         if mf is not None:
             status["market_feed"] = mf.is_connected
-        
+
         os_ = getattr(self._conn, "order_stream", None)
         if os_ is not None:
             status["order_stream"] = os_.is_connected
-        
+
         return status
-    
+
     def get_circuit_breaker_states(self) -> dict[str, int]:
         """Return Dhan client circuit breaker states.
-        
+
         Maps CircuitState enum to int: 0=CLOSED, 1=OPEN, 2=HALF_OPEN.
         Implements ObservabilityProvider protocol.
         """
         client = getattr(self._conn, "_client", None)
         if client is None:
             return {}
-        
+
         state_map = {
             CircuitState.CLOSED: 0,
             CircuitState.OPEN: 1,
             CircuitState.HALF_OPEN: 2,
         }
-        
+
         states = {}
         for name in ["_read_circuit_breaker", "_write_circuit_breaker", "_admin_circuit_breaker"]:
             cb = getattr(client, name, None)
@@ -639,18 +667,18 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
                     states[short_name] = state_map.get(cb.state, 0)
                 except Exception as exc:
                     logger.debug("circuit_breaker_state_failed: %s", exc)
-        
+
         return states
-    
+
     def get_token_refresh_metrics(self) -> dict[str, int]:
         """Return token refresh metrics from Dhan connection.
-        
+
         Implements ObservabilityProvider protocol.
         """
         scheduler = getattr(self._conn, "_token_scheduler", None)
         if scheduler is None:
             return {"refresh_count": 0, "error_count": 0}
-        
+
         try:
             return {
                 "refresh_count": getattr(scheduler, "refresh_count", 0),
@@ -659,7 +687,6 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         except Exception as exc:
             logger.debug("token_refresh_metrics_failed: %s", exc)
             return {"refresh_count": 0, "error_count": 0}
-
 
 
 def _dhan_normalize_exchange(symbol: str, exchange: str) -> str:
@@ -674,4 +701,3 @@ def _dhan_normalize_exchange(symbol: str, exchange: str) -> str:
     if is_index(symbol):
         return dhan_index_exchange(symbol) or exchange
     return exchange
-

@@ -1,4 +1,0 @@
-# file: /workspaces/trade_xv2/cli/commands/analytics_compare.py
-# hypothesis_version: 6.155.7
-
-[100000.0, ',', '--capital', '--file', '--rsi', '--sma', '--strategies', '--symbol', 'CAGR', 'COMPARE', 'Max DD', 'PF', 'Parameter Comparison', 'Parameters', 'Return', 'Sharpe', 'Sortino', 'Strategy', 'Strategy Comparison', 'Trades', 'Win Rate', 'bold cyan', 'bold white', 'breakout', 'cyan', 'dim', 'green', 'magenta', 'momentum', 'params', 'red', 'rsi_period', 'sma_period', 'strategy', 'total_return_pct', 'total_trades', 'yellow']

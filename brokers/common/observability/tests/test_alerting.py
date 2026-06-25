@@ -15,20 +15,20 @@ from __future__ import annotations
 
 import threading
 import time
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock
 
 import pytest
 
-from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
-from infrastructure.event_bus.event_bus import DomainEvent, EventBus
 from brokers.common.observability.alerting import (
     Alert,
+    AlertingEngine,
     AlertLevel,
     AlertRule,
-    AlertingEngine,
     create_default_alert_rules,
 )
 from brokers.common.observability.event_metrics import EventMetrics
+from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
+from infrastructure.event_bus.event_bus import DomainEvent, EventBus
 
 
 class TestAlertLevel:
@@ -76,7 +76,9 @@ class TestAlert:
             timestamp=time.time(),
             rule_name="test",
         )
-        with pytest.raises(Exception):  # frozen dataclass raises
+        with pytest.raises(
+            Exception, match="dataclasses|frozen|attribute"
+        ):  # frozen dataclass raises
             alert.message = "modified"  # type: ignore
 
 
@@ -530,14 +532,10 @@ class TestRateCalculation:
         now = time.time()
         # Add 5 old events (outside window).
         for i in range(5):
-            metrics.add_timestamped_counter(
-                "TICK", "error", timestamp=now - 120 - i, by=1
-            )
+            metrics.add_timestamped_counter("TICK", "error", timestamp=now - 120 - i, by=1)
         # Add 5 recent events (inside window).
         for i in range(5):
-            metrics.add_timestamped_counter(
-                "TICK", "error", timestamp=now - 30 - i, by=1
-            )
+            metrics.add_timestamped_counter("TICK", "error", timestamp=now - 30 - i, by=1)
         rate = metrics.rate("TICK", "error", window_seconds=60.0)
         # Only recent 5 events should count.
         assert rate == pytest.approx(5.0 / 60.0, rel=0.01)
@@ -558,9 +556,7 @@ class TestRateCalculation:
         now = time.time()
         # Add 10 events in the last 60 seconds.
         for i in range(10):
-            metrics.add_timestamped_counter(
-                "TICK", "error", timestamp=now - i * 5, by=1
-            )
+            metrics.add_timestamped_counter("TICK", "error", timestamp=now - i * 5, by=1)
         rule = AlertRule(
             name="high_rate",
             metric_pattern="*/error",

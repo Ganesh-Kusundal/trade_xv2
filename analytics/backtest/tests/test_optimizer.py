@@ -20,14 +20,16 @@ def _ohlcv(n: int = 100) -> pd.DataFrame:
 
     np.random.seed(42)
     close = 100 + np.cumsum(np.random.randn(n) * 0.5)
-    return pd.DataFrame({
-        "timestamp": pd.date_range("2026-01-01", periods=n, freq="D"),
-        "open": close - 0.5,
-        "high": close + 1.5,
-        "low": close - 1.5,
-        "close": close,
-        "volume": [1000 + (i % 5) * 100 for i in range(n)],
-    })
+    return pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2026-01-01", periods=n, freq="D"),
+            "open": close - 0.5,
+            "high": close + 1.5,
+            "low": close - 1.5,
+            "close": close,
+            "volume": [1000 + (i % 5) * 100 for i in range(n)],
+        }
+    )
 
 
 class TestParamGrid:

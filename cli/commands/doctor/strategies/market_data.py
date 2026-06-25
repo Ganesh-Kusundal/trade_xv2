@@ -13,7 +13,7 @@ from cli.services.broker_service import BrokerService
 
 class MarketDataCheck(CheckStrategy):
     """Test market data endpoints: quote, depth, and historical.
-    
+
     Parameters
     ----------
     quick_mode : bool

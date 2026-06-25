@@ -15,28 +15,22 @@ from __future__ import annotations
 
 import threading
 import time
-import gc
 from contextlib import contextmanager
-from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Any, Callable
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock
 
 import pytest
 
-from infrastructure.event_bus.event_bus import DomainEvent, EventBus
-from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
 from brokers.common.observability.event_metrics import EventMetrics
 from brokers.common.resilience.broker_health_monitor import (
     BrokerHealthMonitor,
-    BrokerHealthStatus,
 )
-from brokers.common.resilience.errors import BrokerDegradedError
-
+from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
+from infrastructure.event_bus.event_bus import DomainEvent, EventBus
 
 # ──────────────────────────────────────────────────────────────────────
 # Chaos injection helpers
 # ──────────────────────────────────────────────────────────────────────
+
 
 @contextmanager
 def inject_api_failure(
@@ -52,7 +46,6 @@ def inject_api_failure(
         exception_type: The exception to raise on failure.
     """
     call_count = {"count": 0}
-    original_fail = {"exc": None}
 
     def failing_method(*args, **kwargs):
         call_count["count"] += 1
@@ -66,6 +59,7 @@ def inject_api_failure(
 @contextmanager
 def inject_latency(latency_seconds: float):
     """Context manager that adds artificial latency to mocked calls."""
+
     def slow_method(*args, **kwargs):
         time.sleep(latency_seconds)
         return MagicMock()
@@ -86,6 +80,7 @@ def inject_partial_failure(
         failing_methods: Method names that should raise.
         exception_type: Exception to raise for failing methods.
     """
+
     def partial_mock(method_name):
         def inner(*args, **kwargs):
             if method_name in working_methods:
@@ -93,6 +88,7 @@ def inject_partial_failure(
             if method_name in failing_methods:
                 raise exception_type(f"Partial failure: {method_name} unavailable")
             return MagicMock()
+
         return inner
 
     yield partial_mock
@@ -101,6 +97,7 @@ def inject_partial_failure(
 # ──────────────────────────────────────────────────────────────────────
 # Section 1: Broker API Goes Down Mid-Order
 # ──────────────────────────────────────────────────────────────────────
+
 
 class TestBrokerAPIMidOrderFailure:
     """Verify system handles broker API going down during order operations."""
@@ -137,6 +134,7 @@ class TestBrokerAPIMidOrderFailure:
         fallback.ltp.return_value = 1500.0
 
         from brokers.common.intelligent_gateway import IntelligentGateway
+
         gw = IntelligentGateway(
             dhan_gateway=primary,
             upstox_gateway=fallback,
@@ -144,7 +142,7 @@ class TestBrokerAPIMidOrderFailure:
         )
 
         # Should fall back to upstox
-        result = gw.ltp("RELIANCE")
+        gw.ltp("RELIANCE")
         fallback.ltp.assert_called_once()
 
     def test_intelligent_gateway_degraded_mode_all_brokers_down(self):
@@ -155,6 +153,7 @@ class TestBrokerAPIMidOrderFailure:
         fallback.ltp.side_effect = ConnectionError("Fallback down")
 
         from brokers.common.intelligent_gateway import IntelligentGateway
+
         health = BrokerHealthMonitor(failure_threshold=1)
         health.record_failure("dhan")
         health.record_failure("upstox")
@@ -175,6 +174,7 @@ class TestBrokerAPIMidOrderFailure:
         fallback.ltp.side_effect = ConnectionError("Down")
 
         from brokers.common.intelligent_gateway import IntelligentGateway
+
         health = BrokerHealthMonitor(failure_threshold=1)
         health.record_failure("dhan")
         health.record_failure("upstox")
@@ -196,6 +196,7 @@ class TestBrokerAPIMidOrderFailure:
         """In degraded mode, write ops should raise BrokerDegradedError."""
         # This is tested via _is_degraded_and_should_fallback
         from brokers.common.intelligent_gateway import IntelligentGateway
+
         health = BrokerHealthMonitor(failure_threshold=1)
         health.record_failure("dhan")
         health.record_failure("upstox")
@@ -218,6 +219,7 @@ class TestBrokerAPIMidOrderFailure:
 # ──────────────────────────────────────────────────────────────────────
 # Section 2: WebSocket Disconnects During Subscription
 # ──────────────────────────────────────────────────────────────────────
+
 
 class TestWebSocketDisconnectChaos:
     """Verify event bus survives subscriber failures (simulating WS disconnect)."""
@@ -336,6 +338,7 @@ class TestWebSocketDisconnectChaos:
 # Section 3: Connection Lost During Write
 # ──────────────────────────────────────────────────────────────────────
 
+
 class TestConnectionLostDuringWrite:
     """Verify system handles connection loss during persistence operations."""
 
@@ -357,9 +360,7 @@ class TestConnectionLostDuringWrite:
         bus.publish(event)
 
         # Handler should still have received the event
-        assert len(received) == 1, (
-            "Handler should receive event even when event_log fails"
-        )
+        assert len(received) == 1, "Handler should receive event even when event_log fails"
         # DLQ should capture the log failure
         assert len(dlq) == 1, "DLQ should capture the log append failure"
 
@@ -441,6 +442,7 @@ class TestConnectionLostDuringWrite:
 # Section 4: Network Latency Spikes
 # ──────────────────────────────────────────────────────────────────────
 
+
 class TestNetworkLatencySpikes:
     """Verify system handles network latency spikes gracefully."""
 
@@ -454,9 +456,7 @@ class TestNetworkLatencySpikes:
         time.sleep(0.01)  # Simulate latency
         monitor.record_success("dhan")
 
-        assert monitor.is_healthy("dhan"), (
-            "Slow but successful call should restore health"
-        )
+        assert monitor.is_healthy("dhan"), "Slow but successful call should restore health"
 
     def test_latency_does_not_affect_event_bus_dispatch_order(self):
         """Slow handlers should not affect dispatch ordering of other handlers."""
@@ -489,6 +489,7 @@ class TestNetworkLatencySpikes:
         fallback = MagicMock()  # dhan
 
         from brokers.common.intelligent_gateway import IntelligentGateway
+
         health = BrokerHealthMonitor(failure_threshold=1)
         gw = IntelligentGateway(
             dhan_gateway=fallback,
@@ -530,14 +531,13 @@ class TestNetworkLatencySpikes:
             event = DomainEvent.now("TICK", {"seq": i})
             bus.publish(event)
 
-        assert received == list(range(10)), (
-            "All events should be received in order despite latency"
-        )
+        assert received == list(range(10)), "All events should be received in order despite latency"
 
 
 # ──────────────────────────────────────────────────────────────────────
 # Section 5: Partial Failures
 # ──────────────────────────────────────────────────────────────────────
+
 
 class TestPartialFailures:
     """Verify system handles partial failures (some endpoints work, others don't)."""
@@ -562,6 +562,7 @@ class TestPartialFailures:
         fallback.ltp.return_value = 1500.0
 
         from brokers.common.intelligent_gateway import IntelligentGateway
+
         health = BrokerHealthMonitor(failure_threshold=1)
         health.record_failure("dhan")
 
@@ -571,12 +572,10 @@ class TestPartialFailures:
             health_monitor=health,
         )
 
-        result = gw.ltp("RELIANCE")
+        gw.ltp("RELIANCE")
         # Should have skipped dhan (unhealthy) and gone to upstox
         fallback.ltp.assert_called_once()
-        primary.ltp.assert_not_called(), (
-            "Unhealthy primary should not be called"
-        )
+        primary.ltp.assert_not_called(), ("Unhealthy primary should not be called")
 
     def test_event_bus_handles_mixed_handler_results(self):
         """Some handlers succeed, some fail — all should be attempted."""
@@ -600,12 +599,8 @@ class TestPartialFailures:
         event = DomainEvent.now("TICK", {"id": "event-1"})
         bus.publish(event)
 
-        assert len(results["success"]) == 2, (
-            "Both success handlers should receive the event"
-        )
-        assert len(results["failure"]) == 1, (
-            "Failing handler should have been attempted"
-        )
+        assert len(results["success"]) == 2, "Both success handlers should receive the event"
+        assert len(results["failure"]) == 1, "Failing handler should have been attempted"
         assert len(dlq) == 1, "DLQ should have one entry from the failing handler"
 
     def test_health_monitor_status_snapshot_is_immutable(self):
@@ -630,6 +625,7 @@ class TestPartialFailures:
         fallback.ltp.return_value = 1500.0
 
         from brokers.common.intelligent_gateway import IntelligentGateway
+
         metrics = EventMetrics()
         gw = IntelligentGateway(
             dhan_gateway=fallback,
@@ -644,9 +640,7 @@ class TestPartialFailures:
             "intelligent_gateway_fallback",
             "ltp:upstox:ConnectionError",
         )
-        assert fallback_count >= 1, (
-            "Fallback should be tracked in metrics"
-        )
+        assert fallback_count >= 1, "Fallback should be tracked in metrics"
 
     def test_repeated_publishes_do_not_corrupt_subscription_state(self):
         """Rapid publishes should not corrupt internal subscriber dict."""
@@ -656,15 +650,13 @@ class TestPartialFailures:
         def handler(event):
             received_count["count"] += 1
 
-        token = bus.subscribe("TICK", handler)
+        bus.subscribe("TICK", handler)
 
         # Rapid fire
         for i in range(100):
             bus.publish(DomainEvent.now("TICK", {"seq": i}))
 
-        assert received_count["count"] == 100, (
-            "All 100 events should be delivered to the handler"
-        )
+        assert received_count["count"] == 100, "All 100 events should be delivered to the handler"
 
     def test_chaos_event_bus_with_no_subscribers(self):
         """Publishing with no subscribers should be a no-op, not an error."""
@@ -686,8 +678,8 @@ class TestPartialFailures:
 
         assert bus.subscriber_count() == 0
         t1 = bus.subscribe("TICK", lambda e: None)
-        t2 = bus.subscribe("TICK", lambda e: None)
-        t3 = bus.subscribe("ORDER", lambda e: None)
+        bus.subscribe("TICK", lambda e: None)
+        bus.subscribe("ORDER", lambda e: None)
 
         assert bus.subscriber_count("TICK") == 2
         assert bus.subscriber_count("ORDER") == 1

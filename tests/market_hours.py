@@ -20,7 +20,8 @@ Usage in tests::
 from __future__ import annotations
 
 import os
-from datetime import datetime, time, timezone, timedelta
+from datetime import datetime, time, timedelta, timezone
+
 import pytest
 
 # IST = UTC+5:30

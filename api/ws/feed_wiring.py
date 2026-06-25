@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from typing import Any
 
@@ -56,8 +57,6 @@ def _resolve_gateway(broker_service: Any) -> Any | None:
             return gw
     getter = getattr(broker_service, "get_gateway", None)
     if callable(getter):
-        try:
+        with contextlib.suppress(Exception):
             return getter()
-        except Exception:
-            pass
     return None

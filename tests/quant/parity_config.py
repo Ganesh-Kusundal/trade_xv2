@@ -5,9 +5,9 @@ This module ensures that parity tests are mandatory and enforced.
 
 from __future__ import annotations
 
+import importlib
 import os
 import sys
-from pathlib import Path
 
 # Parity enforcement flag - when True, all parity tests must pass
 ENFORCE_PARITY = os.getenv("ENFORCE_PARITY", "1") == "1"
@@ -36,9 +36,7 @@ def check_parity_environment() -> None:
 
     # Check for required test dependencies
     missing = []
-    try:
-        import hypothesis
-    except ImportError:
+    if importlib.util.find_spec("hypothesis") is None:
         missing.append("hypothesis")
 
     if missing and parity_required():
@@ -63,6 +61,4 @@ PARITY_MARKERS = {
 def register_parity_markers(config):
     """Register parity test markers with pytest."""
     for marker_name, description in PARITY_MARKERS.items():
-        config.addinivalue_line(
-            "markers", f"{marker_name}: {description}"
-        )
+        config.addinivalue_line("markers", f"{marker_name}: {description}")

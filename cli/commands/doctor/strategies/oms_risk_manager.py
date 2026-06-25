@@ -17,9 +17,7 @@ class OMSRiskManagerCheck(CheckStrategy):
         results: list[CheckResult] = []
 
         if broker_service is None:
-            results.append(
-                CheckResult("OMS RiskManager", "WARN", "No broker service available")
-            )
+            results.append(CheckResult("OMS RiskManager", "WARN", "No broker service available"))
             return results
 
         tc = broker_service.trading_context
@@ -47,8 +45,6 @@ class OMSRiskManagerCheck(CheckStrategy):
                 )
             )
         except Exception as exc:
-            results.append(
-                CheckResult("OMS RiskManager", "FAIL", f"Risk snapshot failed: {exc}")
-            )
+            results.append(CheckResult("OMS RiskManager", "FAIL", f"Risk snapshot failed: {exc}"))
 
         return results

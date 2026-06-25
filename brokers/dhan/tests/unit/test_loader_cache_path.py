@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
+import contextlib
 import os
 from pathlib import Path
 from unittest.mock import patch
-
-import pytest
 
 
 class TestCachePathResolution:
@@ -17,26 +16,26 @@ class TestCachePathResolution:
         from brokers.dhan.loader import InstrumentLoader
 
         custom_cache = tmp_path / "custom-cache"
-        with patch.dict(os.environ, {"DHAN_CACHE_DIR": str(custom_cache)}):
-            # Mock the actual download/read to avoid network calls
-            with patch.object(InstrumentLoader, "_cleanup_old_cache"):
-                with patch.object(InstrumentLoader, "load_cached", return_value=[]):
-                    # Just verify the path logic
-                    env_cache = os.environ.get("DHAN_CACHE_DIR")
-                    if env_cache:
-                        cache_dir = Path(env_cache)
-                    else:
-                        cache_dir = Path(__file__).resolve().parents[2] / "runtime-dev" / "instruments"
+        with (
+            patch.dict(os.environ, {"DHAN_CACHE_DIR": str(custom_cache)}),
+            patch.object(InstrumentLoader, "_cleanup_old_cache"),
+            patch.object(InstrumentLoader, "load_cached", return_value=[]),
+        ):
+            # Just verify the path logic
+            env_cache = os.environ.get("DHAN_CACHE_DIR")
+            if env_cache:
+                cache_dir = Path(env_cache)
+            else:
+                cache_dir = Path(__file__).resolve().parents[2] / "runtime-dev" / "instruments"
 
-                    assert cache_dir == custom_cache
+            assert cache_dir == custom_cache
 
     def test_cache_path_uses_default_when_env_unset(self):
         """When DHAN_CACHE_DIR is unset, should use project root default."""
-        from brokers.dhan.loader import InstrumentLoader
 
         # Get the actual default path
         loader_file = Path(__file__).resolve().parents[2] / "brokers" / "dhan" / "loader.py"
-        expected_default = loader_file.parents[2] / "runtime-dev" / "instruments"
+        loader_file.parents[2] / "runtime-dev" / "instruments"
 
         # Verify the path construction logic
         env_cache = os.environ.get("DHAN_CACHE_DIR")
@@ -57,14 +56,14 @@ class TestCachePathResolution:
             from brokers.dhan.loader import InstrumentLoader
 
             # Mock the download to avoid network calls
-            with patch.object(InstrumentLoader, "_cleanup_old_cache"):
-                with patch("pandas.read_csv") as mock_read:
-                    with patch.object(InstrumentLoader, "_compact_to_rows", return_value=[]):
-                        mock_read.side_effect = Exception("Mock - no download")
-                        try:
-                            InstrumentLoader.load_cached()
-                        except Exception:
-                            pass  # Expected to fail on download
+            with (
+                patch.object(InstrumentLoader, "_cleanup_old_cache"),
+                patch("pandas.read_csv") as mock_read,
+                patch.object(InstrumentLoader, "_compact_to_rows", return_value=[]),
+            ):
+                mock_read.side_effect = Exception("Mock - no download")
+                with contextlib.suppress(Exception):
+                    InstrumentLoader.load_cached()  # Expected to fail on download
 
         # Directory should have been created
         assert cache_dir.exists()

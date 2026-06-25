@@ -27,16 +27,15 @@ Usage in application code::
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Sequence
 
 from brokers.common.broker_port import CommonBrokerGateway
 from brokers.common.capabilities import BrokerCapabilities
 from brokers.common.extensions import ExtensionBundle, ExtensionRegistry
 from brokers.common.historical_coordinator import HistoricalDataCoordinator
-from brokers.common.models import OperationKind
 from brokers.common.policy import SourceSelectionPolicy
-from brokers.common.quota_scheduler import PriorityClass, QuotaScheduler
+from brokers.common.quota_scheduler import QuotaScheduler
 from brokers.common.registry import BrokerRegistry
 from brokers.common.router import BrokerRouter
 from brokers.common.stream_orchestrator import StreamOrchestrator

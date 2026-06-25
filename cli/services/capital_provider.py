@@ -19,38 +19,38 @@ from application.oms.capital_provider import CapitalProvider
 from domain.constants.defaults import RISK_FAIL_OPEN_THRESHOLD
 
 if TYPE_CHECKING:
-    from cli.services.broker_service import BrokerService
     from application.oms.capital_provider import GatewayCapitalProvider
+    from cli.services.broker_service import BrokerService
 
 logger = logging.getLogger(__name__)
 
 
 class TrackedCapitalProvider(CapitalProvider):
     """Capital provider wrapper that tracks fallback usage and enforces risk policy.
-    
+
     This class wraps a GatewayCapitalProvider and adds:
     - Fallback usage tracking (counts how often fallback balance is used)
     - Fail-open/fail-closed logic based on RISK_FAIL_OPEN env var
     - Validation to block trading on zero/negative balances
-    
+
     The design is fail-safe: no order can be placed against an unknown
     capital baseline unless the operator has explicitly opted into
     fail-open mode.
     """
-    
+
     def __init__(self, inner: GatewayCapitalProvider, service: BrokerService):
         """Initialize the tracked provider.
-        
+
         Args:
             inner: The underlying GatewayCapitalProvider to wrap
             service: BrokerService instance for tracking fallback count
         """
         self._inner = inner
         self._service = service
-    
+
     def get_available_balance(self) -> Decimal:
         """Get available balance with fallback tracking and validation.
-        
+
         Returns:
             Available balance as Decimal. Returns:
             - Real balance from gateway when available
@@ -59,7 +59,7 @@ class TrackedCapitalProvider(CapitalProvider):
             - Decimal("0") if balance is zero or negative
         """
         balance = self._inner.get_available_balance()
-        
+
         # Track fallback usage
         if balance == self._inner._fallback:
             self._service._capital_fallback_count += 1
@@ -73,7 +73,7 @@ class TrackedCapitalProvider(CapitalProvider):
                     },
                 )
                 return RISK_FAIL_OPEN_THRESHOLD
-            
+
             logger.error(
                 "risk_capital_blocking",
                 extra={
@@ -83,7 +83,7 @@ class TrackedCapitalProvider(CapitalProvider):
                 },
             )
             return Decimal("0")
-        
+
         # Check for zero/negative balance
         if balance <= 0:
             self._service._capital_fallback_count += 1
@@ -95,5 +95,5 @@ class TrackedCapitalProvider(CapitalProvider):
                 },
             )
             return Decimal("0")
-        
+
         return Decimal(str(balance))

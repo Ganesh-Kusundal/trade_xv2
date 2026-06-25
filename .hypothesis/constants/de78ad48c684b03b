@@ -1,4 +1,0 @@
-# file: /workspaces/trade_xv2/cli/commands/websocket.py
-# hypothesis_version: 6.155.7
-
-['--once', '0', 'Dhan Market Feed', 'Dhan Order Stream', 'Last Tick Age', 'Lifecycle Services', 'Metric', 'Reconnect Count', 'Ticks Received', 'Token Last Error', 'Token Refresh Count', 'Upstox Subscriptions', 'Upstox WebSocket', 'Value', '[green]None[/green]', '[red]YES[/red]', '_broker', '_conn', '_gateway', '_last_error', '_last_tick_time', '_lifecycle', '_reconnect_count', '_services', '_subscribed', '_tick_count', '_token_scheduler', '_upstox_gateway', 'bold blue', 'bold white', 'broker_name', 'center', 'green', 'is_connected', 'last_tick_age_s', 'lifecycle_services', 'market_feed', 'order_stream', 'reconnect_count', 'red', 'refresh_count', 'tick_count', 'token_last_error', 'token_refresh_count', 'upstox_subscriptions', 'upstox_ws_connected']

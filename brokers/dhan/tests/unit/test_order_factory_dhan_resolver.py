@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from domain.entities import Order
 
 
@@ -15,6 +13,7 @@ class TestDhanExchangeResolver:
 
         def dhan_resolver(seg: str) -> DhanExchange:
             from brokers.dhan.segments import SEGMENT_TO_EXCHANGE
+
             return DhanExchange(SEGMENT_TO_EXCHANGE.get(str(seg), "NSE"))
 
         raw = {

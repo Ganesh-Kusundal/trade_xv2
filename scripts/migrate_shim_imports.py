@@ -10,6 +10,7 @@ Usage:
     python scripts/migrate_shim_imports.py --apply  # apply changes
     python scripts/migrate_shim_imports.py --verify # verify no shims remain
 """
+
 from __future__ import annotations
 
 import argparse
@@ -18,7 +19,6 @@ import re
 import sys
 from pathlib import Path
 from typing import NamedTuple
-
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -37,7 +37,8 @@ SHIM_TO_CANONICAL: dict[str, str] = {
 
 # Files that ARE the shims or barrel files — never rewrite these.
 SHIM_FILES: set[str] = {
-    str(ROOT / p) for p in [
+    str(ROOT / p)
+    for p in [
         "brokers/common/core/models.py",
         "brokers/common/core/domain.py",
         "brokers/common/core/types.py",
@@ -101,8 +102,10 @@ def _find_replacements(filepath: Path) -> list[Replacement]:
 
         old = match.group(0)
         new = f"{match.group('indent')}{canonical}{match.group('rest')}"
-        line_no = source[:match.start()].count("\n") + 1
-        replacements.append(Replacement(str(filepath.relative_to(ROOT)), line_no, old.rstrip(), new.rstrip()))
+        line_no = source[: match.start()].count("\n") + 1
+        replacements.append(
+            Replacement(str(filepath.relative_to(ROOT)), line_no, old.rstrip(), new.rstrip())
+        )
 
     return replacements
 
@@ -158,9 +161,15 @@ def verify() -> int:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Migrate shim imports to canonical domain imports.")
-    parser.add_argument("--apply", action="store_true", help="Apply replacements (default: dry-run)")
-    parser.add_argument("--verify", action="store_true", help="Verify no shim imports remain (exit 1 if any)")
+    parser = argparse.ArgumentParser(
+        description="Migrate shim imports to canonical domain imports."
+    )
+    parser.add_argument(
+        "--apply", action="store_true", help="Apply replacements (default: dry-run)"
+    )
+    parser.add_argument(
+        "--verify", action="store_true", help="Verify no shim imports remain (exit 1 if any)"
+    )
     args = parser.parse_args()
 
     if args.verify:

@@ -46,14 +46,18 @@ class TestDuckDBRetryHelper:
         # holder must be a subprocess. The retry helper's purpose is exactly
         # this cross-process lock scenario.
         holder = subprocess.Popen(
-            [sys.executable, "-c", f"""
+            [
+                sys.executable,
+                "-c",
+                f"""
 import time
 import duckdb
 c = duckdb.connect(r"{tmp_db}", read_only=False)
 c.execute("SELECT 1")
 time.sleep(0.4)
 c.close()
-"""],
+""",
+            ],
         )
         time.sleep(0.1)  # let holder grab the lock
 
@@ -89,9 +93,15 @@ class TestSQLiteJournalConcurrency:
         path = tmp_path / "test_journal.sqlite"
         writer = TradeJournal(catalog_path=path)
         try:
-            writer.record_trade("T1", "RELIANCE", "momentum",
-                                entry_time=datetime.now(), entry_price=2500.0,
-                                quantity=10, side="BUY")
+            writer.record_trade(
+                "T1",
+                "RELIANCE",
+                "momentum",
+                entry_time=datetime.now(),
+                entry_price=2500.0,
+                quantity=10,
+                side="BUY",
+            )
         finally:
             writer.close()
 
@@ -115,9 +125,15 @@ class TestSQLiteJournalConcurrency:
         """
         path = tmp_path / "test_journal.sqlite"
         w = TradeJournal(catalog_path=path)
-        w.record_trade("T1", "RELIANCE", "momentum",
-                       entry_time=datetime.now(), entry_price=2500.0,
-                       quantity=10, side="BUY")
+        w.record_trade(
+            "T1",
+            "RELIANCE",
+            "momentum",
+            entry_time=datetime.now(),
+            entry_price=2500.0,
+            quantity=10,
+            side="BUY",
+        )
         w.close()
 
         r = TradeJournal(catalog_path=path, read_only=True)
@@ -131,9 +147,15 @@ class TestSQLiteJournalConcurrency:
                 for _ in range(3):
                     trades = r.get_trades()
                     assert trades[0]["trade_id"] == "T1"
-                w2.record_trade("T2", "TCS", "value",
-                                entry_time=datetime.now(), entry_price=3500.0,
-                                quantity=5, side="BUY")
+                w2.record_trade(
+                    "T2",
+                    "TCS",
+                    "value",
+                    entry_time=datetime.now(),
+                    entry_price=3500.0,
+                    quantity=5,
+                    side="BUY",
+                )
             finally:
                 w2.close()
         finally:

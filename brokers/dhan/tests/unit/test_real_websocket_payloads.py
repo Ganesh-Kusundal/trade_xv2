@@ -9,13 +9,10 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-import pytest
-
 from brokers.dhan.websocket import DhanMarketFeed
 
 
 class TestRealDhanWebSocketPayloads:
-
     def _make_feed(self) -> DhanMarketFeed:
         return DhanMarketFeed(
             client_id="TEST",

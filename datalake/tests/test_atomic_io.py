@@ -14,11 +14,13 @@ from datalake.io import atomic_json_write, atomic_parquet_write, atomic_text_wri
 
 
 def _make_table(n: int = 5) -> pa.Table:
-    df = pd.DataFrame({
-        "timestamp": pd.date_range("2026-01-01", periods=n, freq="1min"),
-        "symbol": ["TEST"] * n,
-        "close": [100.0 + i for i in range(n)],
-    })
+    df = pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2026-01-01", periods=n, freq="1min"),
+            "symbol": ["TEST"] * n,
+            "close": [100.0 + i for i in range(n)],
+        }
+    )
     return pa.Table.from_pandas(df, preserve_index=False)
 
 

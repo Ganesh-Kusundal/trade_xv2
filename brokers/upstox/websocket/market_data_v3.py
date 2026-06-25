@@ -14,7 +14,6 @@ import threading
 from collections.abc import Callable
 from typing import Any
 
-from infrastructure.event_bus import EventBus
 from brokers.upstox.auth.config import (
     UPSTOX_WS_PING_INTERVAL_SECONDS,
     UPSTOX_WS_PING_TIMEOUT_SECONDS,
@@ -30,10 +29,11 @@ from brokers.upstox.websocket.v3_subscription_manager import (
     UpstoxV3SubscriptionLimits,
     UpstoxV3SubscriptionManager,
 )
+from infrastructure.event_bus import EventBus
 
 logger = logging.getLogger(__name__)
 
-# NSE market hours in UTC: 03:45–10:00 (09:15–15:30 IST), weekdays only.
+# NSE market hours in UTC: 03:45-10:00 (09:15-15:30 IST), weekdays only.
 _MARKET_OPEN_UTC_HOUR = 3
 _MARKET_OPEN_UTC_MIN = 45
 _MARKET_CLOSE_UTC_HOUR = 10
@@ -53,10 +53,13 @@ def _overlaps_market_hours(start: Any, end: Any) -> bool:
         if market_open <= t <= market_close and dt.weekday() < 5:
             return True
     # Also detect ranges that span across market hours (start before, end after)
-    if start < end and start.weekday() < 5:
-        if start.time() <= market_open and end.time() >= market_close:
-            return True
-    return False
+    return (
+        start < end
+        and start.weekday() < 5
+        and start.time() <= market_open
+        and end.time() >= market_close
+    )
+
 
 TickListener = Callable[[str, dict[str, Any]], None]
 
@@ -169,12 +172,10 @@ class UpstoxMarketDataV3Multiplexer:
         await self._maybe_send_initial_subscriptions()
         self._stopped = False
         self._connected = True
-        try:
+        with contextlib.suppress(Exception):
             from brokers.upstox.metrics import upstox_ws_connected
 
             upstox_ws_connected.set(1)
-        except Exception:
-            pass
         self._task = asyncio.create_task(self._read_loop())
 
     async def _open_socket(self, url: str) -> Any:
@@ -199,13 +200,11 @@ class UpstoxMarketDataV3Multiplexer:
             self._socket = await self._open_socket(url)
             await self._maybe_send_initial_subscriptions()
             self._connected = True
-            try:
-                from brokers.upstox.metrics import upstox_ws_reconnects, upstox_ws_connected
+            with contextlib.suppress(Exception):
+                from brokers.upstox.metrics import upstox_ws_connected, upstox_ws_reconnects
 
                 upstox_ws_reconnects.inc()
                 upstox_ws_connected.set(1)
-            except Exception:
-                pass
             return True
         except Exception as exc:
             logger.warning("Upstox V3 reconnect failed: %s", exc)
@@ -216,6 +215,7 @@ class UpstoxMarketDataV3Multiplexer:
         self._stopped = True
         self._connected = False
         from datetime import datetime, timezone
+
         self._disconnect_time = datetime.now(timezone.utc)
         if self._task is not None:
             self._task.cancel()
@@ -232,12 +232,10 @@ class UpstoxMarketDataV3Multiplexer:
             except Exception as exc:
                 logger.debug("websocket_close_failed: %s", exc)
             self._socket = None
-        try:
+        with contextlib.suppress(Exception):
             from brokers.upstox.metrics import upstox_ws_connected
 
             upstox_ws_connected.set(0)
-        except Exception:
-            pass
         self._reconnect.reset()
 
     async def _maybe_send_initial_subscriptions(self) -> None:
@@ -280,6 +278,7 @@ class UpstoxMarketDataV3Multiplexer:
                 was_disconnected = True
                 if self._disconnect_time is None:
                     from datetime import datetime, timezone
+
                     self._disconnect_time = datetime.now(timezone.utc)
                 if not self._reconnect.should_retry():
                     self._connected = False
@@ -301,7 +300,7 @@ class UpstoxMarketDataV3Multiplexer:
                 # First-tick is JSON with market_info
                 try:
                     msg = json.loads(raw)
-                except Exception:
+                except Exception:  # noqa: S112
                     continue
                 if msg.get("type") == "market_info":
                     # Trigger backfill after market_info (reconnection confirmed)
@@ -316,7 +315,7 @@ class UpstoxMarketDataV3Multiplexer:
                 continue
             try:
                 frame = self._decoder.parse(raw)
-            except Exception:
+            except Exception:  # noqa: S112
                 continue
             if frame is None:
                 continue
@@ -331,10 +330,13 @@ class UpstoxMarketDataV3Multiplexer:
     def _track_tick_from_frame(self, frame: Any) -> None:
         """Record latest tick time per instrument for gap detection."""
         from datetime import datetime, timezone
+
         payload = getattr(frame, "payload", None)
         if payload is None:
             return
-        instrument_key = getattr(payload, "instrument_key", None) or (payload.get("instrumentKey") if isinstance(payload, dict) else None)
+        instrument_key = getattr(payload, "instrument_key", None) or (
+            payload.get("instrumentKey") if isinstance(payload, dict) else None
+        )
         if not instrument_key:
             return
         now = datetime.now(timezone.utc)
@@ -345,6 +347,7 @@ class UpstoxMarketDataV3Multiplexer:
     def _backfill_gap(self) -> None:
         """Fetch missed bars from REST and dispatch as ticks."""
         from datetime import datetime, timezone
+
         disconnect_time = self._disconnect_time
         if disconnect_time is None:
             return
@@ -353,7 +356,7 @@ class UpstoxMarketDataV3Multiplexer:
         if disconnect_time >= now:
             return
         # Skip backfill if the entire gap falls outside market hours
-        # (NSE: 03:45–10:00 UTC / 09:15–15:30 IST, weekdays only).
+        # (NSE: 03:45-10:00 UTC / 09:15-15:30 IST, weekdays only).
         if not _overlaps_market_hours(disconnect_time, now):
             logger.debug(
                 "backfill_skipped_outside_market_hours",

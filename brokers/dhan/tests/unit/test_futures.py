@@ -1,6 +1,5 @@
 """Unit tests for FuturesAdapter."""
 
-
 from brokers.dhan.futures import FuturesAdapter
 
 

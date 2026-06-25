@@ -33,10 +33,14 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
 from typing import ClassVar
-from unittest.mock import MagicMock
 
-import pytest
-
+from application.oms import (
+    OrderManager,
+    OrderRequest,
+    PositionManager,
+    RiskConfig,
+    RiskManager,
+)
 from domain import (
     Side,
     Trade,
@@ -48,18 +52,6 @@ from infrastructure.lifecycle import (
     LifecycleManager,
     ManagedService,
     build_health,
-)
-from application.oms import (
-    OrderManager,
-    OrderRequest,
-    PositionManager,
-    RiskConfig,
-    RiskManager,
-)
-from brokers.common.resilience.circuit_breaker import (
-    CircuitBreaker,
-    CircuitBreakerConfig,
-    CircuitState,
 )
 
 # ── 1. Place-order with kill-switch under contention ─────────────────────
@@ -131,9 +123,7 @@ def test_record_trade_unknown_order_does_not_mark_ledger() -> None:
     # First call: returns False (order unknown), ledger NOT marked.
     assert om.record_trade(trade) is False
     key = TradeIdKey.from_trade(trade)
-    assert not ledger.is_processed(key), (
-        "ledger must not be marked when order is unknown"
-    )
+    assert not ledger.is_processed(key), "ledger must not be marked when order is unknown"
     assert ledger.size() == 0
 
     # Second call with the same trade: still False, still not marked.
@@ -143,9 +133,7 @@ def test_record_trade_unknown_order_does_not_mark_ledger() -> None:
 
     # Now place the order, then re-attempt the trade. It must
     # succeed and the ledger must be marked exactly once.
-    result = om.place_order(
-        OrderRequest("RELIANCE", "NSE", Side.BUY, 10, price=Decimal("100"))
-    )
+    result = om.place_order(OrderRequest("RELIANCE", "NSE", Side.BUY, 10, price=Decimal("100")))
     assert result.success and result.order is not None
     # Re-create the trade with the now-known order_id.
     new_trade = Trade(
@@ -171,9 +159,7 @@ def test_record_trade_known_order_dedupes_on_second_call() -> None:
     ledger = ProcessedTradeRepository()
     om = OrderManager(event_bus=bus, processed_trade_repository=ledger)
 
-    result = om.place_order(
-        OrderRequest("RELIANCE", "NSE", Side.BUY, 10, price=Decimal("100"))
-    )
+    result = om.place_order(OrderRequest("RELIANCE", "NSE", Side.BUY, 10, price=Decimal("100")))
     assert result.success and result.order is not None
     trade = Trade(
         trade_id="T-KNOWN",

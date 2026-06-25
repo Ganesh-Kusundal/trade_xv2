@@ -15,16 +15,18 @@ from typing import Any
 
 from rich.console import Console
 
+from brokers.common.auth.environment_bootstrap import bootstrap_environment
+
 # Initialize centralized logging BEFORE any other imports that log
 from brokers.common.logging_config import setup_logging
-from brokers.common.auth.environment_bootstrap import bootstrap_environment
 
 setup_logging()
 
 # Load canonical broker env files once at startup.
 bootstrap_environment(Path(__file__).resolve().parent.parent)
 
-from cli.commands import (
+# isort: off
+from cli.commands import (  # noqa: E402
     account as cmd_account,
     analytics as cmd_analytics,
     benchmark as cmd_benchmark,
@@ -34,6 +36,7 @@ from cli.commands import (
     dashboard as cmd_dashboard,
     doctor as cmd_doctor,
     events as cmd_events,
+    extended_orders as cmd_extended_orders,
     instrument_info as cmd_instrument_info,
     instruments as cmd_instruments,
     journal as cmd_journal,
@@ -43,7 +46,6 @@ from cli.commands import (
     options_sync as cmd_options_sync,
     order_composition as cmd_order_composition,
     order_placement as cmd_order_placement,
-    extended_orders as cmd_extended_orders,
     portfolio as cmd_portfolio,
     quality_report as cmd_quality_report,
     risk_controls as cmd_risk_controls,
@@ -53,25 +55,26 @@ from cli.commands import (
     views as cmd_views,
     websocket as cmd_websocket,
 )
-from cli.commands.market_handlers import (
-    handle_quote,
+from cli.commands.market_handlers import (  # noqa: E402
     handle_depth,
+    handle_futures,
     handle_history,
     handle_option_chain,
-    handle_futures,
-    handle_stream,
     handle_orders,
+    handle_quote,
+    handle_stream,
     handle_validate,
 )
-from cli.commands.registry import (
+from cli.commands.registry import (  # noqa: E402
     DISPATCH_TABLE,
     CommandResult,
     lookup_handler,
     register_handler,
+    register as _register_cmd,
 )
-from cli.commands.registry import register as _register_cmd
-from cli.services.broker_service import BrokerService
-from cli.services.event_bus_service import EventBusService
+from cli.services.broker_service import BrokerService  # noqa: E402
+from cli.services.event_bus_service import EventBusService  # noqa: E402
+# isort: on
 
 # ── Module-path registry (discoverability, kept for tests) ─────────────────
 _register_cmd("broker", "cli.commands.broker")
@@ -122,9 +125,12 @@ _register_cmd("cache", "cli.commands.cache_management")
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
 
+
 def _print_help(console: Console) -> None:
     console.print("[bold]TradeXV2 CLI[/bold]\n")
-    console.print("[yellow]Usage: tradex <command> [args] [--broker dhan|upstox] [--json] [--verbose] [--timing][/yellow]\n")
+    console.print(
+        "[yellow]Usage: tradex <command> [args] [--broker dhan|upstox] [--json] [--verbose] [--timing][/yellow]\n"
+    )
     console.print("[bold]Commands:[/bold]")
     cmds = [
         ("broker", "Show broker connection info"),
@@ -191,79 +197,76 @@ def _wrap(_fn: Any, *args: Any, **kwargs: Any) -> CommandResult:
     return CommandResult(success=True)
 
 
-
-
-
 _DISPATCH: list[tuple[str, Any]] = [
     # Standard routing — module-level run() functions
-    ("broker",            cmd_broker.run),
-    ("dashboard",         cmd_dashboard.run),
-    ("benchmark",         cmd_benchmark.run),
-    ("analytics",         cmd_analytics.run),
-    ("compare",           cmd_compare.run),
-    ("quality-report",     cmd_quality_report.run),
-    ("instrument",        cmd_instrument_info.run),
-    ("instrument-info",   cmd_instrument_info.run),
-    ("account",           cmd_account.run),
-    ("funds",             cmd_account.run),
-    ("search",            cmd_search.run),
-    ("instruments",       cmd_instruments.run),
-    ("doctor",            cmd_doctor.run),
-    ("load-test",         cmd_load_test.run),
-    ("news",              cmd_news.run),
-    ("websocket",         cmd_websocket.run),
-    ("validate-history",  cmd_validate_history.run),
+    ("broker", cmd_broker.run),
+    ("dashboard", cmd_dashboard.run),
+    ("benchmark", cmd_benchmark.run),
+    ("analytics", cmd_analytics.run),
+    ("compare", cmd_compare.run),
+    ("quality-report", cmd_quality_report.run),
+    ("instrument", cmd_instrument_info.run),
+    ("instrument-info", cmd_instrument_info.run),
+    ("account", cmd_account.run),
+    ("funds", cmd_account.run),
+    ("search", cmd_search.run),
+    ("instruments", cmd_instruments.run),
+    ("doctor", cmd_doctor.run),
+    ("load-test", cmd_load_test.run),
+    ("news", cmd_news.run),
+    ("websocket", cmd_websocket.run),
+    ("validate-history", cmd_validate_history.run),
     ("validate-option-chain", cmd_validate_option_chain.run),
     # Order lifecycle commands (Agent 1)
-    ("place-order",       lambda a, bs, c: cmd_order_placement.place_order(a, bs, c)),
-    ("cancel-order",      lambda a, bs, c: cmd_order_placement.cancel_order(a, bs, c)),
-    ("modify-order",      lambda a, bs, c: cmd_order_placement.modify_order(a, bs, c)),
-    ("place-orders",      lambda a, bs, c: cmd_order_placement.place_orders_batch(a, bs, c)),
+    ("place-order", lambda a, bs, c: cmd_order_placement.place_order(a, bs, c)),
+    ("cancel-order", lambda a, bs, c: cmd_order_placement.cancel_order(a, bs, c)),
+    ("modify-order", lambda a, bs, c: cmd_order_placement.modify_order(a, bs, c)),
+    ("place-orders", lambda a, bs, c: cmd_order_placement.place_orders_batch(a, bs, c)),
     # Order composition patterns (Agent 3)
-    ("bracket-order",     lambda a, bs, c: cmd_order_composition.place_bracket_order(a, bs, c)),
-    ("oco-order",         lambda a, bs, c: cmd_order_composition.place_oco_order(a, bs, c)),
-    ("basket-order",      lambda a, bs, c: cmd_order_composition.place_basket_order(a, bs, c)),
+    ("bracket-order", lambda a, bs, c: cmd_order_composition.place_bracket_order(a, bs, c)),
+    ("oco-order", lambda a, bs, c: cmd_order_composition.place_oco_order(a, bs, c)),
+    ("basket-order", lambda a, bs, c: cmd_order_composition.place_basket_order(a, bs, c)),
     # Extended broker features
-    ("super-order",       lambda a, bs, c: cmd_extended_orders.super_order(a, bs, c)),
-    ("forever-order",     lambda a, bs, c: cmd_extended_orders.forever_order(a, bs, c)),
-    ("trigger",           lambda a, bs, c: cmd_extended_orders.trigger(a, bs, c)),
-    ("margin",            lambda a, bs, c: cmd_extended_orders.margin(a, bs, c)),
-    ("exit-all",          lambda a, bs, c: cmd_extended_orders.exit_all(a, bs, c)),
-    ("ledger",            lambda a, bs, c: cmd_extended_orders.ledger(a, bs, c)),
-    ("edis",              lambda a, bs, c: cmd_extended_orders.edis(a, bs, c)),
-    ("ip",                lambda a, bs, c: cmd_extended_orders.ip(a, bs, c)),
-    ("profile",           lambda a, bs, c: cmd_extended_orders.profile(a, bs, c)),
-    ("gtt-order",         lambda a, bs, c: cmd_extended_orders.gtt_order(a, bs, c)),
-    ("cover-order",       lambda a, bs, c: cmd_extended_orders.cover_order(a, bs, c)),
-    ("slice-order",       lambda a, bs, c: cmd_extended_orders.slice_order(a, bs, c)),
+    ("super-order", lambda a, bs, c: cmd_extended_orders.super_order(a, bs, c)),
+    ("forever-order", lambda a, bs, c: cmd_extended_orders.forever_order(a, bs, c)),
+    ("trigger", lambda a, bs, c: cmd_extended_orders.trigger(a, bs, c)),
+    ("margin", lambda a, bs, c: cmd_extended_orders.margin(a, bs, c)),
+    ("exit-all", lambda a, bs, c: cmd_extended_orders.exit_all(a, bs, c)),
+    ("ledger", lambda a, bs, c: cmd_extended_orders.ledger(a, bs, c)),
+    ("edis", lambda a, bs, c: cmd_extended_orders.edis(a, bs, c)),
+    ("ip", lambda a, bs, c: cmd_extended_orders.ip(a, bs, c)),
+    ("profile", lambda a, bs, c: cmd_extended_orders.profile(a, bs, c)),
+    ("gtt-order", lambda a, bs, c: cmd_extended_orders.gtt_order(a, bs, c)),
+    ("cover-order", lambda a, bs, c: cmd_extended_orders.cover_order(a, bs, c)),
+    ("slice-order", lambda a, bs, c: cmd_extended_orders.slice_order(a, bs, c)),
     ("broker-kill-switch", lambda a, bs, c: cmd_extended_orders.broker_kill_switch(a, bs, c)),
-    ("ipo",               lambda a, bs, c: cmd_extended_orders.ipo(a, bs, c)),
-    ("mf",                lambda a, bs, c: cmd_extended_orders.mf(a, bs, c)),
-    ("payout",            lambda a, bs, c: cmd_extended_orders.payout(a, bs, c)),
-    ("fundamentals",      lambda a, bs, c: cmd_extended_orders.fundamentals(a, bs, c)),
+    ("ipo", lambda a, bs, c: cmd_extended_orders.ipo(a, bs, c)),
+    ("mf", lambda a, bs, c: cmd_extended_orders.mf(a, bs, c)),
+    ("payout", lambda a, bs, c: cmd_extended_orders.payout(a, bs, c)),
+    ("fundamentals", lambda a, bs, c: cmd_extended_orders.fundamentals(a, bs, c)),
     # Risk management commands (Agent 2)
-    ("risk",              lambda a, bs, c: cmd_risk_controls.run(a, bs, c)),
+    ("risk", lambda a, bs, c: cmd_risk_controls.run(a, bs, c)),
     # Cache management (Agent 4)
-    ("cache",             lambda a, bs, c: cmd_cache_management.run(a, bs, c)),
+    ("cache", lambda a, bs, c: cmd_cache_management.run(a, bs, c)),
     # Signature-adapted wrappers (routed through _wrap helper)
-    ("holdings",          lambda a, bs, c: _wrap(cmd_portfolio.show_holdings, bs, c)),
-    ("positions",         lambda a, bs, c: _wrap(cmd_portfolio.show_positions, bs, c)),
-    ("trades",            lambda a, bs, c: _wrap(cmd_oms.show_trades, bs, c)),
-    ("oms",               lambda a, bs, c: _wrap(cmd_oms.show_oms_summary, bs, c)),
-    ("journal",           lambda a, bs, c: _wrap(cmd_journal.run_journal, a, c)),
-    ("views",             lambda a, bs, c: _wrap(cmd_views.run_views, a, c)),
-    ("options-sync",      lambda a, bs, c: _wrap(cmd_options_sync.run_options_sync, a, c)),
-    ("events",            lambda a, bs, c: _wrap(cmd_events.run, a, EventBusService(), c)),
+    ("holdings", lambda a, bs, c: _wrap(cmd_portfolio.show_holdings, bs, c)),
+    ("positions", lambda a, bs, c: _wrap(cmd_portfolio.show_positions, bs, c)),
+    ("trades", lambda a, bs, c: _wrap(cmd_oms.show_trades, bs, c)),
+    ("oms", lambda a, bs, c: _wrap(cmd_oms.show_oms_summary, bs, c)),
+    ("journal", lambda a, bs, c: _wrap(cmd_journal.run_journal, a, c)),
+    ("views", lambda a, bs, c: _wrap(cmd_views.run_views, a, c)),
+    ("options-sync", lambda a, bs, c: _wrap(cmd_options_sync.run_options_sync, a, c)),
+    ("events", lambda a, bs, c: _wrap(cmd_events.run, a, EventBusService(), c)),
     # Market data handlers — extracted from inline to cli/commands/market_handlers.py (REF-013)
-    ("quote",             handle_quote),
-    ("depth",             handle_depth),
-    ("historical",        handle_history),
-    ("history",           handle_history),
-    ("option-chain",      handle_option_chain),
-    ("futures",           handle_futures),
-    ("stream",            handle_stream),
-    ("orders",            handle_orders),
-    ("validate",          handle_validate),
+    ("quote", handle_quote),
+    ("depth", handle_depth),
+    ("historical", handle_history),
+    ("history", handle_history),
+    ("option-chain", handle_option_chain),
+    ("futures", handle_futures),
+    ("stream", handle_stream),
+    ("orders", handle_orders),
+    ("validate", handle_validate),
 ]
 
 # Populate the registry dispatch table
@@ -276,15 +279,23 @@ for _name, _fn in _DISPATCH:
 # Commands that do NOT need a broker gateway at all (no BrokerService init).
 _NO_GATEWAY_CMDS = frozenset({"help", "journal", "views", "options-sync"})
 
+# P-1.3: Read-only commands that don't need TradingContext/OMS lock
+_READONLY_COMMANDS = frozenset({
+    "quote", "depth", "option-chain", "futures",
+    "historical", "history", "stream",
+    "search", "instrument", "instrument-info", "instruments",
+    "news",
+})
+
 
 def _parse_flags(argv: list[str]) -> tuple[str, list[str], bool, bool, bool]:
     """Extract --broker, --json, --verbose, --timing and return (broker_name, remaining_args, json_mode, verbose, show_timing).
-    
+
     Returns
     -------
     tuple[str, list[str], bool, bool, bool]
         (broker_name, remaining_args, json_mode, verbose, show_timing)
-    
+
     Examples
     --------
     >>> _parse_flags(['--broker', 'upstox', '--verbose', 'doctor'])
@@ -319,6 +330,9 @@ def _parse_flags(argv: list[str]) -> tuple[str, list[str], bool, bool, bool]:
     return broker_name, remaining, json_mode, verbose, show_timing
 
 
+logger = logging.getLogger(__name__)
+
+
 def main() -> None:
     """Parse CLI arguments and route to commands or TUI.
 
@@ -330,22 +344,20 @@ def main() -> None:
 
     P0-10: dict-based dispatch replaces the hand-rolled ``if/elif``
     chain.  ``--json`` flag produces structured output on stdout.
-    
+
     Phase 5.3: Added --verbose (debug logging) and --timing (execution time) flags.
     """
     import time
+
     start_time = time.time()
-    
+
     broker_name, cmd_args, json_mode, verbose, show_timing = _parse_flags(sys.argv[1:])
 
     console: Console
-    if json_mode:
-        console = Console(quiet=True, highlight=False)
-    else:
-        console = Console()
-    
+    console = Console(quiet=True, highlight=False) if json_mode else Console()
+
     if verbose:
-        logger.debug("verbose_mode_enabled", extra={"broker": broker_name, "args": cmd_args})
+        logger.debug("verbose_mode_enabled", extra={"broker": broker_name, "cli_args": cmd_args})
 
     # Help / no args
     if not cmd_args or cmd_args[0] in ("--help", "-h", "help"):
@@ -370,15 +382,30 @@ def main() -> None:
     # I-14: single composition root — BrokerService owns all gateways
     # Phase 4.3: Lazy instrument loading - skip for commands that don't need symbol resolution
     needs_instruments = subcommand in {
-        "historical", "history", "search", "instrument",
-        "instrument-info", "instruments", "option-chain", "futures",
-        "quote", "depth", "stream",  # Market data needs instruments
-        "validate", "validate-history", "validate-option-chain",  # Validation needs instruments
+        "historical",
+        "history",
+        "search",
+        "instrument",
+        "instrument-info",
+        "instruments",
+        "option-chain",
+        "futures",
+        "quote",
+        "depth",
+        "stream",  # Market data needs instruments
+        "validate",
+        "validate-history",
+        "validate-option-chain",  # Validation needs instruments
     }
+    
+    # P-1.3: Readonly mode - skip TradingContext/OMS for market data commands
+    readonly = subcommand in _READONLY_COMMANDS
+    
     event_bus_service = EventBusService()
     broker_service = BrokerService(
         load_instruments=needs_instruments,
         event_bus=getattr(event_bus_service, "event_bus", None),
+        readonly=readonly,  # P-1.3: readonly mode flag
     )
 
     # Set active broker if non-default
@@ -414,7 +441,7 @@ def main() -> None:
         sys.exit(1)
     finally:
         broker_service.close()
-        
+
         # Phase 5.3: Display execution time if --timing flag is set
         if show_timing:
             elapsed = time.time() - start_time
@@ -423,7 +450,7 @@ def main() -> None:
             logger.debug(
                 "command_timing",
                 extra={
-                    "command": subcommand if 'subcommand' in locals() else "unknown",
+                    "command": subcommand if "subcommand" in locals() else "unknown",
                     "elapsed_seconds": round(elapsed, 3),
                 },
             )

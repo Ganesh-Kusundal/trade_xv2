@@ -144,9 +144,7 @@ class OptionChain:
         if not data:
             return cls(underlying="", exchange="", expiry="")
         strikes = tuple(
-            OptionStrike.from_dict(row)
-            for row in data.get("strikes", [])
-            if isinstance(row, dict)
+            OptionStrike.from_dict(row) for row in data.get("strikes", []) if isinstance(row, dict)
         )
         return cls(
             underlying=str(data.get("underlying", "")),

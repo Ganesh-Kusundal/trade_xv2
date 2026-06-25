@@ -11,10 +11,8 @@ object, and asserts the attribute set matches a frozen
 expectation. If a future refactor removes or renames an attribute
 that external callers depend on, this test fails loudly.
 """
+
 from __future__ import annotations
-
-import pytest
-
 
 # Expected public attributes on UpstoxBroker. Adding one here is a
 # deliberate change to the contract; removing one is a breaking
@@ -121,6 +119,4 @@ def test_broker_attributes_documented_in_audit():
     # The catalogue is the constant itself. If we got here, the
     # catalogue is well-formed (frozenset, no duplicates).
     assert isinstance(EXPECTED_ATTRIBUTES, frozenset)
-    assert len(EXPECTED_ATTRIBUTES) == len(
-        {a for a in EXPECTED_ATTRIBUTES if isinstance(a, str)}
-    )
+    assert len(EXPECTED_ATTRIBUTES) == len({a for a in EXPECTED_ATTRIBUTES if isinstance(a, str)})

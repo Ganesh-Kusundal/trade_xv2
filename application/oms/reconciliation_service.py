@@ -6,6 +6,7 @@ This module exists so the reconciliation timer can be registered with a
 shutdown — the previous in-context ad-hoc thread leaked across
 process restarts.
 """
+
 from __future__ import annotations
 
 import logging
@@ -14,6 +15,8 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from application.oms.order_manager import OrderManager
+from application.oms.position_manager import PositionManager
 from domain.constants import (
     DEFAULT_STOP_TIMEOUT_SECONDS,
     MIN_SLEEP_SECONDS,
@@ -21,8 +24,6 @@ from domain.constants import (
 )
 from infrastructure.event_bus import EventBus
 from infrastructure.lifecycle import HealthState, ManagedService, build_health
-from application.oms.order_manager import OrderManager
-from application.oms.position_manager import PositionManager
 
 logger = logging.getLogger(__name__)
 
@@ -83,13 +84,9 @@ class ReconciliationService(ManagedService):
         if self._thread and self._thread.is_alive():
             return
         self._stop_event.clear()
-        self._thread = threading.Thread(
-            target=self._loop, daemon=True, name="reconciliation-timer"
-        )
+        self._thread = threading.Thread(target=self._loop, daemon=True, name="reconciliation-timer")
         self._thread.start()
-        logger.info(
-            "Reconciliation service started (interval=%.1fs)", self._interval
-        )
+        logger.info("Reconciliation service started (interval=%.1fs)", self._interval)
 
     def stop(self, timeout_seconds: float = DEFAULT_STOP_TIMEOUT_SECONDS) -> None:
         self._stop_event.set()
@@ -102,9 +99,7 @@ class ReconciliationService(ManagedService):
                     timeout_seconds,
                 )
             self._thread = None
-        logger.info(
-            "Reconciliation service stopped (ran %d times)", self._run_count
-        )
+        logger.info("Reconciliation service stopped (ran %d times)", self._run_count)
 
     def health(self):  # type: ignore[override]
         if self._thread is None or not self._thread.is_alive():
@@ -185,6 +180,7 @@ class ReconciliationService(ManagedService):
             if self._event_bus is not None:
                 try:
                     from infrastructure.event_bus import DomainEvent
+
                     # Publish the canonical RECONCILIATION_COMPLETED with
                     # a sub-type indicator so operators watching the bus
                     # see drift/ok without needing a second event type.

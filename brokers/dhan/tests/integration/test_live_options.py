@@ -26,6 +26,7 @@ ENV_PATH = Path(__file__).resolve().parent.parent.parent.parent.parent / ".env.l
 _live_env_loaded = False
 if ENV_PATH.exists() and ENV_PATH.stat().st_size > 0:
     from dotenv import load_dotenv
+
     load_dotenv(ENV_PATH, override=True)
     _live_env_loaded = bool(os.environ.get("DHAN_CLIENT_ID"))
 
@@ -259,16 +260,22 @@ class TestExpiredOptionsData:
         """Expired options data with 5-min interval should return fewer candles."""
         result_1m = gateway.extended.get_expired_options_data(
             security_id=NIFTY_SECURITY_ID,
-            expiry_flag="WEEK", expiry_code=1, strike="ATM",
+            expiry_flag="WEEK",
+            expiry_code=1,
+            strike="ATM",
             option_type="CALL",
-            from_date="2026-06-12", to_date="2026-06-12",
+            from_date="2026-06-12",
+            to_date="2026-06-12",
             interval=1,
         )
         result_5m = gateway.extended.get_expired_options_data(
             security_id=NIFTY_SECURITY_ID,
-            expiry_flag="WEEK", expiry_code=1, strike="ATM",
+            expiry_flag="WEEK",
+            expiry_code=1,
+            strike="ATM",
             option_type="CALL",
-            from_date="2026-06-12", to_date="2026-06-12",
+            from_date="2026-06-12",
+            to_date="2026-06-12",
             interval=5,
         )
         assert result_1m["status"] == "success"

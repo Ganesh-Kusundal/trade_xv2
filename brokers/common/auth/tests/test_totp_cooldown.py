@@ -15,7 +15,9 @@ def test_cooldown_blocks_second_attempt(tmp_path):
 
 
 def test_cooldown_allows_after_success_recorded(tmp_path):
-    guard = TotpCooldownGuard("test2", cooldown_seconds=120.0, state_path=tmp_path / "cooldown2.json")
+    guard = TotpCooldownGuard(
+        "test2", cooldown_seconds=120.0, state_path=tmp_path / "cooldown2.json"
+    )
     guard.record_success()
     with pytest.raises(TotpRateLimitError):
         guard.check_allowed()

@@ -10,15 +10,15 @@ from __future__ import annotations
 # Dhan API Error Codes
 # ---------------------------------------------------------------------------
 
-DHAN_ERR_INVALID_TOKEN = "DH-906"
-DHAN_ERR_TOKEN_EXPIRED = "DH-808"
+DHAN_ERR_INVALID_TOKEN = "DH-906"  # noqa: S105
+DHAN_ERR_TOKEN_EXPIRED = "DH-808"  # noqa: S105
 
 # ---------------------------------------------------------------------------
 # Broker Error Codes (BRO-xxx)
 # ---------------------------------------------------------------------------
 
 BRO_ERR_AUTH_FAILED = "BRO-001"
-BRO_ERR_TOKEN_REFRESH_FAILED = "BRO-002"
+BRO_ERR_TOKEN_REFRESH_FAILED = "BRO-002"  # noqa: S105
 BRO_ERR_RATE_LIMITED = "BRO-003"
 BRO_ERR_CIRCUIT_BREAKER_OPEN = "BRO-004"
 BRO_ERR_INSTRUMENT_NOT_FOUND = "BRO-005"

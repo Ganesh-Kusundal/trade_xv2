@@ -53,9 +53,7 @@ class PipelineFeatureFetcher:
         try:
             end = date.today()
             start = end - timedelta(days=30)
-            df = self._market_data.history(
-                symbol, start, end, interval="1m", exchange=exchange
-            )
+            df = self._market_data.history(symbol, start, end, interval="1m", exchange=exchange)
             if df is None or df.empty:
                 return pd.DataFrame()
             df = df.tail(self._lookback_bars).copy()

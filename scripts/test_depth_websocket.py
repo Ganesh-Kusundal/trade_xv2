@@ -12,11 +12,11 @@ from dotenv import load_dotenv
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
+from brokers.common.logging_config import setup_logging
+from brokers.dhan.factory import BrokerFactory
 from infrastructure.event_bus import EventBus
 from infrastructure.lifecycle import LifecycleManager
-from brokers.dhan.factory import BrokerFactory
 
-from brokers.common.logging_config import setup_logging
 setup_logging()
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ def test_depth_20_websocket():
         event_bus=event_bus,
     )
 
-    logger.info(f"Capabilities: depth_20={gateway.capabilities().depth_20}")
+    logger.info("Capabilities: depth_20=%s", gateway.capabilities().depth_20)
 
     # Start lifecycle
     lifecycle.start_all()
@@ -45,24 +45,24 @@ def test_depth_20_websocket():
         # Test NSE equity
         logger.info("\nFetching 20-level depth for RELIANCE (NSE_EQ)...")
         depth = gateway.depth_20("RELIANCE", "NSE_EQ")
-        logger.info(f"✅ Depth received: {depth.symbol}")
-        logger.info(f"   Bids: {len(depth.bids) if depth.bids else 0}")
-        logger.info(f"   Asks: {len(depth.asks) if depth.asks else 0}")
-        logger.info(f"   Depth type: {depth.depth_type}")
+        logger.info("Depth received: %s", depth.symbol)
+        logger.info("   Bids: %s", len(depth.bids) if depth.bids else 0)
+        logger.info("   Asks: %s", len(depth.asks) if depth.asks else 0)
+        logger.info("   Depth type: %s", depth.depth_type)
 
         # Test NSE F&O
         logger.info("\nFetching 20-level depth for NIFTY (NSE_FNO)...")
         depth = gateway.depth_20("NIFTY", "NFO")
-        logger.info(f"✅ Depth received: {depth.symbol}")
-        logger.info(f"   Depth type: {depth.depth_type}")
+        logger.info("Depth received: %s", depth.symbol)
+        logger.info("   Depth type: %s", depth.depth_type)
 
         # Test invalid exchange (should raise error)
         logger.info("\nTesting invalid exchange (BSE)...")
         try:
             depth = gateway.depth_20("RELIANCE", "BSE")
-            logger.error("❌ Should have raised ValueError for BSE")
+            logger.error("Should have raised ValueError for BSE")
         except ValueError as e:
-            logger.info(f"✅ Correctly rejected: {e}")
+            logger.info("Correctly rejected: %s", e)
 
         # Wait for WebSocket messages
         logger.info("\nWaiting 5 seconds for depth updates...")
@@ -70,10 +70,10 @@ def test_depth_20_websocket():
 
         # Check health
         health = lifecycle.health_snapshot()
-        logger.info(f"\nLifecycle health: {health}")
+        logger.info("\nLifecycle health: %s", health)
 
     except Exception as exc:
-        logger.error(f"❌ Test failed: {exc}", exc_info=True)
+        logger.exception("Test failed: %s", exc)
     finally:
         lifecycle.stop_all()
         gateway.close()
@@ -93,7 +93,7 @@ def test_depth_200_websocket():
         event_bus=event_bus,
     )
 
-    logger.info(f"Capabilities: depth_200={gateway.capabilities().depth_200}")
+    logger.info("Capabilities: depth_200=%s", gateway.capabilities().depth_200)
 
     # Start lifecycle
     lifecycle.start_all()
@@ -103,18 +103,18 @@ def test_depth_200_websocket():
         # Test NSE equity
         logger.info("\nFetching 200-level depth for RELIANCE (NSE_EQ)...")
         depth = gateway.depth_200("RELIANCE", "NSE_EQ")
-        logger.info(f"✅ Depth received: {depth.symbol}")
-        logger.info(f"   Bids: {len(depth.bids) if depth.bids else 0}")
-        logger.info(f"   Asks: {len(depth.asks) if depth.asks else 0}")
-        logger.info(f"   Depth type: {depth.depth_type}")
+        logger.info("Depth received: %s", depth.symbol)
+        logger.info("   Bids: %s", len(depth.bids) if depth.bids else 0)
+        logger.info("   Asks: %s", len(depth.asks) if depth.asks else 0)
+        logger.info("   Depth type: %s", depth.depth_type)
 
         # Test invalid exchange
         logger.info("\nTesting invalid exchange (MCX)...")
         try:
             depth = gateway.depth_200("CRUDEOIL", "MCX")
-            logger.error("❌ Should have raised ValueError for MCX")
+            logger.error("Should have raised ValueError for MCX")
         except ValueError as e:
-            logger.info(f"✅ Correctly rejected: {e}")
+            logger.info("Correctly rejected: %s", e)
 
         # Wait for WebSocket messages
         logger.info("\nWaiting 5 seconds for depth updates...")
@@ -122,10 +122,10 @@ def test_depth_200_websocket():
 
         # Check health
         health = lifecycle.health_snapshot()
-        logger.info(f"\nLifecycle health: {health}")
+        logger.info("\nLifecycle health: %s", health)
 
     except Exception as exc:
-        logger.error(f"❌ Test failed: {exc}", exc_info=True)
+        logger.exception("Test failed: %s", exc)
     finally:
         lifecycle.stop_all()
         gateway.close()
@@ -143,7 +143,7 @@ if __name__ == "__main__":
         logger.error("DHAN_CLIENT_ID and DHAN_ACCESS_TOKEN must be set")
         sys.exit(1)
 
-    logger.info(f"Client ID: {client_id}")
+    logger.info("Client ID: %s", client_id)
 
     try:
         # Test both depth feeds
@@ -152,5 +152,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         logger.info("Test interrupted")
     except Exception as exc:
-        logger.error(f"Test failed: {exc}", exc_info=True)
+        logger.exception("Test failed: %s", exc)
         sys.exit(1)

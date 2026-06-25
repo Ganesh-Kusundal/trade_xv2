@@ -1,7 +1,5 @@
 """Integration tests for analytics.reports."""
 
-import pandas as pd
-
 from analytics.core.models import AnalysisResult
 from analytics.reports.reports import to_dataframe
 

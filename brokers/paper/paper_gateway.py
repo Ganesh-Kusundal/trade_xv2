@@ -8,6 +8,7 @@ from typing import Any
 import pandas as pd
 
 from brokers.common.batch_mixin import BatchFetchMixin
+from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
 from domain import (
     Balance,
     FutureChain,
@@ -21,7 +22,6 @@ from domain import (
     Quote,
     Trade,
 )
-from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
 from domain.constants.defaults import PAPER_INITIAL_CAPITAL
 
 from .paper_market_data import PaperMarketData
@@ -55,9 +55,7 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway):
         # ``trading_context`` is a backward-compatible injection path; composition
         # roots should prefer explicit order_manager / position_manager.
         if trading_context is not None:
-            order_manager = order_manager or getattr(
-                trading_context, "order_manager", None
-            )
+            order_manager = order_manager or getattr(trading_context, "order_manager", None)
             position_manager = position_manager or getattr(
                 trading_context, "position_manager", None
             )
@@ -100,9 +98,9 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway):
         from_date: str | None = None,
         to_date: str | None = None,
     ) -> pd.DataFrame:
+        import hashlib
         from datetime import datetime, timedelta, timezone
 
-        import hashlib
         import numpy as np
 
         symbols = [symbol] if isinstance(symbol, str) else symbol
@@ -111,7 +109,7 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway):
 
         rows = []
         for sym in symbols:
-            seed = int(hashlib.md5(sym.encode()).hexdigest()[:8], 16) % (2**31)
+            seed = int(hashlib.sha256(sym.encode()).hexdigest()[:8], 16) % (2**31)
             np.random.seed(seed)
             base_price = 500.0 + np.random.uniform(0, 4500)
             close = base_price + np.cumsum(np.random.randn(n) * base_price * 0.02)
@@ -121,18 +119,20 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway):
             volume = np.random.randint(10000, 500000, n).astype(float)
 
             for i in range(n):
-                rows.append({
-                    "timestamp": dates[i],
-                    "open": round(open_[i], 2),
-                    "high": round(high[i], 2),
-                    "low": round(low[i], 2),
-                    "close": round(close[i], 2),
-                    "volume": int(volume[i]),
-                    "oi": 0,
-                    "symbol": sym,
-                    "exchange": exchange,
-                    "timeframe": timeframe,
-                })
+                rows.append(
+                    {
+                        "timestamp": dates[i],
+                        "open": round(open_[i], 2),
+                        "high": round(high[i], 2),
+                        "low": round(low[i], 2),
+                        "close": round(close[i], 2),
+                        "volume": int(volume[i]),
+                        "oi": 0,
+                        "symbol": sym,
+                        "exchange": exchange,
+                        "timeframe": timeframe,
+                    }
+                )
 
         return pd.DataFrame(rows)
 
@@ -170,21 +170,26 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway):
         expiry: str | None = None,
     ) -> OptionChain:
         import numpy as np
+
         base = float(self._market_data.get_ltp(underlying, "NSE"))
         strikes = [round(base + i * 50, 0) for i in range(-10, 11)]
         chain = []
         for strike in strikes:
-            chain.append({
-                "strike": strike,
-                "call": {"ltp": round(max(0, base - strike + np.random.uniform(5, 50)), 2)},
-                "put": {"ltp": round(max(0, strike - base + np.random.uniform(5, 50)), 2)},
-            })
-        return OptionChain.from_dict({
-            "underlying": underlying,
-            "exchange": exchange,
-            "expiry": expiry or "2026-07-30",
-            "strikes": chain,
-        })
+            chain.append(
+                {
+                    "strike": strike,
+                    "call": {"ltp": round(max(0, base - strike + np.random.uniform(5, 50)), 2)},
+                    "put": {"ltp": round(max(0, strike - base + np.random.uniform(5, 50)), 2)},
+                }
+            )
+        return OptionChain.from_dict(
+            {
+                "underlying": underlying,
+                "exchange": exchange,
+                "expiry": expiry or "2026-07-30",
+                "strikes": chain,
+            }
+        )
 
     def future_chain(
         self,
@@ -192,24 +197,32 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway):
         exchange: str = "NFO",
     ) -> FutureChain:
         import numpy as np
+
         base = float(self._market_data.get_ltp(underlying, "NSE"))
         from datetime import datetime, timedelta
-        expiries = [(datetime.now() + timedelta(days=30 * i)).strftime("%Y-%m-%d") for i in range(1, 4)]
+
+        expiries = [
+            (datetime.now() + timedelta(days=30 * i)).strftime("%Y-%m-%d") for i in range(1, 4)
+        ]
         contracts = []
         for exp in expiries:
-            contracts.append({
-                "expiry": exp,
-                "ltp": round(base * (1 + np.random.uniform(-0.02, 0.03)), 2),
-                "volume": int(np.random.randint(10000, 500000)),
-                "oi": int(np.random.randint(50000, 1000000)),
-                "change": round(np.random.uniform(-2, 2), 2),
-            })
-        return FutureChain.from_dict({
-            "underlying": underlying,
-            "exchange": exchange,
-            "expiries": expiries,
-            "contracts": contracts,
-        })
+            contracts.append(
+                {
+                    "expiry": exp,
+                    "ltp": round(base * (1 + np.random.uniform(-0.02, 0.03)), 2),
+                    "volume": int(np.random.randint(10000, 500000)),
+                    "oi": int(np.random.randint(50000, 1000000)),
+                    "change": round(np.random.uniform(-2, 2), 2),
+                }
+            )
+        return FutureChain.from_dict(
+            {
+                "underlying": underlying,
+                "exchange": exchange,
+                "expiries": expiries,
+                "contracts": contracts,
+            }
+        )
 
     def stream(
         self,
@@ -219,10 +232,16 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway):
         on_tick: Any | None = None,
     ) -> Any:
         class _PaperStream:
-            def connect(self): pass
-            def disconnect(self): pass
+            def connect(self):
+                pass
+
+            def disconnect(self):
+                pass
+
             @property
-            def is_connected(self): return False
+            def is_connected(self):
+                return False
+
         return _PaperStream()
 
     # =======================================================================
@@ -239,17 +258,100 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway):
         )
 
     def cancel_order(self, order_id: str) -> OrderResponse:
+        """Cancel an order with post-cancellation verification.
+
+        H1 Critical Fix: After cancelling, verifies order actually reached
+        cancelled state. For paper trading, this is always successful unless
+        order was already filled (instant fill for market orders).
+        """
         success = self._orders.cancel_order(order_id)
+        
+        # Always check order status for post-cancellation verification (H1 fix)
+        order = self.get_order(order_id)
+        
+        if order and order.status in (OrderStatus.FILLED,):
+            # Race condition detected: order was filled before cancel
+            return OrderResponse.fail(
+                message=f"Order {order_id} was already filled before cancel completed",
+                status=OrderStatus.FILLED,
+            )
+        
         if success:
             return OrderResponse.ok(
                 order_id=order_id,
                 message="Order cancelled (paper)",
                 status=OrderStatus.CANCELLED,
             )
+        
         return OrderResponse.fail(
             message=f"Order {order_id} not found or not open",
             status=OrderStatus.REJECTED,
         )
+
+    def get_order(self, order_id: str) -> Order | None:
+        """Query a single order by ID from the orderbook.
+
+        H1 Critical Fix: Enables post-cancellation verification by allowing
+        lookup of individual orders.
+
+        Args:
+            order_id: Paper order ID to look up
+
+        Returns:
+            Order if found, None if not in orderbook
+        """
+        return self._orders.get_order(order_id)
+
+    def modify_order(
+        self,
+        order_id: str,
+        quantity: int | None = None,
+        price: Decimal | None = None,
+        order_type: str | OrderType | None = None,
+        trigger_price: Decimal | None = None,
+        validity: str | Validity | None = None,
+    ) -> OrderResponse:
+        """Modify an open order - delegates to PaperOrders.modify_order.
+        
+        P-2.1 Critical Fix: Implements modify_order for paper trading gateway.
+        
+        Args:
+            order_id: Order ID to modify
+            quantity: New quantity (optional)
+            price: New price (optional)
+            order_type: New order type (optional)
+            trigger_price: New trigger price (optional)
+            validity: New validity (optional)
+            
+        Returns:
+            OrderResponse with modified order details
+        """
+        # Convert string enums if needed
+        if isinstance(order_type, str):
+            order_type = OrderType(order_type.upper())
+        if isinstance(validity, str):
+            validity = Validity(validity.upper())
+        
+        try:
+            order = self._orders.modify_order(
+                order_id=order_id,
+                quantity=quantity,
+                price=price,
+                order_type=order_type,
+                trigger_price=trigger_price,
+                validity=validity,
+            )
+            return OrderResponse(
+                success=True,
+                order_id=order.order_id,
+                message="Order modified and filled (paper)",
+                status=order.status,
+            )
+        except ValueError as exc:
+            return OrderResponse.fail(
+                message=str(exc),
+                status=OrderStatus.REJECTED,
+            )
 
     def get_orderbook(self) -> list[Order]:
         return self._orders.get_orderbook()
@@ -288,25 +390,72 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway):
     # =======================================================================
 
     def capabilities(self) -> BrokerCapabilities:
+        from brokers.common.capabilities import (
+            BrokerCapabilities,
+            HistoricalWindowConstraint,
+            RateLimitProfile,
+            StreamLimitProfile,
+        )
+
         return BrokerCapabilities(
-            expired_options=True,
-            expired_futures=False,
-            depth_20=True,
-            depth_200=False,
-            max_intraday_days=365 * 10,
-            max_daily_days=365 * 10,
-            supported_timeframes=("1m", "5m", "15m", "30m", "1h", "1D"),
-            parallel_history=True,
+            broker_id="paper",
+            supports_place_order=True,
+            supports_cancel_order=True,
+            supports_modify_order=True,
+            supports_historical_data=True,
+            supports_intraday_history=True,
+            supports_expired_options_history=True,
+            supports_live_market_data=True,
+            supports_depth=True,
+            supports_depth_20_ws=True,
+            supports_depth_200_ws=False,
+            supports_option_chain=True,
+            supports_polling_fallback=True,
+            supports_order_stream=True,
+            supports_portfolio_stream=False,
+            supports_news=False,
+            supports_fundamentals=False,
+            supports_super_order=False,
+            supports_forever_order=False,
+            supports_native_slice_order=False,
+            rate_limit_profiles=(
+                RateLimitProfile(
+                    endpoint_class="orders",
+                    sustained_rps=100.0,
+                ),
+                RateLimitProfile(
+                    endpoint_class="quotes",
+                    sustained_rps=100.0,
+                ),
+                RateLimitProfile(
+                    endpoint_class="historical",
+                    sustained_rps=100.0,
+                ),
+            ),
+            historical_windows=(
+                HistoricalWindowConstraint(
+                    timeframe="1m",
+                    max_lookback_days=3650,
+                    max_chunk_days=365,
+                    supports_expired_instruments=True,
+                ),
+                HistoricalWindowConstraint(
+                    timeframe="1D",
+                    max_lookback_days=3650,
+                    max_chunk_days=365,
+                ),
+            ),
+            stream_limits=StreamLimitProfile(
+                max_connections=1,
+                max_instruments_per_connection=1000,
+                max_depth_levels=20,
+                supported_stream_modes=frozenset({"LTP", "QUOTE", "FULL"}),
+            ),
+            latency_class="low",
+            reliability_class="tier1",
+            product_types=frozenset({"INTRADAY", "MARGIN", "CNC"}),
+            order_types=frozenset({"MARKET", "LIMIT", "STOP_LOSS", "STOP_LOSS_MARKET"}),
             max_batch_size=100,
-            websocket=False,
-            polling_fallback=True,
-            order_types=("MARKET", "LIMIT", "STOP_LOSS", "STOP_LOSS_MARKET"),
-            product_types=("INTRADAY", "MARGIN", "CNC"),
-            validities=("DAY", "IOC"),
-            load_instruments=True,
-            search=True,
-            rate_limit_per_second=100,
-            rate_limit_per_minute=10000,
         )
 
     def describe(self) -> dict:

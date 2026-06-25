@@ -15,13 +15,11 @@ Covers:
 from __future__ import annotations
 
 import time
-from typing import Any
-from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
 
-from analytics.scanner.models import Candidate, ScanResult, Scanner
+from analytics.scanner.models import Candidate, Scanner, ScanResult
 from analytics.scanner.runner import (
     ScannerRunner,
     ScannerTaskResult,
@@ -29,10 +27,10 @@ from analytics.scanner.runner import (
     run_scanners_with_timing,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fake Scanner for testing
 # ---------------------------------------------------------------------------
+
 
 class FakeScanner(Scanner):
     """A test scanner with configurable behavior."""
@@ -65,8 +63,8 @@ class FakeScanner(Scanner):
 # ScannerTaskResult tests
 # ---------------------------------------------------------------------------
 
-class TestScannerTaskResult:
 
+class TestScannerTaskResult:
     def test_successful_result(self) -> None:
         sr = ScanResult(scanner="test", candidates=[Candidate(symbol="X", score=50.0)])
         result = ScannerTaskResult(
@@ -100,9 +98,7 @@ class TestScannerTaskResult:
 
     def test_empty_candidates_count(self) -> None:
         sr = ScanResult(scanner="test", candidates=[])
-        result = ScannerTaskResult(
-            scanner_name="test", success=True, scan_result=sr
-        )
+        result = ScannerTaskResult(scanner_name="test", success=True, scan_result=sr)
         assert result.candidate_count == 0
 
 
@@ -110,8 +106,8 @@ class TestScannerTaskResult:
 # run_all tests
 # ---------------------------------------------------------------------------
 
-class TestRunAll:
 
+class TestRunAll:
     def test_empty_scanners_returns_empty(self) -> None:
         runner = ScannerRunner()
         df = pd.DataFrame()
@@ -163,8 +159,7 @@ class TestRunAll:
 
     def test_all_scanners_fail(self) -> None:
         scanners = [
-            FakeScanner(name=f"fail_{i}", raise_on_scan=RuntimeError(f"fail {i}"))
-            for i in range(3)
+            FakeScanner(name=f"fail_{i}", raise_on_scan=RuntimeError(f"fail {i}")) for i in range(3)
         ]
         df = pd.DataFrame({"close": [100.0] * 10})
         runner = ScannerRunner()
@@ -207,8 +202,8 @@ class TestRunAll:
 # Thread safety tests
 # ---------------------------------------------------------------------------
 
-class TestThreadSafety:
 
+class TestThreadSafety:
     def test_dataframe_copy_prevents_mutation(self) -> None:
         """Each scanner should receive its own copy of the DataFrame."""
         mutated_values = []
@@ -263,8 +258,8 @@ class TestThreadSafety:
 # run_streaming tests
 # ---------------------------------------------------------------------------
 
-class TestRunStreaming:
 
+class TestRunStreaming:
     def test_streaming_yields_all_results(self) -> None:
         scanners = [
             FakeScanner(name=f"s{i}", candidates=[Candidate(symbol="X", score=50.0)])
@@ -313,8 +308,8 @@ class TestRunStreaming:
 # run_with_fallback tests
 # ---------------------------------------------------------------------------
 
-class TestRunWithFallback:
 
+class TestRunWithFallback:
     def test_no_fallback_when_all_succeed(self) -> None:
         scanners = [FakeScanner(name="s1", candidates=[])]
         df = pd.DataFrame({"close": [100.0] * 10})
@@ -350,8 +345,8 @@ class TestRunWithFallback:
 # Timeout tests
 # ---------------------------------------------------------------------------
 
-class TestTimeout:
 
+class TestTimeout:
     @pytest.mark.skip(reason="Timeout behavior depends on ThreadPoolExecutor internals")
     def test_timeout_on_slow_scanners(self) -> None:
         """ScannerRunner should respect timeout_seconds."""
@@ -362,8 +357,8 @@ class TestTimeout:
 # Convenience function tests
 # ---------------------------------------------------------------------------
 
-class TestConvenienceFunctions:
 
+class TestConvenienceFunctions:
     def test_run_scanners_parallel_returns_only_successful(self) -> None:
         good = FakeScanner(
             name="good",

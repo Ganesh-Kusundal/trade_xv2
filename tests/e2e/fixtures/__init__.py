@@ -9,31 +9,31 @@ Provides:
 """
 
 from tests.e2e.fixtures.data_generators import (
-    generate_ohlcv_data,
-    generate_multi_symbol_data,
-    generate_trending_data,
     generate_mean_reverting_data,
+    generate_multi_symbol_data,
+    generate_ohlcv_data,
+    generate_trending_data,
 )
+from tests.e2e.fixtures.event_capturer import EventCapturer
 from tests.e2e.fixtures.mock_brokers import (
     MockBrokerGateway,
     MockFailingBroker,
     MockLatencyBroker,
 )
 from tests.e2e.fixtures.trading_context_factory import (
-    create_test_trading_context,
     create_paper_trading_context,
+    create_test_trading_context,
 )
-from tests.e2e.fixtures.event_capturer import EventCapturer
 
 __all__ = [
-    "generate_ohlcv_data",
-    "generate_multi_symbol_data",
-    "generate_trending_data",
-    "generate_mean_reverting_data",
+    "EventCapturer",
     "MockBrokerGateway",
     "MockFailingBroker",
     "MockLatencyBroker",
-    "create_test_trading_context",
     "create_paper_trading_context",
-    "EventCapturer",
+    "create_test_trading_context",
+    "generate_mean_reverting_data",
+    "generate_multi_symbol_data",
+    "generate_ohlcv_data",
+    "generate_trending_data",
 ]

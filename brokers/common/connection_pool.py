@@ -9,14 +9,14 @@ Manages requests.Session instances keyed by broker type with:
 Usage
 -----
     from brokers.common.connection_pool import get_connection_pool
-    
+
     # Application startup
     pool = get_connection_pool()
-    
+
     # Get session for broker
     session = pool.get_session("upstox")
     http_client = UpstoxHttpClient(..., session=session)
-    
+
     # Application shutdown
     pool.close_all()
 
@@ -127,9 +127,7 @@ class ConnectionPoolManager:
         # Slow path: create session with lock
         with self._lock:
             if self._closed:
-                raise RuntimeError(
-                    "ConnectionPoolManager is closed, cannot create new sessions"
-                )
+                raise RuntimeError("ConnectionPoolManager is closed, cannot create new sessions")
 
             # Double-check after acquiring lock
             if broker_key in self._sessions:
@@ -162,10 +160,12 @@ class ConnectionPoolManager:
         session.mount("https://", adapter)
 
         # Set default headers (optional, can be overridden per-request)
-        session.headers.update({
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-        })
+        session.headers.update(
+            {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            }
+        )
 
         return session
 
@@ -323,12 +323,12 @@ def close_broker_sessions() -> None:
 
 
 __all__ = [
-    "ConnectionPoolManager",
-    "get_connection_pool",
-    "reset_connection_pool",
     "BROKER_TYPES",
     "DEFAULT_POOL_CONNECTIONS",
     "DEFAULT_POOL_MAXSIZE",
-    "get_broker_session",
+    "ConnectionPoolManager",
     "close_broker_sessions",
+    "get_broker_session",
+    "get_connection_pool",
+    "reset_connection_pool",
 ]

@@ -11,10 +11,10 @@ import logging
 from datetime import datetime
 from typing import Any
 
-logger = logging.getLogger(__name__)
-
-from domain import MarketIntelligenceSnapshot
 from brokers.upstox.market_intelligence.client import UpstoxMarketIntelligenceClient
+from domain import MarketIntelligenceSnapshot
+
+logger = logging.getLogger(__name__)
 
 
 class UpstoxMarketIntelligenceSnapshotBuilder:
@@ -58,10 +58,14 @@ class UpstoxMarketIntelligenceSnapshotBuilder:
             snapshot.dii_flow = self._client.get_dii_flow()
         with contextlib.suppress(Exception):
             result = self._client.get_smartlist_futures()
-            snapshot.smartlist_futures = result.get("smartlist", []) if isinstance(result, dict) else []
+            snapshot.smartlist_futures = (
+                result.get("smartlist", []) if isinstance(result, dict) else []
+            )
         with contextlib.suppress(Exception):
             result = self._client.get_smartlist_options()
-            snapshot.smartlist_options = result.get("smartlist", []) if isinstance(result, dict) else []
+            snapshot.smartlist_options = (
+                result.get("smartlist", []) if isinstance(result, dict) else []
+            )
         return snapshot
 
 

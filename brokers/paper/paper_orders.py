@@ -80,17 +80,29 @@ class PaperOrders:
         # REF-018: Route through OMS OrderManager for idempotency when available.
         if self._order_manager is not None:
             return self._place_via_oms(
-                symbol=symbol, exchange=exchange, side=side, quantity=quantity,
-                price=price, order_type=order_type, product_type=product_type,
-                validity=validity, trigger_price=trigger_price,
+                symbol=symbol,
+                exchange=exchange,
+                side=side,
+                quantity=quantity,
+                price=price,
+                order_type=order_type,
+                product_type=product_type,
+                validity=validity,
+                trigger_price=trigger_price,
                 correlation_id=correlation_id,
             )
 
         # Legacy path: no OMS available, manage state internally.
         return self._place_internal(
-            symbol=symbol, exchange=exchange, side=side, quantity=quantity,
-            price=price, order_type=order_type, product_type=product_type,
-            validity=validity, trigger_price=trigger_price,
+            symbol=symbol,
+            exchange=exchange,
+            side=side,
+            quantity=quantity,
+            price=price,
+            order_type=order_type,
+            product_type=product_type,
+            validity=validity,
+            trigger_price=trigger_price,
             correlation_id=correlation_id,
         )
 
@@ -124,7 +136,11 @@ class PaperOrders:
             correlation_id=correlation_id or f"ppr:{seq}",
         )
 
-        fill_price = price if price > 0 and order_type == OrderType.LIMIT else self._md.get_ltp(symbol, exchange)
+        fill_price = (
+            price
+            if price > 0 and order_type == OrderType.LIMIT
+            else self._md.get_ltp(symbol, exchange)
+        )
 
         def _fill(cmd: OmsOrderCommand) -> Order:
             return Order(
@@ -150,9 +166,14 @@ class PaperOrders:
         )
         if not result.success or result.order is None:
             rejected = Order(
-                order_id=f"PPR-{seq:06d}", symbol=symbol, exchange=exchange,
-                side=side, order_type=order_type, quantity=quantity,
-                price=price, status=OrderStatus.REJECTED,
+                order_id=f"PPR-{seq:06d}",
+                symbol=symbol,
+                exchange=exchange,
+                side=side,
+                order_type=order_type,
+                quantity=quantity,
+                price=price,
+                status=OrderStatus.REJECTED,
                 correlation_id=correlation_id,
             )
             with self._lock:
@@ -184,7 +205,12 @@ class PaperOrders:
             self._trades.append(trade)
             # Sync internal position dict for backward-compatible getters.
             self._positions = self._update_position(
-                symbol, exchange, side, quantity, fill_price, product_type,
+                symbol,
+                exchange,
+                side,
+                quantity,
+                fill_price,
+                product_type,
             )
         self._order_manager.record_trade(trade)
 
@@ -285,6 +311,153 @@ class PaperOrders:
                     self._orders[i] = o.with_status(OrderStatus.CANCELLED)
                     return True
             return False
+
+    def get_order(self, order_id: str) -> Order | None:
+        """Query a single order by ID.
+
+        H1 Critical Fix: Enables post-cancellation verification for paper
+        trading by allowing lookup of individual orders.
+
+        Args:
+            order_id: Paper order ID to look up
+
+        Returns:
+            Order if found, None if not in orderbook
+        """
+        with self._lock:
+            for order in self._orders:
+                if order.order_id == order_id:
+                    return order
+        return None
+
+    def modify_order(
+        self,
+        order_id: str,
+        quantity: int | None = None,
+        price: Decimal | None = None,
+        order_type: OrderType | None = None,
+        trigger_price: Decimal | None = None,
+        validity: Validity | None = None,
+    ) -> Order:
+        """Modify an open order - simulates order modification.
+        
+        P-2.1 Critical Fix: Implements modify_order for paper trading.
+        Only allows modification if order is in OPEN status.
+        Changes are applied to the order and a new modified order is created.
+        
+        Args:
+            order_id: Order ID to modify
+            quantity: New quantity (optional)
+            price: New price (optional)
+            order_type: New order type (optional)
+            trigger_price: New trigger price for SL orders (optional)
+            validity: New validity (optional)
+            
+        Returns:
+            Modified Order with updated fields
+            
+        Raises:
+            ValueError: If order not found or not in OPEN status
+        """
+        with self._lock:
+            # Find the order
+            original_idx = None
+            original_order = None
+            for i, o in enumerate(self._orders):
+                if o.order_id == order_id:
+                    original_idx = i
+                    original_order = o
+                    break
+            
+            if original_order is None:
+                raise ValueError(f"Order {order_id} not found")
+            
+            if original_order.status != OrderStatus.OPEN:
+                raise ValueError(
+                    f"Cannot modify order {order_id} with status {original_order.status.value}. "
+                    f"Only OPEN orders can be modified."
+                )
+            
+            # Cancel the original order
+            self._orders[original_idx] = original_order.with_status(OrderStatus.CANCELLED)
+            
+            # Create a new modified order
+            self._order_seq += 1
+            new_order_id = f"PPR-{self._order_seq:06d}"
+            
+            # Apply modifications
+            modified_order = Order(
+                order_id=new_order_id,
+                symbol=original_order.symbol,
+                exchange=original_order.exchange,
+                side=original_order.side,
+                order_type=order_type if order_type is not None else original_order.order_type,
+                quantity=quantity if quantity is not None else original_order.quantity,
+                price=price if price is not None else original_order.price,
+                trigger_price=trigger_price if trigger_price is not None else original_order.trigger_price,
+                validity=validity if validity is not None else original_order.validity,
+                product_type=original_order.product_type,
+                correlation_id=original_order.correlation_id,
+                status=OrderStatus.OPEN,  # New order starts as OPEN
+                timestamp=datetime.now(timezone.utc),
+            )
+            
+            # Risk check on modified order
+            allowed, reason = self._risk_check(modified_order)
+            if not allowed:
+                rejected = replace(
+                    modified_order,
+                    status=OrderStatus.REJECTED,
+                    reject_reason=reason or "Risk check failed on modification",
+                )
+                self._orders.append(rejected)
+                return rejected
+            
+            # For paper trading, instantly fill the modified order
+            fill_price = (
+                modified_order.price
+                if modified_order.price > 0 and modified_order.order_type == OrderType.LIMIT
+                else self._md.get_ltp(modified_order.symbol, modified_order.exchange)
+            )
+            
+            filled_order = replace(
+                modified_order,
+                status=OrderStatus.FILLED,
+                filled_quantity=modified_order.quantity,
+                avg_price=fill_price,
+            )
+            
+            self._orders.append(filled_order)
+            
+            # Create trade for the fill
+            self._trade_seq += 1
+            trade = Trade(
+                trade_id=f"PPR-T-{self._trade_seq:06d}",
+                order_id=new_order_id,
+                symbol=modified_order.symbol,
+                exchange=modified_order.exchange,
+                side=modified_order.side,
+                quantity=modified_order.quantity,
+                price=fill_price,
+                trade_value=fill_price * modified_order.quantity,
+                timestamp=datetime.now(timezone.utc),
+                product_type=modified_order.product_type,
+            )
+            self._trades.append(trade)
+            
+            # Update position if position_manager exists
+            if self._position_manager is not None:
+                self._position_manager.apply_trade(trade)
+            self._positions = self._update_position(
+                modified_order.symbol,
+                modified_order.exchange,
+                modified_order.side,
+                modified_order.quantity,
+                fill_price,
+                modified_order.product_type,
+            )
+            
+            return filled_order
 
     def get_orderbook(self) -> list[Order]:
         with self._lock:

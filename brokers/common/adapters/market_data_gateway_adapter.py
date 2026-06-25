@@ -5,18 +5,14 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
-from typing import Any, Sequence
+from collections.abc import Sequence
+from typing import Any
 
-from domain.entities import Balance, Order, OrderResponse, Position, Quote, Trade
-from domain.entities.market import MarketDepth
-from domain.historical import InstrumentRef
-from domain.requests import ModifyOrderRequest, OrderRequest
 from brokers.common.adapters.historical_mapper import dataframe_to_historical_bars
 from brokers.common.broker_port import (
     BrokerHealthSnapshot,
     BrokerStreamHandle,
     BrokerStreamPlan,
-    CommonBrokerGateway,
     HistoricalBarRequest,
     QuotaToken,
 )
@@ -27,6 +23,10 @@ from brokers.common.capabilities import (
     upstox_capabilities,
 )
 from brokers.common.gateway import MarketDataGateway
+from domain.entities import Balance, Order, OrderResponse, Position, Quote, Trade
+from domain.entities.market import MarketDepth
+from domain.historical import InstrumentRef
+from domain.requests import ModifyOrderRequest, OrderRequest
 
 logger = logging.getLogger(__name__)
 
@@ -106,24 +106,22 @@ class MarketDataGatewayAdapter:
     def supports(self, feature: str) -> bool:
         return self._capabilities.supports(feature)
 
-    async def place_order(
-        self, request: OrderRequest, *, quota: QuotaToken
-    ) -> OrderResponse:
+    async def place_order(self, request: OrderRequest, *, quota: QuotaToken) -> OrderResponse:
         return await asyncio.to_thread(self._place_order_sync, request)
 
     def _place_order_sync(self, request: OrderRequest) -> OrderResponse:
-        kwargs = dict(
-            symbol=request.symbol,
-            exchange=request.exchange,
-            side=request.transaction_type.value,
-            quantity=request.quantity,
-            price=request.price,
-            order_type=request.order_type.value,
-            product_type=request.product_type.value,
-            validity=request.validity.value,
-            trigger_price=request.trigger_price or request.price,
-            correlation_id=request.correlation_id,
-        )
+        kwargs = {
+            "symbol": request.symbol,
+            "exchange": request.exchange,
+            "side": request.transaction_type.value,
+            "quantity": request.quantity,
+            "price": request.price,
+            "order_type": request.order_type.value,
+            "product_type": request.product_type.value,
+            "validity": request.validity.value,
+            "trigger_price": request.trigger_price or request.price,
+            "correlation_id": request.correlation_id,
+        }
         import inspect
 
         sig = inspect.signature(self._gateway.place_order)
@@ -150,9 +148,7 @@ class MarketDataGatewayAdapter:
             changes["validity"] = request.validity.value
         if request.product_type is not None:
             changes["product_type"] = request.product_type.value
-        return await asyncio.to_thread(
-            self._gateway.modify_order, request.order_id, **changes
-        )
+        return await asyncio.to_thread(self._gateway.modify_order, request.order_id, **changes)
 
     async def get_positions(self, *, quota: QuotaToken) -> list[Position]:
         return await asyncio.to_thread(self._gateway.positions)
@@ -166,19 +162,13 @@ class MarketDataGatewayAdapter:
     async def get_trades(self, *, quota: QuotaToken) -> list[Trade]:
         return await asyncio.to_thread(self._gateway.get_trade_book)
 
-    async def get_quote_snapshot(
-        self, instrument: InstrumentRef, *, quota: QuotaToken
-    ) -> Quote:
-        return await asyncio.to_thread(
-            self._gateway.quote, instrument.symbol, instrument.exchange
-        )
+    async def get_quote_snapshot(self, instrument: InstrumentRef, *, quota: QuotaToken) -> Quote:
+        return await asyncio.to_thread(self._gateway.quote, instrument.symbol, instrument.exchange)
 
     async def get_depth_snapshot(
         self, instrument: InstrumentRef, *, quota: QuotaToken
     ) -> MarketDepth:
-        return await asyncio.to_thread(
-            self._gateway.depth, instrument.symbol, instrument.exchange
-        )
+        return await asyncio.to_thread(self._gateway.depth, instrument.symbol, instrument.exchange)
 
     async def get_historical_bars(
         self, request: HistoricalBarRequest, *, quota: QuotaToken

@@ -5,13 +5,12 @@ from __future__ import annotations
 import logging
 from decimal import Decimal
 
-from domain.entities import OrderResponse
 from brokers.dhan.domain import SuperOrder, SuperOrderLeg
 from brokers.dhan.exceptions import SuperOrderError
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 from brokers.dhan.invariants import assert_dhan_payload
-from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
+from domain.entities import OrderResponse
 
 logger = logging.getLogger(__name__)
 
@@ -65,16 +64,17 @@ class SuperOrdersAdapter:
             SuperOrderError: If API call fails
         """
         # Validate request
-        errors = self._validate_super_order(
-            transaction_type, price, target_price, stop_loss_price
-        )
+        errors = self._validate_super_order(transaction_type, price, target_price, stop_loss_price)
         if errors:
             msg = "; ".join(errors)
-            logger.warning("super_order_validation_failed", extra={
-                "symbol": symbol,
-                "transaction_type": transaction_type,
-                "errors": errors,
-            })
+            logger.warning(
+                "super_order_validation_failed",
+                extra={
+                    "symbol": symbol,
+                    "transaction_type": transaction_type,
+                    "errors": errors,
+                },
+            )
             raise ValueError(f"Super order validation failed: {msg}")
 
         # Resolve instrument via the identity provider. The carrier
@@ -116,12 +116,15 @@ class SuperOrdersAdapter:
         order_data = data.get("data", data)
         order = self._parse_super_order(order_data)
 
-        logger.info("super_order_placed", extra={
-            "order_id": order.order_id,
-            "symbol": symbol,
-            "transaction_type": transaction_type,
-            "quantity": quantity,
-        })
+        logger.info(
+            "super_order_placed",
+            extra={
+                "order_id": order.order_id,
+                "symbol": symbol,
+                "transaction_type": transaction_type,
+                "quantity": quantity,
+            },
+        )
 
         return order
 
@@ -167,10 +170,13 @@ class SuperOrdersAdapter:
         order_data = data.get("data", data)
         order = self._parse_super_order(order_data)
 
-        logger.info("super_order_modified", extra={
-            "order_id": order_id,
-            "leg_name": leg_name,
-        })
+        logger.info(
+            "super_order_modified",
+            extra={
+                "order_id": order_id,
+                "leg_name": leg_name,
+            },
+        )
 
         return order
 
@@ -218,9 +224,7 @@ class SuperOrdersAdapter:
         )
         return OrderResponse.fail(
             message=str(
-                data.get("errorMessage")
-                or data.get("message")
-                or "Super order leg cancel failed"
+                data.get("errorMessage") or data.get("message") or "Super order leg cancel failed"
             ),
             error_code=str(data.get("errorCode", "")),
             raw_payload=data,
@@ -241,7 +245,9 @@ class SuperOrdersAdapter:
             raise SuperOrderError(f"Failed to fetch super orders: {exc}") from exc
 
         items = data.get("data", []) if isinstance(data, dict) else []
-        orders = [self._parse_super_order(item) for item in (items if isinstance(items, list) else [])]
+        orders = [
+            self._parse_super_order(item) for item in (items if isinstance(items, list) else [])
+        ]
 
         logger.info("super_orders_fetched", extra={"count": len(orders)})
         return orders
@@ -295,9 +301,13 @@ class SuperOrdersAdapter:
                 transaction_type=leg.get("transactionType", ""),
                 quantity=leg.get("quantity", 0),
                 price=Decimal(str(leg.get("price", 0))),
-                trigger_price=Decimal(str(leg.get("triggerPrice"))) if leg.get("triggerPrice") is not None else None,
+                trigger_price=Decimal(str(leg.get("triggerPrice")))
+                if leg.get("triggerPrice") is not None
+                else None,
                 order_status=leg.get("orderStatus"),
-                trailing_jump=Decimal(str(leg.get("trailingJump"))) if leg.get("trailingJump") is not None else None,
+                trailing_jump=Decimal(str(leg.get("trailingJump")))
+                if leg.get("trailingJump") is not None
+                else None,
             )
             for leg in (leg_details_data if isinstance(leg_details_data, list) else [])
         ]

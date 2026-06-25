@@ -20,6 +20,7 @@ class TestVisualizations:
 
     def test_attach_charts(self) -> None:
         from analytics.core.models import AnalysisResult
+
         result = AnalysisResult(name="test", scores={"a": 80}, metrics={"a": 80})
         attach_charts(result)
         assert len(result.charts) > 0

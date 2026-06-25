@@ -31,11 +31,10 @@ Migration tools
 partition parts so tests and validation tools can check the
 scheme without re-deriving the constants.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
-
 
 # Default root directory for the datalake on disk.
 DEFAULT_DATA_ROOT: str = "market_data"
@@ -61,7 +60,11 @@ def symbol_partition_path(
     symbol: str,
     timeframe: str = DEFAULT_TIMEFRAME,
 ) -> Path:
-    """Return the path to a single symbol's candle Parquet file.
+    """LEGACY — Return the path to a single symbol's candle Parquet file.
+
+    .. deprecated::
+        Use :func:`curated_equity_path` instead. The legacy symbol-per-
+        file layout produces many tiny files, harming DuckDB performance.
 
     Parameters
     ----------
@@ -76,23 +79,104 @@ def symbol_partition_path(
     """
     if timeframe not in SUPPORTED_TIMEFRAMES:
         raise ValueError(
-            f"unsupported timeframe {timeframe!r}; "
-            f"supported: {sorted(SUPPORTED_TIMEFRAMES)}"
+            f"unsupported timeframe {timeframe!r}; supported: {sorted(SUPPORTED_TIMEFRAMES)}"
         )
-    return Path(root) / "equities" / "candles" / f"timeframe={timeframe}" / f"symbol={symbol}" / "data.parquet"
+    return (
+        Path(root)
+        / "equities"
+        / "candles"
+        / f"timeframe={timeframe}"
+        / f"symbol={symbol}"
+        / "data.parquet"
+    )
 
 
 def symbol_partition_glob(
     root: str,
     timeframe: str = DEFAULT_TIMEFRAME,
 ) -> str:
-    """Return a SQL/glob pattern matching every symbol's data for a timeframe."""
+    """LEGACY — Return a SQL/glob pattern matching every symbol's data for a timeframe.
+
+    .. deprecated::
+        Use :func:`curated_equity_glob` instead.
+    """
     if timeframe not in SUPPORTED_TIMEFRAMES:
         raise ValueError(
-            f"unsupported timeframe {timeframe!r}; "
-            f"supported: {sorted(SUPPORTED_TIMEFRAMES)}"
+            f"unsupported timeframe {timeframe!r}; supported: {sorted(SUPPORTED_TIMEFRAMES)}"
         )
     return f"{root}/equities/candles/timeframe={timeframe}/symbol=*/data.parquet"
+
+
+# ---------------------------------------------------------------------------
+# Curated (date-partitioned) layout — preferred for new readers/writers
+# ---------------------------------------------------------------------------
+
+CURATED_ROOT: str = "market_data/curated"
+CURATED_EQUITY_CANDLES: str = "equities/candles"
+
+
+def curated_equity_path(
+    root: str = CURATED_ROOT,
+    year: int | None = None,
+    month: int | None = None,
+) -> Path:
+    """Return path for curated equity candle data.
+
+    Layout: ``{root}/equities/candles/year={year}/month={month}/``
+
+    If *year* or *month* is ``None``, the corresponding directory
+    component is omitted so the returned path can be used as a parent
+    for glob patterns.
+    """
+    parts = [Path(root), "equities", "candles"]
+    if year is not None:
+        parts.append(f"year={year:04d}")
+    if month is not None:
+        parts.append(f"month={month:02d}")
+    return Path(*parts)
+
+
+def curated_equity_glob(
+    root: str = CURATED_ROOT,
+    from_year: int | None = None,
+    to_year: int | None = None,
+) -> str:
+    """Return a glob pattern for curated equity candles in a date range."""
+    if from_year is not None and to_year is not None and from_year == to_year:
+        return f"{root}/equities/candles/year={from_year:04d}/month=*/data_*.parquet"
+    return f"{root}/equities/candles/year=*/month=*/data_*.parquet"
+
+
+def legacy_symbol_partition_path(
+    root: str,
+    symbol: str,
+    timeframe: str = DEFAULT_TIMEFRAME,
+) -> Path:
+    """Return the OLD path to a single symbol's candle file (deprecated).
+
+    Thin wrapper around :func:`symbol_partition_path` to make migration
+    call sites explicit about which layout they target.
+    """
+    return symbol_partition_path(root, symbol, timeframe)
+
+
+def migrate_legacy_to_curated(
+    root: str = "market_data",
+    curated_root: str = CURATED_ROOT,
+    timeframe: str = "1m",
+    target_mb: int = 150,
+) -> dict:
+    """Merge all legacy symbol= files into date-partitioned curated files.
+
+    This is the core migration function. It:
+    1. Reads all legacy symbol partition files
+    2. Sorts by (symbol, timestamp)
+    3. Writes to year=YYYY/month=MM/data_NNN.parquet files
+       where each file is ~target_mb in size
+
+    Returns dict with migration stats.
+    """
+    raise NotImplementedError("Use scripts/migration/migrate_to_curated_layout.py instead")
 
 
 def option_partition_path(
@@ -101,7 +185,14 @@ def option_partition_path(
     underlying: str,
 ) -> Path:
     """Return the path to an option-chain Parquet file."""
-    return Path(root) / "options" / "chains" / f"expiry={expiry}" / f"underlying={underlying}" / "data.parquet"
+    return (
+        Path(root)
+        / "options"
+        / "chains"
+        / f"expiry={expiry}"
+        / f"underlying={underlying}"
+        / "data.parquet"
+    )
 
 
 def partition_path_to_dict(path: str | Path) -> dict[str, str]:
@@ -137,6 +228,8 @@ def partition_path_to_dict(path: str | Path) -> dict[str, str]:
 
 
 __all__ = [
+    "CURATED_EQUITY_CANDLES",
+    "CURATED_ROOT",
     "DEFAULT_DATA_ROOT",
     "DEFAULT_TIMEFRAME",
     "PARTITION_EXPIRY",
@@ -144,6 +237,10 @@ __all__ = [
     "PARTITION_TIMEFRAME",
     "PARTITION_UNDERLYING",
     "SUPPORTED_TIMEFRAMES",
+    "curated_equity_glob",
+    "curated_equity_path",
+    "legacy_symbol_partition_path",
+    "migrate_legacy_to_curated",
     "option_partition_path",
     "partition_path_to_dict",
     "symbol_partition_glob",

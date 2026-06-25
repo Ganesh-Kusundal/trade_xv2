@@ -12,9 +12,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from domain import OrderStatus, OrderType, ProductType, Side
 from application.oms.order_manager import OrderManager
 from application.oms.risk_manager import RiskConfig, RiskManager
+from domain import OrderStatus, OrderType, ProductType, Side
 
 
 @pytest.mark.stress
@@ -33,9 +33,7 @@ class TestOMSStress:
         )
         gateway.quote.return_value = MagicMock(ltp=Decimal("2550.00"))
         gateway.positions.return_value = []
-        gateway.funds.return_value = MagicMock(
-            available_balance=Decimal("10000000.00")
-        )
+        gateway.funds.return_value = MagicMock(available_balance=Decimal("10000000.00"))
         return gateway
 
     @pytest.fixture
@@ -95,9 +93,7 @@ class TestOMSStress:
 
         # Verify results
         assert len(errors) == 0, f"Errors occurred: {errors}"
-        assert len(results) == num_threads, (
-            f"Expected {num_threads} results, got {len(results)}"
-        )
+        assert len(results) == num_threads, f"Expected {num_threads} results, got {len(results)}"
 
     def test_rapid_order_placement_and_cancellation(self, order_manager):
         """Test rapid order placement followed by cancellation.
@@ -154,16 +150,16 @@ class TestPositionManagerStress:
         - No double-counting of trades
         - Final position correctness
         """
+        from application.oms.position_manager import PositionManager
+        from brokers.common.observability.event_metrics import EventMetrics
         from infrastructure.event_bus import EventBus
         from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
-        from brokers.common.observability.event_metrics import EventMetrics
-        from application.oms.position_manager import PositionManager
 
         metrics = EventMetrics()
         dlq = DeadLetterQueue(max_size=1000)
         event_bus = EventBus(metrics=metrics, dead_letter_queue=dlq)
 
-        position_manager = PositionManager(
+        PositionManager(
             event_bus=event_bus,
             metrics=metrics,
         )

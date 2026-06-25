@@ -12,18 +12,19 @@ live API connections.
 
 from __future__ import annotations
 
-from unittest.mock import Mock, MagicMock, patch
+from unittest.mock import Mock
+
 import pytest
 
-from brokers.upstox.ipo.adapter import UpstoxIpoAdapter
-from brokers.upstox.ipo.client import UpstoxIpoClient
-from brokers.upstox.payments.adapter import UpstoxPaymentsAdapter
-from brokers.upstox.payments.client import UpstoxPaymentsClient
-from brokers.upstox.mutual_funds.adapter import UpstoxMutualFundsAdapter
-from brokers.upstox.mutual_funds.client import UpstoxMutualFundsClient
+from brokers.upstox.auth.exceptions import UpstoxApiError
 from brokers.upstox.fundamentals.adapter import UpstoxFundamentalsAdapter
 from brokers.upstox.fundamentals.client import UpstoxFundamentalsClient
-from brokers.upstox.auth.exceptions import UpstoxApiError
+from brokers.upstox.ipo.adapter import UpstoxIpoAdapter
+from brokers.upstox.ipo.client import UpstoxIpoClient
+from brokers.upstox.mutual_funds.adapter import UpstoxMutualFundsAdapter
+from brokers.upstox.mutual_funds.client import UpstoxMutualFundsClient
+from brokers.upstox.payments.adapter import UpstoxPaymentsAdapter
+from brokers.upstox.payments.client import UpstoxPaymentsClient
 
 
 class TestIpoAdapterFailures:
@@ -91,9 +92,7 @@ class TestPaymentsAdapterFailures:
     def test_initiate_payout_api_error(self):
         """API error (400) should raise UpstoxApiError."""
         mock_client = Mock(spec=UpstoxPaymentsClient)
-        mock_client.initiate_payout.side_effect = UpstoxApiError(
-            "Invalid request", status_code=400
-        )
+        mock_client.initiate_payout.side_effect = UpstoxApiError("Invalid request", status_code=400)
 
         adapter = UpstoxPaymentsAdapter(mock_client)
 
@@ -115,9 +114,7 @@ class TestPaymentsAdapterFailures:
     def test_modify_payout_not_found(self):
         """Modifying non-existent payout should raise error."""
         mock_client = Mock(spec=UpstoxPaymentsClient)
-        mock_client.modify_payout.side_effect = UpstoxApiError(
-            "Payout not found", status_code=404
-        )
+        mock_client.modify_payout.side_effect = UpstoxApiError("Payout not found", status_code=404)
 
         adapter = UpstoxPaymentsAdapter(mock_client)
 
@@ -171,9 +168,7 @@ class TestMutualFundsAdapterFailures:
     def test_place_order_validation_error(self):
         """Invalid order payload should raise API error."""
         mock_client = Mock(spec=UpstoxMutualFundsClient)
-        mock_client.place_order.side_effect = UpstoxApiError(
-            "Invalid scheme code", status_code=400
-        )
+        mock_client.place_order.side_effect = UpstoxApiError("Invalid scheme code", status_code=400)
 
         adapter = UpstoxMutualFundsAdapter(mock_client)
 
@@ -185,10 +180,7 @@ class TestMutualFundsAdapterFailures:
     def test_place_order_success(self):
         """Successful order should return response."""
         mock_client = Mock(spec=UpstoxMutualFundsClient)
-        mock_client.place_order.return_value = {
-            "status": "success",
-            "data": {"order_id": "MF-123"}
-        }
+        mock_client.place_order.return_value = {"status": "success", "data": {"order_id": "MF-123"}}
 
         adapter = UpstoxMutualFundsAdapter(mock_client)
         result = adapter.place_order({"scheme": "INF123"})
@@ -203,9 +195,7 @@ class TestFundamentalsAdapterFailures:
     def test_get_pnl_invalid_isin(self):
         """Invalid ISIN should raise API error."""
         mock_client = Mock(spec=UpstoxFundamentalsClient)
-        mock_client.get_pnl.side_effect = UpstoxApiError(
-            "Invalid ISIN format", status_code=400
-        )
+        mock_client.get_pnl.side_effect = UpstoxApiError("Invalid ISIN format", status_code=400)
 
         adapter = UpstoxFundamentalsAdapter(mock_client)
 
@@ -253,7 +243,7 @@ class TestFundamentalsAdapterFailures:
         mock_client = Mock(spec=UpstoxFundamentalsClient)
         mock_client.get_pnl.return_value = {
             "isin": "INE002A01018",
-            "pnl_data": {"revenue": 1000000}
+            "pnl_data": {"revenue": 1000000},
         }
 
         adapter = UpstoxFundamentalsAdapter(mock_client)
@@ -269,9 +259,7 @@ class TestAdapterErrorPropagation:
     def test_ipo_client_http_error(self):
         """IPO client should raise UpstoxApiError on HTTP error."""
         mock_http = Mock()
-        mock_http.get_json.side_effect = UpstoxApiError(
-            "Rate limit exceeded", status_code=429
-        )
+        mock_http.get_json.side_effect = UpstoxApiError("Rate limit exceeded", status_code=429)
 
         client = UpstoxIpoClient(mock_http, Mock())
 
@@ -283,9 +271,7 @@ class TestAdapterErrorPropagation:
     def test_payments_client_http_error(self):
         """Payments client should raise UpstoxApiError on HTTP error."""
         mock_http = Mock()
-        mock_http.post_json.side_effect = UpstoxApiError(
-            "Unauthorized", status_code=401
-        )
+        mock_http.post_json.side_effect = UpstoxApiError("Unauthorized", status_code=401)
 
         client = UpstoxPaymentsClient(mock_http, Mock())
 
@@ -297,9 +283,7 @@ class TestAdapterErrorPropagation:
     def test_mutual_funds_client_http_error(self):
         """Mutual funds client should raise UpstoxApiError on HTTP error."""
         mock_http = Mock()
-        mock_http.post_json.side_effect = UpstoxApiError(
-            "Bad gateway", status_code=502
-        )
+        mock_http.post_json.side_effect = UpstoxApiError("Bad gateway", status_code=502)
 
         client = UpstoxMutualFundsClient(mock_http, Mock())
 
@@ -311,9 +295,7 @@ class TestAdapterErrorPropagation:
     def test_fundamentals_client_http_error(self):
         """Fundamentals client should raise UpstoxApiError on HTTP error."""
         mock_http = Mock()
-        mock_http.get_json.side_effect = UpstoxApiError(
-            "Gateway timeout", status_code=504
-        )
+        mock_http.get_json.side_effect = UpstoxApiError("Gateway timeout", status_code=504)
 
         client = UpstoxFundamentalsClient(mock_http, Mock())
 
