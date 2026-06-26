@@ -6,7 +6,8 @@ import logging
 from collections.abc import Callable
 from datetime import datetime
 
-from application.oms.risk_manager import RiskManager
+from brokers.common.resilience.circuit_breaker import CircuitState
+from domain.ports.risk_manager import RiskManagerPort
 from brokers.dhan.alerts import AlertsAdapter
 from brokers.dhan.conditional_triggers import ConditionalTriggersAdapter
 from brokers.dhan.depth_20 import DhanDepth20Feed
@@ -83,7 +84,7 @@ class DhanConnection:
         client: DhanHttpClient,
         resolver: SymbolResolver | None = None,
         event_bus: EventBus | None = None,
-        risk_manager: RiskManager | None = None,
+        risk_manager: RiskManagerPort | None = None,
         backfill_callback: Callable[[str, datetime, datetime], list[dict]] | None = None,
         reconciliation_service: object | None = None,
         lifecycle: LifecycleManager | None = None,
@@ -263,6 +264,65 @@ class DhanConnection:
     @order_stream.setter
     def order_stream(self, value: DhanOrderStream) -> None:
         self._order_stream = value
+
+    @property
+    def client(self) -> DhanHttpClient:
+        """Public accessor for the underlying HTTP client.
+
+        Callers that need to make raw API calls (e.g. extended capabilities)
+        should use this property instead of accessing ``_client`` directly.
+        """
+        return self._client
+
+    @property
+    def token_scheduler(self) -> object | None:
+        """Active token-refresh scheduler, if one has been installed."""
+        return getattr(self, "_token_scheduler", None)
+
+    @token_scheduler.setter
+    def token_scheduler(self, value: object) -> None:
+        """Install a token-refresh scheduler on this connection."""
+        self._token_scheduler = value
+
+    @property
+    def circuit_breaker_states(self) -> dict[str, int]:
+        """Return circuit breaker states for observability.
+
+        Maps each breaker category to an int:
+        0 = CLOSED, 1 = OPEN, 2 = HALF_OPEN.
+        """
+        state_map = {
+            CircuitState.CLOSED: 0,
+            CircuitState.OPEN: 1,
+            CircuitState.HALF_OPEN: 2,
+        }
+        states: dict[str, int] = {}
+        for attr, short_name in [
+            ("_read_circuit_breaker", "read_cb"),
+            ("_write_circuit_breaker", "write_cb"),
+            ("_admin_circuit_breaker", "admin_cb"),
+        ]:
+            cb = getattr(self._client, attr, None)
+            if cb is not None:
+                try:
+                    states[short_name] = state_map.get(cb.state, 0)
+                except Exception:
+                    states[short_name] = 0
+        return states
+
+    @property
+    def token_refresh_metrics(self) -> dict[str, int]:
+        """Return token refresh metrics for observability."""
+        scheduler = getattr(self, "_token_scheduler", None)
+        if scheduler is None:
+            return {"refresh_count": 0, "error_count": 0}
+        try:
+            return {
+                "refresh_count": getattr(scheduler, "refresh_count", 0),
+                "error_count": 1 if getattr(scheduler, "_last_error", None) else 0,
+            }
+        except Exception:
+            return {"refresh_count": 0, "error_count": 0}
 
     def load_instruments(self, source: str | None = None, use_cache: bool = True) -> None:
         """Load instruments into memory resolver.

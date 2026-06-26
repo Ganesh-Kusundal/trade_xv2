@@ -276,10 +276,10 @@ class BrokerFactory(BrokerProviderFactory):
         )
         if lifecycle is not None:
             lifecycle.register(scheduler)
-            gateway._conn._token_scheduler = scheduler
+            gateway._conn.token_scheduler = scheduler
         else:
             scheduler.start()
-            gateway._conn._token_scheduler = scheduler
+            gateway._conn.token_scheduler = scheduler
 
 
 def _refresh_via_auth(

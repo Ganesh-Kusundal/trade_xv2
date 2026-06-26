@@ -433,6 +433,36 @@ class DataLakeGateway(
 
         return batch_execute(symbols, fn, max_workers=max_workers)
 
+    def _resolve_parquet_paths(
+        self, symbols: list[str], timeframe: str = "1m"
+    ) -> list[str]:
+        """Resolve parquet file paths for symbols, trying curated then legacy.
+
+        Returns list of paths (may be empty). Avoids duplicating this
+        logic across ltp_batch, history_batch, etc.
+        """
+        normalized = [normalize_symbol(s) for s in symbols]
+
+        # Try curated layout
+        try:
+            curated_glob = curated_equity_glob(root=str(self._curated_root))
+            if list(self._curated_root.glob("year=*/month=*/data_*.parquet")):
+                return [curated_glob], normalized, "curated"
+        except Exception:
+            pass
+
+        # Try legacy layout
+        timeframe_dir = self._candles_dir / f"timeframe={timeframe}"
+        paths = []
+        for sym in normalized:
+            path = timeframe_dir / f"symbol={sym}" / "data.parquet"
+            if path.exists():
+                paths.append(str(path))
+
+        if paths:
+            return paths, [], "legacy"
+        return [], [], "none"
+
     # -----------------------------------------------------------------------
     # Instrument (narrow interface: InstrumentProvider)
     # -----------------------------------------------------------------------

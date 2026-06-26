@@ -125,95 +125,9 @@ class TestBrokerAPIMidOrderFailure:
             "Broker should be healthy again after a success resets the counter"
         )
 
-    def test_intelligent_gateway_fallback_on_primary_failure(self):
-        """When primary broker fails, gateway should fall back to secondary."""
-        primary = MagicMock()
-        primary.ltp.side_effect = ConnectionError("Primary broker down")
 
-        fallback = MagicMock()
-        fallback.ltp.return_value = 1500.0
 
-        from brokers.common.intelligent_gateway import IntelligentGateway
 
-        gw = IntelligentGateway(
-            dhan_gateway=primary,
-            upstox_gateway=fallback,
-            health_monitor=BrokerHealthMonitor(failure_threshold=1),
-        )
-
-        # Should fall back to upstox
-        gw.ltp("RELIANCE")
-        fallback.ltp.assert_called_once()
-
-    def test_intelligent_gateway_degraded_mode_all_brokers_down(self):
-        """When all brokers are down, gateway enters degraded mode."""
-        primary = MagicMock()
-        primary.ltp.side_effect = ConnectionError("Primary down")
-        fallback = MagicMock()
-        fallback.ltp.side_effect = ConnectionError("Fallback down")
-
-        from brokers.common.intelligent_gateway import IntelligentGateway
-
-        health = BrokerHealthMonitor(failure_threshold=1)
-        health.record_failure("dhan")
-        health.record_failure("upstox")
-
-        gw = IntelligentGateway(
-            dhan_gateway=primary,
-            upstox_gateway=fallback,
-            health_monitor=health,
-        )
-
-        assert gw.degraded_mode, "Gateway should be in degraded mode"
-
-    def test_degraded_mode_serves_stale_cache(self):
-        """In degraded mode, read ops should serve from cache."""
-        primary = MagicMock()
-        primary.ltp.side_effect = ConnectionError("Down")
-        fallback = MagicMock()
-        fallback.ltp.side_effect = ConnectionError("Down")
-
-        from brokers.common.intelligent_gateway import IntelligentGateway
-
-        health = BrokerHealthMonitor(failure_threshold=1)
-        health.record_failure("dhan")
-        health.record_failure("upstox")
-
-        gw = IntelligentGateway(
-            dhan_gateway=primary,
-            upstox_gateway=fallback,
-            health_monitor=health,
-        )
-
-        # Prime the cache
-        gw._cache_put("ltp", "RELIANCE", 1500.0, ttl=60)
-
-        # Should serve from cache in degraded mode
-        result = gw.ltp("RELIANCE")
-        assert result == 1500.0, "Should serve stale cached value in degraded mode"
-
-    def test_degraded_mode_rejects_write_operations(self):
-        """In degraded mode, write ops should raise BrokerDegradedError."""
-        # This is tested via _is_degraded_and_should_fallback
-        from brokers.common.intelligent_gateway import IntelligentGateway
-
-        health = BrokerHealthMonitor(failure_threshold=1)
-        health.record_failure("dhan")
-        health.record_failure("upstox")
-
-        gw = IntelligentGateway(
-            dhan_gateway=MagicMock(),
-            upstox_gateway=MagicMock(),
-            health_monitor=health,
-        )
-
-        assert gw.degraded_mode
-        assert gw._is_degraded_and_should_fallback("ltp"), (
-            "Read ops should attempt degraded fallback"
-        )
-        assert not gw._is_degraded_and_should_fallback("place_order"), (
-            "Write ops should NOT attempt degraded fallback"
-        )
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -481,40 +395,6 @@ class TestNetworkLatencySpikes:
             "Both handlers should be dispatched regardless of latency"
         )
 
-    def test_intelligent_gateway_cache_avoids_latency_on_repeated_calls(self):
-        """Cached results should avoid network latency in degraded mode."""
-        # upstox is primary for ltp in IntelligentGateway
-        primary = MagicMock()  # upstox
-        primary.ltp.return_value = 1500.0
-        fallback = MagicMock()  # dhan
-
-        from brokers.common.intelligent_gateway import IntelligentGateway
-
-        health = BrokerHealthMonitor(failure_threshold=1)
-        gw = IntelligentGateway(
-            dhan_gateway=fallback,
-            upstox_gateway=primary,
-            health_monitor=health,
-        )
-
-        # Prime the cache by making a successful call
-        gw.ltp("RELIANCE")
-        call_count_after_prime = primary.ltp.call_count
-        assert call_count_after_prime == 1
-
-        # Make both brokers unhealthy AND make them fail
-        health.record_failure("upstox")
-        health.record_failure("dhan")
-        primary.ltp.side_effect = ConnectionError("Down")
-        fallback.ltp.side_effect = ConnectionError("Down")
-
-        # In degraded mode with both brokers failing, should serve from cache
-        result = gw.ltp("RELIANCE")
-        assert result == 1500.0, "Should serve cached value in degraded mode"
-        # Primary should be attempted (fails), but result comes from cache
-        assert primary.ltp.call_count == call_count_after_prime + 1, (
-            "Primary broker is attempted but fails, cache provides the result"
-        )
 
     def test_event_bus_publish_latency_does_not_block_subscribers(self):
         """Multiple publishes with varying latency should not block subscribers."""
@@ -554,28 +434,6 @@ class TestPartialFailures:
         assert not monitor.is_healthy("dhan"), "Dhan should be unhealthy"
         assert monitor.is_healthy("upstox"), "Upstox should be healthy"
 
-    def test_intelligent_gateway_routes_around_unhealthy_broker(self):
-        """Gateway should skip unhealthy primary and use fallback."""
-        primary = MagicMock()
-        primary.ltp.side_effect = ConnectionError("Primary unhealthy")
-        fallback = MagicMock()
-        fallback.ltp.return_value = 1500.0
-
-        from brokers.common.intelligent_gateway import IntelligentGateway
-
-        health = BrokerHealthMonitor(failure_threshold=1)
-        health.record_failure("dhan")
-
-        gw = IntelligentGateway(
-            dhan_gateway=primary,
-            upstox_gateway=fallback,
-            health_monitor=health,
-        )
-
-        gw.ltp("RELIANCE")
-        # Should have skipped dhan (unhealthy) and gone to upstox
-        fallback.ltp.assert_called_once()
-        primary.ltp.assert_not_called(), ("Unhealthy primary should not be called")
 
     def test_event_bus_handles_mixed_handler_results(self):
         """Some handlers succeed, some fail — all should be attempted."""
@@ -616,31 +474,6 @@ class TestPartialFailures:
             "Mutating snapshot should not affect internal state"
         )
 
-    def test_intelligent_gateway_metrics_track_fallbacks(self):
-        """Fallback events should be tracked in metrics."""
-        # upstox is primary for ltp, so make it fail
-        primary = MagicMock()  # upstox
-        primary.ltp.side_effect = ConnectionError("Primary down")
-        fallback = MagicMock()  # dhan
-        fallback.ltp.return_value = 1500.0
-
-        from brokers.common.intelligent_gateway import IntelligentGateway
-
-        metrics = EventMetrics()
-        gw = IntelligentGateway(
-            dhan_gateway=fallback,
-            upstox_gateway=primary,
-            metrics=metrics,
-            health_monitor=BrokerHealthMonitor(failure_threshold=1),
-        )
-
-        gw.ltp("RELIANCE")
-
-        fallback_count = metrics.get(
-            "intelligent_gateway_fallback",
-            "ltp:upstox:ConnectionError",
-        )
-        assert fallback_count >= 1, "Fallback should be tracked in metrics"
 
     def test_repeated_publishes_do_not_corrupt_subscription_state(self):
         """Rapid publishes should not corrupt internal subscriber dict."""

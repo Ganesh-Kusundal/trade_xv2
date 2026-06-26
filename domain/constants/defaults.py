@@ -62,6 +62,4 @@ data seeded from the symbol name hash."""
 
 DEFAULT_LOOKBACK_DAYS: int = 90
 DEFAULT_TIMEFRAME: str = "1D"
-DEFAULT_EXCHANGE: str = "NSE"
-DEFAULT_DERIVATIVES_EXCHANGE: str = "NFO"
 """Canonical defaults used in 15+ method signatures across the codebase."""

@@ -19,21 +19,18 @@ def run(args: list[str], broker_service, console: Console) -> None:
     # Get gateways
     try:
         from pathlib import Path
+        from types import SimpleNamespace
 
-        from brokers.common.intelligent_gateway import IntelligentGateway
         from cli.services.broker_registry import create_gateway
 
         dhan = create_gateway("dhan", env_path=Path(".env.local"), load_instruments=True)
         upstox = create_gateway("upstox", env_path=Path(".env.upstox"), load_instruments=True)
-        if dhan and upstox:
-            gw = IntelligentGateway(dhan_gateway=dhan, upstox_gateway=upstox)
-        elif dhan:
-            gw = dhan
-        elif upstox:
-            gw = upstox
-        else:
+        if not dhan and not upstox:
             console.print("[red]No broker gateways available[/red]")
             return
+        gw = SimpleNamespace(dhan=dhan, upstox=upstox)
+        # Primary gateway for health checks (dhan has broadest coverage)
+        primary = dhan or upstox
     except Exception as e:
         console.print(f"[red]Error creating gateway: {e}[/red]")
         return
@@ -43,7 +40,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
 
     # Login Status
     try:
-        gw.ltp("TCS")
+        primary.ltp("TCS")
         checks["Login Status"] = ("Connected", "green")
     except Exception as exc:
         logger.debug("dashboard_check_failed", extra={"check": "Login Status", "error": str(exc)})
@@ -52,7 +49,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
     # Historical Status
     try:
         t0 = time.time()
-        gw.history("TCS", timeframe="1D", lookback_days=5)
+        primary.history("TCS", timeframe="1D", lookback_days=5)
         latency = (time.time() - t0) * 1000
         checks["Historical Status"] = (f"Healthy ({latency:.0f}ms)", "green")
     except Exception as exc:
@@ -64,7 +61,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
     # Quote Status
     try:
         t0 = time.time()
-        gw.quote("TCS")
+        primary.quote("TCS")
         latency = (time.time() - t0) * 1000
         checks["Quote Status"] = (f"Healthy ({latency:.0f}ms)", "green")
     except Exception as exc:
@@ -74,7 +71,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
     # Option Chain Status
     try:
         t0 = time.time()
-        chain = gw.option_chain("NIFTY")
+        chain = primary.option_chain("NIFTY")
         latency = (time.time() - t0) * 1000
         strikes = len(chain.get("strikes", []))
         checks["Option Chain"] = (f"Healthy ({strikes} strikes, {latency:.0f}ms)", "green")
@@ -85,7 +82,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
     # Future Chain Status
     try:
         t0 = time.time()
-        futures = gw.future_chain("NIFTY")
+        futures = primary.future_chain("NIFTY")
         latency = (time.time() - t0) * 1000
         contracts = len(futures.get("contracts", []))
         checks["Future Chain"] = (f"Healthy ({contracts} contracts, {latency:.0f}ms)", "green")

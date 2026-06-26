@@ -11,14 +11,10 @@ from domain.status_mapper import COMMON_STATUS_MAP, StatusMapperRegistry
 
 DHAN_STATUS_MAP: dict[str, OrderStatus] = {
     **COMMON_STATUS_MAP,
-    # Dhan-specific additions
-    "TRANSIT": OrderStatus.OPEN,
-    "TRIGGER_PENDING": OrderStatus.OPEN,
-    "PENDING": OrderStatus.OPEN,
+    # Dhan-specific additions (TRANSIT, TRIGGER_PENDING, PENDING,
+    # OPEN_PENDING, PUT_ORDER_REQ_RECEIVED are already in COMMON_STATUS_MAP)
     "PLACED": OrderStatus.OPEN,
     "TRIGGERED": OrderStatus.OPEN,
-    "OPEN_PENDING": OrderStatus.OPEN,
-    "PUT_ORDER_REQ_RECEIVED": OrderStatus.OPEN,
     "PARTIALLY_CANCELLED": OrderStatus.PARTIALLY_FILLED,
 }
 

@@ -35,7 +35,7 @@ from brokers.common.gateway_interfaces import (
     StreamProvider,
     TradingExecutor,
 )
-from domain.constants import DEFAULT_DERIVATIVES_EXCHANGE, DEFAULT_EXCHANGE
+from domain.constants import DEFAULT_DERIVATIVES_EXCHANGE, DEFAULT_EXCHANGE, DEFAULT_LOOKBACK_DAYS
 from domain.entities import (
     Balance,
     FutureChain,
@@ -86,7 +86,7 @@ class MarketDataGateway(
         symbol: str | list[str],
         exchange: str = DEFAULT_EXCHANGE,
         timeframe: str = "1D",
-        lookback_days: int = 90,
+        lookback_days: int = DEFAULT_LOOKBACK_DAYS,
         from_date: str | None = None,
         to_date: str | None = None,
     ) -> pd.DataFrame:
@@ -194,7 +194,7 @@ class MarketDataGateway(
         symbols: list[str],
         exchange: str = DEFAULT_EXCHANGE,
         timeframe: str = "1D",
-        lookback_days: int = 90,
+        lookback_days: int = DEFAULT_LOOKBACK_DAYS,
     ) -> pd.DataFrame:
         """Return historical data for multiple symbols.
 

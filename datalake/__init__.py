@@ -25,18 +25,25 @@ Usage:
 """
 
 from datalake.catalog import DataCatalog
+from datalake.corporate_actions import CorporateActionStore
 from datalake.loader import HistoricalDataLoader
 from datalake.quality import DataQualityEngine
+from datalake.quality_universe import UniverseQualityEngine
 from datalake.research import ResearchAPI
 from datalake.updater import IncrementalUpdater
+from datalake.vwap import compute_vwap, compute_daily_vwap
 
 __all__ = [
+    "CorporateActionStore",
     "DataCatalog",
     "DataLake",
     "DataQualityEngine",
     "HistoricalDataLoader",
     "IncrementalUpdater",
     "ResearchAPI",
+    "UniverseQualityEngine",
+    "compute_daily_vwap",
+    "compute_vwap",
 ]
 
 

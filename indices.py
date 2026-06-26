@@ -360,6 +360,16 @@ _INDEX_MAP: dict[str, _IndexEntry] = {
 # ── Frozen set for fast membership checks ───────────────────────────────────
 INDEX_SYMBOLS: frozenset[str] = frozenset(_INDEX_MAP.keys())
 
+# ── F&O exchange mapping (single source of truth) ────────────────────────────
+# Maps index symbols to their F&O exchange segment. Used by both Dhan and
+# Upstox gateway future_chain() methods to resolve the correct exchange.
+INDEX_TO_FNO_EXCHANGE: dict[str, str] = {
+    "NIFTY": "NFO",
+    "BANKNIFTY": "NFO",
+    "FINNIFTY": "NFO",
+    "SENSEX": "BFO",
+}
+
 # ── Public helpers ──────────────────────────────────────────────────────────
 
 

@@ -25,6 +25,7 @@ from typing import Any, Generic, TypeVar
 
 import pandas as pd
 
+from domain.constants import DEFAULT_LOOKBACK_DAYS
 from domain import (
     ConditionalAlert,
     ConditionalAlertRequest,
@@ -58,7 +59,7 @@ class MarketDataProvider(ABC):
         symbol: str | list[str],
         exchange: str = "NSE",
         timeframe: str = "1D",
-        lookback_days: int = 90,
+        lookback_days: int = DEFAULT_LOOKBACK_DAYS,
         from_date: str | None = None,
         to_date: str | None = None,
     ) -> pd.DataFrame: ...
@@ -100,7 +101,7 @@ class BatchMarketDataProvider(ABC):
         symbols: list[str],
         exchange: str = "NSE",
         timeframe: str = "1D",
-        lookback_days: int = 90,
+        lookback_days: int = DEFAULT_LOOKBACK_DAYS,
     ) -> pd.DataFrame: ...
 
 

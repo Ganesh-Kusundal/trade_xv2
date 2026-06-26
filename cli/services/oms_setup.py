@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any
 from application.oms import PositionManager, RiskConfig, RiskManager
 from application.oms.capital_provider import GatewayCapitalProvider
 from cli.services.capital_provider import TrackedCapitalProvider
+from domain.constants import RECONCILIATION_INTERVAL_SECONDS
 from domain.constants.defaults import RISK_FALLBACK_CAPITAL
 
 if TYPE_CHECKING:
@@ -163,7 +164,7 @@ def register_oms_services(
         service._trading_context = create_trading_context(
             risk_manager=risk_manager,
             reconciliation_service=dhan_reconciliation,
-            reconciliation_interval_seconds=300.0,
+            reconciliation_interval_seconds=RECONCILIATION_INTERVAL_SECONDS,
             event_log=event_log,
             event_bus=service._event_bus,
             replay_events=event_log is not None,

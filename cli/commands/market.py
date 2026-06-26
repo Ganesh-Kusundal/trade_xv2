@@ -15,8 +15,8 @@ from cli.services.broker_service import BrokerService
 
 logger = logging.getLogger(__name__)
 
-# Indices whose underlying segment uses INDEX exchange
-_INDEX_UNDERLYINGS = {"NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "SENSEX", "NIFTYNXT50"}
+# Indices whose underlying segment uses INDEX exchange — canonical set from indices module
+from indices import INDEX_SYMBOLS as _INDEX_UNDERLYINGS
 
 
 def resolve_exchange(symbol: str) -> str:

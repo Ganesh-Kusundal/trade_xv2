@@ -2,7 +2,7 @@
 
 Tests that all broker gateways (Dhan, Upstox, Paper) implement the full
 MarketDataGateway ABC contract with correct signatures, return types,
-and error handling. Also tests IntelligentGateway wrapper compliance.
+and error handling. 
 
 Uses mocked HTTP clients so tests run without live broker credentials.
 """
@@ -67,31 +67,6 @@ class TestABCContractMethodExistence:
         missing = abstract - implemented
         assert not missing, f"Paper PaperGateway missing: {missing}"
 
-    def test_intelligent_gateway_implements_market_data_methods(self):
-        """IntelligentGateway must implement at least all read-only market data methods."""
-        from brokers.common.intelligent_gateway import IntelligentGateway
-
-        required_read_only = {
-            "history",
-            "quote",
-            "ltp",
-            "depth",
-            "option_chain",
-            "future_chain",
-            "stream",
-            "ltp_batch",
-            "quote_batch",
-            "history_batch",
-            "positions",
-            "holdings",
-            "funds",
-            "trades",
-            "search",
-            "describe",
-        }
-        implemented = set(dir(IntelligentGateway))
-        missing = required_read_only - implemented
-        assert not missing, f"IntelligentGateway missing read-only methods: {missing}"
 
 
 # ── ABC Contract: Method Signatures ─────────────────────────────────────────
@@ -565,81 +540,6 @@ class TestPaperGatewayContract:
         assert callable(paper_gw.close)
         paper_gw.close()  # Should not raise
 
-
-# ── IntelligentGateway: Wrapper Contract ─────────────────────────────────────
-
-
-class TestIntelligentGatewayWrapper:
-    """IntelligentGateway wraps a real gateway and delegates market data methods."""
-
-    def test_delegates_ltp_to_inner_gateway(self):
-        from brokers.common.intelligent_gateway import IntelligentGateway
-
-        inner = MagicMock(spec=MarketDataGateway)
-        inner.ltp.return_value = Decimal("2450")
-
-        ig = IntelligentGateway(inner)
-        result = ig.ltp("RELIANCE", "NSE")
-
-        inner.ltp.assert_called_once_with("RELIANCE", "NSE")
-        assert result == Decimal("2450")
-
-    def test_delegates_quote_to_inner_gateway(self):
-        from brokers.common.intelligent_gateway import IntelligentGateway
-
-        inner = MagicMock(spec=MarketDataGateway)
-        expected = Quote(
-            symbol="RELIANCE",
-            ltp=Decimal("2450"),
-            open=Decimal("2430"),
-            high=Decimal("2460"),
-            low=Decimal("2420"),
-            close=Decimal("2425"),
-            volume=100000,
-            change=Decimal("25"),
-        )
-        inner.quote.return_value = expected
-
-        ig = IntelligentGateway(inner)
-        result = ig.quote("RELIANCE", "NSE")
-
-        assert result is expected
-
-    def test_delegates_history_to_inner_gateway(self):
-        from brokers.common.intelligent_gateway import IntelligentGateway
-
-        inner = MagicMock(spec=MarketDataGateway)
-        expected = pd.DataFrame({"close": [2450]})
-        inner.history.return_value = expected
-
-        ig = IntelligentGateway(inner)
-        result = ig.history("RELIANCE", "NSE")
-
-        assert result is expected
-
-    def test_delegates_positions_to_inner_gateway(self):
-        from brokers.common.intelligent_gateway import IntelligentGateway
-
-        inner = MagicMock(spec=MarketDataGateway)
-        inner.positions.return_value = []
-
-        ig = IntelligentGateway(inner)
-        result = ig.positions()
-
-        inner.positions.assert_called_once()
-        assert result == []
-
-    def test_delegates_funds_to_inner_gateway(self):
-        from brokers.common.intelligent_gateway import IntelligentGateway
-
-        inner = MagicMock(spec=MarketDataGateway)
-        expected = Balance(available_balance=Decimal("100000"), used_margin=Decimal("0"))
-        inner.funds.return_value = expected
-
-        ig = IntelligentGateway(inner)
-        result = ig.funds()
-
-        assert result is expected
 
 
 # ── ObservabilityProvider Contract ───────────────────────────────────────────

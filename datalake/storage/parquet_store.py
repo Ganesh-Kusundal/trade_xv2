@@ -177,6 +177,22 @@ class ParquetStore:
         return resampled
 
     def list_symbols(self, timeframe: str = "1m") -> list[str]:
+        """List all symbols, trying curated layout first, then legacy."""
+        # Try curated layout via DuckDB
+        try:
+            import duckdb
+            glob_pattern = curated_equity_glob(root=str(self._curated_root))
+            if list(self._curated_root.glob("year=*/month=*/data_*.parquet")):
+                df = duckdb.execute(
+                    "SELECT DISTINCT symbol FROM read_parquet(?) ORDER BY symbol",
+                    [glob_pattern],
+                ).fetchdf()
+                if not df.empty:
+                    return df["symbol"].tolist()
+        except Exception:
+            pass
+
+        # Fallback to legacy layout
         tf_dir = self._candles_dir / f"timeframe={timeframe}"
         if not tf_dir.exists():
             return []

@@ -12,11 +12,13 @@ import pytest
 from brokers.dhan.settings import (
     _BASE_URL,
     _GENERATE_TOKEN_URL,
-    _REFRESH_BUFFER_SECONDS,
-    _SCHEDULER_INTERVAL_SECONDS,
-    _TOKEN_LIFETIME_SECONDS,
     DhanConnectionSettings,
     DhanSettingsLoader,
+)
+from domain.constants.auth import (
+    DHAN_TOKEN_LIFETIME_SECONDS,
+    DHAN_TOKEN_REFRESH_BUFFER_SECONDS,
+    DHAN_TOKEN_SCHEDULER_INTERVAL_SECONDS,
 )
 
 
@@ -77,9 +79,9 @@ class TestDhanConnectionSettingsProperties:
 
     def test_default_lifetimes(self):
         s = DhanConnectionSettings(client_id="X")
-        assert s.token_lifetime_seconds == _TOKEN_LIFETIME_SECONDS
-        assert s.scheduler_interval_seconds == _SCHEDULER_INTERVAL_SECONDS
-        assert s.refresh_buffer_seconds == _REFRESH_BUFFER_SECONDS
+        assert s.token_lifetime_seconds == DHAN_TOKEN_LIFETIME_SECONDS
+        assert s.scheduler_interval_seconds == DHAN_TOKEN_SCHEDULER_INTERVAL_SECONDS
+        assert s.refresh_buffer_seconds == DHAN_TOKEN_REFRESH_BUFFER_SECONDS
 
     def test_frozen(self):
         s = DhanConnectionSettings(client_id="X")
@@ -101,9 +103,9 @@ class TestDhanSettingsLoaderFromEnv:
         assert s.enable_retry is True
         assert s.pin == ""
         assert s.totp_secret == ""
-        assert s.token_lifetime_seconds == _TOKEN_LIFETIME_SECONDS
-        assert s.scheduler_interval_seconds == _SCHEDULER_INTERVAL_SECONDS
-        assert s.refresh_buffer_seconds == _REFRESH_BUFFER_SECONDS
+        assert s.token_lifetime_seconds == DHAN_TOKEN_LIFETIME_SECONDS
+        assert s.scheduler_interval_seconds == DHAN_TOKEN_SCHEDULER_INTERVAL_SECONDS
+        assert s.refresh_buffer_seconds == DHAN_TOKEN_REFRESH_BUFFER_SECONDS
 
     def test_full(self):
         """All env vars set — every field populated."""
@@ -196,7 +198,7 @@ class TestDhanSettingsLoaderFromEnv:
         os.environ["DHAN_CLIENT_ID"] = "cid"
         os.environ["DHAN_TOKEN_LIFETIME_SECONDS"] = "nan"
         s = DhanSettingsLoader.from_env(env_path=Path("/dev/null"))
-        assert s.token_lifetime_seconds == _TOKEN_LIFETIME_SECONDS  # default
+        assert s.token_lifetime_seconds == DHAN_TOKEN_LIFETIME_SECONDS  # default
 
     def test_empty_env_var_uses_default(self):
         """Empty string env var uses default."""
@@ -258,7 +260,7 @@ class TestDhanSettingsLoaderFromDict:
         """Non-numeric int field uses default."""
         d = {"DHAN.clientId": "cid", "DHAN.tokenLifetimeSeconds": "bad"}
         s = DhanSettingsLoader.from_dict(d, prefix="DHAN")
-        assert s.token_lifetime_seconds == _TOKEN_LIFETIME_SECONDS  # default
+        assert s.token_lifetime_seconds == DHAN_TOKEN_LIFETIME_SECONDS  # default
 
     def test_invalid_float_falls_back(self):
         """Non-numeric float field uses default."""

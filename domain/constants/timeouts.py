@@ -21,10 +21,10 @@ DEFAULT_HTTP_TIMEOUT_SECONDS: float = 15.0
 #: Minimum sleep chunk used by rate-limiter and reconciliation tick (seconds).
 MIN_SLEEP_SECONDS: float = 0.001
 
-#: Quote / LTP cache TTL for :class:`~brokers.common.intelligent_gateway.IntelligentGateway`.
+#: Quote / LTP cache TTL for broker gateway caching layers.
 QUOTE_CACHE_TTL_SECONDS: int = 60
 
-#: Historical candle cache TTL for :class:`~brokers.common.intelligent_gateway.IntelligentGateway`.
+#: Historical candle cache TTL for broker gateway caching layers.
 HISTORY_CACHE_TTL_SECONDS: int = 300
 
 __all__ = [

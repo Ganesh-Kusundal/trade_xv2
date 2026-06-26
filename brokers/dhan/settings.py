@@ -23,6 +23,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from brokers.common.settings import BrokerSettings, SettingsLoaderBase
+from domain.constants.auth import (
+    DHAN_TOKEN_LIFETIME_SECONDS,
+    DHAN_TOKEN_REFRESH_BUFFER_SECONDS,
+    DHAN_TOKEN_SCHEDULER_INTERVAL_SECONDS,
+)
 from endpoints import Dhan
 
 logger = logging.getLogger(__name__)
@@ -33,10 +38,7 @@ DHAN_PREFIX = "DHAN"
 _BASE_URL = Dhan.REST_BASE
 _GENERATE_TOKEN_URL = Dhan.GENERATE_TOKEN_URL
 
-# Default lifetimes
-_TOKEN_LIFETIME_SECONDS: int = 86400  # 24 hours
-_SCHEDULER_INTERVAL_SECONDS: int = 20 * 60  # 20 minutes
-_REFRESH_BUFFER_SECONDS: int = 600  # 10 minutes
+# Default lifetimes — imported from domain.constants.auth
 
 
 @dataclass(frozen=True)
@@ -57,9 +59,9 @@ class DhanConnectionSettings(BrokerSettings):
     base_url: str = _BASE_URL
     pin: str = ""
     totp_secret: str = ""
-    token_lifetime_seconds: int = _TOKEN_LIFETIME_SECONDS
-    scheduler_interval_seconds: int = _SCHEDULER_INTERVAL_SECONDS
-    refresh_buffer_seconds: int = _REFRESH_BUFFER_SECONDS
+    token_lifetime_seconds: int = DHAN_TOKEN_LIFETIME_SECONDS
+    scheduler_interval_seconds: int = DHAN_TOKEN_SCHEDULER_INTERVAL_SECONDS
+    refresh_buffer_seconds: int = DHAN_TOKEN_REFRESH_BUFFER_SECONDS
     allow_live_orders: bool = False
     token_state_dir: str = ""
 
@@ -185,13 +187,13 @@ class DhanSettingsLoader(SettingsLoaderBase):
             pin=pin,
             totp_secret=totp_secret,
             token_lifetime_seconds=cls._get_int(
-                prefix, "TOKEN_LIFETIME_SECONDS", default=_TOKEN_LIFETIME_SECONDS
+                prefix, "TOKEN_LIFETIME_SECONDS", default=DHAN_TOKEN_LIFETIME_SECONDS
             ),
             scheduler_interval_seconds=cls._get_int(
-                prefix, "SCHEDULER_INTERVAL_SECONDS", default=_SCHEDULER_INTERVAL_SECONDS
+                prefix, "SCHEDULER_INTERVAL_SECONDS", default=DHAN_TOKEN_SCHEDULER_INTERVAL_SECONDS
             ),
             refresh_buffer_seconds=cls._get_int(
-                prefix, "REFRESH_BUFFER_SECONDS", default=_REFRESH_BUFFER_SECONDS
+                prefix, "REFRESH_BUFFER_SECONDS", default=DHAN_TOKEN_REFRESH_BUFFER_SECONDS
             ),
             allow_live_orders=cls._get_bool(prefix, "ALLOW_LIVE_ORDERS", default=False),
             token_state_dir=cls._get(prefix, "TOKEN_STATE_DIR", default=""),
@@ -218,13 +220,13 @@ class DhanSettingsLoader(SettingsLoaderBase):
             pin=_val("pin"),
             totp_secret=_val("totpSecret") or _val("totp_secret"),
             token_lifetime_seconds=cls._parse_int(
-                _val("tokenLifetimeSeconds"), _TOKEN_LIFETIME_SECONDS
+                _val("tokenLifetimeSeconds"), DHAN_TOKEN_LIFETIME_SECONDS
             ),
             scheduler_interval_seconds=cls._parse_int(
-                _val("schedulerIntervalSeconds"), _SCHEDULER_INTERVAL_SECONDS
+                _val("schedulerIntervalSeconds"), DHAN_TOKEN_SCHEDULER_INTERVAL_SECONDS
             ),
             refresh_buffer_seconds=cls._parse_int(
-                _val("refreshBufferSeconds"), _REFRESH_BUFFER_SECONDS
+                _val("refreshBufferSeconds"), DHAN_TOKEN_REFRESH_BUFFER_SECONDS
             ),
             allow_live_orders=cls._parse_bool(_val("allowLiveOrders"), False),
         )

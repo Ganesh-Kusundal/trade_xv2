@@ -16,7 +16,7 @@ from contextlib import contextmanager
 from decimal import Decimal
 from typing import Any
 
-from application.oms.risk_manager import RiskManager
+from domain.ports.risk_manager import RiskManagerPort
 from brokers.common.dtos import BrokerOrderPayload
 from brokers.dhan.domain import Exchange
 from brokers.dhan.exceptions import DhanError, OrderError
@@ -106,7 +106,7 @@ class OrdersAdapter:
         identity: DhanIdentityProvider | object,
         idempotency_cache: IdempotencyCache | None = None,
         event_bus: EventBus | None = None,
-        risk_manager: RiskManager | None = None,
+        risk_manager: RiskManagerPort | None = None,
         allow_live_orders: bool = False,
         allow_duck_identity: bool = False,
     ):

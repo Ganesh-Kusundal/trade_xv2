@@ -9,7 +9,7 @@ import logging
 from decimal import Decimal
 from typing import Any
 
-from application.oms.risk_manager import RiskManager
+from domain.ports.risk_manager import RiskManagerPort
 from brokers.common.dtos import BrokerOrderPayload
 from brokers.common.gateway_interfaces import IdempotencyCachePort, OrderCommand
 from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
@@ -39,7 +39,7 @@ class UpstoxOrderCommandAdapter(OrderCommand):
         algo_name: str | None = None,
         market_protection_default: int = -1,
         event_bus: EventBus | None = None,
-        risk_manager: RiskManager | None = None,
+        risk_manager: RiskManagerPort | None = None,
     ) -> None:
         self._order_client = order_client
         self._instrument_resolver = instrument_resolver

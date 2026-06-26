@@ -1,0 +1,39 @@
+{
+  "name": "volume_spike_5x",
+  "version": "1.0",
+  "description": "Find stocks with 5x+ 14-day relative volume by 09:45 AM",
+  "universe": "NIFTY500",
+  "timeframe": "1m",
+
+  "select": [
+    {"column": "symbol"},
+    {"column": "trade_date"},
+    {"column": "day_volume", "alias": "volume_today"},
+    {"column": "avg_volume_20", "alias": "avg_volume"},
+    {"expr": "day_volume / NULLIF(avg_volume_20, 0)", "alias": "rel_volume"}
+  ],
+
+  "from": "m_daily_volume",
+
+  "where": [
+    {"field": "trade_date", "op": "=", "value": "{as_of_date}"},
+    {"field": "avg_volume_20", "op": ">", "value": 0}
+  ],
+
+  "score": {
+    "expr": "day_volume / NULLIF(avg_volume_20, 0)",
+    "normalize": {"min": 0, "max": 20}
+  },
+
+  "filters": [
+    {"field": "rel_volume", "op": ">=", "value": 5.0}
+  ],
+
+  "reasons": [
+    {"condition": "rel_volume >= 10.0", "text": "Extreme volume spike ({rel_volume:.1f}x)"},
+    {"condition": "rel_volume >= 5.0", "text": "High volume ({rel_volume:.1f}x)"}
+  ],
+
+  "order_by": [{"field": "rel_volume", "direction": "DESC"}],
+  "limit": 20
+}

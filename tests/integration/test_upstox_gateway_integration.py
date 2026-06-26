@@ -7,7 +7,7 @@ Tests that verify UpstoxBrokerGateway works correctly with the full trading stac
 - Order cancellation
 - Portfolio queries
 - Market data requests
-- IntelligentGateway integration
+
 - Error handling (network, auth, rate limits)
 - Thread safety for concurrent operations
 
@@ -25,7 +25,6 @@ from decimal import Decimal
 import pytest
 
 from brokers.common.gateway import BrokerCapabilities
-from brokers.common.intelligent_gateway import IntelligentGateway
 from brokers.upstox.gateway import UpstoxBrokerGateway
 from domain import (
     Balance,
@@ -375,90 +374,6 @@ class TestPortfolioIntegration:
         assert isinstance(result, list)
 
 
-# ─── IntelligentGateway Integration ───────────────────────────────────────
-
-
-class TestIntelligentGatewayIntegration:
-    """Test UpstoxGateway integration with IntelligentGateway."""
-
-    def test_intelligent_gateway_routes_ltp_to_upstox(self, mock_broker, instrument_defn):
-        """IntelligentGateway should route ltp() to Upstox as primary."""
-        mock_broker.instrument_resolver.resolve.return_value = instrument_defn
-        mock_broker.market_data_v2.get_ltp.return_value = make_ltp_response("RELIANCE", 2500.50)
-
-        upstox_gw = UpstoxBrokerGateway(mock_broker)
-        ig = IntelligentGateway(upstox_gateway=upstox_gw)
-
-        result = ig.ltp("RELIANCE", "NSE")
-
-        assert isinstance(result, Decimal)
-        assert result == Decimal("2500.5000")
-
-    def test_intelligent_gateway_routes_quote_to_upstox(self, mock_broker, instrument_defn):
-        """IntelligentGateway should route quote() to Upstox as primary."""
-        mock_broker.instrument_resolver.resolve.return_value = instrument_defn
-        mock_broker.market_data_v2.get_quote.return_value = make_quote_response("RELIANCE")
-
-        upstox_gw = UpstoxBrokerGateway(mock_broker)
-        ig = IntelligentGateway(upstox_gateway=upstox_gw)
-
-        result = ig.quote("RELIANCE", "NSE")
-
-        assert isinstance(result, Quote)
-
-    def test_intelligent_gateway_handles_upstox_failure(self, mock_broker):
-        """IntelligentGateway should handle Upstox failure with health monitor."""
-        from brokers.common.resilience.broker_health_monitor import BrokerHealthMonitor
-
-        mock_broker.market_data_v2.get_ltp.side_effect = ConnectionError("Upstox down")
-
-        upstox_gw = UpstoxBrokerGateway(mock_broker)
-        health_monitor = BrokerHealthMonitor(failure_threshold=1)
-        ig = IntelligentGateway(
-            upstox_gateway=upstox_gw,
-            health_monitor=health_monitor,
-        )
-
-        # When health monitor is present and both brokers fail,
-        # degraded mode raises RuntimeError with no cached data
-        with pytest.raises(RuntimeError, match="No broker available"):
-            ig.ltp("RELIANCE", "NSE")
-
-    def test_intelligent_gateway_positions_fallback(self, mock_broker):
-        """IntelligentGateway should use Upstox for positions when Dhan unavailable."""
-        mock_broker.portfolio.get_positions.return_value = []
-
-        upstox_gw = UpstoxBrokerGateway(mock_broker)
-        ig = IntelligentGateway(upstox_gateway=upstox_gw)
-
-        result = ig.positions()
-
-        assert isinstance(result, list)
-
-    def test_intelligent_gateway_holdings_fallback(self, mock_broker):
-        """IntelligentGateway should use Upstox for holdings when Dhan unavailable."""
-        mock_broker.portfolio.get_holdings.return_value = []
-
-        upstox_gw = UpstoxBrokerGateway(mock_broker)
-        ig = IntelligentGateway(upstox_gateway=upstox_gw)
-
-        result = ig.holdings()
-
-        assert isinstance(result, list)
-
-    def test_intelligent_gateway_funds_fallback(self, mock_broker):
-        """IntelligentGateway should use Upstox for funds when Dhan unavailable."""
-        mock_broker.portfolio.get_fund_limits.return_value = Balance(
-            available_balance=Decimal("50000"),
-        )
-
-        upstox_gw = UpstoxBrokerGateway(mock_broker)
-        ig = IntelligentGateway(upstox_gateway=upstox_gw)
-
-        result = ig.funds()
-
-        assert isinstance(result, Balance)
-        assert result.available_balance == Decimal("50000")
 
 
 # ─── Capabilities & Metadata ──────────────────────────────────────────────

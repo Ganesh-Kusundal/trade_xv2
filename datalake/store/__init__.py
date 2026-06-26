@@ -1,5 +1,2 @@
-"""Datalake store package."""
-
-from datalake.store.parquet_store import ParquetStore
-
-__all__ = ["ParquetStore"]
+"""Backward-compat shim — datalake.store moved to datalake.storage."""
+from datalake.storage.parquet_store import ParquetStore  # noqa: F401

@@ -21,21 +21,16 @@ def run(args: list[str], broker_service, console: Console) -> None:
     # Get gateway
     try:
         from pathlib import Path
+        from types import SimpleNamespace
 
-        from brokers.common.intelligent_gateway import IntelligentGateway
         from cli.services.broker_registry import create_gateway
 
         dhan = create_gateway("dhan", env_path=Path(".env.local"), load_instruments=True)
         upstox = create_gateway("upstox", env_path=Path(".env.upstox"), load_instruments=True)
-        if dhan and upstox:
-            gw = IntelligentGateway(dhan_gateway=dhan, upstox_gateway=upstox)
-        elif dhan:
-            gw = dhan
-        elif upstox:
-            gw = upstox
-        else:
+        if not dhan and not upstox:
             console.print("[red]No broker gateways available[/red]")
             return
+        gw = SimpleNamespace(dhan=dhan, upstox=upstox)
     except Exception as e:
         console.print(f"[red]Error creating gateway: {e}[/red]")
         return

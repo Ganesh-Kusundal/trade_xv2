@@ -259,7 +259,7 @@ class DhanExtendedCapabilities:
                 sec_id = int(futures[0].security_id)
         if expiry is None:
             if sec_id and seg:
-                response = self._conn._client.post(
+                response = self._conn.client.post(
                     "/optionchain/expirylist",
                     json={
                         "UnderlyingScrip": sec_id,

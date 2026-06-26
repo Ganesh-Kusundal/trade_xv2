@@ -244,28 +244,6 @@ class TestCacheEviction:
 
         assert "key" not in cache, "Entry should have expired after TTL"
 
-    def test_intelligent_gateway_cache_grows_bounded(self):
-        """IntelligentGateway cache should not grow unbounded with repeated calls."""
-        from brokers.common.intelligent_gateway import IntelligentGateway
-
-        primary = MagicMock()
-        primary.ltp.return_value = 1500.0
-
-        gw = IntelligentGateway(dhan_gateway=primary, upstox_gateway=MagicMock())
-
-        # Make many calls with different symbols
-        for i in range(200):
-            gw.ltp(f"SYMBOL-{i}")
-
-        # Cache should have entries but not grow infinitely
-        # Each call adds one entry
-        cache_size = len(gw._cache)
-        assert cache_size == 200, f"Cache should have one entry per unique symbol, got {cache_size}"
-
-        # Verify cache entries are _CacheEntry objects with TTL
-        for entry in gw._cache.values():
-            assert hasattr(entry, "expires_at"), "Cache entry should have TTL"
-            assert hasattr(entry, "is_expired"), "Cache entry should have expiry check"
 
 
 # ──────────────────────────────────────────────────────────────────────

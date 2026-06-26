@@ -15,7 +15,6 @@ from brokers.common.batch_mixin import BatchFetchMixin
 from brokers.common.capabilities import dhan_capabilities
 from brokers.common.dtos import BrokerOrderPayload
 from brokers.common.gateway import BrokerCapabilities, MarketDataGateway, ObservabilityProvider
-from brokers.common.resilience.circuit_breaker import CircuitState
 from brokers.dhan.connection import DhanConnection
 from brokers.dhan.exceptions import OrderError
 from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
@@ -414,8 +413,9 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         underlying: str,
         exchange: str = "NFO",
     ) -> FutureChain:
-        nfo_map = {"NIFTY": "NFO", "BANKNIFTY": "NFO", "FINNIFTY": "NFO", "SENSEX": "BFO"}
-        dhan_exchange = nfo_map.get(underlying.upper(), exchange)
+        from indices import INDEX_TO_FNO_EXCHANGE
+
+        dhan_exchange = INDEX_TO_FNO_EXCHANGE.get(underlying.upper(), exchange)
         contracts = self._conn.futures.get_contracts(underlying, dhan_exchange)
         expiries = self._conn.futures.get_expiries(underlying, dhan_exchange)
         chain = []
@@ -654,46 +654,21 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
 
         Maps CircuitState enum to int: 0=CLOSED, 1=OPEN, 2=HALF_OPEN.
         Implements ObservabilityProvider protocol.
+
+        Delegates to the connection's public ``circuit_breaker_states``
+        property so the gateway never touches private ``_client`` attributes.
         """
-        client = getattr(self._conn, "_client", None)
-        if client is None:
-            return {}
-
-        state_map = {
-            CircuitState.CLOSED: 0,
-            CircuitState.OPEN: 1,
-            CircuitState.HALF_OPEN: 2,
-        }
-
-        states = {}
-        for name in ["_read_circuit_breaker", "_write_circuit_breaker", "_admin_circuit_breaker"]:
-            cb = getattr(client, name, None)
-            if cb is not None:
-                try:
-                    short_name = name.replace("_circuit_breaker", "_cb").lstrip("_")
-                    states[short_name] = state_map.get(cb.state, 0)
-                except Exception as exc:
-                    logger.debug("circuit_breaker_state_failed: %s", exc)
-
-        return states
+        return self._conn.circuit_breaker_states
 
     def get_token_refresh_metrics(self) -> dict[str, int]:
         """Return token refresh metrics from Dhan connection.
 
         Implements ObservabilityProvider protocol.
-        """
-        scheduler = getattr(self._conn, "_token_scheduler", None)
-        if scheduler is None:
-            return {"refresh_count": 0, "error_count": 0}
 
-        try:
-            return {
-                "refresh_count": getattr(scheduler, "refresh_count", 0),
-                "error_count": 1 if getattr(scheduler, "_last_error", None) else 0,
-            }
-        except Exception as exc:
-            logger.debug("token_refresh_metrics_failed: %s", exc)
-            return {"refresh_count": 0, "error_count": 0}
+        Delegates to the connection's public ``token_refresh_metrics``
+        property so the gateway never touches private ``_token_scheduler``.
+        """
+        return self._conn.token_refresh_metrics
 
 
 def _dhan_normalize_exchange(symbol: str, exchange: str) -> str:

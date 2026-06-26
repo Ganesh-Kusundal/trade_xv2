@@ -13,7 +13,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-from application.oms.risk_manager import RiskManager
+from domain.ports.risk_manager import RiskManagerPort
 from brokers.common.services.historical_data import HistoricalDataService
 from brokers.upstox.auth.config import UpstoxConnectionSettings
 from brokers.upstox.auth.context import UpstoxAdapterContext
@@ -163,7 +163,7 @@ class UpstoxBroker:
         token_manager: UpstoxTokenManager | None = None,
         oms: Any = None,
         event_bus: EventBus | None = None,
-        risk_manager: RiskManager | None = None,
+        risk_manager: RiskManagerPort | None = None,
         backfill_callback: Any | None = None,
         reconciliation_service: Any | None = None,
     ) -> None:

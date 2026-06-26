@@ -344,8 +344,9 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         exchange: str = "NFO",
     ) -> FutureChain:
         """Get the future chain for an underlying."""
-        nfo_map = {"NIFTY": "NFO", "BANKNIFTY": "NFO", "FINNIFTY": "NFO", "SENSEX": "BFO"}
-        segment = nfo_map.get(underlying.upper(), exchange)
+        from indices import INDEX_TO_FNO_EXCHANGE
+
+        segment = INDEX_TO_FNO_EXCHANGE.get(underlying.upper(), exchange)
         futures = getattr(self._broker, "futures", None)
         if futures is None:
             return FutureChain.from_dict({"underlying": underlying, "exchange": segment})

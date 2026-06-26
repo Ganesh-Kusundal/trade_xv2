@@ -95,8 +95,9 @@ class TestAdjustmentFactors:
         factors = store.get_adjustment_factors("RELIANCE")
         assert len(factors) == 2
         factor_dates = [f[0] for f in factors]
-        assert date(2022, 1, 1) in [d if isinstance(d, date) else d.date() for d in factor_dates]
-        assert date(2023, 1, 1) in [d if isinstance(d, date) else d.date() for d in factor_dates]
+        normalized = [d.date() if hasattr(d, "date") else d for d in factor_dates]
+        assert date(2022, 1, 1) in normalized
+        assert date(2023, 1, 1) in normalized
 
     def test_no_actions_returns_empty(self, store):
         factors = store.get_adjustment_factors("NODATA")

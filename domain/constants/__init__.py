@@ -81,6 +81,7 @@ from domain.constants.risk import (
     RISK_MARGIN_SAFETY_MULTIPLIER,
     RISK_POSITION_PERCENT,
 )
+from domain.constants.defaults import DEFAULT_LOOKBACK_DAYS
 from domain.constants.timeouts import (
     DEFAULT_HTTP_TIMEOUT_SECONDS,
     DEFAULT_STOP_TIMEOUT_SECONDS,
@@ -114,20 +115,6 @@ PROCESSED_TRADE_CLEANUP_INTERVAL_SECONDS: int = 60 * 60  # 1h
 
 #: Number of worker threads used by BatchFetchMixin.
 BATCH_MAX_WORKERS: int = 5
-
-#: Max instruments per Dhan depth-20 WebSocket subscription.
-DHAN_DEPTH_20_MAX_INSTRUMENTS: int = 50
-
-#: Max instruments per Dhan depth-200 WebSocket subscription.
-DHAN_DEPTH_200_MAX_INSTRUMENTS: int = 1
-
-# ── Idempotency ────────────────────────────────────────────────────────────
-
-#: Dhan OrderIdempotencyCache max size.
-DHAN_IDEMPOTENCY_MAX_SIZE: int = 1_000
-
-#: Dhan OrderIdempotencyCache TTL (seconds).
-DHAN_IDEMPOTENCY_TTL_SECONDS: int = 60 * 60  # 1h
 
 # ── Dead-letter queue ──────────────────────────────────────────────────────
 
@@ -176,19 +163,14 @@ __all__ = [
     # history
     "DEFAULT_HISTORY_PAGE_DAYS",
     "DEFAULT_HTTP_TIMEOUT_SECONDS",
+    "DEFAULT_LOOKBACK_DAYS",
     # logging
     "DEFAULT_LOG_LEVEL",
     "DEFAULT_MAX_DAILY_DAYS",
     "DEFAULT_MAX_INTRADAY_DAYS",
     # timeouts
     "DEFAULT_STOP_TIMEOUT_SECONDS",
-    # market
     "DEFAULT_TICK_SIZE",
-    "DHAN_DEPTH_20_MAX_INSTRUMENTS",
-    "DHAN_DEPTH_200_MAX_INSTRUMENTS",
-    # idempotency
-    "DHAN_IDEMPOTENCY_MAX_SIZE",
-    "DHAN_IDEMPOTENCY_TTL_SECONDS",
     "DHAN_NOTIONAL_WARNING_INR",
     "DHAN_REFRESH_COOLDOWN_SECONDS",
     "DHAN_TOKEN_LIFETIME_SECONDS",
