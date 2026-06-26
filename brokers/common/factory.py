@@ -14,11 +14,14 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from infrastructure.event_bus import EventBus
-from application.oms.risk_manager import RiskManager
-from infrastructure.lifecycle import LifecycleManager
+from typing import TYPE_CHECKING, Any
 
 from brokers.common.gateway import MarketDataGateway
+
+if TYPE_CHECKING:
+    from infrastructure.event_bus import EventBus
+    from application.oms.risk_manager import RiskManager
+    from infrastructure.lifecycle import LifecycleManager
 
 
 class BrokerProviderFactory(ABC):
