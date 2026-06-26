@@ -10,6 +10,7 @@ import pandas as pd
 import pyarrow as pa
 
 from datalake.io import atomic_parquet_write
+from brokers.common.batch_executor import batch_execute
 
 logger = logging.getLogger(__name__)
 
@@ -54,12 +55,15 @@ class IncrementalUpdater:
             reader = csv.DictReader(f)
             symbols = [row["symbol"] for row in reader]
 
-        results = {}
-        for i, symbol in enumerate(symbols, 1):
-            if i % 50 == 0:
-                logger.info("Progress: %d/%d", i, len(symbols))
-            rows = self._update_symbol(symbol, gateway, timeframe)
-            results[symbol] = rows
+        def _update_one(sym: str) -> int:
+            return self._update_symbol(sym, gateway, timeframe)
+
+        def _on_error(sym: str, exc: Exception) -> None:
+            logger.error("Failed to update %s: %s", sym, exc)
+
+        results = batch_execute(
+            symbols, _update_one, on_error=_on_error,
+        )
 
         total = sum(results.values())
         logger.info("Update complete: %d symbols, %d new rows", len(results), total)

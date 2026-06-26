@@ -6,6 +6,8 @@ import json
 import logging
 from typing import Any
 
+from datalake.core.serialization import df_to_records
+
 logger = logging.getLogger(__name__)
 
 
@@ -20,18 +22,7 @@ def register_tools(mcp) -> None:
         from_date: str | None = None,
         to_date: str | None = None,
     ) -> dict:
-        """Get OHLCV historical data for a symbol.
-
-        Args:
-            symbol: Trading symbol (e.g., "RELIANCE", "TCS").
-            timeframe: Candle timeframe ("1m", "5m", "15m", "1h", "1D").
-            days: Number of days of history (default 90).
-            from_date: Start date (YYYY-MM-DD). Overrides days.
-            to_date: End date (YYYY-MM-DD).
-
-        Returns:
-            Dict with symbol, data (list of OHLCV records), and metadata.
-        """
+        """Get OHLCV historical data for a symbol."""
         from datalake.gateway import DataLakeGateway
 
         gw = DataLakeGateway()
@@ -41,19 +32,11 @@ def register_tools(mcp) -> None:
         if df.empty:
             return {"symbol": symbol, "data": [], "message": "No data found"}
 
-        records = df.to_dict(orient="records")
-        for r in records:
-            for k, v in r.items():
-                if hasattr(v, "isoformat"):
-                    r[k] = v.isoformat()
-                elif hasattr(v, "item"):
-                    r[k] = v.item()
-
         return {
             "symbol": symbol,
             "timeframe": timeframe,
-            "rows": len(records),
-            "data": records[:100],
+            "rows": len(df),
+            "data": df_to_records(df)[:100],
         }
 
     @mcp.tool()
@@ -61,15 +44,7 @@ def register_tools(mcp) -> None:
         universe: str = "NIFTY500",
         as_of_date: str | None = None,
     ) -> dict:
-        """Get list of symbols in a universe.
-
-        Args:
-            universe: Universe name ("NIFTY50", "NIFTY100", "NIFTY200", "NIFTY500").
-            as_of_date: Historical date for point-in-time membership (YYYY-MM-DD).
-
-        Returns:
-            Dict with universe name, symbol count, and symbol list.
-        """
+        """Get list of symbols in a universe."""
         from datalake.core.schema import load_universe
 
         symbols = load_universe(universe, as_of_date=as_of_date)
@@ -86,16 +61,7 @@ def register_tools(mcp) -> None:
         date: str,
         min_rel_volume: float = 0,
     ) -> dict:
-        """Execute a scanner rule and return matching stocks.
-
-        Args:
-            rule: Rule name (e.g., "volume_spike", "momentum_breakout") or inline JSON rule.
-            date: Target date (YYYY-MM-DD).
-            min_rel_volume: Minimum relative volume filter (optional).
-
-        Returns:
-            Dict with rule name, result count, and matching stocks.
-        """
+        """Execute a scanner rule and return matching stocks."""
         from datalake.scanner.engine import RuleEngine
 
         engine = RuleEngine()
@@ -107,19 +73,11 @@ def register_tools(mcp) -> None:
             rule_dict = json.loads(rule)
             df = engine.execute_rule(rule_dict, params=params)
 
-        records = df.to_dict(orient="records")
-        for r in records:
-            for k, v in r.items():
-                if hasattr(v, "isoformat"):
-                    r[k] = v.isoformat()
-                elif hasattr(v, "item"):
-                    r[k] = v.item()
-
         return {
             "rule": rule,
             "date": date,
-            "count": len(records),
-            "results": records,
+            "count": len(df),
+            "results": df_to_records(df),
         }
 
     @mcp.tool()
@@ -127,15 +85,7 @@ def register_tools(mcp) -> None:
         symbol: str,
         timeframe: str = "1m",
     ) -> dict:
-        """Check data quality for a symbol.
-
-        Args:
-            symbol: Trading symbol.
-            timeframe: Candle timeframe.
-
-        Returns:
-            Dict with quality report including completeness, gaps, and issues.
-        """
+        """Check data quality for a symbol."""
         from datalake.quality.engine import DataQualityEngine
 
         engine = DataQualityEngine()
@@ -160,17 +110,7 @@ def register_tools(mcp) -> None:
         min_rel_volume: float = 5.0,
         lookback_days: int = 14,
     ) -> dict:
-        """Get stocks with high relative volume by a cutoff time.
-
-        Args:
-            date: Target date (YYYY-MM-DD).
-            cutoff_time: Intraday cutoff (e.g., "09:45", "10:00").
-            min_rel_volume: Minimum relative volume threshold (default 5.0 = 5x).
-            lookback_days: Trading days for average (default 14).
-
-        Returns:
-            Dict with date, cutoff, result count, and matching stocks.
-        """
+        """Get stocks with high relative volume by a cutoff time."""
         from datalake.analytics.relative_volume import high_rel_volume_stocks
 
         df = high_rel_volume_stocks(
@@ -180,20 +120,12 @@ def register_tools(mcp) -> None:
             lookback_days=lookback_days,
         )
 
-        records = df.to_dict(orient="records")
-        for r in records:
-            for k, v in r.items():
-                if hasattr(v, "isoformat"):
-                    r[k] = v.isoformat()
-                elif hasattr(v, "item"):
-                    r[k] = v.item()
-
         return {
             "date": date,
             "cutoff_time": cutoff_time,
             "min_rel_volume": min_rel_volume,
-            "count": len(records),
-            "results": records,
+            "count": len(df),
+            "results": df_to_records(df),
         }
 
     @mcp.tool()
@@ -201,73 +133,33 @@ def register_tools(mcp) -> None:
         underlying: str,
         analysis_type: str = "pcr",
     ) -> dict:
-        """Get options analytics for an underlying.
+        """Get options analytics for an underlying."""
+        from datalake.core.duckdb_utils import duckdb_connection, DEFAULT_CATALOG_PATH
 
-        Args:
-            underlying: Underlying symbol (e.g., "NIFTY", "BANKNIFTY").
-            analysis_type: Type of analysis ("pcr", "max_pain", "iv_surface").
+        table_map = {"pcr": "m_pcr", "max_pain": "m_max_pain", "iv_surface": "m_iv_surface"}
+        table = table_map.get(analysis_type)
+        if not table:
+            return {"error": f"Unknown analysis type: {analysis_type}. Use: {list(table_map.keys())}"}
 
-        Returns:
-            Dict with options analytics results.
-        """
-        import duckdb
-        from datalake.core.duckdb_utils import DEFAULT_CATALOG_PATH
+        with duckdb_connection(str(DEFAULT_CATALOG_PATH), read_only=True) as conn:
+            result = conn.execute(
+                f"SELECT * FROM {table} WHERE underlying = ? ORDER BY timestamp DESC LIMIT 1",
+                [underlying],
+            ).fetchdf()
 
-        conn = duckdb.connect(str(DEFAULT_CATALOG_PATH), read_only=True)
-        try:
-            if analysis_type == "pcr":
-                sql = """
-                    SELECT * FROM m_pcr
-                    WHERE underlying = ?
-                    ORDER BY timestamp DESC
-                    LIMIT 1
-                """
-            elif analysis_type == "max_pain":
-                sql = """
-                    SELECT * FROM m_max_pain
-                    WHERE underlying = ?
-                    ORDER BY timestamp DESC
-                    LIMIT 1
-                """
-            elif analysis_type == "iv_surface":
-                sql = """
-                    SELECT * FROM m_iv_surface
-                    WHERE underlying = ?
-                    ORDER BY timestamp DESC
-                    LIMIT 1
-                """
-            else:
-                return {"error": f"Unknown analysis type: {analysis_type}"}
+        if result.empty:
+            return {"underlying": underlying, "analysis_type": analysis_type, "message": "No data"}
 
-            result = conn.execute(sql, [underlying]).fetchdf()
-            if result.empty:
-                return {"underlying": underlying, "analysis_type": analysis_type, "message": "No data"}
-
-            records = result.to_dict(orient="records")
-            for r in records:
-                for k, v in r.items():
-                    if hasattr(v, "isoformat"):
-                        r[k] = v.isoformat()
-                    elif hasattr(v, "item"):
-                        r[k] = v.item()
-
-            return {
-                "underlying": underlying,
-                "analysis_type": analysis_type,
-                "data": records,
-            }
-        finally:
-            conn.close()
+        return {
+            "underlying": underlying,
+            "analysis_type": analysis_type,
+            "data": df_to_records(result),
+        }
 
     @mcp.tool()
     def datalake_list_rules() -> dict:
-        """List all available scanner rules.
-
-        Returns:
-            Dict with list of available rules and their descriptions.
-        """
+        """List all available scanner rules."""
         from datalake.scanner.engine import RuleEngine
 
         engine = RuleEngine()
-        rules = engine.list_rules()
-        return {"count": len(rules), "rules": rules}
+        return {"count": 0, "rules": engine.list_rules()}

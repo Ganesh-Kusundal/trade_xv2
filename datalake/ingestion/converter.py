@@ -204,7 +204,6 @@ def convert_tradej_directory(
         if not dfs:
             continue
 
-        sum(len(d) for d in dfs)
         combined = pd.concat(dfs, ignore_index=True)
         combined = combined.sort_values("timestamp")
 

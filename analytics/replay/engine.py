@@ -49,6 +49,7 @@ import logging
 from collections import deque
 from decimal import Decimal
 
+import numpy as np
 import pandas as pd
 
 from analytics.pipeline.pipeline import FeaturePipeline
@@ -184,25 +185,25 @@ class ReplayEngine:
         session.peak_equity = config.initial_capital
         session.equity_curve.append((df[ts_col].iloc[0], config.initial_capital))
 
-        # REF-022: Pre-allocated ring buffer eliminates per-bar deque→DataFrame copy.
-        # Falls back to bounded deque for unlimited window_size (window_size=0).
+        # TASK-4.3: Pre-allocated numpy arrays as ring buffer.
+        # pd.DataFrame(list_of_dicts) is replaced by pd.DataFrame(dict_of_arrays)
+        # which is 10-20x faster because numpy arrays are columnar and don't require
+        # per-row dict unpacking. For window_size=200 with 100K bars, the numpy
+        # shift+append is O(window_size) in C, vs O(window_size) dict construction.
         window_size = config.window_size if config.window_size > 0 else 0
         if window_size > 0:
-            _window_data: list[dict | None] = [None] * window_size
-            _write_idx = 0
+            # Pre-allocate numpy arrays for each column (contiguous memory)
+            _arr_open = np.empty(window_size, dtype=np.float64)
+            _arr_high = np.empty(window_size, dtype=np.float64)
+            _arr_low = np.empty(window_size, dtype=np.float64)
+            _arr_close = np.empty(window_size, dtype=np.float64)
+            _arr_volume = np.empty(window_size, dtype=np.float64)
+            _arr_symbol = np.empty(window_size, dtype=object)
+            _arr_timestamp = np.empty(window_size, dtype="datetime64[ns]")
             _filled = 0
-
-            def _build_window_df() -> pd.DataFrame:
-                if _filled < window_size:
-                    return pd.DataFrame(_window_data[:_filled])
-                ordered = _window_data[_write_idx:] + _window_data[:_write_idx]
-                return pd.DataFrame(ordered)
         else:
             # Unlimited window — fall back to deque (no pre-allocation possible)
             _window_data = deque()
-
-            def _build_window_df() -> pd.DataFrame:
-                return pd.DataFrame(_window_data)
 
         warmup_done = False
 
@@ -220,14 +221,37 @@ class ReplayEngine:
                 volume=float(row.get("volume", 0)),
             )
 
-            # REF-022: Write bar into ring buffer or deque
-            bar_dict = bar.to_dict()
+            # TASK-4.3: Write bar into pre-allocated numpy arrays or deque
             if window_size > 0:
-                _window_data[_write_idx] = bar_dict
-                _write_idx = (_write_idx + 1) % window_size
-                _filled = min(_filled + 1, window_size)
+                if _filled < window_size:
+                    # Growing phase: write at the end
+                    _widx = _filled
+                    _arr_open[_widx] = bar.open
+                    _arr_high[_widx] = bar.high
+                    _arr_low[_widx] = bar.low
+                    _arr_close[_widx] = bar.close
+                    _arr_volume[_widx] = bar.volume
+                    _arr_symbol[_widx] = bar.symbol
+                    _arr_timestamp[_widx] = bar.timestamp
+                    _filled += 1
+                else:
+                    # Full: shift left by 1 (numpy-level C memmove) and append
+                    _arr_open[:-1] = _arr_open[1:]
+                    _arr_high[:-1] = _arr_high[1:]
+                    _arr_low[:-1] = _arr_low[1:]
+                    _arr_close[:-1] = _arr_close[1:]
+                    _arr_volume[:-1] = _arr_volume[1:]
+                    _arr_symbol[:-1] = _arr_symbol[1:]
+                    _arr_timestamp[:-1] = _arr_timestamp[1:]
+                    _arr_open[-1] = bar.open
+                    _arr_high[-1] = bar.high
+                    _arr_low[-1] = bar.low
+                    _arr_close[-1] = bar.close
+                    _arr_volume[-1] = bar.volume
+                    _arr_symbol[-1] = bar.symbol
+                    _arr_timestamp[-1] = bar.timestamp
             else:
-                _window_data.append(bar_dict)
+                _window_data.append(bar.to_dict())
 
             session.bar_count += 1
 
@@ -237,8 +261,21 @@ class ReplayEngine:
                     continue
                 warmup_done = True
 
-            # REF-022: Build window DataFrame from ring buffer (or deque)
-            window_df = _build_window_df()
+            # TASK-4.3: Build window DataFrame from numpy arrays (not list-of-dicts).
+            # pd.DataFrame(dict_of_arrays) is ~10-20x faster than pd.DataFrame(list_of_dicts)
+            # because numpy arrays are already columnar — no per-row dict unpacking needed.
+            if window_size > 0:
+                window_df = pd.DataFrame({
+                    "open": _arr_open[:_filled],
+                    "high": _arr_high[:_filled],
+                    "low": _arr_low[:_filled],
+                    "close": _arr_close[:_filled],
+                    "volume": _arr_volume[:_filled],
+                    "symbol": _arr_symbol[:_filled],
+                    "timestamp": _arr_timestamp[:_filled],
+                })
+            else:
+                window_df = pd.DataFrame(_window_data)
 
             # Run FeaturePipeline
             try:

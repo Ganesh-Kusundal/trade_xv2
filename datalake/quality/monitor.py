@@ -86,7 +86,11 @@ class DataQualityMonitor:
         self._catalog_path = self._root / "catalog.duckdb"
 
     def run_checks(self, timeframe: str = "1m") -> OverallReport:
-        """Run all quality checks."""
+        """Run all quality checks with a single-pass DuckDB query.
+
+        Consolidates basic stats, freshness, completeness, and integrity
+        checks into one SQL statement to minimise parquet I/O.
+        """
         report = OverallReport()
 
         # Get parquet pattern
@@ -101,214 +105,184 @@ class DataQualityMonitor:
         conn = duckdb.connect(str(self._catalog_path), read_only=True)
 
         try:
-            # Basic statistics
-            report = self._check_basic_stats(conn, parquet_pattern, report)
-
-            # Freshness checks
-            report = self._check_freshness(conn, parquet_pattern, report)
-
-            # Completeness checks
-            report = self._check_completeness(conn, parquet_pattern, timeframe, report)
-
-            # Integrity checks
-            report = self._check_integrity(conn, parquet_pattern, report)
-
-            # Summary metrics
+            report = self._run_all_checks(conn, parquet_pattern, timeframe, report)
             report = self._calculate_summary(report)
-
         finally:
             conn.close()
 
         return report
 
-    def _check_basic_stats(
-        self, conn: duckdb.DuckDBPyConnection, pattern: str, report: OverallReport
-    ) -> OverallReport:
-        """Check basic statistics."""
-        result = conn.execute(
-            """
-            SELECT
-                COUNT(DISTINCT symbol) as total_symbols,
-                COUNT(*) as total_candles,
-                MIN(timestamp)::DATE as min_date,
-                MAX(timestamp)::DATE as max_date
-            FROM read_parquet(?)
-        """,
-            [pattern],
-        ).fetchone()
-
-        report.total_symbols = result[0]
-        report.total_candles = result[1]
-        report.date_range = (result[2], result[3])
-
-        return report
-
-    def _check_freshness(
-        self, conn: duckdb.DuckDBPyConnection, pattern: str, report: OverallReport
-    ) -> OverallReport:
-        """Check data freshness for each symbol."""
-        date.today()
-
-        # Get latest date per symbol
-        result = conn.execute(
-            """
+    # ------------------------------------------------------------------
+    # Single consolidated query replacing the former 4 separate scans:
+    #   _check_basic_stats  – global symbol/candle counts & date range
+    #   _check_freshness    – per-symbol latest timestamp & staleness
+    #   _check_completeness – per-symbol avg daily candle count
+    #   _check_integrity    – per-symbol zero-volume & OHLC error counts
+    #
+    # The CTE *daily_counts* requires a second read_parquet call, but
+    # DuckDB only reads the columns each scan needs (columnar pruning),
+    # so total I/O ≈ 2 full scans vs. the original 4.
+    # ------------------------------------------------------------------
+    _SINGLE_QUERY = """
+        WITH daily_counts AS (
             SELECT
                 symbol,
-                MAX(timestamp)::DATE as latest_date,
-                DATEDIFF('day', MAX(timestamp)::DATE, CURRENT_DATE) as days_old
+                DATE_TRUNC('day', CAST(timestamp AS TIMESTAMP)) AS day,
+                COUNT(*) AS daily_count
             FROM read_parquet(?)
-            GROUP BY symbol
-        """,
-            [pattern],
-        ).fetchall()
+            GROUP BY symbol, DATE_TRUNC('day', CAST(timestamp AS TIMESTAMP))
+        ),
+        per_symbol AS (
+            SELECT
+                b.symbol,
+                MAX(b.timestamp)::DATE                                   AS last_date,
+                DATEDIFF('day', MAX(b.timestamp)::DATE, CURRENT_DATE)     AS days_old,
+                COUNT(*)                                                  AS total_candles,
+                SUM(CASE WHEN b.volume = 0  THEN 1 ELSE 0 END)           AS zero_volume,
+                SUM(CASE WHEN b.high < b.low THEN 1 ELSE 0 END)          AS ohlc_errors,
+                COALESCE(MAX(d.trading_days), 0)                          AS trading_days,
+                COALESCE(MAX(d.avg_candles_per_day), 0)                   AS avg_candles_per_day
+            FROM read_parquet(?) b
+            LEFT JOIN (
+                SELECT
+                    symbol,
+                    COUNT(*)             AS trading_days,
+                    AVG(daily_count)     AS avg_candles_per_day
+                FROM daily_counts
+                GROUP BY symbol
+            ) d ON b.symbol = d.symbol
+            GROUP BY b.symbol
+        )
+        SELECT
+            COUNT(DISTINCT symbol)                                          AS total_symbols,
+            SUM(total_candles)                                              AS total_candles,
+            MIN(last_date)                                                  AS min_date,
+            MAX(last_date)                                                  AS max_date,
+            ARRAY_AGG({
+                'symbol':              symbol,
+                'last_date':           last_date,
+                'days_old':            days_old,
+                'total_candles':       total_candles,
+                'zero_volume':         zero_volume,
+                'ohlc_errors':         ohlc_errors,
+                'trading_days':        trading_days,
+                'avg_candles_per_day': avg_candles_per_day
+            })                                                              AS symbol_rows
+        FROM per_symbol
+    """
 
-        for symbol, latest_date, days_old in result:
-            sq = SymbolQuality(symbol=symbol)
-
-            # Freshness metric
-            if days_old <= 1:
-                status = "PASS"
-            elif days_old <= 7:
-                status = "WARNING"
-            else:
-                status = "FAIL"
-
-            sq.metrics.append(
-                QualityMetric(
-                    name="freshness",
-                    value=days_old,
-                    threshold=7.0,
-                    status=status,
-                    details=f"Last update: {latest_date} ({days_old} days ago)",
-                )
-            )
-
-            if status != "PASS":
-                sq.issues.append(f"Data is {days_old} days old")
-
-            report.symbol_reports.append(sq)
-
-        return report
-
-    def _check_completeness(
+    def _run_all_checks(
         self,
         conn: duckdb.DuckDBPyConnection,
         pattern: str,
         timeframe: str,
         report: OverallReport,
     ) -> OverallReport:
-        """Check intraday completeness."""
-        if timeframe not in ("1m", "5m", "15m", "30m"):
+        """Execute the consolidated quality query and populate *report*."""
+        row = conn.execute(self._SINGLE_QUERY, [pattern, pattern]).fetchone()
+        if row is None or not row[1]:  # total_candles is 0 or NULL → empty dataset
             return report
 
-        # Calculate expected candles per day
-        candles_per_hour = 60 // int(timeframe.replace("m", "").replace("h", "60"))
-        expected_per_day = int(candles_per_hour * 6.25)  # 6.25 trading hours
+        total_symbols, total_candles, min_date, max_date, symbol_rows = row
+        report.total_symbols = total_symbols
+        report.total_candles = total_candles
+        report.date_range = (min_date, max_date)
 
-        # Get candle count per symbol per day
-        result = conn.execute(
-            """
-            SELECT
-                symbol,
-                SUM(daily_count) as total_candles,
-                COUNT(*) as trading_days,
-                ROUND(AVG(daily_count), 1) as avg_candles_per_day
-            FROM (
-                SELECT
-                    symbol,
-                    DATE_TRUNC('day', timestamp) as day,
-                    COUNT(*) as daily_count
-                FROM read_parquet(?)
-                GROUP BY symbol, DATE_TRUNC('day', timestamp)
-            )
-            GROUP BY symbol
-        """,
-            [pattern],
-        ).fetchall()
+        # Pre-compute expected candles per day for completeness check
+        expected_per_day: int | None = None
+        if timeframe in ("1m", "5m", "15m", "30m"):
+            candles_per_hour = 60 // int(timeframe.replace("m", ""))
+            expected_per_day = int(candles_per_hour * 6.25)  # 6.25 trading hours
 
-        for symbol, _total_candles, _trading_days, avg_candles in result:
-            # Find or create symbol report
-            sq = next((s for s in report.symbol_reports if s.symbol == symbol), None)
-            if sq is None:
-                sq = SymbolQuality(symbol=symbol)
-                report.symbol_reports.append(sq)
+        for sr in symbol_rows:
+            symbol = sr["symbol"]
+            sq = SymbolQuality(symbol=symbol)
 
-            # Completeness metric
-            completeness = min(avg_candles / expected_per_day, 1.0) if expected_per_day > 0 else 0
+            # ── Freshness ──────────────────────────────────────────
+            last_date = sr["last_date"]
+            days_old = int(sr["days_old"])
 
-            if completeness >= 0.90:
-                status = "PASS"
-            elif completeness >= 0.70:
-                status = "WARNING"
+            if days_old <= 1:
+                fresh_status = "PASS"
+            elif days_old <= 7:
+                fresh_status = "WARNING"
             else:
-                status = "FAIL"
+                fresh_status = "FAIL"
 
             sq.metrics.append(
                 QualityMetric(
-                    name="completeness",
-                    value=completeness * 100,
-                    threshold=90.0,
-                    status=status,
-                    details=f"{avg_candles:.0f}/{expected_per_day} candles/day ({completeness * 100:.1f}%)",
+                    name="freshness",
+                    value=days_old,
+                    threshold=7.0,
+                    status=fresh_status,
+                    details=f"Last update: {last_date} ({days_old} days ago)",
                 )
             )
+            if fresh_status != "PASS":
+                sq.issues.append(f"Data is {days_old} days old")
 
-            if status != "PASS":
-                sq.issues.append(
-                    f"Only {completeness * 100:.0f}% complete ({avg_candles:.0f}/{expected_per_day} candles/day)"
+            # ── Completeness ───────────────────────────────────────
+            if expected_per_day is not None:
+                avg_candles = float(sr["avg_candles_per_day"])
+                completeness = (
+                    min(avg_candles / expected_per_day, 1.0)
+                    if expected_per_day > 0
+                    else 0.0
                 )
 
-        return report
+                if completeness >= 0.90:
+                    comp_status = "PASS"
+                elif completeness >= 0.70:
+                    comp_status = "WARNING"
+                else:
+                    comp_status = "FAIL"
 
-    def _check_integrity(
-        self, conn: duckdb.DuckDBPyConnection, pattern: str, report: OverallReport
-    ) -> OverallReport:
-        """Check data integrity (zero volume, OHLC errors)."""
-        result = conn.execute(
-            """
-            SELECT
-                symbol,
-                COUNT(*) as total_candles,
-                SUM(CASE WHEN volume = 0 THEN 1 ELSE 0 END) as zero_volume,
-                SUM(CASE WHEN high < low THEN 1 ELSE 0 END) as ohlc_errors
-            FROM read_parquet(?)
-            GROUP BY symbol
-        """,
-            [pattern],
-        ).fetchall()
+                sq.metrics.append(
+                    QualityMetric(
+                        name="completeness",
+                        value=completeness * 100,
+                        threshold=90.0,
+                        status=comp_status,
+                        details=(
+                            f"{avg_candles:.0f}/{expected_per_day} candles/day"
+                            f" ({completeness * 100:.1f}%)"
+                        ),
+                    )
+                )
+                if comp_status != "PASS":
+                    sq.issues.append(
+                        f"Only {completeness * 100:.0f}% complete"
+                        f" ({avg_candles:.0f}/{expected_per_day} candles/day)"
+                    )
 
-        for symbol, total_candles, zero_volume, ohlc_errors in result:
-            # Find or create symbol report
-            sq = next((s for s in report.symbol_reports if s.symbol == symbol), None)
-            if sq is None:
-                sq = SymbolQuality(symbol=symbol)
-                report.symbol_reports.append(sq)
+            # ── Integrity: zero volume ─────────────────────────────
+            total = int(sr["total_candles"])
+            zero_vol = int(sr["zero_volume"])
+            ohlc_err = int(sr["ohlc_errors"])
 
-            # Zero volume metric
-            zero_pct = (zero_volume / total_candles * 100) if total_candles > 0 else 0
+            zero_pct = (zero_vol / total * 100) if total > 0 else 0.0
 
             if zero_pct < 1:
-                status = "PASS"
+                zv_status = "PASS"
             elif zero_pct < 10:
-                status = "WARNING"
+                zv_status = "WARNING"
             else:
-                status = "FAIL"
+                zv_status = "FAIL"
 
             sq.metrics.append(
                 QualityMetric(
                     name="zero_volume",
                     value=zero_pct,
                     threshold=10.0,
-                    status=status,
-                    details=f"{zero_volume:,}/{total_candles:,} ({zero_pct:.1f}%)",
+                    status=zv_status,
+                    details=f"{zero_vol:,}/{total:,} ({zero_pct:.1f}%)",
                 )
             )
-
-            if status != "PASS":
+            if zv_status != "PASS":
                 sq.issues.append(f"{zero_pct:.1f}% zero volume bars")
 
-            # OHLC errors metric
-            if ohlc_errors == 0:
+            # ── Integrity: OHLC consistency ────────────────────────
+            if ohlc_err == 0:
                 sq.metrics.append(
                     QualityMetric(
                         name="ohlc_integrity",
@@ -319,17 +293,19 @@ class DataQualityMonitor:
                     )
                 )
             else:
-                error_pct = ohlc_errors / total_candles * 100
+                error_pct = ohlc_err / total * 100
                 sq.metrics.append(
                     QualityMetric(
                         name="ohlc_integrity",
                         value=error_pct,
                         threshold=0,
                         status="FAIL",
-                        details=f"{ohlc_errors} errors ({error_pct:.2f}%)",
+                        details=f"{ohlc_err} errors ({error_pct:.2f}%)",
                     )
                 )
-                sq.issues.append(f"{ohlc_errors} OHLC errors")
+                sq.issues.append(f"{ohlc_err} OHLC errors")
+
+            report.symbol_reports.append(sq)
 
         return report
 

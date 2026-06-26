@@ -74,9 +74,15 @@ class ParquetStore:
     def load_curated_candles(self, symbol: str, timeframe: str) -> pd.DataFrame | None:
         """Load candles from the date-partitioned curated layout using DuckDB.
 
-        Results are cached with a 5-minute TTL via ``_curated_cache``.
+        Returns None silently if curated layout doesn't exist yet.
         """
         symbol = normalize_symbol(symbol)
+
+        # Skip if curated layout doesn't exist
+        curated_dir = curated_equity_path(root=str(self._curated_root))
+        if not curated_dir.exists():
+            return None
+
         glob_pattern = curated_equity_glob(root=str(self._curated_root))
         try:
             query = """

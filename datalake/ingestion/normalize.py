@@ -1,203 +1,104 @@
-"""One-shot migration: normalize all Parquet timestamps to IST.
-
-Existing data has mixed timezones:
-- Some files: bar_time_ms was in UTC → correctly converted to IST (9:15-15:29)
-- Some files: bar_time_ms was in IST → incorrectly treated as UTC, shifted by 5:30
-  (stored as 14:46-20:59 instead of 9:16-15:29)
-
-This script detects the timezone per file and normalizes all timestamps to IST
-(naive datetime, since we store wall-clock IST).
-
-Usage:
-    python -m datalake.normalize
-    python -m datalake.normalize --dry-run   # report without writing
-"""
+"""Shared normalization utilities for converting broker data to canonical schema."""
 
 from __future__ import annotations
 
-import argparse
 import logging
-from pathlib import Path
 
-import duckdb
+import pandas as pd
 
-from datalake.io import atomic_parquet_write
-from datalake.paths import DEFAULT_DATA_ROOT, DEFAULT_TIMEFRAME, symbol_partition_path
-from datalake.schema import CANONICAL_COLUMNS
+from datalake.core.schema import CANONICAL_COLUMNS
+from datalake.core.symbols import normalize_symbol
 
 logger = logging.getLogger(__name__)
 
-MARKET_TZ = "Asia/Kolkata"
+# Common column name mappings (broker → canonical)
+COLUMN_MAP = {
+    "bar_time_ms": "timestamp",
+    "open_paisa": "open",
+    "high_paisa": "high",
+    "low_paisa": "low",
+    "close_paisa": "close",
+    "Open": "open",
+    "High": "high",
+    "Low": "low",
+    "Close": "close",
+    "Volume": "volume",
+    "Date": "timestamp",
+    "Datetime": "timestamp",
+}
+
+# Threshold for auto-detecting paise vs rupees
+PAISE_THRESHOLD = 100_000
 
 
-def detect_timezone(
-    conn: duckdb.DuckDBPyConnection,
+def rename_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Rename broker-specific columns to canonical names."""
+    return df.rename(columns={k: v for k, v in COLUMN_MAP.items() if k in df.columns})
+
+
+def ensure_timestamp_dtype(df: pd.DataFrame) -> pd.DataFrame:
+    """Ensure timestamp column is datetime64."""
+    if "timestamp" in df.columns and not pd.api.types.is_datetime64_any_dtype(df["timestamp"]):
+        df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+    return df
+
+
+def convert_paise_to_rupees(df: pd.DataFrame) -> pd.DataFrame:
+    """Convert price columns from paise to rupees if values are too large."""
+    for col in ["open", "high", "low", "close"]:
+        if col in df.columns and df[col].max() > PAISE_THRESHOLD:
+            df[col] = df[col] / 100.0
+    return df
+
+
+def ensure_canonical_columns(df: pd.DataFrame, symbol: str, exchange: str) -> pd.DataFrame:
+    """Ensure all canonical columns exist with correct types."""
+    df["symbol"] = normalize_symbol(symbol)
+    df["exchange"] = exchange
+
+    if "oi" not in df.columns:
+        df["oi"] = 0
+
+    for col in CANONICAL_COLUMNS:
+        if col not in df.columns:
+            df[col] = 0 if col in ("volume", "oi") else ""
+
+    return df
+
+
+def add_temporal_metadata(df: pd.DataFrame) -> pd.DataFrame:
+    """Add published_at, ingested_at, is_correction columns."""
+    now_ist = pd.Timestamp.now(tz="Asia/Kolkata").tz_localize(None)
+    df["event_time"] = df["timestamp"]
+    df["published_at"] = now_ist
+    df["ingested_at"] = now_ist
+    df["is_correction"] = False
+    return df
+
+
+def normalize_to_canonical(
+    df: pd.DataFrame,
     symbol: str,
-    data_root: str = DEFAULT_DATA_ROOT,
-) -> str:
-    """Detect whether a symbol's data is in IST, UTC, or IST-shifted.
+    exchange: str,
+    timestamp_col: str = "timestamp",
+) -> pd.DataFrame:
+    """Full normalization pipeline: broker DataFrame → canonical schema.
 
-    Uses non-overlapping hour ranges to avoid double-counting:
-    - IST_SHIFTED: hours 14-20 (IST source + 5:30h, incorrectly converted)
-    - UTC:         hours 3-8   (raw UTC, not converted)
-    - IST:         hours 9-15  (correctly stored IST)
-
-    Hours 9-10 are technically ambiguous (both IST market open and UTC
-    market close), so we check the modal hour in non-overlapping ranges.
-
-    Returns one of: 'IST', 'UTC', 'IST_SHIFTED', 'UNKNOWN', 'MIXED'.
+    Applies: column rename, timestamp conversion, paise→rupees,
+    canonical column enforcement, temporal metadata, validation.
     """
-    pattern = str(symbol_partition_path(data_root, symbol, DEFAULT_TIMEFRAME))
-    try:
-        rows = conn.execute(
-            """
-            SELECT EXTRACT(HOUR FROM timestamp) as hr, COUNT(*) as cnt
-            FROM read_parquet(?)
-            GROUP BY hr ORDER BY cnt DESC
-        """,
-            [pattern],
-        ).fetchall()
-    except Exception:
-        return "UNKNOWN"
+    df = rename_columns(df)
+    df = ensure_timestamp_dtype(df)
+    df = convert_paise_to_rupees(df)
+    df = ensure_canonical_columns(df, symbol, exchange)
+    df = add_temporal_metadata(df)
 
-    if not rows:
-        return "UNKNOWN"
+    # Filter to canonical columns and drop rows with null timestamps
+    for col in CANONICAL_COLUMNS:
+        if col not in df.columns:
+            df[col] = 0 if col in ("volume", "oi") else ""
 
-    total = sum(cnt for _, cnt in rows)
-    if total == 0:
-        return "UNKNOWN"
+    df = df[CANONICAL_COLUMNS + ["event_time", "published_at", "ingested_at", "is_correction"]]
+    df = df.dropna(subset=["timestamp"])
 
-    # Check in priority order: shifted > utc > ist
-    shifted_count = sum(cnt for hr, cnt in rows if 14 <= hr <= 20)
-    utc_count = sum(cnt for hr, cnt in rows if 3 <= hr <= 8)
-    ist_count = sum(cnt for hr, cnt in rows if 9 <= hr <= 15)
-
-    if shifted_count > total * 0.3:
-        return "IST_SHIFTED"
-    if utc_count > total * 0.3:
-        return "UTC"
-    if ist_count > total * 0.3:
-        return "IST"
-    return "MIXED"
-
-
-def normalize_symbol(
-    conn: duckdb.DuckDBPyConnection,
-    symbol: str,
-    data_root: str = DEFAULT_DATA_ROOT,
-    dry_run: bool = False,
-) -> str:
-    """Normalize one symbol's Parquet file to IST timestamps.
-
-    Returns the detected timezone, or 'SKIPPED' if no fix needed.
-    """
-    tz = detect_timezone(conn, symbol, data_root)
-
-    if tz == "IST":
-        return "IST"
-
-    if tz == "UNKNOWN":
-        return "SKIPPED"
-
-    path = symbol_partition_path(data_root, symbol, DEFAULT_TIMEFRAME)
-    if not path.exists():
-        return "SKIPPED"
-
-    if dry_run:
-        logger.info("[DRY-RUN] %s: detected %s, would normalize", symbol, tz)
-        return tz
-
-    if tz == "IST_SHIFTED":
-        conn.execute(
-            """
-            CREATE TABLE _tmp AS
-            SELECT * EXCLUDE (timestamp),
-                   CAST(timestamp - INTERVAL '5 hours 30 minutes' AS TIMESTAMP) as timestamp
-            FROM read_parquet(?)
-        """,
-            [str(path)],
-        )
-    elif tz == "UTC":
-        conn.execute(
-            """
-            CREATE TABLE _tmp AS
-            SELECT * EXCLUDE (timestamp),
-                   CAST(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata' AS TIMESTAMP) as timestamp
-            FROM read_parquet(?)
-        """,
-            [str(path)],
-        )
-    else:
-        logger.warning("%s: MIXED timezone, manual review needed", symbol)
-        return "MIXED"
-
-    n = conn.execute("SELECT COUNT(*) FROM _tmp").fetchone()[0]
-    if n == 0:
-        conn.execute("DROP TABLE _tmp")
-        return "EMPTY"
-
-    import pyarrow as pa
-
-    reader = conn.execute("SELECT * FROM _tmp").arrow()
-    table = reader.read_all() if hasattr(reader, "read_all") else pa.Table.from_batches(reader)
-    expected = [c for c in CANONICAL_COLUMNS if c in table.column_names]
-    table = table.select(expected)
-
-    atomic_parquet_write(path, table, compression="snappy")
-    conn.execute("DROP TABLE _tmp")
-
-    logger.info("%s: normalized from %s (%d rows)", symbol, tz, n)
-    return tz
-
-
-def normalize_all(dry_run: bool = False, data_root: str = DEFAULT_DATA_ROOT) -> dict[str, int]:
-    """Normalize all symbols. Returns a count of each timezone detected."""
-    root = Path(data_root) / "equities" / "candles" / f"timeframe={DEFAULT_TIMEFRAME}"
-    if not root.exists():
-        logger.error("No data found at %s", root)
-        return {}
-
-    symbols = sorted(
-        p.name.replace("symbol=", "")
-        for p in root.iterdir()
-        if p.is_dir() and p.name.startswith("symbol=")
-    )
-
-    conn = duckdb.connect(":memory:")
-    counts: dict[str, int] = {}
-
-    for symbol in symbols:
-        try:
-            result = normalize_symbol(conn, symbol, data_root=data_root, dry_run=dry_run)
-            counts[result] = counts.get(result, 0) + 1
-        except Exception as exc:
-            logger.error("Failed to normalize %s: %s", symbol, exc)
-            counts["ERROR"] = counts.get("ERROR", 0) + 1
-
-    conn.close()
-    return counts
-
-
-def main() -> int:
-    parser = argparse.ArgumentParser(description="Normalize all Parquet timestamps to IST")
-    parser.add_argument("--dry-run", action="store_true", help="Report without writing")
-    args = parser.parse_args()
-
-    # Initialize logging if not already configured
-    if not logging.getLogger().handlers:
-        from brokers.common.logging_config import setup_logging
-
-        setup_logging()
-
-    print("Scanning all symbols...")
-    counts = normalize_all(dry_run=args.dry_run)
-
-    print()
-    print("Results:")
-    for tz, n in sorted(counts.items()):
-        print(f"  {tz:<15} {n:>4} symbols")
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+    return df

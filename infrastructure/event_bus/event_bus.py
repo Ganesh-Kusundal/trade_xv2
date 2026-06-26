@@ -5,7 +5,9 @@ Design notes
 - Events are immutable value objects.
 - Subscribers are snapshotted before iteration so a handler that mutates the
   subscription list cannot corrupt the dispatch loop.
-- All public methods are protected by one ``threading.RLock``.
+- Sequence numbering uses a lock-free ``itertools.count(1)`` (atomic under CPython GIL).
+- Subscriber mutations/snapshots use a dedicated ``threading.Lock`` (not RLock)
+  to minimise contention on the publish hot-path.
 - The bus is intentionally synchronous; asynchronous consumers should push
   events into their own queue from the handler.
 - **Handler failures are NEVER silently swallowed.** Each failure is:
@@ -20,6 +22,7 @@ Design notes
 
 from __future__ import annotations
 
+import itertools
 import logging
 import threading
 import traceback
@@ -177,7 +180,11 @@ class EventBus:
         alerting_engine: AlertingEnginePort | None = None,
         alerting_interval_seconds: float = 10.0,
     ) -> None:
-        self._lock = threading.RLock()
+        # Task 4.4: Lock sharding — separate lightweight Lock for subscriber
+        # management from the (now lock-free) sequence counter.
+        # RLock -> Lock downgrade is safe: no call-site requires reentrancy.
+        self._subscribers_lock = threading.Lock()
+        self._sequence: itertools.count[int] = itertools.count(1)
         self._subscribers: dict[str, dict[str, EventHandler]] = {}
         self._event_log = event_log
         self._dead_letter_queue = dead_letter_queue
@@ -185,7 +192,7 @@ class EventBus:
         self._logging_enabled = logging_enabled
         self._fail_fast = fail_fast
         self._replay_mode = replay_mode  # P4
-        self._sequence_counter = 0  # P4
+        # self._sequence_counter replaced by lock-free self._sequence (Task 4.4)
         self._alerting_engine = alerting_engine
         self._alerting_interval = alerting_interval_seconds
         self._alerting_thread: threading.Thread | None = None
@@ -288,13 +295,13 @@ class EventBus:
     def subscribe(self, event_type: str, handler: EventHandler) -> str:
         """Subscribe to ``event_type``. Returns a token for unsubscribe."""
         token = uuid.uuid4().hex
-        with self._lock:
+        with self._subscribers_lock:
             self._subscribers.setdefault(event_type, {})[token] = handler
         return token
 
     def unsubscribe(self, token: str) -> bool:
         """Unsubscribe using the token returned by ``subscribe``."""
-        with self._lock:
+        with self._subscribers_lock:
             for handlers in self._subscribers.values():
                 if token in handlers:
                     del handlers[token]
@@ -303,14 +310,14 @@ class EventBus:
 
     def subscriber_count(self, event_type: str | None = None) -> int:
         """Return the number of subscribers (for tests / diagnostics)."""
-        with self._lock:
+        with self._subscribers_lock:
             if event_type is not None:
                 return len(self._subscribers.get(event_type, {}))
             return sum(len(h) for h in self._subscribers.values())
 
     def clear(self) -> None:
         """Remove all subscribers. Useful in tests."""
-        with self._lock:
+        with self._subscribers_lock:
             self._subscribers.clear()
 
     # ── Internal helpers ──────────────────────────────────────────────────
@@ -333,10 +340,10 @@ class EventBus:
                 replacements["correlation_id"] = cid
 
         # P4: Assign sequence number in live mode only
+        # Task 4.4: Lock-free — ``next(itertools.count(1))`` is atomic under
+        # the CPython GIL (single bytecode: CALL_FUNCTION on a C-level iterator).
         if not self._replay_mode:
-            with self._lock:
-                self._sequence_counter += 1
-                seq_num = self._sequence_counter
+            seq_num = next(self._sequence)
             if event.sequence_number == 0:
                 replacements["sequence_number"] = seq_num
         # Replay mode: preserve original sequence_number (no assignment)
@@ -403,7 +410,7 @@ class EventBus:
         if self._replay_mode:
             return
 
-        with self._lock:
+        with self._subscribers_lock:
             handlers = list(self._subscribers.get(event.event_type, {}).items())
 
         for handler_id, handler in handlers:

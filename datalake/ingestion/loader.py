@@ -28,6 +28,7 @@ from datalake.schema import (
 )
 from datalake.symbols import normalize_symbol
 from datalake.validation import validate_candles
+from brokers.common.batch_executor import batch_execute
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +77,6 @@ class HistoricalDataLoader:
             return {"rows": 0, "duplicates_dropped": 0, "invalid_dropped": 0}
 
         # Dedup with logging
-        len(df)
         dup_count = df.duplicated(subset=["timestamp"]).sum()
         if dup_count > 0:
             logger.warning("%s: dropping %d duplicate timestamps", symbol, dup_count)
@@ -143,15 +143,25 @@ class HistoricalDataLoader:
             reader = csv.DictReader(f)
             symbols = [row["symbol"] for row in reader]
 
-        results = {}
-        for i, symbol in enumerate(symbols, 1):
-            logger.info("[%d/%d] Downloading %s...", i, len(symbols), symbol)
-            results[normalize_symbol(symbol)] = self.download_symbol(
-                symbol, gateway, years=years, timeframe=timeframe
-            )
+        def _download_one(sym: str) -> dict:
+            logger.info("Downloading %s...", sym)
+            return self.download_symbol(sym, gateway, years=years, timeframe=timeframe)
+
+        def _on_error(sym: str, exc: Exception) -> None:
+            logger.error("Failed to download %s: %s", sym, exc)
+
+        raw_results = batch_execute(
+            symbols, _download_one, on_error=_on_error,
+        )
+
+        # Normalize keys (download_symbol also normalizes internally)
+        results = {normalize_symbol(sym): res for sym, res in raw_results.items()}
 
         total_rows = sum(r["rows"] for r in results.values())
-        logger.info("Universe %s: %d symbols, %d total rows", universe, len(results), total_rows)
+        logger.info(
+            "Universe %s: %d symbols, %d total rows",
+            universe, len(results), total_rows,
+        )
         return results
 
     def repair_missing(
@@ -206,51 +216,16 @@ class HistoricalDataLoader:
 
     def _normalize(self, df: pd.DataFrame, symbol: str, exchange: str) -> pd.DataFrame:
         """Normalize broker DataFrame to canonical schema (IST timestamps)."""
-        col_map = {
-            "bar_time_ms": "timestamp",
-            "open_paisa": "open",
-            "high_paisa": "high",
-            "low_paisa": "low",
-            "close_paisa": "close",
-            "Open": "open",
-            "High": "high",
-            "Low": "low",
-            "Close": "close",
-            "Volume": "volume",
-            "Date": "timestamp",
-            "Datetime": "timestamp",
-        }
-        df = df.rename(columns={k: v for k, v in col_map.items() if k in df.columns})
+        from datalake.ingestion.normalize import normalize_to_canonical, rename_columns, ensure_timestamp_dtype, convert_paise_to_rupees, ensure_canonical_columns, add_temporal_metadata
 
+        # Check required columns exist after rename
+        renamed = rename_columns(df)
         for col in ["timestamp", "open", "high", "low", "close", "volume"]:
-            if col not in df.columns:
+            if col not in renamed.columns:
                 logger.warning("Missing column %s, skipping", col)
                 return pd.DataFrame()
 
-        if not pd.api.types.is_datetime64_any_dtype(df["timestamp"]):
-            df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
-
-        df["event_time"] = df["timestamp"]
-
-        # Convert paise to rupees if needed
-        for col in ["open", "high", "low", "close"]:
-            if df[col].max() > 100000:
-                df[col] = df[col] / 100.0
-
-        df["symbol"] = symbol
-        df["exchange"] = exchange
-        if "oi" not in df.columns:
-            df["oi"] = 0
-
-        for col in CANONICAL_COLUMNS:
-            if col not in df.columns:
-                df[col] = 0 if col in ("volume", "oi") else ""
-        df = df[CANONICAL_COLUMNS].dropna(subset=["timestamp"])
-
-        now_ist = pd.Timestamp.now(tz="Asia/Kolkata").tz_localize(None)
-        df["published_at"] = now_ist
-        df["ingested_at"] = now_ist
-        df["is_correction"] = False
+        df = normalize_to_canonical(df, symbol, exchange)
 
         # Validate (drops invalid rows, logs)
         df = validate_candles(df, symbol=symbol, drop_invalid=True)
