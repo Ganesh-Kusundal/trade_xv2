@@ -1,0 +1,136 @@
+"""Broker Lifecycle — infrastructure bootstrap and gateway shutdown.
+
+Extracted from BrokerService to separate lifecycle management from
+broker initialization and OMS wiring.
+
+This module handles:
+- Federated BrokerInfrastructure bootstrap from available gateways
+- Graceful shutdown of all gateway connections
+- Mock broker creation for offline/dev mode
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+from brokers.common.async_compat import run_async_compat
+from brokers.common.bootstrap import bootstrap_from_gateways, policy_from_env
+from brokers.common.connection_pool import get_connection_pool
+from brokers.common.gateway import MarketDataGateway
+from brokers.common.infrastructure import BrokerInfrastructure
+
+logger = logging.getLogger(__name__)
+
+
+def build_broker_infrastructure(
+    gateway: Any | None,
+    upstox_gateway: Any | None,
+    paper: Any | None,
+) -> BrokerInfrastructure | None:
+    """Bootstrap BrokerInfrastructure from available live gateways.
+
+    Collects all live gateways (Dhan, Upstox, Paper) and bootstraps
+    the federated BrokerInfrastructure for unified routing, quota
+    management, historical data, and stream orchestration.
+
+    Args:
+        gateway: Dhan MarketDataGateway (or None).
+        upstox_gateway: Upstox MarketDataGateway (or None).
+        paper: PaperGateway (or None).
+
+    Returns:
+        BrokerInfrastructure if bootstrap succeeded, None otherwise.
+    """
+    gateways: list[tuple[str, MarketDataGateway]] = []
+    if gateway is not None:
+        gateways.append(("dhan", gateway))
+    if upstox_gateway is not None:
+        gateways.append(("upstox", upstox_gateway))
+    if paper is not None:
+        gateways.append(("paper", paper))
+    if not gateways:
+        return None
+    try:
+        exec_broker = "dhan" if gateway is not None else gateways[0][0]
+        policy = policy_from_env(execution_account=exec_broker)
+        broker_infra = run_async_compat(
+            bootstrap_from_gateways(gateways, policy=policy),
+            fire_and_forget=False,
+        )
+        logger.info(
+            "BrokerInfrastructure ready with brokers: %s",
+            [bid for bid, _ in gateways],
+        )
+        return broker_infra
+    except Exception as exc:
+        logger.warning("BrokerInfrastructure bootstrap failed: %s", exc)
+        return None
+
+
+def close_all_gateways(
+    broker_infra: Any | None,
+    gateway: Any | None,
+    upstox_gateway: Any | None,
+) -> None:
+    """Gracefully shut down all gateway connections and pools.
+
+    Shutdown order:
+    1. BrokerInfrastructure stream orchestrator (async stop).
+    2. Dhan gateway (HTTP session + broker resources).
+    3. Upstox gateway (HTTP session + broker resources).
+    4. Global connection pool (release all HTTP pools).
+
+    Each step is best-effort: failures are logged and swallowed so
+    the CLI always exits cleanly.
+
+    Args:
+        broker_infra: BrokerInfrastructure (or None).
+        gateway: Dhan MarketDataGateway (or None).
+        upstox_gateway: Upstox MarketDataGateway (or None).
+    """
+    # Drain federated broker infrastructure (stream orchestrator).
+    if broker_infra is not None:
+        try:
+            run_async_compat(
+                broker_infra.streams.stop(),
+                fire_and_forget=False,
+            )
+        except Exception as exc:
+            logger.debug("broker_infra_stop_failed: %s", exc)
+    # Close Dhan gateway
+    if gateway is not None:
+        try:
+            gateway.close()
+        except Exception as exc:
+            logger.debug("gateway_close_failed: %s", exc)
+    # Close Upstox gateway
+    if upstox_gateway is not None:
+        try:
+            upstox_gateway.close()
+        except Exception as exc:
+            logger.debug("upstox_gateway_close_failed: %s", exc)
+    # Close connection pool to release all HTTP connection pools
+    try:
+        pool = get_connection_pool()
+        pool.close_all()
+    except Exception as exc:
+        logger.debug("connection_pool_close_failed: %s", exc)
+
+
+def maybe_create_mock_broker(name: str) -> Any | None:
+    """Create a seeded mock broker for offline/dev mode.
+
+    Only creates a mock when the broker name is 'dhan' (the default
+    offline fallback). Returns None for other broker names.
+
+    Args:
+        name: Broker name (typically 'dhan' for mock fallback).
+
+    Returns:
+        Seeded MockBroker instance, or None.
+    """
+    if name == "dhan":
+        from brokers.paper.mock_broker import create_seeded_mock_broker
+        return create_seeded_mock_broker("dhan")
+    return None
