@@ -12,11 +12,14 @@ from typing import Any
 import duckdb
 
 from analytics.views.base import BaseViews
+from analytics.views.cache_manager import CacheManager
 from analytics.views.features import FeatureViews
 from analytics.views.options_views import OptionViews
 from analytics.views.quality import QualityViews
+from analytics.views.query_executor import QueryExecutor
 from analytics.views.scanner import ScannerViews
 from analytics.views.strategy import StrategyViews
+from analytics.views.view_registry import ViewRegistry
 from datalake.duckdb_utils import DEFAULT_CATALOG_PATH, duckdb_connection, get_pool
 from datalake.options_analytics_sql import SQL_M_IV_SURFACE, SQL_M_MAX_PAIN, SQL_M_PCR
 
@@ -49,6 +52,11 @@ class ViewManager:
         self._read_only = read_only
         self._conn: duckdb.DuckDBPyConnection | None = None
 
+        # Compose extracted modules
+        self._registry = ViewRegistry(catalog_path, read_only)
+        self._executor = QueryExecutor(catalog_path, read_only)
+        self._cache = CacheManager()
+
         self.base = BaseViews()
         self.features = FeatureViews()
         self.scanner = ScannerViews()
@@ -73,9 +81,63 @@ class ViewManager:
             yield self.conn
 
     def close(self) -> None:
+        """Release all cached connections."""
         if self._conn is not None:
             get_pool().release(self._path)
             self._conn = None
+        self._registry.close()
+
+    def materialize(self, table_name: str, sql: str, partition_by: str | None = None) -> float:
+        """Delegate to CacheManager."""
+        return self._cache.materialize(table_name, sql, self.conn, partition_by)
+
+    def register_materialized(self, table_name: str, partition_by: str | None = None) -> None:
+        """Delegate to CacheManager."""
+        self._cache.register_materialized(table_name, self.conn, partition_by)
+
+    def drop_materialized(self, table_name: str) -> None:
+        """Delegate to CacheManager."""
+        self._cache.drop_materialized(table_name, self.conn)
+
+    # ─── Delegated Introspection (via ViewRegistry) ───────────────────────────
+
+    def list_views(self) -> list[dict]:
+        """Delegate to ViewRegistry."""
+        return self._registry.list_views()
+
+    def view_exists(self, view_name: str) -> bool:
+        """Delegate to ViewRegistry."""
+        return self._registry.view_exists(view_name)
+
+    def table_exists(self, table_name: str) -> bool:
+        """Delegate to ViewRegistry."""
+        return self._registry.table_exists(table_name)
+
+    def view_columns(self, view_name: str) -> list[str]:
+        """Delegate to ViewRegistry."""
+        return self._registry.view_columns(view_name)
+
+    def view_count(self) -> int:
+        """Delegate to ViewRegistry."""
+        return self._registry.view_count()
+
+    def table_count(self) -> int:
+        """Delegate to ViewRegistry."""
+        return self._registry.table_count()
+
+    # ─── Delegated Query Execution (via QueryExecutor) ────────────────────────
+
+    def query(self, sql: str, params: list | None = None) -> list:
+        """Delegate to QueryExecutor."""
+        return self._executor.query(sql, params)
+
+    def query_df(self, sql: str, params: list | None = None):
+        """Delegate to QueryExecutor."""
+        return self._executor.query_df(sql, params)
+
+    def query_scalar(self, sql: str, params: list | None = None):
+        """Delegate to QueryExecutor."""
+        return self._executor.query_scalar(sql, params)
 
     # ─── Materialization ─────────────────────────────────────────────────────
 

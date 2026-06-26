@@ -141,6 +141,9 @@ class DataLakeGateway(
         if not df.empty:
             df["exchange"] = exchange
             df["timeframe"] = timeframe
+            # Add canonical instrument_id column
+            from datalake.core.symbols import instrument_id_from_symbol
+            df["instrument_id"] = instrument_id_from_symbol(symbol, exchange)
         return df
 
     def quote(self, symbol: str, exchange: str = "NSE") -> Quote:

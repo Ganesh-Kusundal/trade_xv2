@@ -64,6 +64,7 @@ class Order:
     avg_price: Decimal = Decimal("0")
     reject_reason: str = ""
     correlation_id: str | None = None
+    instrument_id: str | None = None  # Canonical: NSE:RELIANCE, NFO:NIFTY:20260730:25000:CE
 
     @property
     def average_price(self) -> Decimal:

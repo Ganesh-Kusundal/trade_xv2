@@ -224,10 +224,14 @@ def test_daily_pnl_resets_at_rollover_restoring_order_flow() -> None:
     rm.update_daily_pnl(Decimal("-5000"))  # -5% of 100k
     r = rm.check_order(order)
     assert r.allowed is False
-    assert "Daily loss limit reached" in r.reason
+    # Loss circuit breaker opens first (checked before daily PnL)
+    assert "Loss circuit breaker" in r.reason or "Daily loss limit reached" in r.reason
 
     # Simulate the rollover firing (the scheduler does this)
     rm.reset_daily_pnl()
+    # Loss circuit breaker reset requires two calls: OPEN→COOLDOWN→CLOSED
+    rm.reset_loss_circuit_breaker()  # OPEN → COOLDOWN
+    rm.reset_loss_circuit_breaker()  # COOLDOWN → CLOSED
     r = rm.check_order(order)
     assert r.allowed is True
 

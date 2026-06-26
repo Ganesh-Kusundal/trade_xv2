@@ -64,6 +64,7 @@ class OptionLeg:
     symbol: str | None = None
     instrument_key: str | None = None
     trading_symbol: str | None = None
+    instrument_id: str | None = None  # Canonical: NFO:NIFTY:20260730:25000:CE
     greeks: dict[str, Any] | None = None
 
     @classmethod
@@ -174,6 +175,7 @@ class FutureContract:
     oi: int | None = None
     lot_size: int = 1
     underlying: str = ""
+    instrument_id: str | None = None  # Canonical: NFO:NIFTY:20260730:FUT
 
     @classmethod
     def from_dict(cls, data: dict) -> FutureContract:

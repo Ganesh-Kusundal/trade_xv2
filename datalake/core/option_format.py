@@ -105,6 +105,20 @@ def convert_format(raw: pd.DataFrame) -> pd.DataFrame:
         )
     ]
     out["exchange"] = "NSE"
+
+    # Add canonical instrument_id column
+    from datalake.core.symbols import instrument_id_from_option
+    out["instrument_id"] = [
+        instrument_id_from_option(u, exp, s, ot)
+        for u, exp, s, ot in zip(
+            out["underlying"].astype(str),
+            out["expiry_date"].astype(str) if "expiry_date" in out.columns else [""] * len(out),
+            out["strike"],
+            out["option_type"].astype(str),
+            strict=False,
+        )
+    ]
+
     return out
 
 

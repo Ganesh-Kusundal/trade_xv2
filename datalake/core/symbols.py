@@ -85,3 +85,55 @@ def normalize_universe_name(name: str) -> str:
 def are_same_symbol(a: str, b: str) -> bool:
     """Check if two symbol strings refer to the same instrument."""
     return normalize_symbol(a) == normalize_symbol(b)
+
+
+def instrument_id_from_symbol(symbol: str, exchange: str = "NSE") -> str:
+    """Convert (symbol, exchange) to canonical InstrumentId string.
+
+    Example: instrument_id_from_symbol("RELIANCE", "NSE") → "NSE:RELIANCE"
+    """
+    return f"{exchange.upper()}:{normalize_symbol(symbol)}"
+
+
+def instrument_id_from_option(
+    underlying: str,
+    expiry_date: str,
+    strike: float | int,
+    option_type: str,
+    exchange: str = "NFO",
+) -> str:
+    """Build canonical InstrumentId string for an option.
+
+    Example: instrument_id_from_option("NIFTY", "2026-07-30", 25000, "CE")
+             → "NFO:NIFTY:20260730:25000:CE"
+    """
+    # Normalize option type
+    ot = option_type.upper().strip()
+    if ot in ("CE", "CALL"):
+        ot = "CE"
+    elif ot in ("PE", "PUT"):
+        ot = "PE"
+
+    # Parse expiry to YYYYMMDD
+    from datetime import datetime
+    exp = expiry_date.replace("-", "")
+    if len(exp) == 10:  # YYYY-MM-DD
+        exp = exp.replace("-", "")
+
+    return f"{exchange.upper()}:{normalize_symbol(underlying)}:{exp}:{int(strike)}:{ot}"
+
+
+def instrument_id_from_future(
+    underlying: str,
+    expiry_date: str,
+    exchange: str = "NFO",
+) -> str:
+    """Build canonical InstrumentId string for a future.
+
+    Example: instrument_id_from_future("NIFTY", "2026-07-30")
+             → "NFO:NIFTY:20260730:FUT"
+    """
+    exp = expiry_date.replace("-", "")
+    if len(exp) == 10:
+        exp = exp.replace("-", "")
+    return f"{exchange.upper()}:{normalize_symbol(underlying)}:{exp}:FUT"

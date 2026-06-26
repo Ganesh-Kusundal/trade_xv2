@@ -27,13 +27,17 @@ class CacheManager:
     - Registration of materialized tables in DuckDB
     """
 
-    def __init__(self, conn: duckdb.DuckDBPyConnection) -> None:
-        """Initialize with a DuckDB connection for DDL operations."""
+    def __init__(self, conn: duckdb.DuckDBPyConnection | None = None) -> None:
+        """Initialize with optional DuckDB connection for DDL operations."""
         self._conn = conn
         MATERIALIZED_DIR.mkdir(parents=True, exist_ok=True)
 
     def materialize(
-        self, table_name: str, sql: str, partition_by: str | None = None
+        self,
+        table_name: str,
+        sql: str,
+        conn: duckdb.DuckDBPyConnection | None = None,
+        partition_by: str | None = None,
     ) -> float:
         """Materialize a query result into a versioned Parquet table.
 
@@ -41,9 +45,19 @@ class CacheManager:
         new version to "latest". Old versions are retained (see VERSION_KEEP_COUNT)
         so readers always see a consistent snapshot.
 
+        Args:
+            table_name: Name of the materialized table.
+            sql: SQL query to materialize.
+            conn: DuckDB connection (uses self._conn if not provided).
+            partition_by: Optional partition column.
+
         Returns:
             Elapsed time in seconds.
         """
+        db_conn = conn or self._conn
+        if db_conn is None:
+            raise ValueError("No DuckDB connection provided")
+        
         version_dir = MATERIALIZED_DIR / "versions" / table_name
         version_dir.mkdir(parents=True, exist_ok=True)
         version_ts = str(int(time.time() * 1_000_000))
@@ -53,7 +67,7 @@ class CacheManager:
         if partition_by:
             part_dir = version_dir / version_ts
             part_dir.mkdir(parents=True, exist_ok=True)
-            self._conn.execute(f"""
+            db_conn.execute(f"""
                 COPY ({sql}) TO '{part_dir}'
                 (FORMAT PARQUET, PARTITION_BY ({partition_by}))
             """)
@@ -62,7 +76,7 @@ class CacheManager:
             )
         else:
             parquet_path = version_dir / f"{version_ts}.parquet"
-            self._conn.execute(f"""
+            db_conn.execute(f"""
                 COPY ({sql}) TO '{parquet_path}'
                 (FORMAT PARQUET, COMPRESSION 'SNAPPY')
             """)
@@ -119,13 +133,25 @@ class CacheManager:
                 )
 
     def register_materialized(
-        self, table_name: str, partition_by: str | None = None
+        self,
+        table_name: str,
+        conn: duckdb.DuckDBPyConnection | None = None,
+        partition_by: str | None = None,
     ) -> None:
         """Register the latest materialized Parquet table as a DuckDB table.
 
         Creates a new table with a temporary name, then atomically swaps it in
         via ALTER TABLE ... RENAME TO so readers never see a missing table.
+        
+        Args:
+            table_name: Name of the table to register.
+            conn: DuckDB connection (uses self._conn if not provided).
+            partition_by: Optional partition column.
         """
+        db_conn = conn or self._conn
+        if db_conn is None:
+            raise ValueError("No DuckDB connection provided")
+        
         latest = self._read_latest(table_name)
         if latest is None:
             return
@@ -141,23 +167,34 @@ class CacheManager:
                     f"CREATE TABLE {temp_table} AS "  # noqa: S608
                     "SELECT * FROM read_parquet(?, hive_partitioning=true)"
                 )
-                self._conn.execute(sql, [f"{version_path}/**/*.parquet"])
+                db_conn.execute(sql, [f"{version_path}/**/*.parquet"])
             else:
                 sql = (
                     f"CREATE TABLE {temp_table} AS "  # noqa: S608
                     "SELECT * FROM read_parquet(?)"
                 )
-                self._conn.execute(sql, [str(version_path)])
+                db_conn.execute(sql, [str(version_path)])
             # Atomic swap: drop old, rename new.
-            self._conn.execute(f"DROP TABLE IF EXISTS {table_name}")
-            self._conn.execute(f"ALTER TABLE {temp_table} RENAME TO {table_name}")
+            db_conn.execute(f"DROP TABLE IF EXISTS {table_name}")
+            db_conn.execute(f"ALTER TABLE {temp_table} RENAME TO {table_name}")
         except Exception:
-            self._conn.execute(f"DROP TABLE IF EXISTS {temp_table}")
+            db_conn.execute(f"DROP TABLE IF EXISTS {temp_table}")
             raise
 
-    def drop_materialized(self, table_name: str) -> None:
-        """Drop a materialized table and remove all its versions."""
-        self._conn.execute(f"DROP TABLE IF EXISTS {table_name}")
+    def drop_materialized(
+        self, table_name: str, conn: duckdb.DuckDBPyConnection | None = None
+    ) -> None:
+        """Drop a materialized table and remove all its versions.
+        
+        Args:
+            table_name: Name of the table to drop.
+            conn: DuckDB connection (uses self._conn if not provided).
+        """
+        db_conn = conn or self._conn
+        if db_conn is None:
+            raise ValueError("No DuckDB connection provided")
+        
+        db_conn.execute(f"DROP TABLE IF EXISTS {table_name}")
         version_dir = MATERIALIZED_DIR / "versions" / table_name
         if version_dir.exists():
             shutil.rmtree(version_dir)
