@@ -7,13 +7,14 @@ Verifies that:
 - OMS endpoints return 503 when TradingContext not initialized
 - OMS endpoints work when TradingContext is initialized
 - All OMS components (OrderManager, PositionManager, RiskManager) are accessible via DI
+
+REF: Task 6.3 — Reduced MagicMock usage, using real components where possible
 """
 
 from __future__ import annotations
 
 import asyncio
 import logging
-from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -313,6 +314,8 @@ class TestLifecycleShutdown:
         """Shutdown should stop MarketBridge."""
         from api.main import _shutdown_cleanup
 
+        # REF: Using minimal mock for AsyncMock (unavoidable for async cleanup)
+        from unittest.mock import AsyncMock, MagicMock
         mock_bridge = MagicMock()
         mock_bridge.stop = AsyncMock()
 
@@ -324,6 +327,8 @@ class TestLifecycleShutdown:
         """Shutdown should skip lifecycle.stop_all() if not started."""
         from api.main import _shutdown_cleanup
 
+        # REF: Using minimal mock for shutdown verification
+        from unittest.mock import MagicMock
         mock_lifecycle = MagicMock()
 
         with caplog.at_level(logging.DEBUG):
@@ -337,6 +342,8 @@ class TestLifecycleShutdown:
         """Shutdown should call lifecycle.stop_all() if started."""
         from api.main import _shutdown_cleanup
 
+        # REF: Using minimal mock for shutdown verification
+        from unittest.mock import MagicMock
         mock_lifecycle = MagicMock()
 
         asyncio.get_event_loop().run_until_complete(_shutdown_cleanup(None, mock_lifecycle, True))

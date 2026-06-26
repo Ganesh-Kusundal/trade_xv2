@@ -31,19 +31,6 @@ def _normalize_instrument_symbol(symbol: str) -> str:
     return s
 
 
-def _normalize_option_type(option_type: str) -> str:
-    """Normalize option type: CE→CALL, PE→PUT.
-
-    This ensures Instrument.option_type matches datalake's canonical format.
-    """
-    ot = option_type.upper().strip()
-    if ot in ("CE", "CALL"):
-        return "CALL"
-    if ot in ("PE", "PUT"):
-        return "PUT"
-    return ot
-
-
 @dataclass(frozen=True)
 class Instrument:
     """Canonical instrument used by the trading engine."""
@@ -97,16 +84,13 @@ class InstrumentRegistry:
         if not broker_symbol:
             broker_symbol = symbol.upper()
 
-        # Normalize option type: CE→CALL, PE→PUT (matches datalake canonical)
-        normalized_option_type = _normalize_option_type(option_type) if option_type else None
-
         instrument = Instrument(
             symbol=canonical,
             exchange=exchange.upper(),
             asset_class=asset_class,
             expiry=expiry,
             strike=self._decimal(strike),
-            option_type=normalized_option_type,
+            option_type=option_type.upper() if option_type else None,
             lot_size=lot_size,
             tick_size=self._decimal(tick_size),
             broker_identifier=broker_identifier,

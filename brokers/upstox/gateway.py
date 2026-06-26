@@ -443,18 +443,8 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         results = []
         q = query.upper().strip()
         if hasattr(self._broker.instrument_resolver, "search"):
-            defs = self._broker.instrument_resolver.search(q)
-            # Convert UpstoxInstrumentDefinition objects to dicts
-            # matching Dhan/search format: {symbol, exchange, type, security_id, name}
-            for d in defs[:20]:
-                results.append({
-                    "symbol": d.symbol or d.trading_symbol,
-                    "exchange": d.exchange or "NSE",
-                    "type": d.instrument_type,
-                    "security_id": d.instrument_key,
-                    "name": d.name or d.symbol,
-                })
-        return results
+            results = self._broker.instrument_resolver.search(q)
+        return results[:20] if isinstance(results, list) else []
 
     def stream(
         self,

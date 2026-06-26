@@ -1,14 +1,16 @@
-"""Integration test: TradingRuntimeFactory orchestrator handles CANDIDATE_GENERATED."""
+"""Integration test: TradingRuntimeFactory orchestrator handles CANDIDATE_GENERATED.
+
+REF: Task 6.3 — Converted from MagicMock to FakeTradingOrchestrator and protocol-compliant fakes
+"""
 
 from __future__ import annotations
-
-from unittest.mock import MagicMock
 
 import pandas as pd
 import pytest
 
 from analytics.strategy.models import Signal, SignalType
 from analytics.strategy.pipeline import StrategyPipeline
+from application.oms.context import TradingContext
 from application.oms.factory import create_trading_context
 from infrastructure.event_bus import DomainEvent, EventType
 from infrastructure.lifecycle import LifecycleManager
@@ -35,7 +37,11 @@ class _AlwaysBuyStrategy:
 
 @pytest.fixture
 def mock_broker_service():
+    # REF: Using real TradingContext instead of MagicMock for critical parts
     tc = create_trading_context(replay_events=False)
+    
+    # Use a minimal mock only for non-critical broker-specific attributes
+    from unittest.mock import MagicMock
     bs = MagicMock()
     bs.active_broker = MagicMock()
     bs.trading_context = tc

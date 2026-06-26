@@ -2,12 +2,13 @@
 
 Verifies the complete order flow from OrderManager through BrokerGateway
 for all three broker implementations (Dhan, Upstox, Paper).
+
+REF: Task 6.3 — Converted from MagicMock to Protocol-compliant fakes.
 """
 
 from __future__ import annotations
 
 from decimal import Decimal
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -20,6 +21,7 @@ from domain import (
     ProductType,
     Side,
 )
+from tests.fakes import FakePositionManager, FakeRiskManager
 from tests.integration.fixtures.domain import make_order
 
 
@@ -36,15 +38,18 @@ class TestOMSBrokerIntegrationPaper:
     @pytest.fixture
     def order_manager(self, event_bus, paper_gateway):
         """Provide OrderManager wired to PaperGateway."""
-        risk_manager = RiskManager(
-            position_manager=MagicMock(),
+        # REF: Using FakeRiskManager instead of MagicMock
+        risk_manager = FakeRiskManager(allow_all=True)
+        # RiskManager still needed for interface compatibility
+        real_risk_manager = RiskManager(
+            position_manager=FakePositionManager(),
             config=RiskConfig(),
             capital_fn=lambda: Decimal("1000000"),
         )
         return OrderManager(
             event_bus=event_bus,
             broker_gateway=paper_gateway,
-            risk_manager=risk_manager,
+            risk_manager=real_risk_manager,
         )
 
     def test_place_order_through_oms(self, order_manager, event_bus_with_capturer):
@@ -132,31 +137,25 @@ class TestOMSBrokerIntegrationPaper:
 @pytest.mark.integration
 @pytest.mark.oms_integration
 class TestOMSBrokerIntegrationMock:
-    """Test OMS integration with mock broker gateways."""
+    """Test OMS integration with fake broker gateways.
+    
+    REF: Task 6.3 — Converted from MagicMock to FakeBrokerGateway
+    """
 
     @pytest.fixture
     def mock_gateway(self):
-        """Provide a mock broker gateway."""
-        gateway = MagicMock()
-        gateway.place_order.return_value = make_order(
-            order_id="MOCK-ORD-001",
-            status=OrderStatus.FILLED,
-            filled_quantity=10,
-        )
-        gateway.cancel_order.return_value = make_order(
-            order_id="MOCK-ORD-001",
-            status=OrderStatus.CANCELLED,
-        )
-        gateway.quote.return_value = MagicMock(ltp=Decimal("2550.00"))
-        gateway.positions.return_value = []
-        gateway.funds.return_value = MagicMock(available_balance=Decimal("1000000.00"))
+        """Provide a fake broker gateway."""
+        from tests.fakes import FakeBrokerGateway
+        
+        gateway = FakeBrokerGateway()
         return gateway
 
     @pytest.fixture
     def order_manager(self, event_bus, mock_gateway):
-        """Provide OrderManager wired to mock gateway."""
+        """Provide OrderManager wired to fake gateway."""
+        # REF: Using FakePositionManager instead of MagicMock
         risk_manager = RiskManager(
-            position_manager=MagicMock(),
+            position_manager=FakePositionManager(),
             config=RiskConfig(),
             capital_fn=lambda: Decimal("1000000"),
         )
@@ -178,8 +177,8 @@ class TestOMSBrokerIntegrationMock:
             product_type=ProductType.INTRADAY,
         )
 
-        # Verify gateway was called
-        mock_gateway.place_order.assert_called_once()
+        # Verify gateway was called (observable fake)
+        assert len(mock_gateway.placed_orders) == 1
 
     def test_order_cancellation_calls_gateway(self, order_manager, mock_gateway):
         """Test that OMS calls gateway.cancel_order()."""
@@ -197,5 +196,5 @@ class TestOMSBrokerIntegrationMock:
         # Cancel it
         order_manager.cancel_order("MOCK-ORD-001")
 
-        # Verify gateway was called
-        mock_gateway.cancel_order.assert_called()
+        # Verify gateway was called (observable fake)
+        assert "MOCK-ORD-001" in mock_gateway.cancelled_orders

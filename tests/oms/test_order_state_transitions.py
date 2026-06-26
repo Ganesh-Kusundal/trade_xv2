@@ -11,6 +11,8 @@ Valid transitions (from ORDER_STATUS_TRANSITIONS):
     CANCELLED → (terminal, no transitions)
     REJECTED → (terminal, no transitions)
     EXPIRED → (terminal, no transitions)
+
+REF: Task 6.3 — Converted EventBus MagicMock to proper test fixture.
 """
 
 from __future__ import annotations
@@ -18,7 +20,6 @@ from __future__ import annotations
 import threading
 from datetime import datetime, timezone
 from decimal import Decimal
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -47,6 +48,12 @@ def _make_order(
         timestamp=datetime.now(timezone.utc),
         correlation_id=correlation_id,
     )
+
+
+@pytest.fixture
+def event_bus():
+    """Provide a real EventBus for testing."""
+    return EventBus()
 
 
 class TestOrderStateTransitionsEnforcedByDefault:
@@ -304,9 +311,9 @@ class TestInvalidTransitionsAuditMode:
 class TestStateTransitionsWithPlaceOrder:
     """Test state transitions through the place_order API."""
 
-    def test_place_order_creates_open_order(self) -> None:
+    def test_place_order_creates_open_order(self, event_bus) -> None:
         """place_order should create an order with OPEN status."""
-        event_bus = MagicMock(spec=EventBus)
+        # REF: Using real EventBus instead of MagicMock
         om = OrderManager(event_bus=event_bus, enforce_state_transitions=True)
 
         request = OmsOrderCommand(
@@ -322,9 +329,9 @@ class TestStateTransitionsWithPlaceOrder:
         assert result.order is not None
         assert result.order.status == OrderStatus.OPEN
 
-    def test_place_order_then_upsert_to_partially_filled(self) -> None:
+    def test_place_order_then_upsert_to_partially_filled(self, event_bus) -> None:
         """Place order, then transition to PARTIALLY_FILLED via upsert."""
-        event_bus = MagicMock(spec=EventBus)
+        # REF: Using real EventBus instead of MagicMock
         om = OrderManager(event_bus=event_bus, enforce_state_transitions=True)
 
         request = OmsOrderCommand(
@@ -344,9 +351,9 @@ class TestStateTransitionsWithPlaceOrder:
 
         assert om.get_order(order.order_id).status == OrderStatus.PARTIALLY_FILLED
 
-    def test_place_order_then_invalid_transition_rejected(self) -> None:
+    def test_place_order_then_invalid_transition_rejected(self, event_bus) -> None:
         """Place order, then attempt invalid transition PARTIALLY_FILLED → EXPIRED."""
-        event_bus = MagicMock(spec=EventBus)
+        # REF: Using real EventBus instead of MagicMock
         om = OrderManager(event_bus=event_bus, enforce_state_transitions=True)
 
         request = OmsOrderCommand(
