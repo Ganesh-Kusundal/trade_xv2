@@ -14,7 +14,9 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any
+from infrastructure.event_bus import EventBus
+from application.oms.risk_manager import RiskManager
+from infrastructure.lifecycle import LifecycleManager
 
 from brokers.common.gateway import MarketDataGateway
 
@@ -28,9 +30,9 @@ class BrokerProviderFactory(ABC):
         *,
         env_path: Path | None = None,
         load_instruments: bool = True,
-        event_bus: Any | None = None,
-        risk_manager: Any | None = None,
-        lifecycle: Any | None = None,
+        event_bus: EventBus | None = None,
+        risk_manager: RiskManager | None = None,
+        lifecycle: LifecycleManager | None = None,
     ) -> MarketDataGateway:
         """Create a configured MarketDataGateway for this broker.
 

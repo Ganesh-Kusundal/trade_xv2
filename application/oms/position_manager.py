@@ -9,7 +9,8 @@ from __future__ import annotations
 import logging
 import threading
 from decimal import Decimal
-from typing import Any
+from infrastructure.event_bus import ProcessedTradeRepository
+from infrastructure.observability.event_metrics import EventMetrics
 
 from application.oms._internal.reentrancy_guard import _ReentrancyGuard
 from domain.entities import Position, Trade
@@ -34,8 +35,8 @@ class PositionManager:
     def __init__(
         self,
         event_bus: EventBus | None = None,
-        processed_trade_repository: Any | None = None,
-        metrics: Any | None = None,
+        processed_trade_repository: ProcessedTradeRepository | None = None,
+        metrics: EventMetrics | None = None,
         enforce_state_transitions: bool = True,  # P2-Phase 2: Enforce valid state transitions
     ) -> None:
         self._lock = threading.RLock()

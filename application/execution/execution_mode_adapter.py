@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from typing import Any
+from collections.abc import Callable
+
+from domain import Order
 
 from application.execution.simulated_fill import make_simulated_submit_fn
 from application.oms.context import TradingContext
@@ -25,7 +27,7 @@ class ExecutionModeAdapter(ABC):
     def place_order(
         self,
         command: OmsOrderCommand,
-        submit_fn: Any | None = None,
+        submit_fn: Callable[[OmsOrderCommand], Order] | None = None,
     ) -> OrderResult:
         """Place an order using the mode-appropriate execution path."""
 
@@ -45,7 +47,7 @@ class SimulatedOMSAdapter(ExecutionModeAdapter):
     def place_order(
         self,
         command: OmsOrderCommand,
-        submit_fn: Any | None = None,
+        submit_fn: Callable[[OmsOrderCommand], Order] | None = None,
     ) -> OrderResult:
         sim_fn = submit_fn or make_simulated_submit_fn(command, order_id_prefix=self._prefix)
         return self._ctx.order_manager.place_order(command, submit_fn=sim_fn)

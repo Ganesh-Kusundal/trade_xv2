@@ -24,7 +24,7 @@ class PipelineFeatureFetcher:
         self,
         pipeline: FeaturePipeline,
         market_data: MarketDataPort | Any | None = None,
-        gateway: Any | None = None,
+        gateway: object | None = None,  # MarketDataGateway (avoid circular import)
         lookback_bars: int = 200,
         cache_max_entries: int = _DEFAULT_CACHE_MAX,
     ) -> None:

@@ -35,6 +35,7 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
+from collections.abc import Callable
 from typing import Any
 
 import pandas as pd
@@ -44,7 +45,7 @@ from application.oms.order_manager import OmsOrderCommand, OrderManager, OrderRe
 from application.trading.models import (
     FeatureFetcher,
 )
-from domain import OrderType, ProductType, Side
+from domain import Order, OrderType, ProductType, Side
 from domain.models.trading import CandidateDTO, SignalDTO
 from domain.ports.strategy_evaluator import StrategyEvaluator
 from infrastructure.event_bus import (
@@ -134,7 +135,7 @@ class TradingOrchestrator:
         strategy_evaluator: StrategyEvaluator,
         feature_fetcher: FeatureFetcher,
         config: OrchestratorConfig | None = None,
-        submit_fn: Any | None = None,
+        submit_fn: Callable[[OmsOrderCommand], Order] | None = None,
         execution_service: ExecutionService | None = None,
     ) -> None:
         self._event_bus = event_bus
@@ -521,7 +522,7 @@ class TradingOrchestrator:
             return False
         return risk_manager.is_kill_switch_active()
 
-    def health(self) -> Any:
+    def health(self) -> HealthStatus:
         """ManagedService health snapshot."""
 
         from domain.lifecycle_health import HealthState, HealthStatus

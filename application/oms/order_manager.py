@@ -24,7 +24,9 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
+from infrastructure.observability.event_metrics import EventMetrics
+from application.oms.persistence.sqlite_order_store import SqliteOrderStore
 
 from application.oms._internal.order_audit_logger import OrderAuditLogger
 from application.oms._internal.order_position_updater import OrderPositionUpdater
@@ -131,12 +133,12 @@ class OrderManager:
         event_bus: EventBus | None = None,
         risk_manager: RiskManager | None = None,
         processed_trade_repository: ProcessedTradeRepository | None = None,
-        metrics: Any | None = None,
+        metrics: EventMetrics | None = None,
         enforce_state_transitions: bool = True,
         state_validator: OrderStateValidator | None = None,
         audit_logger: OrderAuditLogger | None = None,
         position_updater: OrderPositionUpdater | None = None,
-        order_store: Any | None = None,
+        order_store: SqliteOrderStore | None = None,
     ) -> None:
         self._lock = threading.RLock()
         self._orders: dict[str, Order] = {}

@@ -7,7 +7,7 @@ import uuid
 from collections.abc import Callable
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from application.oms.protocols import IOrderManager
 
 from application.oms.order_manager import OmsOrderCommand
 from domain import Order, OrderStatus, ProductType, Side, Trade
@@ -70,7 +70,7 @@ def build_backtest_correlation_id(
 
 
 def record_simulated_trade(
-    order_manager: Any,
+    order_manager: IOrderManager,
     *,
     order_id: str,
     symbol: str,

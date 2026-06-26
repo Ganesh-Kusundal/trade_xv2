@@ -15,8 +15,11 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from application.oms.protocols import IReconciliationService
+
 from application.oms.order_manager import OrderManager
 from application.oms.position_manager import PositionManager
+from domain.reconciliation import ReconciliationReport
 from domain.constants import (
     DEFAULT_STOP_TIMEOUT_SECONDS,
     MIN_SLEEP_SECONDS,
@@ -57,7 +60,7 @@ class ReconciliationService(ManagedService):
         self,
         order_manager: OrderManager,
         position_manager: PositionManager,
-        reconciliation_service: Any,
+        reconciliation_service: IReconciliationService,
         interval_seconds: float = RECONCILIATION_INTERVAL_SECONDS,
         event_bus: EventBus | None = None,
         on_first_success: Callable[[], None] | None = None,
@@ -124,7 +127,7 @@ class ReconciliationService(ManagedService):
 
     # ── Public API ───────────────────────────────────────────────────────
 
-    def run_now(self) -> Any:
+    def run_now(self) -> ReconciliationReport | None:
         """Run reconciliation immediately."""
         return self._run_once()
 
@@ -152,7 +155,7 @@ class ReconciliationService(ManagedService):
                 self._last_error = f"{type(exc).__name__}: {exc}"
                 logger.error("Reconciliation loop error: %s", exc)
 
-    def _run_once(self) -> Any:
+    def _run_once(self) -> ReconciliationReport | None:
         report = None
         try:
             report = self._reconciliation_service.reconcile(

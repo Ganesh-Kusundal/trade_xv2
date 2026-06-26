@@ -7,7 +7,7 @@ import os
 import threading
 from collections.abc import Callable
 from decimal import Decimal
-from typing import Any
+from typing import Any  # Only for signal handler frame type
 
 from application.oms.order_manager import OrderManager
 from application.oms.persistence.sqlite_order_store import SqliteOrderStore
@@ -38,6 +38,13 @@ try:
 except ImportError:
     _HAS_ORCHESTRATOR = False
     TradingOrchestrator = None  # type: ignore
+
+from application.oms.protocols import (
+    IBrokerGateway,
+    IReconciliationService,
+    ITradingOrchestrator,
+)
+
 
 logger = logging.getLogger(__name__)
 
@@ -86,12 +93,12 @@ class TradingContext:
         risk_config: RiskConfig | None = None,
         capital_fn: Callable[[], Decimal] | None = None,
         replay_events: bool = True,
-        reconciliation_service: Any = None,
+        reconciliation_service: IReconciliationService | None = None,
         reconciliation_interval_seconds: float = RECONCILIATION_INTERVAL_SECONDS,
         processed_trade_repository: ProcessedTradeRepository | None = None,
         metrics: EventMetrics | None = None,
         dead_letter_queue: DeadLetterQueue | None = None,
-        orchestrator: Any | None = None,  # P1-Phase 1: Optional TradingOrchestrator
+        orchestrator: ITradingOrchestrator | None = None,  # P1-Phase 1: Optional TradingOrchestrator
         durable_order_store: SqliteOrderStore | None = None,
         enable_durable_orders: bool | None = None,
     ) -> None:
@@ -182,7 +189,7 @@ class TradingContext:
             self._replay_log_into_oms()
 
         # P1-Phase 1: Store orchestrator for lifecycle management
-        self._orchestrator: Any = orchestrator
+        self._orchestrator: ITradingOrchestrator | None = orchestrator
 
     def attach_lifecycle(self, lifecycle: LifecycleManager) -> None:
         """Register the context's managed services with a lifecycle.
@@ -451,13 +458,13 @@ class TradingContext:
 
     # ManagedService protocol attributes
     name: str = "oms.trading_context"
-    _shutdown_gateway: Any | None = None  # Injectable gateway for testing
+    _shutdown_gateway: IBrokerGateway | None = None  # Injectable gateway for testing
     _shutdown_in_progress: bool = False
 
     async def shutdown(
         self,
         cancel_orders: bool = True,
-        gateway: Any | None = None,
+        gateway: IBrokerGateway | None = None,
     ) -> dict:
         """Graceful shutdown sequence.
 
@@ -550,7 +557,7 @@ class TradingContext:
 
     def cancel_all_open_orders(
         self,
-        gateway: Any | None = None,
+        gateway: IBrokerGateway | None = None,
         timeout_per_order: float = 5.0,
     ) -> dict:
         """Cancel all open orders, optionally via a broker gateway.

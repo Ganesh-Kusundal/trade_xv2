@@ -11,7 +11,9 @@ from typing import Any
 import requests
 
 from brokers.common.resilience.circuit_breaker import CircuitBreaker, CircuitState
+from brokers.common.resilience.rate_limiter import MultiBucketRateLimiter
 from brokers.dhan.exceptions import AuthenticationError, DhanError, RateLimitError
+from brokers.dhan.resilience.rate_limiter import DhanRateLimiterMetrics
 from endpoints import Dhan
 
 logger = logging.getLogger(__name__)
@@ -114,6 +116,9 @@ class DhanHttpClient:
         write_circuit_breaker: CircuitBreaker | None = None,
         admin_circuit_breaker: CircuitBreaker | None = None,
         session: requests.Session | None = None,
+        # Standardized resilience parameters (from Dhan resilience package)
+        _rate_limiter: MultiBucketRateLimiter | None = None,
+        _circuit_breakers: dict[str, CircuitBreaker] | None = None,
     ) -> None:
         self.client_id = client_id
         self.access_token = access_token
@@ -128,6 +133,15 @@ class DhanHttpClient:
         self._read_circuit_breaker = read_circuit_breaker or circuit_breaker
         self._write_circuit_breaker = write_circuit_breaker or circuit_breaker
         self._admin_circuit_breaker = admin_circuit_breaker or circuit_breaker
+        
+        # Standardized resilience patterns (Task 6.2)
+        # _rate_limiter: Token bucket rate limiter from Dhan resilience package
+        self._rate_limiter = _rate_limiter
+        # _circuit_breakers: Dict of all circuit breakers for observability
+        # Keys: 'orders', 'market_data', 'portfolio', 'admin'
+        self._circuit_breakers = _circuit_breakers or {}
+        # Metrics collector for rate limiter observability
+        self._rate_metrics = DhanRateLimiterMetrics()
 
         # Use provided session (from connection pool) or create own
         if session is not None:
@@ -194,6 +208,46 @@ class DhanHttpClient:
             if elapsed < min_interval:
                 time.sleep(min_interval - elapsed)
             self._last_request_time[endpoint] = time.time()
+
+    def _acquire_rate_limit_token(self, endpoint: str, timeout: float = 5.0) -> bool:
+        """Acquire a rate limit token if rate limiter is configured.
+
+        Uses the token bucket rate limiter from the Dhan resilience package.
+        Falls back to allowing the request if no rate limiter is configured.
+
+        Args:
+            endpoint: The API endpoint being called.
+            timeout: Maximum time to wait for a token (seconds).
+
+        Returns:
+            True if token acquired or no rate limiter, False if timed out.
+        """
+        if self._rate_limiter is None:
+            return True  # No rate limiter configured, allow request
+
+        category = _categorize_endpoint(endpoint)
+        try:
+            acquired = self._rate_limiter.acquire(category, tokens=1, timeout=timeout)
+            if acquired:
+                self._rate_metrics.record_request(category)
+            else:
+                self._rate_metrics.record_rejection(category)
+                logger.warning(
+                    "rate_limit_timeout",
+                    extra={
+                        "endpoint": endpoint,
+                        "category": category,
+                        "timeout_s": timeout,
+                    },
+                )
+            return acquired
+        except ValueError as exc:
+            # Unknown category — allow request but log warning
+            logger.warning(
+                "rate_limit_unknown_category",
+                extra={"endpoint": endpoint, "category": category, "error": str(exc)},
+            )
+            return True
 
     @staticmethod
     def _match_rate_limit(endpoint: str, limits: dict[str, float]) -> float:
@@ -284,6 +338,10 @@ class DhanHttpClient:
         cb = self._get_circuit_breaker(endpoint)
         if cb and cb.state == CircuitState.OPEN and not cb.allow_request():
             raise DhanError(f"Circuit breaker open: {method} {endpoint}")
+
+        # Rate limit token acquisition (enforced, not just defined)
+        if not self._acquire_rate_limit_token(endpoint):
+            raise DhanError(f"Rate limit timeout: {method} {endpoint}")
 
         self._throttle(endpoint)
         url = f"{self._base_url}{endpoint}" if endpoint.startswith("/") else endpoint

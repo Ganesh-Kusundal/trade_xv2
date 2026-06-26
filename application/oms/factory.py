@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from decimal import Decimal
-from typing import Any
+from application.oms.protocols import IReconciliationService
 
 from application.oms.context import TradingContext
 from application.oms.order_manager import OrderManager
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 def create_trading_context(
     event_log: BufferedEventLog | EventLog | None = None,
-    reconciliation_service: Any = None,
+    reconciliation_service: IReconciliationService | None = None,
     reconciliation_interval_seconds: float = RECONCILIATION_INTERVAL_SECONDS,
     risk_config: RiskConfig | None = None,
     capital_fn: Callable[[], Decimal] | None = None,

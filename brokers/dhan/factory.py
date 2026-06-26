@@ -155,21 +155,34 @@ class BrokerFactory(BrokerProviderFactory):
         env_file: Path,
         refresh_lock: threading.Lock,
     ) -> DhanHttpClient:
-        """Create DhanHttpClient with per-category circuit breakers."""
-        from brokers.common.resilience.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
+        """Create DhanHttpClient with standardized resilience patterns.
 
-        cb_read = CircuitBreaker(
-            "dhan-read-cb",
-            CircuitBreakerConfig(failure_threshold=10, open_duration_ms=15_000),
+        Uses the Dhan resilience package for:
+          - Per-category circuit breakers (orders, market_data, portfolio, admin)
+          - Rate limiter with token bucket algorithm
+          - Retry executor integration (via common resilience module)
+
+        Maintains backward compatibility with existing read/write/admin
+        circuit breaker naming used by the HTTP client and connection.
+        """
+        from brokers.dhan.resilience import (
+            create_circuit_breakers,
+            create_rate_limiter,
         )
-        cb_write = CircuitBreaker(
-            "dhan-write-cb",
-            CircuitBreakerConfig(failure_threshold=3, open_duration_ms=30_000),
-        )
-        cb_admin = CircuitBreaker(
-            "dhan-admin-cb",
-            CircuitBreakerConfig(failure_threshold=5, open_duration_ms=30_000),
-        )
+
+        # Create standardized circuit breakers
+        cbs = create_circuit_breakers()
+        # Map new categories to legacy names for backward compat:
+        #   orders -> write_circuit_breaker
+        #   market_data -> read_circuit_breaker
+        #   portfolio + admin -> admin_circuit_breaker
+        cb_orders = cbs["orders"]
+        cb_market_data = cbs["market_data"]
+        cb_portfolio = cbs["portfolio"]
+        cb_admin = cbs["admin"]
+
+        # Create rate limiter
+        rate_limiter = create_rate_limiter()
 
         return DhanHttpClient(
             client_id=cid,
@@ -178,9 +191,13 @@ class BrokerFactory(BrokerProviderFactory):
             timeout=settings.http_timeout,
             enable_retry=settings.enable_retry,
             token_refresh_fn=lambda: _refresh_via_auth(auth, env_file, refresh_lock),
-            read_circuit_breaker=cb_read,
-            write_circuit_breaker=cb_write,
+            # Legacy naming for backward compatibility with http_client.py
+            read_circuit_breaker=cb_market_data,
+            write_circuit_breaker=cb_orders,
             admin_circuit_breaker=cb_admin,
+            # Store for observability
+            _rate_limiter=rate_limiter,
+            _circuit_breakers=cbs,
         )
 
     def _create_connection_and_gateway(

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Callable
 
 from application.execution.execution_mode_adapter import (
     ExecutionModeAdapter,
@@ -11,6 +11,7 @@ from application.execution.execution_mode_adapter import (
 from application.execution.gateway_submit import make_gateway_submit_fn
 from application.oms.context import TradingContext
 from application.oms.order_manager import OmsOrderCommand, OrderManager, OrderResult
+from domain import Order
 from domain.ports.broker_gateway import OrderTransportPort
 
 
@@ -47,14 +48,14 @@ class ExecutionService:
     def mode(self) -> str:
         return self._mode
 
-    def _live_submit_fn(self) -> Any:
+    def _live_submit_fn(self) -> Callable[[OmsOrderCommand], Order]:
         return make_gateway_submit_fn(self._gateway, transport_only=True)
 
     def place_order(
         self,
         command: OmsOrderCommand,
         *,
-        submit_fn: Any | None = None,
+        submit_fn: Callable[[OmsOrderCommand], Order] | None = None,
     ) -> OrderResult:
         """Place an order via the configured execution mode.
 

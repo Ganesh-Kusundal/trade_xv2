@@ -2,12 +2,46 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from decimal import Decimal
 
 from domain import ExchangeSegment, InstrumentType
 from domain.exchange_segments import canonical_exchange_short, parse_segment
+
+# Exchange suffixes to strip for canonical symbol (matches datalake.core.symbols)
+_SUFFIX_PATTERN = re.compile(r"[-_](EQ|BE|BL|BZ|MC|NC|NZ|SM|SO|TT)\s*$", re.IGNORECASE)
+
+
+def _normalize_instrument_symbol(symbol: str) -> str:
+    """Normalize symbol: uppercase, strip whitespace, remove exchange suffixes.
+
+    This ensures Instrument.symbol matches datalake's normalize_symbol().
+    The original broker-specific symbol is preserved in Instrument.broker_symbol.
+    Rejects path-traversal characters for safety.
+    """
+    if not symbol:
+        return ""
+    s = symbol.strip().upper()
+    # Reject path-traversal characters (matches datalake.core.symbols)
+    if "/" in s or "\\" in s or ".." in s or "\x00" in s:
+        raise ValueError(f"Invalid symbol (path traversal detected): {symbol!r}")
+    s = _SUFFIX_PATTERN.sub("", s)
+    return s
+
+
+def _normalize_option_type(option_type: str) -> str:
+    """Normalize option type: CE→CALL, PE→PUT.
+
+    This ensures Instrument.option_type matches datalake's canonical format.
+    """
+    ot = option_type.upper().strip()
+    if ot in ("CE", "CALL"):
+        return "CALL"
+    if ot in ("PE", "PUT"):
+        return "PUT"
+    return ot
 
 
 @dataclass(frozen=True)
@@ -57,13 +91,22 @@ class InstrumentRegistry:
         broker_identifier: str = "",
         broker_symbol: str = "",
     ) -> Instrument:
+        # Normalize symbol: strip suffixes like -EQ, -BE for canonical key
+        # but preserve original in broker_symbol for API calls
+        canonical = _normalize_instrument_symbol(symbol)
+        if not broker_symbol:
+            broker_symbol = symbol.upper()
+
+        # Normalize option type: CE→CALL, PE→PUT (matches datalake canonical)
+        normalized_option_type = _normalize_option_type(option_type) if option_type else None
+
         instrument = Instrument(
-            symbol=symbol.upper(),
+            symbol=canonical,
             exchange=exchange.upper(),
             asset_class=asset_class,
             expiry=expiry,
             strike=self._decimal(strike),
-            option_type=option_type.upper() if option_type else None,
+            option_type=normalized_option_type,
             lot_size=lot_size,
             tick_size=self._decimal(tick_size),
             broker_identifier=broker_identifier,
@@ -84,7 +127,9 @@ class InstrumentRegistry:
                 )
 
     def resolve(self, symbol: str, exchange: str) -> Instrument | None:
-        return self._by_key.get((symbol.upper(), exchange.upper()))
+        # Normalize input symbol for consistent lookup
+        normalized = _normalize_instrument_symbol(symbol)
+        return self._by_key.get((normalized, exchange.upper()))
 
     def require(self, symbol: str, exchange: str) -> Instrument:
         instrument = self.resolve(symbol, exchange)

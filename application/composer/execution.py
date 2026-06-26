@@ -42,7 +42,7 @@ class ExecutionComposer:
         self,
         registry: BrokerRegistry,
         router: BrokerRouter,
-        quota_scheduler: Any,  # QuotaScheduler
+        quota_scheduler: object,  # QuotaScheduler (circular import)
     ) -> None:
         self._registry = registry
         self._router = router

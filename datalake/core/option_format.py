@@ -55,8 +55,15 @@ def make_option_symbol(
     """Build a canonical option symbol string.
 
     Example: ("NIFTY", "WEEK", 1, -2, "CALL") → "NIFTY_WEEK_1_-2_CALL"
+    Also accepts CE/PE and normalizes to CALL/PUT.
     """
-    return f"{underlying}_{expiry_kind}_{int(expiry_code)}_{int(strike_offset)}_{option_type}"
+    # Normalize option type: CE→CALL, PE→PUT
+    ot = option_type.upper().strip()
+    if ot in ("CE", "CALL"):
+        ot = "CALL"
+    elif ot in ("PE", "PUT"):
+        ot = "PUT"
+    return f"{underlying}_{expiry_kind}_{int(expiry_code)}_{int(strike_offset)}_{ot}"
 
 
 def convert_format(raw: pd.DataFrame) -> pd.DataFrame:
