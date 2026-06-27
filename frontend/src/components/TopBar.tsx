@@ -34,7 +34,7 @@ export function TopBar() {
   const replayOpen = useAppStore((s) => s.replayOpen)
   const setReplayOpen = useAppStore((s) => s.setReplayOpen)
 
-  const { quote, isLive, latencyMs } = useQuote(symbol, { intervalMs: 1500 })
+  const { quote, isLive, latencyMs, dataSource } = useQuote(symbol, { intervalMs: 1500 })
 
   // ⌘K / Ctrl+K to focus search
   useEffect(() => {
@@ -114,14 +114,32 @@ export function TopBar() {
       <div
         className={cn(
           'flex items-center gap-1.5 h-6 px-2 rounded-sm border text-2xs font-mono num',
-          isLive
+          dataSource === 'ws'
             ? 'bg-bull/10 border-bull/30 text-bull'
+            : dataSource === 'http'
+            ? 'bg-bblue/10 border-bblue/30 text-bblue'
+            : dataSource === 'mock'
+            ? 'bg-byellow/10 border-byellow/30 text-byellow'
             : 'bg-bbg2 border-bline text-bfgd',
         )}
-        title={isLive ? 'Live' : 'Mock / backend offline'}
+        title={
+          dataSource === 'ws'
+            ? 'Live via WebSocket'
+            : dataSource === 'http'
+            ? 'Live via HTTP polling'
+            : dataSource === 'mock'
+            ? 'Mock data (backend offline)'
+            : 'Stale / no data'
+        }
       >
         {isLive ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
-        {isLive ? `LIVE · ${latencyMs}ms` : 'MOCK'}
+        {dataSource === 'ws'
+          ? `LIVE · ${latencyMs}ms`
+          : dataSource === 'http'
+          ? `HTTP · ${latencyMs}ms`
+          : dataSource === 'mock'
+          ? 'MOCK'
+          : 'STALE'}
       </div>
 
       {/* Replay button */}

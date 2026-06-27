@@ -112,6 +112,7 @@ class ReplayEngine:
         trading_context=None,
         execution_adapter: object | None = None,
         oms_adapter: OmsBacktestAdapterPort | None = None,
+        portfolio_tracker=None,
     ) -> None:
         self._pipeline = pipeline or FeaturePipeline()
         self._strategy = strategy_pipeline or StrategyPipeline()
@@ -119,6 +120,7 @@ class ReplayEngine:
         self._event_bus = event_bus
         self._trading_context = trading_context
         self._execution_adapter = execution_adapter
+        self._portfolio_tracker = portfolio_tracker
 
         if oms_adapter is not None:
             self._oms_adapter = oms_adapter
@@ -439,6 +441,8 @@ class ReplayEngine:
                         target=signal.target,
                         strategy=signal.strategy,
                     )
+                    # Sync from PortfolioTracker if available
+                    self._sync_session_from_tracker(session)
 
         elif signal.is_sell and session.position is not None:
             # Close long via OMS
@@ -457,6 +461,8 @@ class ReplayEngine:
                 proceeds = float(price) * session.position.quantity - config.commission_flat
                 session.capital += proceeds
                 session.position = None
+                # Sync from PortfolioTracker if available
+                self._sync_session_from_tracker(session)
 
     def _close_position(self, session: ReplaySession, bar: Bar, reason: str) -> None:
         """Close the current position through OMS and record the trade."""
@@ -562,6 +568,33 @@ class ReplayEngine:
             )
         )
         session.position = None
+
+    def _sync_session_from_tracker(self, session: ReplaySession) -> None:
+        """Sync session state from PortfolioTracker.
+
+        This reads capital and position state from the PortfolioTracker
+        (which is backed by the production OMS) and updates the session
+        shadow state to match. This eliminates drift between the two.
+        """
+        if self._portfolio_tracker is None:
+            return
+
+        # Sync capital from tracker
+        session.capital = float(self._portfolio_tracker.get_capital())
+
+        # Sync position from tracker
+        positions = self._portfolio_tracker.get_positions()
+        if positions:
+            pos = positions[0]
+            session.position = SimulatedPosition(
+                symbol=pos.symbol,
+                side="BUY" if pos.quantity > 0 else "SELL",
+                entry_price=float(pos.avg_price),
+                quantity=abs(pos.quantity),
+                entry_time=datetime.now(),
+            )
+        else:
+            session.position = None
 
     def _publish_signal(self, signal: Signal) -> None:
         """Publish a signal to the EventBus.

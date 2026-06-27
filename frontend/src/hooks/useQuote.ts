@@ -14,12 +14,15 @@ interface UseQuoteOptions {
   enabled?: boolean
 }
 
+export type DataSource = 'ws' | 'http' | 'mock' | 'stale'
+
 interface UseQuoteResult {
   quote: Quote | null
   isLive: boolean
   wsConnected: boolean
   latencyMs: number
   lastUpdated: number
+  dataSource: DataSource
 }
 
 export function useQuote(symbol: string, opts: UseQuoteOptions = {}): UseQuoteResult {
@@ -27,6 +30,7 @@ export function useQuote(symbol: string, opts: UseQuoteOptions = {}): UseQuoteRe
   const [quote, setQuote] = useState<Quote | null>(null)
   const [latencyMs, setLatencyMs] = useState(0)
   const [lastUpdated, setLastUpdated] = useState(0)
+  const [dataSource, setDataSource] = useState<DataSource>('stale')
   const symRef = useRef(symbol)
 
   const { connected: wsConnected, quotes: wsQuotes } = useMarketStream({
@@ -37,6 +41,7 @@ export function useQuote(symbol: string, opts: UseQuoteOptions = {}): UseQuoteRe
   useEffect(() => {
     symRef.current = symbol
     setQuote(null)
+    setDataSource('stale')
   }, [symbol])
 
   useEffect(() => {
@@ -45,6 +50,7 @@ export function useQuote(symbol: string, opts: UseQuoteOptions = {}): UseQuoteRe
       setQuote(wsQuote)
       setLatencyMs(0)
       setLastUpdated(Date.now())
+      setDataSource('ws')
     }
   }, [wsQuotes, symbol])
 
@@ -53,6 +59,7 @@ export function useQuote(symbol: string, opts: UseQuoteOptions = {}): UseQuoteRe
     if (wsConnected) return
     if (REQUIRE_API) {
       // Production: no mock poll when WS down — surface stale/null quote
+      setDataSource('stale')
       return
     }
     let alive = true
@@ -66,7 +73,10 @@ export function useQuote(symbol: string, opts: UseQuoteOptions = {}): UseQuoteRe
         setQuote(q)
         setLatencyMs(Math.round(dt))
         setLastUpdated(Date.now())
-      } catch { /* ignore */ }
+        setDataSource('http')
+      } catch {
+        setDataSource('mock')
+      }
     }
     tick()
     const id = window.setInterval(tick, intervalMs)
@@ -79,5 +89,6 @@ export function useQuote(symbol: string, opts: UseQuoteOptions = {}): UseQuoteRe
     wsConnected,
     latencyMs,
     lastUpdated,
+    dataSource,
   }
 }
