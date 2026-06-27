@@ -135,6 +135,7 @@ class EventLog:
         self._current_file: Path | None = None
         self._current_handle: Any = None
         self.append_errors: int = 0  # public counter, never reset mid-run
+        self._seen_ids: set[str] = set()  # idempotency guard
 
     @property
     def errors(self) -> int:
@@ -168,8 +169,15 @@ class EventLog:
             event. Callers that need to swallow failures (none in
             production) must do so explicitly.
         """
+        # Idempotency guard: skip duplicate event_ids within this session.
+        if event.event_id and event.event_id in self._seen_ids:
+            return
+        if event.event_id:
+            self._seen_ids.add(event.event_id)
+
         record = {
             "event_type": event.event_type,
+            "event_id": event.event_id,
             "timestamp": event.timestamp.isoformat(),
             "source": event.source,
             "symbol": event.symbol,
