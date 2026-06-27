@@ -54,6 +54,9 @@ class TestIntelligentMarketDataGateway:
         infra.registry.get_gateway.return_value = mock_gateway
         infra.registry.list_brokers.return_value = ["dhan"]
         
+        # Mock gateway_for to return mock_gateway
+        infra.gateway_for.return_value = mock_gateway
+        
         # Mock quota token
         mock_token = Mock()
         infra.quota.acquire.return_value = mock_token
@@ -71,7 +74,7 @@ class TestIntelligentMarketDataGateway:
         # Verify router was called
         infra.router.route.assert_called_once()
         call_args = infra.router.route.call_args
-        assert call_args[0][0].operation == OperationKind.GET_LTP
+        assert call_args[0][0].operation == OperationKind.GET_QUOTE
         
         # Verify quota was acquired and released
         infra.quota.acquire.assert_called_once()
@@ -95,8 +98,8 @@ class TestIntelligentMarketDataGateway:
         # Verify quota was NOT acquired
         infra.quota.acquire.assert_not_called()
         
-        # Verify gateway method was called directly
-        mock_gateway.ltp.assert_called_once_with("RELIANCE", "NSE")
+        # Verify gateway_for was called (returns infra.gateway_for.return_value)
+        infra.gateway_for.assert_called_once_with("dhan")
         assert result == Decimal("100.50")
 
     def test_smart_mode_quote(self, mock_infrastructure):

@@ -36,6 +36,7 @@ from brokers.common.gateway import MarketDataGateway
 from brokers.common.historical_coordinator import HistoricalQuery
 from brokers.common.infrastructure import BrokerInfrastructure
 from brokers.common.models import OperationKind, RoutingRequest
+from brokers.common.quota_decorator import routed
 from brokers.common.quota_scheduler import PriorityClass
 from domain import (
     Balance,
@@ -106,7 +107,9 @@ class IntelligentMarketDataGateway(MarketDataGateway):
 
         # Smart mode: Use router
         try:
-            request = RoutingRequest(operation=operation)
+            import uuid
+            trace_id = str(uuid.uuid4())[:8]
+            request = RoutingRequest(operation=operation, trace_id=trace_id)
             decision = self._infra.router.route(request)
             return self._infra.registry.get_gateway(decision.primary_broker)
         except Exception as exc:
@@ -145,35 +148,20 @@ class IntelligentMarketDataGateway(MarketDataGateway):
     # Market Data (read-only)
     # -----------------------------------------------------------------------
 
+    @routed(OperationKind.GET_QUOTE, "quotes")
     def ltp(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> Decimal:
         """Return last traded price with intelligent routing."""
-        gateway = self._get_gateway(OperationKind.GET_QUOTE)  # LTP uses quote operation
-        broker_id = getattr(gateway, "broker_id", self._primary)
-        token = self._acquire_quota(broker_id, "quotes")
-        try:
-            return gateway.ltp(symbol, exchange)
-        finally:
-            self._release_quota(token)
+        return self._gateway.ltp(symbol, exchange)
 
+    @routed(OperationKind.GET_QUOTE, "quotes")
     def quote(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> Quote:
         """Return quote with intelligent routing."""
-        gateway = self._get_gateway(OperationKind.GET_QUOTE)
-        broker_id = getattr(gateway, "broker_id", self._primary)
-        token = self._acquire_quota(broker_id, "quotes")
-        try:
-            return gateway.quote(symbol, exchange)
-        finally:
-            self._release_quota(token)
+        return self._gateway.quote(symbol, exchange)
 
+    @routed(OperationKind.GET_DEPTH, "quotes")
     def depth(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> MarketDepth:
         """Return market depth with intelligent routing."""
-        gateway = self._get_gateway(OperationKind.GET_DEPTH)
-        broker_id = getattr(gateway, "broker_id", self._primary)
-        token = self._acquire_quota(broker_id, "quotes")
-        try:
-            return gateway.depth(symbol, exchange)
-        finally:
-            self._release_quota(token)
+        return self._gateway.depth(symbol, exchange)
 
     def history(
         self,

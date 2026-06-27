@@ -156,15 +156,17 @@ class EventPayload:
     - A publisher adding a new key is forced to update this dataclass
       (because tests grep for changes).
 
-    It is intentionally NOT used for runtime schema validation in
-    production — that would couple the bus too tightly to the
-    payload shape and break replay-compatibility for events
-    recorded with older schemas.
+    ``version`` tracks schema evolution. When a payload's required_keys
+    or optional_keys change, increment the version. This enables:
+    - Backward-compatible event replay (old events with v1 schema)
+    - Schema migration detection
+    - Consumer version negotiation
     """
 
     required_keys: tuple[str, ...] = ()
     optional_keys: tuple[str, ...] = ()
     notes: str = ""
+    version: int = 1
 
 
 # Catalogue — append-only. The dict key is the canonical EventType;

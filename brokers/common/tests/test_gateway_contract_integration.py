@@ -571,6 +571,7 @@ class TestObservabilityProvider:
         conn.event_bus = None
         conn.market_feed = None
         conn._lifecycle = None
+        conn.circuit_breaker_states = {"data": 0, "order": 0, "quote": 0}
         gw = BrokerGateway(conn)
 
         result = gw.get_circuit_breaker_states()
@@ -585,6 +586,7 @@ class TestObservabilityProvider:
         conn.event_bus = None
         conn.market_feed = None
         conn._lifecycle = None
+        conn.token_refresh_metrics = {"refresh_count": 0, "last_refresh": None}
         gw = BrokerGateway(conn)
 
         result = gw.get_token_refresh_metrics()
