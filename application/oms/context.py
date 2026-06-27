@@ -29,8 +29,7 @@ from infrastructure.event_log import BufferedEventLog, EventLog
 from infrastructure.lifecycle import LifecycleManager
 from infrastructure.observability.event_metrics import EventMetrics
 
-# P1-Phase 1: Optional import for TradingOrchestrator
-# Import only when needed to avoid circular dependency
+# Optional import to avoid circular dependency
 try:
     from application.trading import TradingOrchestrator
 
@@ -98,7 +97,7 @@ class TradingContext:
         processed_trade_repository: ProcessedTradeRepository | None = None,
         metrics: EventMetrics | None = None,
         dead_letter_queue: DeadLetterQueue | None = None,
-        orchestrator: ITradingOrchestrator | None = None,  # P1-Phase 1: Optional TradingOrchestrator
+        orchestrator: ITradingOrchestrator | None = None,
         durable_order_store: SqliteOrderStore | None = None,
         enable_durable_orders: bool | None = None,
     ) -> None:
@@ -119,7 +118,7 @@ class TradingContext:
             self._event_bus = event_bus
 
         self._processed_trades = processed_trade_repository or ProcessedTradeRepository()
-        # REF-19: enable the self-cleaning thread. It runs as a daemon
+        # Enable the self-cleaning thread. It runs as a daemon
         # so it does not block process exit; callers that own a
         # LifecycleManager can stop it deterministically via
         # attach_lifecycle() below.
@@ -154,7 +153,7 @@ class TradingContext:
         # Wire managers to the event bus.
         self._event_bus.subscribe(
             EventType.ORDER_UPDATED.value, self._order_manager.on_order_update
-        )  # P1-3: Migrated to EventType enum
+        )
         # The OMS is the sole gatekeeper for trade idempotency. The
         # position manager subscribes to TRADE_APPLIED (a downstream
         # event the OMS publishes only after a trade has been accepted)
@@ -162,10 +161,10 @@ class TradingContext:
         # duplicate websocket fills cannot double-count positions.
         self._event_bus.subscribe(
             EventType.TRADE.value, self._order_manager.on_trade
-        )  # P1-3: Migrated to EventType enum
+        )
         self._event_bus.subscribe(
             EventType.TRADE_APPLIED.value, self._position_manager.on_trade_applied
-        )  # P1-3: Migrated to EventType enum
+        )
 
         # Reconciliation: an externally-owned ReconciliationService
         # (a ManagedService) is created here so it can be registered
@@ -188,7 +187,6 @@ class TradingContext:
         if replay_events and self._event_log is not None:
             self._replay_log_into_oms()
 
-        # P1-Phase 1: Store orchestrator for lifecycle management
         self._orchestrator: ITradingOrchestrator | None = orchestrator
 
     def attach_lifecycle(self, lifecycle: LifecycleManager) -> None:
@@ -216,11 +214,10 @@ class TradingContext:
         # would silently accumulate PnL across days.
         self._register_daily_pnl_reset(lifecycle)
 
-        # B2: Register TradingContext itself as a ManagedService so
+        # Register TradingContext itself as a ManagedService so
         # it participates in deterministic start/stop via the lifecycle.
         lifecycle.register(self)
 
-        # P1-Phase 1: Register orchestrator for start/stop
         if self._orchestrator is not None:
             lifecycle.register(self._orchestrator)
             logger.info("TradingOrchestrator registered with lifecycle")
@@ -258,7 +255,7 @@ class TradingContext:
         return self._processed_trades
 
     @property
-    def orchestrator(self) -> Any | None:  # P1-Phase 1: TradingOrchestrator accessor
+    def orchestrator(self) -> Any | None:
         """Access the TradingOrchestrator if configured."""
         return self._orchestrator
 
@@ -421,13 +418,13 @@ class TradingContext:
         """
         if self._event_log is None:
             return
-        # A3: Defensive check - event_bus should always be initialized
+        # Defensive check — event_bus should always be initialized
         if self._event_bus is None:
             logger.warning("Event bus is None, skipping replay mode setup")
             return
         logger.info("Replaying event log into OMS")
         count = 0
-        # A3: Enable replay mode to prevent TRADE_APPLIED dispatch during replay
+        # Enable replay mode to prevent TRADE_APPLIED dispatch during replay
         # (which would cause PositionManager to double-count trades)
         replay_was_enabled = self._event_bus.replay_mode
         self._event_bus.set_replay_mode(True)
@@ -437,12 +434,10 @@ class TradingContext:
         try:
             for event in self._event_log.replay(
                 event_types={EventType.ORDER_UPDATED.value, EventType.TRADE.value}
-            ):  # P1-3: Migrated to EventType enum
-                if (
-                    event.event_type == EventType.ORDER_UPDATED.value
-                ):  # P1-3: Migrated to EventType enum
+            ):
+                if event.event_type == EventType.ORDER_UPDATED.value:
                     self._order_manager.on_order_update(event)
-                elif event.event_type == EventType.TRADE.value:  # P1-3: Migrated to EventType enum
+                elif event.event_type == EventType.TRADE.value:
                     self._order_manager.on_trade(event)
                     # A3: During replay, TRADE_APPLIED events are suppressed by
                     # the event bus. Directly invoke position manager to rebuild
@@ -472,9 +467,7 @@ class TradingContext:
             1. Halt new order placement (set kill_switch)
             2. Cancel all open orders at broker
             3. Flush event log to disk
-            4. Stop async bus workers
-            5. Emit SYSTEM_SHUTDOWN event
-            6. Close broker connections (via gateway)
+            4. Emit SYSTEM_SHUTDOWN event
 
         Args:
             cancel_orders: If True, cancel all open orders at broker.
@@ -497,7 +490,21 @@ class TradingContext:
                 "connections_closed": 0,
             }
         self._shutdown_in_progress = True
+        return self._execute_shutdown_sequence(cancel_orders, gateway)
 
+    def _execute_shutdown_sequence(
+        self,
+        cancel_orders: bool = True,
+        gateway: IBrokerGateway | None = None,
+    ) -> dict:
+        """Shared shutdown steps used by both async and sync shutdown paths.
+
+        Steps:
+            1. Activate kill switch to halt new order placement.
+            2. Cancel all open orders (optionally via broker gateway).
+            3. Flush and close the event log.
+            4. Publish a SYSTEM_SHUTDOWN event.
+        """
         result = {
             "orders_cancelled": 0,
             "orders_failed": 0,
@@ -527,7 +534,6 @@ class TradingContext:
         # Step 3: Flush event log to disk
         if self._event_log is not None:
             try:
-                # BufferedEventLog has flush(), base EventLog does not
                 if hasattr(self._event_log, "flush"):
                     self._event_log.flush()
                 self._event_log.close()
@@ -586,7 +592,7 @@ class TradingContext:
             "failed_order_ids": [],
         }
 
-        open_orders = [o for o in self._order_manager.get_orders() if o.status == OrderStatus.OPEN]
+        open_orders = [order for order in self._order_manager.get_orders() if order.status == OrderStatus.OPEN]
 
         if not open_orders:
             logger.debug("TradingContext: no open orders to cancel")
@@ -688,58 +694,11 @@ class TradingContext:
             )
 
     def _sync_shutdown(self) -> dict:
-        """Synchronous shutdown path when async is unavailable.
-
-        Performs the same steps as shutdown() but without async
-        bus management.
-        """
-        result = {
-            "orders_cancelled": 0,
-            "orders_failed": 0,
-            "event_log_flushed": False,
-            "connections_closed": 0,
-        }
-
-        # Step 1: Kill switch
-        try:
-            self._risk_manager.set_kill_switch(True)
-        except Exception as exc:
-            logger.warning("TradingContext: kill_switch activation failed: %s", exc)
-
-        # Step 2: Cancel open orders
-        cancel_result = self.cancel_all_open_orders(gateway=self._shutdown_gateway)
-        result["orders_cancelled"] = cancel_result["orders_cancelled"]
-        result["orders_failed"] = cancel_result["orders_failed"]
-
-        # Step 3: Flush event log
-        if self._event_log is not None:
-            try:
-                # BufferedEventLog has flush(), base EventLog does not
-                if hasattr(self._event_log, "flush"):
-                    self._event_log.flush()
-                self._event_log.close()
-                result["event_log_flushed"] = True
-            except Exception as exc:
-                logger.warning("TradingContext: event_log flush/close failed: %s", exc)
-
-        # Step 4: Emit SYSTEM_SHUTDOWN event
-        try:
-            self._event_bus.publish(
-                DomainEvent.now(
-                    EventType.SYSTEM_SHUTDOWN.value,
-                    payload={
-                        "service_name": self.name,
-                        "detail": "shutdown_complete",
-                        "orders_cancelled": result["orders_cancelled"],
-                        "orders_failed": result["orders_failed"],
-                    },
-                    source="TradingContext",
-                )
-            )
-        except Exception as exc:
-            logger.warning("TradingContext: SYSTEM_SHUTDOWN event publish failed: %s", exc)
-
-        return result
+        """Synchronous shutdown path when async is unavailable."""
+        return self._execute_shutdown_sequence(
+            cancel_orders=True,
+            gateway=self._shutdown_gateway,
+        )
 
     # ── Signal handlers ─────────────────────────────────────────────────
 

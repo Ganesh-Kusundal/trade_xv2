@@ -47,6 +47,7 @@ from __future__ import annotations
 
 import logging
 from collections import deque
+from datetime import datetime, timezone
 from decimal import Decimal
 
 import numpy as np
@@ -442,7 +443,7 @@ class ReplayEngine:
                         strategy=signal.strategy,
                     )
                     # Sync from PortfolioTracker if available
-                    self._sync_session_from_tracker(session)
+                    self._sync_session_from_tracker(session, bar.timestamp, bar.symbol)
 
         elif signal.is_sell and session.position is not None:
             # Close long via OMS
@@ -462,7 +463,7 @@ class ReplayEngine:
                 session.capital += proceeds
                 session.position = None
                 # Sync from PortfolioTracker if available
-                self._sync_session_from_tracker(session)
+                self._sync_session_from_tracker(session, bar.timestamp, bar.symbol)
 
     def _close_position(self, session: ReplaySession, bar: Bar, reason: str) -> None:
         """Close the current position through OMS and record the trade."""
@@ -569,29 +570,48 @@ class ReplayEngine:
         )
         session.position = None
 
-    def _sync_session_from_tracker(self, session: ReplaySession) -> None:
+    def _sync_session_from_tracker(
+        self,
+        session: ReplaySession,
+        bar_timestamp: datetime | None = None,
+        symbol: str | None = None,
+    ) -> None:
         """Sync session state from PortfolioTracker.
 
-        This reads capital and position state from the PortfolioTracker
-        (which is backed by the production OMS) and updates the session
-        shadow state to match. This eliminates drift between the two.
+        Reads capital and position state from the PortfolioTracker
+        (backed by the production OMS) and updates the session shadow
+        state to match, eliminating drift between the two.
+
+        Parameters
+        ----------
+        session:
+            Current replay session to update.
+        bar_timestamp:
+            Timestamp of the current bar for accurate entry_time.
+            Falls back to UTC now if *None*.
+        symbol:
+            Symbol being replayed — used to filter positions so the
+            correct instrument is matched when the tracker holds
+            multiple positions.
         """
         if self._portfolio_tracker is None:
             return
 
-        # Sync capital from tracker
         session.capital = float(self._portfolio_tracker.get_capital())
 
-        # Sync position from tracker
         positions = self._portfolio_tracker.get_positions()
+        if symbol is not None:
+            positions = [p for p in positions if p.symbol.upper() == symbol.upper()]
+
         if positions:
             pos = positions[0]
+            entry_time = bar_timestamp if bar_timestamp is not None else datetime.now(timezone.utc)
             session.position = SimulatedPosition(
                 symbol=pos.symbol,
                 side="BUY" if pos.quantity > 0 else "SELL",
                 entry_price=float(pos.avg_price),
                 quantity=abs(pos.quantity),
-                entry_time=datetime.now(),
+                entry_time=entry_time,
             )
         else:
             session.position = None

@@ -88,11 +88,11 @@ class OmsOrderCommand:
 OrderRequest = OmsOrderCommand
 
 
+@dataclass(frozen=True)
 class OrderResult:
-    def __init__(self, success: bool, order: Order | None = None, error: str | None = None):
-        self.success = success
-        self.order = order
-        self.error = error
+    success: bool
+    order: Order | None = None
+    error: str | None = None
 
 
 class OrderManager:
@@ -478,9 +478,9 @@ class OrderManager:
         with self._lock:
             orders = list(self._orders.values())
         if symbol is not None:
-            orders = [o for o in orders if o.symbol == symbol.upper()]
+            orders = [order for order in orders if order.symbol == symbol.upper()]
         if status is not None:
-            orders = [o for o in orders if o.status == status]
+            orders = [order for order in orders if order.status == status]
         return orders
 
     def get_all_orders(self) -> list[dict]:
@@ -488,26 +488,20 @@ class OrderManager:
         with self._lock:
             return [
                 {
-                    "order_id": o.order_id,
-                    "symbol": o.symbol,
-                    "exchange": o.exchange,
-                    "side": o.side.value if hasattr(o.side, "value") else str(o.side),
-                    "order_type": o.order_type.value
-                    if hasattr(o.order_type, "value")
-                    else str(o.order_type),
-                    "quantity": o.quantity,
-                    "filled_quantity": o.filled_quantity,
-                    "price": str(o.price),
-                    "avg_price": str(o.avg_price),
-                    "product_type": o.product_type.value
-                    if hasattr(o.product_type, "value")
-                    else str(o.product_type),
-                    "status": o.status.value if hasattr(o.status, "value") else str(o.status),
-                    "timestamp": o.timestamp.isoformat()
-                    if hasattr(o.timestamp, "isoformat")
-                    else str(o.timestamp),
+                    "order_id": order.order_id,
+                    "symbol": order.symbol,
+                    "exchange": order.exchange,
+                    "side": order.side.value,
+                    "order_type": order.order_type.value,
+                    "quantity": order.quantity,
+                    "filled_quantity": order.filled_quantity,
+                    "price": str(order.price),
+                    "avg_price": str(order.avg_price),
+                    "product_type": order.product_type.value,
+                    "status": order.status.value,
+                    "timestamp": order.timestamp.isoformat() if order.timestamp else "",
                 }
-                for o in self._orders.values()
+                for order in self._orders.values()
             ]
 
     def cancel_order(

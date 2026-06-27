@@ -39,13 +39,9 @@ logger = logging.getLogger(__name__)
 class TokenRotationError(Exception):
     """Raised when token rotation fails."""
 
-    pass
-
 
 class EncryptionNotConfiguredError(Exception):
     """Raised when encryption is required but not configured."""
-
-    pass
 
 
 class SecretManager:

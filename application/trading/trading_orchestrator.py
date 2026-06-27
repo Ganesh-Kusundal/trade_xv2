@@ -542,18 +542,14 @@ class TradingOrchestrator:
         """Start the orchestrator.
 
         Called by LifecycleManager when the system starts.
-        Subscribe to CANDIDATE_GENERATED events here if not
-        already subscribed externally.
+        Event subscription (CANDIDATE_GENERATED) is the caller's
+        responsibility — subscribe before registering with lifecycle.
         """
         logger.info(
             "TradingOrchestrator starting (dry_run=%s, min_confidence=%.2f)",
             self._config.dry_run,
             self._config.min_confidence,
         )
-
-        # Subscribe to candidate events if not already subscribed
-        # (External subscription is preferred, but this provides a fallback)
-        # self._event_bus.subscribe(EventType.CANDIDATE_GENERATED, self.on_candidate)
 
     def stop(self) -> None:
         """Stop the orchestrator.
