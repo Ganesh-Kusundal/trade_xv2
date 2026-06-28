@@ -149,7 +149,7 @@ class OrderManager:
         self._metrics = metrics
         self._trades_processed = 0
         self._trades_duplicated = 0
-        # REF-019: Pending-order set prevents TOCTOU races when the lock
+        # Pending-order set prevents TOCTOU races when the lock
         # is released between idempotency check and order book insertion.
         self._pending_correlation: set[str] = set()
         # Re-entrancy guard: when a handler is currently being invoked, an
@@ -159,7 +159,6 @@ class OrderManager:
         # and reset on the way out.
         self._handler_depth: int = 0
 
-        # P4-3: Extracted collaborators
         self._state_validator = state_validator or OrderStateValidator(
             transitions=ORDER_STATUS_TRANSITIONS,
             enforce=enforce_state_transitions,
@@ -215,119 +214,161 @@ class OrderManager:
     ) -> OrderResult:
         """Place an order idempotently.
 
-        REF-019: The lock is held only for state mutations (idempotency
-        check + order book update). Risk check, broker I/O (submit_fn),
-        and event publishing all happen OUTSIDE the lock to avoid holding
+        The lock is held only for state mutations (idempotency check +
+        order book update). Risk check, broker I/O (submit_fn), and
+        event publishing all happen OUTSIDE the lock to avoid holding
         it during network calls.
         """
-        # ── Phase 1: Idempotency + pending check (under lock) ──
+        # Phase 1: Idempotency + pending check (under lock)
+        order_id, early_result = self._check_idempotency_and_reserve(request)
+        if early_result is not None:
+            return early_result
+
+        # Phases 2-3: Build, validate, submit (no lock held)
+        try:
+            order, rejection = self._build_and_validate_order(order_id, request)
+            if rejection is not None:
+                self._release_pending(request)
+                return rejection
+
+            order, rejection = self._submit_to_broker(order, request, submit_fn)
+            if rejection is not None:
+                self._release_pending(request)
+                return rejection
+        except Exception:
+            self._release_pending(request)
+            raise
+
+        # Phase 4: Record result (under lock)
+        self._record_and_publish(order, request)
+        return OrderResult(success=True, order=order)
+
+    # ── place_order phase helpers ─────────────────────────────────────────
+
+    def _check_idempotency_and_reserve(
+        self, request: OmsOrderCommand
+    ) -> tuple[str, OrderResult | None]:
+        """Phase 1: Check idempotency and reserve the correlation ID (under lock).
+
+        Returns (order_id, None) on success, or ('', OrderResult) if the
+        order is a duplicate or already in-flight.
+        """
         with self._lock:
             existing = self._orders_by_correlation.get(request.correlation_id)
             if existing is not None:
-                return OrderResult(success=True, order=existing)
+                return "", OrderResult(success=True, order=existing)
             if request.correlation_id in self._pending_correlation:
-                return OrderResult(success=False, error="Order already in-flight")
+                return "", OrderResult(success=False, error="Order already in-flight")
             self._pending_correlation.add(request.correlation_id)
             order_id = f"OM-{uuid.uuid4().hex[:12]}"
+        return order_id, None
 
-        # ── Phase 2: Build order + risk check (no lock) ──
-        try:
-            # Check placement gate first
-            gate_reason = self._check_placement_gate()
-            if gate_reason is not None:
+    def _build_and_validate_order(
+        self, order_id: str, request: OmsOrderCommand
+    ) -> tuple[Order | None, OrderResult | None]:
+        """Phase 2: Build order object, check gate and risk (no lock).
+
+        Returns (order, None) on success, or (None, OrderResult) on rejection.
+        """
+        gate_reason = self._check_placement_gate()
+        if gate_reason is not None:
+            self._publish(
+                EventType.ORDER_REJECTED.value,
+                Order(
+                    order_id=order_id,
+                    symbol=request.symbol,
+                    exchange=request.exchange,
+                    side=request.side,
+                    order_type=request.order_type,
+                    quantity=request.quantity,
+                    price=request.price,
+                    product_type=request.product_type,
+                    status=OrderStatus.REJECTED,
+                    timestamp=datetime.now(timezone.utc),
+                    correlation_id=request.correlation_id,
+                ),
+                reason=gate_reason,
+            )
+            return None, OrderResult(success=False, error=gate_reason)
+
+        order = Order(
+            order_id=order_id,
+            symbol=request.symbol,
+            exchange=request.exchange,
+            side=request.side,
+            order_type=request.order_type,
+            quantity=request.quantity,
+            price=request.price,
+            product_type=request.product_type,
+            status=OrderStatus.OPEN,
+            timestamp=datetime.now(timezone.utc),
+            correlation_id=request.correlation_id,
+        )
+
+        if self._risk_manager is not None:
+            risk_result = self._risk_manager.check_order(order)
+            if not risk_result.allowed:
+                if self._event_bus is not None:
+                    self._event_bus.publish(
+                        DomainEvent.now(
+                            EventType.RISK_REJECTED.value,
+                            payload={
+                                "order_id": order.order_id,
+                                "rule": risk_result.reason,
+                                "value": "0",
+                                "limit": "0",
+                            },
+                            symbol=order.symbol,
+                            source="OrderManager",
+                            correlation_id=order.correlation_id,
+                        )
+                    )
                 self._publish(
                     EventType.ORDER_REJECTED.value,
-                    Order(
-                        order_id=order_id,
-                        symbol=request.symbol,
-                        exchange=request.exchange,
-                        side=request.side,
-                        order_type=request.order_type,
-                        quantity=request.quantity,
-                        price=request.price,
-                        product_type=request.product_type,
-                        status=OrderStatus.REJECTED,
-                        timestamp=datetime.now(timezone.utc),
-                        correlation_id=request.correlation_id,
-                    ),
-                    reason=gate_reason,
+                    order,
+                    reason=risk_result.reason,
                 )
-                with self._lock:
-                    self._pending_correlation.discard(request.correlation_id)
-                return OrderResult(success=False, error=gate_reason)
+                return None, OrderResult(success=False, error=risk_result.reason)
+            if self._event_bus is not None:
+                self._event_bus.publish(
+                    DomainEvent.now(
+                        EventType.RISK_APPROVED.value,
+                        payload={"order_id": order.order_id},
+                        symbol=order.symbol,
+                        source="OrderManager",
+                        correlation_id=order.correlation_id,
+                    )
+                )
 
-            order = Order(
-                order_id=order_id,
-                symbol=request.symbol,
-                exchange=request.exchange,
-                side=request.side,
-                order_type=request.order_type,
-                quantity=request.quantity,
-                price=request.price,
-                product_type=request.product_type,
-                status=OrderStatus.OPEN,
-                timestamp=datetime.now(timezone.utc),
-                correlation_id=request.correlation_id,
+        return order, None
+
+    def _submit_to_broker(
+        self,
+        order: Order,
+        request: OmsOrderCommand,
+        submit_fn: Callable[[OmsOrderCommand], Order] | None,
+    ) -> tuple[Order | None, OrderResult | None]:
+        """Phase 3: Submit order to broker (no lock).
+
+        Returns (order, None) on success, or (None, OrderResult) on failure.
+        """
+        if submit_fn is None:
+            return order, None
+        try:
+            order = submit_fn(request)
+            return order, None
+        except Exception as exc:
+            self._publish(
+                EventType.ORDER_REJECTED.value,
+                order,
+                reason=str(exc),
             )
+            return None, OrderResult(success=False, error=str(exc))
 
-            if self._risk_manager is not None:
-                risk_result = self._risk_manager.check_order(order)
-                if not risk_result.allowed:
-                    if self._event_bus is not None:
-                        self._event_bus.publish(
-                            DomainEvent.now(
-                                EventType.RISK_REJECTED.value,
-                                payload={
-                                    "order_id": order.order_id,
-                                    "rule": risk_result.reason,
-                                    "value": "0",
-                                    "limit": "0",
-                                },
-                                symbol=order.symbol,
-                                source="OrderManager",
-                                correlation_id=order.correlation_id,
-                            )
-                        )
-                    self._publish(
-                        EventType.ORDER_REJECTED.value,
-                        order,
-                        reason=risk_result.reason,
-                    )
-                    with self._lock:
-                        self._pending_correlation.discard(request.correlation_id)
-                    return OrderResult(success=False, error=risk_result.reason)
-                else:
-                    if self._event_bus is not None:
-                        self._event_bus.publish(
-                            DomainEvent.now(
-                                EventType.RISK_APPROVED.value,
-                                payload={"order_id": order.order_id},
-                                symbol=order.symbol,
-                                source="OrderManager",
-                                correlation_id=order.correlation_id,
-                            )
-                        )
-
-            # ── Phase 3: Broker I/O — no lock held ──
-            if submit_fn is not None:
-                try:
-                    order = submit_fn(request)
-                except Exception as exc:
-                    self._publish(
-                        EventType.ORDER_REJECTED.value,
-                        order,
-                        reason=str(exc),
-                    )
-                    with self._lock:
-                        self._pending_correlation.discard(request.correlation_id)
-                    return OrderResult(success=False, error=str(exc))
-        except Exception:
-            # REF-019: Clean up pending set on any unexpected failure
-            with self._lock:
-                self._pending_correlation.discard(request.correlation_id)
-            raise
-
-        # ── Phase 4: Record result (under lock) ──
+    def _record_and_publish(
+        self, order: Order, request: OmsOrderCommand
+    ) -> None:
+        """Phase 4: Record order in book and publish event (under lock)."""
         with self._lock:
             self._pending_correlation.discard(request.correlation_id)
             self._orders[order.order_id] = order
@@ -342,9 +383,12 @@ class OrderManager:
                 "quantity": order.quantity,
             },
         )
-
         self._publish(EventType.ORDER_PLACED.value, order)
-        return OrderResult(success=True, order=order)
+
+    def _release_pending(self, request: OmsOrderCommand) -> None:
+        """Remove the correlation ID from the pending set (under lock)."""
+        with self._lock:
+            self._pending_correlation.discard(request.correlation_id)
 
     def upsert_order(self, order: Order) -> None:
         """Update or insert an order (used by broker event handlers).
@@ -354,7 +398,6 @@ class OrderManager:
         with self._lock:
             existing = self._orders.get(order.order_id)
             if existing is not None:
-                # P4-3: Delegate to state validator
                 self._state_validator.validate_transition(
                     order.order_id,
                     existing.status,
@@ -365,7 +408,6 @@ class OrderManager:
             if order.correlation_id:
                 self._orders_by_correlation[order.correlation_id] = order
 
-            # P4-3: Log state change if order existed
             if existing is not None and existing.status != order.status:
                 self._audit_logger.log_state_change(
                     order.order_id,
@@ -420,7 +462,6 @@ class OrderManager:
 
             self._processed_trades.mark_processed(key)
 
-            # P4-3: Delegate to position updater
             updated = self._position_updater.apply_trade(order, trade)
 
             self._orders[order.order_id] = updated
@@ -431,7 +472,6 @@ class OrderManager:
             if self._metrics is not None:
                 self._metrics.inc(EventType.TRADE.value, "trade_processed")
 
-            # P4-3: Log audit trail
             self._audit_logger.log_trade_applied(
                 order.order_id,
                 trade.trade_id,
@@ -535,7 +575,6 @@ class OrderManager:
             if order.correlation_id:
                 self._orders_by_correlation[order.correlation_id] = updated
 
-            # P4-3: Log audit trail
             self._audit_logger.log_state_change(
                 order_id,
                 old_status,

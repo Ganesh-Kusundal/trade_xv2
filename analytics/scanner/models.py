@@ -145,7 +145,6 @@ class BaseScanner:
 
         P1-Phase 1: Publishes SCAN_STARTED and SCAN_COMPLETED events.
         """
-        # P1-Phase 1: Publish SCAN_STARTED
         if self.event_bus is not None:
             from domain.events import EventType
 
@@ -213,7 +212,6 @@ class BaseScanner:
             )
             self._candidates.append(candidate)
 
-            # P1-Phase 1: Publish CANDIDATE_GENERATED event
             if self.event_bus is not None:
                 from domain.events import EventType
 
@@ -232,7 +230,6 @@ class BaseScanner:
             universe_size=len(scored),
         )
 
-        # P1-Phase 1: Publish SCAN_COMPLETED
         if self.event_bus is not None:
             from domain.events import EventType
 

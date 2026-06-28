@@ -405,7 +405,7 @@ class EventBus:
                     raise
 
         # 2. Dispatch (snapshot handlers to be lock-safe).
-        # A3: Skip handler dispatch during replay to prevent TRADE_APPLIED re-publishing
+        # Skip handler dispatch during replay to prevent TRADE_APPLIED re-publishing
         # which causes PositionManager to double-count trades.
         if self._replay_mode:
             return

@@ -182,8 +182,8 @@ class EventLog:
             "source": event.source,
             "symbol": event.symbol,
             "payload": self._serialize_payload(event.payload),
-            "correlation_id": event.correlation_id,  # B5: Preserve correlation for replay
-            "sequence_number": event.sequence_number,  # P4
+            "correlation_id": event.correlation_id,
+            "sequence_number": event.sequence_number,
         }
         line = json.dumps(record, separators=(",", ":"), default=str)
         with self._lock:
@@ -254,8 +254,8 @@ class EventLog:
                     payload=_deserialize_payload(record.get("payload", {})),
                     symbol=record.get("symbol"),
                     source=record.get("source", ""),
-                    correlation_id=record.get("correlation_id"),  # B5: Restore correlation
-                    sequence_number=record.get("sequence_number", 0),  # P4
+                    correlation_id=record.get("correlation_id"),
+                    sequence_number=record.get("sequence_number", 0),
                 )
                 events.append(event)
                 if handler is not None:

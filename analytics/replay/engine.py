@@ -188,7 +188,7 @@ class ReplayEngine:
         session.peak_equity = config.initial_capital
         session.equity_curve.append((df[ts_col].iloc[0], config.initial_capital))
 
-        # TASK-4.3: Pre-allocated numpy arrays as ring buffer.
+        # Pre-allocated numpy arrays as ring buffer.
         # pd.DataFrame(list_of_dicts) is replaced by pd.DataFrame(dict_of_arrays)
         # which is 10-20x faster because numpy arrays are columnar and don't require
         # per-row dict unpacking. For window_size=200 with 100K bars, the numpy
@@ -224,7 +224,7 @@ class ReplayEngine:
                 volume=float(row.get("volume", 0)),
             )
 
-            # TASK-4.3: Write bar into pre-allocated numpy arrays or deque
+            # Write bar into pre-allocated numpy arrays or deque
             if window_size > 0:
                 if _filled < window_size:
                     # Growing phase: write at the end
@@ -264,7 +264,7 @@ class ReplayEngine:
                     continue
                 warmup_done = True
 
-            # TASK-4.3: Build window DataFrame from numpy arrays (not list-of-dicts).
+            # Build window DataFrame from numpy arrays (not list-of-dicts).
             # pd.DataFrame(dict_of_arrays) is ~10-20x faster than pd.DataFrame(list_of_dicts)
             # because numpy arrays are already columnar — no per-row dict unpacking needed.
             if window_size > 0:
@@ -290,7 +290,7 @@ class ReplayEngine:
             # Construct Candidate
             candidate = Candidate(symbol=symbol, score=50.0, reasons=["replay"])
 
-            # P2-3: Check intra-bar stop-loss/target BEFORE processing signals
+            # Check intra-bar stop-loss/target BEFORE processing signals
             if session.position is not None:
                 pos = session.position
                 hit_stop = pos.stop_loss is not None and bar.low <= pos.stop_loss

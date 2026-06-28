@@ -133,7 +133,7 @@ class RiskManager:
             self._capital_provider = FixedCapitalProvider(RISK_FALLBACK_CAPITAL)
 
         self._daily_pnl: Decimal = Decimal("0")
-        # A2: lock that protects _config, _daily_pnl, and the derived
+        # Lock that protects _config, _daily_pnl, and the derived
         # reads in check_order. RLock (not Lock) so the OMS may
         # legitimately call check_order from inside its own critical
         # section without deadlocking.
@@ -144,7 +144,7 @@ class RiskManager:
         self._kill_switch_toggles: int = 0
         self._last_reset_at: float = 0.0  # time.time() at last reset
 
-        # B1: Loss-based circuit breaker
+        # Loss-based circuit breaker
         self._loss_cb = LossCircuitBreaker(config=loss_cb_config)
 
     # -- Margin check (B3) --
@@ -255,7 +255,7 @@ class RiskManager:
             if self._config.kill_switch:
                 return RiskResult(False, "Kill switch is active")
 
-            # B1: Loss circuit breaker check (before capital check)
+            # Loss circuit breaker check (before capital check)
             cb_allowed, cb_reason = self._loss_cb.allow_trading()
             if not cb_allowed:
                 return RiskResult(False, cb_reason)
@@ -264,7 +264,7 @@ class RiskManager:
             if capital <= 0:
                 return RiskResult(False, "Insufficient capital")
 
-            # B3: F&O margin check (derivative segments only)
+            # F&O margin check (derivative segments only)
             if self._config.enable_margin_check and is_derivative_segment(order.exchange):
                 margin_result = self._check_margin(order)
                 if not margin_result.allowed:
@@ -313,7 +313,7 @@ class RiskManager:
             previous_pnl = self._daily_pnl
             self._daily_pnl = pnl
 
-            # B1: record the PnL delta (not the absolute value) in the
+            # Record the PnL delta (not the absolute value) in the
             # loss circuit breaker. The delta represents the realised /
             # unrealised change since the last update.
             delta = pnl - previous_pnl
@@ -430,6 +430,6 @@ class RiskManager:
                 ),
             }
 
-        # B1: Append loss circuit breaker state (takes its own lock).
+        # Append loss circuit breaker state (takes its own lock).
         base["loss_circuit_breaker"] = self._loss_cb.snapshot()
         return base

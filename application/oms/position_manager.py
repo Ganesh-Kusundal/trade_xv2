@@ -37,7 +37,7 @@ class PositionManager:
         event_bus: EventBus | None = None,
         processed_trade_repository: ProcessedTradeRepository | None = None,
         metrics: EventMetrics | None = None,
-        enforce_state_transitions: bool = True,  # P2-Phase 2: Enforce valid state transitions
+        enforce_state_transitions: bool = True,
     ) -> None:
         self._lock = threading.RLock()
         self._positions: dict[str, Position] = {}
@@ -48,7 +48,6 @@ class PositionManager:
         self._metrics = metrics
         self._trades_applied = 0
 
-        # P2-Phase 2: State machine enforcement (audit-only mode first)
         self._enforce_state_transitions = enforce_state_transitions
         self._position_states: dict[
             str, StateMachine[PositionState]
@@ -148,7 +147,7 @@ class PositionManager:
                 )
             events_to_publish.append((EventType.POSITION_UPDATED.value, updated))
 
-        # REF-020: Publish events OUTSIDE the lock
+        # Publish events OUTSIDE the lock to avoid holding it during dispatch
         for event_type, data in events_to_publish:
             self._publish(
                 event_type,
@@ -220,7 +219,7 @@ class PositionManager:
                 self._positions[key] = pos
                 self._publish(
                     EventType.POSITION_UPDATED.value, pos
-                )  # P1-3: Migrated to EventType enum
+                )
                 return pos
             # Update existing position
             delta = quantity - current.quantity
@@ -230,7 +229,7 @@ class PositionManager:
             self._positions[key] = updated
             self._publish(
                 EventType.POSITION_UPDATED.value, updated
-            )  # P1-3: Migrated to EventType enum
+            )
             return updated
 
     def reset(self) -> None:

@@ -157,12 +157,12 @@ def test_on_trade_event_is_idempotent(bus: EventBus, repo: ProcessedTradeReposit
         metrics=bus._metrics,  # type: ignore[attr-defined]
     )
     om.upsert_order(_make_order())
-    bus.subscribe(EventType.TRADE.value, om.on_trade)  # P1-3: Migrated to EventType enum
+    bus.subscribe(EventType.TRADE.value, om.on_trade)
 
     trade = _make_trade("T1")
     event = DomainEvent.now(
         EventType.TRADE.value, {"trade": trade}, symbol="RELIANCE"
-    )  # P1-3: Migrated to EventType enum
+    )
     bus.publish(event)
     bus.publish(event)  # duplicate
     bus.publish(event)  # duplicate
@@ -175,7 +175,7 @@ def test_on_trade_event_is_idempotent(bus: EventBus, repo: ProcessedTradeReposit
 def test_place_order_still_emits_order_placed_event(bus: EventBus) -> None:
     om = OrderManager(event_bus=bus)
     seen: list[DomainEvent] = []
-    bus.subscribe(EventType.ORDER_PLACED.value, seen.append)  # P1-3: Migrated to EventType enum
+    bus.subscribe(EventType.ORDER_PLACED.value, seen.append)
     om.place_order(OrderRequest("RELIANCE", "NSE", Side.BUY, 10))
     assert len(seen) == 1
     assert seen[0].event_type == "ORDER_PLACED"
@@ -184,6 +184,6 @@ def test_place_order_still_emits_order_placed_event(bus: EventBus) -> None:
 def test_upsert_order_emits_order_updated_event(bus: EventBus) -> None:
     om = OrderManager(event_bus=bus)
     seen: list[DomainEvent] = []
-    bus.subscribe(EventType.ORDER_UPDATED.value, seen.append)  # P1-3: Migrated to EventType enum
+    bus.subscribe(EventType.ORDER_UPDATED.value, seen.append)
     om.upsert_order(_make_order())
     assert len(seen) == 1

@@ -403,31 +403,55 @@ class HistoricalDataCoordinator:
             )
             bars = await gw.get_historical_bars(request, quota=quota)
             elapsed = (time.monotonic() - start) * 1000
-            ledger.add_chunk(
-                ChunkRecord(
-                    chunk_id=plan.chunk_id,
-                    broker_id=plan.broker_id,
-                    from_date=plan.from_date,
-                    to_date=plan.to_date,
-                    timeframe=plan.timeframe,
-                    bars_fetched=len(bars),
-                    fetch_latency_ms=elapsed,
-                )
-            )
-            with contextlib.suppress(Exception):
-                from brokers.common.observability.audit import emit_historical_chunk
+            self._record_chunk_result(plan, ledger, bars, elapsed)
+            return plan, bars
+        except Exception as exc:
+            elapsed = (time.monotonic() - start) * 1000
+            self._record_chunk_result(plan, ledger, None, elapsed, error=exc)
+            return plan, None
 
-                emit_historical_chunk(
-                    request_id=plan.request_id,
-                    chunk_id=plan.chunk_id,
-                    broker_id=plan.broker_id,
-                    from_date=plan.from_date.isoformat(),
-                    to_date=plan.to_date.isoformat(),
-                    timeframe=plan.timeframe,
-                    event_type="complete",
-                    bar_count=len(bars),
-                    latency_ms=elapsed,
-                )
+    def _record_chunk_result(
+        self,
+        plan: _ChunkPlan,
+        ledger: ProvenanceLedger,
+        bars: Sequence[HistoricalBar] | None,
+        elapsed_ms: float,
+        error: Exception | None = None,
+    ) -> None:
+        """Record chunk outcome in the ledger, audit log, and structured log."""
+        bar_count = len(bars) if bars is not None else 0
+        event_type = "complete" if error is None else "failed"
+
+        ledger.add_chunk(
+            ChunkRecord(
+                chunk_id=plan.chunk_id,
+                broker_id=plan.broker_id,
+                from_date=plan.from_date,
+                to_date=plan.to_date,
+                timeframe=plan.timeframe,
+                bars_fetched=bar_count,
+                error=str(error) if error else None,
+                fetch_latency_ms=elapsed_ms,
+            )
+        )
+
+        with contextlib.suppress(Exception):
+            from brokers.common.observability.audit import emit_historical_chunk
+
+            emit_historical_chunk(
+                request_id=plan.request_id,
+                chunk_id=plan.chunk_id,
+                broker_id=plan.broker_id,
+                from_date=plan.from_date.isoformat(),
+                to_date=plan.to_date.isoformat(),
+                timeframe=plan.timeframe,
+                event_type=event_type,
+                bar_count=bar_count,
+                latency_ms=elapsed_ms,
+                **({"error": str(error)} if error else {}),
+            )
+
+        if error is None:
             logger.info(
                 "historical.chunk.complete",
                 extra={
@@ -435,50 +459,20 @@ class HistoricalDataCoordinator:
                     "broker_id": plan.broker_id,
                     "from_date": plan.from_date.isoformat(),
                     "to_date": plan.to_date.isoformat(),
-                    "bar_count": len(bars),
+                    "bar_count": bar_count,
                     "request_id": plan.request_id,
                 },
             )
-            return plan, bars
-        except Exception as exc:
-            elapsed = (time.monotonic() - start) * 1000
-            ledger.add_chunk(
-                ChunkRecord(
-                    chunk_id=plan.chunk_id,
-                    broker_id=plan.broker_id,
-                    from_date=plan.from_date,
-                    to_date=plan.to_date,
-                    timeframe=plan.timeframe,
-                    bars_fetched=0,
-                    error=str(exc),
-                    fetch_latency_ms=elapsed,
-                )
-            )
-            with contextlib.suppress(Exception):
-                from brokers.common.observability.audit import emit_historical_chunk
-
-                emit_historical_chunk(
-                    request_id=plan.request_id,
-                    chunk_id=plan.chunk_id,
-                    broker_id=plan.broker_id,
-                    from_date=plan.from_date.isoformat(),
-                    to_date=plan.to_date.isoformat(),
-                    timeframe=plan.timeframe,
-                    event_type="failed",
-                    bar_count=0,
-                    latency_ms=elapsed,
-                    error=str(exc),
-                )
+        else:
             logger.warning(
                 "historical.chunk.failed",
                 extra={
                     "chunk_id": plan.chunk_id,
                     "broker_id": plan.broker_id,
-                    "error": str(exc),
+                    "error": str(error),
                     "request_id": plan.request_id,
                 },
             )
-            return plan, None
 
     async def _try_fallback(
         self,

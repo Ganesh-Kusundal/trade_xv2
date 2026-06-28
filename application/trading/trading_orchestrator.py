@@ -85,7 +85,7 @@ class OrchestratorConfig:
     default_order_type: OrderType = OrderType.MARKET
     max_position_size_pct: float = 0.0
     feature_timeout_seconds: float | None = None
-    default_exchange: str = "NSE"  # P4-5: Configurable exchange
+    default_exchange: str = "NSE"
 
 
 class TradingOrchestrator:
@@ -245,7 +245,7 @@ class TradingOrchestrator:
         """
         try:
             if self._config.feature_timeout_seconds is not None:
-                # P4-5: Use concurrent.futures timeout wrapper for feature fetching
+                # Use concurrent.futures timeout wrapper for feature fetching
                 import concurrent.futures
 
                 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:

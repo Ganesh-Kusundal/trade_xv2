@@ -71,7 +71,7 @@ def risk_manager(position_manager: PositionManager, capital_fn: MagicMock) -> Ri
 
 
 # ═════════════════════════════════════════════════════════════════════════
-# A3: RiskManager concurrency
+# RiskManager concurrency
 # ═════════════════════════════════════════════════════════════════════════
 
 
@@ -204,7 +204,7 @@ def test_kill_switch_property_reflects_set_kill_switch(
 
 
 # ═════════════════════════════════════════════════════════════════════════
-# A2: reset_daily_pnl
+# reset_daily_pnl
 # ═════════════════════════════════════════════════════════════════════════
 
 

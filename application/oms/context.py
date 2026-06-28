@@ -48,6 +48,107 @@ from application.oms.protocols import (
 logger = logging.getLogger(__name__)
 
 
+# ── Managed services extracted to module level for testability ────────────────
+
+
+class DlqMonitorService:
+    """Lightweight DLQ depth monitor — logs depth periodically, drains on shutdown.
+
+    Registered with :class:`LifecycleManager` so the DLQ is drained
+    deterministically and its entries are visible in logs on shutdown.
+    """
+
+    name = "oms.dlq_monitor"
+
+    def __init__(self, queue: DeadLetterQueue) -> None:
+        self._queue = queue
+        self._thread: threading.Thread | None = None
+        self._stop = threading.Event()
+        self._last_depth = 0
+        self._total_drained = 0
+
+    def start(self) -> None:
+        if self._thread and self._thread.is_alive():
+            return
+        self._stop.clear()
+        self._thread = threading.Thread(target=self._loop, daemon=True, name="dlq-monitor")
+        self._thread.start()
+
+    def stop(self, timeout_seconds: float = 30.0) -> None:
+        self._stop.set()
+        if self._thread:
+            self._thread.join(timeout=timeout_seconds)
+            self._thread = None
+        try:
+            drained = self._queue.drain()
+            self._total_drained += len(drained)
+            if drained:
+                logger.warning(
+                    "DLQ drain on shutdown: %d entries. First: %s",
+                    len(drained),
+                    drained[0].to_dict() if drained else "none",
+                )
+        except Exception as exc:
+            logger.debug("dlq_shutdown_drain_failed: %s", exc)
+
+    def health(self):
+        from infrastructure.lifecycle import HealthState, build_health
+
+        return build_health(
+            self.name,
+            HealthState.HEALTHY if self._last_depth == 0 else HealthState.DEGRADED,
+            detail=f"depth={self._last_depth}, total_drained={self._total_drained}",
+            metrics={"depth": self._last_depth, "total_drained": self._total_drained},
+        )
+
+    def _loop(self) -> None:
+        while not self._stop.wait(timeout=60.0):
+            stats = self._queue.stats()
+            self._last_depth = stats["size"]
+            if self._last_depth > 0:
+                logger.warning(
+                    "DLQ depth: %d entries, %d dropped (lifetime)",
+                    self._last_depth,
+                    stats.get("dropped", 0),
+                )
+
+
+class ProcessedTradeCleanupService:
+    """Stops ProcessedTradeRepository auto-cleanup on lifecycle shutdown."""
+
+    name = "oms.processed_trade_cleanup"
+
+    def __init__(self, repo: ProcessedTradeRepository) -> None:
+        self._repo = repo
+
+    def start(self) -> None:
+        return
+
+    def stop(self, timeout_seconds: float = 30.0) -> None:
+        self._repo.stop_auto_cleanup(timeout_seconds=timeout_seconds)
+
+    def health(self):
+        from infrastructure.lifecycle import HealthState, build_health
+
+        return build_health(
+            self.name,
+            HealthState.HEALTHY,
+            detail="processed trade ledger active",
+        )
+
+
+from dataclasses import dataclass as _dataclass
+
+
+@_dataclass(frozen=True)
+class CancellationResult:
+    """Typed result for cancel_all_open_orders."""
+
+    orders_cancelled: int = 0
+    orders_failed: int = 0
+    failed_order_ids: tuple[str, ...] = ()
+
+
 class TradingContext:
     """Container for the central trading services used by gateways and CLI.
 
@@ -315,98 +416,12 @@ class TradingContext:
         lifecycle.register(scheduler)
 
     def _register_dlq_monitor(self, lifecycle: LifecycleManager) -> None:
-        """Register a lightweight DLQ depth monitor with the lifecycle.
-
-        Periodically logs dead-letter queue depth so operators can alert
-        on handler failures. On shutdown (stop), drains the DLQ and logs
-        any remaining entries so they are not silently lost.
-        """
-        from infrastructure.lifecycle import HealthState, ManagedService
-
-        dlq: DeadLetterQueue = self._dead_letter_queue
-
-        class _DlqMonitor(ManagedService):
-            name = "oms.dlq_monitor"
-
-            def __init__(self, queue: DeadLetterQueue):
-                self._queue = queue
-                self._thread: threading.Thread | None = None
-                self._stop = threading.Event()
-                self._last_depth = 0
-                self._total_drained = 0
-
-            def start(self) -> None:
-                if self._thread and self._thread.is_alive():
-                    return
-                self._stop.clear()
-                self._thread = threading.Thread(target=self._loop, daemon=True, name="dlq-monitor")
-                self._thread.start()
-
-            def stop(self, timeout_seconds: float = 30.0) -> None:
-                self._stop.set()
-                if self._thread:
-                    self._thread.join(timeout=timeout_seconds)
-                    self._thread = None
-                # Drain remaining DLQ entries on shutdown so they are
-                # visible in logs, not silently lost.
-                try:
-                    drained = self._queue.drain()
-                    self._total_drained += len(drained)
-                    if drained:
-                        logger.warning(
-                            "DLQ drain on shutdown: %d entries. First: %s",
-                            len(drained),
-                            drained[0].to_dict() if drained else "none",
-                        )
-                except Exception as exc:
-                    logger.debug("dlq_shutdown_drain_failed: %s", exc)
-
-            def health(self):
-                from infrastructure.lifecycle import build_health
-
-                return build_health(
-                    self.name,
-                    HealthState.HEALTHY if self._last_depth == 0 else HealthState.DEGRADED,
-                    detail=f"depth={self._last_depth}, total_drained={self._total_drained}",
-                    metrics={"depth": self._last_depth, "total_drained": self._total_drained},
-                )
-
-            def _loop(self) -> None:
-                while not self._stop.wait(timeout=60.0):
-                    stats = self._queue.stats()
-                    self._last_depth = stats["size"]
-                    if self._last_depth > 0:
-                        logger.warning(
-                            "DLQ depth: %d entries, %d dropped (lifetime)",
-                            self._last_depth,
-                            stats.get("dropped", 0),
-                        )
-
-        lifecycle.register(_DlqMonitor(dlq))
+        """Register a lightweight DLQ depth monitor with the lifecycle."""
+        lifecycle.register(DlqMonitorService(self._dead_letter_queue))
 
     def _register_processed_trade_cleanup(self, lifecycle: LifecycleManager) -> None:
         """Stop ProcessedTradeRepository auto-cleanup on lifecycle shutdown."""
-        from infrastructure.lifecycle import HealthState, ManagedService, build_health
-
-        repo = self._processed_trades
-
-        class _ProcessedTradeCleanup(ManagedService):
-            name = "oms.processed_trade_cleanup"
-
-            def start(self) -> None:
-                return
-
-            def stop(self, timeout_seconds: float = 30.0) -> None:
-                repo.stop_auto_cleanup(timeout_seconds=timeout_seconds)
-
-            def health(self):
-                return build_health(
-                    self.name,
-                    HealthState.HEALTHY,
-                    detail="processed trade ledger active",
-                )
-
-        lifecycle.register(_ProcessedTradeCleanup())
+        lifecycle.register(ProcessedTradeCleanupService(self._processed_trades))
 
     def _replay_log_into_oms(self) -> None:
         """Replay persisted ORDER_UPDATED/TRADE events to rebuild OMS state.
@@ -439,7 +454,7 @@ class TradingContext:
                     self._order_manager.on_order_update(event)
                 elif event.event_type == EventType.TRADE.value:
                     self._order_manager.on_trade(event)
-                    # A3: During replay, TRADE_APPLIED events are suppressed by
+                    # During replay, TRADE_APPLIED events are suppressed by
                     # the event bus. Directly invoke position manager to rebuild
                     # positions from replayed trades.
                     self._position_manager.on_trade_applied(event)
@@ -565,7 +580,7 @@ class TradingContext:
         self,
         gateway: IBrokerGateway | None = None,
         timeout_per_order: float = 5.0,
-    ) -> dict:
+    ) -> CancellationResult:
         """Cancel all open orders, optionally via a broker gateway.
 
         For each OPEN order in the OMS:
@@ -577,32 +592,23 @@ class TradingContext:
             gateway: MarketDataGateway with cancel_order() method.
             timeout_per_order: Max seconds per cancellation (documented
                               for future async use).
-
-        Returns:
-            dict with:
-                - orders_cancelled: count of successful cancellations
-                - orders_failed: count of failed cancellations
-                - failed_order_ids: list of order IDs that failed
         """
         from domain import OrderStatus
 
-        result = {
-            "orders_cancelled": 0,
-            "orders_failed": 0,
-            "failed_order_ids": [],
-        }
+        cancelled = 0
+        failed = 0
+        failed_ids: list[str] = []
 
         open_orders = [order for order in self._order_manager.get_orders() if order.status == OrderStatus.OPEN]
 
         if not open_orders:
             logger.debug("TradingContext: no open orders to cancel")
-            return result
+            return CancellationResult()
 
         logger.info("TradingContext: cancelling %d open orders", len(open_orders))
 
         for order in open_orders:
             try:
-                # Try broker cancellation first if gateway available
                 if gateway is not None:
                     try:
                         cancel_response = gateway.cancel_order(order.order_id)
@@ -613,8 +619,8 @@ class TradingContext:
                                 order.order_id,
                                 msg,
                             )
-                            result["orders_failed"] += 1
-                            result["failed_order_ids"].append(order.order_id)
+                            failed += 1
+                            failed_ids.append(order.order_id)
                             continue
                     except Exception as exc:
                         logger.error(
@@ -623,23 +629,21 @@ class TradingContext:
                             type(exc).__name__,
                             exc,
                         )
-                        result["orders_failed"] += 1
-                        result["failed_order_ids"].append(order.order_id)
+                        failed += 1
+                        failed_ids.append(order.order_id)
                         continue
 
-                # Local cancellation (always attempted, even if broker
-                # cancel failed — we want local state to reflect intent)
                 cancel_result = self._order_manager.cancel_order(order.order_id)
                 if cancel_result.success:
-                    result["orders_cancelled"] += 1
+                    cancelled += 1
                 else:
                     logger.warning(
                         "TradingContext: local cancel failed for %s: %s",
                         order.order_id,
                         cancel_result.error,
                     )
-                    result["orders_failed"] += 1
-                    result["failed_order_ids"].append(order.order_id)
+                    failed += 1
+                    failed_ids.append(order.order_id)
 
             except Exception as exc:
                 logger.error(
@@ -648,10 +652,14 @@ class TradingContext:
                     type(exc).__name__,
                     exc,
                 )
-                result["orders_failed"] += 1
-                result["failed_order_ids"].append(order.order_id)
+                failed += 1
+                failed_ids.append(order.order_id)
 
-        return result
+        return CancellationResult(
+            orders_cancelled=cancelled,
+            orders_failed=failed,
+            failed_order_ids=tuple(failed_ids),
+        )
 
     # ── ManagedService protocol implementation ──────────────────────────
 

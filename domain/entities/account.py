@@ -31,7 +31,7 @@ class Balance:
         return self.available_balance >= required
 
 
-# REF-024: FundLimits is now a type alias for Balance.
+# FundLimits is a type alias for Balance.
 # All FundLimits fields (available_balance, used_margin, total_margin)
 # are a subset of Balance. The has_sufficient() method was moved to Balance.
 FundLimits = Balance
