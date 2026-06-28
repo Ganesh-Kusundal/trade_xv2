@@ -5,13 +5,9 @@ from __future__ import annotations
 from decimal import Decimal
 from unittest.mock import MagicMock
 
+from brokers.common.dtos import BrokerOrderPayload
 from brokers.upstox.orders.order_client import UpstoxRestOrderClient
 from brokers.upstox.orders.order_command_adapter import UpstoxOrderCommandAdapter
-from domain import (
-    ExchangeSegment,
-    OrderRequest,
-    Side,
-)
 from domain import (
     OrderType as EnumsOrderType,
 )
@@ -19,9 +15,11 @@ from domain import (
     ProductType as EnumsProductType,
 )
 from domain import (
+    Side,
+)
+from domain import (
     Validity as EnumsValidity,
 )
-from infrastructure.event_bus import EventBus
 
 
 class _FakeOrderClient(UpstoxRestOrderClient):
@@ -34,22 +32,16 @@ class _FakeOrderClient(UpstoxRestOrderClient):
 
 def test_place_order_does_not_publish_order_placed() -> None:
     """OMS is the sole publisher of ORDER_PLACED; adapter is transport-only."""
-    bus = EventBus()
-    received = []
-    bus.subscribe("ORDER_PLACED", lambda e: received.append(e))
-
     resolver = MagicMock()
     resolver.resolve.return_value = MagicMock(instrument_key="NSE_EQ|RELIANCE")
 
     adapter = UpstoxOrderCommandAdapter(
         order_client=_FakeOrderClient(),
         instrument_resolver=resolver,
-        event_bus=bus,
     )
 
-    request = OrderRequest(
+    request = BrokerOrderPayload(
         symbol="RELIANCE",
-        exchange_segment=ExchangeSegment.NSE,
         transaction_type=Side.BUY,
         quantity=10,
         price=Decimal("2500"),
@@ -61,14 +53,9 @@ def test_place_order_does_not_publish_order_placed() -> None:
     response = adapter.place_order(request)
 
     assert response.success
-    assert len(received) == 0
 
 
 def test_place_order_failure_does_not_publish() -> None:
-    bus = EventBus()
-    received = []
-    bus.subscribe("ORDER_PLACED", lambda e: received.append(e))
-
     client = _FakeOrderClient()
     client.place_order_v3 = lambda payload: {"status": "error", "errors": ["boom"]}
 
@@ -78,12 +65,10 @@ def test_place_order_failure_does_not_publish() -> None:
     adapter = UpstoxOrderCommandAdapter(
         order_client=client,
         instrument_resolver=resolver,
-        event_bus=bus,
     )
 
-    request = OrderRequest(
+    request = BrokerOrderPayload(
         symbol="RELIANCE",
-        exchange_segment=ExchangeSegment.NSE,
         transaction_type=Side.BUY,
         quantity=10,
         order_type=EnumsOrderType.MARKET,
@@ -93,7 +78,6 @@ def test_place_order_failure_does_not_publish() -> None:
     response = adapter.place_order(request)
 
     assert not response.success
-    assert len(received) == 0
 
 
 def test_place_order_risk_check_blocks_order() -> None:
@@ -115,9 +99,8 @@ def test_place_order_risk_check_blocks_order() -> None:
         risk_manager=risk,
     )
 
-    request = OrderRequest(
+    request = BrokerOrderPayload(
         symbol="RELIANCE",
-        exchange_segment=ExchangeSegment.NSE,
         transaction_type=Side.BUY,
         quantity=1000,
         price=Decimal("100"),

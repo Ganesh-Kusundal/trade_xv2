@@ -13,7 +13,7 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 
-from datalake.paths import CURATED_ROOT, curated_equity_glob, curated_equity_path
+from datalake.paths import CURATED_ROOT, curated_equity_glob
 
 logger = logging.getLogger(__name__)
 

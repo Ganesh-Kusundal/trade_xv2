@@ -101,7 +101,7 @@ class TestLiveOrderLifecycle:
         import os
         if not os.environ.get("DHAN_ALLOW_LIVE_ORDERS"):
             pytest.skip("Live orders disabled (DHAN_ALLOW_LIVE_ORDERS not set)")
-        
+
         # Use a clearly fake order ID
         response = gateway.cancel_order("NONEXISTENT-ORDER-123456")
         assert response.success is False

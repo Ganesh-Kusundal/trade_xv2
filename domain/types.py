@@ -28,15 +28,15 @@ from domain.market_enums import ExchangeSegment, InstrumentType
 from domain.positions import POSITION_STATE_TRANSITIONS, PositionState
 
 __all__ = [
+    "ORDER_STATUS_TRANSITIONS",
+    "POSITION_STATE_TRANSITIONS",
     "Capability",
     "ConnectionStatus",
     "ExchangeSegment",
     "InstrumentType",
-    "ORDER_STATUS_TRANSITIONS",
     "OrderStatus",
     "OrderType",
     "PositionState",
-    "POSITION_STATE_TRANSITIONS",
     "ProductType",
     "Side",
     "Validity",

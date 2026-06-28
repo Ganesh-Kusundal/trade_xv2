@@ -30,7 +30,10 @@ class TestUpstoxTotpClientInitialization:
     def test_init_with_valid_config(self):
         """Test client initializes successfully with valid config."""
         settings = _make_settings()
-        with patch("upstox_totp.UpstoxTOTP") as mock_totp:
+        with (
+            patch.dict("sys.modules", {"upstox_totp": MagicMock()}),
+            patch("upstox_totp.UpstoxTOTP") as mock_totp,
+        ):
             mock_totp.return_value = MagicMock()
             client = UpstoxTotpClient(settings)
             assert client._client is not None
@@ -51,7 +54,10 @@ class TestUpstoxTotpClientTokenGeneration:
     def test_generate_token_success(self):
         """Test successful token generation."""
         settings = _make_settings()
-        with patch("upstox_totp.UpstoxTOTP") as mock_totp:
+        with (
+            patch.dict("sys.modules", {"upstox_totp": MagicMock()}),
+            patch("upstox_totp.UpstoxTOTP") as mock_totp,
+        ):
             mock_response = MagicMock()
             mock_response.success = True
             mock_response.data = MagicMock()
@@ -72,7 +78,10 @@ class TestUpstoxTotpClientTokenGeneration:
     def test_generate_token_failure(self):
         """Test token generation failure handling."""
         settings = _make_settings()
-        with patch("upstox_totp.UpstoxTOTP") as mock_totp:
+        with (
+            patch.dict("sys.modules", {"upstox_totp": MagicMock()}),
+            patch("upstox_totp.UpstoxTOTP") as mock_totp,
+        ):
             mock_response = MagicMock()
             mock_response.success = False
             mock_response.data = None
@@ -89,7 +98,10 @@ class TestUpstoxTotpClientTokenGeneration:
     def test_generate_token_exception(self):
         """Test exception during token generation."""
         settings = _make_settings()
-        with patch("upstox_totp.UpstoxTOTP") as mock_totp:
+        with (
+            patch.dict("sys.modules", {"upstox_totp": MagicMock()}),
+            patch("upstox_totp.UpstoxTOTP") as mock_totp,
+        ):
             mock_client = MagicMock()
             mock_client.app_token.get_access_token.side_effect = Exception("API error")
             mock_totp.return_value = mock_client
@@ -106,27 +118,27 @@ class TestUpstoxTotpClientValidation:
     def test_validate_config_complete(self):
         """Test validation passes with complete config."""
         settings = _make_settings()
-        with patch("upstox_totp.UpstoxTOTP"):
+        with patch.dict("sys.modules", {"upstox_totp": MagicMock()}):
             client = UpstoxTotpClient(settings)
             assert client.validate_config() is True
 
     def test_validate_config_missing_mobile(self):
         """Test validation fails with missing mobile."""
         settings = _make_settings(mobile="")
-        with patch("upstox_totp.UpstoxTOTP"):
+        with patch.dict("sys.modules", {"upstox_totp": MagicMock()}):
             client = UpstoxTotpClient(settings)
             assert client.validate_config() is False
 
     def test_validate_config_missing_pin(self):
         """Test validation fails with missing PIN."""
         settings = _make_settings(pin="")
-        with patch("upstox_totp.UpstoxTOTP"):
+        with patch.dict("sys.modules", {"upstox_totp": MagicMock()}):
             client = UpstoxTotpClient(settings)
             assert client.validate_config() is False
 
     def test_validate_config_missing_totp_secret(self):
         """Test validation fails with missing TOTP secret."""
         settings = _make_settings(totp_secret="")
-        with patch("upstox_totp.UpstoxTOTP"):
+        with patch.dict("sys.modules", {"upstox_totp": MagicMock()}):
             client = UpstoxTotpClient(settings)
             assert client.validate_config() is False

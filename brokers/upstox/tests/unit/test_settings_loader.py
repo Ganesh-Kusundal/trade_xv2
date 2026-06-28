@@ -264,19 +264,19 @@ class TestUpstoxSettingsLoaderFromProperties:
     def test_missing_client_id_raises(self, tmp_path: Path):
         path = tmp_path / "empty.properties"
         path.write_text("upstox.environment=LIVE\n")
-        with pytest.raises(ValueError, match="must contain upstox.clientId"):
+        with pytest.raises(ValueError, match=r"must contain upstox\.clientId"):
             UpstoxSettingsLoader.from_properties(path)
 
     def test_invalid_environment_raises(self, tmp_path: Path):
         path = tmp_path / "bad.properties"
         path.write_text("upstox.clientId=cid\nupstox.environment=BOGUS\n")
-        with pytest.raises(ValueError, match="upstox.environment must be one of"):
+        with pytest.raises(ValueError, match=r"upstox\.environment must be one of"):
             UpstoxSettingsLoader.from_properties(path)
 
     def test_invalid_auth_mode_raises(self, tmp_path: Path):
         path = tmp_path / "bad.properties"
         path.write_text("upstox.clientId=cid\nupstox.authMode=BOGUS\n")
-        with pytest.raises(ValueError, match="upstox.authMode must be one of"):
+        with pytest.raises(ValueError, match=r"upstox\.authMode must be one of"):
             UpstoxSettingsLoader.from_properties(path)
 
     def test_default_env_file(self, tmp_path: Path, monkeypatch):

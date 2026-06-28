@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from unittest.mock import MagicMock
 
+from brokers.common.dtos import BrokerOrderPayload
 from brokers.upstox.auth.config import UpstoxConnectionSettings
 from brokers.upstox.broker import UpstoxBroker
 from brokers.upstox.capabilities import (
@@ -17,7 +18,6 @@ from brokers.upstox.capabilities import (
 )
 from domain import (
     ExchangeSegment,
-    OrderRequest,
     OrderResponse,
     OrderType,
     ProductType,
@@ -97,7 +97,7 @@ def test_orders_capability_place_delegates_to_order_command() -> None:
     mock_response = OrderResponse.ok(order_id="CAP-001")
     broker.order_command.place_order = MagicMock(return_value=mock_response)
 
-    request = OrderRequest(
+    request = BrokerOrderPayload(
         symbol="RELIANCE",
         exchange="NSE",
         exchange_segment=ExchangeSegment.NSE,

@@ -6,7 +6,7 @@ rather than defining its own hard-coded string.
 
 Usage::
 
-    from endpoints import Dhan, Upstox
+    from brokers.common.endpoints import Dhan, Upstox
 
     # Dhan REST
     client = DhanHttpClient(base_url=Dhan.REST_BASE)
@@ -415,7 +415,7 @@ class Upstox:
 
     Usage::
 
-        from endpoints import Upstox
+        from brokers.common.endpoints import Upstox
 
         urls = Upstox.production()
         # or urls = Upstox.sandbox()
@@ -450,3 +450,6 @@ class Upstox:
     def sandbox(cls) -> _UpstoxUrls:
         """Return a frozen URL resolver for the sandbox environment."""
         return _UpstoxUrls(base_v2=cls._SANDBOX_V2, base_hft=cls._SANDBOX_HFT, is_sandbox=True)
+
+
+__all__ = ["Dhan", "Upstox"]

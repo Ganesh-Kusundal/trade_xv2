@@ -31,24 +31,6 @@ class TestRegressionSuiteInfo:
 
     def test_regression_suite_description(self):
         """Print regression suite coverage information."""
-        suite_info = """
-        ╔══════════════════════════════════════════════════════════╗
-        ║     DHAN PRODUCTION REGRESSION SUITE                     ║
-        ╠══════════════════════════════════════════════════════════╣
-        ║  Coverage:                                               ║
-        ║  ✅ Portfolio: funds, positions, holdings, trades        ║
-        ║  ✅ Orders: orderbook, get_order, cancel, validation     ║
-        ║  ✅ Market Data: ltp, quote, depth, history              ║
-        ║  ✅ Derivatives: option_chain, future_chain              ║
-        ║  ✅ Batch: ltp_batch, quote_batch, history_batch         ║
-        ║  ✅ Instruments: search, load_instruments                ║
-        ║  ✅ Streaming: stream/unstream (LTP/QUOTE/FULL)          ║
-        ║  ✅ Observability: connection, CB, token, rate limiter   ║
-        ║  ✅ WebSocket: market feed, order stream, depth-20/200   ║
-        ║  ✅ Options: expiries, chain, greeks, expired data       ║
-        ║  ✅ Validation: lot size, product types, idempotency     ║
-        ╚══════════════════════════════════════════════════════════╝
-        """
         # This test just documents the suite - always passes
         assert True
 

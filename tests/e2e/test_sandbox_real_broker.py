@@ -7,15 +7,16 @@ Requirements:
 - Dhan sandbox credentials in .env.local:
   DHAN_SANDBOX_CLIENT_ID=...
   DHAN_SANDBOX_ACCESS_TOKEN=...
-  
+
 - Marked with @pytest.mark.sandbox to skip in regular CI
 
 Usage:
     ./venv/bin/python -m pytest tests/e2e/test_sandbox_real_broker.py -v -k sandbox
 """
-import pytest
+import contextlib
 import os
-from rich.console import Console
+
+import pytest
 
 
 @pytest.mark.sandbox
@@ -26,9 +27,9 @@ class TestDhanSandboxE2E:
     def dhan_sandbox_gateway(self):
         """Create Dhan gateway with sandbox credentials."""
         from dotenv import load_dotenv
-        from brokers.dhan.gateway import BrokerGateway
+
         from brokers.dhan.connection import DhanConnection
-        from domain import BrokerCapabilities
+        from brokers.dhan.gateway import BrokerGateway
 
         load_dotenv(".env.local")
 
@@ -52,10 +53,8 @@ class TestDhanSandboxE2E:
         yield gw
 
         # Cleanup
-        try:
+        with contextlib.suppress(Exception):
             gw.close()
-        except Exception:
-            pass
 
     def test_sandbox_quote_returns_real_data(self, dhan_sandbox_gateway):
         """Verify quote command returns REAL data from Dhan sandbox."""
@@ -140,10 +139,11 @@ class TestUpstoxSandboxE2E:
     @pytest.fixture
     def upstox_sandbox_gateway(self):
         """Create Upstox gateway with sandbox credentials."""
-        from dotenv import load_dotenv
-        from brokers.upstox.gateway import UpstoxBrokerGateway
-        from brokers.upstox.broker import UpstoxBroker
         from brokers.upstox.settings import UpstoxSettings
+        from dotenv import load_dotenv
+
+        from brokers.upstox.broker import UpstoxBroker
+        from brokers.upstox.gateway import UpstoxBrokerGateway
 
         load_dotenv(".env.local")
 
@@ -169,10 +169,8 @@ class TestUpstoxSandboxE2E:
         yield gw
 
         # Cleanup
-        try:
+        with contextlib.suppress(Exception):
             gw.close()
-        except Exception:
-            pass
 
     def test_sandbox_quote_returns_real_data(self, upstox_sandbox_gateway):
         """Verify quote command returns REAL data from Upstox sandbox."""
@@ -220,8 +218,9 @@ class TestCrossBrokerParity:
     def dhan_sandbox(self):
         """Create Dhan sandbox gateway."""
         from dotenv import load_dotenv
-        from brokers.dhan.gateway import BrokerGateway
+
         from brokers.dhan.connection import DhanConnection
+        from brokers.dhan.gateway import BrokerGateway
 
         load_dotenv(".env.local")
 
@@ -242,18 +241,17 @@ class TestCrossBrokerParity:
 
         yield gw
 
-        try:
+        with contextlib.suppress(Exception):
             gw.close()
-        except Exception:
-            pass
 
     @pytest.fixture
     def upstox_sandbox(self):
         """Create Upstox sandbox gateway."""
-        from dotenv import load_dotenv
-        from brokers.upstox.gateway import UpstoxBrokerGateway
-        from brokers.upstox.broker import UpstoxBroker
         from brokers.upstox.settings import UpstoxSettings
+        from dotenv import load_dotenv
+
+        from brokers.upstox.broker import UpstoxBroker
+        from brokers.upstox.gateway import UpstoxBrokerGateway
 
         load_dotenv(".env.local")
 
@@ -276,10 +274,8 @@ class TestCrossBrokerParity:
 
         yield gw
 
-        try:
+        with contextlib.suppress(Exception):
             gw.close()
-        except Exception:
-            pass
 
     def test_quote_returns_equivalent_schema(self, dhan_sandbox, upstox_sandbox):
         """All brokers should return Quote with same fields and types."""
@@ -296,7 +292,7 @@ class TestCrossBrokerParity:
 
         # Verify symbols match
         assert dhan_quote.symbol == upstox_quote.symbol == "RELIANCE"
-        print(f"✅ Schema parity: Both brokers return equivalent Quote structures")
+        print("✅ Schema parity: Both brokers return equivalent Quote structures")
 
     def test_place_order_returns_equivalent_response(self, dhan_sandbox, upstox_sandbox):
         """All brokers should return OrderResponse with same fields."""
@@ -327,4 +323,4 @@ class TestCrossBrokerParity:
         dhan_sandbox.cancel_order(dhan_response.order_id)
         upstox_sandbox.cancel_order(upstox_response.order_id)
 
-        print(f"✅ OrderResponse parity: Both brokers return equivalent responses")
+        print("✅ OrderResponse parity: Both brokers return equivalent responses")

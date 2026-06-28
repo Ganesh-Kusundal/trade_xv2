@@ -2,12 +2,11 @@
 
 Verify read-only commands work when OMS lock is held.
 """
-import pytest
-import fcntl
-import os
-import subprocess
 import concurrent.futures
+import fcntl
+import subprocess
 from pathlib import Path
+
 from rich.console import Console
 
 
@@ -21,7 +20,7 @@ class TestLockContention:
         # Acquire OMS lock
         lock_path = Path("market_data/oms_orders.sqlite.lock")
         lock_path.parent.mkdir(parents=True, exist_ok=True)
-        lock_fd = open(lock_path, "w")
+        lock_fd = open(lock_path, "w")  # noqa: SIM115
         fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
 
         try:

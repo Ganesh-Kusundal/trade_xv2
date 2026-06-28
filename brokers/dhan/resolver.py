@@ -14,7 +14,7 @@ from collections.abc import Iterable
 from brokers.dhan.domain import Exchange, Instrument, InstrumentType, OptionType
 from brokers.dhan.exceptions import InstrumentNotFoundError
 from brokers.dhan.segments import SEGMENT_TO_EXCHANGE
-from indices import get_index_entry, is_index
+from domain.indices import get_index_entry, is_index
 
 logger = logging.getLogger(__name__)
 

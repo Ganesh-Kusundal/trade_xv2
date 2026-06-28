@@ -9,8 +9,6 @@ Now includes circuit breaker and retry patterns for resilience (RES-03, RES-04).
 from __future__ import annotations
 
 import logging
-import threading
-import time
 from collections.abc import Callable
 from typing import Any
 

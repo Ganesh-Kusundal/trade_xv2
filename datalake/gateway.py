@@ -233,7 +233,7 @@ class DataLakeGateway(
             if list(self._curated_root.glob("year=*/month=*/data_*.parquet")):
                 normalized = [normalize_symbol(s) for s in symbols]
                 placeholders = ",".join("?" for _ in normalized)
-                query = f"""
+                query = f"""  # noqa: S608
                     SELECT symbol, close
                     FROM (
                         SELECT symbol, close,
@@ -242,8 +242,8 @@ class DataLakeGateway(
                         WHERE symbol IN ({placeholders})
                     )
                     WHERE rn = 1
-                """
-                df = duckdb.execute(query, [curated_glob] + normalized).fetchdf()
+                """  # noqa: S608
+                df = duckdb.execute(query, [curated_glob, *normalized]).fetchdf()
                 return {
                     symbol: Decimal(str(close))
                     for symbol, close in zip(df["symbol"], df["close"], strict=False)
@@ -319,12 +319,12 @@ class DataLakeGateway(
             curated_glob = curated_equity_glob(root=str(self._curated_root))
             normalized = [normalize_symbol(s) for s in symbols]
             placeholders = ",".join("?" for _ in normalized)
-            query = f"""
+            query = f"""  # noqa: S608
                 SELECT *
                 FROM read_parquet(?)
                 WHERE symbol IN ({placeholders})
-            """
-            df = duckdb.execute(query, [curated_glob] + normalized).fetchdf()
+            """  # noqa: S608
+            df = duckdb.execute(query, [curated_glob, *normalized]).fetchdf()
             if not df.empty:
                 df = self._filter_by_date(df, lookback_days=lookback_days)
                 df["timeframe"] = timeframe

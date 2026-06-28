@@ -143,14 +143,14 @@ class TestWebSocketSubscription:
         """stream() should accept FULL mode."""
         gateway_connected.stream("RELIANCE", exchange="NSE", mode="FULL")
 
-        keys, mode = gateway_connected._broker.market_data_websocket.subscribed[0]
+        _keys, mode = gateway_connected._broker.market_data_websocket.subscribed[0]
         assert mode == "full"
 
     def test_stream_accepts_option_greeks_mode(self, gateway_connected):
         """stream() should accept option_greeks mode."""
         gateway_connected.stream("NIFTY", exchange="NFO", mode="option_greeks")
 
-        keys, mode = gateway_connected._broker.market_data_websocket.subscribed[0]
+        _keys, mode = gateway_connected._broker.market_data_websocket.subscribed[0]
         assert mode == "option_greeks"
 
     def test_stream_maps_nse_exchange(self, gateway_connected):

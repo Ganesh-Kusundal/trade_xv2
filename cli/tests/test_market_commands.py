@@ -9,7 +9,6 @@ from __future__ import annotations
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
-import pandas as pd
 import pytest
 from rich.console import Console
 
@@ -278,7 +277,7 @@ class TestShowFutures:
 
     def test_show_futures_success(self, mock_broker_service, console):
         from domain.entities.options import FutureChain, FutureContract
-        
+
         chain = FutureChain(
             underlying="NIFTY",
             exchange="NFO",
@@ -309,7 +308,7 @@ class TestShowFutures:
 
     def test_show_futures_no_contracts(self, mock_broker_service, console):
         from domain.entities.options import FutureChain
-        
+
         chain = FutureChain(underlying="NIFTY", exchange="NFO", expiries=(), contracts=())
         mock_broker_service.active_broker.future_chain.return_value = chain
 
@@ -320,7 +319,7 @@ class TestShowFutures:
 
     def test_show_commodity_futures(self, mock_broker_service, console):
         from domain.entities.options import FutureChain
-        
+
         chain = FutureChain(
             underlying="GOLD",
             exchange="MCX",

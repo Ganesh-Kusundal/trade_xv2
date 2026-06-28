@@ -10,8 +10,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from brokers.common.endpoints import Dhan
 from brokers.dhan.segments import _COMPACT_SEGMENT_MAP
-from endpoints import Dhan
 
 logger = logging.getLogger(__name__)
 

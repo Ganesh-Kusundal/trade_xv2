@@ -205,7 +205,7 @@ class TestUnstream:
 
     def test_unstream_all_removes_everything(self):
         """unstream() without on_tick should remove ALL callbacks and registry entry."""
-        gw, my_tick = self._make_gateway_with_stream()
+        gw, _my_tick = self._make_gateway_with_stream()
         gw.unstream("RELIANCE", "NSE")
 
         assert ("RELIANCE", "NSE") not in gw._stream_registry

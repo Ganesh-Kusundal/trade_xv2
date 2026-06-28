@@ -94,7 +94,7 @@ class BrokerContractSuite:
                 assert col not in df.columns, f"Forbidden column: {col}"
 
     def test_option_chain_returns_dict(self, gateway: Any) -> None:
-        from domain.derivatives import OptionChain
+        from domain import OptionChain
 
         result = gateway.option_chain("NIFTY", "NFO")
         # Accept both domain objects and dict representations (broker flexibility)
@@ -104,7 +104,7 @@ class BrokerContractSuite:
         assert "underlying" in result
 
     def test_future_chain_returns_dict(self, gateway: Any) -> None:
-        from domain.derivatives import FutureChain
+        from domain import FutureChain
 
         result = gateway.future_chain("NIFTY", "NFO")
         if isinstance(result, FutureChain):

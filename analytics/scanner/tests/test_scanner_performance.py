@@ -61,7 +61,7 @@ def _benchmark_memory(fn: Callable, *args, **kwargs) -> tuple:
     """Measure peak memory usage of a function call."""
     tracemalloc.start()
     result = fn(*args, **kwargs)
-    current, peak = tracemalloc.get_traced_memory()
+    _current, peak = tracemalloc.get_traced_memory()
     tracemalloc.stop()
     return result, peak / 1024  # Return peak in KB
 
@@ -179,7 +179,7 @@ class TestScannerMemoryUsage:
         tracemalloc.start()
         for _ in range(20):
             scanner.scan(universe)
-        current, peak = tracemalloc.get_traced_memory()
+        current, _peak = tracemalloc.get_traced_memory()
         tracemalloc.stop()
 
         # Memory should be bounded (allow for interpreter overhead ~200MB)

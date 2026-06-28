@@ -44,9 +44,10 @@ Usage:
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
@@ -116,7 +117,7 @@ class ScannerQuery:
         rows = conn.execute(sql, [as_of_time] * param_count).fetchall()
         desc = conn.description
         columns = [d[0] for d in desc] if desc else []
-        return [dict(zip(columns, row)) for row in rows]
+        return [dict(zip(columns, row, strict=False)) for row in rows]
 
     @staticmethod
     def _rows_to_candidates(rows: list[dict]) -> list[Candidate]:
@@ -136,10 +137,8 @@ class ScannerQuery:
                 if key in ("symbol", "score", "reason", "signal", "composite_score"):
                     continue
                 if val is not None and isinstance(val, (int, float)):
-                    try:
+                    with contextlib.suppress(Exception):
                         metrics[key] = Decimal(str(round(float(val), 6)))
-                    except Exception:
-                        pass
 
             candidate = Candidate(
                 symbol=symbol,
@@ -535,11 +534,11 @@ def compare_scanners(
 
 __all__ = [
     "ScannerQuery",
-    "momentum_scanner",
-    "volume_scanner",
-    "rs_rotation_scanner",
     "breakout_scanner",
-    "list_scanners",
-    "run_scanner",
     "compare_scanners",
+    "list_scanners",
+    "momentum_scanner",
+    "rs_rotation_scanner",
+    "run_scanner",
+    "volume_scanner",
 ]

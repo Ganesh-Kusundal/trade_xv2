@@ -246,7 +246,6 @@ class UpstoxBroker:
             use_v3=True,
             algo_name=settings.algo_name or None,
             market_protection_default=settings.market_protection_default,
-            event_bus=self._event_bus,
             risk_manager=self._risk_manager,
         )
         self.order_query = UpstoxOrderQueryAdapter(self.order_client, self.instrument_resolver)

@@ -9,9 +9,9 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical
 from textual.widgets import Button, DataTable, Input, Label, Static
 
+from brokers.common.connection.errors import BrokerNotReadyError
 from cli.commands.market import resolve_exchange
 from cli.services.broker_service import BrokerService
-from brokers.common.connection.errors import BrokerNotReadyError
 
 logger = logging.getLogger(__name__)
 
@@ -142,7 +142,7 @@ class MarketConsoleWidget(Static):
         # 3. Update Option Chain - dynamic expiry resolution
         try:
             from datetime import date
-            
+
             # Resolve next valid expiry dynamically
             expiry = None
             try:
@@ -151,60 +151,60 @@ class MarketConsoleWidget(Static):
                 future_expiries = sorted([e for e in expiries if e >= today_str])
                 expiry = future_expiries[0] if future_expiries else None
             except Exception:
-                pass
-            
+                logger.debug("Could not resolve option expiries for %s", symbol)
+
             if not expiry:
                 # Fallback: skip option chain if no expiry found
                 return
-            
+
             # Get option chain using correct gateway method
             opt_chain = broker.options.get_option_chain(symbol, "NFO", expiry)
-            
+
             # Convert to dict if it's a dataclass
             if hasattr(opt_chain, 'to_dict'):
                 opt_chain = opt_chain.to_dict()
-            
+
             if opt_chain and opt_chain.get('strikes'):
                 opt_table = self.query_one("#opt-chain-table", DataTable)
                 opt_table.clear()
-                
+
                 strikes = opt_chain['strikes']
                 spot = opt_chain.get('spot', 0)
-                
+
                 # Find ATM strike
                 atm_strike = min(strikes, key=lambda s: abs(float(s['strike']) - float(spot)))
                 atm_strike_val = float(atm_strike['strike'])
-                
+
                 all_strikes = sorted([float(s['strike']) for s in strikes])
-                median_strike = float(opt_chain.get('spot', 0))
-                
+                float(opt_chain.get('spot', 0))
+
                 # Show 5 strikes around ATM
                 idx = next((i for i, s in enumerate(all_strikes) if abs(s - atm_strike_val) < 0.01), len(all_strikes) // 2)
                 visible_strikes = all_strikes[max(0, idx - 2) : min(len(all_strikes), idx + 3)]
-                
+
                 for strike in visible_strikes:
                     # Find matching strike in data
                     ce_data = next((s for s in strikes if float(s['strike']) == strike and s.get('option_type') == 'CE'), None)
                     pe_data = next((s for s in strikes if float(s['strike']) == strike and s.get('option_type') == 'PE'), None)
-                    
+
                     is_atm = abs(strike - atm_strike_val) < 0.1
                     ce_itm = strike < atm_strike_val
                     pe_itm = strike > atm_strike_val
-                    
+
                     strike_txt = Text(
                         f"{strike:,.0f}", style="bold yellow" if is_atm else "bold white"
                     )
-                    
+
                     ce_oi = f"{int(ce_data.get('oi', 0)):,}" if ce_data else "-"
                     ce_vol = f"{int(ce_data.get('volume', 0)):,}" if ce_data else "-"
                     ce_ltp = f"{ce_data.get('ltp', 0):,.2f}" if ce_data and ce_data.get('ltp') else "-"
                     ce_ltp_txt = Text(ce_ltp, style="dim green" if ce_itm else "green")
-                    
+
                     pe_oi = f"{int(pe_data.get('oi', 0)):,}" if pe_data else "-"
                     pe_vol = f"{int(pe_data.get('volume', 0)):,}" if pe_data else "-"
                     pe_ltp = f"{pe_data.get('ltp', 0):,.2f}" if pe_data and pe_data.get('ltp') else "-"
                     pe_ltp_txt = Text(pe_ltp, style="dim red" if pe_itm else "red")
-                    
+
                     opt_table.add_row(
                         ce_oi,
                         ce_vol,

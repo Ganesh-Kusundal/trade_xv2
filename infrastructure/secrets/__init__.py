@@ -1,4 +1,16 @@
-"""Secrets manager — unified access to credentials from env and files."""
+"""Secrets manager — unified access to credentials from env and files.
+
+Moved from root-level ``secrets_manager.py`` to ``infrastructure/secrets/``
+to respect architectural layering. Brokers and application code should
+import from here rather than the root-level orphan.
+
+Usage::
+
+    from infrastructure.secrets import SecretsManager
+
+    mgr = SecretsManager()
+    totp = mgr.get_dhan_totp_secret()
+"""
 
 from __future__ import annotations
 
@@ -53,3 +65,6 @@ class SecretsManager:
         if not value:
             raise ValueError(f"Required secret {key} is not set")
         return value
+
+
+__all__ = ["SecretsManager"]

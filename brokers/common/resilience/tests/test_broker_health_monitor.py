@@ -374,7 +374,7 @@ class TestIntelligentGatewayDegradedModeReadOperations:
 
     def test_history_returns_cached_data_in_degraded_mode(self):
         monitor = BrokerHealthMonitor(failure_threshold=2)
-        gw, dhan, upstox = self._make_degraded_gateway(monitor)
+        gw, dhan, _upstox = self._make_degraded_gateway(monitor)
 
         expected_df = pd.DataFrame({"close": [100, 101, 102]})
         dhan.history.return_value = expected_df

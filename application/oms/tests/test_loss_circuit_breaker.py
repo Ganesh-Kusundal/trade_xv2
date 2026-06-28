@@ -220,7 +220,7 @@ class TestRollingWindow:
         # Wait for cooldown to expire
         time.sleep(cb.config.cooldown_seconds + 0.5)
 
-        allowed, reason = cb.allow_trading()
+        allowed, _reason = cb.allow_trading()
         assert allowed is True
 
     def test_rolling_window_prevents_trip_when_old_losses_expire(self) -> None:

@@ -9,11 +9,12 @@ from pathlib import Path
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
+from runtime.api_bootstrap import initialize_api_services  # noqa: E402
+
 from api.config import APIConfig  # noqa: E402
 from api.main import create_app  # noqa: E402
 from brokers.common.auth.environment_bootstrap import bootstrap_environment  # noqa: E402
 from brokers.common.logging_config import setup_logging  # noqa: E402
-from runtime.api_bootstrap import initialize_api_services  # noqa: E402
 
 logger = logging.getLogger(__name__)
 

@@ -12,11 +12,11 @@ Uses mocked HTTP server to simulate broker auth failures without real credential
 Usage:
     ./venv/bin/python -m pytest tests/integration/test_auth_failure_paths.py -v
 """
-import pytest
 import threading
 import time
-from unittest.mock import MagicMock, patch, PropertyMock
-from decimal import Decimal
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 
 class TestTokenExpiryMidOrder:
@@ -59,7 +59,7 @@ class TestTokenExpiryMidOrder:
         )
 
         # Mock the internal request method
-        with patch.object(client, '_request', side_effect=mock_post) as mock_request:
+        with patch.object(client, '_request', side_effect=mock_post):
             # Make a request
             response = client.post("/orders", json={
                 "symbol": "RELIANCE",
@@ -86,7 +86,7 @@ class TestTokenExpiryMidOrder:
                 refresh_count += 1
             return "new_token"
 
-        client = DhanHttpClient(
+        DhanHttpClient(
             base_url="https://api.dhan.co",
             client_id="test_client",
             access_token="expired_token",
@@ -126,13 +126,12 @@ class TestTOTPFailure:
     def test_invalid_totp_secret_fails_fast(self):
         """Invalid TOTP secret should fail fast, not hang."""
         from pyotp import TOTP
-        import pyotp
 
         # Invalid TOTP secret (too short)
         invalid_secret = "INVALID"
 
         # Should raise when trying to generate TOTP
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017
             totp = TOTP(invalid_secret)
             totp.now()
 
@@ -159,7 +158,6 @@ class TestRateLimitedLogin:
 
     def test_rate_limited_login_raises_error(self):
         """429 on login should raise RateLimitError, not block."""
-        from brokers.common.resilience.errors import RateLimitError
 
         # Simulate rate limiter
         from brokers.common.resilience.rate_limiter import TokenBucketRateLimiter
@@ -170,7 +168,7 @@ class TestRateLimitedLogin:
         limiter.acquire("login")
 
         # Second request immediately should fail
-        with pytest.raises(Exception):  # Could be TimeoutError or custom
+        with pytest.raises(Exception):  # noqa: B017  # Could be TimeoutError or custom
             limiter.acquire("login", timeout=0)
 
         print("✅ Rate limited login raises error")
@@ -178,6 +176,7 @@ class TestRateLimitedLogin:
     def test_rate_limited_login_does_not_deadlock(self):
         """429 on login should not cause deadlock."""
         import threading
+
         from brokers.common.resilience.rate_limiter import TokenBucketRateLimiter
 
         limiter = TokenBucketRateLimiter(rate=1, capacity=1)
@@ -212,8 +211,9 @@ class TestWebSocketReconnectWithStaleToken:
 
     def test_websocket_reconnect_with_expired_token_fails_gracefully(self):
         """WS reconnect with expired token should trigger re-auth, not crash."""
-        from brokers.dhan.websocket import DhanMarketFeed
         from unittest.mock import MagicMock
+
+        from brokers.dhan.websocket import DhanMarketFeed
 
         # Create mock feed
         mock_feed = MagicMock()
@@ -298,7 +298,6 @@ class TestTokenRefreshRaceCondition:
     def test_concurrent_refresh_does_not_cascade(self):
         """Multiple threads hitting 401 should not trigger multiple refreshes."""
         import threading
-        from unittest.mock import MagicMock, patch
 
         refresh_count = 0
         refresh_lock = threading.Lock()
@@ -343,9 +342,10 @@ class TestAuthIntegrationWithGateway:
     @pytest.fixture
     def mock_dhan_gateway(self):
         """Create Dhan gateway with mocked HTTP client."""
-        from brokers.dhan.gateway import BrokerGateway
-        from brokers.dhan.connection import DhanConnection
         from unittest.mock import MagicMock, patch
+
+        from brokers.dhan.connection import DhanConnection
+        from brokers.dhan.gateway import BrokerGateway
 
         # Create connection
         conn = DhanConnection(

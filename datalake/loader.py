@@ -24,7 +24,6 @@ from datalake.schema import (
     MARKET_CLOSE_MINUTE,
     MARKET_OPEN_HOUR,
     MARKET_OPEN_MINUTE,
-    TEMPORAL_COLUMNS,
 )
 from datalake.symbols import normalize_symbol
 from datalake.validation import validate_candles

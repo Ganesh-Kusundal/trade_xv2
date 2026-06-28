@@ -31,21 +31,21 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _get_execution_composer(broker_service: BrokerService) -> "ExecutionComposer":
+def _get_execution_composer(broker_service: BrokerService) -> ExecutionComposer:
     """Lazy-load ExecutionComposer via CLI helpers.
-    
+
     Uses lazy import to avoid circular dependency between cli.commands
     and cli.composer_helpers.
     """
     from cli.composer_helpers import get_execution_composer
-    
+
     # Get or create cached composer instance
     return get_execution_composer()
 
 
 def _run_async(coro):
     """Run async coroutine from sync CLI context.
-    
+
     Uses async_compat to handle both sync and async contexts safely.
     """
     from brokers.common.async_compat import run_async_compat
@@ -139,7 +139,7 @@ def place_order(
 
         # Build OrderRequest for ExecutionComposer
         from domain.requests import OrderRequest
-        
+
         request = OrderRequest(
             symbol=symbol,
             exchange=exchange,
@@ -294,7 +294,7 @@ def modify_order(
 
         # Build ModifyOrderRequest for ExecutionComposer
         from domain.requests import ModifyOrderRequest
-        
+
         request = ModifyOrderRequest(
             order_id=order_id,
             price=new_price,

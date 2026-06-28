@@ -10,9 +10,9 @@ from typing import Any
 
 import requests
 
+from brokers.common.endpoints import Dhan
 from brokers.common.resilience.circuit_breaker import CircuitBreaker, CircuitState
 from brokers.dhan.exceptions import AuthenticationError, DhanError, RateLimitError
-from endpoints import Dhan
 
 logger = logging.getLogger(__name__)
 

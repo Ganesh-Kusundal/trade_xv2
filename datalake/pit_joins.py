@@ -85,12 +85,8 @@ def as_of_join(
 
     left_cols = ", ".join(f"{left_alias}.{c}" for c in select_left)
     right_cols = ", ".join(f"{right_alias}.{c}" for c in (select_right or []))
-    if select_right:
-        all_cols = f"{left_cols}, {right_cols}"
-    else:
-        all_cols = left_cols
+    all_cols = f"{left_cols}, {right_cols}" if select_right else left_cols
 
-    right_event_time = f"{right_alias}.{as_of_column}"
     right_published_at_col = f"{right_alias}.{right_published_at}"
 
     join_conditions = []
@@ -100,18 +96,18 @@ def as_of_join(
 
     join_sql = " AND ".join(join_conditions)
 
-    sql = f"""
+    sql = f"""  # noqa: S608
         SELECT {all_cols}
         FROM {left_table} AS {left_alias}
         ASOF JOIN {right_table} AS {right_alias}
           ON {join_sql}
-    """
+    """  # noqa: S608
 
     if config.strict:
         lookahead_warnings = validate_no_lookahead(sql)
         if lookahead_warnings:
             raise ValueError(
-                f"Look-ahead patterns detected in query:\n"
+                "Look-ahead patterns detected in query:\n"
                 + "\n".join(lookahead_warnings)
             )
 

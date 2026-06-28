@@ -310,9 +310,8 @@ class TestJournalRouter:
         assert "Unknown" in output
 
     def test_journal_exception_handling(self, console):
-        with pytest.raises(Exception, match="DB error"):
-            with patch(
-                "cli.commands.journal.TradeJournal",
-                side_effect=Exception("DB error"),
-            ):
-                cmd_journal.run_journal(["list"], console)
+        with pytest.raises(Exception, match="DB error"), patch(
+            "cli.commands.journal.TradeJournal",
+            side_effect=Exception("DB error"),
+        ):
+            cmd_journal.run_journal(["list"], console)

@@ -6,19 +6,15 @@ behavioral parity (order lifecycle, error handling).
 
 These tests use:
 - PaperGateway for fast, deterministic parity checks
-- Mocked Dhan/Upstox for schema validation  
+- Mocked Dhan/Upstox for schema validation
 - Real sandbox brokers if credentials available (marked @pytest.mark.sandbox)
 """
 
-import os
-import pytest
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
 
-from domain import (
-    Order, OrderResponse, OrderStatus, OrderType, Side, ProductType, Validity,
-    Quote, MarketDepth, DepthLevel, Balance, Position
-)
+import pytest
+
+from domain import Balance, MarketDepth, Order, OrderStatus, Position
 
 
 class TestQuoteSchemaParity:

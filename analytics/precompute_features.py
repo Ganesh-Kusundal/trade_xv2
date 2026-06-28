@@ -18,14 +18,13 @@ from __future__ import annotations
 import argparse
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 import duckdb
 
-from datalake.duckdb_utils import DEFAULT_CATALOG_PATH, duckdb_connection, get_pool
+from datalake.duckdb_utils import DEFAULT_CATALOG_PATH, get_pool
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +131,7 @@ class FeaturePrecomputer:
 
         published_at_str = published_at.strftime("%Y-%m-%d %H:%M:%S")
 
-        return f"""
+        return f"""  # noqa: S608
         WITH daily AS (
             SELECT
                 CAST(timestamp AS DATE) as event_time,
@@ -361,7 +360,7 @@ class FeaturePrecomputer:
             MONTH(event_time) as month
         FROM daily_filled
         QUALIFY ROW_NUMBER() OVER (PARTITION BY symbol, event_time) = 1
-        """
+        """  # noqa: S608
 
     # ── Intraday features ──────────────────────────────────────────────────
 
@@ -398,7 +397,7 @@ class FeaturePrecomputer:
     def _build_intraday_features_sql(self, published_at: datetime) -> str:
         published_at_str = published_at.strftime("%Y-%m-%d %H:%M:%S")
 
-        return f"""
+        return f"""  # noqa: S608
         WITH base AS (
             SELECT
                 timestamp as event_time,
@@ -621,7 +620,7 @@ class FeaturePrecomputer:
             MONTH(event_time) as month
         FROM gains_losses
         QUALIFY ROW_NUMBER() OVER (PARTITION BY symbol, event_time) = 1
-        """
+        """  # noqa: S608
 
     # ── Options features ───────────────────────────────────────────────────
 
@@ -657,7 +656,7 @@ class FeaturePrecomputer:
     def _build_options_features_sql(self, published_at: datetime) -> str:
         published_at_str = published_at.strftime("%Y-%m-%d %H:%M:%S")
 
-        return f"""
+        return f"""  # noqa: S608
         WITH option_data AS (
             SELECT
                 timestamp as event_time,
@@ -778,7 +777,7 @@ class FeaturePrecomputer:
         LEFT JOIN atm_iv ai
             ON p.event_time = ai.event_time AND p.symbol = ai.symbol
         QUALIFY ROW_NUMBER() OVER (PARTITION BY p.symbol, p.event_time) = 1
-        """
+        """  # noqa: S608
 
     # ── Write utilities ────────────────────────────────────────────────────
 
@@ -799,7 +798,7 @@ class FeaturePrecomputer:
             """
             conn.execute(copy_sql)
 
-            target_rows = int(self.target_file_mb * 1_000_000 / 1024)
+            int(self.target_file_mb * 1_000_000 / 1024)
 
             return feature_dir
         except Exception:

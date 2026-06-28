@@ -240,7 +240,7 @@ class TestRetryExecutorWithCircuitBreaker:
 
         # Trip the circuit breaker inside a single execute call
         # (first 2 retries fail, 3rd hits open circuit -> CircuitBreakerOpenError)
-        with pytest.raises(Exception, match=".*"):
+        with pytest.raises(Exception, match=r".*"):
             executor.execute(fails)
         # The circuit opened during retries — next call should fast-fail
         with pytest.raises(Exception) as excinfo2:

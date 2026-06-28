@@ -2,7 +2,6 @@
 
 Verify BrokerService initialization completes without errors.
 """
-import pytest
 from unittest.mock import patch
 
 
@@ -46,8 +45,8 @@ class TestInitializationFlow:
 
     def test_failed_readiness_cleans_up(self):
         """Verify failed readiness check cleans up properly (P-1.5 fix)."""
-        from cli.services.broker_service import BrokerService
         from brokers.common.services.production_readiness import ProductionReadinessError
+        from cli.services.broker_service import BrokerService
 
         broker_service = BrokerService(load_instruments=True)
 

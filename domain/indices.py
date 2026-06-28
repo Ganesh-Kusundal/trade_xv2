@@ -1,5 +1,8 @@
 """Hardcoded index symbol mapping — single source of truth for all indices.
 
+Moved from root-level ``indices.py`` to ``domain/indices.py`` to respect
+architectural layering — index metadata is domain knowledge, not infrastructure.
+
 Both Dhan and Upstox resolve indices differently from equities:
 
 * **Dhan**: Indices use exchange ``"INDEX"`` and segment ``"IDX_I"``. The Dhan
@@ -20,9 +23,10 @@ This module provides:
 * :func:`dhan_index_exchange` — returns ``"INDEX"`` if *symbol* is an index.
 * :func:`upstox_index_segment` — returns ``"NSE_INDEX"`` (or ``"BSE_INDEX"``)
   or ``None`` if *symbol* is not a known index.
+
 Usage::
 
-    from indices import is_index, dhan_index_exchange, upstox_index_segment
+    from domain.indices import is_index, dhan_index_exchange, upstox_index_segment
 
     # Dhan resolver fallback
     if is_index(symbol):
@@ -386,7 +390,7 @@ def upstox_index_segment(symbol: str) -> str | None:
 
 
 def index_upstox_key(symbol: str) -> str | None:
-    """Return the Upstox instrument_key for *symbol* (e.g. ``\"NSE_INDEX|Nifty 50\"``)."""
+    """Return the Upstox instrument_key for *symbol* (e.g. ``"NSE_INDEX|Nifty 50"``)."""
     entry = _INDEX_MAP.get(symbol.strip().upper())
     if entry and entry.upstox_segment and entry.upstox_name:
         return f"{entry.upstox_segment}|{entry.upstox_name}"
@@ -406,3 +410,14 @@ def list_indices() -> list[dict[str, str]]:
             }
         )
     return result
+
+
+__all__ = [
+    "INDEX_SYMBOLS",
+    "dhan_index_exchange",
+    "get_index_entry",
+    "index_upstox_key",
+    "is_index",
+    "list_indices",
+    "upstox_index_segment",
+]

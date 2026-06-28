@@ -82,11 +82,9 @@ class TestDepthResponseParsing:
         )
         broker.market_data_v2.get_order_book.return_value = {
             "data": {
-                "NSE_EQ:RELIANCE": {
-                    "depth": {
-                        "buy": [{"price": 100.0, "quantity": 10, "orders": 1}],
-                        "sell": [{"price": 101.0, "quantity": 20, "orders": 2}],
-                    }
+                "depth": {
+                    "buy": [{"price": 100.0, "quantity": 10, "orders": 1}],
+                    "sell": [{"price": 101.0, "quantity": 20, "orders": 2}],
                 }
             }
         }

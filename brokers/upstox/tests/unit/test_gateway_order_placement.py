@@ -265,7 +265,7 @@ class TestResolveExchangeSegment:
         gateway = UpstoxBrokerGateway(mock_broker)
 
         # Patch at the config module level
-        with patch("config.indices.index_upstox_key", return_value="NSE_INDEX|Nifty 50"):
+        with patch("domain.indices.index_upstox_key", return_value="NSE_INDEX|Nifty 50"):
             result = gateway._resolve_exchange_segment("NSE", "NIFTY")
 
         assert result == ExchangeSegment.IDX_I

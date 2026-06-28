@@ -22,7 +22,7 @@ from domain import HistoricalCandle, MarketDepth, OptionContract, Quote
 
 class UpstoxMarketDataAdapter(MarketDataProvider):
     """P-2.1: Fixed ISP violation - now implements correct ABC interface."""
-    
+
     def __init__(
         self,
         v2: UpstoxMarketDataV2Client,
@@ -34,10 +34,10 @@ class UpstoxMarketDataAdapter(MarketDataProvider):
         self._historical = historical
 
     # P-2.1: Implement correct ABC interface methods
-    
+
     def quote(self, symbol: str, exchange: str = "NSE") -> Quote:
         """Fetch full quote with OHLCV for an instrument.
-        
+
         P-2.1: Fixed - renamed from get_quote() to match ABC.
         """
         instrument_key = f"{_segment_wire(exchange)}|{symbol}"
@@ -46,7 +46,7 @@ class UpstoxMarketDataAdapter(MarketDataProvider):
 
     def ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:
         """Fetch last traded price.
-        
+
         P-2.1: Fixed - new method required by ABC.
         """
         instrument_key = f"{_segment_wire(exchange)}|{symbol}"
@@ -56,7 +56,7 @@ class UpstoxMarketDataAdapter(MarketDataProvider):
 
     def depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
         """Fetch order book depth.
-        
+
         P-2.1: Fixed - renamed from get_depth() to match ABC.
         """
         instrument_key = f"{_segment_wire(exchange)}|{symbol}"
@@ -73,7 +73,7 @@ class UpstoxMarketDataAdapter(MarketDataProvider):
         to_date: str | None = None,
     ) -> pd.DataFrame:
         """Fetch historical candle data.
-        
+
         P-2.1: Fixed - renamed from get_historical_*() to match ABC.
         Consolidates daily and intraday into single method.
         """
@@ -81,9 +81,9 @@ class UpstoxMarketDataAdapter(MarketDataProvider):
             # ABC supports multiple symbols, but Upstox API takes one at a time
             # Take first symbol for now
             symbol = symbol[0]
-        
+
         instrument_key = f"{_segment_wire(exchange)}|{symbol}"
-        
+
         # Determine candle interval from timeframe
         interval = timeframe.lower()
         if interval == "1d":
@@ -96,28 +96,25 @@ class UpstoxMarketDataAdapter(MarketDataProvider):
             interval = "5minute"
         elif interval == "1m":
             interval = "1minute"
-        
+
         # Parse dates
         from datetime import datetime, timedelta
-        if to_date is None:
-            to_dt = datetime.now()
-        else:
-            to_dt = datetime.fromisoformat(to_date)
-        
+        to_dt = datetime.now() if to_date is None else datetime.fromisoformat(to_date)
+
         if from_date is None:
             from_dt = to_dt - timedelta(days=lookback_days)
         else:
             from_dt = datetime.fromisoformat(from_date)
-        
+
         body = self._historical.get_candles(
             instrument_key, interval, to_dt.date(), from_dt.date()
         )
         candles = UpstoxDomainMapper.to_historical_candles(body)
-        
+
         # Convert to DataFrame for ABC compliance
         if not candles:
             return pd.DataFrame()
-        
+
         return pd.DataFrame([
             {
                 "timestamp": c.timestamp,
@@ -131,7 +128,7 @@ class UpstoxMarketDataAdapter(MarketDataProvider):
         ])
 
     # Legacy methods retained for backward compatibility (internal use)
-    
+
     def get_historical_daily(
         self,
         security_id: str,

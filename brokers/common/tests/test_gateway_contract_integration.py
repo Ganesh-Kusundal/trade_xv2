@@ -315,8 +315,8 @@ class TestDhanGatewayReturnTypes:
     def test_capabilities_returns_broker_capabilities(self, dhan_gw):
         result = dhan_gw.capabilities()
         assert isinstance(result, BrokerCapabilities)
-        assert hasattr(result, "websocket")
-        assert hasattr(result, "depth_20")
+        assert result.stream_limits is not None
+        assert result.supports_depth_20_ws is True
 
     def test_describe_returns_dict(self, dhan_gw):
         result = dhan_gw.describe()

@@ -24,7 +24,7 @@ class TestParseFlags:
 
     def test_broker_flag(self):
         """Test --broker flag."""
-        broker, args, json_mode, verbose, show_timing = _parse_flags(
+        broker, args, _json_mode, _verbose, _show_timing = _parse_flags(
             ["--broker", "upstox", "doctor"]
         )
         assert broker == "upstox"
@@ -32,7 +32,7 @@ class TestParseFlags:
 
     def test_json_flag(self):
         """Test --json flag."""
-        broker, args, json_mode, verbose, show_timing = _parse_flags(
+        _broker, args, json_mode, _verbose, _show_timing = _parse_flags(
             ["--json", "quote", "RELIANCE"]
         )
         assert json_mode is True
@@ -41,13 +41,13 @@ class TestParseFlags:
     def test_verbose_flag(self):
         """Test --verbose flag enables debug logging."""
         with patch.object(logging.getLogger(), "setLevel") as mock_set_level:
-            broker, args, json_mode, verbose, show_timing = _parse_flags(["--verbose", "doctor"])
+            _broker, _args, _json_mode, verbose, _show_timing = _parse_flags(["--verbose", "doctor"])
             assert verbose is True
             mock_set_level.assert_called_once_with(logging.DEBUG)
 
     def test_timing_flag(self):
         """Test --timing flag."""
-        broker, args, json_mode, verbose, show_timing = _parse_flags(["--timing", "doctor"])
+        _broker, _args, _json_mode, _verbose, show_timing = _parse_flags(["--timing", "doctor"])
         assert show_timing is True
 
     def test_all_flags_together(self):
@@ -63,7 +63,7 @@ class TestParseFlags:
 
     def test_flags_in_any_order(self):
         """Test flags can appear in any order."""
-        broker, args, json_mode, verbose, show_timing = _parse_flags(
+        broker, args, _json_mode, verbose, show_timing = _parse_flags(
             ["doctor", "--timing", "--broker", "dhan", "--verbose"]
         )
         assert broker == "dhan"
@@ -73,7 +73,7 @@ class TestParseFlags:
 
     def test_multiple_commands_with_flags(self):
         """Test flags with multiple command arguments."""
-        broker, args, json_mode, verbose, show_timing = _parse_flags(
+        _broker, args, _json_mode, verbose, _show_timing = _parse_flags(
             ["--verbose", "place-order", "RELIANCE", "BUY", "10"]
         )
         assert verbose is True
@@ -81,7 +81,7 @@ class TestParseFlags:
 
     def test_unknown_args_preserved(self):
         """Test unknown arguments are preserved in remaining args."""
-        broker, args, json_mode, verbose, show_timing = _parse_flags(
+        _broker, args, _json_mode, _verbose, _show_timing = _parse_flags(
             ["quote", "RELIANCE", "--unknown-flag"]
         )
         assert args == ["quote", "RELIANCE", "--unknown-flag"]
@@ -104,7 +104,7 @@ class TestVerboseFlag:
 
     def test_verbose_does_not_affect_other_flags(self):
         """Test that --verbose doesn't change other flag defaults."""
-        broker, args, json_mode, verbose, show_timing = _parse_flags(["--verbose", "doctor"])
+        broker, _args, json_mode, _verbose, show_timing = _parse_flags(["--verbose", "doctor"])
         assert broker == "dhan"
         assert json_mode is False
         assert show_timing is False
@@ -115,12 +115,12 @@ class TestTimingFlag:
 
     def test_timing_flag_sets_show_timing_true(self):
         """Test that --timing sets show_timing to True."""
-        broker, args, json_mode, verbose, show_timing = _parse_flags(["--timing", "doctor"])
+        _broker, _args, _json_mode, _verbose, show_timing = _parse_flags(["--timing", "doctor"])
         assert show_timing is True
 
     def test_timing_does_not_affect_other_flags(self):
         """Test that --timing doesn't change other flag defaults."""
-        broker, args, json_mode, verbose, show_timing = _parse_flags(["--timing", "doctor"])
+        broker, _args, json_mode, verbose, _show_timing = _parse_flags(["--timing", "doctor"])
         assert broker == "dhan"
         assert json_mode is False
         assert verbose is False

@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from endpoints import _UpstoxUrls
+from brokers.common.endpoints import _UpstoxUrls
 
 
 class UpstoxApiUrlResolver:

@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Protocol, runtime_checkable
+from typing import Protocol
 from unittest.mock import MagicMock
 
 import pandas as pd
-import pytest
 
 from domain.ports.broker_gateway import OrderTransportPort
 from domain.ports.event_publisher import EventPublisher

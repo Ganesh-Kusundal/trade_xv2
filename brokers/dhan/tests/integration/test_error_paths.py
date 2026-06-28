@@ -83,7 +83,7 @@ class TestErrorPaths:
     def test_history_invalid_timeframe(self, gateway: BrokerGateway):
         """history() with invalid timeframe should handle gracefully."""
         try:
-            df = gateway.history("RELIANCE", "NSE", timeframe="INVALID", lookback_days=5)
+            gateway.history("RELIANCE", "NSE", timeframe="INVALID", lookback_days=5)
             # May return data or empty
             pass
         except (ValueError, KeyError):

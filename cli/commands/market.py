@@ -301,9 +301,9 @@ def show_futures(broker_service: BrokerService, symbol: str, console: Console) -
 
 def show_historical(broker_service: BrokerService, symbol: str, console: Console) -> None:
     """Display historical candles summary and preview via MarketDataComposer."""
-    from cli.composer_helpers import get_market_data_composer
     from brokers.common.async_compat import run_async_compat
     from brokers.common.historical_coordinator import HistoricalQuery
+    from cli.composer_helpers import get_market_data_composer
     from domain.historical import InstrumentRef
 
     # Get MarketDataComposer (lazy-loaded, cached)

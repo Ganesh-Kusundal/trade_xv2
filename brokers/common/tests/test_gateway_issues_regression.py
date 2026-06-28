@@ -316,8 +316,8 @@ class TestGatewayLogging:
 
 class TestUpstoxQuoteLogging:
     """P-2.2: Test removed - was testing deleted adapter.
-    
-    The correct adapter (brokers.upstox.market_data.market_data_adapter) 
+
+    The correct adapter (brokers.upstox.market_data.market_data_adapter)
     does not log warnings for empty quotes - it returns empty Quote objects.
     """
     pass

@@ -29,15 +29,18 @@ import pandas as pd
 
 from brokers.common.batch_mixin import BatchFetchMixin
 from brokers.common.capabilities import upstox_capabilities
+from brokers.common.dtos import BrokerOrderPayload
 from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
 from brokers.upstox.adapters import (
     HistoricalAdapter,
     PortfolioAdapter,
     StreamManagerAdapter,
 )
-from brokers.upstox.market_data.market_data_adapter import UpstoxMarketDataAdapter as MarketDataAdapter
 from brokers.upstox.broker import UpstoxBroker
 from brokers.upstox.extended import UpstoxExtendedCapabilities
+from brokers.upstox.market_data.market_data_adapter import (
+    UpstoxMarketDataAdapter as MarketDataAdapter,
+)
 from domain import (
     Balance,
     ExchangeSegment,
@@ -46,7 +49,6 @@ from domain import (
     MarketDepth,
     OptionChain,
     Order,
-    OrderRequest,
     OrderResponse,
     OrderStatus,
     OrderType,
@@ -88,7 +90,11 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         self._broker = broker
 
         # Initialize specialized adapters
-        self._market_data = MarketDataAdapter(broker)
+        self._market_data = MarketDataAdapter(
+            v2=broker.market_data_v2,
+            v3=broker.market_data_v3,
+            historical=broker.historical_v2,
+        )
         self._historical = HistoricalAdapter(broker)
         self._stream_manager = StreamManagerAdapter(broker, broker.instrument_resolver)
         self._portfolio = PortfolioAdapter(broker)
@@ -132,8 +138,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         Returns:
             Last traded price as Decimal
         """
-        key = self._resolve_instrument_key(symbol, exchange)
-        return self._market_data.get_ltp(symbol, exchange, key)
+        return self._market_data.ltp(symbol, exchange)
 
     def quote(self, symbol: str, exchange: str = "NSE") -> Quote:
         """Fetch full quote with OHLCV for a symbol.
@@ -145,8 +150,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         Returns:
             Quote dataclass with OHLCV data
         """
-        key = self._resolve_instrument_key(symbol, exchange)
-        return self._market_data.get_quote(symbol, exchange, key)
+        return self._market_data.quote(symbol, exchange)
 
     def depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
         """Fetch order book depth for a symbol.
@@ -158,8 +162,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         Returns:
             MarketDepth with bid/ask levels
         """
-        key = self._resolve_instrument_key(symbol, exchange)
-        return self._market_data.get_depth(symbol, exchange, key)
+        return self._market_data.depth(symbol, exchange)
 
     def get_orderbook(self) -> list[Order]:
         """Fetch current order book.
@@ -521,7 +524,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
                 pass
 
         exchange_segment = self._resolve_exchange_segment(exchange, symbol)
-        request = OrderRequest(
+        request = BrokerOrderPayload(
             symbol=symbol,
             exchange=exchange,
             exchange_segment=exchange_segment,
@@ -703,7 +706,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
             Upstox instrument_key string (e.g., "NSE_EQ|INE002A01018")
         """
         from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
-        from indices import index_upstox_key
+        from domain.indices import index_upstox_key
 
         # 1. Check hardcoded index mapping first
         idx_key = index_upstox_key(symbol)
@@ -744,7 +747,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
             Canonical ExchangeSegment enum value
         """
         from domain.exchange_segments import parse_segment
-        from indices import index_upstox_key
+        from domain.indices import index_upstox_key
 
         # Index symbols use a dedicated segment
         if symbol and index_upstox_key(symbol) is not None:

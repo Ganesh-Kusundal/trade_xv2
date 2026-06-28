@@ -18,6 +18,7 @@ from typing import Any
 
 from application.oms._internal.risk_manager import RiskManager
 from brokers.common.dtos import BrokerOrderPayload
+from brokers.common.endpoints import Dhan
 from brokers.dhan.domain import Exchange
 from brokers.dhan.exceptions import DhanError, OrderError
 from brokers.dhan.http_client import DhanHttpClient
@@ -37,7 +38,6 @@ from domain import (
     Side as OrderSide,
 )
 from domain.field_mapping import DefaultFieldMapping
-from endpoints import Dhan
 from infrastructure.event_bus import DomainEvent, EventBus
 
 logger = logging.getLogger(__name__)

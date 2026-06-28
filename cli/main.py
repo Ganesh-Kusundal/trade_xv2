@@ -397,10 +397,10 @@ def main() -> None:
         "validate-history",
         "validate-option-chain",  # Validation needs instruments
     }
-    
+
     # P-1.3: Readonly mode - skip TradingContext/OMS for market data commands
     readonly = subcommand in _READONLY_COMMANDS
-    
+
     event_bus_service = EventBusService()
     broker_service = BrokerService(
         load_instruments=needs_instruments,

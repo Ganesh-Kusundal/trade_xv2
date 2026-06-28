@@ -202,7 +202,7 @@ class TestOptionViewsMaxPain:
             WHERE underlying='NIFTY' AND expiry_kind='WEEK' AND expiry_code=1
             LIMIT 1
         """).fetchone()
-        spot, max_pain, dist, pos = r
+        _spot, _max_pain, dist, _pos = r
         assert dist >= 0
 
     def test_max_pain_is_a_valid_strike(self, opt_db: duckdb.DuckDBPyConnection) -> None:

@@ -23,7 +23,6 @@ from domain import (
     OrderResponse,
 )
 from domain import Side as OrderSide
-from infrastructure.event_bus import DomainEvent, EventBus
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +37,6 @@ class UpstoxOrderCommandAdapter(OrderCommand):
         use_v3: bool = True,
         algo_name: str | None = None,
         market_protection_default: int = -1,
-        event_bus: EventBus | None = None,
         risk_manager: RiskManager | None = None,
     ) -> None:
         self._order_client = order_client
@@ -47,7 +45,6 @@ class UpstoxOrderCommandAdapter(OrderCommand):
         self._use_v3 = use_v3
         self._algo_name = algo_name
         self._market_protection_default = market_protection_default
-        self._event_bus = event_bus
         self._risk_manager = risk_manager
 
     def place_order(self, request: BrokerOrderPayload) -> OrderResponse:
@@ -90,8 +87,6 @@ class UpstoxOrderCommandAdapter(OrderCommand):
             return OrderResponse.fail(str(exc))
 
         response = UpstoxDomainMapper.to_order_response(result)
-        if response.success:
-            self._publish_order_placed(request, response)
         if request.correlation_id and self._idempotency_cache is not None and response.success:
             self._idempotency_cache.put(request.correlation_id, response)
         return response
@@ -233,25 +228,3 @@ class UpstoxOrderCommandAdapter(OrderCommand):
             correlation_id=request.correlation_id,
         )
 
-    def _publish_order_placed(self, request: BrokerOrderPayload, response: OrderResponse) -> None:
-        if self._event_bus is None:
-            return
-
-        try:
-            from dataclasses import replace
-
-            order = replace(
-                self._to_domain_order(request),
-                order_id=response.order_id or "",
-                status=response.status or self._to_domain_order(request).status,
-            )
-        except (RuntimeError, OSError):
-            return
-        self._event_bus.publish(
-            DomainEvent.now(
-                "ORDER_PLACED",
-                {"order": order},
-                symbol=order.symbol,
-                source="UpstoxOrderCommandAdapter",
-            )
-        )

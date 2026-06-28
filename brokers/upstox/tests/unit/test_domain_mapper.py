@@ -4,7 +4,6 @@ from decimal import Decimal
 
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from domain import (
-    ExchangeSegment,
     FundLimits,
     Holding,
     MarketDepth,
@@ -71,7 +70,6 @@ def test_to_place_payload_basic():
 
     req = OrderRequest(
         symbol="RELIANCE",
-        exchange_segment=ExchangeSegment.NSE,
         transaction_type=Side.BUY,
         quantity=10,
         price=Decimal("2500.50"),
@@ -80,7 +78,9 @@ def test_to_place_payload_basic():
         validity=EnumsValidity.DAY,
         correlation_id="corr-1",
     )
-    payload = UpstoxDomainMapper.to_place_payload(req, "NSE_EQ|INE001A01023")
+    payload = UpstoxDomainMapper.to_place_payload(
+        req, "NSE_EQ|INE001A01023", market_protection=-1
+    )
     assert payload["instrument_token"] == "NSE_EQ|INE001A01023"
     assert payload["transaction_type"] == "BUY"
     assert payload["quantity"] == 10
@@ -109,9 +109,10 @@ def test_to_place_payload_with_slice_and_market_protection():
         product_type=EnumsProductType.INTRADAY,
         validity=EnumsValidity.IOC,
         slice=True,
-        market_protection=3,
     )
-    payload = UpstoxDomainMapper.to_place_payload(req, "NSE_EQ|INE001A01023")
+    payload = UpstoxDomainMapper.to_place_payload(
+        req, "NSE_EQ|INE001A01023", market_protection=3
+    )
     assert payload["slice"] is True
     assert payload["market_protection"] == 3
     assert payload["price"] == 0

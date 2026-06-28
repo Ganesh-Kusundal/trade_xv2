@@ -176,14 +176,14 @@ class BrokerService:
                         f"(authenticated={bootstrap.authenticated})"
                     )
                 self._gateway = bootstrap.gateway
-                
+
                 # NEW: In readonly mode, skip OMS/TradingContext initialization
                 # Read-only commands (quote, depth, history) don't need OMS lock
                 if self._readonly:
                     logger.debug("readonly_mode: skipping TradingContext initialization")
                     # P-1.3: Readonly mode - gateway exists but no OMS/TradingContext
                     return
-                
+
                 # P-1.3: Full mode - continue with OMS/TradingContext initialization
                 # P2-2: now that the gateway exists, update the
                 # capital_provider with the real gateway reference.
@@ -203,7 +203,7 @@ class BrokerService:
                 # Register the OMS services with the lifecycle so
                 # they are drained on close().
                 self._build_and_register_oms_services(oms_risk_manager)
-                
+
                 # P-1.5: Run production readiness check BEFORE starting any services
                 # This prevents orphaned background threads when readiness fails
                 try:
@@ -221,7 +221,7 @@ class BrokerService:
                     self._oms_risk_manager = None
                     logger.error("production_readiness_failed: %s", exc)
                     return
-                
+
                 # P-1.5: ONLY NOW start services - readiness check passed
                 # B-4: start the WebSocket services through the
                 # lifecycle so they participate in deterministic

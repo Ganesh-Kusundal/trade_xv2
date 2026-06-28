@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -14,7 +13,7 @@ from cli.commands.order_placement import (
     place_orders_batch,
 )
 from cli.commands.registry import CommandResult
-from domain import Order, OrderStatus, OrderType, Side
+from domain import OrderStatus
 
 
 @pytest.fixture()

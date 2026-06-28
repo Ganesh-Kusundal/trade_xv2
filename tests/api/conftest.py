@@ -169,7 +169,7 @@ class StubLiveGateway:
         return []
 
     def option_chain(self, underlying: str, exchange: str = "NFO", expiry=None):
-        from domain.derivatives import OptionChain
+        from domain import OptionChain
 
         return OptionChain(underlying=underlying, exchange=exchange)
 

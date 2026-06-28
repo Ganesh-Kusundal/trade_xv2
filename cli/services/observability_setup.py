@@ -154,7 +154,7 @@ def start_http_observability(
 
     # P-2.4: Configurable port with fallback
     base_port = int(os.getenv("TRADEX_OBSERVABILITY_PORT", "8765"))
-    
+
     # Try port, fallback to next available
     for attempt in range(5):
         port = base_port + attempt
@@ -183,7 +183,7 @@ def start_http_observability(
         except OSError:
             # Port in use, try next
             continue
-    
+
     # Last resort: OS-assigned port
     try:
         server = HttpObservabilityServer(

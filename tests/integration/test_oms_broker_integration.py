@@ -49,7 +49,7 @@ class TestOMSBrokerIntegrationPaper:
 
     def test_place_order_through_oms(self, order_manager, event_bus_with_capturer):
         """Test OrderManager.place_order() → PaperGateway.place_order() flow."""
-        event_bus, capturer = event_bus_with_capturer
+        _event_bus, capturer = event_bus_with_capturer
         capturer.subscribe("ORDER_PLACED")
 
         make_order(
@@ -81,7 +81,7 @@ class TestOMSBrokerIntegrationPaper:
 
     def test_cancel_order_through_oms(self, order_manager, event_bus_with_capturer):
         """Test OrderManager.cancel_order() → PaperGateway.cancel_order() flow."""
-        event_bus, capturer = event_bus_with_capturer
+        _event_bus, capturer = event_bus_with_capturer
         capturer.subscribe("ORDER_PLACED", "ORDER_CANCELLED")
 
         # Place an order first
@@ -104,7 +104,7 @@ class TestOMSBrokerIntegrationPaper:
 
     def test_risk_manager_rejection(self, order_manager, event_bus_with_capturer):
         """Test that risk manager rejects orders before broker call."""
-        event_bus, capturer = event_bus_with_capturer
+        _event_bus, capturer = event_bus_with_capturer
         capturer.subscribe("RISK_CHECK_FAILED")
 
         # Configure strict risk limits

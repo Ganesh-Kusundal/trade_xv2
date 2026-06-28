@@ -18,9 +18,11 @@ from domain import (
     Order,
     OrderResponse,
     OrderStatus,
+    OrderType,
     Position,
     Quote,
     Trade,
+    Validity,
 )
 from domain.constants.defaults import PAPER_INITIAL_CAPITAL
 
@@ -265,24 +267,24 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway):
         order was already filled (instant fill for market orders).
         """
         success = self._orders.cancel_order(order_id)
-        
+
         # Always check order status for post-cancellation verification (H1 fix)
         order = self.get_order(order_id)
-        
+
         if order and order.status in (OrderStatus.FILLED,):
             # Race condition detected: order was filled before cancel
             return OrderResponse.fail(
                 message=f"Order {order_id} was already filled before cancel completed",
                 status=OrderStatus.FILLED,
             )
-        
+
         if success:
             return OrderResponse.ok(
                 order_id=order_id,
                 message="Order cancelled (paper)",
                 status=OrderStatus.CANCELLED,
             )
-        
+
         return OrderResponse.fail(
             message=f"Order {order_id} not found or not open",
             status=OrderStatus.REJECTED,
@@ -312,9 +314,9 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway):
         validity: str | Validity | None = None,
     ) -> OrderResponse:
         """Modify an open order - delegates to PaperOrders.modify_order.
-        
+
         P-2.1 Critical Fix: Implements modify_order for paper trading gateway.
-        
+
         Args:
             order_id: Order ID to modify
             quantity: New quantity (optional)
@@ -322,7 +324,7 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway):
             order_type: New order type (optional)
             trigger_price: New trigger price (optional)
             validity: New validity (optional)
-            
+
         Returns:
             OrderResponse with modified order details
         """
@@ -331,7 +333,7 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway):
             order_type = OrderType(order_type.upper())
         if isinstance(validity, str):
             validity = Validity(validity.upper())
-        
+
         try:
             order = self._orders.modify_order(
                 order_id=order_id,

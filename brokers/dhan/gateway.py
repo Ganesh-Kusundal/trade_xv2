@@ -19,6 +19,7 @@ from brokers.common.resilience.circuit_breaker import CircuitState
 from brokers.dhan.connection import DhanConnection
 from brokers.dhan.exceptions import OrderError
 from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
+from brokers.dhan.websocket import DhanMarketFeed  # noqa: F401
 from domain import (
     Balance,
     FutureChain,
@@ -301,7 +302,7 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
                 },
             )
             return cached
-        
+
         # Fallback to REST API (DEPTH_5)
         logger.debug(
             "depth_20_fallback_to_rest",
@@ -696,7 +697,7 @@ def _dhan_normalize_exchange(symbol: str, exchange: str) -> str:
     ``"NSE"`` / ``"BSE"``. The integration suite uses ``"INDEX"`` for index
     underlyings (NIFTY, BANKNIFTY); we keep that convention.
     """
-    from indices import dhan_index_exchange, is_index
+    from domain.indices import dhan_index_exchange, is_index
 
     if is_index(symbol):
         return dhan_index_exchange(symbol) or exchange

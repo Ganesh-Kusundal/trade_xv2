@@ -3,8 +3,8 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -97,9 +97,9 @@ class ResearchDataset:
                 }
                 for feature in features:
                     if feature == "atr_14":
-                        row["atr_14"] = float(14.5)
+                        row["atr_14"] = 14.5
                     elif feature == "sma_20":
-                        row["sma_20"] = float(120.0)
+                        row["sma_20"] = 120.0
                 rows.append(row)
 
         df = pd.DataFrame(rows).sort_values(by=["symbol", "event_time"])

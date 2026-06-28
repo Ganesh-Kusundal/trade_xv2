@@ -135,7 +135,7 @@ class TestBrokerGateway:
         assert request.exchange_segment is ExchangeSegment.MCX
 
     def test_place_order_unknown_exchange_raises(self):
-        gateway, conn = self._make_gateway()
+        gateway, _conn = self._make_gateway()
         import pytest
 
         with pytest.raises(ValueError, match="Unknown exchange"):

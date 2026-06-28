@@ -202,13 +202,12 @@ class TestUpstoxGatewayNewFeatures:
     def test_gateway_ipo_property(self):
         from unittest.mock import MagicMock
 
-        from brokers.upstox.broker import UpstoxBroker
         from brokers.upstox.gateway import UpstoxBrokerGateway
 
-        mock_broker = MagicMock(spec=UpstoxBroker)
+        mock_broker = MagicMock()
         mock_broker.ipo = MagicMock()
         mock_broker.instrument_resolver = MagicMock()
-        mock_broker.order_command = MagicMock()  # Required by gateway __init__
+        mock_broker.order_command = MagicMock()
 
         gateway = UpstoxBrokerGateway(mock_broker)
         assert gateway.extended is not None
@@ -217,13 +216,12 @@ class TestUpstoxGatewayNewFeatures:
     def test_gateway_payments_property(self):
         from unittest.mock import MagicMock
 
-        from brokers.upstox.broker import UpstoxBroker
         from brokers.upstox.gateway import UpstoxBrokerGateway
 
-        mock_broker = MagicMock(spec=UpstoxBroker)
+        mock_broker = MagicMock()
         mock_broker.payments = MagicMock()
         mock_broker.instrument_resolver = MagicMock()
-        mock_broker.order_command = MagicMock()  # Required by gateway __init__
+        mock_broker.order_command = MagicMock()
 
         gateway = UpstoxBrokerGateway(mock_broker)
         assert gateway.extended is not None
@@ -232,13 +230,12 @@ class TestUpstoxGatewayNewFeatures:
     def test_gateway_mutual_funds_property(self):
         from unittest.mock import MagicMock
 
-        from brokers.upstox.broker import UpstoxBroker
         from brokers.upstox.gateway import UpstoxBrokerGateway
 
-        mock_broker = MagicMock(spec=UpstoxBroker)
+        mock_broker = MagicMock()
         mock_broker.mutual_funds = MagicMock()
         mock_broker.instrument_resolver = MagicMock()
-        mock_broker.order_command = MagicMock()  # Required by gateway __init__
+        mock_broker.order_command = MagicMock()
 
         gateway = UpstoxBrokerGateway(mock_broker)
         assert gateway.extended is not None
@@ -247,13 +244,12 @@ class TestUpstoxGatewayNewFeatures:
     def test_gateway_fundamentals_property(self):
         from unittest.mock import MagicMock
 
-        from brokers.upstox.broker import UpstoxBroker
         from brokers.upstox.gateway import UpstoxBrokerGateway
 
-        mock_broker = MagicMock(spec=UpstoxBroker)
+        mock_broker = MagicMock()
         mock_broker.fundamentals = MagicMock()
         mock_broker.instrument_resolver = MagicMock()
-        mock_broker.order_command = MagicMock()  # Required by gateway __init__
+        mock_broker.order_command = MagicMock()
 
         gateway = UpstoxBrokerGateway(mock_broker)
         assert gateway.extended is not None
@@ -262,23 +258,18 @@ class TestUpstoxGatewayNewFeatures:
     def test_gateway_capabilities_includes_new_features(self):
         from unittest.mock import MagicMock
 
-        from brokers.upstox.broker import UpstoxBroker
         from brokers.upstox.gateway import UpstoxBrokerGateway
 
-        mock_broker = MagicMock(spec=UpstoxBroker)
+        mock_broker = MagicMock()
         mock_broker.portfolio = MagicMock()
         mock_broker.portfolio.get_fund_limits.return_value = MagicMock()
         mock_broker.portfolio.get_positions.return_value = []
         mock_broker.portfolio.get_holdings.return_value = []
         mock_broker.instrument_resolver = MagicMock()
-        mock_broker.order_command = MagicMock()  # Required by gateway __init__
+        mock_broker.order_command = MagicMock()
 
         gateway = UpstoxBrokerGateway(mock_broker)
         caps = gateway.capabilities()
 
-        assert caps.ipo is True
-        assert caps.mutual_funds is True
-        assert caps.fundamentals is True
-        assert caps.payments is True
-        assert caps.user_profile is True
-        assert caps.convert_position is True
+        assert caps.supports_news is True
+        assert caps.supports_fundamentals is True

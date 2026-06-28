@@ -27,7 +27,7 @@ class UpstoxFuturesClient:
         self._resolver = instrument_resolver
 
     def _resolve_underlying_key(self, underlying: str, exchange_segment: str) -> str:
-        from indices import index_upstox_key, upstox_index_segment
+        from domain.indices import index_upstox_key, upstox_index_segment
 
         idx_key = index_upstox_key(underlying)
         if idx_key is not None:

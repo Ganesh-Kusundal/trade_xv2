@@ -4,11 +4,11 @@ Tests verify that all broker gateways properly detect race conditions where
 an order was filled between cancel send and response.
 """
 
-import pytest
-from decimal import Decimal
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
-from domain import Order, OrderResponse, OrderStatus, OrderType, Side
+import pytest
+
+from domain import Order, OrderResponse, OrderStatus
 
 
 class TestPaperGatewayCancelVerification:
@@ -106,8 +106,8 @@ class TestDhanGatewayCancelVerification:
     @pytest.fixture
     def mock_dhan_gateway(self):
         """Create Dhan gateway with mocked connection."""
-        from brokers.dhan.gateway import BrokerGateway
         from brokers.dhan.connection import DhanConnection
+        from brokers.dhan.gateway import BrokerGateway
 
         mock_conn = MagicMock(spec=DhanConnection)
         mock_conn.orders = MagicMock()
@@ -188,8 +188,8 @@ class TestUpstoxGatewayCancelVerification:
     @pytest.fixture
     def mock_upstox_gateway(self):
         """Create Upstox gateway with mocked broker and order command."""
-        from brokers.upstox.gateway import UpstoxBrokerGateway
         from brokers.upstox.broker import UpstoxBroker
+        from brokers.upstox.gateway import UpstoxBrokerGateway
 
         # Mock settings directly
         mock_settings = MagicMock()
@@ -253,7 +253,7 @@ class TestUpstoxGatewayCancelVerification:
 
     def test_analytics_only_mode_blocks_cancel(self, mock_upstox_gateway):
         """Cancel should be blocked in analytics-only mode."""
-        gw, mock_order_cmd = mock_upstox_gateway
+        gw, _mock_order_cmd = mock_upstox_gateway
         gw._broker.settings.analytics_only = True
 
         cancel_resp = gw.cancel_order("UPSTOX-789")
