@@ -57,7 +57,7 @@ class CacheManager:
         db_conn = conn or self._conn
         if db_conn is None:
             raise ValueError("No DuckDB connection provided")
-        
+
         version_dir = MATERIALIZED_DIR / "versions" / table_name
         version_dir.mkdir(parents=True, exist_ok=True)
         version_ts = str(int(time.time() * 1_000_000))
@@ -151,7 +151,7 @@ class CacheManager:
         db_conn = conn or self._conn
         if db_conn is None:
             raise ValueError("No DuckDB connection provided")
-        
+
         latest = self._read_latest(table_name)
         if latest is None:
             return
@@ -193,7 +193,7 @@ class CacheManager:
         db_conn = conn or self._conn
         if db_conn is None:
             raise ValueError("No DuckDB connection provided")
-        
+
         db_conn.execute(f"DROP TABLE IF EXISTS {table_name}")
         version_dir = MATERIALIZED_DIR / "versions" / table_name
         if version_dir.exists():

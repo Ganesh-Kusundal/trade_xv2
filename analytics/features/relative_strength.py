@@ -64,7 +64,7 @@ class RelativeStrengthAnalyzer:
                 "benchmark": benchmark_symbol,
                 "period": self._period,
                 "ratio_return_pct": float(ratio_return),
-                "aligned_bars": int(len(aligned)),
+                "aligned_bars": len(aligned),
             },
             scores={"relative_strength": float(score)},
             signals=[regime],

@@ -6,8 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Protocol, runtime_checkable
 
-import pandas as pd
-
+from domain.models.features import FeatureSet
 from domain.models.trading import SignalDTO
 
 
@@ -28,7 +27,7 @@ class ExecutionResult:
 
 @runtime_checkable
 class FeatureFetcher(Protocol):
-    def fetch(self, symbol: str) -> pd.DataFrame | None: ...
+    def fetch(self, symbol: str) -> FeatureSet | None: ...
 
 
 __all__ = ["ExecutionRequest", "ExecutionResult", "FeatureFetcher"]

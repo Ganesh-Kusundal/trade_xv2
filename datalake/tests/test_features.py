@@ -7,10 +7,22 @@ import pandas as pd
 import pytest
 
 from datalake.features import (
-    rsi, macd, roc, adx, cci, williams_r, stochastic,
-    bollinger_bands, zscore, atr, historical_volatility,
-    garman_klass_vol, parkinson_vol, yang_zhang_vol,
-    obv, vwap_deviation, compute_all_features,
+    adx,
+    atr,
+    bollinger_bands,
+    compute_all_features,
+    garman_klass_vol,
+    historical_volatility,
+    macd,
+    obv,
+    parkinson_vol,
+    roc,
+    rsi,
+    stochastic,
+    vwap_deviation,
+    williams_r,
+    yang_zhang_vol,
+    zscore,
 )
 
 

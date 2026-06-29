@@ -112,8 +112,9 @@ def test_upstox_news():
     # ── 5. CLI news command ─────────────────────────────────────────────
     print("=== CLI News Command ===")
     try:
-        from cli.commands.news import run
         from io import StringIO
+
+        from cli.commands.news import run
         old_stdout = sys.stdout
         sys.stdout = StringIO()
         try:

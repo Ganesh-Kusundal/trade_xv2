@@ -19,6 +19,7 @@ from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from brokers.upstox.orders.order_client import UpstoxRestOrderClient
 from domain import Order, SliceOrderRequest
+from domain.symbols import normalize_symbol
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +94,7 @@ class UpstoxSliceAdapter(SliceOrderCommand):
 
     def _infer_freeze_qty(self, symbol: str) -> int:
         # Fallback freeze quantities for well-known NSE equities (Q3 2024).
-        upper = symbol.upper()
+        upper = normalize_symbol(symbol)
         well_known = {
             "RELIANCE": 1800,
             "TCS": 1700,

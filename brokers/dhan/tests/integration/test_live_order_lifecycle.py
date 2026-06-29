@@ -19,6 +19,8 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 
 from brokers.dhan.factory import BrokerFactory
+
+pytestmark = [pytest.mark.dhan, pytest.mark.off_market_safe, pytest.mark.regression]
 from brokers.dhan.gateway import BrokerGateway
 from domain import OrderStatus
 
@@ -101,7 +103,7 @@ class TestLiveOrderLifecycle:
         import os
         if not os.environ.get("DHAN_ALLOW_LIVE_ORDERS"):
             pytest.skip("Live orders disabled (DHAN_ALLOW_LIVE_ORDERS not set)")
-        
+
         # Use a clearly fake order ID
         response = gateway.cancel_order("NONEXISTENT-ORDER-123456")
         assert response.success is False

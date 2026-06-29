@@ -10,6 +10,7 @@ import argparse
 import logging
 import sys
 from dataclasses import dataclass
+from decimal import Decimal
 from pathlib import Path
 
 import numpy as np
@@ -26,6 +27,7 @@ from analytics.indicators.halftrend import HalfTrend  # noqa: E402
 from analytics.scanner.models import Candidate  # noqa: E402
 from analytics.strategy import Signal, SignalType  # noqa: E402
 from datalake.gateway import DataLakeGateway  # noqa: E402
+from domain.trading_costs import apply_slippage as _apply_slippage  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # HalfTrend Strategy (wraps indicator for StrategyPipeline)
@@ -100,6 +102,16 @@ class HalfTrendStrategy:
 
 @dataclass
 class Trade:
+    """Local trade record for HalfTrend backtest.
+
+    .. deprecated:: Phase-7
+        This is a local duplicate of the canonical
+        :class:`~analytics.replay.models.SimulatedTrade` and
+        :class:`~domain.entities.trade.Trade` classes.  Kept for backward
+        compatibility with ``HalfTrendStrategy`` consumers.  New code should
+        use the canonical trade entities.
+    """
+
     symbol: str
     side: str
     entry_price: float
@@ -137,11 +149,12 @@ def fast_backtest(
         if signal_str == "BUY" and position is None:
             qty = int((capital * config.max_position_pct) / price) if price > 0 else 0
             if qty > 0:
-                position = {"entry": price, "qty": qty, "time": ts}
+                entry_p = float(_apply_slippage(Decimal(str(price)), side="BUY", slippage_pct=config.slippage_pct))
+                position = {"entry": entry_p, "qty": qty, "time": ts}
                 capital -= config.commission_flat
 
         elif signal_str == "SELL" and position is not None:
-            exit_p = price - price * (config.slippage_pct / 100)
+            exit_p = float(_apply_slippage(Decimal(str(price)), side="SELL", slippage_pct=config.slippage_pct))
             pnl = (exit_p - position["entry"]) * position["qty"]
             trades.append(
                 Trade(

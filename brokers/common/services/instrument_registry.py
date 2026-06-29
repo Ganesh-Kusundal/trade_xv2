@@ -31,6 +31,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from domain import OptionChain
+from domain.symbols import normalize_exchange, normalize_symbol
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +116,7 @@ class CanonicalInstrumentRegistry:
         CanonicalInstrument or None if not found.
         """
         self._ensure_loaded()
-        key = (symbol.upper(), exchange.upper())
+        key = (normalize_symbol(symbol), normalize_exchange(exchange))
         if key in self._cache:
             return self._cache[key]
 
@@ -326,7 +327,7 @@ class CanonicalInstrumentRegistry:
         results = self._gateway.search(query) if hasattr(self._gateway, "search") else []
         instruments = []
         for r in results:
-            if exchange and r.get("exchange", "").upper() != exchange.upper():
+            if exchange and normalize_exchange(r.get("exchange", "")) != normalize_exchange(exchange):
                 continue
             instruments.append(self._to_canonical(r, exchange or r.get("exchange", "NSE")))
         return instruments

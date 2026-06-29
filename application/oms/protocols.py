@@ -13,13 +13,12 @@ from collections.abc import Callable
 from decimal import Decimal
 from typing import Protocol, runtime_checkable
 
+# Import OMS types needed for Protocol signatures
+from application.oms.order_manager import OmsOrderCommand, OrderResult
 from domain import Order
 from domain.entities import Trade
 from domain.reconciliation import ReconciliationReport
 from infrastructure.event_bus import DomainEvent
-
-# Import OMS types needed for Protocol signatures
-from application.oms.order_manager import OmsOrderCommand, OrderResult
 
 
 @runtime_checkable
@@ -222,12 +221,12 @@ class IBrokerGateway(Protocol):
 
 
 __all__ = [
-    "IReconciliationService",
+    "IBrokerGateway",
     "ICapitalAllocationFn",
+    "IExecutionAdapter",
     "IOrderManager",
     "IPositionManager",
+    "IReconciliationService",
     "IRiskManager",
     "ITradingOrchestrator",
-    "IExecutionAdapter",
-    "IBrokerGateway",
 ]

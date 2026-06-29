@@ -8,13 +8,13 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-import pandas as pd
 import pytest
 
 from application.execution.execution_service import ExecutionService
 from application.oms.context import TradingContext
 from application.trading.trading_orchestrator import OrchestratorConfig, TradingOrchestrator
 from brokers.paper.paper_gateway import PaperGateway
+from domain.models.features import FeatureSet
 from domain.models.trading import CandidateDTO, SignalDTO
 from infrastructure.event_bus import DomainEvent, EventType
 
@@ -22,9 +22,9 @@ from infrastructure.event_bus import DomainEvent, EventType
 class _StaticFeatureFetcher:
     """Returns minimal OHLCV features without external data."""
 
-    def fetch(self, symbol: str, exchange: str = "NSE") -> pd.DataFrame:
-        return pd.DataFrame(
-            {
+    def fetch(self, symbol: str, exchange: str = "NSE") -> FeatureSet:
+        return FeatureSet(
+            columns={
                 "close": [100.0, 101.0, 102.0, 103.0, 104.0],
                 "open": [99.0, 100.0, 101.0, 102.0, 103.0],
                 "high": [101.0, 102.0, 103.0, 104.0, 105.0],
@@ -37,7 +37,7 @@ class _StaticFeatureFetcher:
 class _AlwaysBuyEvaluator:
     """Strategy evaluator that always emits an actionable BUY signal."""
 
-    def evaluate_single(self, candidate: CandidateDTO, features: pd.DataFrame) -> list[SignalDTO]:
+    def evaluate_single(self, candidate: CandidateDTO, features: FeatureSet) -> list[SignalDTO]:
         return [
             SignalDTO(
                 symbol=candidate.symbol,

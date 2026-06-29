@@ -1,14 +1,13 @@
 """Tests for environment profiles."""
 
-import os
 import pytest
+
 from config.profiles import (
-    load_profile,
-    DevProfile,
-    StagingProfile,
-    ProdProfile,
     BaseProfile,
-    EnvironmentProfile,
+    DevProfile,
+    ProdProfile,
+    StagingProfile,
+    load_profile,
 )
 
 

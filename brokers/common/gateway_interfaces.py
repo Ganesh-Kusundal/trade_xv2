@@ -25,7 +25,6 @@ from typing import Any, Generic, TypeVar
 
 import pandas as pd
 
-from domain.constants import DEFAULT_LOOKBACK_DAYS
 from domain import (
     ConditionalAlert,
     ConditionalAlertRequest,
@@ -44,6 +43,7 @@ from domain import (
     SliceOrderRequest,
     Trade,
 )
+from domain.constants import DEFAULT_LOOKBACK_DAYS
 
 # ======================================================================
 # Section 1 — Core Gateway Interfaces (decomposed MarketDataGateway)

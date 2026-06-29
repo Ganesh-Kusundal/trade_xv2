@@ -5,6 +5,8 @@ from __future__ import annotations
 from rich.console import Console
 from rich.table import Table
 
+from domain.symbols import normalize_symbol
+
 
 def run(args: list[str], broker_service, console: Console) -> None:
     """Entry point for search subcommand."""
@@ -18,7 +20,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
         console.print("[red]Search requires a live broker with loaded instruments.[/red]")
         return
 
-    query = args[0].upper().strip()
+    query = normalize_symbol(args[0])
 
     table = Table(title=f"Instrument Search: '{query}'", header_style="bold yellow")
     table.add_column("Symbol", style="bold white")

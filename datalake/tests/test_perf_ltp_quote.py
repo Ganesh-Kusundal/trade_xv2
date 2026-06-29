@@ -15,7 +15,6 @@ from pathlib import Path
 
 import pandas as pd
 import pyarrow as pa
-import pytest
 
 from datalake.gateway import DataLakeGateway
 from datalake.io import atomic_parquet_write
@@ -101,7 +100,7 @@ class TestLtpPerformance:
         _write_symbol(tmp_path, "RELIANCE", n=100)
         gw = DataLakeGateway(root=str(tmp_path))
 
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import patch
 
         with patch("datalake.gateway.get_last_candle_fast") as mock_fast:
             mock_fast.return_value = {"close": 1234.5, "timestamp": "2026-01-01"}

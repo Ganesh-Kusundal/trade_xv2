@@ -11,13 +11,14 @@ Orchestration contract
 2. ``on_order_update`` / ``on_trade`` — event-bus handlers for broker feeds;
    delegate validation to ``OrderStateValidator``, audit to ``OrderAuditLogger``,
    fill math to ``OrderPositionUpdater``.
-3. Collaborators live in ``brokers.common.oms._internal`` and are not part of
+3. Collaborators live in ``application.oms._internal`` and are not part of
    the public API surface.
 """
 
 from __future__ import annotations
 
-import logging
+from infrastructure.logging import get_logger
+
 import threading
 import uuid
 from collections.abc import Callable
@@ -25,15 +26,15 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import TYPE_CHECKING
-from infrastructure.observability.event_metrics import EventMetrics
-from application.oms.persistence.sqlite_order_store import SqliteOrderStore
 
 from application.oms._internal.order_audit_logger import OrderAuditLogger
 from application.oms._internal.order_position_updater import OrderPositionUpdater
 from application.oms._internal.order_state_validator import OrderStateValidator
-from application.oms.risk_manager import RiskManager
 from application.oms._internal.reentrancy_guard import _ReentrancyGuard
+from application.oms.persistence.sqlite_order_store import SqliteOrderStore
+from application.oms.risk_manager import RiskManager
 from domain.entities import Order, OrderStatus, OrderType, ProductType, Side, Trade
+from domain.symbols import normalize_exchange, normalize_symbol
 from domain.types import ORDER_STATUS_TRANSITIONS
 from infrastructure.event_bus import (
     DomainEvent,
@@ -42,11 +43,12 @@ from infrastructure.event_bus import (
     ProcessedTradeRepository,
     TradeIdKey,
 )
+from infrastructure.observability.event_metrics import EventMetrics
 
 if TYPE_CHECKING:
     pass
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -68,8 +70,8 @@ class OmsOrderCommand:
     correlation_id: str | None = None
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "symbol", self.symbol.upper())
-        object.__setattr__(self, "exchange", self.exchange.upper())
+        object.__setattr__(self, "symbol", normalize_symbol(self.symbol))
+        object.__setattr__(self, "exchange", normalize_exchange(self.exchange))
         object.__setattr__(self, "price", Decimal(str(self.price)))
         if not self.correlation_id:
             import os
@@ -518,7 +520,7 @@ class OrderManager:
         with self._lock:
             orders = list(self._orders.values())
         if symbol is not None:
-            orders = [order for order in orders if order.symbol == symbol.upper()]
+            orders = [order for order in orders if order.symbol == normalize_symbol(symbol)]
         if status is not None:
             orders = [order for order in orders if order.status == status]
         return orders
@@ -590,19 +592,32 @@ class OrderManager:
     def on_order_update(self, event: DomainEvent) -> None:
         """Handle broker order-update events from the bus.
 
+        P5 Stability Engineering: Uses OrderUpdatedEvent typed wrapper
+        for compile-time safety, eliminating raw dict payload access.
+
         Uses :func:`_reentrancy_guard` to prevent recursive handler
         invocation when the OMS publishes events internally.
         """
         with self._reentrancy_guard() as guard:
             if guard.reentered:
                 return
-            payload = event.payload
-            order = payload.get("order")
-            if isinstance(order, Order):
-                self.upsert_order(order)
+            try:
+                from domain.events.types import OrderUpdatedEvent
+
+                typed_event = OrderUpdatedEvent.from_domain_event(event)
+                self.upsert_order(typed_event.order)
+            except ValueError as exc:
+                # Invalid payload - log and skip (don't crash)
+                logger.warning(
+                    "OrderManager.on_order_update: invalid event payload: %s",
+                    exc,
+                )
 
     def on_trade(self, event: DomainEvent) -> None:
         """Handle broker trade events from the bus.
+
+        P5 Stability Engineering: Uses TradeFilledEvent typed wrapper
+        for compile-time safety, eliminating raw dict payload access.
 
         Uses :func:`_reentrancy_guard` to prevent recursive handler
         invocation.
@@ -610,10 +625,17 @@ class OrderManager:
         with self._reentrancy_guard() as guard:
             if guard.reentered:
                 return
-            payload = event.payload
-            trade = payload.get("trade")
-            if isinstance(trade, Trade):
-                self.record_trade(trade)
+            try:
+                from domain.events.types import TradeFilledEvent
+
+                typed_event = TradeFilledEvent.from_domain_event(event)
+                self.record_trade(typed_event.trade)
+            except ValueError as exc:
+                # Invalid payload - log and skip (don't crash)
+                logger.warning(
+                    "OrderManager.on_trade: invalid event payload: %s",
+                    exc,
+                )
 
     # ── Re-entrancy guard ───────────────────────────────────────────────────
 

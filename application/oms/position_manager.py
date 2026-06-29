@@ -6,19 +6,21 @@ Protected by one ``threading.RLock`` and uses immutable ``Position`` values.
 
 from __future__ import annotations
 
-import logging
+from infrastructure.logging import get_logger
+
 import threading
+from collections import deque
 from decimal import Decimal
-from infrastructure.event_bus import ProcessedTradeRepository
-from infrastructure.observability.event_metrics import EventMetrics
 
 from application.oms._internal.reentrancy_guard import _ReentrancyGuard
 from domain.entities import Position, Trade
+from domain.symbols import make_position_key
 from domain.types import POSITION_STATE_TRANSITIONS, PositionState
-from infrastructure.event_bus import DomainEvent, EventBus, EventType
+from infrastructure.event_bus import DomainEvent, EventBus, EventType, ProcessedTradeRepository
+from infrastructure.observability.event_metrics import EventMetrics
 from infrastructure.state_machine import IllegalTransitionError, StateMachine
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class PositionManager:
@@ -47,6 +49,14 @@ class PositionManager:
         self._processed_trades = processed_trade_repository
         self._metrics = metrics
         self._trades_applied = 0
+
+        # P5 Stability Engineering: In-memory idempotency cache for trade_ids
+        # to prevent duplicate processing under at-least-once delivery.
+        # This is separate from the persistent repository (crash recovery).
+        # Bounded LRU cache (deque + set) to prevent unbounded memory growth.
+        # Thread-safe: all mutations are protected by _lock.
+        self._processed_trade_id_set: set[str] = set()
+        self._processed_trade_id_order: deque[str] = deque(maxlen=10_000)
 
         self._enforce_state_transitions = enforce_state_transitions
         self._position_states: dict[
@@ -197,15 +207,25 @@ class PositionManager:
     def upsert_position(self, data: dict) -> Position:
         """Create or update a position from broker state (used by reconciliation).
 
-        Accepts either a dict with ``symbol``/``exchange``/``quantity`` keys,
-        or a dict with ``exchange_segment``/``trading_symbol``/``net_quantity``
-        keys (Upstox format).
+        Accepts a dict with ``symbol``/``exchange``/``quantity`` keys.
+        Also normalizes Upstox-specific keys for backward compatibility.
         """
-        symbol = data.get("symbol") or data.get("trading_symbol", "")
-        exchange = data.get("exchange") or data.get("exchange_segment", "NSE")
-        quantity = int(data.get("quantity") or data.get("net_quantity") or 0)
-        avg_price = Decimal(str(data.get("avg_price") or data.get("average_price") or 0))
-        ltp = Decimal(str(data.get("ltp") or data.get("last_price") or 0))
+        # Normalize Upstox-specific keys to domain format
+        _KEY_MAP = {
+            "trading_symbol": "symbol",
+            "exchange_segment": "exchange",
+            "net_quantity": "quantity",
+            "buy_average_price": "avg_price",
+            "average_price": "avg_price",
+            "last_price": "ltp",
+        }
+        normalized = {_KEY_MAP.get(k, k): v for k, v in data.items()}
+
+        symbol = normalized.get("symbol", "")
+        exchange = normalized.get("exchange", "NSE")
+        quantity = int(normalized.get("quantity") or 0)
+        avg_price = Decimal(str(normalized.get("avg_price") or 0))
+        ltp = Decimal(str(normalized.get("ltp") or 0))
         if not symbol:
             raise ValueError("Position data must contain 'symbol' or 'trading_symbol'")
         key = self._key(symbol, exchange)
@@ -242,18 +262,40 @@ class PositionManager:
     def on_trade(self, event: DomainEvent) -> None:
         """Handle broker trade events from the event bus.
 
+        P5 Stability Engineering: Uses TradeFilledEvent typed wrapper
+        for compile-time safety, eliminating raw dict payload access.
+
         Uses ``_reentrancy_guard()`` to prevent recursive handler
         invocation when the manager publishes events internally.
         """
         with self._reentrancy_guard() as guard:
             if guard.reentered:
                 return
-            trade = event.payload.get("trade")
-            if isinstance(trade, Trade):
-                self.apply_trade(trade)
+            try:
+                from domain.events.types import TradeFilledEvent
+
+                typed_event = TradeFilledEvent.from_domain_event(event)
+                # P5: Idempotency - check if trade already processed (thread-safe)
+                with self._lock:
+                    if typed_event.trade.trade_id in self._processed_trade_id_set:
+                        logger.debug(
+                            "PositionManager.on_trade: skipping duplicate trade_id=%s",
+                            typed_event.trade.trade_id,
+                        )
+                        return
+                self.apply_trade(typed_event.trade)
+            except ValueError as exc:
+                # Invalid payload - log and skip (don't crash)
+                logger.warning(
+                    "PositionManager.on_trade: invalid event payload: %s",
+                    exc,
+                )
 
     def on_trade_applied(self, event: DomainEvent) -> None:
         """Apply a trade that has been verified by the OMS.
+
+        P5 Stability Engineering: Uses TradeAppliedEvent typed wrapper
+        for compile-time safety and trade_id-based idempotency.
 
         Uses ``_reentrancy_guard()`` to prevent recursive handler
         invocation.
@@ -261,9 +303,32 @@ class PositionManager:
         with self._reentrancy_guard() as guard:
             if guard.reentered:
                 return
-            trade = event.payload.get("trade")
-            if isinstance(trade, Trade):
-                self.apply_trade(trade)
+            try:
+                from domain.events.types import TradeAppliedEvent
+
+                typed_event = TradeAppliedEvent.from_domain_event(event)
+                # P5: Idempotency - track processed trade_ids (thread-safe, bounded)
+                with self._lock:
+                    if typed_event.trade.trade_id in self._processed_trade_id_set:
+                        logger.debug(
+                            "PositionManager.on_trade_applied: skipping duplicate trade_id=%s",
+                            typed_event.trade.trade_id,
+                        )
+                        return
+                    # Peek at oldest BEFORE append — deque auto-evicts on append
+                    # when at capacity, so we must remove it from the set first.
+                    if len(self._processed_trade_id_order) == self._processed_trade_id_order.maxlen:
+                        oldest = self._processed_trade_id_order[0]
+                        self._processed_trade_id_set.discard(oldest)
+                    self._processed_trade_id_set.add(typed_event.trade.trade_id)
+                    self._processed_trade_id_order.append(typed_event.trade.trade_id)
+                self.apply_trade(typed_event.trade)
+            except ValueError as exc:
+                # Invalid payload - log and skip (don't crash)
+                logger.warning(
+                    "PositionManager.on_trade_applied: invalid event payload: %s",
+                    exc,
+                )
 
     # ── Re-entrancy guard ───────────────────────────────────────────────────
 
@@ -275,7 +340,7 @@ class PositionManager:
 
     @staticmethod
     def _key(symbol: str, exchange: str) -> str:
-        return f"{symbol.upper()}:{exchange.upper()}"
+        return make_position_key(symbol, exchange)
 
     def _publish(
         self, event_type: str, position: Position | None = None, *, payload: dict | None = None

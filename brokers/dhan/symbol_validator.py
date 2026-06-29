@@ -10,6 +10,7 @@ from typing import Any
 from brokers.dhan.domain import Exchange, InstrumentType, OptionType
 from brokers.dhan.loader import InstrumentLoader
 from brokers.dhan.resolver import SymbolResolver
+from domain.symbols import normalize_symbol
 
 logger = logging.getLogger(__name__)
 
@@ -56,8 +57,7 @@ def parse_fo_symbol(symbol: str) -> dict[str, Any] | None:
     Returns a dict with:
       underlying, expiry_day, expiry_month, strike, option_type, is_future
     or None if it doesn't match F&O formats.
-    """
-    clean = symbol.strip().upper()
+    """        clean = normalize_symbol(symbol)
 
     # 1. Spaced Option
     m = _OPT_SPACED_PATTERN.match(clean)
@@ -133,7 +133,7 @@ class DhanSymbolValidator:
         Handles both standard equity/indices and F&O symbols.
         """
         # 1. Normalize Symbol
-        normalized_sym = symbol.strip().upper()
+        normalized_sym = normalize_symbol(symbol)
 
         # Check if F&O
         fo_info = parse_fo_symbol(normalized_sym)

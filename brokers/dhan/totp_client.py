@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import os
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from brokers.common.auth.totp_cooldown import TotpCooldownGuard, TotpRateLimitError
@@ -95,11 +94,4 @@ class DhanTotpClient:
         return pin, totp_secret, _GENERATE_TOKEN_URL, client_id
 
 
-def _read_secret(env_key: str, file_key: str) -> str | None:
-    val = os.environ.get(env_key, "")
-    if val:
-        return val
-    file_path = os.environ.get(file_key, "")
-    if file_path and Path(file_path).exists():
-        return Path(file_path).read_text().strip()
-    return None
+from brokers.dhan.secret_utils import read_secret as _read_secret

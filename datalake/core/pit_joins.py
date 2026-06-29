@@ -111,7 +111,7 @@ def as_of_join(
         lookahead_warnings = validate_no_lookahead(sql)
         if lookahead_warnings:
             raise ValueError(
-                f"Look-ahead patterns detected in query:\n"
+                "Look-ahead patterns detected in query:\n"
                 + "\n".join(lookahead_warnings)
             )
 

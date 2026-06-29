@@ -20,6 +20,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "..
 from brokers.dhan.factory import BrokerFactory
 from brokers.dhan.gateway import BrokerGateway
 
+pytestmark = [pytest.mark.dhan, pytest.mark.off_market_safe, pytest.mark.regression]
+
 # ---------------------------------------------------------------------------
 # Skip guard — only run when .env.local has valid credentials
 # ---------------------------------------------------------------------------
@@ -122,3 +124,48 @@ class TestLiveFutureChain:
         chain = gateway.future_chain("NIFTY", "NFO")
         # Index futures typically have near, mid, far month contracts
         assert len(chain.expiries) >= 2, f"Expected ≥2 expiries, got {len(chain.expiries)}"
+
+
+@pytest.mark.skipif(not _live_env_loaded, reason=".env.local with DHAN_CLIENT_ID required")
+class TestLiveStockFnO:
+    """Stock F&O (OPTSTK / FUTSTK): RELIANCE and BANKNIFTY as equity+futures underlying.
+
+    These cases close the gap where only index derivatives were tested live.
+    """
+
+    def test_reliance_stock_option_chain(self, gateway: BrokerGateway):
+        """RELIANCE OPTSTK chain must have strikes (underlying exchange = NSE)."""
+        chain = gateway.option_chain("RELIANCE", "NSE")
+        assert chain is not None
+        assert chain.spot > 0, f"RELIANCE stock option spot invalid: {chain.spot}"
+        assert len(chain.strikes) > 0, "RELIANCE stock option chain has no strikes"
+
+    def test_reliance_stock_option_chain_has_expiries(self, gateway: BrokerGateway):
+        """RELIANCE OPTSTK must have at least one expiry via extended API."""
+        expiries = gateway.extended.get_option_expiries("RELIANCE", "NSE")
+        assert isinstance(expiries, list)
+        assert len(expiries) >= 1, "RELIANCE extended expiries empty"
+        time.sleep(1.5)
+
+    def test_reliance_stock_futures(self, gateway: BrokerGateway):
+        """RELIANCE FUTSTK chain must have at least one contract (underlying = NSE)."""
+        chain = gateway.future_chain("RELIANCE", "NSE")
+        assert chain is not None
+        assert len(chain.contracts) >= 1, "RELIANCE stock futures empty"
+        assert chain.contracts[0].expiry is not None
+        time.sleep(1.5)
+
+    def test_reliance_futures_lot_size(self, gateway: BrokerGateway):
+        """RELIANCE futures contracts must carry a non-zero lot_size."""
+        chain = gateway.future_chain("RELIANCE", "NSE")
+        if chain.contracts:
+            lot = chain.contracts[0].lot_size
+            assert isinstance(lot, int) and lot > 0, f"Invalid lot_size: {lot}"
+
+    def test_banknifty_stock_option_chain(self, gateway: BrokerGateway):
+        """BANKNIFTY OPTSTK (index with equity-style strikes) chain must be valid."""
+        chain = gateway.option_chain("BANKNIFTY", "NFO")
+        assert chain is not None
+        assert chain.spot > 0
+        assert len(chain.strikes) > 0
+        time.sleep(1.5)

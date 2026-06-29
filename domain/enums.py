@@ -34,13 +34,12 @@ class OrderStatus(str, Enum):
     def normalize(cls, raw: str) -> OrderStatus:
         """Normalize a broker-specific status string to canonical OrderStatus.
 
-        Delegates to :func:`domain.status_normalizer.normalize_status` which
-        breaks the previous compile-time cycle between this module and
-        :mod:`domain.status_mapper`.
+        Uses a lazy import of :class:`~domain.status_mapper.StatusMapperRegistry`
+        to break the compile-time cycle: enums.py → status_mapper.py → enums.py.
         """
-        from domain.status_normalizer import normalize_status
+        from domain.status_mapper import StatusMapperRegistry
 
-        return normalize_status(raw)
+        return StatusMapperRegistry.normalize(raw)
 
     @property
     def is_terminal(self) -> bool:

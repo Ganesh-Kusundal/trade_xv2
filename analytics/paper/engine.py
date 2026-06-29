@@ -58,6 +58,7 @@ from analytics.strategy.pipeline import StrategyPipeline
 from domain.execution import compute_order_quantity
 from domain.ports.oms_backtest_adapter import OmsBacktestAdapterPort
 from domain.runtime_hooks import create_oms_backtest_adapter
+from domain.trading_costs import apply_slippage as _apply_slippage
 
 logger = logging.getLogger(__name__)
 
@@ -386,7 +387,7 @@ class PaperTradingEngine:
         if signal.is_buy and bar.symbol not in session.positions:
             if session.position_count >= config.max_positions:
                 return
-            price = Decimal(str(bar.close * (1 + config.slippage_pct / 100)))
+            price = _apply_slippage(Decimal(str(bar.close)), side="BUY", slippage_pct=config.slippage_pct)
             qty = compute_order_quantity(
                 equity=session.capital,
                 price=float(price),
@@ -421,7 +422,7 @@ class PaperTradingEngine:
             pos = session.positions[bar.symbol]
             if pos.side != PositionSide.LONG:
                 return
-            price = Decimal(str(bar.close * (1 - config.slippage_pct / 100)))
+            price = _apply_slippage(Decimal(str(bar.close)), side="SELL", slippage_pct=config.slippage_pct)
             order_id = self._oms_adapter.close_long(
                 symbol=bar.symbol,
                 exchange="NSE",
@@ -468,9 +469,9 @@ class PaperTradingEngine:
         # Calculate exit price with slippage
         config = self._config
         if pos.side == PositionSide.LONG:
-            exit_price = float(dec_price) * (1 - config.slippage_pct / 100)
+            exit_price = float(_apply_slippage(dec_price, side="SELL", slippage_pct=config.slippage_pct))
         else:
-            exit_price = float(dec_price) * (1 + config.slippage_pct / 100)
+            exit_price = float(_apply_slippage(dec_price, side="BUY", slippage_pct=config.slippage_pct))
 
         # Calculate P&L
         if pos.side == PositionSide.LONG:

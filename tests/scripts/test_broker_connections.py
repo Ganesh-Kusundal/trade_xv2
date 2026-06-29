@@ -15,7 +15,7 @@ import time
 from pathlib import Path
 
 # Ensure project root is on path
-PROJECT_ROOT = Path(__file__).parent
+PROJECT_ROOT = Path(__file__).parent.parent.parent  # tests/scripts/ -> project root
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from rich.console import Console  # noqa: E402

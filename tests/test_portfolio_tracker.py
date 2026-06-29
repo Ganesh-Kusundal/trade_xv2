@@ -5,9 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 from unittest.mock import Mock
 
-import pytest
-
-from application.oms.portfolio_tracker import PortfolioTracker, PortfolioSnapshot
+from application.oms.portfolio_tracker import PortfolioSnapshot, PortfolioTracker
 from domain import Position, Trade
 from domain.types import Side
 

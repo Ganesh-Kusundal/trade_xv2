@@ -201,6 +201,7 @@ class TestUpstoxFundamentalsAdapter:
 class TestUpstoxGatewayNewFeatures:
     def _make_mock_broker(self):
         from unittest.mock import MagicMock
+
         from brokers.upstox.broker import UpstoxBroker
 
         mock_broker = MagicMock(spec=UpstoxBroker)

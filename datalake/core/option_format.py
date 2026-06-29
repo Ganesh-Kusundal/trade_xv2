@@ -24,6 +24,8 @@ from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 
+from domain.symbols import normalize_symbol
+
 CANONICAL_COLUMNS: list[str] = [
     "timestamp",
     "symbol",
@@ -58,7 +60,7 @@ def make_option_symbol(
     Also accepts CE/PE and normalizes to CALL/PUT.
     """
     # Normalize option type: CE→CALL, PE→PUT
-    ot = option_type.upper().strip()
+    ot = normalize_symbol(option_type)
     if ot in ("CE", "CALL"):
         ot = "CALL"
     elif ot in ("PE", "PUT"):

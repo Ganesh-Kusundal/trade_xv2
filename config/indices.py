@@ -39,6 +39,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from domain.symbols import normalize_symbol
+
 
 @dataclass(frozen=True)
 class _IndexEntry:
@@ -375,29 +377,29 @@ INDEX_TO_FNO_EXCHANGE: dict[str, str] = {
 
 def is_index(symbol: str) -> bool:
     """Check if *symbol* is a known index (case-insensitive)."""
-    return symbol.strip().upper() in INDEX_SYMBOLS
+    return normalize_symbol(symbol) in INDEX_SYMBOLS
 
 
 def get_index_entry(symbol: str) -> _IndexEntry | None:
     """Return :class:`_IndexEntry` for *symbol*, or ``None`` if not an index."""
-    return _INDEX_MAP.get(symbol.strip().upper())
+    return _INDEX_MAP.get(normalize_symbol(symbol))
 
 
 def dhan_index_exchange(symbol: str) -> str | None:
     """Return Dhan exchange name (``"INDEX"``) if *symbol* is an index, else ``None``."""
-    entry = _INDEX_MAP.get(symbol.strip().upper())
+    entry = _INDEX_MAP.get(normalize_symbol(symbol))
     return entry.dhan_exchange if entry else None
 
 
 def upstox_index_segment(symbol: str) -> str | None:
     """Return Upstox segment (e.g. ``"NSE_INDEX"``) if *symbol* is an index, else ``None``."""
-    entry = _INDEX_MAP.get(symbol.strip().upper())
+    entry = _INDEX_MAP.get(normalize_symbol(symbol))
     return entry.upstox_segment if entry else None
 
 
 def index_upstox_key(symbol: str) -> str | None:
     """Return the Upstox instrument_key for *symbol* (e.g. ``\"NSE_INDEX|Nifty 50\"``)."""
-    entry = _INDEX_MAP.get(symbol.strip().upper())
+    entry = _INDEX_MAP.get(normalize_symbol(symbol))
     if entry and entry.upstox_segment and entry.upstox_name:
         return f"{entry.upstox_segment}|{entry.upstox_name}"
     return None

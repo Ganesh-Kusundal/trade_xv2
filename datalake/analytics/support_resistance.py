@@ -32,9 +32,8 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 import pyarrow as pa
-import pyarrow.parquet as pq
 
-from datalake.core.duckdb_utils import DEFAULT_CATALOG_PATH, get_read_pool, get_pool
+from datalake.core.duckdb_utils import DEFAULT_CATALOG_PATH, get_read_pool
 from datalake.core.io import atomic_parquet_write
 from datalake.core.symbols import normalize_symbol
 

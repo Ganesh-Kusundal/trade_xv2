@@ -18,13 +18,12 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from fastapi import HTTPException, status
 
 if TYPE_CHECKING:
-    from application.composer.market_data import MarketDataComposer
-    from application.composer.execution import ExecutionComposer
+    pass
 
 logger = logging.getLogger(__name__)
 

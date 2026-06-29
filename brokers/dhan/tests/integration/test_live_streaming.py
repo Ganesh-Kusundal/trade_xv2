@@ -22,6 +22,8 @@ from brokers.dhan.factory import BrokerFactory
 from brokers.dhan.gateway import BrokerGateway
 from tests.market_hours import skip_off_market
 
+pytestmark = [pytest.mark.dhan, pytest.mark.market_hours, pytest.mark.regression]
+
 # ---------------------------------------------------------------------------
 # Skip guard — only run when .env.local has valid credentials
 # ---------------------------------------------------------------------------

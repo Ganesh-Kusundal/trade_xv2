@@ -2,12 +2,11 @@
 
 Verify read-only commands work when OMS lock is held.
 """
-import pytest
-import fcntl
-import os
-import subprocess
 import concurrent.futures
+import fcntl
+import subprocess
 from pathlib import Path
+
 from rich.console import Console
 
 

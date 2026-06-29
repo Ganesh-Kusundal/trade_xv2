@@ -10,8 +10,6 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-import pytest
-
 from brokers.upstox.tests.integration.conftest import skip_live
 
 
@@ -66,7 +64,7 @@ class TestLiveBatchMarketData:
         """ltp_batch() should return same values as individual ltp() calls."""
         symbols = ["RELIANCE", "TCS"]
         batch_result = gateway.ltp_batch(symbols, "NSE")
-        
+
         # Compare with individual calls
         for symbol in symbols:
             if symbol in batch_result:

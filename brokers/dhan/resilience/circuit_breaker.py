@@ -18,7 +18,6 @@ from dataclasses import dataclass
 
 from brokers.common.resilience.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
 
-
 #: Failure threshold for order-related endpoints (lower = more sensitive)
 ORDERS_FAILURE_THRESHOLD = 3
 

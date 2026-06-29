@@ -11,11 +11,10 @@ import logging
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 
-from domain import Order
-
 from application.execution.simulated_fill import make_simulated_submit_fn
 from application.oms.context import TradingContext
 from application.oms.order_manager import OmsOrderCommand, OrderResult
+from domain import Order
 
 logger = logging.getLogger(__name__)
 

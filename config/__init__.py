@@ -28,6 +28,8 @@ Usage::
     profile = load_profile()
 """
 
+from config.feature_flags import FeatureFlags, is_enabled, set_flag
+from config.profiles import EnvironmentProfile, load_profile
 from config.schema import (
     ApiConfig,
     DhanConfig,
@@ -44,8 +46,6 @@ from config.validator import (
     ValidationProfile,
     validate_config,
 )
-from config.feature_flags import FeatureFlags, is_enabled, set_flag
-from config.profiles import load_profile, EnvironmentProfile
 
 __all__ = [
     # Schema

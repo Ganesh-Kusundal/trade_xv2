@@ -34,7 +34,6 @@ from infrastructure.event_bus import DeadLetterQueue, DomainEvent, EventBus
 from tests.e2e.fixtures.event_capturer import EventCapturer
 from tests.e2e.fixtures.trading_context_factory import create_test_trading_context
 
-
 pytestmark = pytest.mark.e2e
 
 

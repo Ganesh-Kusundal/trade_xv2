@@ -1,15 +1,28 @@
-"""Extended broker features on live REST surface (capability-gated)."""
+"""Extended broker features on live REST surface (capability-gated).
+
+All order-modifying endpoints route through ExtendedOrderService for
+risk checks and event publishing. Read-only endpoints call broker directly.
+"""
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response, status
 
 from api.auth import require_auth
-from api.deps import get_broker_service, get_live_broker_name, require_live_broker
+from api.deps import (
+    get_broker_service,
+    get_event_bus,
+    get_live_broker_name,
+    get_risk_manager,
+    require_live_broker,
+)
 from api.routers.live.headers import apply_live_headers
 from api.routers.live.serialize import serialize_value
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(dependencies=[Depends(require_auth)])
 
@@ -37,6 +50,17 @@ def _extended(gw: Any) -> Any:
     return ext
 
 
+def _get_extended_order_service() -> Any:
+    """Get or create ExtendedOrderService with OMS components."""
+    from application.oms.extended_order_service import ExtendedOrderService
+
+    return ExtendedOrderService(
+        risk_manager=get_risk_manager(),
+        event_bus=get_event_bus(),
+        broker_service=get_broker_service(),
+    )
+
+
 @router.get("/profile")
 async def live_profile(response: Response = None, gw: Any = Depends(require_live_broker)) -> Any:
     apply_live_headers(response, get_live_broker_name())
@@ -49,9 +73,14 @@ async def live_super_order(
     response: Response = None,
     gw: Any = Depends(require_live_broker),
 ) -> Any:
-    _require_broker("dhan")
     apply_live_headers(response, get_live_broker_name())
-    return serialize_value(_extended(gw).place_super_order(**payload))
+    svc = _get_extended_order_service()
+    result = svc.place_super_order(gw, payload)
+    if not result.success:
+        if result.risk_rejected:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, detail=result.error)
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=result.error)
+    return serialize_value(result.response)
 
 
 @router.post("/orders/forever")
@@ -61,15 +90,13 @@ async def live_forever_order(
     gw: Any = Depends(require_live_broker),
 ) -> Any:
     apply_live_headers(response, get_live_broker_name())
-    ext = _extended(gw)
-    if _broker_name() == "dhan":
-        return serialize_value(ext.place_forever_order(payload))
-    if _broker_name() == "upstox":
-        broker = getattr(gw, "_broker", None)
-        if broker is None:
-            raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, detail="Upstox broker unavailable")
-        return serialize_value(broker.gtt.place_forever_order(payload))
-    raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, detail="Forever orders not supported")
+    svc = _get_extended_order_service()
+    result = svc.place_forever_order(gw, payload)
+    if not result.success:
+        if result.risk_rejected:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, detail=result.error)
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=result.error)
+    return serialize_value(result.response)
 
 
 @router.post("/alerts/trigger")
@@ -79,13 +106,13 @@ async def live_trigger(
     gw: Any = Depends(require_live_broker),
 ) -> Any:
     apply_live_headers(response, get_live_broker_name())
-    ext = _extended(gw)
-    if _broker_name() == "dhan":
-        return serialize_value(ext.place_conditional_trigger(payload))
-    broker = getattr(gw, "_broker", None)
-    if broker is not None and hasattr(broker, "alert"):
-        return serialize_value(broker.alert.place_alert(payload))
-    raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, detail="Triggers not supported")
+    svc = _get_extended_order_service()
+    result = svc.place_trigger(gw, payload)
+    if not result.success:
+        if result.risk_rejected:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, detail=result.error)
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=result.error)
+    return serialize_value(result.response)
 
 
 @router.post("/margin/calculate")
@@ -111,13 +138,13 @@ async def live_margin(
 @router.post("/orders/exit-all")
 async def live_exit_all(response: Response = None, gw: Any = Depends(require_live_broker)) -> Any:
     apply_live_headers(response, get_live_broker_name())
-    ext = _extended(gw)
-    if hasattr(ext, "exit_all"):
-        return serialize_value(ext.exit_all())
-    broker = getattr(gw, "_broker", None)
-    if broker is not None:
-        return serialize_value(broker.exit_all.exit_all())
-    raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, detail="exit_all not supported")
+    svc = _get_extended_order_service()
+    result = svc.exit_all(gw)
+    if not result.success:
+        if result.risk_rejected:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, detail=result.error)
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=result.error)
+    return serialize_value(result.response)
 
 
 @router.get("/ledger")
@@ -188,12 +215,14 @@ async def live_gtt(
     response: Response = None,
     gw: Any = Depends(require_live_broker),
 ) -> Any:
-    _require_broker("upstox")
     apply_live_headers(response, get_live_broker_name())
-    broker = getattr(gw, "_broker", None)
-    if broker is None:
-        raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, detail="Upstox broker unavailable")
-    return serialize_value(broker.gtt.place_gtt_single(payload))
+    svc = _get_extended_order_service()
+    result = svc.place_gtt(gw, payload)
+    if not result.success:
+        if result.risk_rejected:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, detail=result.error)
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=result.error)
+    return serialize_value(result.response)
 
 
 @router.post("/orders/cover")
@@ -202,28 +231,14 @@ async def live_cover(
     response: Response = None,
     gw: Any = Depends(require_live_broker),
 ) -> Any:
-    _require_broker("upstox")
     apply_live_headers(response, get_live_broker_name())
-    broker = getattr(gw, "_broker", None)
-    if broker is None:
-        raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, detail="Upstox broker unavailable")
-    from decimal import Decimal
-
-    from domain import OrderRequest, OrderType, ProductType, Side, Validity
-
-    req = OrderRequest(
-        symbol=payload.get("symbol", ""),
-        exchange=payload.get("exchange", "NSE"),
-        side=Side(payload.get("side", "BUY")),
-        quantity=int(payload.get("quantity", 0)),
-        order_type=OrderType(payload.get("order_type", "MARKET")),
-        product_type=ProductType(payload.get("product_type", "INTRADAY")),
-        validity=Validity(payload.get("validity", "DAY")),
-        price=Decimal(str(payload.get("price", "0"))),
-    )
-    return serialize_value(
-        broker.cover.place_cover_order(req, Decimal(str(payload.get("stop_loss_price", "0"))))
-    )
+    svc = _get_extended_order_service()
+    result = svc.place_cover_order(gw, payload)
+    if not result.success:
+        if result.risk_rejected:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, detail=result.error)
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=result.error)
+    return serialize_value(result.response)
 
 
 @router.post("/orders/slice")
@@ -233,17 +248,13 @@ async def live_slice(
     gw: Any = Depends(require_live_broker),
 ) -> Any:
     apply_live_headers(response, get_live_broker_name())
-    if _broker_name() == "dhan":
-        conn = getattr(gw, "_conn", None)
-        if conn is not None:
-            return serialize_value(conn.orders.place_slice_order(**payload))
-    broker = getattr(gw, "_broker", None)
-    if broker is not None:
-        from domain.requests import SliceOrderRequest
-
-        req = SliceOrderRequest(**payload)
-        return serialize_value(broker.slice.place_slice_order(req))
-    raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, detail="Slice orders not supported")
+    svc = _get_extended_order_service()
+    result = svc.place_slice_order(gw, payload)
+    if not result.success:
+        if result.risk_rejected:
+            raise HTTPException(status.HTTP_403_FORBIDDEN, detail=result.error)
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=result.error)
+    return serialize_value(result.response)
 
 
 @router.post("/kill-switch")
@@ -252,13 +263,12 @@ async def live_broker_kill_switch(
     response: Response = None,
     gw: Any = Depends(require_live_broker),
 ) -> Any:
-    _require_broker("upstox")
     apply_live_headers(response, get_live_broker_name())
-    broker = getattr(gw, "_broker", None)
-    if broker is None:
-        raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, detail="Upstox broker unavailable")
-    updates = payload.get("updates", [])
-    return serialize_value(broker.kill_switch.set_status(updates))
+    svc = _get_extended_order_service()
+    result = svc.set_kill_switch(gw, payload)
+    if not result.success:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, detail=result.error)
+    return serialize_value(result.response)
 
 
 @router.get("/ipo")

@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _get_execution_composer(broker_service: BrokerService) -> "ExecutionComposer":
+def _get_execution_composer(broker_service: BrokerService) -> ExecutionComposer:
     """Lazy-load ExecutionComposer via CLI helpers.
     
     Uses lazy import to avoid circular dependency between cli.commands
@@ -110,9 +110,9 @@ def place_bracket_order(
         return CommandResult(success=False, error=f"Composer initialization failed: {exc}")
 
     try:
-        from domain.requests import OrderRequest
         from domain import OrderType, ProductType
-        
+        from domain.requests import OrderRequest
+
         # Step 1: Place entry order
         console.print(f"[cyan]📦 Placing bracket order for {symbol}...[/cyan]")
         console.print(f"[cyan]   Entry: {side.value} {quantity} @ MARKET[/cyan]")
@@ -255,9 +255,9 @@ def place_oco_order(
         return CommandResult(success=False, error=f"Composer initialization failed: {exc}")
 
     try:
-        from domain.requests import OrderRequest
         from domain import OrderType, ProductType
-        
+        from domain.requests import OrderRequest
+
         console.print(f"[cyan]🔀 Placing OCO order for {symbol}...[/cyan]")
 
         # Place both orders
@@ -356,8 +356,8 @@ def place_basket_order(
     success_count = 0
     failure_count = 0
 
-    from domain.requests import OrderRequest
     from domain import OrderType, ProductType
+    from domain.requests import OrderRequest
 
     for i, order_data in enumerate(orders, 1):
         try:

@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import datetime
 from decimal import Decimal
 
 from domain.instrument_id import InstrumentId
+from domain.symbols import normalize_exchange, normalize_symbol
 
 
 def to_instrument_id(
@@ -62,8 +63,8 @@ def to_instrument_id(
         right = "FUT"
 
     return InstrumentId(
-        exchange=exch.upper(),
-        underlying=und.upper(),
+        exchange=normalize_exchange(exch),
+        underlying=normalize_symbol(und),
         expiry=expiry_date,
         strike=Decimal(str(strike)) if strike is not None else None,
         right=right,

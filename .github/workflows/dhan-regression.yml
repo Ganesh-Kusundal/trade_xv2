@@ -1,0 +1,243 @@
+name: Dhan Regression Suite
+
+# ── Trigger policy ─────────────────────────────────────────────────────────
+# Schedule:  09:30 IST = 04:00 UTC weekdays  → post-open REST regression
+# Dispatch:  manual trigger with tier selector (off_market, market_hours, sandbox, full)
+# Tag push:  any v* tag → full pre-release regression
+on:
+  schedule:
+    # Weekday off-market run: 02:00 UTC = 07:30 IST (before market open; safe for REST)
+    - cron: "0 2 * * 1-5"
+    # Weekday market-hours run: 04:00 UTC = 09:30 IST (right after NSE open)
+    - cron: "0 4 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      tier:
+        description: "Regression tier to run"
+        required: true
+        type: choice
+        options:
+          - off_market
+          - market_hours
+          - sandbox
+          - full
+  push:
+    tags:
+      - "v*"
+
+# Self-hosted runner with live Dhan credentials mounted
+# Label your GitHub Actions runner: dhan-live
+# See docs/dhan-regression-runbook.md for runner setup.
+
+defaults:
+  run:
+    working-directory: .
+
+# ── Common job template (env + steps) ─────────────────────────────────────
+
+env:
+  PYTHONPATH: .
+  PIP_QUIET: "1"
+
+jobs:
+  # ── Tier 1: Off-market regression ────────────────────────────────────────
+  # Runs every weekday at 02:00 UTC (07:30 IST, before market open).
+  # Also runs for manual dispatch with tier=off_market or tier=full.
+  # Also runs on pre-release tags.
+  off-market:
+    name: "Off-Market Regression (REST)"
+    runs-on: [self-hosted, dhan-live]
+    if: >-
+      (github.event_name == 'schedule' && github.event.schedule == '0 2 * * 1-5') ||
+      (github.event_name == 'workflow_dispatch' && (github.event.inputs.tier == 'off_market' || github.event.inputs.tier == 'full')) ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Load credentials from runner secrets
+        run: |
+          echo "DHAN_CLIENT_ID=${{ secrets.DHAN_CLIENT_ID }}" >> $GITHUB_ENV
+          echo "DHAN_ACCESS_TOKEN=${{ secrets.DHAN_ACCESS_TOKEN }}" >> $GITHUB_ENV
+
+      - name: Run off-market regression suite
+        run: |
+          python -m pytest \
+            -m "dhan and off_market_safe and regression" \
+            brokers/dhan/tests/integration/test_regression_suite.py \
+            brokers/dhan/tests/regression/test_e2e_smoke.py \
+            --tb=short -v \
+            --junitxml=reports/off_market_regression.xml \
+            --timeout=120
+
+      - name: Generate regression report
+        if: always()
+        run: |
+          python scripts/dhan_regression_report.py \
+            --junit reports/off_market_regression.xml \
+            --output docs/audits/DHAN_REGRESSION_REPORT.md \
+            --fail-on P0
+
+      - name: Upload report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: off-market-regression-report
+          path: |
+            reports/off_market_regression.xml
+            docs/audits/DHAN_REGRESSION_REPORT.md
+
+  # ── Tier 2: Market-hours regression ──────────────────────────────────────
+  # Runs every weekday at 04:00 UTC = 09:30 IST (right after NSE open).
+  # Also runs for manual dispatch with tier=market_hours or tier=full.
+  market-hours:
+    name: "Market-Hours Regression (WebSocket)"
+    runs-on: [self-hosted, dhan-live]
+    if: >-
+      (github.event_name == 'schedule' && github.event.schedule == '0 4 * * 1-5') ||
+      (github.event_name == 'workflow_dispatch' && (github.event.inputs.tier == 'market_hours' || github.event.inputs.tier == 'full'))
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Load credentials from runner secrets
+        run: |
+          echo "DHAN_CLIENT_ID=${{ secrets.DHAN_CLIENT_ID }}" >> $GITHUB_ENV
+          echo "DHAN_ACCESS_TOKEN=${{ secrets.DHAN_ACCESS_TOKEN }}" >> $GITHUB_ENV
+          echo "FORCE_MARKET_OPEN=1" >> $GITHUB_ENV
+
+      - name: Run market-hours regression suite
+        run: |
+          python -m pytest \
+            -m "dhan and market_hours and regression" \
+            brokers/dhan/tests/integration/test_regression_suite.py \
+            brokers/dhan/tests/regression/test_e2e_smoke.py \
+            --tb=short -v \
+            --junitxml=reports/market_hours_regression.xml \
+            --timeout=120
+
+      - name: Upload report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: market-hours-regression-report
+          path: reports/market_hours_regression.xml
+
+  # ── Tier 3: Sandbox order flow ────────────────────────────────────────────
+  # Manual only — never schedule order placement automatically.
+  sandbox-orders:
+    name: "Sandbox Order E2E"
+    runs-on: [self-hosted, dhan-live]
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      (github.event.inputs.tier == 'sandbox' || github.event.inputs.tier == 'full')
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Load sandbox credentials from runner secrets
+        run: |
+          echo "DHAN_SANDBOX_CLIENT_ID=${{ secrets.DHAN_SANDBOX_CLIENT_ID }}" >> $GITHUB_ENV
+          echo "DHAN_SANDBOX_ACCESS_TOKEN=${{ secrets.DHAN_SANDBOX_ACCESS_TOKEN }}" >> $GITHUB_ENV
+          echo "DHAN_INTEGRATION=1" >> $GITHUB_ENV
+          echo "DHAN_SANDBOX=1" >> $GITHUB_ENV
+
+      - name: Run sandbox order tests
+        run: |
+          python -m pytest \
+            -m sandbox \
+            tests/e2e/test_sandbox_real_broker.py \
+            cli/tests/test_order_sandbox_integration.py \
+            --tb=short -v \
+            --junitxml=reports/sandbox_orders.xml \
+            --timeout=60
+
+      - name: Upload report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sandbox-orders-report
+          path: reports/sandbox_orders.xml
+
+  # ── Tier 4: Full pre-release gate ─────────────────────────────────────────
+  # Runs on every v* tag push.  Runs all tiers in sequence; exit non-zero
+  # on any P0 capability failure (enforced by dhan_regression_report.py).
+  pre-release:
+    name: "Pre-Release Full Regression"
+    runs-on: [self-hosted, dhan-live]
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    timeout-minutes: 60
+    needs: [off-market]  # off-market must pass first
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Load credentials from runner secrets
+        run: |
+          echo "DHAN_CLIENT_ID=${{ secrets.DHAN_CLIENT_ID }}" >> $GITHUB_ENV
+          echo "DHAN_ACCESS_TOKEN=${{ secrets.DHAN_ACCESS_TOKEN }}" >> $GITHUB_ENV
+          echo "PRE_PROD_GATE=1" >> $GITHUB_ENV
+
+      - name: Run full regression suite (pre-release gate)
+        run: |
+          PRE_PROD_GATE=1 python -m pytest \
+            -m "dhan and regression" \
+            brokers/dhan/tests/integration/ \
+            --tb=short -v \
+            --junitxml=reports/pre_release_regression.xml \
+            --timeout=180
+
+      - name: Enforce P0 capability gate
+        run: |
+          python scripts/dhan_regression_report.py \
+            --junit reports/pre_release_regression.xml \
+            --output docs/audits/DHAN_REGRESSION_REPORT.md \
+            --fail-on P0
+
+      - name: Upload full report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-release-regression-report
+          path: |
+            reports/pre_release_regression.xml
+            docs/audits/DHAN_REGRESSION_REPORT.md

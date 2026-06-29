@@ -265,24 +265,24 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway):
         order was already filled (instant fill for market orders).
         """
         success = self._orders.cancel_order(order_id)
-        
+
         # Always check order status for post-cancellation verification (H1 fix)
         order = self.get_order(order_id)
-        
+
         if order and order.status in (OrderStatus.FILLED,):
             # Race condition detected: order was filled before cancel
             return OrderResponse.fail(
                 message=f"Order {order_id} was already filled before cancel completed",
                 status=OrderStatus.FILLED,
             )
-        
+
         if success:
             return OrderResponse.ok(
                 order_id=order_id,
                 message="Order cancelled (paper)",
                 status=OrderStatus.CANCELLED,
             )
-        
+
         return OrderResponse.fail(
             message=f"Order {order_id} not found or not open",
             status=OrderStatus.REJECTED,
@@ -331,7 +331,7 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway):
             order_type = OrderType(order_type.upper())
         if isinstance(validity, str):
             validity = Validity(validity.upper())
-        
+
         try:
             order = self._orders.modify_order(
                 order_id=order_id,

@@ -121,6 +121,7 @@ _register_cmd("oco-order", "cli.commands.order_composition")
 _register_cmd("basket-order", "cli.commands.order_composition")
 _register_cmd("risk", "cli.commands.risk_controls")
 _register_cmd("cache", "cli.commands.cache_management")
+_register_cmd("certify", "cli.commands.certify")
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
@@ -169,6 +170,7 @@ def _print_help(console: Console) -> None:
         ("basket-order", "Multi-symbol basket order"),
         ("risk", "Risk management controls"),
         ("cache", "Instrument cache management"),
+        ("certify", "Run broker certification suite"),
     ]
     for cmd, desc in cmds:
         console.print(f"  [cyan]{cmd:<25}[/cyan] {desc}")
@@ -397,10 +399,10 @@ def main() -> None:
         "validate-history",
         "validate-option-chain",  # Validation needs instruments
     }
-    
+
     # P-1.3: Readonly mode - skip TradingContext/OMS for market data commands
     readonly = subcommand in _READONLY_COMMANDS
-    
+
     event_bus_service = EventBusService()
     broker_service = BrokerService(
         load_instruments=needs_instruments,

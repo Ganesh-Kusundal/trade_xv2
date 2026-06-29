@@ -6,9 +6,7 @@ Verifies that get_order() uses the OrdersAdapter.get_order() direct endpoint
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, PropertyMock
-
-import pytest
+from unittest.mock import MagicMock
 
 from brokers.dhan.gateway import BrokerGateway
 from domain import Order, OrderStatus, OrderType, Side

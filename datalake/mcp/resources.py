@@ -49,6 +49,7 @@ def register_resources(mcp) -> None:
     def get_quality(date: str) -> str:
         """Get data quality summary for a date."""
         import duckdb
+
         from datalake.core.duckdb_utils import DEFAULT_CATALOG_PATH
 
         conn = duckdb.connect(str(DEFAULT_CATALOG_PATH), read_only=True)

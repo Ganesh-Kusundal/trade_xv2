@@ -11,8 +11,8 @@ Tests all market data endpoints across:
 import os
 import sys
 import time
-from decimal import Decimal
 from datetime import date
+from decimal import Decimal
 
 # Add project root to path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -35,9 +35,9 @@ def test_nse_equity(gw):
     print("\n" + "="*70)
     print("NSE EQUITY (NSE)")
     print("="*70)
-    
+
     symbol = "RELIANCE"
-    
+
     # LTP
     try:
         ltp = gw.ltp(symbol, "NSE")
@@ -45,16 +45,16 @@ def test_nse_equity(gw):
     except Exception as e:
         record("LTP", "NSE", "FAIL", str(e))
     time.sleep(0.2)
-    
+
     # Quote
     try:
         quote = gw.quote(symbol, "NSE")
-        record("Quote", "NSE", "PASS" if quote and quote.ltp else "FAIL", 
+        record("Quote", "NSE", "PASS" if quote and quote.ltp else "FAIL",
                f"LTP={quote.ltp}, Vol={quote.volume}")
     except Exception as e:
         record("Quote", "NSE", "FAIL", str(e))
     time.sleep(0.2)
-    
+
     # Depth
     try:
         depth = gw.depth(symbol, "NSE")
@@ -65,7 +65,7 @@ def test_nse_equity(gw):
     except Exception as e:
         record("Depth (5-level)", "NSE", "FAIL", str(e))
     time.sleep(0.2)
-    
+
     # History Daily
     try:
         df = gw.history(symbol, "NSE", timeframe="1D", lookback_days=10)
@@ -74,7 +74,7 @@ def test_nse_equity(gw):
     except Exception as e:
         record("History (1D)", "NSE", "FAIL", str(e))
     time.sleep(0.3)
-    
+
     # History Intraday
     try:
         df = gw.history(symbol, "NSE", timeframe="5m", lookback_days=5)
@@ -89,7 +89,7 @@ def test_nse_fno(gw):
     print("\n" + "="*70)
     print("NSE FUTURES & OPTIONS (NFO)")
     print("="*70)
-    
+
     # Future Chain
     try:
         chain = gw.future_chain("NIFTY", "NFO")
@@ -100,7 +100,7 @@ def test_nse_fno(gw):
     except Exception as e:
         record("Future Chain", "NFO", "FAIL", str(e))
     time.sleep(0.3)
-    
+
     # Option Chain
     try:
         chain = gw.option_chain("NIFTY", "NFO")
@@ -110,7 +110,7 @@ def test_nse_fno(gw):
     except Exception as e:
         record("Option Chain", "NFO", "FAIL", str(e))
     time.sleep(0.3)
-    
+
     # History for Index
     try:
         df = gw.history("NIFTY", "IDX_I", timeframe="1D", lookback_days=10)
@@ -125,9 +125,9 @@ def test_mcx_commodity(gw):
     print("\n" + "="*70)
     print("MCX COMMODITY (MCX)")
     print("="*70)
-    
+
     symbol = "GOLD"
-    
+
     # LTP
     try:
         ltp = gw.ltp(symbol, "MCX")
@@ -135,7 +135,7 @@ def test_mcx_commodity(gw):
     except Exception as e:
         record("LTP", "MCX", "FAIL", str(e))
     time.sleep(0.2)
-    
+
     # Quote
     try:
         quote = gw.quote(symbol, "MCX")
@@ -144,7 +144,7 @@ def test_mcx_commodity(gw):
     except Exception as e:
         record("Quote", "MCX", "FAIL", str(e))
     time.sleep(0.2)
-    
+
     # Depth
     try:
         depth = gw.depth(symbol, "MCX")
@@ -155,7 +155,7 @@ def test_mcx_commodity(gw):
     except Exception as e:
         record("Depth (5-level)", "MCX", "FAIL", str(e))
     time.sleep(0.2)
-    
+
     # History Daily
     try:
         df = gw.history(symbol, "MCX", timeframe="1D", lookback_days=10)
@@ -164,7 +164,7 @@ def test_mcx_commodity(gw):
     except Exception as e:
         record("History (1D)", "MCX", "FAIL", str(e))
     time.sleep(0.3)
-    
+
     # History Intraday
     try:
         df = gw.history(symbol, "MCX", timeframe="5m", lookback_days=5)
@@ -173,7 +173,7 @@ def test_mcx_commodity(gw):
     except Exception as e:
         record("History (5m)", "MCX", "FAIL", str(e))
     time.sleep(0.3)
-    
+
     # Future Chain
     try:
         chain = gw.future_chain(symbol, "MCX")
@@ -184,7 +184,7 @@ def test_mcx_commodity(gw):
     except Exception as e:
         record("Future Chain", "MCX", "FAIL", str(e))
     time.sleep(0.3)
-    
+
     # Option Chain
     try:
         chain = gw.option_chain(symbol, "MCX")
@@ -194,7 +194,7 @@ def test_mcx_commodity(gw):
     except Exception as e:
         record("Option Chain", "MCX", "FAIL", str(e))
     time.sleep(0.3)
-    
+
     # Test SILVER
     try:
         ltp = gw.ltp("SILVER", "MCX")
@@ -202,7 +202,7 @@ def test_mcx_commodity(gw):
     except Exception as e:
         record("LTP (SILVER)", "MCX", "FAIL", str(e))
     time.sleep(0.2)
-    
+
     # Test CRUDEOIL
     try:
         ltp = gw.ltp("CRUDEOIL", "MCX")
@@ -216,7 +216,7 @@ def test_batch_operations(gw):
     print("\n" + "="*70)
     print("BATCH OPERATIONS")
     print("="*70)
-    
+
     # LTP Batch NSE
     try:
         symbols = ["RELIANCE", "TCS", "INFY", "HDFCBANK", "ICICIBANK"]
@@ -226,7 +226,7 @@ def test_batch_operations(gw):
     except Exception as e:
         record("LTP Batch", "NSE", "FAIL", str(e))
     time.sleep(0.3)
-    
+
     # Quote Batch NSE
     try:
         symbols = ["RELIANCE", "TCS", "INFY"]
@@ -236,7 +236,7 @@ def test_batch_operations(gw):
     except Exception as e:
         record("Quote Batch", "NSE", "FAIL", str(e))
     time.sleep(0.3)
-    
+
     # History Batch NSE
     try:
         symbols = ["RELIANCE", "TCS"]
@@ -255,49 +255,49 @@ def main():
     print("║" + " "*68 + "║")
     print("╚" + "═"*68 + "╝")
     print()
-    
+
     try:
         from brokers.dhan.factory import BrokerFactory
-        
+
         print("Creating Dhan Gateway...")
         factory = BrokerFactory()
         gw = factory.create(load_instruments=True)
         print(f"Gateway created. Instruments: {gw.describe().get('instrument_count', '?')}")
-        
+
         # Run all tests
         test_nse_equity(gw)
         test_nse_fno(gw)
         test_mcx_commodity(gw)
         test_batch_operations(gw)
-        
+
         # Summary
         print("\n" + "="*70)
         print("SUMMARY")
         print("="*70)
-        
+
         passed = sum(1 for r in results if r[2] == "PASS")
         failed = sum(1 for r in results if r[2] == "FAIL")
         skipped = sum(1 for r in results if r[2] == "SKIP")
         total = len(results)
-        
+
         print(f"\nTotal: {total}  |  {PASS} PASS: {passed}  |  {FAIL} FAIL: {failed}  |  {SKIP} SKIP: {skipped}")
         print()
-        
+
         if failed:
             print("FAILURES:")
             for test, segment, status, detail in results:
                 if status == "FAIL":
                     print(f"  {FAIL} {test:30s} [{segment}] {detail[:100]}")
             print()
-        
+
         print(f"Result: {'✅ ALL TESTS PASSED' if failed == 0 else f'❌ {failed} FAILURES'}")
-        
+
         # Close gateway
         try:
             gw._conn.close()
         except:
             pass
-            
+
     except Exception as e:
         print(f"\n💥 FATAL: {e}")
         import traceback

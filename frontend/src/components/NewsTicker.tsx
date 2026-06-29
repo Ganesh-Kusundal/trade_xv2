@@ -1,16 +1,17 @@
 /**
  * NewsTicker — horizontally scrolling news headline bar.
  *
- * CSS-animated marquee. Pauses on hover. Uses generateNews from
- * src/data/orderflow.ts.
+ * CSS-animated marquee. Pauses on hover. Uses real news from backend
+ * via useNews hook. Falls back to mock when backend is unavailable.
  */
 
-import { useEffect, useMemo, useState } from 'react'
-import { Newspaper, TrendingUp, TrendingDown, AlertCircle, Building2, Landmark, Scale } from 'lucide-react'
-import { generateNews, type NewsItem } from '@/data/orderflow'
+import { useMemo } from 'react'
+import { Newspaper, TrendingUp, TrendingDown, AlertCircle, Building2, Landmark, Scale, Wifi, WifiOff } from 'lucide-react'
+import { useNews, type NewsItem } from '@/hooks/useNews'
+import { generateNews, type NewsItem as MockNewsItem } from '@/data/orderflow'
 import { cn, timeAgo } from '@/lib/utils'
 
-const CAT_ICON: Record<NewsItem['category'], typeof TrendingUp> = {
+const CAT_ICON: Record<string, typeof TrendingUp> = {
   EARNINGS: TrendingUp,
   CORP: Building2,
   MARKET: TrendingDown,
@@ -19,7 +20,7 @@ const CAT_ICON: Record<NewsItem['category'], typeof TrendingUp> = {
   REGULATORY: Scale,
 }
 
-const CAT_COLOR: Record<NewsItem['category'], string> = {
+const CAT_COLOR: Record<string, string> = {
   EARNINGS: 'text-bull',
   CORP: 'text-bcy',
   MARKET: 'text-bfg',
@@ -29,13 +30,19 @@ const CAT_COLOR: Record<NewsItem['category'], string> = {
 }
 
 export function NewsTicker() {
-  const [news, setNews] = useState<NewsItem[]>([])
+  const { items: realNews, loading, error } = useNews({ limit: 20 })
 
-  useEffect(() => {
-    setNews(generateNews(20))
-    const id = window.setInterval(() => setNews(generateNews(20)), 60_000)
-    return () => clearInterval(id)
-  }, [])
+  // Use real news if available, otherwise fall back to mock
+  const useReal = realNews.length > 0 && !error
+  const news: MockNewsItem[] = useReal
+    ? realNews.map((n) => ({
+        t: n.timestamp ? new Date(n.timestamp).getTime() : Date.now(),
+        symbol: n.symbol,
+        category: (n.category.toUpperCase() as MockNewsItem['category']) || 'MARKET',
+        headline: n.headline,
+        source: n.source,
+      }))
+    : generateNews(20)
 
   // Duplicate the list so the marquee loops seamlessly
   const items = useMemo(() => [...news, ...news], [news])
@@ -46,6 +53,11 @@ export function NewsTicker() {
       <div className="flex items-center gap-1.5 px-2 border-r border-bline bg-bbg2 text-bamb">
         <Newspaper className="h-3 w-3" />
         <span className="text-2xs font-semibold uppercase tracking-wider">News</span>
+        {useReal ? (
+          <Wifi className="h-2 w-2 text-bull" />
+        ) : (
+          <WifiOff className="h-2 w-2 text-bear" />
+        )}
       </div>
 
       {/* Marquee */}
@@ -54,11 +66,12 @@ export function NewsTicker() {
         <div className="absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-bbg1 to-transparent z-10 pointer-events-none" />
         <div className="flex h-full items-center gap-6 whitespace-nowrap animate-marquee group-hover:[animation-play-state:paused]">
           {items.map((n, i) => {
-            const Icon = CAT_ICON[n.category]
+            const Icon = CAT_ICON[n.category] ?? TrendingDown
+            const color = CAT_COLOR[n.category] ?? 'text-fg-dim'
             return (
               <span key={i} className="flex items-center gap-1.5 text-2xs font-mono num">
-                <Icon className={cn('h-3 w-3', CAT_COLOR[n.category])} />
-                <span className={cn('font-semibold', CAT_COLOR[n.category])}>
+                <Icon className={cn('h-3 w-3', color)} />
+                <span className={cn('font-semibold', color)}>
                   [{n.symbol}]
                 </span>
                 <span className="text-fg">{n.headline}</span>

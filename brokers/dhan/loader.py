@@ -11,6 +11,7 @@ from pathlib import Path
 import pandas as pd
 
 from brokers.dhan.segments import _COMPACT_SEGMENT_MAP
+from domain.symbols import normalize_exchange
 from endpoints import Dhan
 
 logger = logging.getLogger(__name__)
@@ -124,7 +125,7 @@ class InstrumentLoader:
         if mcx_required is None:
             trading_segments = os.environ.get("DHAN_TRADING_SEGMENTS", "")
             mcx_required = "MCX" in [
-                s.strip().upper() for s in trading_segments.split(",") if s.strip()
+                normalize_exchange(s) for s in trading_segments.split(",") if s.strip()
             ]
 
         # Supplement with MCX detailed API (has GOLD/CRUDEOIL futures

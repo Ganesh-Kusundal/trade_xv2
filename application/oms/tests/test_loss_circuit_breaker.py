@@ -28,23 +28,14 @@ from application.oms._internal.loss_circuit_breaker import (
     LossCircuitBreaker,
     LossCircuitBreakerConfig,
 )
-from domain import Order, OrderStatus, OrderType, ProductType, Side
+from domain import Order
+from tests.fixtures.domain_helpers import make_order as _make_order_shared
 
 # -- Helpers --
 
 
 def _make_order(symbol: str = "RELIANCE", price: Decimal = Decimal("2500")) -> Order:
-    return Order(
-        order_id="O-1",
-        symbol=symbol,
-        exchange="NSE",
-        side=Side.BUY,
-        quantity=10,
-        price=price,
-        order_type=OrderType.LIMIT,
-        product_type=ProductType.INTRADAY,
-        status=OrderStatus.OPEN,
-    )
+    return _make_order_shared(symbol=symbol, price=price, order_id="O-1")
 
 
 @pytest.fixture

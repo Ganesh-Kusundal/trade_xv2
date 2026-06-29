@@ -5,10 +5,9 @@ from __future__ import annotations
 import logging
 from decimal import Decimal
 
-from brokers.dhan.domain import Exchange
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
-from brokers.dhan.segments import SEGMENT_TO_EXCHANGE
+from brokers.dhan.segments import segment_to_exchange
 from domain import Balance, Holding, Position, ProductType
 
 logger = logging.getLogger(__name__)
@@ -34,7 +33,7 @@ class PortfolioAdapter:
             positions.append(
                 Position(
                     symbol=str(item.get("tradingSymbol", "")),
-                    exchange=_parse_exchange(item.get("exchangeSegment", "NSE_EQ")),
+                    exchange=segment_to_exchange(item.get("exchangeSegment", "NSE_EQ")),
                     quantity=int(item.get("netQuantity", 0)),
                     avg_price=Decimal(str(item.get("buyAveragePrice", 0))),
                     ltp=Decimal(str(item.get("lastPrice", 0))),
@@ -64,7 +63,7 @@ class PortfolioAdapter:
             holdings.append(
                 Holding(
                     symbol=str(item.get("tradingSymbol", "")),
-                    exchange=_parse_exchange(item.get("exchangeSegment", "NSE_EQ")),
+                    exchange=segment_to_exchange(item.get("exchangeSegment", "NSE_EQ")),
                     quantity=qty,
                     available_quantity=int(
                         item.get("availableQty", item.get("availableQuantity", 0))
@@ -94,11 +93,6 @@ class PortfolioAdapter:
         )
         logger.info("balance_fetched", extra={"available_balance": str(balance.available_balance)})
         return balance
-
-
-def _parse_exchange(seg: str) -> Exchange:
-    exch = SEGMENT_TO_EXCHANGE.get(str(seg), "NSE")
-    return Exchange(exch)
 
 
 def _parse_product(pt: str) -> ProductType:

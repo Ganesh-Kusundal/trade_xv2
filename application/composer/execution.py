@@ -8,7 +8,6 @@ routing, quota acquisition, and audit trails.
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from brokers.common.broker_port import QuotaToken
 from brokers.common.models import OperationKind, RoutingRequest

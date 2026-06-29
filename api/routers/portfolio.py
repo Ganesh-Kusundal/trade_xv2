@@ -10,8 +10,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from api.auth import require_auth
 from api.deps import (
-    get_broker_service,
-    get_order_repository,
+    get_event_bus,
+    get_order_manager,
+    get_position_manager,
     get_position_repository,
     get_risk_manager,
     get_trade_journal,
@@ -23,7 +24,7 @@ from api.schemas import (
     Position,
     PositionsResponse,
 )
-from domain import OrderType, ProductType, Side
+from application.portfolio.portfolio_service import PortfolioService
 from domain.repositories import PositionRepository
 
 logger = logging.getLogger(__name__)
@@ -36,20 +37,14 @@ async def get_positions(
     status_filter: str | None = Query(
         None, alias="status", description="Filter: open, closed, all"
     ),
-    position_repo: PositionRepository = Depends(get_position_repository),
 ):
     """Get current positions from OMS.
 
     Returns open and closed positions from broker or paper trading.
     """
-    positions = position_repo.get_positions()
-
-    # Filter by status if requested
-    if status_filter and status_filter != "all":
-        positions = [p for p in positions if (status_filter == "open") == (p.quantity != 0)]
-
-    total_pnl = sum(p.unrealized_pnl + p.realized_pnl for p in positions)
-    total_value = sum(abs(p.quantity) * p.avg_price for p in positions if p.quantity != 0)
+    position_manager = get_position_manager()
+    svc = PortfolioService(position_manager=position_manager)
+    summary = svc.get_positions(status_filter=status_filter)
 
     return PositionsResponse(
         positions=[
@@ -57,76 +52,51 @@ async def get_positions(
                 symbol=p.symbol,
                 exchange=p.exchange,
                 quantity=p.quantity,
-                average_price=float(p.avg_price),
-                current_price=float(getattr(p, "ltp", Decimal("0"))),
-                unrealized_pnl=float(p.unrealized_pnl),
-                realized_pnl=float(p.realized_pnl),
-                pnl_pct=float(
-                    (p.unrealized_pnl + p.realized_pnl) / (abs(p.avg_price) * abs(p.quantity)) * 100
-                )
-                if p.avg_price and p.quantity
-                else 0.0,
+                average_price=p.average_price,
+                current_price=p.current_price,
+                unrealized_pnl=p.unrealized_pnl,
+                realized_pnl=p.realized_pnl,
+                pnl_pct=p.pnl_pct,
             )
-            for p in positions
+            for p in summary.positions
         ],
-        count=len(positions),
-        total_pnl=float(total_pnl),
-        total_pnl_percent=float((total_pnl / total_value * 100) if total_value else 0.0),
+        count=summary.count,
+        total_pnl=summary.total_pnl,
+        total_pnl_percent=summary.total_pnl_percent,
     )
 
 
 @router.get("/holdings", response_model=HoldingsResponse)
-async def get_holdings(
-    position_repo: PositionRepository = Depends(get_position_repository),
-):
+async def get_holdings():
     """Get current holdings/portfolio.
 
     Returns long-term holdings with cost basis and current value.
     Uses real PositionManager data, filtering for delivery positions.
     """
     try:
-        positions = position_repo.get_positions()
-
-        # Filter for holdings (non-zero quantity positions)
-        holdings = []
-        total_value = 0.0
-        total_invested = 0.0
-        total_pnl = 0.0
-
-        for p in positions:
-            if p.quantity != 0:
-                current_price = float(getattr(p, "ltp", Decimal("0")))
-                avg_price = float(p.avg_price)
-                quantity = abs(p.quantity)
-
-                invested = quantity * avg_price
-                current = quantity * current_price
-                pnl = current - invested
-
-                holdings.append(
-                    Holding(
-                        symbol=p.symbol,
-                        exchange=p.exchange,
-                        quantity=quantity,
-                        average_price=avg_price,
-                        current_price=current_price,
-                        invested_value=invested,
-                        current_value=current,
-                        pnl=pnl,
-                        pnl_percent=(pnl / invested * 100) if invested > 0 else 0.0,
-                    )
-                )
-
-                total_value += current
-                total_invested += invested
-                total_pnl += pnl
+        position_manager = get_position_manager()
+        svc = PortfolioService(position_manager=position_manager)
+        summary = svc.get_holdings()
 
         return HoldingsResponse(
-            holdings=holdings,
-            count=len(holdings),
-            total_value=total_value,
-            total_invested=total_invested,
-            total_pnl=total_pnl,
+            holdings=[
+                Holding(
+                    symbol=h.symbol,
+                    exchange=h.exchange,
+                    quantity=h.quantity,
+                    average_price=h.average_price,
+                    current_price=h.current_price,
+                    invested_value=h.invested_value,
+                    current_value=h.current_value,
+                    pnl=h.pnl,
+                    pnl_percent=h.pnl_percent,
+                )
+                for h in summary.holdings
+            ],
+            count=summary.count,
+            total_value=summary.total_value,
+            total_invested=summary.total_invested,
+            total_pnl=summary.total_pnl,
         )
     except HTTPException:
         raise
@@ -313,99 +283,49 @@ async def get_pnl_history(
 @router.post("/square-off", response_model=dict)
 async def square_off_positions(
     symbol: str | None = Query(None, description="Square off specific symbol"),
-    position_repo: PositionRepository = Depends(get_position_repository),
-    order_repo=Depends(get_order_repository),
-    broker_service=Depends(get_broker_service),
 ):
     """Square off all or specific positions.
 
     Closes all open positions or specific symbol position.
-    Uses real OMS to place market orders for position closure.
+    Routes through OMS for risk checks and event publishing.
     """
+    from application.oms.square_off_service import SquareOffRejectedError, SquareOffService
+
     try:
-        positions = position_repo.get_positions()
+        order_manager = get_order_manager()
+        position_manager = get_position_manager()
+        risk_manager = get_risk_manager()
+        event_bus = get_event_bus()
 
-        # Filter positions to square off
-        if symbol:
-            positions = [p for p in positions if p.symbol.upper() == symbol.upper()]
-        else:
-            positions = [p for p in positions if p.quantity != 0]
+        svc = SquareOffService(
+            order_manager=order_manager,
+            position_manager=position_manager,
+            risk_manager=risk_manager,
+            event_bus=event_bus,
+        )
 
-        if not positions:
-            return {
-                "status": "no_positions",
-                "message": "No positions to square off",
-                "squared_off": 0,
-            }
-
-        submit_fn = getattr(broker_service, "submit_order", None) if broker_service else None
-        if submit_fn is None:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Broker order submission unavailable.",
-                headers={"Retry-After": "60"},
-            )
-
-        squared_off = []
-        failed = []
-
-        for p in positions:
-            try:
-                # Determine opposite side
-                opposite_side = Side.SELL if p.quantity > 0 else Side.BUY
-                quantity = abs(p.quantity)
-
-                from application.oms.order_repository_adapter import request_to_command
-                from domain.requests import OrderRequest as DomainOrderRequest
-
-                domain_req = DomainOrderRequest(
-                    symbol=p.symbol,
-                    exchange=p.exchange,
-                    transaction_type=opposite_side,
-                    order_type=OrderType.MARKET,
-                    quantity=quantity,
-                    price=Decimal("0"),
-                    product_type=ProductType.INTRADAY,
-                    correlation_id=f"square-off-{datetime.now().isoformat()}",
-                )
-
-                result = order_repo.place_command(
-                    request_to_command(domain_req), submit_fn=submit_fn
-                )
-
-                if result.success:
-                    squared_off.append(
-                        {
-                            "symbol": p.symbol,
-                            "quantity": quantity,
-                            "side": opposite_side.value,
-                            "order_id": result.order.order_id if result.order else None,
-                        }
-                    )
-                else:
-                    failed.append(
-                        {
-                            "symbol": p.symbol,
-                            "error": result.error or "Unknown error",
-                        }
-                    )
-            except Exception as exc:
-                failed.append(
-                    {
-                        "symbol": p.symbol,
-                        "error": str(exc),
-                    }
-                )
+        summary = svc.square_off(symbol=symbol)
 
         return {
-            "status": "completed",
-            "squared_off": len(squared_off),
-            "failed": len(failed),
+            "status": summary.status,
+            "squared_off": summary.squared_off,
+            "failed": summary.failed,
             "details": {
-                "squared_off": squared_off,
-                "failed": failed,
+                "squared_off": [
+                    {"symbol": r.symbol, "quantity": r.quantity, "side": r.side, "order_id": r.order_id}
+                    for r in summary.details if r.success
+                ],
+                "failed": [
+                    {"symbol": r.symbol, "error": r.error}
+                    for r in summary.details if not r.success
+                ],
             },
         }
+    except SquareOffRejectedError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=str(exc),
+        )
     except HTTPException:
         raise
     except Exception as exc:

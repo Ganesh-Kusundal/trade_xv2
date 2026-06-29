@@ -18,14 +18,13 @@ from __future__ import annotations
 import argparse
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 import duckdb
 
-from datalake.duckdb_utils import DEFAULT_CATALOG_PATH, duckdb_connection, get_pool
+from datalake.duckdb_utils import DEFAULT_CATALOG_PATH, get_pool
 
 logger = logging.getLogger(__name__)
 

@@ -19,6 +19,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from domain.symbols import normalize_symbol
+
 DEFAULT_JOURNAL_PATH = Path("market_data/journal.sqlite")
 
 logger = logging.getLogger(__name__)
@@ -176,7 +178,7 @@ class TradeJournal:
             """,
             [
                 trade_id,
-                symbol.upper(),
+                normalize_symbol(symbol),
                 strategy,
                 _iso(entry_time),
                 _iso(exit_time),
@@ -246,7 +248,7 @@ class TradeJournal:
 
         if symbol:
             query += " AND symbol = ?"
-            params.append(symbol.upper())
+            params.append(normalize_symbol(symbol))
         if strategy:
             query += " AND strategy = ?"
             params.append(strategy)
@@ -280,7 +282,7 @@ class TradeJournal:
             params.append(strategy)
         if symbol:
             query += " AND symbol = ?"
-            params.append(symbol.upper())
+            params.append(normalize_symbol(symbol))
 
         row = conn.execute(query, params).fetchone()
         total_trades = row["total_trades"] or 0

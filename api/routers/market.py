@@ -148,7 +148,7 @@ async def get_candles(
                 t=ts_ms[i],
                 o=float(r["open"]) if pd.notna(r.get("open")) else 0.0,
                 h=float(r["high"]) if pd.notna(r.get("high")) else 0.0,
-                l=float(r["low"]) if pd.notna(r.get("low")) else 0.0,
+                low=float(r["low"]) if pd.notna(r.get("low")) else 0.0,
                 c=float(r["close"]) if pd.notna(r.get("close")) else 0.0,
                 v=float(r["volume"]) if pd.notna(r.get("volume")) else 0.0,
                 oi=float(r.get("oi", 0)) if pd.notna(r.get("oi", 0)) else 0.0,

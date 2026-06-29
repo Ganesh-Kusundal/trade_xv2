@@ -23,6 +23,7 @@ from cli.commands import validate_option_chain as cmd_validate_option_chain
 from cli.commands.registry import CommandResult
 from cli.services.broker_service import BrokerService
 from domain import DepthLevel, MarketDepth
+from domain.symbols import normalize_symbol
 
 
 def handle_quote(
@@ -38,7 +39,7 @@ def handle_quote(
     quote = gw.quote(symbol)
     if quote is None:
         return CommandResult(success=False, error=f"No quote data for {symbol}")
-    table = Table(title=f"Quote: {symbol.upper()}", header_style="bold green")
+    table = Table(title=f"Quote: {normalize_symbol(symbol)}", header_style="bold green")
     table.add_column("Metric", style="bold white")
     table.add_column("Value", justify="right")
     table.add_row("LTP", f"\u20b9{quote.ltp:,.2f}")
@@ -82,7 +83,7 @@ def handle_depth(
     asks: list[DepthLevel] = list(depth.asks) if depth.asks else []
     if not bids and not asks:
         return CommandResult(success=False, error=f"No depth data for {symbol}")
-    table = Table(title=f"Market Depth: {symbol.upper()}", header_style="bold magenta")
+    table = Table(title=f"Market Depth: {normalize_symbol(symbol)}", header_style="bold magenta")
     table.add_column("Bid Qty", style="green", justify="right")
     table.add_column("Bid Price", style="bold green", justify="right")
     table.add_column("Ask Price", style="bold red", justify="right")
@@ -128,7 +129,7 @@ def handle_history(
     )
     if df is None or df.empty:
         return CommandResult(success=False, error=f"No history data for {symbol}")
-    table = Table(title=f"History: {symbol.upper()} (last 5 days)", header_style="bold magenta")
+    table = Table(title=f"History: {normalize_symbol(symbol)} (last 5 days)", header_style="bold magenta")
     table.add_column("Date", style="bold white")
     table.add_column("Open", justify="right")
     table.add_column("High", justify="right")

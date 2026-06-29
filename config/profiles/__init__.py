@@ -12,10 +12,10 @@ Usage::
     profile = load_profile()  # Loads from APP_ENV or defaults to dev
 """
 
-from config.profiles.dev import DevProfile
-from config.profiles.staging import StagingProfile
-from config.profiles.prod import ProdProfile
 from config.profiles.base import BaseProfile, EnvironmentProfile
+from config.profiles.dev import DevProfile
+from config.profiles.prod import ProdProfile
+from config.profiles.staging import StagingProfile
 
 __all__ = [
     "BaseProfile",

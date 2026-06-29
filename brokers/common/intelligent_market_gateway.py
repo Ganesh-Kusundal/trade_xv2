@@ -31,7 +31,6 @@ from typing import Any
 
 import pandas as pd
 
-from brokers.common.broker_port import HistoricalBarRequest
 from brokers.common.gateway import MarketDataGateway
 from brokers.common.historical_coordinator import HistoricalQuery
 from brokers.common.infrastructure import BrokerInfrastructure

@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """Verify that venv/ has all dependencies from requirements.txt and pyproject.toml"""
-import sys
-import subprocess
 import json
 import re
+import subprocess
+import sys
 
 # Read requirements.txt
-with open('requirements.txt', 'r') as f:
+with open('requirements.txt') as f:
     req_lines = [line.strip() for line in f if line.strip() and not line.startswith('#')]
 
 # Read pyproject.toml dependencies
-with open('pyproject.toml', 'r') as f:
+with open('pyproject.toml') as f:
     content = f.read()
 
 # Extract main dependencies
@@ -28,9 +28,9 @@ if dev_match:
     pyproject_dev_deps = [d.strip().split('>=')[0].split('<')[0].strip('"\'') for d in dev_str.split('\n') if d.strip()]
 
 # Get installed packages
-result = subprocess.run([sys.executable, '-m', 'pip', 'list', '--format=json'], 
+result = subprocess.run([sys.executable, '-m', 'pip', 'list', '--format=json'],
                        capture_output=True, text=True)
-installed = {pkg['name'].lower().replace('-', '_'): pkg['version'] 
+installed = {pkg['name'].lower().replace('-', '_'): pkg['version']
              for pkg in json.loads(result.stdout)}
 
 print('=' * 80)

@@ -9,12 +9,11 @@ import pandas as pd
 import pytest
 
 from datalake.analytics.support_resistance import (
-    SupportResistance,
     PriceLevel,
-    _find_pivots,
+    SupportResistance,
     _cluster_levels,
+    _find_pivots,
 )
-
 
 # ── Pure algorithm tests ──────────────────────────────────────────────────
 
@@ -169,7 +168,6 @@ class TestSupportResistanceIntegration:
             lt = level.last_touch
             if hasattr(lt, "date") and not isinstance(lt, type(date)):
                 lt = lt.date()
-            import numpy as np
             if isinstance(lt, np.datetime64):
                 lt = pd.Timestamp(lt).date()
             assert isinstance(lt, date)
@@ -293,7 +291,6 @@ class TestAccuracy:
             lt = level.last_touch
             if hasattr(lt, "date") and not isinstance(lt, type(date)):
                 lt = lt.date()
-            import numpy as np
             if isinstance(lt, np.datetime64):
                 lt = pd.Timestamp(lt).date()
             assert lt >= cutoff

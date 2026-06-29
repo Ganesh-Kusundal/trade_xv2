@@ -368,23 +368,23 @@ class PaperOrders:
                     original_idx = i
                     original_order = o
                     break
-            
+
             if original_order is None:
                 raise ValueError(f"Order {order_id} not found")
-            
+
             if original_order.status != OrderStatus.OPEN:
                 raise ValueError(
                     f"Cannot modify order {order_id} with status {original_order.status.value}. "
                     f"Only OPEN orders can be modified."
                 )
-            
+
             # Cancel the original order
             self._orders[original_idx] = original_order.with_status(OrderStatus.CANCELLED)
-            
+
             # Create a new modified order
             self._order_seq += 1
             new_order_id = f"PPR-{self._order_seq:06d}"
-            
+
             # Apply modifications
             modified_order = Order(
                 order_id=new_order_id,
@@ -401,7 +401,7 @@ class PaperOrders:
                 status=OrderStatus.OPEN,  # New order starts as OPEN
                 timestamp=datetime.now(timezone.utc),
             )
-            
+
             # Risk check on modified order
             allowed, reason = self._risk_check(modified_order)
             if not allowed:
@@ -412,23 +412,23 @@ class PaperOrders:
                 )
                 self._orders.append(rejected)
                 return rejected
-            
+
             # For paper trading, instantly fill the modified order
             fill_price = (
                 modified_order.price
                 if modified_order.price > 0 and modified_order.order_type == OrderType.LIMIT
                 else self._md.get_ltp(modified_order.symbol, modified_order.exchange)
             )
-            
+
             filled_order = replace(
                 modified_order,
                 status=OrderStatus.FILLED,
                 filled_quantity=modified_order.quantity,
                 avg_price=fill_price,
             )
-            
+
             self._orders.append(filled_order)
-            
+
             # Create trade for the fill
             self._trade_seq += 1
             trade = Trade(
@@ -444,7 +444,7 @@ class PaperOrders:
                 product_type=modified_order.product_type,
             )
             self._trades.append(trade)
-            
+
             # Update position if position_manager exists
             if self._position_manager is not None:
                 self._position_manager.apply_trade(trade)
@@ -456,7 +456,7 @@ class PaperOrders:
                 fill_price,
                 modified_order.product_type,
             )
-            
+
             return filled_order
 
     def get_orderbook(self) -> list[Order]:

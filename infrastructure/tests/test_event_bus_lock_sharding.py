@@ -11,12 +11,8 @@ from __future__ import annotations
 import itertools
 import threading
 import time
-from datetime import datetime, timezone
-
-import pytest
 
 from infrastructure.event_bus import DomainEvent, EventBus
-
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -171,7 +167,7 @@ def test_concurrent_publish_throughput():
     throughput = total_events / elapsed
 
     print(f"\n{'='*60}")
-    print(f"Task 4.4 — Concurrent Publish Throughput (pre-constructed events)")
+    print("Task 4.4 — Concurrent Publish Throughput (pre-constructed events)")
     print(f"{'='*60}")
     print(f"  Threads:            {num_threads}")
     print(f"  Events/thread:      {events_per_thread:,}")

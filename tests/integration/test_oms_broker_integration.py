@@ -146,7 +146,7 @@ class TestOMSBrokerIntegrationMock:
     def mock_gateway(self):
         """Provide a fake broker gateway."""
         from tests.fakes import FakeBrokerGateway
-        
+
         gateway = FakeBrokerGateway()
         return gateway
 

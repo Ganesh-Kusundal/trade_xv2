@@ -7,7 +7,6 @@ from collections.abc import Callable
 from datetime import datetime
 
 from brokers.common.resilience.circuit_breaker import CircuitState
-from domain.ports.risk_manager import RiskManagerPort
 from brokers.dhan.alerts import AlertsAdapter
 from brokers.dhan.conditional_triggers import ConditionalTriggersAdapter
 from brokers.dhan.depth_20 import DhanDepth20Feed
@@ -32,6 +31,7 @@ from brokers.dhan.resolver_refresher import ResolverRefresher
 from brokers.dhan.super_orders import SuperOrdersAdapter
 from brokers.dhan.user_profile import UserProfileAdapter
 from brokers.dhan.websocket import DhanMarketFeed, DhanOrderStream, PollingMarketFeed
+from domain.ports.risk_manager import RiskManagerPort
 from infrastructure.event_bus import EventBus
 from infrastructure.lifecycle import LifecycleManager
 

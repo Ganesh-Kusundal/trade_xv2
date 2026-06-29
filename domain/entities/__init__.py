@@ -68,9 +68,9 @@ from domain.entities.order_lifecycle import ORDER_STATUS_TRANSITIONS
 # Position / Holding
 from domain.entities.position import (
     POSITION_STATE_TRANSITIONS,
-    PositionState,
     Holding,
     Position,
+    PositionState,
 )
 
 # Trade
@@ -89,6 +89,7 @@ from domain.types import (
 
 __all__ = [
     "ORDER_STATUS_TRANSITIONS",
+    "POSITION_STATE_TRANSITIONS",
     "Balance",
     "ConditionalAlert",
     "ConditionalAlertRequest",
@@ -107,8 +108,6 @@ __all__ = [
     "OptionContract",
     "OptionLeg",
     "OptionStrike",
-    "POSITION_STATE_TRANSITIONS",
-    "PositionState",
     "Order",
     "OrderResponse",
     "OrderStatus",
@@ -116,6 +115,7 @@ __all__ = [
     "PnlExitPolicy",
     "PnlExitResult",
     "Position",
+    "PositionState",
     "ProductType",
     "Quote",
     "QuoteSnapshot",

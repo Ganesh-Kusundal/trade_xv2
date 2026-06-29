@@ -1,9 +1,8 @@
-"""Request logging middleware with correlation IDs, timing, and HTTP metrics.
+"""Middleware for TradeXV2 API.
 
-Adds to every HTTP request:
-- A unique ``X-Request-ID`` header (inbound or generated).
-- Structured log line with method, path, status, duration_ms.
-- Prometheus-compatible counters for request_total and request_duration_ms.
+Provides:
+- ``RequestLoggingMiddleware`` — correlation IDs, timing, and HTTP metrics.
+- ``RateLimitMiddleware`` — per-IP sliding-window rate limiting.
 """
 
 from __future__ import annotations
@@ -14,10 +13,11 @@ import time
 import uuid
 from collections import defaultdict
 from collections.abc import Callable
+from typing import Any
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.responses import Response
+from starlette.responses import JSONResponse, Response
 
 logger = logging.getLogger(__name__)
 
@@ -204,4 +204,107 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                     request_id,
                 )
 
+        return response
+
+
+class _SlidingWindowCounter:
+    """Thread-safe per-key sliding window counter for rate limiting.
+
+    Uses a simple sliding window: each key tracks the timestamps of
+    recent requests within the window. Expired entries are pruned on
+    access so memory stays bounded.
+    """
+
+    def __init__(self, window_seconds: float) -> None:
+        self._window = window_seconds
+        self._lock = threading.Lock()
+        self._buckets: dict[str, list[float]] = defaultdict(list)
+
+    def is_allowed(self, key: str, max_requests: int) -> tuple[bool, int]:
+        """Check if a request is allowed.
+
+        Returns (allowed, remaining) where remaining is the number of
+        requests left in the current window (0 if denied).
+        """
+        now = time.monotonic()
+        cutoff = now - self._window
+
+        with self._lock:
+            timestamps = self._buckets[key]
+            # Prune expired entries
+            self._buckets[key] = timestamps = [
+                t for t in timestamps if t > cutoff
+            ]
+            remaining = max_requests - len(timestamps)
+            if remaining > 0:
+                timestamps.append(now)
+                return True, remaining - 1
+            return False, 0
+
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    """Per-IP rate limiting middleware using a sliding window.
+
+    When ``max_requests`` is 0, the middleware is disabled and passes
+    all requests through without overhead.
+
+    Returns HTTP 429 with ``Retry-After`` and ``X-RateLimit-*`` headers
+    when the limit is exceeded.
+    """
+
+    def __init__(
+        self,
+        app: Any,
+        max_requests: int = 0,
+        window_seconds: float = 60.0,
+    ) -> None:
+        super().__init__(app)
+        self._max_requests = max_requests
+        self._window = window_seconds
+        self._counter: _SlidingWindowCounter | None = (
+            _SlidingWindowCounter(window_seconds) if max_requests > 0 else None
+        )
+
+    @staticmethod
+    def _client_ip(request: Request) -> str:
+        """Extract client IP, preferring X-Forwarded-For in trusted proxies."""
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            return forwarded.split(",")[0].strip()
+        if request.client:
+            return request.client.host
+        return "unknown"
+
+    async def dispatch(self, request: Request, call_next: Callable) -> Response:
+        if self._counter is None:
+            return await call_next(request)
+
+        # Skip health/metrics probes
+        path = request.url.path
+        if path in RequestLoggingMiddleware._SKIP_PATHS:
+            return await call_next(request)
+
+        ip = self._client_ip(request)
+        allowed, remaining = self._counter.is_allowed(ip, self._max_requests)
+
+        if not allowed:
+            retry_after = int(self._window)
+            return JSONResponse(
+                status_code=429,
+                content={
+                    "detail": "Rate limit exceeded. Try again later.",
+                    "retry_after_seconds": retry_after,
+                },
+                headers={
+                    "Retry-After": str(retry_after),
+                    "X-RateLimit-Limit": str(self._max_requests),
+                    "X-RateLimit-Remaining": "0",
+                    "X-RateLimit-Window": str(int(self._window)),
+                },
+            )
+
+        response = await call_next(request)
+        response.headers["X-RateLimit-Limit"] = str(self._max_requests)
+        response.headers["X-RateLimit-Remaining"] = str(remaining)
+        response.headers["X-RateLimit-Window"] = str(int(self._window))
         return response

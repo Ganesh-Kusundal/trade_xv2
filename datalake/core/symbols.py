@@ -16,6 +16,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from domain.symbols import normalize_exchange
+
 # Symbols that end with exchange suffixes (e.g., "RELIANCE-EQ", "TCS-BE")
 SUFFIX_PATTERN = re.compile(r"[-_](EQ|BE|BL|BZ|MC|NC|NZ|SM|SO|TT)\s*$", re.IGNORECASE)
 
@@ -92,7 +94,7 @@ def instrument_id_from_symbol(symbol: str, exchange: str = "NSE") -> str:
 
     Example: instrument_id_from_symbol("RELIANCE", "NSE") → "NSE:RELIANCE"
     """
-    return f"{exchange.upper()}:{normalize_symbol(symbol)}"
+    return f"{normalize_exchange(exchange)}:{normalize_symbol(symbol)}"
 
 
 def instrument_id_from_option(
@@ -115,12 +117,11 @@ def instrument_id_from_option(
         ot = "PE"
 
     # Parse expiry to YYYYMMDD
-    from datetime import datetime
     exp = expiry_date.replace("-", "")
     if len(exp) == 10:  # YYYY-MM-DD
         exp = exp.replace("-", "")
 
-    return f"{exchange.upper()}:{normalize_symbol(underlying)}:{exp}:{int(strike)}:{ot}"
+    return f"{normalize_exchange(exchange)}:{normalize_symbol(underlying)}:{exp}:{int(strike)}:{ot}"
 
 
 def instrument_id_from_future(
@@ -136,4 +137,4 @@ def instrument_id_from_future(
     exp = expiry_date.replace("-", "")
     if len(exp) == 10:
         exp = exp.replace("-", "")
-    return f"{exchange.upper()}:{normalize_symbol(underlying)}:{exp}:FUT"
+    return f"{normalize_exchange(exchange)}:{normalize_symbol(underlying)}:{exp}:FUT"

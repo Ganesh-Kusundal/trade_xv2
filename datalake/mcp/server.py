@@ -23,8 +23,8 @@ def create_server() -> Any:
     if not HAS_MCP:
         raise ImportError("mcp package required. Install with: pip install mcp")
 
-    from datalake.mcp.tools import register_tools
     from datalake.mcp.resources import register_resources
+    from datalake.mcp.tools import register_tools
 
     register_tools(mcp)
     register_resources(mcp)

@@ -19,6 +19,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from domain.entities import OrderResponse
+from domain.symbols import normalize_exchange, normalize_symbol
 
 if TYPE_CHECKING:
     from brokers.dhan.connection import DhanConnection
@@ -245,12 +246,12 @@ class DhanExtendedCapabilities:
         }
         sec_id = None
         seg = None
-        if underlying.upper() in mcx_underlyings and exchange.upper() == "MCX":
+        if normalize_symbol(underlying) in mcx_underlyings and normalize_exchange(exchange) == "MCX":
             seg = EXCHANGE_TO_SEGMENT.get("MCX", "MCX_COMM")
             futures = [
                 i
                 for i in self._conn.instruments.all_instruments()
-                if i.symbol.upper().startswith(underlying.upper() + "-")
+                if i.symbol.upper().startswith(normalize_symbol(underlying) + "-")
                 and i.exchange.value == "MCX"
                 and i.is_future
             ]

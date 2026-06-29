@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-import pytest
-
 from brokers.common.extensions import (
     ExtensionBundle,
     get_extension_factory,
@@ -100,10 +98,8 @@ class TestDhanRegistration:
 
     def test_dhan_factory_returns_bundle_with_providers(self):
         import brokers.dhan.common_extensions  # noqa: F401
-
         from brokers.common.extensions.forever_order import ForeverOrderProvider
         from brokers.common.extensions.native_slice_order import NativeSliceOrderProvider
-        from brokers.common.extensions.super_order import SuperOrderProvider
 
         factory = get_extension_factory("dhan")
         gateway = MagicMock()
@@ -128,10 +124,8 @@ class TestUpstoxRegistration:
 
     def test_upstox_factory_returns_bundle_with_providers(self):
         import brokers.upstox.common_extensions  # noqa: F401
-
         from brokers.common.extensions.forever_order import ForeverOrderProvider
         from brokers.common.extensions.fundamentals import FundamentalsProvider
-        from brokers.common.extensions.news import NewsProvider
 
         factory = get_extension_factory("upstox")
         gateway = MagicMock()

@@ -11,8 +11,7 @@ from __future__ import annotations
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from decimal import Decimal
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -21,11 +20,8 @@ from brokers.common.resilience.circuit_breaker import (
     CircuitBreakerConfig,
     CircuitState,
 )
-from brokers.common.resilience.retry import RetryConfig, RetryExecutor
 from brokers.common.resilience.errors import RetryableError
-from infrastructure.event_bus import DomainEvent, EventBus
-from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
-
+from brokers.common.resilience.retry import RetryConfig, RetryExecutor
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -208,7 +204,7 @@ class TestDisconnectDuringMarketDataStream:
                 self.subscriptions.extend(instruments)
 
         ws = MockWebSocket()
-        
+
         # Simulate disconnect
         ws.disconnect()
         assert not ws.is_connected
@@ -244,7 +240,7 @@ class TestDisconnectDuringMarketDataStream:
                 self._subscriptions.extend(instruments)
 
         ws = MockWebSocket()
-        
+
         # Subscribe to instruments
         for sub in original_subscriptions:
             ws.subscribe([sub])
@@ -282,7 +278,7 @@ class TestDisconnectDuringMarketDataStream:
                     self._buffer.append(data)
 
         ws = MockWebSocket()
-        
+
         # Simulate data arriving during disconnect
         ws.disconnect()
         ws.receive_data({"symbol": "RELIANCE", "ltp": 2500.0})
@@ -495,7 +491,7 @@ class TestTokenExpiryDuringActiveTrading:
         # Try to place order during refresh
         cb = CircuitBreaker("test", CircuitBreakerConfig(failure_threshold=5))
         executor = _make_retry_executor(circuit_breaker=cb, max_attempts=3)
-        
+
         try:
             result = executor.execute(place_order)
             assert result is not None

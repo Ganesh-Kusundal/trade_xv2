@@ -32,6 +32,7 @@ from typing import Any
 
 import duckdb
 import pandas as pd
+from cachetools import TTLCache
 
 from brokers.common.gateway import BrokerCapabilities
 from brokers.common.gateway_errors import (
@@ -44,8 +45,6 @@ from brokers.common.gateway_interfaces import (
     LifecycleAware,
     MarketDataProvider,
 )
-
-from cachetools import TTLCache
 from datalake.cache_utils import get_last_candle_fast
 from datalake.paths import CURATED_ROOT, curated_equity_glob
 from datalake.store import ParquetStore
@@ -171,7 +170,6 @@ class DataLakeGateway(
             feeds. OHLCV parquet files only contain aggregated candle data, not
             the order book snapshots needed to derive bid/ask prices.
         """
-        from domain import Quote as _Quote
 
         symbol = normalize_symbol(symbol)
         cache_key = (symbol, exchange)

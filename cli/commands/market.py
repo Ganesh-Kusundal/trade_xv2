@@ -12,6 +12,7 @@ from rich.live import Live
 from rich.table import Table
 
 from cli.services.broker_service import BrokerService
+from domain.symbols import normalize_symbol
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ from indices import INDEX_SYMBOLS as _INDEX_UNDERLYINGS
 
 def resolve_exchange(symbol: str) -> str:
     """Resolve the exchange for a given symbol."""
-    sym = symbol.upper().strip()
+    sym = normalize_symbol(symbol)
     if sym in _INDEX_UNDERLYINGS:
         return "INDEX"
     # Options have strike digits followed by CE or PE at the end. Futures contain FUT.
@@ -40,7 +41,7 @@ def show_quote(
     def generate_table() -> Table:
         quote = gw.quote(symbol, exchange)
         table = Table(
-            title=f"Quote Terminal: {symbol.upper()} ({exchange})", header_style="bold green"
+            title=f"Quote Terminal: {normalize_symbol(symbol)} ({exchange})", header_style="bold green"
         )
         table.add_column("Metric", style="bold white")
         table.add_column("Value", justify="right")
@@ -85,7 +86,7 @@ def show_depth(
 
     def generate_table() -> Table:
         depth = gw.depth(symbol, exchange)
-        table = Table(title=f"Market Depth L2: {symbol.upper()}", header_style="bold magenta")
+        table = Table(title=f"Market Depth L2: {normalize_symbol(symbol)}", header_style="bold magenta")
         table.add_column("Bid Qty", style="green", justify="right")
         table.add_column("Bid Price", style="bold green", justify="right")
         table.add_column("Ask Price", style="bold red", justify="right")
@@ -128,7 +129,7 @@ def show_option_chain(
 ) -> None:
     """Display option chain for an underlying asset."""
     gw = broker_service.active_broker
-    sym = symbol.upper().strip()
+    sym = normalize_symbol(symbol)
     exchange = "INDEX" if sym in _INDEX_UNDERLYINGS else "NFO"
 
     # Auto-resolve expiry if not provided
@@ -262,7 +263,7 @@ def show_option_chain(
 def show_futures(broker_service: BrokerService, symbol: str, console: Console) -> None:
     """Display futures contract details."""
     gw = broker_service.active_broker
-    sym = symbol.upper().strip()
+    sym = normalize_symbol(symbol)
     exchange = "NFO"
     # Commodities route to MCX
     if any(c in sym for c in ("GOLD", "SILVER", "CRUDE", "NATURAL", "COPPER", "ZINC")):
@@ -301,9 +302,9 @@ def show_futures(broker_service: BrokerService, symbol: str, console: Console) -
 
 def show_historical(broker_service: BrokerService, symbol: str, console: Console) -> None:
     """Display historical candles summary and preview via MarketDataComposer."""
-    from cli.composer_helpers import get_market_data_composer
     from brokers.common.async_compat import run_async_compat
     from brokers.common.historical_coordinator import HistoricalQuery
+    from cli.composer_helpers import get_market_data_composer
     from domain.historical import InstrumentRef
 
     # Get MarketDataComposer (lazy-loaded, cached)
@@ -333,7 +334,7 @@ def show_historical(broker_service: BrokerService, symbol: str, console: Console
         )
 
         table = Table(
-            title=f"Historical Data Preview: {symbol.upper()}", header_style="bold magenta"
+            title=f"Historical Data Preview: {normalize_symbol(symbol)}", header_style="bold magenta"
         )
         table.add_column("Timestamp", style="bold white")
         table.add_column("Open", justify="right")

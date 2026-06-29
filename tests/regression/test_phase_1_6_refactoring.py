@@ -20,8 +20,8 @@ Phase Coverage:
 from __future__ import annotations
 
 import importlib
-import sys
 import subprocess
+import sys
 import time
 from decimal import Decimal
 from pathlib import Path
@@ -177,7 +177,7 @@ class TestPhase4ModuleBoundaryEnforcement:
                     violations.append(f"{py_file.relative_to(brokers_common_path)}:{line_num}: {stripped}")
 
         assert not violations, (
-            f"brokers.common production code imports from application/ (boundary violation):\n"
+            "brokers.common production code imports from application/ (boundary violation):\n"
             + "\n".join(violations)
             + "\n\nNote: TYPE_CHECKING blocks and test files are allowed to import application/"
         )
@@ -229,7 +229,7 @@ class TestPhase4ModuleBoundaryEnforcement:
                         )
 
         assert not violations, (
-            f"domain/ imports from infrastructure/ (clean architecture violation):\n"
+            "domain/ imports from infrastructure/ (clean architecture violation):\n"
             + "\n".join(violations)
             + "\n\nNote: TYPE_CHECKING blocks are allowed for type hints"
         )
@@ -256,12 +256,12 @@ class TestPhase5GodObjectDecomposition:
         2. Kill switch can be disabled
         3. Daily PnL limit enforcement
         """
-        from application.oms._internal.risk_manager import RiskManager, RiskConfig, RiskResult
+        from application.oms._internal.risk_manager import RiskConfig, RiskManager, RiskResult
         from application.oms.position_manager import PositionManager
+        from domain.constants.defaults import DEFAULT_EXCHANGE
         from domain.entities.order import Order
         from domain.enums import Side
         from domain.types import OrderType, ProductType
-        from domain.constants.defaults import DEFAULT_EXCHANGE
         from infrastructure.event_bus.event_bus import EventBus
 
         # Create minimal PositionManager (requires event_bus)
@@ -328,10 +328,7 @@ class TestPhase5GodObjectDecomposition:
         3. Helper utilities are accessible from main modules
         """
         # Test 1: All modules import successfully
-        from brokers.dhan.websocket import market_feed
-        from brokers.dhan.websocket import order_stream
-        from brokers.dhan.websocket import polling_feed
-        from brokers.dhan.websocket import _helpers
+        from brokers.dhan.websocket import _helpers, market_feed, order_stream, polling_feed
 
         # Test 2: Verify main classes exist
         assert hasattr(market_feed, "DhanMarketFeed"), (
@@ -400,7 +397,7 @@ class TestPhase5GodObjectDecomposition:
                 import_errors.append(f"{module_name}: {e}")
 
         assert not import_errors, (
-            f"Circular imports detected (modules failed to import):\n" + "\n".join(import_errors)
+            "Circular imports detected (modules failed to import):\n" + "\n".join(import_errors)
         )
 
 
@@ -425,14 +422,14 @@ class TestPhase6TypeSafetyAndResilience:
         2. OrderManager satisfies IOrderManager protocol
         3. PositionManager satisfies IPositionManager protocol
         """
-        from application.oms.protocols import (
-            IRiskManager,
-            IOrderManager,
-            IPositionManager,
-        )
-        from application.oms._internal.risk_manager import RiskManager, RiskConfig
+        from application.oms._internal.risk_manager import RiskConfig, RiskManager
         from application.oms.order_manager import OrderManager
         from application.oms.position_manager import PositionManager
+        from application.oms.protocols import (
+            IOrderManager,
+            IPositionManager,
+            IRiskManager,
+        )
         from infrastructure.event_bus.event_bus import EventBus
 
         # Create real instances
@@ -538,8 +535,8 @@ class TestPhase6TypeSafetyAndResilience:
         2. Config validation accepts valid configurations
         3. Factory.create() method signature is compatible with existing callers
         """
-        from brokers.dhan.factory import BrokerFactory
         from brokers.common.factory import BrokerProviderFactory
+        from brokers.dhan.factory import BrokerFactory
 
         # Test 1: BrokerFactory is instantiable
         factory = BrokerFactory()
@@ -579,8 +576,9 @@ class TestPhase6TypeSafetyAndResilience:
         2. CacheManager works WITH connection provided (uses external)
         3. CacheManager raises ValueError when NO connection available at materialize time
         """
-        from analytics.views.cache_manager import CacheManager
         import duckdb
+
+        from analytics.views.cache_manager import CacheManager
 
         # Test 1: CacheManager with no connection (should not crash on init)
         cache_no_conn = CacheManager()

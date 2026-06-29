@@ -17,18 +17,16 @@ from pathlib import Path
 import pandas as pd
 import pyarrow as pa
 
+from brokers.common.batch_executor import batch_execute
 from datalake.io import atomic_parquet_write
 from datalake.schema import (
-    CANONICAL_COLUMNS,
     MARKET_CLOSE_HOUR,
     MARKET_CLOSE_MINUTE,
     MARKET_OPEN_HOUR,
     MARKET_OPEN_MINUTE,
-    TEMPORAL_COLUMNS,
 )
 from datalake.symbols import normalize_symbol
 from datalake.validation import validate_candles
-from brokers.common.batch_executor import batch_execute
 
 logger = logging.getLogger(__name__)
 
@@ -216,7 +214,10 @@ class HistoricalDataLoader:
 
     def _normalize(self, df: pd.DataFrame, symbol: str, exchange: str) -> pd.DataFrame:
         """Normalize broker DataFrame to canonical schema (IST timestamps)."""
-        from datalake.ingestion.normalize import normalize_to_canonical, rename_columns, ensure_timestamp_dtype, convert_paise_to_rupees, ensure_canonical_columns, add_temporal_metadata
+        from datalake.ingestion.normalize import (
+            normalize_to_canonical,
+            rename_columns,
+        )
 
         # Check required columns exist after rename
         renamed = rename_columns(df)

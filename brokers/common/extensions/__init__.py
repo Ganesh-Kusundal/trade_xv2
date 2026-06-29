@@ -36,12 +36,12 @@ T = TypeVar("T")
 # time.  ``build_extension_bundle`` in adapters/extensions.py looks up
 # this dict instead of importing broker-specific code directly.
 
-_extension_factories: dict[str, Callable[..., "ExtensionBundle"]] = {}
+_extension_factories: dict[str, Callable[..., ExtensionBundle]] = {}
 
 
 def register_extension_factory(
     broker_id: str,
-    factory: Callable[..., "ExtensionBundle"],
+    factory: Callable[..., ExtensionBundle],
 ) -> None:
     """Register a broker's extension bundle factory.
 
@@ -51,7 +51,7 @@ def register_extension_factory(
     _extension_factories[broker_id] = factory
 
 
-def get_extension_factory(broker_id: str) -> Callable[..., "ExtensionBundle"] | None:
+def get_extension_factory(broker_id: str) -> Callable[..., ExtensionBundle] | None:
     """Return the registered factory for *broker_id*, or None."""
     return _extension_factories.get(broker_id)
 

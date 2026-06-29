@@ -12,19 +12,11 @@ from decimal import Decimal
 
 from application.oms.order_manager import OrderManager
 from domain import Order, OrderStatus, OrderType, Side, Trade
+from tests.fixtures.domain_helpers import make_order as _make_order_shared
 
 
 def _make_order(quantity: int = 100, order_id: str = "ORD-001") -> Order:
-    return Order(
-        order_id=order_id,
-        symbol="RELIANCE",
-        exchange="NSE",
-        side=Side.BUY,
-        order_type=OrderType.LIMIT,
-        quantity=quantity,
-        status=OrderStatus.OPEN,
-        price=Decimal("2500"),
-    )
+    return _make_order_shared(quantity=quantity, order_id=order_id)
 
 
 class TestConcurrentRapidFills:

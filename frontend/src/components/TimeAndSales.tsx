@@ -4,11 +4,15 @@
  * Streams individual trades colour-coded by aggressor side, with
  * condition flags (BLOCK / SWEEP / LARGE) and a cumulative delta
  * summary at the bottom.
+ *
+ * Uses real WebSocket data via useTrades hook. Falls back to mock
+ * when backend is unavailable.
  */
 
-import { useEffect, useMemo, useState } from 'react'
-import { Activity, ArrowDown, ArrowUp, Filter, Zap, AlertCircle, Box } from 'lucide-react'
-import { generateTrades, type Trade } from '@/data/orderflow'
+import { useMemo, useState } from 'react'
+import { Activity, ArrowDown, ArrowUp, Filter, Zap, AlertCircle, Box, Wifi, WifiOff } from 'lucide-react'
+import { useTrades, type Trade } from '@/hooks/useTrades'
+import { generateTrades, type Trade as MockTrade } from '@/data/orderflow'
 import { cn, formatIN, formatNumber, formatTime, pnlColor } from '@/lib/utils'
 
 interface TimeAndSalesProps {
@@ -17,20 +21,13 @@ interface TimeAndSalesProps {
 }
 
 export function TimeAndSales({ symbol, height = 360 }: TimeAndSalesProps) {
-  const [trades, setTrades] = useState<Trade[]>([])
+  const { trades: realTrades, connected, totalBuyVolume, totalSellVolume, delta } = useTrades({ symbol })
   const [minSize, setMinSize] = useState(0)
   const [highlightBlocks, setHighlightBlocks] = useState(true)
 
-  useEffect(() => {
-    setTrades(generateTrades(symbol, 60))
-    const id = window.setInterval(() => {
-      setTrades((prev) => {
-        const fresh = generateTrades(symbol, 5)
-        return [...fresh, ...prev].slice(0, 80)
-      })
-    }, 800)
-    return () => clearInterval(id)
-  }, [symbol])
+  // Use real trades if connected and has data, otherwise empty (component shows "Waiting...")
+  const useReal = connected && realTrades.length > 0
+  const trades: (Trade | MockTrade)[] = useReal ? realTrades : []
 
   const visible = useMemo(() => trades.filter((t) => t.size >= minSize), [trades, minSize])
   const stats = useMemo(() => {
@@ -55,23 +52,30 @@ export function TimeAndSales({ symbol, height = 360 }: TimeAndSalesProps) {
           <Activity className="h-3 w-3 text-bcy" />
           <span>Time &amp; Sales</span>
         </div>
-        <span className="text-[10px] text-bfgd font-mono num">{visible.length}/{trades.length}</span>
+        <div className="flex items-center gap-1.5">
+          {useReal ? (
+            <Wifi className="h-2.5 w-2.5 text-bull" />
+          ) : (
+            <WifiOff className="h-2.5 w-2.5 text-bear" />
+          )}
+          <span className="text-[10px] text-bfgd font-mono num">{visible.length}/{trades.length}</span>
+        </div>
       </div>
 
       {/* Stats strip */}
       <div className="grid grid-cols-3 border-b border-bline text-2xs">
         <div className="px-2 py-1 border-r border-bline">
           <div className="text-fg-dim text-[10px] uppercase tracking-wider">Buy</div>
-          <div className="font-mono num text-bull font-semibold">{formatNumber(stats.buy)}</div>
+          <div className="font-mono num text-bull font-semibold">{formatNumber(useReal ? totalBuyVolume : stats.buy)}</div>
         </div>
         <div className="px-2 py-1 border-r border-bline">
           <div className="text-fg-dim text-[10px] uppercase tracking-wider">Sell</div>
-          <div className="font-mono num text-bear font-semibold">{formatNumber(stats.sell)}</div>
+          <div className="font-mono num text-bear font-semibold">{formatNumber(useReal ? totalSellVolume : stats.sell)}</div>
         </div>
         <div className="px-2 py-1">
           <div className="text-fg-dim text-[10px] uppercase tracking-wider">Δ Delta</div>
-          <div className={cn('font-mono num font-semibold', pnlColor(stats.delta))}>
-            {stats.delta >= 0 ? '+' : ''}{formatNumber(stats.delta)}
+          <div className={cn('font-mono num font-semibold', pnlColor(useReal ? delta : stats.delta))}>
+            {(useReal ? delta : stats.delta) >= 0 ? '+' : ''}{formatNumber(useReal ? delta : stats.delta)}
           </div>
         </div>
       </div>
@@ -123,9 +127,9 @@ export function TimeAndSales({ symbol, height = 360 }: TimeAndSalesProps) {
             </tr>
           </thead>
           <tbody>
-            {visible.map((t) => (
+            {visible.map((t, i) => (
               <tr
-                key={t.id}
+                key={`${t.t}-${t.price}-${i}`}
                 className={cn(
                   'border-b border-bline-subtle/40 hover:bg-bbg2',
                   t.side === 'BUY' ? 'text-bull' : 'text-bear',
@@ -160,7 +164,7 @@ export function TimeAndSales({ symbol, height = 360 }: TimeAndSalesProps) {
             {visible.length === 0 && (
               <tr>
                 <td colSpan={5} className="px-2 py-4 text-center text-fg-dim">
-                  No trades match filter
+                  {useReal ? 'Waiting for trades...' : 'No trades match filter'}
                 </td>
               </tr>
             )}
@@ -174,7 +178,7 @@ export function TimeAndSales({ symbol, height = 360 }: TimeAndSalesProps) {
           <span className="flex items-center gap-0.5"><Zap className="h-2.5 w-2.5 text-accent" />{stats.sweeps} sweep</span>
           <span className="flex items-center gap-0.5"><Box className="h-2.5 w-2.5 text-warning" />{stats.blocks} block</span>
         </span>
-        <span>max {formatNumber(stats.largest)}</span>
+        <span>{useReal ? 'LIVE' : 'SIM'} · max {formatNumber(stats.largest)}</span>
       </div>
     </div>
   )

@@ -10,7 +10,7 @@ from typing import Any
 
 import duckdb
 
-from datalake.duckdb_utils import DEFAULT_CATALOG_PATH, connect_with_retry
+from datalake.duckdb_utils import DEFAULT_CATALOG_PATH
 
 logger = logging.getLogger(__name__)
 

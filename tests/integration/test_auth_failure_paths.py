@@ -12,11 +12,11 @@ Uses mocked HTTP server to simulate broker auth failures without real credential
 Usage:
     ./venv/bin/python -m pytest tests/integration/test_auth_failure_paths.py -v
 """
-import pytest
 import threading
 import time
-from unittest.mock import MagicMock, patch, PropertyMock
-from decimal import Decimal
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 
 class TestTokenExpiryMidOrder:
@@ -126,7 +126,6 @@ class TestTOTPFailure:
     def test_invalid_totp_secret_fails_fast(self):
         """Invalid TOTP secret should fail fast, not hang."""
         from pyotp import TOTP
-        import pyotp
 
         # Invalid TOTP secret (too short)
         invalid_secret = "INVALID"
@@ -159,7 +158,6 @@ class TestRateLimitedLogin:
 
     def test_rate_limited_login_raises_error(self):
         """429 on login should raise RateLimitError, not block."""
-        from brokers.common.resilience.errors import RateLimitError
 
         # Simulate rate limiter
         from brokers.common.resilience.rate_limiter import TokenBucketRateLimiter
@@ -178,6 +176,7 @@ class TestRateLimitedLogin:
     def test_rate_limited_login_does_not_deadlock(self):
         """429 on login should not cause deadlock."""
         import threading
+
         from brokers.common.resilience.rate_limiter import TokenBucketRateLimiter
 
         limiter = TokenBucketRateLimiter(rate=1, capacity=1)
@@ -212,8 +211,9 @@ class TestWebSocketReconnectWithStaleToken:
 
     def test_websocket_reconnect_with_expired_token_fails_gracefully(self):
         """WS reconnect with expired token should trigger re-auth, not crash."""
-        from brokers.dhan.websocket import DhanMarketFeed
         from unittest.mock import MagicMock
+
+        from brokers.dhan.websocket import DhanMarketFeed
 
         # Create mock feed
         mock_feed = MagicMock()
@@ -298,7 +298,6 @@ class TestTokenRefreshRaceCondition:
     def test_concurrent_refresh_does_not_cascade(self):
         """Multiple threads hitting 401 should not trigger multiple refreshes."""
         import threading
-        from unittest.mock import MagicMock, patch
 
         refresh_count = 0
         refresh_lock = threading.Lock()
@@ -343,9 +342,10 @@ class TestAuthIntegrationWithGateway:
     @pytest.fixture
     def mock_dhan_gateway(self):
         """Create Dhan gateway with mocked HTTP client."""
-        from brokers.dhan.gateway import BrokerGateway
-        from brokers.dhan.connection import DhanConnection
         from unittest.mock import MagicMock, patch
+
+        from brokers.dhan.connection import DhanConnection
+        from brokers.dhan.gateway import BrokerGateway
 
         # Create connection
         conn = DhanConnection(

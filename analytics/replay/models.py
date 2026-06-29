@@ -34,6 +34,31 @@ class ReplayMode(str, Enum):
     CUSTOM = "custom"  # User-defined filter
 
 
+# Re-export canonical models from domain.trading_costs (single source of truth)
+from domain.trading_costs import (  # noqa: F401
+    CommissionModel,
+    IndianMarketFees,
+    SlippageModel,
+    compute_indian_equity_fees,
+    compute_indian_fno_fees,
+)
+
+
+class FillModel(str, Enum):
+    """Fill price model for simulated trades."""
+
+    CURRENT_CLOSE = "current_close"  # Fill at current bar's close (default, legacy)
+    NEXT_OPEN = "next_open"  # Fill at next bar's open (more realistic)
+
+
+# ---------------------------------------------------------------------------
+# Indian Market Fees
+# ---------------------------------------------------------------------------
+
+
+
+
+
 # ---------------------------------------------------------------------------
 # Bar
 # ---------------------------------------------------------------------------
@@ -95,8 +120,30 @@ class ReplayConfig:
     slippage_pct:
         Simulated slippage as a percentage of price. 0.01 means 0.01% slippage.
         Must be non-negative.
+    slippage_model:
+        How to calculate slippage. FIXED_PCT uses slippage_pct directly.
+        VOLUME_WEIGHTED scales slippage inversely with volume.
+    avg_volume:
+        Average volume used as reference for VOLUME_WEIGHTED slippage model.
+        Slippage = base_slippage * (avg_volume / bar_volume). If 0, uses
+        a computed rolling average from available bars.
     commission_flat:
-        Flat commission per trade (0.0 = no commission).
+        Flat commission per trade (0.0 = no commission). Used when
+        commission_model is FLAT.
+    commission_model:
+        How to calculate commissions. FLAT uses commission_flat.
+        INDIAN_EQUITY and INDIAN_FNO use realistic Indian market fees.
+    indian_market_fees:
+        Fee structure for Indian market commission model. Only used when
+        commission_model is INDIAN_EQUITY or INDIAN_FNO.
+    segment:
+        Market segment: "EQUITY" or "FNO". Determines which fee
+        calculation is used for Indian market models.
+    fill_model:
+        How fill prices are determined. CURRENT_CLOSE fills at the current
+        bar's close (default, legacy behavior). NEXT_OPEN fills at the next
+        bar's open, which is more realistic for strategies that generate
+        signals at bar close.
     publish_events:
         Whether to publish signals to the EventBus.
     """
@@ -107,7 +154,13 @@ class ReplayConfig:
     warmup_bars: int = 0  # Skip first N bars for indicator warmup
     max_position_pct: float = 100.0  # Max % per position
     slippage_pct: float = 0.0
+    slippage_model: SlippageModel = SlippageModel.FIXED_PCT
+    avg_volume: float = 0.0  # Reference volume for VOLUME_WEIGHTED model
     commission_flat: float = 0.0
+    commission_model: CommissionModel = CommissionModel.FLAT
+    indian_market_fees: IndianMarketFees = field(default_factory=IndianMarketFees)
+    segment: str = "EQUITY"  # "EQUITY" or "FNO"
+    fill_model: FillModel = FillModel.CURRENT_CLOSE
     publish_events: bool = False
 
     def __post_init__(self) -> None:
@@ -117,6 +170,8 @@ class ReplayConfig:
             raise ValueError("max_position_pct must be positive")
         if self.warmup_bars < 0:
             raise ValueError("warmup_bars must be non-negative")
+        if self.commission_flat < 0:
+            raise ValueError("commission_flat must be non-negative")
 
 
 # ---------------------------------------------------------------------------
@@ -139,7 +194,7 @@ class SimulatedTrade:
     quantity: int = 0
     entry_time: datetime | None = None
     exit_time: datetime | None = None
-    pnl: float = 0.0
+    pnl: Decimal = Decimal("0")
     pnl_pct: float = 0.0
     strategy: str = ""
     reasons: list[str] = field(default_factory=list)

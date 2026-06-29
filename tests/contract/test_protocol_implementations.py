@@ -13,17 +13,14 @@ from __future__ import annotations
 
 import inspect
 from decimal import Decimal
-from typing import Protocol
 
-import pytest
-
-from application.oms.order_manager import OrderManager, OmsOrderCommand, OrderResult
-from application.oms.position_manager import PositionManager
 from application.oms._internal.risk_manager import RiskManager, RiskResult
+from application.oms.order_manager import OmsOrderCommand, OrderManager
+from application.oms.position_manager import PositionManager
 from application.oms.protocols import (
-    IReconciliationService,
     IOrderManager,
     IPositionManager,
+    IReconciliationService,
     IRiskManager,
 )
 from brokers.dhan.reconciliation import DhanReconciliationService
@@ -196,7 +193,7 @@ class TestProtocolImplementations:
 
     def test_order_command_matches_protocol(self) -> None:
         """Verify OmsOrderCommand has required fields for protocol usage."""
-        from domain.entities import Side, OrderType, ProductType
+        from domain.entities import Side
 
         command = OmsOrderCommand(
             symbol="RELIANCE",

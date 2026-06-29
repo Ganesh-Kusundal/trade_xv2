@@ -312,10 +312,10 @@ class TestLifecycleShutdown:
 
     def test_shutdown_cleans_up_marketbridge(self):
         """Shutdown should stop MarketBridge."""
-        from api.main import _shutdown_cleanup
-
         # REF: Using minimal mock for AsyncMock (unavoidable for async cleanup)
         from unittest.mock import AsyncMock, MagicMock
+
+        from api.main import _shutdown_cleanup
         mock_bridge = MagicMock()
         mock_bridge.stop = AsyncMock()
 
@@ -325,10 +325,10 @@ class TestLifecycleShutdown:
 
     def test_shutdown_skips_lifecycle_if_not_started(self, caplog):
         """Shutdown should skip lifecycle.stop_all() if not started."""
-        from api.main import _shutdown_cleanup
-
         # REF: Using minimal mock for shutdown verification
         from unittest.mock import MagicMock
+
+        from api.main import _shutdown_cleanup
         mock_lifecycle = MagicMock()
 
         with caplog.at_level(logging.DEBUG):
@@ -340,10 +340,10 @@ class TestLifecycleShutdown:
 
     def test_shutdown_stops_lifecycle_if_started(self):
         """Shutdown should call lifecycle.stop_all() if started."""
-        from api.main import _shutdown_cleanup
-
         # REF: Using minimal mock for shutdown verification
         from unittest.mock import MagicMock
+
+        from api.main import _shutdown_cleanup
         mock_lifecycle = MagicMock()
 
         asyncio.get_event_loop().run_until_complete(_shutdown_cleanup(None, mock_lifecycle, True))

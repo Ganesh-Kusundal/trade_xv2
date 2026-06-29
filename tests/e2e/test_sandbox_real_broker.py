@@ -13,9 +13,9 @@ Requirements:
 Usage:
     ./venv/bin/python -m pytest tests/e2e/test_sandbox_real_broker.py -v -k sandbox
 """
-import pytest
 import os
-from rich.console import Console
+
+import pytest
 
 
 @pytest.mark.sandbox
@@ -26,9 +26,9 @@ class TestDhanSandboxE2E:
     def dhan_sandbox_gateway(self):
         """Create Dhan gateway with sandbox credentials."""
         from dotenv import load_dotenv
-        from brokers.dhan.gateway import BrokerGateway
+
         from brokers.dhan.connection import DhanConnection
-        from domain import BrokerCapabilities
+        from brokers.dhan.gateway import BrokerGateway
 
         load_dotenv(".env.local")
 
@@ -132,6 +132,134 @@ class TestDhanSandboxE2E:
         assert balance.available_balance > 0
         print(f"✅ Balance: ₹{balance.available_balance:,.2f}")
 
+    def test_sandbox_place_limit_and_cancel(self, dhan_sandbox_gateway):
+        """Place a LIMIT order far from market, verify orderbook entry, then cancel.
+
+        Uses minimum quantity (1) and a price that is 20% below the current
+        market price so the order cannot execute accidentally.
+        """
+        from decimal import Decimal
+        gw = dhan_sandbox_gateway
+
+        # Get current LTP to place far-below-market LIMIT
+        ltp = gw.ltp("RELIANCE", "NSE")
+        assert ltp > 0, "Could not fetch RELIANCE LTP"
+        # 20% below — should never fill
+        limit_price = round(float(ltp) * 0.80, 2)
+
+        response = gw.place_order(
+            symbol="RELIANCE",
+            exchange="NSE",
+            side="BUY",
+            quantity=1,
+            order_type="LIMIT",
+            product_type="INTRADAY",
+            price=Decimal(str(limit_price)),
+        )
+
+        assert response.success is True, f"Place order failed: {response}"
+        assert response.order_id is not None, "order_id missing from response"
+        order_id = response.order_id
+
+        # Verify the order appears in the orderbook
+        orders = gw.get_orderbook()
+        order_ids = [o.order_id for o in orders]
+        assert order_id in order_ids, (
+            f"Order {order_id} not found in orderbook; got: {order_ids}"
+        )
+
+        # Cancel
+        cancel = gw.cancel_order(order_id)
+        assert cancel.success is True, f"Cancel failed: {cancel}"
+        print(f"✅ Sandbox LIMIT place+cancel: order {order_id} at ₹{limit_price}")
+
+    def test_sandbox_duplicate_client_order_id_rejected(self, dhan_sandbox_gateway):
+        """Placing two orders with the same client_order_id must fail on the second.
+
+        This tests idempotency: if the broker correctly rejects duplicate
+        client_order_id values, a network retry cannot accidentally double-fill.
+        """
+        import uuid
+        from decimal import Decimal
+        gw = dhan_sandbox_gateway
+
+        # Use a far-below-market LIMIT to avoid accidental execution
+        ltp = gw.ltp("TCS", "NSE")
+        limit_price = round(float(ltp) * 0.80, 2)
+        client_id = str(uuid.uuid4())[:20]
+
+        first = gw.place_order(
+            symbol="TCS",
+            exchange="NSE",
+            side="BUY",
+            quantity=1,
+            order_type="LIMIT",
+            product_type="INTRADAY",
+            price=Decimal(str(limit_price)),
+            client_order_id=client_id,
+        )
+        assert first.success is True, f"First order failed: {first}"
+
+        second = gw.place_order(
+            symbol="TCS",
+            exchange="NSE",
+            side="BUY",
+            quantity=1,
+            order_type="LIMIT",
+            product_type="INTRADAY",
+            price=Decimal(str(limit_price)),
+            client_order_id=client_id,  # same id
+        )
+        # Broker must reject the duplicate
+        assert second.success is False, (
+            "Broker accepted duplicate client_order_id — idempotency guard broken"
+        )
+
+        # Clean up the first order
+        gw.cancel_order(first.order_id)
+        print("✅ Sandbox idempotency: duplicate client_order_id correctly rejected")
+
+    def test_sandbox_margin_precheck_before_place(self, dhan_sandbox_gateway):
+        """Margin pre-check via funds() before placing must not block a valid order.
+
+        Verifies that the margin available is non-negative (sandbox always
+        provides simulated funds) before attempting the place.
+        """
+        from decimal import Decimal
+        gw = dhan_sandbox_gateway
+
+        funds = gw.get_funds()
+        assert funds is not None, "funds() returned None"
+        assert hasattr(funds, "available_balance"), "funds() missing available_balance"
+        # In sandbox available_balance may be a simulated positive number
+        assert funds.available_balance >= 0, (
+            f"Negative available_balance: {funds.available_balance}"
+        )
+
+        # Place only if we have sufficient simulated margin (avoid false failures)
+        ltp = gw.ltp("INFY", "NSE")
+        required_margin = Decimal(str(round(float(ltp), 2))) * 1  # qty=1
+        if funds.available_balance < required_margin:
+            pytest.skip(f"Sandbox margin ({funds.available_balance}) < required ({required_margin})")
+
+        limit_price = round(float(ltp) * 0.80, 2)
+        response = gw.place_order(
+            symbol="INFY",
+            exchange="NSE",
+            side="BUY",
+            quantity=1,
+            order_type="LIMIT",
+            product_type="INTRADAY",
+            price=Decimal(str(limit_price)),
+        )
+        if response.success:
+            gw.cancel_order(response.order_id)
+
+        print(
+            f"✅ Sandbox margin pre-check: balance={funds.available_balance}, "
+            f"order_success={response.success}"
+        )
+
 
 @pytest.mark.sandbox
 class TestUpstoxSandboxE2E:
@@ -140,10 +268,11 @@ class TestUpstoxSandboxE2E:
     @pytest.fixture
     def upstox_sandbox_gateway(self):
         """Create Upstox gateway with sandbox credentials."""
-        from dotenv import load_dotenv
-        from brokers.upstox.gateway import UpstoxBrokerGateway
-        from brokers.upstox.broker import UpstoxBroker
         from brokers.upstox.settings import UpstoxSettings
+        from dotenv import load_dotenv
+
+        from brokers.upstox.broker import UpstoxBroker
+        from brokers.upstox.gateway import UpstoxBrokerGateway
 
         load_dotenv(".env.local")
 
@@ -220,8 +349,9 @@ class TestCrossBrokerParity:
     def dhan_sandbox(self):
         """Create Dhan sandbox gateway."""
         from dotenv import load_dotenv
-        from brokers.dhan.gateway import BrokerGateway
+
         from brokers.dhan.connection import DhanConnection
+        from brokers.dhan.gateway import BrokerGateway
 
         load_dotenv(".env.local")
 
@@ -250,10 +380,11 @@ class TestCrossBrokerParity:
     @pytest.fixture
     def upstox_sandbox(self):
         """Create Upstox sandbox gateway."""
-        from dotenv import load_dotenv
-        from brokers.upstox.gateway import UpstoxBrokerGateway
-        from brokers.upstox.broker import UpstoxBroker
         from brokers.upstox.settings import UpstoxSettings
+        from dotenv import load_dotenv
+
+        from brokers.upstox.broker import UpstoxBroker
+        from brokers.upstox.gateway import UpstoxBrokerGateway
 
         load_dotenv(".env.local")
 
@@ -296,7 +427,7 @@ class TestCrossBrokerParity:
 
         # Verify symbols match
         assert dhan_quote.symbol == upstox_quote.symbol == "RELIANCE"
-        print(f"✅ Schema parity: Both brokers return equivalent Quote structures")
+        print("✅ Schema parity: Both brokers return equivalent Quote structures")
 
     def test_place_order_returns_equivalent_response(self, dhan_sandbox, upstox_sandbox):
         """All brokers should return OrderResponse with same fields."""
@@ -327,4 +458,4 @@ class TestCrossBrokerParity:
         dhan_sandbox.cancel_order(dhan_response.order_id)
         upstox_sandbox.cancel_order(upstox_response.order_id)
 
-        print(f"✅ OrderResponse parity: Both brokers return equivalent responses")
+        print("✅ OrderResponse parity: Both brokers return equivalent responses")

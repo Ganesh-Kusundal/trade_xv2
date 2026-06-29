@@ -16,14 +16,12 @@ from contextlib import contextmanager
 from decimal import Decimal
 from typing import Any
 
-from domain.ports.risk_manager import RiskManagerPort
 from brokers.common.dtos import BrokerOrderPayload
-from brokers.dhan.domain import Exchange
 from brokers.dhan.exceptions import DhanError, OrderError
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, DhanInstrumentRef, coerce_identity_provider
 from brokers.dhan.invariants import assert_dhan_payload
-from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
+from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT, segment_to_exchange
 from domain import (
     Order,
     OrderResponse,
@@ -37,6 +35,8 @@ from domain import (
     Side as OrderSide,
 )
 from domain.field_mapping import DefaultFieldMapping
+from domain.ports.risk_manager import RiskManagerPort
+from domain.symbols import normalize_exchange
 from endpoints import Dhan
 from infrastructure.event_bus import DomainEvent, EventBus
 
@@ -275,7 +275,7 @@ class OrdersAdapter:
             ref = self._identity.resolve_ref(
                 symbol,
                 exchange,
-                expected_segment=EXCHANGE_TO_SEGMENT.get(exchange.upper()),
+                expected_segment=EXCHANGE_TO_SEGMENT.get(normalize_exchange(exchange)),
             )
             segment = ref.exchange_segment
             side_val, ot_val, pt_val, v_val = self._canonicalize_order_enums(
@@ -627,7 +627,7 @@ class OrdersAdapter:
     @staticmethod
     def _parse_order(raw: dict) -> Order:
         return Order.from_broker_dict(
-            raw, field_mapping=_DHAN_MAPPING, exchange_resolver=_parse_exchange
+            raw, field_mapping=_DHAN_MAPPING, exchange_resolver=segment_to_exchange
         )
 
     def place_slice_order(self, symbol: str, exchange: str, **kwargs) -> Order:
@@ -749,8 +749,7 @@ class OrdersAdapter:
         return Trade(
             trade_id=str(raw.get("tradeId", raw.get("id", ""))),
             order_id=str(raw.get("orderId", "")),
-            symbol=raw.get("tradingSymbol", raw.get("symbol", "")),
-            exchange=_parse_exchange(raw.get("exchangeSegment", DEFAULT_SEGMENT)),
+            symbol=raw.get("tradingSymbol", raw.get("symbol", "")),                exchange=segment_to_exchange(raw.get("exchangeSegment", DEFAULT_SEGMENT)),
             side=OrderSide(raw.get("transactionType", "BUY")),
             quantity=raw.get("tradedQty", raw.get("quantity", 0)),
             price=Decimal(str(raw.get("tradedPrice", raw.get("price", 0)))),
@@ -758,11 +757,7 @@ class OrdersAdapter:
         )
 
 
-def _parse_exchange(seg: str) -> Exchange:
-    from brokers.dhan.segments import SEGMENT_TO_EXCHANGE
 
-    exch = SEGMENT_TO_EXCHANGE.get(str(seg), "NSE")
-    return Exchange(exch)
 
 
 def _opt_dec(val) -> Decimal | None:

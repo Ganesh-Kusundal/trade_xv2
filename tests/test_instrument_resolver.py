@@ -7,7 +7,7 @@ from datetime import date
 import pytest
 
 from domain.instrument_id import InstrumentId
-from domain.instrument_resolver import resolve_selector, parse_selector
+from domain.instrument_resolver import parse_selector, resolve_selector
 
 
 class TestParseSelector:

@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from datetime import date
-from decimal import Decimal
 
 from brokers.common.instruments import Instrument
 from domain import InstrumentType
 from domain.instrument_id import InstrumentId
+from domain.symbols import normalize_exchange, normalize_symbol
 
 
 def to_instrument_id(instrument: Instrument) -> InstrumentId:
@@ -26,8 +26,8 @@ def to_instrument_id(instrument: Instrument) -> InstrumentId:
         right = "FUT"
 
     return InstrumentId(
-        exchange=instrument.exchange.upper(),
-        underlying=instrument.symbol.upper(),
+        exchange=normalize_exchange(instrument.exchange),
+        underlying=normalize_symbol(instrument.symbol),
         expiry=expiry,
         strike=instrument.strike,
         right=right,

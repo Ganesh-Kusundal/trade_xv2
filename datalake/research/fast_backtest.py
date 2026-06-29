@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from decimal import Decimal
 from typing import Any
 
 import numpy as np
@@ -23,6 +24,7 @@ from analytics.pipeline.pipeline import FeaturePipeline
 from analytics.scanner.models import Candidate
 from analytics.strategy.models import Signal, SignalType
 from analytics.strategy.pipeline import StrategyPipeline
+from domain.trading_costs import apply_slippage as _apply_slippage
 
 logger = logging.getLogger(__name__)
 
@@ -163,8 +165,7 @@ class FastBacktestEngine:
                 ):
                     qty = int((capital * config.max_position_pct) / price) if price > 0 else 0
                     if qty > 0:
-                        slippage = price * (config.slippage_pct / 100)
-                        entry_price = price + slippage
+                        entry_price = float(_apply_slippage(Decimal(str(price)), side="BUY", slippage_pct=config.slippage_pct))
                         commission = config.commission_flat
                         position = {
                             "side": "LONG",
@@ -182,8 +183,7 @@ class FastBacktestEngine:
                     and position is not None
                 ):
                     price = float(row["close"])
-                    slippage = price * (config.slippage_pct / 100)
-                    exit_price = price - slippage
+                    exit_price = float(_apply_slippage(Decimal(str(price)), side="SELL", slippage_pct=config.slippage_pct))
                     commission = config.commission_flat
 
                     pnl = (exit_price - position["entry_price"]) * position["quantity"]

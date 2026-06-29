@@ -8,6 +8,7 @@ from rich.console import Console
 
 from analytics import Analytics
 from analytics.reports.reports import print_result
+from domain.symbols import normalize_symbol
 
 from .analytics_utils import last_float, price_change
 
@@ -16,7 +17,7 @@ def run_symbol_command(command: str, args: list[str], broker_service, console: C
     if not args:
         console.print(f"[yellow]Usage: tradex analytics {command} <symbol>[/yellow]")
         return
-    symbol = args[0].upper()
+    symbol = normalize_symbol(args[0])
     gateway = broker_service.active_broker
     if not hasattr(gateway, "history"):
         console.print("[red]Active broker does not expose historical data.[/red]")
@@ -45,7 +46,7 @@ def run_symbol_command(command: str, args: list[str], broker_service, console: C
             symbol, prices, benchmark_prices=benchmark, benchmark_symbol="NIFTY"
         )
     elif command == "future":
-        spot = float(gateway.ltp("NIFTY", exchange="INDEX")) if symbol.upper() == "NIFTY" else None
+        spot = float(gateway.ltp("NIFTY", exchange="INDEX")) if symbol == "NIFTY" else None
         future = float(prices["close"].iloc[-1]) if "close" in prices else None
         result = analytics.future(
             symbol,
@@ -60,7 +61,7 @@ def run_symbol_command(command: str, args: list[str], broker_service, console: C
         )
         spot = (
             float(gateway.ltp(symbol, exchange="INDEX"))
-            if symbol.upper() in {"NIFTY", "BANKNIFTY"}
+            if symbol in {"NIFTY", "BANKNIFTY"}
             else None
         )
         result = analytics.options(symbol, chain, spot_price=spot)

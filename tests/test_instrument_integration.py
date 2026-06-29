@@ -3,9 +3,6 @@
 from __future__ import annotations
 
 from datetime import date
-from decimal import Decimal
-
-import pytest
 
 from domain.instrument_id import InstrumentId
 from domain.instrument_resolver import resolve_selector
@@ -66,9 +63,7 @@ class TestInstrumentIdIntegration:
 
     def test_broker_adapter_roundtrip(self):
         """Broker adapter should round-trip through InstrumentId."""
-        from brokers.common.instrument_adapter import to_instrument_id, from_instrument_id
-        from brokers.common.instruments import Instrument
-        from domain import InstrumentType
+        from brokers.common.instrument_adapter import from_instrument_id, to_instrument_id
 
         original = InstrumentId.option("NFO", "NIFTY", date(2026, 7, 30), 25000, "CE")
         inst = from_instrument_id(original)
@@ -78,7 +73,7 @@ class TestInstrumentIdIntegration:
     def test_order_has_instrument_id_field(self):
         """Order dataclass should accept instrument_id."""
         from domain.entities.order import Order
-        from domain.types import Side, OrderType
+        from domain.types import OrderType, Side
 
         order = Order(
             order_id="123",

@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from datalake.quality import DataQualityEngine, QualityReport
+from datalake.quality import DataQualityEngine
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +110,7 @@ class UniverseQualityEngine:
                 logger.warning("Failed to read %s: %s", symbol, exc)
                 report.symbols_missing.append(symbol)
 
-        from datetime import datetime, timedelta
+        from datetime import timedelta
 
         max_date_map: dict[str, pd.Timestamp] = {}
         for symbol, df in symbol_data.items():

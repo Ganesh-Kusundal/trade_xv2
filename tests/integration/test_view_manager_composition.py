@@ -13,7 +13,6 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
-import duckdb
 import pytest
 
 from analytics.views.manager import ViewManager
@@ -40,9 +39,9 @@ class TestViewManagerComposition:
         assert hasattr(vm, "_cache"), "ViewManager must have _cache attribute"
 
         # Verify they are the correct types
-        from analytics.views.view_registry import ViewRegistry
-        from analytics.views.query_executor import QueryExecutor
         from analytics.views.cache_manager import CacheManager
+        from analytics.views.query_executor import QueryExecutor
+        from analytics.views.view_registry import ViewRegistry
 
         assert isinstance(vm._registry, ViewRegistry), (
             f"_registry should be ViewRegistry, got {type(vm._registry)}"

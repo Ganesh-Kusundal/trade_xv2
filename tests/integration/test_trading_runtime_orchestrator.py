@@ -5,21 +5,21 @@ REF: Task 6.3 — Converted from MagicMock to FakeTradingOrchestrator and protoc
 
 from __future__ import annotations
 
-import pandas as pd
 import pytest
 
+from analytics.strategy.evaluator_bridge import StrategyPipelineEvaluator
 from analytics.strategy.models import Signal, SignalType
 from analytics.strategy.pipeline import StrategyPipeline
-from application.oms.context import TradingContext
 from application.oms.factory import create_trading_context
+from domain.models.features import FeatureSet
 from infrastructure.event_bus import DomainEvent, EventType
 from infrastructure.lifecycle import LifecycleManager
 from runtime.trading_runtime_factory import TradingRuntimeFactory
 
 
 class _StaticFeatureFetcher:
-    def fetch(self, symbol: str) -> pd.DataFrame:
-        return pd.DataFrame({"close": [100.0, 101.0, 102.0, 103.0, 104.0]})
+    def fetch(self, symbol: str) -> FeatureSet:
+        return FeatureSet(columns={"close": [100.0, 101.0, 102.0, 103.0, 104.0]})
 
 
 class _AlwaysBuyStrategy:
@@ -39,7 +39,7 @@ class _AlwaysBuyStrategy:
 def mock_broker_service():
     # REF: Using real TradingContext instead of MagicMock for critical parts
     tc = create_trading_context(replay_events=False)
-    
+
     # Use a minimal mock only for non-critical broker-specific attributes
     from unittest.mock import MagicMock
     bs = MagicMock()
@@ -68,7 +68,9 @@ def test_candidate_generated_increments_orchestrator_counter(mock_broker_service
     assert orch is not None
 
     orch._feature_fetcher = _StaticFeatureFetcher()
-    orch._strategy_evaluator = StrategyPipeline(strategies=[_AlwaysBuyStrategy()])
+    orch._strategy_evaluator = StrategyPipelineEvaluator(
+        StrategyPipeline(strategies=[_AlwaysBuyStrategy()])
+    )
 
     event = DomainEvent.now(
         EventType.CANDIDATE_GENERATED.value,

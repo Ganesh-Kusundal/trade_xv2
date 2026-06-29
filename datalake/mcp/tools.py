@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
 
 from datalake.core.serialization import df_to_records
 
@@ -134,7 +133,7 @@ def register_tools(mcp) -> None:
         analysis_type: str = "pcr",
     ) -> dict:
         """Get options analytics for an underlying."""
-        from datalake.core.duckdb_utils import duckdb_connection, DEFAULT_CATALOG_PATH
+        from datalake.core.duckdb_utils import DEFAULT_CATALOG_PATH, duckdb_connection
 
         table_map = {"pcr": "m_pcr", "max_pain": "m_max_pain", "iv_surface": "m_iv_surface"}
         table = table_map.get(analysis_type)

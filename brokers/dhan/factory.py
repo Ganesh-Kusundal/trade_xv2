@@ -408,15 +408,7 @@ def _generate_totp_token(settings: DhanConnectionSettings | None = None) -> str 
         return None
 
 
-def _read_secret(env_key: str, file_key: str) -> str | None:
-    """Read a secret from env var or file."""
-    val = os.environ.get(env_key, "")
-    if val:
-        return val
-    file_path = os.environ.get(file_key, "")
-    if file_path and Path(file_path).exists():
-        return Path(file_path).read_text().strip()
-    return None
+from brokers.dhan.secret_utils import read_secret as _read_secret
 
 
 def _update_env_token(env_path: Path, token: str) -> None:

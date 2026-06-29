@@ -11,8 +11,6 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-import pytest
-
 from brokers.upstox.tests.integration.conftest import skip_live
 
 

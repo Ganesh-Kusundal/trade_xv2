@@ -10,8 +10,8 @@ from textual.app import ComposeResult
 from textual.containers import Container, Grid, Horizontal
 from textual.widgets import Button, DataTable, Label, Static
 
-from cli.services.broker_service import BrokerService
 from brokers.common.connection.errors import BrokerNotReadyError
+from cli.services.broker_service import BrokerService
 
 logger = logging.getLogger(__name__)
 

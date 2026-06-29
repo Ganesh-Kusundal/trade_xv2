@@ -13,6 +13,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = [pytest.mark.dhan, pytest.mark.off_market_safe, pytest.mark.regression]
+
 logger = logging.getLogger(__name__)
 
 ENV_PATH = Path(__file__).resolve().parent.parent.parent.parent.parent / ".env.local"

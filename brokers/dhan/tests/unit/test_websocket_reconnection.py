@@ -7,7 +7,6 @@ Tests verify:
 4. Reconnect counter resets on successful connection
 """
 
-import os
 import threading
 import time
 from datetime import datetime, timezone
@@ -209,8 +208,9 @@ class TestDhanMarketFeedChaosScenarios:
 
     def test_rapid_reconnect_does_not_exhaust_resources(self, monkeypatch):
         """50 rapid reconnects should not leak file descriptors or memory."""
-        from brokers.dhan.websocket import DhanMarketFeed
         from unittest.mock import MagicMock
+
+        from brokers.dhan.websocket import DhanMarketFeed
 
         # Use small max for faster test
         monkeypatch.setenv("DHAN_MAX_RECONNECT_ATTEMPTS", "3")
@@ -241,8 +241,9 @@ class TestDhanMarketFeedChaosScenarios:
 
     def test_intermittent_failures_handled_gracefully(self, monkeypatch):
         """Intermittent failures (fail-success-fail) should reset counter correctly."""
-        from brokers.dhan.websocket import DhanMarketFeed
         from unittest.mock import MagicMock
+
+        from brokers.dhan.websocket import DhanMarketFeed
 
         # Use larger max to allow multiple cycles
         monkeypatch.setenv("DHAN_MAX_RECONNECT_ATTEMPTS", "20")

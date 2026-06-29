@@ -1,22 +1,70 @@
 """Broker infrastructure error hierarchy.
 
-All errors raised by the broker layer are typed so callers can handle specific
-failure modes without string matching.  No error in this module leaks broker
-wire DTOs or raw response payloads — those stay behind the adapter boundary.
+.. deprecated::
+    New code should import from :mod:`brokers.common.resilience.errors` directly.
+    This module re-exports all classes from the canonical hierarchy for backward
+    compatibility.  The ``BrokerError`` defined here is an alias for
+    ``brokers.common.resilience.errors.BrokerError`` so that ``except BrokerError``
+    catches exceptions from both hierarchies.
 """
 
 from __future__ import annotations
 
 from collections.abc import Sequence
 
+# ── Canonical re-exports from resilience.errors ──────────────────────────
+# The canonical BrokerError hierarchy lives in resilience.errors.
+# We re-export it here so existing ``from brokers.common.errors import X``
+# imports continue to work without code changes.
+from brokers.common.resilience.errors import (
+    AuthenticationError as AuthenticationError,
+)
+from brokers.common.resilience.errors import (
+    BrokerDegradedError as BrokerDegradedError,
+)
+from brokers.common.resilience.errors import (
+    BrokerError as BrokerError,
+)
+from brokers.common.resilience.errors import (
+    CircuitBreakerOpenError as CircuitBreakerOpenError,
+)
+from brokers.common.resilience.errors import (
+    ConfigError as ConfigError,
+)
+from brokers.common.resilience.errors import (
+    DataError as DataError,
+)
+from brokers.common.resilience.errors import (
+    ExitAllError as ExitAllError,
+)
+from brokers.common.resilience.errors import (
+    InstrumentNotFoundError as InstrumentNotFoundError,
+)
+from brokers.common.resilience.errors import (
+    NonRetryableError as NonRetryableError,
+)
+from brokers.common.resilience.errors import (
+    NotSupportedError as NotSupportedError,
+)
+from brokers.common.resilience.errors import (
+    OrderError as OrderError,
+)
+from brokers.common.resilience.errors import (
+    RateLimitError as RateLimitError,
+)
+from brokers.common.resilience.errors import (
+    RetryableError as RetryableError,
+)
+from brokers.common.resilience.errors import (
+    TradeXV2Error as TradeXV2Error,
+)
+from brokers.common.resilience.errors import (
+    ValidationError as ValidationError,
+)
 
-class BrokerError(Exception):
-    """Base class for all broker infrastructure errors."""
-
-    def __init__(self, message: str, broker_id: str | None = None) -> None:
-        super().__init__(message)
-        self.broker_id = broker_id
-        self.message = message
+# ── Infrastructure-only errors (not in resilience hierarchy) ─────────────
+# These errors carry broker-specific context (broker_id, session_id, etc.)
+# and are used by routing, quota scheduling, historical data, and streaming.
 
 
 class BrokerUnavailableError(BrokerError):
@@ -30,9 +78,9 @@ class BrokerUnavailableError(BrokerError):
         super().__init__(
             f"Broker '{broker_id}' is unavailable: {reason}"
             if reason
-            else f"Broker '{broker_id}' is unavailable",
-            broker_id=broker_id,
+            else f"Broker '{broker_id}' is unavailable"
         )
+        self.broker_id = broker_id
         self.reason = reason
 
 
@@ -51,9 +99,9 @@ class UnsupportedExtensionError(BrokerError):
     ) -> None:
         alt_msg = f" Alternatives: {list(alternatives)}" if alternatives else ""
         super().__init__(
-            f"Broker '{broker_id}' does not support extension '{extension_name}'.{alt_msg}",
-            broker_id=broker_id,
+            f"Broker '{broker_id}' does not support extension '{extension_name}'.{alt_msg}"
         )
+        self.broker_id = broker_id
         self.extension_name = extension_name
         self.alternatives = list(alternatives)
 
@@ -78,7 +126,8 @@ class QuotaExhaustedError(BrokerError):
         )
         if retry_after_seconds is not None:
             msg += f"; retry after {retry_after_seconds:.1f}s"
-        super().__init__(msg, broker_id=broker_id)
+        super().__init__(msg)
+        self.broker_id = broker_id
         self.endpoint_class = endpoint_class
         self.priority_class = priority_class
         self.retry_after_seconds = retry_after_seconds
@@ -110,9 +159,9 @@ class HistoricalFetchError(BrokerError):
         reason: str = "",
     ) -> None:
         super().__init__(
-            f"Historical fetch failed for chunk='{chunk_id}' on broker='{broker_id}': {reason}",
-            broker_id=broker_id,
+            f"Historical fetch failed for chunk='{chunk_id}' on broker='{broker_id}': {reason}"
         )
+        self.broker_id = broker_id
         self.chunk_id = chunk_id
         self.reason = reason
 
@@ -122,9 +171,9 @@ class StreamError(BrokerError):
 
     def __init__(self, broker_id: str, session_id: str, reason: str = "") -> None:
         super().__init__(
-            f"Stream error on broker='{broker_id}' session='{session_id}': {reason}",
-            broker_id=broker_id,
+            f"Stream error on broker='{broker_id}' session='{session_id}': {reason}"
         )
+        self.broker_id = broker_id
         self.session_id = session_id
         self.reason = reason
 

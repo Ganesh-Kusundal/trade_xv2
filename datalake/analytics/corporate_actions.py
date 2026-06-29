@@ -22,13 +22,14 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 from typing import Literal
 
 import pandas as pd
 
-from datalake.duckdb_utils import DEFAULT_CATALOG_PATH, duckdb_connection, get_pool
+from datalake.duckdb_utils import get_pool
+from domain.symbols import normalize_symbol
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +96,7 @@ class CorporateActionStore:
             split_ratio: New shares per old share (e.g., 2.0 for 1:2 split).
             description: Human-readable description.
         """
-        symbol = symbol.upper().strip()
+        symbol = normalize_symbol(symbol)
         self.conn.execute(
             """
             INSERT OR REPLACE INTO corporate_actions
@@ -114,7 +115,7 @@ class CorporateActionStore:
         description: str = "",
     ) -> None:
         """Record a cash dividend (ex-date)."""
-        symbol = symbol.upper().strip()
+        symbol = normalize_symbol(symbol)
         self.conn.execute(
             """
             INSERT OR REPLACE INTO corporate_actions
@@ -142,7 +143,7 @@ class CorporateActionStore:
         Args:
             bonus_ratio: New shares per old share (e.g., 1.0 for 1:1 bonus).
         """
-        symbol = symbol.upper().strip()
+        symbol = normalize_symbol(symbol)
         self.conn.execute(
             """
             INSERT OR REPLACE INTO corporate_actions
@@ -167,7 +168,7 @@ class CorporateActionStore:
         description: str = "",
     ) -> None:
         """Record a rights issue."""
-        symbol = symbol.upper().strip()
+        symbol = normalize_symbol(symbol)
         self.conn.execute(
             """
             INSERT OR REPLACE INTO corporate_actions
@@ -190,7 +191,7 @@ class CorporateActionStore:
         to_date: date | None = None,
     ) -> pd.DataFrame:
         """Get all corporate actions for a symbol in a date range."""
-        symbol = symbol.upper().strip()
+        symbol = normalize_symbol(symbol)
         conditions = ["symbol = ?"]
         params: list = [symbol]
 
@@ -241,9 +242,7 @@ class CorporateActionStore:
                 cumulative *= 1.0 / row["ratio"]
             elif action_type == "bonus":
                 cumulative *= 1.0 / (1.0 + row["ratio"])
-            elif action_type == "dividend":
-                pass
-            elif action_type == "rights":
+            elif action_type == "dividend" or action_type == "rights":
                 pass
             factors.append((row["action_date"], cumulative))
 
@@ -310,7 +309,7 @@ class CorporateActionStore:
 
     def has_actions(self, symbol: str) -> bool:
         """Check if a symbol has any recorded corporate actions."""
-        symbol = symbol.upper().strip()
+        symbol = normalize_symbol(symbol)
         result = self.conn.execute(
             "SELECT COUNT(*) FROM corporate_actions WHERE symbol = ?",
             [symbol],

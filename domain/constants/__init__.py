@@ -22,6 +22,7 @@ from domain.constants.auth import (
     TOKEN_CLOCK_SKEW_SECONDS,
     TOKEN_REFRESH_RECOMMENDED_BUFFER_SECONDS,
 )
+from domain.constants.defaults import DEFAULT_LOOKBACK_DAYS
 from domain.constants.exchanges import (
     BCD,
     BFO,
@@ -81,7 +82,6 @@ from domain.constants.risk import (
     RISK_MARGIN_SAFETY_MULTIPLIER,
     RISK_POSITION_PERCENT,
 )
-from domain.constants.defaults import DEFAULT_LOOKBACK_DAYS
 from domain.constants.timeouts import (
     DEFAULT_HTTP_TIMEOUT_SECONDS,
     DEFAULT_STOP_TIMEOUT_SECONDS,

@@ -20,7 +20,7 @@ from application.oms.protocols import (
     IReconciliationService,
     IRiskManager,
 )
-from domain import Order, OrderStatus, OrderType, ProductType, Side
+from domain import Order, OrderStatus
 from domain.entities import Trade
 from domain.reconciliation import DriftItem, ReconciliationReport
 from infrastructure.event_bus import DomainEvent
@@ -39,29 +39,29 @@ class FakeRiskManager(IRiskManager):
         fake_risk = FakeRiskManager(allow_all=True)
         order_manager = OrderManager(risk_manager=fake_risk)
     """
-    
+
     allow_all: bool = True
     kill_switch_active: bool = False
     kill_switch_set_calls: list[bool] = field(default_factory=list)
-    
+
     def set_kill_switch(self, enabled: bool) -> None:
         """Record kill switch state changes."""
         self.kill_switch_active = enabled
         self.kill_switch_set_calls.append(enabled)
-    
+
     def check_order(self, order: Order) -> Any:
         """Simulate risk check result.
         
         Returns a mock RiskResult with .allowed attribute.
         """
         from types import SimpleNamespace
-        
+
         if not self.allow_all:
             return SimpleNamespace(allowed=False, reason="FakeRiskManager: risk check failed")
-        
+
         if self.kill_switch_active:
             return SimpleNamespace(allowed=False, reason="Kill switch active")
-        
+
         return SimpleNamespace(allowed=True)
 
 
@@ -79,13 +79,13 @@ class FakePositionManager(IPositionManager):
         # ... use in test ...
         assert len(fake_positions.trades_applied) == 1
     """
-    
+
     trades_applied: list[DomainEvent] = field(default_factory=list)
-    
+
     def on_trade_applied(self, event: DomainEvent) -> None:
         """Record trade application event."""
         self.trades_applied.append(event)
-    
+
     def get_positions(self) -> list[dict[str, Any]]:
         """Return synthetic positions for testing."""
         return []
@@ -107,13 +107,13 @@ class FakeOrderManager(IOrderManager):
         result = fake_om.place_order(command)
         assert len(fake_om.orders_placed) == 1
     """
-    
+
     orders_placed: list[Order] = field(default_factory=list)
     orders_cancelled: list[str] = field(default_factory=list)
     trades_recorded: list[Trade] = field(default_factory=list)
     fail_on_place: bool = False
     fail_message: str = "FakeOrderManager: intentional failure"
-    
+
     def place_order(
         self,
         command: OmsOrderCommand,
@@ -123,7 +123,7 @@ class FakeOrderManager(IOrderManager):
         """Place a fake order and record it."""
         if self.fail_on_place:
             return OrderResult(success=False, error=self.fail_message)
-        
+
         # Create a synthetic order
         order = Order(
             order_id=f"FAKE-ORD-{len(self.orders_placed) + 1:04d}",
@@ -137,26 +137,26 @@ class FakeOrderManager(IOrderManager):
             status=OrderStatus.OPEN,
             correlation_id=command.correlation_id,
         )
-        
+
         self.orders_placed.append(order)
         return OrderResult(success=True, order=order)
-    
+
     def cancel_order(self, order_id: str) -> OrderResult:
         """Cancel a fake order and record it."""
         self.orders_cancelled.append(order_id)
-        
+
         # Find the order if it exists
         order = next(
             (o for o in self.orders_placed if o.order_id == order_id),
             None,
         )
-        
+
         if order:
             cancelled_order = order.with_status(OrderStatus.CANCELLED)
             return OrderResult(success=True, order=cancelled_order)
-        
+
         return OrderResult(success=False, error=f"Order {order_id} not found")
-    
+
     def record_trade(self, trade: Trade) -> bool:
         """Record a trade execution."""
         self.trades_recorded.append(trade)
@@ -178,13 +178,13 @@ class FakeReconciliationService(IReconciliationService):
         report = fake_recon.reconcile()
         assert not report.has_drift
     """
-    
+
     has_drift: bool = False
     drift_count: int = 0
     reconcile_calls: int = 0
     last_local_orders: list | None = None
     last_local_positions: list | None = None
-    
+
     def reconcile(
         self,
         local_orders: list | None = None,
@@ -194,7 +194,7 @@ class FakeReconciliationService(IReconciliationService):
         self.reconcile_calls += 1
         self.last_local_orders = local_orders
         self.last_local_positions = local_positions
-        
+
         # Create real ReconciliationReport with drift items
         drift_items = []
         if self.has_drift:
@@ -207,7 +207,7 @@ class FakeReconciliationService(IReconciliationService):
                         details=f"Drift item {i}",
                     )
                 )
-        
+
         return ReconciliationReport(
             drift_items=drift_items,
             broker_orders=0,
@@ -231,12 +231,12 @@ class FakeExecutionAdapter(IExecutionAdapter):
         result = fake_adapter.place_order(command)
         assert result.order.status == OrderStatus.FILLED
     """
-    
+
     auto_fill: bool = False
     fill_delay: float = 0.0
     orders_received: list[OmsOrderCommand] = field(default_factory=list)
     fail_on_place: bool = False
-    
+
     def place_order(
         self,
         command: OmsOrderCommand,
@@ -245,14 +245,14 @@ class FakeExecutionAdapter(IExecutionAdapter):
     ) -> OrderResult:
         """Process order through fake execution adapter."""
         self.orders_received.append(command)
-        
+
         if self.fail_on_place:
             return OrderResult(success=False, error="FakeExecutionAdapter: execution failed")
-        
+
         # Create filled order if auto_fill is enabled
         status = OrderStatus.FILLED if self.auto_fill else OrderStatus.OPEN
         filled_quantity = command.quantity if self.auto_fill else 0
-        
+
         order = Order(
             order_id=f"FAKE-EXEC-{len(self.orders_received):04d}",
             symbol=command.symbol,
@@ -266,7 +266,7 @@ class FakeExecutionAdapter(IExecutionAdapter):
             filled_quantity=filled_quantity,
             correlation_id=command.correlation_id,
         )
-        
+
         return OrderResult(success=True, order=order)
 
 
@@ -286,26 +286,26 @@ class FakeBrokerGateway(IBrokerGateway):
         assert result.success
         assert "ORD-001" in fake_gateway.cancelled_orders
     """
-    
+
     cancelled_orders: list[str] = field(default_factory=list)
     placed_orders: list[Order] = field(default_factory=list)
     fail_on_cancel: bool = False
     fail_on_place: bool = False
-    
+
     def cancel_order(self, order_id: str) -> OrderResult:
         """Cancel order at fake broker."""
         self.cancelled_orders.append(order_id)
-        
+
         if self.fail_on_cancel:
             return OrderResult(success=False, error="FakeBrokerGateway: cancel failed")
-        
+
         return OrderResult(success=True)
-    
+
     def place_order(self, command: OmsOrderCommand) -> Order:
         """Place order at fake broker."""
         if self.fail_on_place:
             raise RuntimeError("FakeBrokerGateway: place_order failed")
-        
+
         order = Order(
             order_id=f"BROKER-ORD-{len(self.placed_orders) + 1:04d}",
             symbol=command.symbol,
@@ -318,19 +318,19 @@ class FakeBrokerGateway(IBrokerGateway):
             status=OrderStatus.OPEN,
             correlation_id=command.correlation_id,
         )
-        
+
         self.placed_orders.append(order)
         return order
-    
+
     def quote(self, symbol: str, exchange: str) -> Any:
         """Return fake quote."""
         from types import SimpleNamespace
         return SimpleNamespace(ltp=Decimal("100.00"))
-    
+
     def positions(self) -> list:
         """Return fake positions."""
         return []
-    
+
     def funds(self) -> Any:
         """Return fake funds."""
         from types import SimpleNamespace

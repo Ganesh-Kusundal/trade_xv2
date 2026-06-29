@@ -10,6 +10,7 @@ from brokers.dhan.exceptions import MarketDataError
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 from brokers.dhan.invariants import assert_dhan_payload
+from domain.symbols import normalize_exchange
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +79,7 @@ class HistoricalAdapter:
             }
         else:
             endpoint = "/charts/intraday"
-            exch_upper = exchange.upper()
+            exch_upper = normalize_exchange(exchange)
             sess_open = _SESSION_OPEN.get(exch_upper, _DEFAULT_OPEN)
             sess_close = _SESSION_CLOSE.get(exch_upper, _DEFAULT_CLOSE)
             payload = {

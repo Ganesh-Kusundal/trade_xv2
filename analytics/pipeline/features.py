@@ -36,7 +36,16 @@ def _ensure_columns(df: pd.DataFrame, columns: list[str]) -> None:
 
 @dataclass(frozen=True)
 class ATR:
-    """Average True Range."""
+    """Average True Range.
+
+    NOTE: This implementation uses SMA (simple moving average) for
+    smoothing, not Wilder's exponential moving average. This differs
+    from the standard ATR used in TradingView, AmiBroker, and most
+    technical analysis literature. The HalfTrend indicator in
+    analytics/indicators/halftrend.py uses Wilder's smoothing.
+
+    For Wilder's ATR, use the HalfTrend indicator's ATR calculation.
+    """
 
     name: str = "atr"
     period: int = 14
@@ -75,7 +84,20 @@ class VWAP:
 
 @dataclass(frozen=True)
 class RSI:
-    """Relative Strength Index."""
+    """Relative Strength Index.
+
+    NOTE: This implementation uses SMA (simple moving average) for
+    smoothing gains/losses, not Wilder's exponential moving average.
+    This differs from the standard RSI used in TradingView, AmiBroker,
+    and most technical analysis literature.
+
+    Wilder's RSI uses exponential smoothing: avg_gain = (prev_avg * (period-1) + current_gain) / period.
+    This SMA version uses: avg_gain = mean(gains over period).
+
+    The SMA version produces smoother, less responsive RSI values.
+    Strategies migrating from other platforms should be aware of this
+    deviation.
+    """
 
     name: str = "rsi"
     period: int = 14
@@ -245,7 +267,17 @@ class Momentum:
 
 @dataclass(frozen=True)
 class SwingHighLow:
-    """Swing high/low detection."""
+    """Swing high/low detection.
+
+    WARNING: Uses centered rolling window (center=True), which introduces
+    look-ahead bias. The swing classification at bar i depends on bars
+    i-lookback//2 to i+lookback//2. This is appropriate for offline
+    analysis but NOT for real-time signal generation.
+
+    For real-time swing detection without look-ahead, use
+    analytics.indicators.market_structure.MarketStructureAnalyzer which
+    uses confirmed-swing detection.
+    """
 
     swing_high: str = "swing_high"
     swing_low: str = "swing_low"

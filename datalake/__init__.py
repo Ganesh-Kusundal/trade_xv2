@@ -31,7 +31,7 @@ from datalake.quality import DataQualityEngine
 from datalake.quality_universe import UniverseQualityEngine
 from datalake.research import ResearchAPI
 from datalake.updater import IncrementalUpdater
-from datalake.vwap import compute_vwap, compute_daily_vwap
+from datalake.vwap import compute_daily_vwap, compute_vwap
 
 __all__ = [
     "CorporateActionStore",

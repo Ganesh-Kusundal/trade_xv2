@@ -215,7 +215,14 @@ def baseline_replay_pnl(mode: str) -> dict:
         commission_flat=20.0,
     )
 
-    engine = ReplayEngine(pipeline, strategy, config)
+    # Create mock OMS adapter for baseline testing
+    class _MockOmsAdapter:
+        def open_long(self, **kw): return "mock-order-id"
+        def close_long(self, **kw): return "mock-order-id"
+        def get_position(self, **kw): return None
+        def get_orders(self, **kw): return []
+
+    engine = ReplayEngine(pipeline, strategy, config, oms_adapter=_MockOmsAdapter())
 
     # Run 5 times to verify determinism
     runs = []

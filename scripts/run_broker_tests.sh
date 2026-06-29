@@ -77,6 +77,13 @@ run_contract_tests() {
         -v --tb=short
 }
 
+# Run certification suite (aggregated pass/fail report)
+run_certification() {
+    local broker=$1
+    echo_info "Running $broker certification suite..."
+    "$PYTHON" -m brokers.common.tests.certify_broker $broker --live
+}
+
 # Run integration tests (Dhan sandbox path + marker-based suites)
 run_integration_tests() {
     echo_info "Running integration tests..."
@@ -154,6 +161,85 @@ run_coverage() {
     "$PYTHON" -m coverage report --fail-under=80
 }
 
+# ── Dhan regression suite helpers ─────────────────────────────────────────
+
+run_regression_off_market() {
+    echo_info "Running Dhan off-market regression (REST/read-only)..."
+    echo_info "Safe to run anytime — no WebSocket tests included."
+    check_env_creds
+    mkdir -p reports
+    "$PYTHON" -m pytest \
+        -m "dhan and off_market_safe and regression" \
+        brokers/dhan/tests/integration/test_regression_suite.py \
+        brokers/dhan/tests/regression/test_e2e_smoke.py \
+        --tb=short -v \
+        --junitxml=reports/off_market_regression.xml \
+        --timeout=120
+    "$PYTHON" scripts/dhan_regression_report.py \
+        --junit reports/off_market_regression.xml \
+        --output docs/audits/DHAN_REGRESSION_REPORT.md \
+        --fail-on P0
+}
+
+run_regression_market_hours() {
+    echo_info "Running Dhan market-hours regression (WebSocket/streaming)..."
+    echo_warn "Requires NSE trading hours (09:15–15:30 IST) or FORCE_MARKET_OPEN=1."
+    check_env_creds
+    mkdir -p reports
+    FORCE_MARKET_OPEN="${FORCE_MARKET_OPEN:-0}" \
+    "$PYTHON" -m pytest \
+        -m "dhan and market_hours and regression" \
+        brokers/dhan/tests/integration/test_regression_suite.py \
+        brokers/dhan/tests/regression/test_e2e_smoke.py \
+        --tb=short -v \
+        --junitxml=reports/market_hours_regression.xml \
+        --timeout=120
+}
+
+run_regression_full() {
+    echo_info "Running full Dhan regression suite (all tiers)..."
+    echo_warn "Requires PRE_PROD_GATE=1 and live NSE hours for streaming tests."
+    check_env_creds
+    mkdir -p reports
+    PRE_PROD_GATE="${PRE_PROD_GATE:-1}" \
+    FORCE_MARKET_OPEN="${FORCE_MARKET_OPEN:-0}" \
+    "$PYTHON" -m pytest \
+        -m "dhan and regression" \
+        brokers/dhan/tests/integration/ \
+        --tb=short -v \
+        --junitxml=reports/full_regression.xml \
+        --timeout=180
+    "$PYTHON" scripts/dhan_regression_report.py \
+        --junit reports/full_regression.xml \
+        --output docs/audits/DHAN_REGRESSION_REPORT.md \
+        --fail-on P0
+}
+
+run_regression_sandbox() {
+    echo_info "Running Dhan sandbox order E2E..."
+    echo_warn "Requires DHAN_SANDBOX_CLIENT_ID and DHAN_SANDBOX_ACCESS_TOKEN."
+    if [ -z "${DHAN_SANDBOX_CLIENT_ID:-}" ] || [ -z "${DHAN_SANDBOX_ACCESS_TOKEN:-}" ]; then
+        echo_error "DHAN_SANDBOX_CLIENT_ID and DHAN_SANDBOX_ACCESS_TOKEN must be set."
+        exit 1
+    fi
+    mkdir -p reports
+    DHAN_INTEGRATION=1 DHAN_SANDBOX=1 \
+    "$PYTHON" -m pytest \
+        -m sandbox \
+        tests/e2e/test_sandbox_real_broker.py \
+        cli/tests/test_order_sandbox_integration.py \
+        --tb=short -v \
+        --junitxml=reports/sandbox_orders.xml \
+        --timeout=60
+}
+
+check_env_creds() {
+    if [ -z "${DHAN_CLIENT_ID:-}" ] && [ ! -f ".env.local" ]; then
+        echo_warn "DHAN_CLIENT_ID not set and .env.local not found."
+        echo_info "Live integration tests will be auto-skipped."
+    fi
+}
+
 # Run specific broker tests
 run_broker_tests() {
     local broker=$1
@@ -215,6 +301,22 @@ case "${1:-}" in
         check_venv
         run_coverage
         ;;
+    regression-off-market)
+        check_venv
+        run_regression_off_market
+        ;;
+    regression-market-hours)
+        check_venv
+        run_regression_market_hours
+        ;;
+    regression-full)
+        check_venv
+        run_regression_full
+        ;;
+    regression-sandbox|sandbox)
+        check_venv
+        run_regression_sandbox
+        ;;
     broker)
         check_venv
         if [ -z "${2:-}" ]; then
@@ -222,6 +324,14 @@ case "${1:-}" in
             exit 1
         fi
         run_broker_tests "$2"
+        ;;
+    certification)
+        check_venv
+        if [ -z "${2:-}" ]; then
+            echo_error "Please specify broker name: dhan, upstox, or paper"
+            exit 1
+        fi
+        run_certification "$2"
         ;;
     help|--help|-h)
         echo "TradeXV2 Broker Test Runner"
@@ -238,14 +348,22 @@ case "${1:-}" in
         echo "  stress        Run stress tests (30-60 min)"
         echo "  e2e           Run E2E tests (Paper broker)"
         echo "  all           Run all tests (excluding live)"
-        echo "  coverage      Run tests with coverage report"
-        echo "  broker <name> Run specific broker tests (dhan|upstox|paper)"
-        echo "  help          Show this help message"
+        echo "  coverage                Run tests with coverage report"
+        echo "  broker <name>           Run specific broker tests (dhan|upstox|paper)"
+        echo "  certification <name>    Run broker certification suite (dhan|upstox|paper)"
+        echo "  regression-off-market   Dhan REST/read-only regression (anytime with creds)"
+        echo "  regression-market-hours Dhan WebSocket regression (NSE hours or FORCE_MARKET_OPEN=1)"
+        echo "  regression-full         Full pre-release Dhan regression (all tiers)"
+        echo "  regression-sandbox      Dhan sandbox order E2E (needs DHAN_SANDBOX_* vars)"
+        echo "  help                    Show this help message"
         echo ""
         echo "Environment Variables:"
-        echo "  DHAN_INTEGRATION=1      Enable Dhan live integration tests"
-        echo "  UPSTOX_INTEGRATION=1    Enable Upstox live integration tests"
-        echo "  PRE_PROD_GATE=1         Run pre-production gate tests"
+        echo "  DHAN_INTEGRATION=1           Enable Dhan live integration tests"
+        echo "  UPSTOX_INTEGRATION=1         Enable Upstox live integration tests"
+        echo "  PRE_PROD_GATE=1              Run pre-production gate tests"
+        echo "  FORCE_MARKET_OPEN=1          Force WebSocket tests regardless of market hours"
+        echo "  DHAN_SANDBOX_CLIENT_ID=...   Sandbox credentials for order E2E"
+        echo "  DHAN_SANDBOX_ACCESS_TOKEN=.. Sandbox access token for order E2E"
         ;;
     "")
         echo_error "No command specified. Use 'help' for usage information."

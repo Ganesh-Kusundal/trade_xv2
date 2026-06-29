@@ -9,6 +9,7 @@ from decimal import Decimal
 
 from domain import ExchangeSegment, InstrumentType
 from domain.exchange_segments import canonical_exchange_short, parse_segment
+from domain.symbols import normalize_exchange, normalize_symbol
 
 # Exchange suffixes to strip for canonical symbol (matches datalake.core.symbols)
 _SUFFIX_PATTERN = re.compile(r"[-_](EQ|BE|BL|BZ|MC|NC|NZ|SM|SO|TT)\s*$", re.IGNORECASE)
@@ -82,7 +83,7 @@ class InstrumentRegistry:
         # but preserve original in broker_symbol for API calls
         canonical = _normalize_instrument_symbol(symbol)
         if not broker_symbol:
-            broker_symbol = symbol.upper()
+            broker_symbol = normalize_symbol(symbol)
 
         instrument = Instrument(
             symbol=canonical,
@@ -113,7 +114,7 @@ class InstrumentRegistry:
     def resolve(self, symbol: str, exchange: str) -> Instrument | None:
         # Normalize input symbol for consistent lookup
         normalized = _normalize_instrument_symbol(symbol)
-        return self._by_key.get((normalized, exchange.upper()))
+        return self._by_key.get((normalized, normalize_exchange(exchange)))
 
     def require(self, symbol: str, exchange: str) -> Instrument:
         instrument = self.resolve(symbol, exchange)
@@ -127,7 +128,7 @@ class InstrumentRegistry:
     def resolve_by_broker_identifier(
         self, broker_identifier: str, exchange: str
     ) -> Instrument | None:
-        return self._by_broker_identifier.get((str(broker_identifier), exchange.upper()))
+        return self._by_broker_identifier.get((str(broker_identifier), normalize_exchange(exchange)))
 
     def canonical_symbol(self, broker_identifier: str, exchange: str) -> str:
         instrument = self.resolve_by_broker_identifier(broker_identifier, exchange)

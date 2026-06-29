@@ -39,8 +39,9 @@ def seed_universe_history(catalog_path: str) -> None:
         universe_name = _universe_name_from_filename(csv_path.name)
         import pandas as pd
 
+        from domain.symbols import normalize_symbol
         df = pd.read_csv(csv_path)
-        symbols = df["symbol"].str.strip().str.upper().tolist()
+        symbols = [normalize_symbol(s) for s in df["symbol"]]
         count = catalog.register_universe_snapshot(universe_name, symbols)
         logger.info(
             "Registered %d symbols in %s from %s", count, universe_name, csv_path.name
@@ -53,7 +54,7 @@ def seed_universe_history(catalog_path: str) -> None:
         symbol_count = 0
         for _, row in df.iterrows():
             catalog.register_symbol_metadata_snapshot(
-                symbol=str(row["symbol"]).strip().upper(),
+                symbol=normalize_symbol(str(row["symbol"])),
                 sector=str(row["sector"]).strip(),
             )
             symbol_count += 1

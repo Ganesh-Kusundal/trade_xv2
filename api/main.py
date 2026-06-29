@@ -258,9 +258,17 @@ def create_app(
     )
 
     # Request logging + correlation ID middleware
-    from api.middleware import RequestLoggingMiddleware
+    from api.middleware import RateLimitMiddleware, RequestLoggingMiddleware
 
     app.add_middleware(RequestLoggingMiddleware)
+
+    # Rate limiting middleware (disabled when rate_limit_per_minute == 0)
+    if cfg.rate_limit_per_minute > 0:
+        app.add_middleware(
+            RateLimitMiddleware,
+            max_requests=cfg.rate_limit_per_minute,
+            window_seconds=60.0,
+        )
 
     # CORS middleware
     app.add_middleware(
@@ -332,6 +340,11 @@ def create_app(
     from api.routers.risk import router as risk_router
 
     app.include_router(risk_router, prefix=f"{cfg.api_prefix}/risk", tags=["Risk"])
+
+    # News endpoints
+    from api.routers.news import router as news_router
+
+    app.include_router(news_router, prefix=f"{cfg.api_prefix}/news", tags=["News"])
 
     # Live broker endpoints (dual API — explicit live_broker provenance)
     from api.routers.live.router import router as live_router

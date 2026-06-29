@@ -8,12 +8,9 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-import pytest
-
 from application.oms import PositionManager
 from domain import ProductType, Side, Trade
 from domain.types import PositionState
-from infrastructure.state_machine import IllegalTransitionError
 
 
 def make_trade(
@@ -125,12 +122,12 @@ class TestInvalidPositionTransitions:
         pm.apply_trade(make_trade("RELIANCE", "NSE", Side.SELL, 10, trade_id="T2"))
         # Now in CLOSED state, reset to FLAT
         pm._position_states["RELIANCE:NSE"].reset(PositionState.FLAT)
-        
+
         # Manually force an invalid transition by setting state to FLAT
         # then trying to compute a REDUCING state (which shouldn't happen from FLAT)
         # This is a synthetic test - in practice, FLAT → REDUCING can't occur
         # through normal apply_trade because the logic computes state from quantity
-        
+
         # Instead, test that the enforcement mechanism works by checking
         # that the state machine validates transitions
         sm = pm._position_states["RELIANCE:NSE"]
@@ -149,7 +146,7 @@ class TestInvalidPositionTransitions:
         pm.apply_trade(make_trade("RELIANCE", "NSE", Side.BUY, 10, trade_id="T1"))
         pm.apply_trade(make_trade("RELIANCE", "NSE", Side.SELL, 10, trade_id="T2"))
         assert pm._position_states["RELIANCE:NSE"].state.value == "CLOSED"
-        
+
         # Verify CLOSED → OPEN is not allowed
         sm = pm._position_states["RELIANCE:NSE"]
         assert not sm.can_transition_to(PositionState.OPEN)
@@ -167,7 +164,7 @@ class TestInvalidPositionTransitions:
         # Close position
         pm.apply_trade(make_trade("RELIANCE", "NSE", Side.SELL, 10, trade_id="T2"))
         assert pm._position_states["RELIANCE:NSE"].state.value == "CLOSED"
-        
+
         # Manually force an invalid transition scenario
         # In audit mode, even if we could trigger an invalid transition,
         # it would be logged but accepted
@@ -187,18 +184,18 @@ class TestPositionStateMachineEdgeCases:
         pm.apply_trade(make_trade("RELIANCE", "NSE", Side.BUY, 10, trade_id="T1"))
         # Open TCS
         pm.apply_trade(make_trade("TCS", "NSE", Side.BUY, 5, trade_id="T2"))
-        
+
         # Partial sell RELIANCE (enters REDUCING)
         pm.apply_trade(make_trade("RELIANCE", "NSE", Side.SELL, 3, trade_id="T3"))
         assert pm._position_states["RELIANCE:NSE"].state.value == "REDUCING"
-        
+
         # TCS should still be OPEN
         assert pm._position_states["TCS:NSE"].state.value == "OPEN"
-        
+
         # Full close TCS (OPEN → CLOSED is valid)
         pm.apply_trade(make_trade("TCS", "NSE", Side.SELL, 5, trade_id="T4"))
         assert pm._position_states["TCS:NSE"].state.value == "CLOSED"
-        
+
         # RELIANCE should still be REDUCING
         assert pm._position_states["RELIANCE:NSE"].state.value == "REDUCING"
 
@@ -208,7 +205,7 @@ class TestPositionStateMachineEdgeCases:
         # Open long position
         pm.apply_trade(make_trade("RELIANCE", "NSE", Side.BUY, 10, trade_id="T1"))
         assert pm._position_states["RELIANCE:NSE"].state.value == "OPEN"
-        
+
         # Reverse to short (sell 20: closes 10 long + opens 10 short)
         pm.apply_trade(make_trade("RELIANCE", "NSE", Side.SELL, 20, trade_id="T2"))
         pos = pm.get_position("RELIANCE", "NSE")
@@ -222,11 +219,11 @@ class TestPositionStateMachineEdgeCases:
         pm.apply_trade(make_trade("RELIANCE", "NSE", Side.BUY, 10, trade_id="T1"))
         pm.apply_trade(make_trade("RELIANCE", "NSE", Side.SELL, 10, trade_id="T2"))
         assert pm._position_states["RELIANCE:NSE"].state.value == "CLOSED"
-        
+
         # Manually reset to FLAT (simulating new session)
         pm._position_states["RELIANCE:NSE"].reset(PositionState.FLAT)
         assert pm._position_states["RELIANCE:NSE"].state.value == "FLAT"
-        
+
         # Now can open again (FLAT → OPEN)
         pm.apply_trade(make_trade("RELIANCE", "NSE", Side.BUY, 5, trade_id="T3"))
         assert pm._position_states["RELIANCE:NSE"].state.value == "OPEN"

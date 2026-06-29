@@ -13,18 +13,16 @@ import logging
 import threading
 import time
 from collections.abc import Callable
-from typing import Any
-
-from application.oms.protocols import IReconciliationService
 
 from application.oms.order_manager import OrderManager
 from application.oms.position_manager import PositionManager
-from domain.reconciliation import ReconciliationReport
+from application.oms.protocols import IReconciliationService
 from domain.constants import (
     DEFAULT_STOP_TIMEOUT_SECONDS,
     MIN_SLEEP_SECONDS,
     RECONCILIATION_INTERVAL_SECONDS,
 )
+from domain.reconciliation import ReconciliationReport
 from infrastructure.event_bus import EventBus
 from infrastructure.lifecycle import HealthState, ManagedService, build_health
 

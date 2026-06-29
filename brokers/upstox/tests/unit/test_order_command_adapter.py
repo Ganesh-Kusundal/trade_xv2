@@ -9,7 +9,6 @@ from brokers.upstox.orders.order_client import UpstoxRestOrderClient
 from brokers.upstox.orders.order_command_adapter import UpstoxOrderCommandAdapter
 from domain import (
     ExchangeSegment,
-    OrderRequest,
     Side,
 )
 from domain import (
@@ -102,9 +101,9 @@ def test_place_order_failure_does_not_publish() -> None:
 
 
 def test_place_order_risk_check_blocks_order() -> None:
-    from brokers.common.dtos import BrokerOrderPayload
     from application.oms.position_manager import PositionManager
     from application.oms.risk_manager import RiskConfig, RiskManager
+    from brokers.common.dtos import BrokerOrderPayload
 
     resolver = MagicMock()
     resolver.resolve.return_value = MagicMock(instrument_key="NSE_EQ|RELIANCE")

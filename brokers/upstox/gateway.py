@@ -35,9 +35,11 @@ from brokers.upstox.adapters import (
     PortfolioAdapter,
     StreamManagerAdapter,
 )
-from brokers.upstox.market_data.market_data_adapter import UpstoxMarketDataAdapter as MarketDataAdapter
 from brokers.upstox.broker import UpstoxBroker
 from brokers.upstox.extended import UpstoxExtendedCapabilities
+from brokers.upstox.market_data.market_data_adapter import (
+    UpstoxMarketDataAdapter as MarketDataAdapter,
+)
 from domain import (
     Balance,
     ExchangeSegment,
@@ -46,7 +48,6 @@ from domain import (
     MarketDepth,
     OptionChain,
     Order,
-    OrderRequest,
     OrderResponse,
     OrderStatus,
     OrderType,

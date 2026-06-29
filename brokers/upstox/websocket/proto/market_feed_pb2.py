@@ -267,17 +267,17 @@ except Exception:
 
 
 __all__ = [
+    "LTPC",
+    "OHLC",
     "BidAskQuote",
     "Feed",
     "FirstDepth",
     "FirstLevelWithGreeks",
     "FullFeed",
     "IndexFeed",
-    "LTPC",
     "MarketFF",
     "MarketLevel",
     "MarketOHLC",
-    "OHLC",
     "OptionGreeks",
     "Quote",
 ]

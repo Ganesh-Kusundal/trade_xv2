@@ -26,7 +26,7 @@ class TestDhanMarketFeed:
             instruments=instruments,
         )
 
-        assert feed._instruments == [(1, 2885, 15), (1, 2886, 17)]
+        assert feed._instruments == [(1, "2885", 15), (1, "2886", 17)]
         assert feed._context.get_client_id() == "TEST_CLIENT"
         assert feed._context.get_access_token() == "TEST_TOKEN"
         assert feed._feed is None  # SDK feed not created until connect()
@@ -100,7 +100,7 @@ class TestDhanMarketFeed:
 
         feed.subscribe([(1, "2885", 15)])
         assert len(feed._instruments) == 1
-        assert feed._instruments[0] == (1, 2885, 15)
+        assert feed._instruments[0] == (1, "2885", 15)
 
     def test_unsubscribe_before_connect_raises(self):
         """unsubscribe() must raise RuntimeError if not connected."""
@@ -171,7 +171,10 @@ class TestDhanMarketFeed:
 
         assert result["symbol"] == "2885"
         assert str(result["ltp"]) == "2450.50"
-        assert len(result["depth"]) == 1
+        assert len(result["depth"]["bids"]) == 1
+        assert len(result["depth"]["asks"]) == 1
+        assert str(result["depth"]["bids"][0]["price"]) == "2450.00"
+        assert str(result["depth"]["asks"][0]["price"]) == "2451.00"
 
     def test_on_message_publishes_tick_event(self):
         from infrastructure.event_bus import EventBus

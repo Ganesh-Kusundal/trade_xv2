@@ -35,6 +35,7 @@ from typing import Any
 
 from brokers.dhan.reconnecting_service import ReconnectingServiceMixin
 from domain import DepthLevel, MarketDepth
+from domain.symbols import normalize_symbol
 from infrastructure.event_bus import DomainEvent, EventBus
 from infrastructure.lifecycle.lifecycle import (
     HealthState,
@@ -143,6 +144,8 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
         # gateway-level fan-out.
         self._depth_cache: dict[int, dict[str, list[DepthLevel]]] = {}
         self._depth_cache_lock = threading.Lock()
+        # security_id → canonical symbol for EventBus routing and MarketDepth.symbol
+        self._sec_id_to_symbol: dict[int, str] = {}
         # Counters surfaced via health() so an operator can see
         # drop+publish rates without scraping logs.
         self._published_depths = 0
@@ -169,6 +172,10 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
         """Register a callback for depth updates."""
         with self._callback_lock:
             self._depth_callbacks.append(callback)
+
+    def register_symbol(self, security_id: int, symbol: str) -> None:
+        """Map a Dhan security_id to a canonical symbol for event routing."""
+        self._sec_id_to_symbol[int(security_id)] = normalize_symbol(symbol)
 
     def subscribe(self, instruments: list[tuple[str, str]] | tuple[str, str]) -> None:
         """Subscribe to one or more instruments.
@@ -456,16 +463,13 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
             logger.warning("%s_subscription_dropped_no_ws", self.DEPTH_TYPE.lower())
             return
 
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            # No running loop in this thread. The WebSocket is created on
-            # a dedicated loop; this branch is only reached from test
-            # contexts that call _send_subscription directly. Drop the
-            # message with a counter increment so the gap is visible.
+        # Subscriptions from gateway threads must use the feed's dedicated loop,
+        # not asyncio.get_running_loop() on the caller thread.
+        loop = self._ws_loop
+        if loop is None or not loop.is_running():
             self._dropped_depths += 1
             logger.warning(
-                "%s_subscription_dropped_no_running_loop",
+                "%s_subscription_dropped_no_ws_loop",
                 self.DEPTH_TYPE.lower(),
             )
             return
@@ -604,10 +608,16 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
             )
             return
 
+        symbol = self._sec_id_to_symbol.get(sec_id, "")
+
         with self._depth_cache_lock:
             entry = self._depth_cache.setdefault(sec_id, {"bids": [], "asks": []})
-            entry[side] = levels
+            # Dhan sends bid/ask in separate packets; never wipe a side with
+            # an empty level list (can happen when qty filter drops all rows).
+            if levels:
+                entry[side] = levels
             merged = MarketDepth(
+                symbol=symbol,
                 bids=list(entry["bids"]),
                 asks=list(entry["asks"]),
                 depth_type=self.DEPTH_TYPE,
@@ -635,6 +645,7 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
                             "depth_type": self.DEPTH_TYPE,
                             "correlation_id": correlation_id,
                         },
+                        symbol=symbol or None,
                         source=self.name,
                         correlation_id=correlation_id,
                     )

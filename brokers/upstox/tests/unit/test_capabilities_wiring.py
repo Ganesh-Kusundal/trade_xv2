@@ -17,7 +17,6 @@ from brokers.upstox.capabilities import (
 )
 from domain import (
     ExchangeSegment,
-    OrderRequest,
     OrderResponse,
     OrderType,
     ProductType,

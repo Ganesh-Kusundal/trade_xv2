@@ -1,15 +1,12 @@
-"""Status normalizer — breaks the cyclic dependency between enums.py ↔ status_mapper.py.
+"""Status normalizer — DEPRECATED. Use domain.status_mapper directly.
 
-Previously ``OrderStatus.normalize()`` (in ``enums.py``) imported
-``StatusMapperRegistry`` from ``status_mapper.py``, which imports
-``OrderStatus`` from ``domain.types`` → ``enums.py``.  This compile-time
-cycle is resolved by extracting the normalize logic into a free function in
-this module that both ``OrderStatus`` and ``StatusMapperRegistry`` import from.
+.. deprecated:: Phase-7
+    This module is a legacy shim. The circular dependency it was created to
+    break has been resolved by inlining the lazy import in domain.enums.py.
+    New code should import from :mod:`domain.status_mapper` directly.
 
-Usage::
-
-    from domain.status_normalizer import normalize_status
-    canonical = normalize_status("TRANSIT")  # → OrderStatus.OPEN
+    This module is kept temporarily for backward compatibility and will be
+    removed in a future release.
 """
 
 from __future__ import annotations
@@ -19,32 +16,20 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from domain.types import OrderStatus
 
-# Lazy-imported by both enums.py and status_mapper.py.
-# Using a module-level registry that status_mapper populates at import time.
-_registry: object | None = None
-
-
-def _get_registry():
-    """Lazily return the StatusMapperRegistry class (avoids import cycle)."""
-    global _registry
-    if _registry is None:
-        from domain.status_mapper import StatusMapperRegistry as R
-
-        _registry = R
-    return _registry
-
 
 def normalize_status(broker_status: str) -> OrderStatus:
     """Normalize a broker-specific status string to canonical OrderStatus.
 
-    Delegates to :class:`~domain.status_mapper.StatusMapperRegistry.normalize`,
-    which tries all registered broker mappings and returns UNKNOWN when unmapped.
-
-    Args:
-        broker_status: Raw status string from broker API (e.g. "TRANSIT", "EXECUTED").
-
-    Returns:
-        Canonical :class:`~domain.enums.OrderStatus` enum value.
+    .. deprecated:: Use ``StatusMapperRegistry.normalize()`` directly.
     """
-    registry = _get_registry()
-    return registry.normalize(broker_status)
+    import warnings
+
+    warnings.warn(
+        "domain.status_normalizer.normalize_status is deprecated. "
+        "Use domain.status_mapper.StatusMapperRegistry.normalize() instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    from domain.status_mapper import StatusMapperRegistry
+
+    return StatusMapperRegistry.normalize(broker_status)

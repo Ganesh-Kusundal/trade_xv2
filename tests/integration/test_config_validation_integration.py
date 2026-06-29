@@ -13,9 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from brokers.common.settings import BrokerSettings
-from brokers.dhan.settings import DhanConnectionSettings, DhanSettingsLoader
-
+from brokers.dhan.settings import DhanSettingsLoader
 
 # ── Fixture to isolate tests from workspace .env.local ─────────────────
 
@@ -24,14 +22,14 @@ def _isolate_dhan_env():
     """Save and restore DHAN_* env vars to prevent workspace .env.local leakage."""
     # Save existing DHAN_* env vars
     saved = {k: v for k, v in os.environ.items() if k.startswith("DHAN_")}
-    
+
     # Clear all DHAN_* vars
     for k in list(os.environ.keys()):
         if k.startswith("DHAN_"):
             del os.environ[k]
-    
+
     yield
-    
+
     # Restore original DHAN_* vars
     for k, v in saved.items():
         os.environ[k] = v

@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from application.oms.context import TradingContext
 
 from application.execution.execution_mode_adapter import create_execution_adapter
 from application.execution.oms_backtest_adapter import OmsBacktestAdapter
+from application.oms.context import TradingContext
 from application.oms.protocols import IExecutionAdapter
 
 

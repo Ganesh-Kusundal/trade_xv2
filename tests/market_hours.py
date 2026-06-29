@@ -117,6 +117,24 @@ def skip_off_market_or_ci(reason: str | None = None):
     )
 
 
+def require_market_hours(reason: str | None = None):
+    """Require market to be open; skip if closed.
+
+    Inverse of ``skip_off_market``.  Apply to WebSocket / streaming tests
+    that will produce 0 ticks when the exchange is closed::
+
+        @require_market_hours
+        def test_full_mode_receives_ticks(gateway):
+            ...
+
+        @require_market_hours(reason="needs live order book updates")
+        def test_depth_both_sides(gateway):
+            ...
+    """
+    msg = reason or "Market is closed — WebSocket/stream tests require NSE hours (09:15–15:30 IST)"
+    return pytest.mark.skipif(not is_market_open(), reason=msg)
+
+
 # ── Common test markers ───────────────────────────────────────────────────
 
 # Use these in conftest.py or test files:

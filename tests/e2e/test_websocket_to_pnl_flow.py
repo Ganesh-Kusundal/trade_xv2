@@ -27,9 +27,7 @@ from tests.e2e.fixtures.event_capturer import EventCapturer  # noqa: E402
 from tests.e2e.fixtures.mock_brokers import MockBrokerGateway  # noqa: E402
 from tests.e2e.fixtures.trading_context_factory import (  # noqa: E402
     create_paper_trading_context,
-    create_test_trading_context,
 )
-
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 

@@ -4,11 +4,15 @@
  * Shows the top N levels on each side, with bar-intensity proportional
  * to size, a summary header (total bid/ask, imbalance) and a footer
  * with the spread and a "pull" indicator.
+ *
+ * Uses real WebSocket depth data via useMarketDepth hook. Falls back
+ * to mock when backend is unavailable.
  */
 
-import { useEffect, useState } from 'react'
-import { Layers, TrendingUp, TrendingDown, ArrowDownUp } from 'lucide-react'
-import { generateDOM, type DOMSnapshot } from '@/data/orderflow'
+import { useState } from 'react'
+import { Layers, TrendingUp, TrendingDown, ArrowDownUp, Wifi, WifiOff } from 'lucide-react'
+import { useMarketDepth, type DOMSnapshot } from '@/hooks/useMarketDepth'
+import { generateDOM, type DOMSnapshot as MockDOMSnapshot } from '@/data/orderflow'
 import { cn, formatIN, formatNumber, pnlColor } from '@/lib/utils'
 
 interface MarketDepthProps {
@@ -18,26 +22,31 @@ interface MarketDepthProps {
 }
 
 export function MarketDepth({ symbol, levels = 10, height = 400 }: MarketDepthProps) {
-  const [snap, setSnap] = useState<DOMSnapshot | null>(null)
+  const { depth: realDepth, connected } = useMarketDepth({ symbol, levels })
   const [showOrders, setShowOrders] = useState(false)
 
-  useEffect(() => {
-    setSnap(generateDOM(symbol, levels))
-    const id = window.setInterval(() => setSnap(generateDOM(symbol, levels)), 700)
-    return () => clearInterval(id)
-  }, [symbol, levels])
+  // Use real depth if connected and has data, otherwise null (shows loading state)
+  const useReal = connected && realDepth !== null
+  const snap: DOMSnapshot | MockDOMSnapshot | null = useReal ? realDepth : null
 
   if (!snap) {
     return (
-      <div className="b-panel rounded-sm flex items-center justify-center text-fg-dim text-2xs" style={{ height }}>
-        Loading depth…
+      <div className="b-panel rounded-sm flex flex-col items-center justify-center text-fg-dim text-2xs" style={{ height }}>
+        <div className="flex items-center gap-1.5 mb-1">
+          {!connected ? (
+            <WifiOff className="h-3 w-3 text-bear" />
+          ) : (
+            <Layers className="h-3 w-3" />
+          )}
+        </div>
+        <span>{!connected ? 'Disconnected' : 'Waiting for depth data...'}</span>
       </div>
     )
   }
 
   const maxSize = Math.max(
-    ...snap.bids.map((b) => b.bidSize),
-    ...snap.asks.map((a) => a.askSize),
+    ...snap.bids.map((b: { bidSize: number }) => b.bidSize),
+    ...snap.asks.map((a: { askSize: number }) => a.askSize),
   )
 
   return (
@@ -49,6 +58,7 @@ export function MarketDepth({ symbol, levels = 10, height = 400 }: MarketDepthPr
           <span>Market Depth</span>
         </div>
         <div className="flex items-center gap-2 text-2xs font-mono num">
+          {useReal ? <Wifi className="h-2.5 w-2.5 text-bull" /> : <WifiOff className="h-2.5 w-2.5 text-bear" />}
           <span className="text-fg-dim">spread</span>
           <span className="text-fg">{formatIN(snap.spread)}</span>
         </div>
@@ -95,14 +105,14 @@ export function MarketDepth({ symbol, levels = 10, height = 400 }: MarketDepthPr
 
       {/* Ladder — asks on top (reversed), mid, bids */}
       <div className="flex-1 min-h-0 overflow-y-auto">
-        {[...snap.asks].reverse().map((ask) => (
+        {[...snap.asks].reverse().map((ask: { price: number; askSize: number; askOrders?: number }) => (
           <LadderRow
             key={ask.price}
             price={ask.price}
             bidSize={0}
             askSize={ask.askSize}
             bidOrders={0}
-            askOrders={ask.askOrders}
+            askOrders={ask.askOrders ?? 0}
             maxSize={maxSize}
             showOrders={showOrders}
             side="ASK"
@@ -112,13 +122,13 @@ export function MarketDepth({ symbol, levels = 10, height = 400 }: MarketDepthPr
           <span>MID {formatIN(snap.mid)}</span>
           <span className="text-fg-dim">spread {formatIN(snap.spread)}</span>
         </div>
-        {snap.bids.map((bid) => (
+        {snap.bids.map((bid: { price: number; bidSize: number; bidOrders?: number }) => (
           <LadderRow
             key={bid.price}
             price={bid.price}
             bidSize={bid.bidSize}
             askSize={0}
-            bidOrders={bid.bidOrders}
+            bidOrders={bid.bidOrders ?? 0}
             askOrders={0}
             maxSize={maxSize}
             showOrders={showOrders}
@@ -148,6 +158,7 @@ export function MarketDepth({ symbol, levels = 10, height = 400 }: MarketDepthPr
           ) : (
             <span className="text-fg-dim">balanced</span>
           )}
+          <span>{useReal ? 'LIVE' : 'SIM'}</span>
         </div>
       </div>
     </div>

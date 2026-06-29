@@ -6,6 +6,7 @@ from rich.console import Console
 from rich.table import Table
 
 from cli.services.broker_service import BrokerService
+from domain.symbols import normalize_symbol
 
 
 def run(args: list[str], broker_service: BrokerService, console: Console) -> None:
@@ -14,7 +15,7 @@ def run(args: list[str], broker_service: BrokerService, console: Console) -> Non
         console.print("[yellow]Usage: tradex instrument <symbol>[/yellow]")
         return
 
-    symbol = args[0].upper().strip()
+    symbol = normalize_symbol(args[0])
     gw = broker_service.active_broker
 
     resolver = gw.instruments

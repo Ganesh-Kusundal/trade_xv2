@@ -1,14 +1,14 @@
 """Tests for configuration validator."""
 
-import os
 import pytest
+
 from config.validator import (
-    ConfigValidator,
     ConfigValidationError,
+    ConfigValidator,
+    EnvVarSpec,
     ValidationProfile,
     ValidationResult,
     validate_config,
-    EnvVarSpec,
 )
 
 

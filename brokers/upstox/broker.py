@@ -13,7 +13,6 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-from domain.ports.risk_manager import RiskManagerPort
 from brokers.common.services.historical_data import HistoricalDataService
 from brokers.upstox.auth.config import UpstoxConnectionSettings
 from brokers.upstox.auth.context import UpstoxAdapterContext
@@ -64,6 +63,7 @@ from brokers.upstox.websocket.v3_auto_reconnect import UpstoxAutoReconnect
 from brokers.upstox.websocket.v3_decoder import UpstoxV3Decoder
 from brokers.upstox.websocket.v3_subscription_manager import UpstoxV3SubscriptionLimits
 from domain import Capability, ConnectionStatus
+from domain.ports.risk_manager import RiskManagerPort
 from infrastructure.event_bus import EventBus
 
 logger = logging.getLogger(__name__)

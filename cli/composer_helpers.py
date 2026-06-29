@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from functools import lru_cache
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from application.composer.execution import ExecutionComposer
@@ -47,16 +47,13 @@ def _create_gateways(broker_ids: list[str] | None = None) -> list[Any]:
         List of broker IDs to initialize. If None, auto-detects from env.
     """
     # Lazy imports to avoid circular dependency
-    from application.composer.factory import create_composers
-    from brokers.common.policy_defaults import default_source_selection_policy
-    from brokers.common.quota_scheduler import QuotaScheduler
-    
+
     # Import gateways lazily
     try:
         from brokers.dhan.gateway import DhanBrokerGateway
     except ImportError:
         DhanBrokerGateway = None
-    
+
     try:
         from brokers.paper.gateway import PaperBrokerGateway
     except ImportError:
@@ -93,7 +90,7 @@ def _create_gateways(broker_ids: list[str] | None = None) -> list[Any]:
 @lru_cache(maxsize=1)
 def get_market_data_composer(
     broker_ids: tuple[str, ...] | None = None,
-) -> "MarketDataComposer":
+) -> MarketDataComposer:
     """Get or create MarketDataComposer instance (cached).
 
     Parameters
@@ -132,7 +129,7 @@ def get_market_data_composer(
 @lru_cache(maxsize=1)
 def get_execution_composer(
     broker_ids: tuple[str, ...] | None = None,
-) -> "ExecutionComposer":
+) -> ExecutionComposer:
     """Get or create ExecutionComposer instance (cached).
 
     Parameters

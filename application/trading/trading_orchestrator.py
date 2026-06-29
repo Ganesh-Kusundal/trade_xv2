@@ -32,13 +32,10 @@ Usage:
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
-from collections.abc import Callable
-from typing import Any
-
-import pandas as pd
 
 from application.execution.execution_service import ExecutionService
 from application.oms.order_manager import OmsOrderCommand, OrderManager, OrderResult
@@ -46,6 +43,7 @@ from application.trading.models import (
     FeatureFetcher,
 )
 from domain import Order, OrderType, ProductType, Side
+from domain.models.features import FeatureSet
 from domain.models.trading import CandidateDTO, SignalDTO
 from domain.ports.strategy_evaluator import StrategyEvaluator
 from infrastructure.event_bus import (
@@ -230,7 +228,7 @@ class TradingOrchestrator:
             logger.exception("Orchestrator failed to process candidate event: %s", exc)
             self._error_count += 1
 
-    def _fetch_features(self, symbol: str) -> pd.DataFrame | None:
+    def _fetch_features(self, symbol: str) -> FeatureSet | None:
         """Fetch feature data for a symbol.
 
         Parameters
@@ -240,8 +238,8 @@ class TradingOrchestrator:
 
         Returns
         -------
-        pd.DataFrame | None:
-            Feature DataFrame or None if fetch failed.
+        FeatureSet | None:
+            Feature set or None if fetch failed.
         """
         try:
             if self._config.feature_timeout_seconds is not None:
@@ -260,7 +258,7 @@ class TradingOrchestrator:
     def _evaluate_candidate(
         self,
         candidate: CandidateDTO,
-        features: pd.DataFrame,
+        features: FeatureSet,
     ) -> list[SignalDTO]:
         """Evaluate candidate through strategy pipeline.
 
@@ -269,7 +267,7 @@ class TradingOrchestrator:
         candidate:
             Candidate from scanner.
         features:
-            Feature DataFrame for the symbol.
+            Computed features for the symbol.
 
         Returns
         -------

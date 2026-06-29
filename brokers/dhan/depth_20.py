@@ -81,6 +81,7 @@ class DhanDepth20Feed(BinaryDepthFeed):
         if entry is None:
             return None
         return MarketDepth(
+            symbol=self._sec_id_to_symbol.get(security_id, ""),
             bids=list(entry.get("bids", [])),
             asks=list(entry.get("asks", [])),
             depth_type="DEPTH_20",

@@ -4,7 +4,6 @@ from decimal import Decimal
 
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from domain import (
-    ExchangeSegment,
     FundLimits,
     Holding,
     MarketDepth,

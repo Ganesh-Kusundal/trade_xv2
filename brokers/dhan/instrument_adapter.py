@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import date
 from decimal import Decimal
 
 from domain.instrument_id import InstrumentId
+from domain.symbols import normalize_exchange, normalize_symbol
 
 
 def to_instrument_id(
@@ -64,8 +64,8 @@ def to_instrument_id(
         right = "FUT"
 
     return InstrumentId(
-        exchange=exchange.upper(),
-        underlying=und.upper(),
+        exchange=normalize_exchange(exchange),
+        underlying=normalize_symbol(und),
         expiry=expiry_date,
         strike=strike_price,
         right=right,

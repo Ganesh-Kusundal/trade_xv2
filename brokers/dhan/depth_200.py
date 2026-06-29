@@ -113,4 +113,10 @@ class DhanDepth200Feed(BinaryDepthFeed):
             asks = list(entry.get("asks", []))
         if not bids and not asks:
             return None
-        return MarketDepth(bids=bids, asks=asks, depth_type="DEPTH_200")
+        sec_id = next(iter(self._depth_cache))
+        return MarketDepth(
+            symbol=self._sec_id_to_symbol.get(sec_id, ""),
+            bids=bids,
+            asks=asks,
+            depth_type="DEPTH_200",
+        )

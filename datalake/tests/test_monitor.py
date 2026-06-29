@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import duckdb
 import numpy as np
 import pandas as pd
-from pathlib import Path
 
-from datalake.quality.monitor import DataQualityMonitor, OverallReport
+from datalake.quality.monitor import DataQualityMonitor
 
 
 def _write_parquet(path: Path, df: pd.DataFrame) -> None:

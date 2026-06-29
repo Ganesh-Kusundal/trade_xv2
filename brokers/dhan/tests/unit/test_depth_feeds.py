@@ -214,13 +214,13 @@ class TestDhanDepth20Feed:
         assert received[0].depth_type == "DEPTH_20"
         assert len(received[0].bids) == 2
 
-    def test_send_subscription_no_running_loop_drops_with_counter(self):
-        # When called outside the WebSocket's event loop (test context),
-        # the send is dropped rather than silently swallowed. The
-        # dropped_depths counter must increment so operators can see
-        # this in health() and the gap is never silent.
+    def test_send_subscription_no_ws_loop_drops_with_counter(self):
+        # When the feed WebSocket loop is not running, the send is dropped
+        # rather than silently swallowed. The dropped_depths counter must
+        # increment so operators can see this in health().
         feed = _make_feed20()
         feed._ws = mock.MagicMock()
+        feed._ws_loop = None
         assert feed._dropped_depths == 0
         feed._send_subscription([("NSE_EQ", "500325")])
         assert feed._dropped_depths == 1
@@ -327,12 +327,10 @@ class TestDhanDepth200Feed:
         result = feed._parse_depth_packet(packet, 51, 1)
         assert result["side"] == "asks"
 
-    def test_send_subscription_no_running_loop_drops_with_counter(self):
+    def test_send_subscription_no_ws_loop_drops_with_counter(self):
         feed = _make_feed200(("NSE_EQ", "500325"))
         feed._ws = mock.MagicMock()
-        # BinaryDepthFeed._send_subscription expects a list; depth-200 always
-        # has exactly one element when called. Without a running loop the
-        # send must be dropped (and counted) rather than swallowed.
+        feed._ws_loop = None
         assert feed._dropped_depths == 0
         feed._send_subscription([("NSE_EQ", "500325")])
         assert feed._dropped_depths == 1
@@ -412,13 +410,35 @@ class TestGatewayDepth20:
 
     def test_returns_cached_depth(self):
         gw = _make_offline_gateway()
-        cached = MarketDepth(bids=[], asks=[], depth_type="DEPTH_20")
+        cached = MarketDepth(
+            bids=[DepthLevel(Decimal("1330"), 50, 2)],
+            asks=[DepthLevel(Decimal("1331"), 30, 1)],
+            depth_type="DEPTH_20",
+        )
         f = self._mock_feed20()
         f.latest_depth.return_value = cached
         gw._conn.create_depth_20_feed.return_value = f
         result = gw.depth_20("RELIANCE")
         assert result.depth_type == "DEPTH_20"
+        assert len(result.bids) == 1
+        assert len(result.asks) == 1
         gw._conn.market_data.get_depth.assert_not_called()
+
+    def test_merges_rest_asks_when_ws_cache_bids_only(self):
+        gw = _make_offline_gateway()
+        cached = MarketDepth(
+            bids=[DepthLevel(Decimal("1330"), 50, 2)],
+            asks=[],
+            depth_type="DEPTH_20",
+        )
+        f = self._mock_feed20()
+        f.latest_depth.return_value = cached
+        gw._conn.create_depth_20_feed.return_value = f
+        result = gw.depth_20("RELIANCE")
+        assert result.depth_type == "DEPTH_20"
+        assert len(result.bids) == 1
+        assert len(result.asks) == 1
+        gw._conn.market_data.get_depth.assert_called_once()
 
     def test_reuses_existing_feed(self):
         gw = _make_offline_gateway()
@@ -480,12 +500,18 @@ class TestGatewayDepth200:
 
     def test_returns_cached_depth(self):
         gw = _make_offline_gateway()
-        cached = MarketDepth(bids=[], asks=[], depth_type="DEPTH_200")
+        cached = MarketDepth(
+            bids=[DepthLevel(Decimal("1330"), 50, 2)],
+            asks=[DepthLevel(Decimal("1331"), 30, 1)],
+            depth_type="DEPTH_200",
+        )
         f = self._mock_feed200()
         f.latest_depth.return_value = cached
         gw._conn.create_depth_200_feed.return_value = f
         result = gw.depth_200("RELIANCE")
         assert result.depth_type == "DEPTH_200"
+        assert len(result.bids) == 1
+        assert len(result.asks) == 1
         gw._conn.market_data.get_depth.assert_not_called()
 
     def test_rejects_second_different_instrument(self):

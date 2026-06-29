@@ -1,62 +1,65 @@
-"""Master regression suite for Dhan broker integration tests.
+"""Dhan regression suite orchestrator.
 
-Aggregates all Dhan integration tests and provides summary reporting.
-Run this to verify all Dhan endpoints are working correctly.
+Parametrized entry point that runs every case registered in
+``brokers.dhan.tests.regression.manifest``.  Cases are split into two
+groups by their ``tier`` field:
 
-Usage:
+- ``off_market_safe``  — REST/read-only; run anytime with live creds.
+- ``market_hours``     — WebSocket/streaming; gated by ``require_market_hours``.
+
+Usage
+-----
+    # Full off-market regression (anytime, requires .env.local)
+    pytest brokers/dhan/tests/integration/test_regression_suite.py \\
+        -m "dhan and off_market_safe and regression" -v
+
+    # Market-hours regression (NSE 09:15–15:30 IST, or FORCE_MARKET_OPEN=1)
+    FORCE_MARKET_OPEN=1 \\
+    pytest brokers/dhan/tests/integration/test_regression_suite.py \\
+        -m "dhan and market_hours and regression" -v
+
+    # Everything
+    PRE_PROD_GATE=1 FORCE_MARKET_OPEN=1 \\
     pytest brokers/dhan/tests/integration/test_regression_suite.py -v
-    pytest brokers/dhan/tests/integration/test_regression_suite.py --tb=short -q
 """
 
 from __future__ import annotations
 
 import pytest
 
-# This file intentionally has no tests itself - it serves as an entry point
-# for running all Dhan integration tests together.
-#
-# To run the full regression suite:
-#   pytest brokers/dhan/tests/integration/test_live_*.py -v
-#
-# To run with pre-prod gate (enables parity tests):
-#   PRE_PROD_GATE=1 pytest brokers/dhan/tests/integration/ -v
-#
-# To force market open for CI:
-#   FORCE_MARKET_OPEN=1 pytest brokers/dhan/tests/integration/test_live_*.py -v
+from brokers.dhan.tests.regression.manifest import (
+    MARKET_HOURS_CASES,
+    OFF_MARKET_CASES,
+    RegressionCase,
+)
+from tests.market_hours import require_market_hours
+
+# conftest.py in this directory provides the session-scoped ``live_gateway``
+# fixture and auto-adds the ``dhan`` / ``integration`` / ``sandbox`` markers.
 
 
+@pytest.mark.parametrize(
+    "case",
+    OFF_MARKET_CASES,
+    ids=lambda c: c.id,
+)
+@pytest.mark.dhan
+@pytest.mark.off_market_safe
 @pytest.mark.regression
-class TestRegressionSuiteInfo:
-    """Informational tests about the regression suite."""
+def test_off_market_regression(case: RegressionCase, live_gateway) -> None:
+    """Off-market regression: REST/read-only Dhan capabilities."""
+    case.assert_fn(live_gateway)
 
-    def test_regression_suite_description(self):
-        """Print regression suite coverage information."""
-        suite_info = """
-        ╔══════════════════════════════════════════════════════════╗
-        ║     DHAN PRODUCTION REGRESSION SUITE                     ║
-        ╠══════════════════════════════════════════════════════════╣
-        ║  Coverage:                                               ║
-        ║  ✅ Portfolio: funds, positions, holdings, trades        ║
-        ║  ✅ Orders: orderbook, get_order, cancel, validation     ║
-        ║  ✅ Market Data: ltp, quote, depth, history              ║
-        ║  ✅ Derivatives: option_chain, future_chain              ║
-        ║  ✅ Batch: ltp_batch, quote_batch, history_batch         ║
-        ║  ✅ Instruments: search, load_instruments                ║
-        ║  ✅ Streaming: stream/unstream (LTP/QUOTE/FULL)          ║
-        ║  ✅ Observability: connection, CB, token, rate limiter   ║
-        ║  ✅ WebSocket: market feed, order stream, depth-20/200   ║
-        ║  ✅ Options: expiries, chain, greeks, expired data       ║
-        ║  ✅ Validation: lot size, product types, idempotency     ║
-        ╚══════════════════════════════════════════════════════════╝
-        """
-        # This test just documents the suite - always passes
-        assert True
 
-    def test_regression_suite_requirements(self):
-        """Document requirements for running regression suite."""
-        # Requirements:
-        # 1. .env.local with DHAN_CLIENT_ID and DHAN_ACCESS_TOKEN
-        # 2. Market hours for WebSocket tests (or FORCE_MARKET_OPEN=1)
-        # 3. PRE_PROD_GATE=1 for parity tests
-        # 4. DHAN_ALLOW_LIVE_ORDERS=1 for order cancellation tests
-        assert True
+@pytest.mark.parametrize(
+    "case",
+    MARKET_HOURS_CASES,
+    ids=lambda c: c.id,
+)
+@pytest.mark.dhan
+@pytest.mark.market_hours
+@pytest.mark.regression
+@require_market_hours()
+def test_market_hours_regression(case: RegressionCase, live_gateway) -> None:
+    """Market-hours regression: WebSocket/streaming Dhan capabilities."""
+    case.assert_fn(live_gateway)

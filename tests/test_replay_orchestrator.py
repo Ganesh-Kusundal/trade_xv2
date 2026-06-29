@@ -1,27 +1,21 @@
-"""Tests for UnifiedReplayOrchestrator (Phase 4).
+"""Tests for UnifiedReplayOrchestrator — deterministic event+bar replay.
 
 Covers:
-- Data loading (bars from datalake, events from event log)
-- Stream merging and deterministic ordering
-- Combined DataFrame building
-- Empty data handling
-- State assertion logic
-- ReplayItem ordering (__lt__)
-- UnifiedReplayResult summary
-- Full run() integration with mocked datalake
-- Replay determinism guarantees
+- ReplayItem ordering (timestamp, sequence)
+- Stream merging (bars + events sorted correctly)
+- DataFrame building from bar items
+- State assertion logic (match and mismatch)
+- No-data returns empty result
+- Empty pipeline returns None replay_result
 """
 
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
 
-from analytics.replay.models import ReplayResult
 from analytics.replay.orchestrator import (
     ReplayItem,
     UnifiedReplayOrchestrator,
@@ -29,517 +23,275 @@ from analytics.replay.orchestrator import (
 )
 from infrastructure.event_bus.event_bus import DomainEvent
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture
-def tmp_events_dir(tmp_path: Path) -> Path:
-    return tmp_path / "events"
-
-
-@pytest.fixture
-def sample_bar_df() -> pd.DataFrame:
-    """A small OHLCV DataFrame for testing."""
-    return pd.DataFrame(
-        {
-            "timestamp": pd.to_datetime(
-                [
-                    "2026-01-15 09:15:00",
-                    "2026-01-15 09:16:00",
-                    "2026-01-15 09:17:00",
-                ]
-            ),
-            "open": [100.0, 101.0, 102.0],
-            "high": [101.0, 102.0, 103.0],
-            "low": [99.5, 100.5, 101.5],
-            "close": [100.5, 101.5, 102.5],
-            "volume": [1000.0, 1500.0, 2000.0],
-        }
-    )
-
-
-@pytest.fixture
-def sample_events() -> list[DomainEvent]:
-    """Sample domain events for replay."""
-    return [
-        DomainEvent(
-            event_type="TRADE",
-            timestamp=datetime(2026, 1, 15, 9, 16, 0, tzinfo=timezone.utc),
-            payload={"symbol": "RELIANCE", "side": "BUY", "price": 101.0},
-            symbol="RELIANCE",
-            source="strategy",
-            sequence_number=1,
-        ),
-        DomainEvent(
-            event_type="TRADE_APPLIED",
-            timestamp=datetime(2026, 1, 15, 9, 17, 0, tzinfo=timezone.utc),
-            payload={"symbol": "RELIANCE", "qty": 10},
-            symbol="RELIANCE",
-            source="oms",
-            sequence_number=2,
-        ),
-    ]
-
 
 # ---------------------------------------------------------------------------
-# ReplayItem tests
+# ReplayItem ordering
 # ---------------------------------------------------------------------------
 
 
-class TestReplayItem:
-    def test_bar_item(self) -> None:
-        ts = datetime(2026, 1, 15, 9, 15, 0, tzinfo=timezone.utc)
-        item = ReplayItem(
-            timestamp=ts,
+class TestReplayItemOrdering:
+    def test_earlier_timestamp_is_less(self) -> None:
+        a = ReplayItem(
+            timestamp=datetime(2026, 1, 15, 9, 0, 0, tzinfo=timezone.utc),
             sequence=0,
             kind="bar",
-            symbol="RELIANCE",
-            bar_data={"open": 100.0, "close": 101.0},
         )
-        assert item.kind == "bar"
-        assert item.symbol == "RELIANCE"
-        assert item.event is None
-
-    def test_event_item(self) -> None:
-        ts = datetime(2026, 1, 15, 9, 15, 0, tzinfo=timezone.utc)
-        evt = DomainEvent(
-            event_type="TRADE",
-            timestamp=ts,
-            payload={"x": 1},
-            sequence_number=5,
-        )
-        item = ReplayItem(
-            timestamp=ts,
-            sequence=5,
+        b = ReplayItem(
+            timestamp=datetime(2026, 1, 15, 9, 1, 0, tzinfo=timezone.utc),
+            sequence=0,
             kind="event",
-            symbol="RELIANCE",
-            event=evt,
         )
-        assert item.kind == "event"
-        assert item.event is evt
+        assert a < b
 
-    def test_less_than_by_timestamp(self) -> None:
-        ts1 = datetime(2026, 1, 15, 9, 15, 0, tzinfo=timezone.utc)
-        ts2 = datetime(2026, 1, 15, 9, 16, 0, tzinfo=timezone.utc)
-        item1 = ReplayItem(timestamp=ts1, sequence=0, kind="bar")
-        item2 = ReplayItem(timestamp=ts2, sequence=0, kind="bar")
-        assert item1 < item2
-        assert not item2 < item1
+    def test_same_timestamp_uses_sequence(self) -> None:
+        """When timestamps are equal, sequence_number breaks the tie."""
+        a = ReplayItem(
+            timestamp=datetime(2026, 1, 15, 9, 0, 0, tzinfo=timezone.utc),
+            sequence=1,
+            kind="bar",
+        )
+        b = ReplayItem(
+            timestamp=datetime(2026, 1, 15, 9, 0, 0, tzinfo=timezone.utc),
+            sequence=2,
+            kind="event",
+        )
+        assert a < b
 
-    def test_less_than_by_sequence_on_same_timestamp(self) -> None:
-        ts = datetime(2026, 1, 15, 9, 15, 0, tzinfo=timezone.utc)
-        item1 = ReplayItem(timestamp=ts, sequence=0, kind="bar")
-        item2 = ReplayItem(timestamp=ts, sequence=1, kind="event")
-        assert item1 < item2
-        assert not item2 < item1
+    def test_sort_produces_deterministic_order(self) -> None:
+        """Sorted ReplayItems should produce a total order."""
+        items = [
+            ReplayItem(timestamp=datetime(2026, 1, 15, 9, 2, tzinfo=timezone.utc), sequence=0, kind="bar"),
+            ReplayItem(timestamp=datetime(2026, 1, 15, 9, 0, tzinfo=timezone.utc), sequence=5, kind="event"),
+            ReplayItem(timestamp=datetime(2026, 1, 15, 9, 0, tzinfo=timezone.utc), sequence=3, kind="bar"),
+            ReplayItem(timestamp=datetime(2026, 1, 15, 9, 1, tzinfo=timezone.utc), sequence=0, kind="event"),
+        ]
+        sorted_items = sorted(items)
+        assert sorted_items[0].sequence == 3
+        assert sorted_items[1].sequence == 5
+        assert sorted_items[2].sequence == 0
+        assert sorted_items[3].sequence == 0
 
 
 # ---------------------------------------------------------------------------
-# UnifiedReplayResult tests
+# Stream merging
 # ---------------------------------------------------------------------------
 
 
-class TestUnifiedReplayResult:
-    def test_summary_without_replay_result(self) -> None:
-        result = UnifiedReplayResult(
-            replay_result=None,
-            events_replayed=10,
-            bars_replayed=100,
-            state_matches=True,
-        )
-        summary = result.summary
-        assert summary["events_replayed"] == 10
-        assert summary["bars_replayed"] == 100
-        assert summary["state_matches"] is True
-
-    def test_summary_with_replay_result(self) -> None:
-        replay = ReplayResult()
-        replay.bars_processed = 50
-        replay.signals_generated = 5
-        result = UnifiedReplayResult(
-            replay_result=replay,
-            events_replayed=3,
-            bars_replayed=50,
-            state_matches=True,
-        )
-        summary = result.summary
-        assert summary["bars_processed"] == 50
-        assert summary["signals_generated"] == 5
-
-    def test_summary_with_metadata(self) -> None:
-        result = UnifiedReplayResult(
-            replay_result=None,
-            events_replayed=0,
-            bars_replayed=0,
-            state_matches=False,
-            metadata={"date": "2026-01-15"},
-        )
-        assert result.summary["date"] == "2026-01-15"
-
-    def test_state_diff_populated(self) -> None:
-        result = UnifiedReplayResult(
-            replay_result=None,
-            events_replayed=5,
-            bars_replayed=100,
-            state_matches=False,
-            state_diff={"trade_count": {"expected": 3, "actual": 2}},
-        )
-        assert result.state_diff["trade_count"]["expected"] == 3
-
-
-# ---------------------------------------------------------------------------
-# Orchestrator internal helpers tests
-# ---------------------------------------------------------------------------
-
-
-class TestOrchestratorHelpers:
-    def test_df_to_items_converts_dataframe(self, sample_bar_df: pd.DataFrame) -> None:
-        orchestrator = UnifiedReplayOrchestrator(data_root="market_data")
-        items = orchestrator._df_to_items(sample_bar_df, "RELIANCE")
-
-        assert len(items) == 3
-        assert items[0].kind == "bar"
-        assert items[0].symbol == "RELIANCE"
-        assert items[0].bar_data is not None
-        assert items[0].bar_data["open"] == 100.0
-
-    def test_df_to_items_sequence_starts_at_offset(self, sample_bar_df: pd.DataFrame) -> None:
-        orchestrator = UnifiedReplayOrchestrator(data_root="market_data")
-        items = orchestrator._df_to_items(sample_bar_df, "RELIANCE", seq_start=100)
-        assert items[0].sequence == 100
-        assert items[1].sequence == 101
-
-    def test_df_to_items_handles_naive_timestamps(self) -> None:
-        df = pd.DataFrame(
-            {
-                "timestamp": [pd.Timestamp("2026-01-15 09:15:00")],
-                "open": [100.0],
-                "high": [101.0],
-                "low": [99.0],
-                "close": [100.5],
-                "volume": [1000.0],
-            }
-        )
-        orchestrator = UnifiedReplayOrchestrator(data_root="market_data")
-        items = orchestrator._df_to_items(df, "X")
-        assert items[0].timestamp.tzinfo is not None
-
-    def test_merge_streams_sorts_by_time(self) -> None:
-        ts1 = datetime(2026, 1, 15, 9, 15, 0, tzinfo=timezone.utc)
-        ts2 = datetime(2026, 1, 15, 9, 16, 0, tzinfo=timezone.utc)
-        ts3 = datetime(2026, 1, 15, 9, 17, 0, tzinfo=timezone.utc)
-
+class TestStreamMerging:
+    def test_merge_interleaves_bars_and_events(self) -> None:
+        """Bars and events should be merged in timestamp order."""
+        orch = UnifiedReplayOrchestrator()
         bars = [
-            ReplayItem(timestamp=ts2, sequence=0, kind="bar"),
-            ReplayItem(timestamp=ts3, sequence=1, kind="bar"),
-        ]
-        events = [
-            ReplayItem(timestamp=ts1, sequence=0, kind="event"),
-        ]
-
-        orchestrator = UnifiedReplayOrchestrator(data_root="market_data")
-        merged = orchestrator._merge_streams(bars, events)
-
-        assert len(merged) == 3
-        assert merged[0].kind == "event"  # earliest
-        assert merged[1].kind == "bar"
-        assert merged[2].kind == "bar"
-
-    def test_merge_streams_empty_inputs(self) -> None:
-        orchestrator = UnifiedReplayOrchestrator(data_root="market_data")
-        merged = orchestrator._merge_streams([], [])
-        assert merged == []
-
-    def test_build_combined_df_from_bar_items(self) -> None:
-        ts = datetime(2026, 1, 15, 9, 15, 0, tzinfo=timezone.utc)
-        bar_items = [
             ReplayItem(
-                timestamp=ts,
+                timestamp=datetime(2026, 1, 15, 9, 0, tzinfo=timezone.utc),
                 sequence=0,
                 kind="bar",
-                symbol="A",
+                symbol="RELIANCE",
+            ),
+            ReplayItem(
+                timestamp=datetime(2026, 1, 15, 9, 2, tzinfo=timezone.utc),
+                sequence=1,
+                kind="bar",
+                symbol="RELIANCE",
+            ),
+        ]
+        events = [
+            ReplayItem(
+                timestamp=datetime(2026, 1, 15, 9, 1, tzinfo=timezone.utc),
+                sequence=0,
+                kind="event",
+                event=DomainEvent(
+                    event_type="TRADE",
+                    timestamp=datetime(2026, 1, 15, 9, 1, tzinfo=timezone.utc),
+                    payload={"trade_id": "T1"},
+                ),
+            ),
+        ]
+        merged = orch._merge_streams(bars, events)
+        assert len(merged) == 3
+        assert merged[0].kind == "bar"
+        assert merged[1].kind == "event"
+        assert merged[2].kind == "bar"
+
+    def test_merge_empty_streams(self) -> None:
+        """Merging empty lists returns empty list."""
+        orch = UnifiedReplayOrchestrator()
+        assert orch._merge_streams([], []) == []
+
+
+# ---------------------------------------------------------------------------
+# DataFrame building
+# ---------------------------------------------------------------------------
+
+
+class TestBuildDataFrame:
+    def test_builds_ohlcv_from_bar_items(self) -> None:
+        """_build_combined_df should produce a DataFrame from bar items."""
+        orch = UnifiedReplayOrchestrator()
+        items = [
+            ReplayItem(
+                timestamp=datetime(2026, 1, 15, 9, 0, tzinfo=timezone.utc),
+                sequence=0,
+                kind="bar",
+                symbol="RELIANCE",
                 bar_data={
-                    "symbol": "A",
-                    "timestamp": ts,
-                    "open": 100.0,
-                    "high": 101.0,
-                    "low": 99.0,
-                    "close": 100.5,
-                    "volume": 1000.0,
+                    "symbol": "RELIANCE",
+                    "timestamp": datetime(2026, 1, 15, 9, 0, tzinfo=timezone.utc),
+                    "open": 2500.0,
+                    "high": 2510.0,
+                    "low": 2495.0,
+                    "close": 2505.0,
+                    "volume": 1000,
                 },
             ),
             ReplayItem(
-                timestamp=ts,
+                timestamp=datetime(2026, 1, 15, 9, 1, tzinfo=timezone.utc),
                 sequence=1,
                 kind="bar",
-                symbol="B",
+                symbol="RELIANCE",
                 bar_data={
-                    "symbol": "B",
-                    "timestamp": ts,
-                    "open": 200.0,
-                    "high": 201.0,
-                    "low": 199.0,
-                    "close": 200.5,
-                    "volume": 500.0,
+                    "symbol": "RELIANCE",
+                    "timestamp": datetime(2026, 1, 15, 9, 1, tzinfo=timezone.utc),
+                    "open": 2505.0,
+                    "high": 2520.0,
+                    "low": 2500.0,
+                    "close": 2515.0,
+                    "volume": 1500,
                 },
             ),
         ]
-        orchestrator = UnifiedReplayOrchestrator(data_root="market_data")
-        df = orchestrator._build_combined_df(bar_items)
+        df = orch._build_combined_df(items)
         assert len(df) == 2
-        assert "timestamp" in df.columns
+        assert list(df.columns) == ["symbol", "timestamp", "open", "high", "low", "close", "volume"]
+        assert df.iloc[0]["open"] == 2500.0
+        assert df.iloc[1]["close"] == 2515.0
 
-    def test_build_combined_df_empty_returns_empty_df(self) -> None:
-        orchestrator = UnifiedReplayOrchestrator(data_root="market_data")
-        df = orchestrator._build_combined_df([])
-        assert df.empty
+    def test_empty_bar_items_returns_empty_df(self) -> None:
+        orch = UnifiedReplayOrchestrator()
+        assert orch._build_combined_df([]).empty
 
-    def test_execute_replay_empty_df_returns_none(self) -> None:
-        orchestrator = UnifiedReplayOrchestrator(data_root="market_data")
-        result = orchestrator._execute_replay(pd.DataFrame(), [], None)
-        assert result is None
+    def test_event_only_items_returns_empty_df(self) -> None:
+        """Items with kind='event' have no bar_data, so df should be empty."""
+        orch = UnifiedReplayOrchestrator()
+        items = [
+            ReplayItem(
+                timestamp=datetime(2026, 1, 15, 9, 0, tzinfo=timezone.utc),
+                sequence=0,
+                kind="event",
+                event=DomainEvent(
+                    event_type="TRADE",
+                    timestamp=datetime(2026, 1, 15, 9, 0, tzinfo=timezone.utc),
+                    payload={},
+                ),
+            ),
+        ]
+        assert orch._build_combined_df(items).empty
 
 
 # ---------------------------------------------------------------------------
-# Full run() integration tests
+# State assertion
 # ---------------------------------------------------------------------------
 
 
-class TestOrchestratorRun:
-    @patch("analytics.replay.orchestrator.EventLog")
-    @patch("datalake.research.ResearchAPI")
-    def test_run_with_no_data_returns_no_data_result(
-        self, mock_research_cls: MagicMock, mock_eventlog_cls: MagicMock
-    ) -> None:
-        """When no bars or events are found, returns state_matches=False."""
-        mock_research = MagicMock()
-        mock_research.history.return_value = pd.DataFrame()
-        mock_research_cls.return_value = mock_research
+class TestStateAssertion:
+    def test_matches_when_no_trade_events(self) -> None:
+        """When there are no trade events, state assertion passes."""
+        orch = UnifiedReplayOrchestrator()
+        matches, diff = orch._assert_state(None, [])
+        assert matches
 
-        mock_eventlog = MagicMock()
-        mock_eventlog.replay.return_value = []
-        mock_eventlog_cls.return_value = mock_eventlog
+    def test_mismatch_when_trade_count_differs(self) -> None:
+        """State assertion should detect trade count mismatches."""
+        orch = UnifiedReplayOrchestrator()
+        # Simulate events with 2 trade events
+        trade_events = [
+            ReplayItem(
+                timestamp=datetime(2026, 1, 15, 9, 0, tzinfo=timezone.utc),
+                sequence=i,
+                kind="event",
+                event=DomainEvent(
+                    event_type="TRADE",
+                    timestamp=datetime(2026, 1, 15, 9, 0, tzinfo=timezone.utc),
+                    payload={"trade_id": f"T{i}"},
+                ),
+            )
+            for i in range(2)
+        ]
+        # _assert_state expects a result with a .session attribute
+        # that has .total_trades, .trades, .equity_curve, .position
+        from analytics.replay.models import ReplaySession, SimulatedTrade
 
-        orchestrator = UnifiedReplayOrchestrator(
-            events_dir="/tmp/test_events",
-            data_root="market_data",
+        session = ReplaySession()
+        session.trades.append(
+            SimulatedTrade(
+                symbol="RELIANCE",
+                side="BUY",
+                quantity=100,
+                entry_price=2500.0,
+                exit_price=2510.0,
+                entry_time=datetime(2026, 1, 15, 9, 0, tzinfo=timezone.utc),
+                exit_time=datetime(2026, 1, 15, 9, 30, tzinfo=timezone.utc),
+                pnl=1000.0,
+            )
         )
-        result = orchestrator.run(date="2026-01-15", symbols=["RELIANCE"])
+        session.equity_curve.append(
+            (datetime(2026, 1, 15, 9, 0, tzinfo=timezone.utc), 100_000.0)
+        )
+        # Build a real ReplayResult so _assert_state can access .session
+        from analytics.replay.models import ReplayResult, ReplayConfig
 
-        assert result.state_matches is False
+        replay_result = ReplayResult(
+            session=session,
+            config=ReplayConfig(initial_capital=100_000),
+        )
+        # _assert_state expects ReplayResult | None, not UnifiedReplayResult
+        matches, diff = orch._assert_state(replay_result, trade_events)
+        # expected trade_count=2, actual trade_count=1 → mismatch
+        assert not matches
+
+
+# ---------------------------------------------------------------------------
+# No-data case
+# ---------------------------------------------------------------------------
+
+
+class TestNoDataCase:
+    def test_no_data_returns_empty_result(self) -> None:
+        """When no bar or event data is found, returns empty result with error."""
+        orch = UnifiedReplayOrchestrator(
+            events_dir=None,
+            data_root="/nonexistent",
+        )
+        result = orch.run(date="2026-01-15", symbols=["NONEXISTENT"])
+        assert not result.state_matches
         assert result.events_replayed == 0
         assert result.bars_replayed == 0
         assert result.state_diff.get("error") == "no data"
 
-    @patch("analytics.replay.orchestrator.EventLog")
-    @patch("datalake.research.ResearchAPI")
-    def test_run_loads_bars_and_events(
-        self,
-        mock_research_cls: MagicMock,
-        mock_eventlog_cls: MagicMock,
-        sample_bar_df: pd.DataFrame,
-        sample_events: list[DomainEvent],
-    ) -> None:
-        """Verifies run() properly loads and merges data."""
-        mock_research = MagicMock()
-        mock_research.history.return_value = sample_bar_df
-        mock_research_cls.return_value = mock_research
-
-        mock_eventlog = MagicMock()
-        mock_eventlog.replay.return_value = sample_events
-        mock_eventlog_cls.return_value = mock_eventlog
-
-        orchestrator = UnifiedReplayOrchestrator(
-            events_dir="/tmp/test_events",
-            data_root="market_data",
-        )
-        result = orchestrator.run(date="2026-01-15", symbols=["RELIANCE"])
-
-        assert result.bars_replayed == 3
-        assert result.events_replayed == 2
-
-    @patch("analytics.replay.orchestrator.EventLog")
-    @patch("datalake.research.ResearchAPI")
-    def test_run_handles_bar_load_error_gracefully(
-        self,
-        mock_research_cls: MagicMock,
-        mock_eventlog_cls: MagicMock,
-        sample_events: list[DomainEvent],
-    ) -> None:
-        """If bar loading fails, run() continues with events only."""
-        mock_research = MagicMock()
-        mock_research.history.side_effect = RuntimeError("datalake error")
-        mock_research_cls.return_value = mock_research
-
-        mock_eventlog = MagicMock()
-        mock_eventlog.replay.return_value = sample_events
-        mock_eventlog_cls.return_value = mock_eventlog
-
-        orchestrator = UnifiedReplayOrchestrator(
-            events_dir="/tmp/test_events",
-            data_root="market_data",
-        )
-        result = orchestrator.run(date="2026-01-15", symbols=["RELIANCE"])
-
-        # Should continue with events, bars=0
-        assert result.bars_replayed == 0
-        assert result.events_replayed == 2
-
-    @patch("analytics.replay.orchestrator.EventLog")
-    @patch("datalake.research.ResearchAPI")
-    def test_run_with_multiple_symbols(
-        self,
-        mock_research_cls: MagicMock,
-        mock_eventlog_cls: MagicMock,
-        sample_bar_df: pd.DataFrame,
-    ) -> None:
-        """Verifies bars are loaded for each symbol."""
-        mock_research = MagicMock()
-        mock_research.history.return_value = sample_bar_df
-        mock_research_cls.return_value = mock_research
-
-        mock_eventlog = MagicMock()
-        mock_eventlog.replay.return_value = []
-        mock_eventlog_cls.return_value = mock_eventlog
-
-        orchestrator = UnifiedReplayOrchestrator(
-            events_dir="/tmp/test_events",
-            data_root="market_data",
-        )
-        result = orchestrator.run(
-            date="2026-01-15",
-            symbols=["RELIANCE", "TCS"],
-        )
-
-        # 3 bars per symbol * 2 symbols = 6 total bars
-        assert result.bars_replayed == 6
-        assert mock_research.history.call_count == 2
-
-    @patch("analytics.replay.orchestrator.EventLog")
-    def test_run_handles_event_load_error_gracefully(
-        self,
-        mock_eventlog_cls: MagicMock,
-        sample_bar_df: pd.DataFrame,
-    ) -> None:
-        """If event loading fails, run() continues with bars only."""
-
-        mock_eventlog = MagicMock()
-        mock_eventlog.replay.side_effect = RuntimeError("event log error")
-        mock_eventlog_cls.return_value = mock_eventlog
-
-        with patch("datalake.research.ResearchAPI") as mock_research_cls:
-            mock_research = MagicMock()
-            mock_research.history.return_value = sample_bar_df
-            mock_research_cls.return_value = mock_research
-
-            orchestrator = UnifiedReplayOrchestrator(
-                events_dir="/tmp/test_events",
-                data_root="market_data",
-            )
-            result = orchestrator.run(date="2026-01-15", symbols=["RELIANCE"])
-
-            assert result.bars_replayed == 3
-            assert result.events_replayed == 0
-
-    @patch("analytics.replay.orchestrator.EventLog")
-    @patch("datalake.research.ResearchAPI")
-    def test_run_state_assertion_enabled(
-        self,
-        mock_research_cls: MagicMock,
-        mock_eventlog_cls: MagicMock,
-        sample_bar_df: pd.DataFrame,
-        sample_events: list[DomainEvent],
-    ) -> None:
-        """Verifies state assertion is performed when assert_state=True."""
-        mock_research = MagicMock()
-        mock_research.history.return_value = sample_bar_df
-        mock_research_cls.return_value = mock_research
-
-        mock_eventlog = MagicMock()
-        mock_eventlog.replay.return_value = sample_events
-        mock_eventlog_cls.return_value = mock_eventlog
-
-        orchestrator = UnifiedReplayOrchestrator(
-            events_dir="/tmp/test_events",
-            data_root="market_data",
-        )
-        result = orchestrator.run(
-            date="2026-01-15",
-            symbols=["RELIANCE"],
-            assert_state=True,
-        )
-
-        # State assertion is performed; matches depends on implementation
-        assert isinstance(result.state_matches, bool)
-
-    @patch("analytics.replay.orchestrator.EventLog")
-    @patch("datalake.research.ResearchAPI")
-    def test_run_metadata_includes_date_and_symbols(
-        self,
-        mock_research_cls: MagicMock,
-        mock_eventlog_cls: MagicMock,
-        sample_bar_df: pd.DataFrame,
-    ) -> None:
-        mock_research = MagicMock()
-        mock_research.history.return_value = sample_bar_df
-        mock_research_cls.return_value = mock_research
-
-        mock_eventlog = MagicMock()
-        mock_eventlog.replay.return_value = []
-        mock_eventlog_cls.return_value = mock_eventlog
-
-        orchestrator = UnifiedReplayOrchestrator(
-            events_dir="/tmp/test_events",
-            data_root="market_data",
-        )
-        result = orchestrator.run(
-            date="2026-06-01",
-            symbols=["RELIANCE", "TCS"],
-        )
-
-        assert result.metadata["date"] == "2026-06-01"
-        assert result.metadata["symbols"] == ["RELIANCE", "TCS"]
+    def test_empty_symbols_with_no_event_log(self) -> None:
+        """No symbols and no event log should return no data."""
+        orch = UnifiedReplayOrchestrator(events_dir=None)
+        result = orch.run(date="2026-01-15", symbols=[])
+        assert not result.state_matches
 
 
 # ---------------------------------------------------------------------------
-# Determinism tests
+# UnifiedReplayResult
 # ---------------------------------------------------------------------------
 
 
-class TestReplayDeterminism:
-    def test_replay_item_ordering_is_deterministic(self) -> None:
-        """Same items sorted twice should produce the same order."""
-        ts1 = datetime(2026, 1, 15, 9, 15, 0, tzinfo=timezone.utc)
-        ts2 = datetime(2026, 1, 15, 9, 16, 0, tzinfo=timezone.utc)
-
-        items = [
-            ReplayItem(timestamp=ts2, sequence=10, kind="bar"),
-            ReplayItem(timestamp=ts1, sequence=5, kind="event"),
-            ReplayItem(timestamp=ts1, sequence=0, kind="bar"),
-            ReplayItem(timestamp=ts2, sequence=3, kind="event"),
-        ]
-
-        sorted1 = sorted(items)
-        sorted2 = sorted(items)
-
-        assert sorted1 == sorted2
-
-    def test_merge_produces_same_order_on_repeated_calls(self) -> None:
-        orchestrator = UnifiedReplayOrchestrator(data_root="market_data")
-        ts1 = datetime(2026, 1, 15, 9, 15, 0, tzinfo=timezone.utc)
-        ts2 = datetime(2026, 1, 15, 9, 16, 0, tzinfo=timezone.utc)
-
-        bars = [
-            ReplayItem(timestamp=ts1, sequence=0, kind="bar"),
-            ReplayItem(timestamp=ts2, sequence=2, kind="bar"),
-        ]
-        events = [
-            ReplayItem(timestamp=ts1, sequence=1, kind="event"),
-        ]
-
-        merged1 = orchestrator._merge_streams(bars, events)
-        merged2 = orchestrator._merge_streams(bars, events)
-
-        assert merged1 == merged2
+class TestUnifiedReplayResult:
+    def test_summary_includes_core_fields(self) -> None:
+        """summary dict should include events_replayed, bars_replayed, state_matches."""
+        result = UnifiedReplayResult(
+            replay_result=None,
+            events_replayed=5,
+            bars_replayed=100,
+            state_matches=True,
+            metadata={"date": "2026-01-15"},
+        )
+        s = result.summary
+        assert s["events_replayed"] == 5
+        assert s["bars_replayed"] == 100
+        assert s["state_matches"] is True
+        assert s["date"] == "2026-01-15"

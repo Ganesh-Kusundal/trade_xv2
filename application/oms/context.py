@@ -44,7 +44,6 @@ from application.oms.protocols import (
     ITradingOrchestrator,
 )
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -147,6 +146,12 @@ class CancellationResult:
     orders_cancelled: int = 0
     orders_failed: int = 0
     failed_order_ids: tuple[str, ...] = ()
+
+    def __getitem__(self, key: str) -> int | tuple[str, ...]:
+        try:
+            return getattr(self, key)
+        except AttributeError:
+            raise KeyError(key) from None
 
 
 class TradingContext:
@@ -289,6 +294,11 @@ class TradingContext:
             self._replay_log_into_oms()
 
         self._orchestrator: ITradingOrchestrator | None = orchestrator
+
+        # Shutdown thread-safety: _shutdown_lock prevents concurrent shutdown
+        # attempts from both passing the guard simultaneously (TD-12).
+        self._shutdown_lock = threading.Lock()
+        self._shutdown_in_progress = False
 
     def attach_lifecycle(self, lifecycle: LifecycleManager) -> None:
         """Register the context's managed services with a lifecycle.
@@ -469,7 +479,6 @@ class TradingContext:
     # ManagedService protocol attributes
     name: str = "oms.trading_context"
     _shutdown_gateway: IBrokerGateway | None = None  # Injectable gateway for testing
-    _shutdown_in_progress: bool = False
 
     async def shutdown(
         self,
@@ -496,15 +505,16 @@ class TradingContext:
                 - event_log_flushed: bool
                 - connections_closed: int
         """
-        if self._shutdown_in_progress:
-            logger.debug("TradingContext.shutdown: already in progress, skipping")
-            return {
-                "orders_cancelled": 0,
-                "orders_failed": 0,
-                "event_log_flushed": False,
-                "connections_closed": 0,
-            }
-        self._shutdown_in_progress = True
+        with self._shutdown_lock:
+            if self._shutdown_in_progress:
+                logger.debug("TradingContext.shutdown: already in progress, skipping")
+                return {
+                    "orders_cancelled": 0,
+                    "orders_failed": 0,
+                    "event_log_flushed": False,
+                    "connections_closed": 0,
+                }
+            self._shutdown_in_progress = True
         return self._execute_shutdown_sequence(cancel_orders, gateway)
 
     def _execute_shutdown_sequence(
@@ -703,6 +713,16 @@ class TradingContext:
 
     def _sync_shutdown(self) -> dict:
         """Synchronous shutdown path when async is unavailable."""
+        with self._shutdown_lock:
+            if self._shutdown_in_progress:
+                logger.debug("TradingContext._sync_shutdown: already in progress, skipping")
+                return {
+                    "orders_cancelled": 0,
+                    "orders_failed": 0,
+                    "event_log_flushed": False,
+                    "connections_closed": 0,
+                }
+            self._shutdown_in_progress = True
         return self._execute_shutdown_sequence(
             cancel_orders=True,
             gateway=self._shutdown_gateway,

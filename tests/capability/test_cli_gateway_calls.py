@@ -53,7 +53,7 @@ def _extract_source_calls(module_path: Path) -> list[str]:
     calls: list[str] = []
 
     class CallVisitor(ast.NodeVisitor):
-        def visit_Attribute(self, node: ast.Attribute) -> None:  # noqa: N802
+        def visit_Attribute(self, node: ast.Attribute) -> None:
             parts: list[str] = []
             current: ast.AST = node
             while isinstance(current, ast.Attribute):

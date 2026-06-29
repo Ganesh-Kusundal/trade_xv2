@@ -14,6 +14,7 @@ def subscribe_symbols_to_broker(symbols: list[str], exchange: str = "NSE") -> No
 
     Called when API WebSocket clients subscribe to market data. Uses the
     broker gateway's ``stream()`` method which deduplicates subscriptions.
+    Also subscribes to depth feeds when available.
     """
     if not symbols:
         return
@@ -36,17 +37,25 @@ def subscribe_symbols_to_broker(symbols: list[str], exchange: str = "NSE") -> No
         logger.warning("feed_wiring: no gateway — cannot subscribe %s", symbols)
         return
 
+    # Subscribe to market data stream (FULL mode includes depth + quote + OHLCV)
     stream_fn = getattr(gateway, "stream", None)
-    if stream_fn is None:
-        logger.warning("feed_wiring: gateway has no stream() — cannot subscribe %s", symbols)
-        return
+    if stream_fn is not None:
+        for symbol in symbols:
+            try:
+                stream_fn(symbol=symbol, exchange=exchange, mode="FULL")
+                logger.info("feed_wiring: subscribed %s on %s (FULL mode)", symbol, exchange)
+            except Exception as exc:
+                logger.error("feed_wiring: failed to subscribe %s: %s", symbol, exc)
 
-    for symbol in symbols:
-        try:
-            stream_fn(symbol=symbol, exchange=exchange, mode="LTP")
-            logger.info("feed_wiring: subscribed %s on %s", symbol, exchange)
-        except Exception as exc:
-            logger.error("feed_wiring: failed to subscribe %s: %s", symbol, exc)
+    # Subscribe to depth feeds if available (Dhan depth_20)
+    depth_fn = getattr(gateway, "depth_20", None)
+    if depth_fn is not None:
+        for symbol in symbols:
+            try:
+                depth_fn(symbol=symbol, exchange=exchange)
+                logger.info("feed_wiring: subscribed depth_20 for %s", symbol)
+            except Exception as exc:
+                logger.debug("feed_wiring: depth_20 subscribe failed for %s: %s", symbol, exc)
 
 
 def _resolve_gateway(broker_service: Any) -> Any | None:

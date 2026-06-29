@@ -5,12 +5,11 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
-import pytest
-
-from domain.instrument_id import InstrumentId
-from brokers.common.instrument_adapter import to_instrument_id as common_to_iid, from_instrument_id as common_from_iid
+from brokers.common.instrument_adapter import from_instrument_id as common_from_iid
+from brokers.common.instrument_adapter import to_instrument_id as common_to_iid
 from brokers.common.instruments import Instrument
 from domain import InstrumentType
+from domain.instrument_id import InstrumentId
 
 
 class TestCommonAdapter:

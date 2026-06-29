@@ -32,7 +32,6 @@ from brokers.common.resilience import (
 from brokers.common.resilience.backoff import BackoffStrategy, NoBackoff
 from tests.e2e.fixtures.mock_brokers import MockFailingBroker
 
-
 pytestmark = pytest.mark.e2e
 
 

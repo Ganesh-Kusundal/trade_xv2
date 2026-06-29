@@ -238,7 +238,11 @@ class BrokerService:
         Returns True if services started successfully, False if
         readiness check failed (cleanup already performed).
         """
-        # P-1.5: Run production readiness check BEFORE starting services.
+        # B8+B9: Start HTTP observability server BEFORE readiness check.
+        # This ensures the http_observability_started check passes.
+        self._start_http_observability_server(oms_risk_manager)
+
+        # P-1.5: Run production readiness check BEFORE starting other services.
         try:
             from brokers.common.services.production_readiness import (
                 ProductionReadinessChecker,
@@ -254,11 +258,9 @@ class BrokerService:
             logger.error("production_readiness_failed: %s", exc)
             return False
 
-        # P-1.5: ONLY NOW start services — readiness check passed.
+        # P-1.5: ONLY NOW start remaining services — readiness check passed.
         self._start_websocket_services()
         self._lifecycle.start_all()
-        # B8+B9: Start HTTP observability server.
-        self._start_http_observability_server(oms_risk_manager)
         return True
 
     def _ensure_upstox_initialized(self) -> None:

@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 
 def _get_conn(read_only: bool = True) -> duckdb.DuckDBPyConnection:
-    from datalake.duckdb_utils import get_read_pool, DEFAULT_CATALOG_PATH
+    from datalake.duckdb_utils import DEFAULT_CATALOG_PATH, get_read_pool
     return get_read_pool().acquire(str(DEFAULT_CATALOG_PATH))
 
 

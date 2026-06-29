@@ -3,5 +3,5 @@
 Canonical location: config/endpoints.py
 All new code should import from config.endpoints instead.
 """
-from config.endpoints import *  # noqa: F401,F403
+from config.endpoints import *  # noqa: F403
 from config.endpoints import _UpstoxUrls  # noqa: F401

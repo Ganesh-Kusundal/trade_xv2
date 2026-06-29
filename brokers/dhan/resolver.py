@@ -14,6 +14,7 @@ from collections.abc import Iterable
 from brokers.dhan.domain import Exchange, Instrument, InstrumentType, OptionType
 from brokers.dhan.exceptions import InstrumentNotFoundError
 from brokers.dhan.segments import SEGMENT_TO_EXCHANGE
+from domain.symbols import normalize_exchange, normalize_symbol
 from indices import get_index_entry, is_index
 
 logger = logging.getLogger(__name__)
@@ -79,7 +80,7 @@ class SymbolResolver:
 
     def get_futures(self, underlying: str, exchange: str) -> list[Instrument]:
         exch = self._normalise_exchange(exchange)
-        key = (underlying.strip().upper(), exch)
+        key = (normalize_symbol(underlying), exch)
         contracts = self._by_underlying.get(key, [])
         return sorted(contracts, key=lambda i: (i.expiry or "9999-12-31"))
 
@@ -208,7 +209,7 @@ class SymbolResolver:
             exch: Exchange enum
             expected_segment: Optional hint to prevent index-vs-derivative misroutes
         """
-        clean = symbol.strip().upper()
+        clean = normalize_symbol(symbol)
 
         # 1. Try direct lookup
         inst = self._by_symbol.get((clean, exch))
@@ -299,7 +300,7 @@ class SymbolResolver:
 
     @staticmethod
     def _normalise_exchange(exchange: str) -> Exchange:
-        up = exchange.strip().upper()
+        up = normalize_exchange(exchange)
         try:
             return Exchange(up)
         except ValueError as e:
@@ -320,13 +321,13 @@ class SymbolResolver:
         except (TypeError, ValueError):
             return None
 
-        segment = (row.get("SEM_EXM_EXCH_ID") or "").strip().upper()
+        segment = normalize_exchange(row.get("SEM_EXM_EXCH_ID") or "")
         exch_str = SEGMENT_TO_EXCHANGE.get(segment)
         if exch_str is None:
             return None
         exchange = Exchange(exch_str)
 
-        name = (row.get("SEM_INSTRUMENT_NAME") or "").strip().upper()
+        name = normalize_symbol(row.get("SEM_INSTRUMENT_NAME") or "")
         itype = _NAME_TO_TYPE.get(name)
         if itype is None:
             return None
@@ -346,7 +347,7 @@ class SymbolResolver:
         if itype in (InstrumentType.OPTION, InstrumentType.FUTURE):
             expiry = row.get("SEM_EXPIRY_DATE")
             if itype == InstrumentType.OPTION:
-                opt_raw = (row.get("SEM_OPTION_TYPE") or "").strip().upper()
+                opt_raw = normalize_symbol(row.get("SEM_OPTION_TYPE") or "")
                 option_type = _DHAN_OPTION_TYPE.get(opt_raw)
                 strike_price = (
                     _safe_decimal(row.get("SEM_STRIKE_PRICE"))
@@ -365,7 +366,7 @@ class SymbolResolver:
                 import re
 
                 m = re.match(r"^([A-Z]+)\d+[A-Z]{3}FUT$", symbol.upper())
-                underlying = (m.group(1) if m else symbol).upper()
+                underlying = (m.group(1)                if m else symbol).upper()
 
         return Instrument(
             symbol=symbol,
@@ -415,12 +416,12 @@ def _generate_alternate_keys(
     keys = []
 
     # 1. Primary symbol (SEM_TRADING_SYMBOL)
-    sym_up = symbol.strip().upper()
+    sym_up = normalize_symbol(symbol)
     keys.append(sym_up)
 
     # 2. Canonical symbol (SEM_CUSTOM_SYMBOL)
     if canonical_symbol:
-        canon_up = canonical_symbol.strip().upper()
+        canon_up = normalize_symbol(canonical_symbol)
         keys.append(canon_up)
         # Also generate CE/PE variant when SEM_CUSTOM_SYMBOL has CALL/PUT
         if canon_up.endswith(" CALL"):
@@ -435,7 +436,7 @@ def _generate_alternate_keys(
     # 4. SM_SYMBOL_NAME as bare lookup key (e.g. "CRUDEOIL", "GOLDM", "USDINR")
     #    This is the root cause fix — enables resolution by underlying name.
     if sm_symbol_name:
-        keys.append(sm_symbol_name.strip().upper())
+        keys.append(normalize_symbol(sm_symbol_name))
 
     # Standardize option type and instrument type
     type_str = str(inst_type).upper()
@@ -457,7 +458,7 @@ def _generate_alternate_keys(
             month_chars = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "O", "N", "D"]
             month_char = month_chars[dt.month - 1]
 
-            und_up = underlying.strip().upper()
+            und_up = normalize_symbol(underlying)
 
             if is_option:
                 opt_str = str(option_type).upper()
@@ -515,7 +516,7 @@ def _generate_alternate_keys(
     res = []
     seen = set()
     for k in keys:
-        k_clean = k.strip().upper()
+        k_clean = normalize_symbol(k)
         if k_clean and k_clean not in seen:
             seen.add(k_clean)
             res.append(k_clean)

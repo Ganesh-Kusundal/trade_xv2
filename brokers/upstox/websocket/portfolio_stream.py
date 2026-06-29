@@ -7,9 +7,10 @@ import contextlib
 import json
 import logging
 import threading
-from cachetools import TTLCache
 from collections.abc import Callable
 from typing import Any
+
+from cachetools import TTLCache
 
 from brokers.upstox.auth.config import (
     UPSTOX_WS_PING_INTERVAL_SECONDS,

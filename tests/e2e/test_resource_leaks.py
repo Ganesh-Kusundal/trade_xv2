@@ -2,13 +2,12 @@
 
 Verify no FD leaks, thread leaks, or lock persistence.
 """
-import pytest
+import fcntl
 import resource
-import threading
 import subprocess
+import threading
 import time
 from pathlib import Path
-import fcntl
 
 
 class TestResourceLeaks:
@@ -20,8 +19,9 @@ class TestResourceLeaks:
         before_fds = resource.getrusage(resource.RUSAGE_SELF).ru_nvcsw
 
         # Attempt to create multiple stores with lock contention
-        from application.oms.persistence.sqlite_order_store import SqliteOrderStore
         from application.oms.persistence.errors import OmsWriterLockError
+
+        from application.oms.persistence.sqlite_order_store import SqliteOrderStore
 
         for i in range(50):
             try:
@@ -36,9 +36,10 @@ class TestResourceLeaks:
 
     def test_no_thread_leak_on_failed_init(self):
         """Verify no thread leak when initialization fails (P-1.5 fix)."""
-        from cli.services.broker_service import BrokerService
-        from brokers.common.services.production_readiness import ProductionReadinessError
         from unittest.mock import patch
+
+        from brokers.common.services.production_readiness import ProductionReadinessError
+        from cli.services.broker_service import BrokerService
 
         before_threads = threading.active_count()
 

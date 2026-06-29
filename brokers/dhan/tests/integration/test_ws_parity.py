@@ -40,6 +40,13 @@ import pytest
 
 from tests.market_hours import is_market_open
 
+pytestmark = [
+    pytest.mark.dhan,
+    pytest.mark.market_hours,
+    pytest.mark.pre_prod,
+    pytest.mark.regression,
+]
+
 # ── Gate 1: credentials present ─────────────────────────────────────────────
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ENV_PATH = REPO_ROOT / ".env.local"

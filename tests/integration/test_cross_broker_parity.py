@@ -10,15 +10,11 @@ These tests use:
 - Real sandbox brokers if credentials available (marked @pytest.mark.sandbox)
 """
 
-import os
-import pytest
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
 
-from domain import (
-    Order, OrderResponse, OrderStatus, OrderType, Side, ProductType, Validity,
-    Quote, MarketDepth, DepthLevel, Balance, Position
-)
+import pytest
+
+from domain import Balance, MarketDepth, Order, OrderStatus, Position
 
 
 class TestQuoteSchemaParity:

@@ -7,10 +7,6 @@ instruments from each segment.
 
 from __future__ import annotations
 
-import random
-
-import pytest
-
 from brokers.upstox.tests.integration.conftest import skip_live
 
 
@@ -19,12 +15,12 @@ def test_live_bidirectional_mapping(gateway):
     """Verify bidirectional mapping (symbol <-> instrument_key) for random samples."""
     # Access the resolver from the broker
     resolver = gateway._broker.instrument_resolver
-    
+
     # Get all instrument definitions
     all_defs = []
     # Try to get a sample of instruments from the resolver
     # The exact API depends on UpstoxInstrumentResolver implementation
-    
+
     # For now, test with known symbols
     test_symbols = [
         ("RELIANCE", "NSE"),
@@ -32,7 +28,7 @@ def test_live_bidirectional_mapping(gateway):
         ("INFY", "NSE"),
         ("NIFTY", "INDEX"),
     ]
-    
+
     for symbol, exchange in test_symbols:
         try:
             # Try to resolve the symbol
@@ -42,7 +38,7 @@ def test_live_bidirectional_mapping(gateway):
                 assert hasattr(defn, "symbol")
                 assert hasattr(defn, "instrument_key")
                 assert defn.symbol.upper() == symbol.upper()
-                
+
                 # Try reverse lookup by instrument_key
                 if hasattr(defn, "instrument_key"):
                     key_defn = resolver.resolve(instrument_key=defn.instrument_key)

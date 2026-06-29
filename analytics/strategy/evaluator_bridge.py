@@ -8,7 +8,18 @@ import pandas as pd
 
 from analytics.scanner.models import Candidate
 from analytics.strategy.pipeline import StrategyPipeline
+from domain.models.features import FeatureSet
 from domain.models.trading import CandidateDTO, SignalDTO
+
+
+def _feature_set_to_df(fs: FeatureSet) -> pd.DataFrame:
+    """Convert a FeatureSet domain type to a pandas DataFrame for analytics."""
+    if fs.is_empty:
+        return pd.DataFrame()
+    df = pd.DataFrame(fs.columns)
+    if fs.index:
+        df.index = fs.index
+    return df
 
 
 class StrategyPipelineEvaluator:
@@ -17,14 +28,15 @@ class StrategyPipelineEvaluator:
     def __init__(self, pipeline: StrategyPipeline) -> None:
         self._pipeline = pipeline
 
-    def evaluate_single(self, candidate: CandidateDTO, features: pd.DataFrame) -> list[SignalDTO]:
+    def evaluate_single(self, candidate: CandidateDTO, features: FeatureSet) -> list[SignalDTO]:
         legacy = Candidate(
             symbol=candidate.symbol,
             score=float(candidate.score),
             reasons=candidate.reasons,
             metrics={k: float(v) for k, v in candidate.metrics.items()},
         )
-        signals = self._pipeline.evaluate_single(legacy, features)
+        df = _feature_set_to_df(features)
+        signals = self._pipeline.evaluate_single(legacy, df)
         return [_to_dto(s) for s in signals]
 
 

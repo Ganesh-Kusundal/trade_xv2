@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
+from domain.symbols import normalize_exchange, normalize_symbol
 
 COMMON_COMMODITIES = {
     "GOLD",
@@ -39,9 +40,9 @@ def _resolve_derivatives_exchange(underlying: str, exchange: str) -> str:
     Index instruments live on INDEX exchange, but their derivatives (futures,
     options) trade on NFO (NSE F&O) or BFO (BSE F&O).
     """
-    up = exchange.strip().upper()
+    up = normalize_exchange(exchange)
     if up in ("INDEX", "IDX_I"):
-        return _INDEX_FNO_MAP.get(underlying.strip().upper(), up)
+        return _INDEX_FNO_MAP.get(normalize_symbol(underlying), up)
     return up
 
 
@@ -81,4 +82,4 @@ class FuturesAdapter:
         return self._resolver.get_futures_expiries(underlying, exchange)
 
     def is_commodity(self, symbol: str) -> bool:
-        return symbol.upper().strip() in COMMON_COMMODITIES
+        return normalize_symbol(symbol) in COMMON_COMMODITIES

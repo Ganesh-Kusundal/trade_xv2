@@ -8,12 +8,11 @@ from unittest.mock import MagicMock
 import pytest
 
 from application.execution.execution_mode_adapter import (
-    SimulatedOMSAdapter,
     create_execution_adapter,
 )
 from application.execution.gateway_submit import make_gateway_submit_fn
 from application.oms.factory import create_trading_context
-from application.oms.order_manager import OmsOrderCommand, OrderManager
+from application.oms.order_manager import OmsOrderCommand
 from domain import OrderStatus, Side
 from domain.entities import OrderResponse
 

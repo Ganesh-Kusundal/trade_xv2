@@ -54,7 +54,6 @@ from application.oms._internal.loss_circuit_breaker import (
 )
 from application.oms.capital_provider import CapitalProvider, FixedCapitalProvider
 from application.oms.position_manager import PositionManager
-from brokers.common.api import MarginCalculationError, MarginProvider
 from domain import Order
 from domain.constants import (
     RISK_DAILY_LOSS_PERCENT,
@@ -64,6 +63,7 @@ from domain.constants import (
 )
 from domain.constants.defaults import RISK_FALLBACK_CAPITAL
 from domain.exchange_segments import is_derivative_segment
+from domain.ports.margin_provider import MarginProviderPort
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +109,7 @@ class RiskManager:
         capital_fn: Callable[[], Decimal] | None = None,
         capital_provider: CapitalProvider | None = None,
         loss_cb_config: LossCircuitBreakerConfig | None = None,
-        margin_provider: MarginProvider | None = None,
+        margin_provider: MarginProviderPort | None = None,
     ) -> None:
         self._position_manager = position_manager
         self._config = config
@@ -186,27 +186,17 @@ class RiskManager:
                 if hasattr(order.order_type, "value")
                 else str(order.order_type),
             )
-        except MarginCalculationError as exc:
-            # Fail-closed: API error -> reject order
-            logger.error(
-                "margin_check_api_error",
-                extra={
-                    "symbol": order.symbol,
-                    "exchange": order.exchange,
-                    "error": str(exc),
-                },
-            )
-            return RiskResult(False, f"F&O order rejected: margin API error: {exc}")
         except Exception as exc:
             # Fail-closed: any unexpected error -> reject order
             logger.error(
-                "margin_check_unexpected_error",
+                "margin_check_error",
                 extra={
                     "symbol": order.symbol,
                     "exchange": order.exchange,
                     "error": str(exc),
                 },
             )
+            return RiskResult(False, f"F&O order rejected: margin check error: {exc}")
             return RiskResult(False, f"F&O order rejected: margin check failed: {exc}")
 
         required_with_buffer = margin_result.required_margin * self._config.margin_safety_multiplier

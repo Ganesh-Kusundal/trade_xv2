@@ -140,7 +140,7 @@ class FeatureFlags:
 
         old_value = cls._flags.get(flag_name, False)  # type: ignore[assignment]
         cls._flags[flag_name] = value  # type: ignore[index]
-        
+
         # Update class attributes for property access
         if flag_name in ("SMART_ROUTING", "INTELLIGENT_GATEWAY", "ADVANCED_ORDER_TYPES", "EXPERIMENTAL_STRATEGIES"):
             setattr(cls, flag_name, value)

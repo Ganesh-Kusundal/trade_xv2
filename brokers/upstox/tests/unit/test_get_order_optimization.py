@@ -8,8 +8,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-import pytest
-
 from brokers.upstox.gateway import UpstoxBrokerGateway
 from domain import Order, OrderStatus, OrderType, Side
 

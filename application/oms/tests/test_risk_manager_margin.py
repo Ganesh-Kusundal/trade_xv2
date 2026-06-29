@@ -21,6 +21,7 @@ from application.oms import PositionManager, RiskConfig, RiskManager
 from brokers.common.api import MarginCalculationError, MarginProvider, MarginResult
 from brokers.common.oms.margin_provider import BrokerMarginProvider
 from domain import Order, OrderStatus, OrderType, ProductType, Side
+from tests.fixtures.domain_helpers import make_order as _make_order_shared
 from domain.exchange_segments import is_derivative_segment
 
 # ── Helpers ────────────────────────────────────────────────────────────────
@@ -280,7 +281,7 @@ class TestFailClosed:
 
         result = rm.check_order(order)
         assert result.allowed is False
-        assert "margin api error" in result.reason.lower()
+        assert "margin check error" in result.reason.lower()
 
     def test_generic_exception_rejects_order(
         self, position_manager, capital_provider, default_config
@@ -293,7 +294,7 @@ class TestFailClosed:
 
         result = rm.check_order(order)
         assert result.allowed is False
-        assert "margin check failed" in result.reason.lower()
+        assert "margin check error" in result.reason.lower()
 
 
 # ── Test: Margin check can be disabled ────────────────────────────────────

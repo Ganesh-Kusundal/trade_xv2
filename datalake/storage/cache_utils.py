@@ -230,7 +230,6 @@ def get_last_candle_fast(
         >>> if last:
         ...     print(f"Last close: {last['close']}")
     """
-    from datalake.duckdb_utils import duckdb_connection
     from datalake.paths import get_candle_path
 
     path = get_candle_path(symbol, timeframe, root=root) if root else get_candle_path(symbol, timeframe)

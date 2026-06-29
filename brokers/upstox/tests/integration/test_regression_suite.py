@@ -55,7 +55,6 @@ class TestRegressionSuiteInfo:
 
     def test_all_test_files_present(self):
         """Verify all expected test files exist."""
-        import os
         from pathlib import Path
 
         test_dir = Path(__file__).parent

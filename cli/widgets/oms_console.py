@@ -11,6 +11,7 @@ from textual.containers import Container, Horizontal, Vertical
 from textual.widgets import Button, DataTable, Input, Label, Select, Static
 
 from cli.services.oms_service import OmsService
+from domain.symbols import normalize_symbol
 
 logger = logging.getLogger(__name__)
 
@@ -160,7 +161,7 @@ class OmsConsoleWidget(Static):
 
     def handle_order_placement(self) -> None:
         """Read form inputs and execute order placement."""
-        symbol_in = self.query_one("#order-symbol", Input).value.strip().upper()
+        symbol_in = normalize_symbol(self.query_one("#order-symbol", Input).value)
         side_in = self.query_one("#order-side", Select).value
         type_in = self.query_one("#order-type", Select).value
         qty_in = self.query_one("#order-qty", Input).value.strip()

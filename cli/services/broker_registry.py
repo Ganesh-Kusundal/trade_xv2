@@ -137,8 +137,9 @@ def bootstrap_gateway(
         if smart:
             try:
                 import asyncio
+
                 from brokers.common.bootstrap import create_intelligent_gateway
-                
+
                 # Create intelligent gateway with single broker
                 intelligent_gw = asyncio.run(create_intelligent_gateway(
                     [(broker, gateway)],
@@ -150,7 +151,7 @@ def bootstrap_gateway(
             except Exception as exc:
                 logger.warning("Failed to create intelligent gateway, using direct gateway: %s", exc)
                 # Fall back to direct gateway
-        
+
         return BootstrapResult(
             status=BootstrapStatus.READY,
             broker=broker,

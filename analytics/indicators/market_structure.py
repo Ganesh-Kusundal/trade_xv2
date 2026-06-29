@@ -26,14 +26,32 @@ class MarketStructureAnalyzer:
         return df
 
     def _detect_swing_highs(self, high: pd.Series) -> pd.Series:
+        """Detect swing highs without look-ahead bias.
+
+        A bar is a swing high if its high is >= the max of the previous
+        `swing_left` bars AND >= the max of the next `swing_right` bars.
+        The swing is only confirmed after `swing_right` bars have passed,
+        so we shift the result forward by `swing_right` to avoid using
+        future data.
+        """
         left_max = high.rolling(self._swing_left, min_periods=1).max().shift(1)
-        right_max = high.rolling(self._swing_right, min_periods=1).max().shift(-1)
-        return (high >= left_max) & (high >= right_max)
+        right_max = high.rolling(self._swing_right, min_periods=1).max()
+        confirmed = (high >= left_max) & (high >= right_max)
+        # Shift back by swing_right so only confirmed swings are marked
+        return confirmed.shift(self._swing_right).fillna(False).astype(bool)
 
     def _detect_swing_lows(self, low: pd.Series) -> pd.Series:
+        """Detect swing lows without look-ahead bias.
+
+        A bar is a swing low if its low is <= the min of the previous
+        `swing_left` bars AND <= the min of the next `swing_right` bars.
+        The swing is only confirmed after `swing_right` bars have passed.
+        """
         left_min = low.rolling(self._swing_left, min_periods=1).min().shift(1)
-        right_min = low.rolling(self._swing_right, min_periods=1).min().shift(-1)
-        return (low <= left_min) & (low <= right_min)
+        right_min = low.rolling(self._swing_right, min_periods=1).min()
+        confirmed = (low <= left_min) & (low <= right_min)
+        # Shift back by swing_right so only confirmed swings are marked
+        return confirmed.shift(self._swing_right).fillna(False).astype(bool)
 
     def _vectorized_trend(self, df: pd.DataFrame) -> pd.Series:
         result = pd.Series("Neutral", index=df.index)

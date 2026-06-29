@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import contextlib
-import logging
+
+from infrastructure.logging import get_logger
+
 import threading
 from datetime import date, timedelta
 from decimal import Decimal
@@ -36,8 +38,9 @@ from domain import (
     Validity,
 )
 from domain.exchange_segments import parse_segment
+from domain.symbols import make_position_key, normalize_symbol
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
@@ -238,6 +241,32 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
     def depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
         return self._conn.market_data.get_depth(symbol, exchange)
 
+    def _complete_depth_snapshot(
+        self,
+        ws_depth: MarketDepth | None,
+        symbol: str,
+        exchange: str,
+    ) -> MarketDepth:
+        """Merge WebSocket depth with REST fallback for any missing side."""
+        needs_rest = ws_depth is None or not ws_depth.bids or not ws_depth.asks
+        rest: MarketDepth | None = None
+        if needs_rest:
+            rest = self._conn.market_data.get_depth(symbol, exchange)
+
+        if ws_depth is None:
+            return rest  # type: ignore[return-value]
+
+        bids = ws_depth.bids if ws_depth.bids else (rest.bids if rest else [])
+        asks = ws_depth.asks if ws_depth.asks else (rest.asks if rest else [])
+
+        return MarketDepth(
+            symbol=symbol,
+            bids=list(bids),
+            asks=list(asks),
+            depth_type=ws_depth.depth_type,
+            timestamp=ws_depth.timestamp or (rest.timestamp if rest else None),
+        )
+
     def depth_20(
         self,
         symbol: str,
@@ -289,26 +318,28 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         if on_depth is not None:
             feed.on_depth(on_depth)
 
+        feed.register_symbol(sid_int, symbol)
+
         # Start the WebSocket if it's not running yet.
         if not feed.is_running:
             feed.start()
 
-        # Return the cached depth, falling back to 5-level REST if empty.
         cached = feed.latest_depth(sid_int)
+        result = self._complete_depth_snapshot(cached, symbol, exchange)
         if cached is not None:
             logger.debug(
                 "depth_20_from_websocket",
                 extra={
                     "symbol": symbol,
                     "exchange": exchange,
-                    "depth_type": cached.depth_type,
-                    "bid_levels": len(cached.bids),
-                    "ask_levels": len(cached.asks),
+                    "depth_type": result.depth_type,
+                    "bid_levels": len(result.bids),
+                    "ask_levels": len(result.asks),
+                    "rest_merged": bool(cached and (not cached.bids or not cached.asks)),
                 },
             )
-            return cached
-        
-        # Fallback to REST API (DEPTH_5)
+            return result
+
         logger.debug(
             "depth_20_fallback_to_rest",
             extra={
@@ -317,7 +348,7 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
                 "reason": "no websocket data received yet",
             },
         )
-        return self._conn.market_data.get_depth(symbol, exchange)
+        return result
 
     def depth_200(
         self,
@@ -367,15 +398,14 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         if on_depth is not None:
             feed.on_depth(on_depth)
 
+        feed.register_symbol(int(sid_str), symbol)
+
         # Start the WebSocket if it's not running yet.
         if not feed.is_running:
             feed.start()
 
-        # Return the cached depth, falling back to 5-level REST if empty.
         cached = feed.latest_depth()
-        if cached is not None:
-            return cached
-        return self._conn.market_data.get_depth(symbol, exchange)
+        return self._complete_depth_snapshot(cached, symbol, exchange)
 
     def history(
         self,
@@ -468,7 +498,7 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
 
     def search(self, query: str) -> list[dict]:
         results = []
-        q = query.upper().strip()
+        q = normalize_symbol(query)
         for inst in self._conn.instruments.all_instruments():
             if q in inst.symbol.upper() or q in (inst.canonical_symbol or "").upper():
                 results.append(
@@ -513,7 +543,7 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         inst = self._conn.instruments.resolve(symbol, exchange)
         segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, DEFAULT_SEGMENT)
         sid = int(inst.security_id)
-        key = (symbol.upper(), exchange.upper())
+        key = make_position_key(symbol, exchange)
 
         with self._stream_lock:
             feed = self._conn.market_feed
@@ -525,6 +555,8 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
                     instruments=[],  # Empty — subscribe on-demand below
                     access_token_fn=lambda: self._conn.access_token,
                 )
+                # Subscribe after creation — first call must also subscribe
+                feed.subscribe([(segment, sid, mode)])
             else:
                 feed.subscribe([(segment, sid, mode)])
 
@@ -584,7 +616,7 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
             on_tick:  The callback to remove. If ``None``, removes ALL
                       callbacks for the instrument.
         """
-        key = (symbol.upper(), exchange.upper())
+        key = make_position_key(symbol, exchange)
 
         with self._stream_lock:
             callbacks = self._stream_registry.get(key, [])

@@ -21,23 +21,23 @@ Usage:
 """
 
 from tests.fakes.fake_oms import (
+    FakeBrokerGateway,
+    FakeExecutionAdapter,
     FakeOrderManager,
     FakePositionManager,
-    FakeRiskManager,
     FakeReconciliationService,
-    FakeExecutionAdapter,
-    FakeBrokerGateway,
+    FakeRiskManager,
 )
 from tests.fakes.fake_trading import (
     FakeTradingOrchestrator,
 )
 
 __all__ = [
+    "FakeBrokerGateway",
+    "FakeExecutionAdapter",
     "FakeOrderManager",
     "FakePositionManager",
-    "FakeRiskManager",
     "FakeReconciliationService",
-    "FakeExecutionAdapter",
-    "FakeBrokerGateway",
+    "FakeRiskManager",
     "FakeTradingOrchestrator",
 ]

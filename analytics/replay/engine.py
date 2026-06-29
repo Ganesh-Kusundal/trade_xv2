@@ -56,6 +56,7 @@ import pandas as pd
 from analytics.pipeline.pipeline import FeaturePipeline
 from analytics.replay.models import (
     Bar,
+    FillModel,
     ReplayConfig,
     ReplayResult,
     ReplaySession,
@@ -68,6 +69,11 @@ from analytics.strategy.pipeline import StrategyPipeline
 from domain.execution import compute_order_quantity
 from domain.ports.oms_backtest_adapter import OmsBacktestAdapterPort
 from domain.runtime_hooks import create_oms_backtest_adapter
+from domain.symbols import normalize_symbol
+from domain.trading_costs import (
+    compute_commission,
+    compute_slippage_pct,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -140,6 +146,32 @@ class ReplayEngine:
                 "Pass a TradingContext instance from your composition root."
             )
 
+    def _compute_commission(self, notional: float, side: str) -> float:
+        """Compute commission based on the configured model.
+
+        Delegates to domain.trading_costs.compute_commission (single source of truth).
+        """
+        cfg = self._config
+        return compute_commission(
+            notional, side,
+            model=cfg.commission_model,
+            flat_fee=cfg.commission_flat,
+            fees=cfg.indian_market_fees,
+        )
+
+    def _compute_slippage_pct(self, bar_volume: float) -> float:
+        """Compute effective slippage percentage based on the configured model.
+
+        Delegates to domain.trading_costs.compute_slippage_pct (single source of truth).
+        """
+        cfg = self._config
+        return compute_slippage_pct(
+            cfg.slippage_model,
+            cfg.slippage_pct,
+            bar_volume,
+            cfg.avg_volume,
+        )
+
     def run(self, data: pd.DataFrame, *, symbol: str = "SYMBOL") -> ReplayResult:
         """Run replay on OHLCV DataFrame.
 
@@ -209,6 +241,7 @@ class ReplayEngine:
             _window_data = deque()
 
         warmup_done = False
+        pending_signals: list[tuple[Signal, Bar]] = []
 
         for idx in range(len(df)):
             row = df.iloc[idx]
@@ -223,6 +256,14 @@ class ReplayEngine:
                 close=float(row.get("close", 0)),
                 volume=float(row.get("volume", 0)),
             )
+
+            # Process pending signals from previous bar using this bar's open
+            if pending_signals:
+                for sig, sig_bar in pending_signals:
+                    self._process_signal(sig, bar, session, config, fill_price=bar.open)
+                    if config.publish_events and self._event_bus is not None:
+                        self._publish_signal(sig)
+                pending_signals.clear()
 
             # Write bar into pre-allocated numpy arrays or deque
             if window_size > 0:
@@ -314,10 +355,12 @@ class ReplayEngine:
             # Process signals (P0-2: routes through OMS if available)
             for signal in signals:
                 session.signals.append(signal)
-                self._process_signal(signal, bar, session, config)
-
-                if config.publish_events and self._event_bus is not None:
-                    self._publish_signal(signal)
+                if config.fill_model == FillModel.NEXT_OPEN:
+                    pending_signals.append((signal, bar))
+                else:
+                    self._process_signal(signal, bar, session, config)
+                    if config.publish_events and self._event_bus is not None:
+                        self._publish_signal(signal)
 
             # Update equity
             equity = session.current_equity
@@ -328,6 +371,13 @@ class ReplayEngine:
         # Close any open position at end (bar holds the last loop iteration's bar)
         if session.position is not None:
             self._close_position(session, bar, "End of replay")
+
+        # Process any remaining pending signals (next-bar-open with no next bar)
+        if pending_signals:
+            for sig, sig_bar in pending_signals:
+                self._process_signal(sig, bar, session, config, fill_price=bar.open)
+                if config.publish_events and self._event_bus is not None:
+                    self._publish_signal(sig)
 
         return ReplayResult(
             session=session,
@@ -387,6 +437,7 @@ class ReplayEngine:
         bar: Bar,
         session: ReplaySession,
         config: ReplayConfig,
+        fill_price: float | None = None,
     ) -> None:
         """Process a signal through OMS for backtest-live parity.
 
@@ -395,7 +446,7 @@ class ReplayEngine:
         if not signal.is_actionable:
             return
 
-        self._process_signal_via_oms(signal, bar, session, config)
+        self._process_signal_via_oms(signal, bar, session, config, fill_price=fill_price)
 
     def _process_signal_via_oms(
         self,
@@ -403,6 +454,7 @@ class ReplayEngine:
         bar: Bar,
         session: ReplaySession,
         config: ReplayConfig,
+        fill_price: float | None = None,
     ) -> None:
         """Route signal through OMS for backtest-live parity (P0-2).
 
@@ -411,7 +463,9 @@ class ReplayEngine:
         """
         if signal.is_buy and session.position is None:
             # Open long via OMS
-            price = Decimal(str(bar.close * (1 + config.slippage_pct / 100)))
+            base_price = fill_price if fill_price is not None else bar.close
+            slippage_pct = self._compute_slippage_pct(bar.volume)
+            price = Decimal(str(base_price * (1 + slippage_pct / 100)))
             qty = compute_order_quantity(
                 equity=session.capital,
                 price=float(price),
@@ -430,7 +484,9 @@ class ReplayEngine:
                 )
                 if order_id:
                     # Update session state to track position
-                    cost = float(price) * qty + config.commission_flat
+                    notional = float(price) * qty
+                    commission = self._compute_commission(notional, "BUY")
+                    cost = notional + commission
                     session.capital -= cost
                     session.position = SimulatedPosition(
                         symbol=bar.symbol,
@@ -447,7 +503,9 @@ class ReplayEngine:
 
         elif signal.is_sell and session.position is not None:
             # Close long via OMS
-            price = Decimal(str(bar.close * (1 - config.slippage_pct / 100)))
+            base_price = fill_price if fill_price is not None else bar.close
+            slippage_pct = self._compute_slippage_pct(bar.volume)
+            price = Decimal(str(base_price * (1 - slippage_pct / 100)))
             order_id = self._oms_adapter.close_long(
                 symbol=bar.symbol,
                 exchange="NSE",
@@ -459,7 +517,9 @@ class ReplayEngine:
             )
             if order_id:
                 # Update session state
-                proceeds = float(price) * session.position.quantity - config.commission_flat
+                notional = float(price) * session.position.quantity
+                commission = self._compute_commission(notional, "SELL")
+                proceeds = notional - commission
                 session.capital += proceeds
                 session.position = None
                 # Sync from PortfolioTracker if available
@@ -472,7 +532,8 @@ class ReplayEngine:
             return
 
         # Route through OMS for backtest-live parity (P0-2)
-        price = Decimal(str(bar.close * (1 - self._config.slippage_pct / 100)))
+        slippage_pct = self._compute_slippage_pct(bar.volume)
+        price = Decimal(str(bar.close * (1 - slippage_pct / 100)))
         order_id = self._oms_adapter.close_long(
             symbol=pos.symbol,
             exchange="NSE",
@@ -486,10 +547,15 @@ class ReplayEngine:
             return  # OMS rejected the close
 
         exit_price = float(price)
-        pnl = (exit_price - pos.entry_price) * pos.quantity - self._config.commission_flat
-        pnl_pct = ((exit_price / pos.entry_price) - 1) * 100 if pos.entry_price > 0 else 0.0
+        notional = exit_price * pos.quantity
+        commission = self._compute_commission(notional, "SELL")
+        exit_price_d = Decimal(str(exit_price))
+        entry_price_d = Decimal(str(pos.entry_price))
+        commission_d = Decimal(str(commission))
+        pnl = (exit_price_d - entry_price_d) * pos.quantity - commission_d
+        pnl_pct = float(((exit_price_d / entry_price_d) - 1) * 100) if entry_price_d > 0 else 0.0
 
-        session.capital += pos.quantity * exit_price - self._config.commission_flat
+        session.capital += notional - commission
         session.trades.append(
             SimulatedTrade(
                 symbol=pos.symbol,
@@ -549,10 +615,15 @@ class ReplayEngine:
             return  # OMS rejected the close
 
         # Update session state
-        pnl = (exit_price - pos.entry_price) * pos.quantity - self._config.commission_flat
-        pnl_pct = ((exit_price / pos.entry_price) - 1) * 100 if pos.entry_price > 0 else 0.0
+        notional = exit_price * pos.quantity
+        commission = self._compute_commission(notional, "SELL")
+        exit_price_d = Decimal(str(exit_price))
+        entry_price_d = Decimal(str(pos.entry_price))
+        commission_d = Decimal(str(commission))
+        pnl = (exit_price_d - entry_price_d) * pos.quantity - commission_d
+        pnl_pct = float(((exit_price_d / entry_price_d) - 1) * 100) if entry_price_d > 0 else 0.0
 
-        session.capital += exit_price * pos.quantity - self._config.commission_flat
+        session.capital += notional - commission
         session.trades.append(
             SimulatedTrade(
                 symbol=pos.symbol,
@@ -601,7 +672,7 @@ class ReplayEngine:
 
         positions = self._portfolio_tracker.get_positions()
         if symbol is not None:
-            positions = [p for p in positions if p.symbol.upper() == symbol.upper()]
+            positions = [p for p in positions if p.symbol.upper() == normalize_symbol(symbol)]
 
         if positions:
             pos = positions[0]

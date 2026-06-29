@@ -31,7 +31,6 @@ from analytics.scanner.scanners import (
 )
 from analytics.strategy.models import Signal, SignalType
 from analytics.strategy.pipeline import StrategyPipeline
-from domain.ports.oms_backtest_adapter import OmsBacktestAdapterPort
 
 
 class _NullOmsAdapter:

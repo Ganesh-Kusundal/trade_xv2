@@ -17,7 +17,6 @@ import gc
 import time
 import tracemalloc
 import weakref
-from unittest.mock import MagicMock
 
 import pandas as pd
 

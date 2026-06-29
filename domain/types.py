@@ -23,20 +23,20 @@ from __future__ import annotations
 
 from domain.capabilities import Capability, ConnectionStatus
 from domain.entities.order_lifecycle import ORDER_STATUS_TRANSITIONS
+from domain.entities.position import POSITION_STATE_TRANSITIONS, PositionState
 from domain.enums import OrderStatus, OrderType, ProductType, Side, Validity
 from domain.market_enums import ExchangeSegment, InstrumentType
-from domain.entities.position import POSITION_STATE_TRANSITIONS, PositionState
 
 __all__ = [
+    "ORDER_STATUS_TRANSITIONS",
+    "POSITION_STATE_TRANSITIONS",
     "Capability",
     "ConnectionStatus",
     "ExchangeSegment",
     "InstrumentType",
-    "ORDER_STATUS_TRANSITIONS",
     "OrderStatus",
     "OrderType",
     "PositionState",
-    "POSITION_STATE_TRANSITIONS",
     "ProductType",
     "Side",
     "Validity",

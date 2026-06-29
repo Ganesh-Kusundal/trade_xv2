@@ -25,6 +25,8 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import ClassVar
 
+from domain.symbols import normalize_exchange, normalize_symbol
+
 
 @dataclass(frozen=True, order=True)
 class InstrumentId:
@@ -56,7 +58,7 @@ class InstrumentId:
             object.__setattr__(self, "strike", Decimal(str(self.strike)))
 
         # Validate exchange
-        if self.exchange.upper() not in self.VALID_EXCHANGES:
+        if normalize_exchange(self.exchange) not in self.VALID_EXCHANGES:
             raise ValueError(f"Invalid exchange: {self.exchange!r}. Must be one of {self.VALID_EXCHANGES}")
         # Validate right if provided
         if self.right and self.right.upper() not in self.VALID_RIGHTS:
@@ -67,19 +69,19 @@ class InstrumentId:
     @classmethod
     def equity(cls, exchange: str, symbol: str) -> InstrumentId:
         """Create equity instrument ID: NSE:RELIANCE."""
-        return cls(exchange=exchange.upper(), underlying=symbol.upper())
+        return cls(exchange=normalize_exchange(exchange), underlying=normalize_symbol(symbol))
 
     @classmethod
     def index(cls, exchange: str, name: str) -> InstrumentId:
         """Create index instrument ID: NSE:NIFTY."""
-        return cls(exchange=exchange.upper(), underlying=name.upper())
+        return cls(exchange=normalize_exchange(exchange), underlying=normalize_symbol(name))
 
     @classmethod
     def future(cls, exchange: str, underlying: str, expiry: date) -> InstrumentId:
         """Create futures instrument ID: NFO:NIFTY:20260730:FUT."""
         return cls(
-            exchange=exchange.upper(),
-            underlying=underlying.upper(),
+            exchange=normalize_exchange(exchange),
+            underlying=normalize_symbol(underlying),
             expiry=expiry,
             right="FUT",
         )
@@ -95,11 +97,11 @@ class InstrumentId:
     ) -> InstrumentId:
         """Create option instrument ID: NFO:NIFTY:20260730:25000:CE."""
         return cls(
-            exchange=exchange.upper(),
-            underlying=underlying.upper(),
+            exchange=normalize_exchange(exchange),
+            underlying=normalize_symbol(underlying),
             expiry=expiry,
             strike=Decimal(str(strike)),
-            right=right.upper(),
+            right=normalize_symbol(right),
         )
 
     # ── Serialization ─────────────────────────────────────────────────────

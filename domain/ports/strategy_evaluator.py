@@ -4,8 +4,7 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-import pandas as pd
-
+from domain.models.features import FeatureSet
 from domain.models.trading import CandidateDTO, SignalDTO
 
 
@@ -14,7 +13,7 @@ class StrategyEvaluator(Protocol):
     """Evaluate a candidate with pre-computed features."""
 
     def evaluate_single(
-        self, candidate: CandidateDTO, features: pd.DataFrame
+        self, candidate: CandidateDTO, features: FeatureSet
     ) -> list[SignalDTO]: ...
 
 

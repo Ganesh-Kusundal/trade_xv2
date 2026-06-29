@@ -7,19 +7,13 @@ import uuid
 from collections.abc import Callable
 from datetime import datetime
 from decimal import Decimal
-from application.oms.protocols import IOrderManager
 
 from application.oms.order_manager import OmsOrderCommand
+from application.oms.protocols import IOrderManager
 from domain import Order, OrderStatus, ProductType, Side, Trade
 
-
-def apply_slippage(price: Decimal, *, side: Side | str, slippage_pct: float = 0.0) -> Decimal:
-    """Apply per-side slippage. Buy = price up, Sell = price down."""
-    if slippage_pct == 0:
-        return price
-    side_val = side.value if isinstance(side, Side) else str(side).upper()
-    factor = (1 + slippage_pct / 100) if side_val == "BUY" else (1 - slippage_pct / 100)
-    return (price * Decimal(str(factor))).quantize(Decimal("0.0001"))
+# Re-export from domain.trading_costs (single source of truth)
+from domain.trading_costs import apply_slippage  # noqa: F401
 
 
 def make_simulated_submit_fn(

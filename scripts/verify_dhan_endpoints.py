@@ -168,7 +168,7 @@ def test_gateway():
                     count = len(data) if isinstance(data, list) else 0
                 else:
                     count = 0
-                
+
                 record(
                     "option_chain",
                     f"{exchange}({label})",

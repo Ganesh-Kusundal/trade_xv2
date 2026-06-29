@@ -25,10 +25,10 @@ _DEFAULT_BASE_URL = Dhan.REST_BASE
 # Non-Trading APIs: Up to 20 requests per second
 # Order APIs: Up to 25 requests per second
 # Data APIs: Up to 10 requests per second
-# Quote APIs: 1 request per second (we use 0.15s for safety)
+# Quote APIs: 1 request per second (Dhan documented limit)
 _RATE_LIMITS: dict[str, float] = {
-    "/marketfeed/quote": 0.15,  # 1 req/s documented, using 0.15s for safety
-    "/marketfeed/ltp": 0.15,  # 10 req/s documented
+    "/marketfeed/quote": 1.0,
+    "/marketfeed/ltp": 0.15,  # Data APIs: up to 10 req/s
     "/marketfeed/ohlc": 0.15,  # 10 req/s documented
     "/optionchain": 0.35,  # 10 req/s documented
     "/charts/": 0.15,  # 10 req/s documented
@@ -100,6 +100,20 @@ def _categorize_endpoint(endpoint: str) -> str:
     return "admin"
 
 
+# Circuit-breaker categories (read/write/admin) differ from token-bucket
+# names (market_data/orders/admin). Map before acquire().
+_RL_BUCKET_MAP: dict[str, str] = {
+    "read": "market_data",
+    "write": "orders",
+    "admin": "admin",
+}
+
+
+def _rate_limit_bucket(endpoint: str) -> str:
+    """Return the MultiBucketRateLimiter category for *endpoint*."""
+    return _RL_BUCKET_MAP[_categorize_endpoint(endpoint)]
+
+
 class DhanHttpClient:
     """Sync HTTP client with auth injection, token refresh, retry, and rate limiting."""
 
@@ -133,7 +147,7 @@ class DhanHttpClient:
         self._read_circuit_breaker = read_circuit_breaker or circuit_breaker
         self._write_circuit_breaker = write_circuit_breaker or circuit_breaker
         self._admin_circuit_breaker = admin_circuit_breaker or circuit_breaker
-        
+
         # Standardized resilience patterns (Task 6.2)
         # _rate_limiter: Token bucket rate limiter from Dhan resilience package
         self._rate_limiter = _rate_limiter
@@ -225,7 +239,7 @@ class DhanHttpClient:
         if self._rate_limiter is None:
             return True  # No rate limiter configured, allow request
 
-        category = _categorize_endpoint(endpoint)
+        category = _rate_limit_bucket(endpoint)
         try:
             acquired = self._rate_limiter.acquire(category, tokens=1, timeout=timeout)
             if acquired:

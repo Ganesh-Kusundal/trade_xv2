@@ -8,6 +8,7 @@ from typing import Protocol
 import pandas as pd
 
 from domain.entities import FutureChain, OptionChain
+from domain.symbols import normalize_symbol
 
 
 class MarketDataProvider(Protocol):
@@ -53,24 +54,24 @@ class DataFrameMarketDataProvider:
         to_date: str | None = None,
     ) -> pd.DataFrame:
         del timeframe, lookback_days, from_date, to_date
-        return self._history.get(symbol.upper(), pd.DataFrame())
+        return self._history.get(normalize_symbol(symbol), pd.DataFrame())
 
     def option_chain(self, underlying: str, *, expiry: str | None = None) -> OptionChain:
         del expiry
-        raw = self.option_chains.get(underlying.upper())
+        raw = self.option_chains.get(normalize_symbol(underlying))
         if isinstance(raw, OptionChain):
             return raw
         return OptionChain.from_dict(raw or {"strikes": []})
 
     def future_chain(self, underlying: str) -> FutureChain:
-        raw = self.future_chains.get(underlying.upper())
+        raw = self.future_chains.get(normalize_symbol(underlying))
         if isinstance(raw, FutureChain):
             return raw
         return FutureChain.from_dict(raw or {"contracts": []})
 
     def ltp(self, symbol: str, *, exchange: str = "NSE") -> float:
         del exchange
-        return float(self.prices.get(symbol.upper(), 0.0))
+        return float(self.prices.get(normalize_symbol(symbol), 0.0))
 
 
 class CsvMarketDataProvider:

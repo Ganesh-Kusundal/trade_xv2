@@ -10,10 +10,8 @@ resilience components themselves.
 
 from __future__ import annotations
 
-import json
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from unittest.mock import MagicMock
 
 import pytest
@@ -23,32 +21,24 @@ from brokers.common.resilience import (
     CircuitBreakerConfig,
     CircuitBreakerOpenError,
     CircuitState,
-    ExponentialBackoff,
     MultiBucketRateLimiter,
     NonRetryableError,
     RateLimitConfig,
+    RetryableError,
     RetryConfig,
     RetryExecutor,
-    RetryableError,
-    TokenBucketRateLimiter,
 )
 from brokers.common.resilience.backoff import NoBackoff
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.resilience import (
-    DhanCircuitBreakerFactory,
-    DhanRateLimiterFactory,
-    DhanRetryExecutorFactory,
     create_circuit_breakers,
     create_rate_limiter,
 )
 from brokers.dhan.resilience.rate_limiter import DhanRateLimiterMetrics
 from brokers.dhan.resilience.retry_executor import (
-    ADMIN_POLICY,
     MARKET_DATA_POLICY,
     ORDERS_POLICY,
-    PORTFOLIO_POLICY,
 )
-
 
 # ── Test 1: Circuit breakers isolated by category ───────────────────────
 

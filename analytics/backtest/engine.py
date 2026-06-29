@@ -66,6 +66,7 @@ class BacktestEngine:
         config: BacktestConfig | None = None,
         trading_context=None,
         execution_adapter=None,
+        oms_adapter=None,
     ) -> None:
         self._pipeline = pipeline or FeaturePipeline()
         self._strategy = strategy_pipeline or StrategyPipeline()
@@ -78,6 +79,7 @@ class BacktestEngine:
             self._config,
             trading_context=trading_context,
             execution_adapter=execution_adapter,
+            oms_adapter=oms_adapter,
         )
 
     def run(

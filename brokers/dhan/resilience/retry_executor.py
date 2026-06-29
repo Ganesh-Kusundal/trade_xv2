@@ -13,20 +13,12 @@ Non-retryable: 4xx (except 429 rate limit), authentication errors
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass
 
 from brokers.common.resilience.backoff import ExponentialBackoff
 from brokers.common.resilience.circuit_breaker import CircuitBreaker
-from brokers.common.resilience.errors import (
-    CircuitBreakerOpenError,
-    NonRetryableError,
-    RetryableError,
-)
 from brokers.common.resilience.rate_limiter import (
     MultiBucketRateLimiter,
-    RateLimitConfig,
 )
 from brokers.common.resilience.retry import RetryConfig, RetryExecutor
 

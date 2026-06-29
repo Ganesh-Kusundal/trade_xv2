@@ -8,8 +8,6 @@ They are skipped automatically when the env file is absent.
 
 from __future__ import annotations
 
-import pytest
-
 from brokers.upstox.tests.integration.conftest import skip_live
 
 

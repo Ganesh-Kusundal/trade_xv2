@@ -1,2 +1,2 @@
 """Backward-compat shim — moved to datalake.ingestion.converter."""
-from datalake.ingestion.converter import *  # noqa: F401,F403
+from datalake.ingestion.converter import *  # noqa: F403

@@ -17,7 +17,6 @@ from __future__ import annotations
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -35,7 +34,6 @@ from brokers.common.resilience.rate_limiter import (
     MultiBucketRateLimiter,
     RateLimitConfig,
 )
-from brokers.common.resilience.retry import RetryConfig, RetryExecutor
 from brokers.dhan.connection import DhanConnection
 from brokers.dhan.gateway import BrokerGateway
 from brokers.dhan.resilience.circuit_breaker import (
@@ -52,8 +50,6 @@ from brokers.dhan.resilience.retry_executor import (
     MARKET_DATA_POLICY,
     ORDERS_POLICY,
     PORTFOLIO_POLICY,
-    DhanRetryExecutorFactory,
-    DhanRetryPolicy,
     create_retry_executor,
 )
 

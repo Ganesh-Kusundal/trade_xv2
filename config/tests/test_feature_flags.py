@@ -1,7 +1,7 @@
 """Tests for feature flags system."""
 
-import os
 import pytest
+
 from config.feature_flags import FeatureFlags, is_enabled, set_flag
 
 

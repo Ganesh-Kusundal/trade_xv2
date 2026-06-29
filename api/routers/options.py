@@ -17,6 +17,7 @@ from api.schemas import (
     OptionContract,
     PCRResponse,
 )
+from infrastructure.db.duckdb_pool import get_pool
 
 logger = logging.getLogger(__name__)
 
@@ -44,8 +45,6 @@ async def get_option_chain(
         For live bid/ask data, use a broker WebSocket feed (Dhan/Upstox) that
         provides real-time market depth.
     """
-    import duckdb
-
     try:
         # Validate underlying symbol format to prevent SQL injection and path traversal
         if not re.match(r"^[A-Z][A-Z0-9]{0,10}$", underlying.upper()):
@@ -84,9 +83,12 @@ async def get_option_chain(
         safe_limit = max(2, min(int(strike_range * 2), 200))
         params.append(safe_limit)
 
-        conn = duckdb.connect(":memory:")
-        results = conn.execute(query, params).fetchall()
-        conn.close()
+        pool = get_pool()
+        conn = pool.acquire()
+        try:
+            results = conn.execute(query, params).fetchall()
+        finally:
+            pool.release(conn)
 
         contracts = []
         for row in results:
@@ -311,8 +313,6 @@ async def get_options_volume_profile(
     expiry: str | None = Query(None, description="Expiry date"),
 ):
     """Get options volume profile by strike."""
-    import duckdb
-
     try:
         if not re.match(r"^[A-Z][A-Z0-9]{0,10}$", underlying.upper()):
             raise HTTPException(
@@ -343,11 +343,12 @@ async def get_options_volume_profile(
 
         query += " GROUP BY strike, option_type ORDER BY strike"
 
-        conn = duckdb.connect(":memory:")
+        pool = get_pool()
+        conn = pool.acquire()
         try:
             rows = conn.execute(query, params).fetchall()
         finally:
-            conn.close()
+            pool.release(conn)
 
         strike_map: dict[float, dict[str, float]] = {}
         for strike, option_type, volume in rows:

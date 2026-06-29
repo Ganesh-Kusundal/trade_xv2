@@ -7,11 +7,12 @@ from __future__ import annotations
 
 import logging
 import threading
-from cachetools import TTLCache
 from collections.abc import Callable
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
+
+from cachetools import TTLCache
 
 from brokers.dhan.reconnecting_service import ReconnectingServiceMixin
 from brokers.dhan.websocket._helpers import (
@@ -83,7 +84,12 @@ class DhanOrderStream(ReconnectingServiceMixin, ManagedService):
 
     def update_token(self, access_token: str) -> None:
         """Push a fresh token to the context (called by scheduler)."""
+        if not access_token or access_token == self._context.get_access_token():
+            return
         self._context.update_token(access_token)
+        with self._lock:
+            if self._order_update:
+                self._order_update.access_token = access_token
 
     def connect(self) -> None:
         """Deprecated alias for :meth:`start`."""

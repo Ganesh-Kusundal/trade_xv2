@@ -46,7 +46,7 @@ from __future__ import annotations
 
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
@@ -535,11 +535,11 @@ def compare_scanners(
 
 __all__ = [
     "ScannerQuery",
-    "momentum_scanner",
-    "volume_scanner",
-    "rs_rotation_scanner",
     "breakout_scanner",
-    "list_scanners",
-    "run_scanner",
     "compare_scanners",
+    "list_scanners",
+    "momentum_scanner",
+    "rs_rotation_scanner",
+    "run_scanner",
+    "volume_scanner",
 ]

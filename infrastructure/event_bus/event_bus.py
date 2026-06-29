@@ -27,6 +27,7 @@ import logging
 import threading
 import traceback
 import uuid
+from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
@@ -179,6 +180,7 @@ class EventBus:
         replay_mode: bool = False,  # P4
         alerting_engine: AlertingEnginePort | None = None,
         alerting_interval_seconds: float = 10.0,
+        max_processed_events: int = 10000,  # P5: Idempotency cache size
     ) -> None:
         # Task 4.4: Lock sharding — separate lightweight Lock for subscriber
         # management from the (now lock-free) sequence counter.
@@ -197,6 +199,11 @@ class EventBus:
         self._alerting_interval = alerting_interval_seconds
         self._alerting_thread: threading.Thread | None = None
         self._alerting_stop = threading.Event()
+
+        # P5: Idempotency - track processed event_ids to prevent duplicate processing
+        self._processed_events: deque[str] = deque(maxlen=max_processed_events)
+        self._processed_event_ids: set[str] = set()
+        self._idempotency_lock = threading.Lock()
 
         # Start background alerting thread if engine is provided.
         if self._alerting_engine is not None:
@@ -354,6 +361,36 @@ class EventBus:
 
         return replace(event, **replacements)
 
+    # ── Idempotency ─────────────────────────────────────────────────────
+
+    def _is_duplicate_event(self, event: DomainEvent) -> bool:
+        """Check if event has already been processed (idempotency guard).
+
+        P5: Under at-least-once delivery (websockets, network retries),
+        duplicate events can arrive. This method tracks processed event_ids
+        in a bounded LRU cache (deque) to prevent double-processing.
+
+        Returns True if duplicate (should be skipped), False if new.
+        """
+        event_id = event.event_id
+        if not event_id:
+            return False  # No ID, can't check - allow through
+
+        with self._idempotency_lock:
+            if event_id in self._processed_event_ids:
+                return True  # Duplicate
+
+            # Mark as processed
+            self._processed_event_ids.add(event_id)
+            self._processed_events.append(event_id)
+
+            # Evict oldest if cache is full (handled by deque maxlen)
+            if len(self._processed_events) == self._processed_events.maxlen:
+                oldest = self._processed_events.popleft()
+                self._processed_event_ids.discard(oldest)
+
+            return False
+
     # ── Publishing ────────────────────────────────────────────────────────
 
     def publish(self, event: DomainEvent) -> None:
@@ -371,57 +408,67 @@ class EventBus:
 
         Handler failures are logged, counted, and dead-lettered — they
         never disappear silently.
+
+        P5: Idempotency - duplicate events (same event_id) are silently
+        skipped to prevent double-processing under at-least-once delivery.
         """
         # Prepare event: inject infrastructure fields immutably
         event = self._prepare_event(event)
 
-        if self._metrics is not None:
-            self._metrics.add_timestamped_counter(event.event_type, "published")
-
-        # 1. Persist first (so a crash mid-dispatch can be recovered).
-        # P4: Skip persistence in replay mode (no recursive writes)
-        if self._event_log is not None and self._logging_enabled and not self._replay_mode:
-            try:
-                self._event_log.append(event)
-            except Exception as exc:
-                # Surface, never swallow.
-                if self._metrics is not None:
-                    self._metrics.add_timestamped_counter(
-                        event.event_type, f"log_error:{type(exc).__name__}"
+        # Idempotency check: skip if already processed
+        if not self._is_duplicate_event(event):
+            # 1. Persist first (so a crash mid-dispatch can be recovered).
+            # P4: Skip persistence in replay mode (no recursive writes)
+            if self._event_log is not None and self._logging_enabled and not self._replay_mode:
+                try:
+                    self._event_log.append(event)
+                except Exception as exc:
+                    # Surface, never swallow.
+                    if self._metrics is not None:
+                        self._metrics.add_timestamped_counter(
+                            event.event_type, f"log_error:{type(exc).__name__}"
+                        )
+                    logger.exception(
+                        "EventBus: failed to persist %s to log: %s",
+                        event.event_type,
+                        exc,
                     )
-                logger.exception(
-                    "EventBus: failed to persist %s to log: %s",
-                    event.event_type,
-                    exc,
-                )
-                if self._dead_letter_queue is not None:
-                    self._dead_letter_queue.push_failure(
-                        event=event,
-                        handler_id="<event_log>",
-                        exc=exc,
-                        traceback=traceback.format_exc(),
-                    )
-                if self._fail_fast:
-                    raise
+                    if self._dead_letter_queue is not None:
+                        self._dead_letter_queue.push_failure(
+                            event=event,
+                            handler_id="<event_log>",
+                            exc=exc,
+                            traceback=traceback.format_exc(),
+                        )
+                    if self._fail_fast:
+                        raise
 
-        # 2. Dispatch (snapshot handlers to be lock-safe).
-        # Skip handler dispatch during replay to prevent TRADE_APPLIED re-publishing
-        # which causes PositionManager to double-count trades.
-        if self._replay_mode:
-            return
+            # 2. Dispatch (snapshot handlers to be lock-safe).
+            # Skip handler dispatch during replay to prevent TRADE_APPLIED re-publishing
+            # which causes PositionManager to double-count trades.
+            if not self._replay_mode:
+                with self._subscribers_lock:
+                    handlers = list(self._subscribers.get(event.event_type, {}).items())
 
-        with self._subscribers_lock:
-            handlers = list(self._subscribers.get(event.event_type, {}).items())
-
-        for handler_id, handler in handlers:
+                for handler_id, handler in handlers:
+                    if self._metrics is not None:
+                        self._metrics.add_timestamped_counter(event.event_type, "dispatched")
+                    try:
+                        handler(event)
+                    except Exception as exc:
+                        self._handle_handler_failure(event, handler_id, exc)
+                        if self._fail_fast:
+                            raise
+        else:
+            # Duplicate event detected - log and skip
             if self._metrics is not None:
-                self._metrics.add_timestamped_counter(event.event_type, "dispatched")
-            try:
-                handler(event)
-            except Exception as exc:
-                self._handle_handler_failure(event, handler_id, exc)
-                if self._fail_fast:
-                    raise
+                self._metrics.add_timestamped_counter(event.event_type, "duplicate_skipped")
+            logger.debug(
+                "EventBus: skipping duplicate event_id=%s (type=%s, symbol=%s)",
+                event.event_id,
+                event.event_type,
+                event.symbol,
+            )
 
     def publish_sync(self, event: DomainEvent) -> None:
         """Alias for :meth:`publish`; kept for explicit synchronous semantics."""

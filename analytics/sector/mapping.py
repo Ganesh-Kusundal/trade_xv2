@@ -20,6 +20,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from domain.symbols import normalize_symbol
+
 logger = logging.getLogger(__name__)
 
 # Default NIFTY sector mapping (embedded for offline use)
@@ -238,7 +240,7 @@ class SectorMapper:
 
     def get_sector(self, symbol: str) -> str | None:
         """Return the sector for a symbol, or None if unmapped."""
-        return self._symbol_to_sector.get(symbol.upper())
+        return self._symbol_to_sector.get(normalize_symbol(symbol))
 
     def get_symbols(self, sector: str) -> list[str]:
         """Return all symbols in a sector."""

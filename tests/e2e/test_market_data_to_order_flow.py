@@ -33,7 +33,6 @@ from domain.models.trading import SignalDTO  # noqa: E402
 from tests.e2e.fixtures.data_generators import generate_ohlcv_data  # noqa: E402
 from tests.e2e.fixtures.trading_context_factory import create_paper_trading_context  # noqa: E402
 
-
 # ── Fixtures ────────────────────────────────────────────────────────────────
 
 
@@ -173,7 +172,6 @@ def test_ohlcv_invariants_preserved(view_manager: ViewManager) -> None:
 def test_view_manager_composition(view_manager: ViewManager) -> None:
     """ViewManager composes ViewRegistry + QueryExecutor + CacheManager."""
     from analytics.views.cache_manager import CacheManager
-    from analytics.views.query_executor import QueryExecutor
     from analytics.views.view_registry import ViewRegistry
 
     # All three modules are instantiated

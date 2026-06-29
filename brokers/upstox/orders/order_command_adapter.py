@@ -9,7 +9,6 @@ import logging
 from decimal import Decimal
 from typing import Any
 
-from domain.ports.risk_manager import RiskManagerPort
 from brokers.common.dtos import BrokerOrderPayload
 from brokers.common.gateway_interfaces import IdempotencyCachePort, OrderCommand
 from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
@@ -23,6 +22,7 @@ from domain import (
     OrderResponse,
 )
 from domain import Side as OrderSide
+from domain.ports.risk_manager import RiskManagerPort
 from infrastructure.event_bus import DomainEvent, EventBus
 
 logger = logging.getLogger(__name__)

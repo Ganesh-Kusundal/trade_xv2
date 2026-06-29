@@ -11,6 +11,8 @@ import threading
 from collections import defaultdict
 from collections.abc import Iterable
 
+from domain.symbols import normalize_exchange, normalize_symbol
+
 from .definition import UpstoxInstrumentDefinition
 
 logger = logging.getLogger(__name__)
@@ -84,12 +86,12 @@ class UpstoxInstrumentResolver:
                 # options adapter can derive expiries without calling the
                 # deprecated /v2/option/expiry endpoint.
                 if definition.is_option and definition.expiry and definition.underlying_symbol:
-                    self._expiries_by_underlying[definition.underlying_symbol.strip().upper()].add(
+                    self._expiries_by_underlying[normalize_symbol(definition.underlying_symbol)].add(
                         definition.expiry[:10]
                     )
                 if definition.is_future and definition.expiry and definition.underlying_symbol:
                     self._future_expiries_by_underlying[
-                        definition.underlying_symbol.strip().upper()
+                        normalize_symbol(definition.underlying_symbol)
                     ].add(definition.expiry[:10])
             self._loaded = True
 
@@ -110,8 +112,8 @@ class UpstoxInstrumentResolver:
                 if d is not None:
                     return d
             if symbol and exchange_segment:
-                clean_sym = symbol.strip().upper()
-                clean_seg = exchange_segment.strip().upper()
+                clean_sym = normalize_symbol(symbol)
+                clean_seg = normalize_exchange(exchange_segment)
 
                 # 1. Try standard lookup
                 d = self._by_symbol_segment.get((clean_sym, clean_seg))
@@ -192,7 +194,7 @@ class UpstoxInstrumentResolver:
         with self._lock:
             if not self._loaded:
                 raise RuntimeError("Upstox instruments not loaded; cannot derive option expiries")
-            exps = self._expiries_by_underlying.get(underlying.strip().upper(), set())
+            exps = self._expiries_by_underlying.get(normalize_symbol(underlying), set())
             today = date.today().isoformat()
             return sorted(e for e in exps if e >= today)
 
@@ -203,7 +205,7 @@ class UpstoxInstrumentResolver:
         with self._lock:
             if not self._loaded:
                 raise RuntimeError("Upstox instruments not loaded; cannot derive future expiries")
-            exps = self._future_expiries_by_underlying.get(underlying.strip().upper(), set())
+            exps = self._future_expiries_by_underlying.get(normalize_symbol(underlying), set())
             today = date.today().isoformat()
             return sorted(e for e in exps if e >= today)
 
@@ -211,7 +213,7 @@ class UpstoxInstrumentResolver:
         """Return active future instrument definitions for *underlying*."""
         from datetime import date
 
-        und = underlying.strip().upper()
+        und = normalize_symbol(underlying)
         today = date.today().isoformat()
         with self._lock:
             if not self._loaded:
@@ -245,12 +247,12 @@ def _generate_alternate_keys(
     keys = []
 
     # 1. Primary symbol
-    sym_up = symbol.strip().upper()
+    sym_up = normalize_symbol(symbol)
     keys.append(sym_up)
 
     # 2. Canonical symbol
     if canonical_symbol:
-        keys.append(canonical_symbol.strip().upper())
+        keys.append(normalize_symbol(canonical_symbol))
 
     # 3. Stripped symbol (no spaces, dashes, underscores)
     stripped = sym_up.replace(" ", "").replace("-", "").replace("_", "")
@@ -276,7 +278,7 @@ def _generate_alternate_keys(
             month_chars = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "O", "N", "D"]
             month_char = month_chars[dt.month - 1]
 
-            und_up = underlying.strip().upper()
+            und_up = normalize_symbol(underlying)
 
             if is_option:
                 opt_str = str(option_type).upper()
@@ -327,7 +329,7 @@ def _generate_alternate_keys(
     res = []
     seen = set()
     for k in keys:
-        k_clean = k.strip().upper()
+        k_clean = normalize_symbol(k)
         if k_clean and k_clean not in seen:
             seen.add(k_clean)
             res.append(k_clean)

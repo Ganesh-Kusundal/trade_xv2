@@ -97,6 +97,12 @@ class SqliteOrderStore:
             self._acquire_writer_lock()
         self._conn = sqlite3.connect(str(self._path), check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
+        # Enable WAL mode for better concurrent read performance and crash recovery.
+        # WAL allows readers to proceed while a writer is active, which is critical
+        # for the OMS single-writer invariant with multiple reader threads.
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute("PRAGMA synchronous=NORMAL")
+        self._conn.execute("PRAGMA busy_timeout=5000")
         self._init_schema()
 
     def _acquire_writer_lock(self) -> None:

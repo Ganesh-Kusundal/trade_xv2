@@ -37,6 +37,7 @@ def compare_strategies(
     strategies: list[str] | None = None,
     initial_capital: float = 100_000,
     warmup_bars: int = 50,
+    oms_adapter=None,
 ) -> ComparisonResult:
     """Compare different strategies on the same data.
 
@@ -77,7 +78,7 @@ def compare_strategies(
             continue
 
         strategy = StrategyPipeline(strategies=[strategy_class()])
-        engine = BacktestEngine(pipeline, strategy, config)
+        engine = BacktestEngine(pipeline, strategy, config, oms_adapter=oms_adapter)
         bt_result = engine.run(data, symbol=symbol)
 
         m = bt_result.metrics
@@ -106,6 +107,7 @@ def compare_parameters(
     param_sets: list[dict] | None = None,
     initial_capital: float = 100_000,
     warmup_bars: int = 50,
+    oms_adapter=None,
 ) -> ComparisonResult:
     """Compare different parameter sets for the same strategy.
 
@@ -146,7 +148,7 @@ def compare_parameters(
         )
 
         strategy = StrategyPipeline(strategies=[MomentumStrategy()])
-        engine = BacktestEngine(pipeline, strategy, config)
+        engine = BacktestEngine(pipeline, strategy, config, oms_adapter=oms_adapter)
         bt_result = engine.run(data, symbol=symbol)
 
         m = bt_result.metrics

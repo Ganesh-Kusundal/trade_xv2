@@ -1,15 +1,12 @@
 """Tests for secret manager and encrypted token store."""
 
-import json
-import os
 import pytest
-from pathlib import Path
 from cryptography.fernet import Fernet
+
 from infrastructure.security.secret_manager import (
-    SecretManager,
     EncryptedTokenStore,
-    TokenRotationError,
     EncryptionNotConfiguredError,
+    SecretManager,
 )
 
 
@@ -107,11 +104,11 @@ class TestEncryptedTokenStore:
     def test_save_and_load_unencrypted(self, temp_token_file, monkeypatch):
         monkeypatch.delenv("SECRET_ENCRYPTION_KEY", raising=False)
         SecretManager.reset_instance()
-        
+
         store = EncryptedTokenStore(temp_token_file)
         state = {"access_token": "test_token", "source": "STATIC"}
         store.save(state)
-        
+
         loaded = store.load()
         assert loaded is not None
         assert loaded["access_token"] == "test_token"
@@ -121,16 +118,16 @@ class TestEncryptedTokenStore:
     def test_save_and_load_encrypted(self, temp_token_file, encryption_key, monkeypatch):
         monkeypatch.setenv("SECRET_ENCRYPTION_KEY", encryption_key)
         SecretManager.reset_instance()
-        
+
         store = EncryptedTokenStore(temp_token_file)
         state = {"access_token": "test_token", "source": "STATIC"}
         store.save(state)
-        
+
         loaded = store.load()
         assert loaded is not None
         assert loaded["access_token"] == "test_token"
         assert loaded["source"] == "STATIC"
-        
+
         # File should contain encrypted content
         raw_content = temp_token_file.read_text()
         assert raw_content.startswith("gAAAAA") or raw_content.startswith("Zg==")
@@ -144,14 +141,14 @@ class TestEncryptedTokenStore:
     def test_rotate_token(self, temp_token_file, encryption_key, monkeypatch):
         monkeypatch.setenv("SECRET_ENCRYPTION_KEY", encryption_key)
         SecretManager.reset_instance()
-        
+
         store = EncryptedTokenStore(temp_token_file)
         old_state = {"access_token": "old_token", "source": "STATIC"}
         store.save(old_state)
-        
+
         new_state = {"access_token": "new_token", "source": "TOTP"}
         store.rotate_token(new_state)
-        
+
         loaded = store.load()
         assert loaded is not None
         assert loaded["access_token"] == "new_token"
@@ -161,12 +158,12 @@ class TestEncryptedTokenStore:
     def test_delete_token(self, temp_token_file, encryption_key, monkeypatch):
         monkeypatch.setenv("SECRET_ENCRYPTION_KEY", encryption_key)
         SecretManager.reset_instance()
-        
+
         store = EncryptedTokenStore(temp_token_file)
         state = {"access_token": "test_token"}
         store.save(state)
         assert temp_token_file.exists()
-        
+
         store.delete()
         assert not temp_token_file.exists()
         SecretManager.reset_instance()
@@ -179,11 +176,11 @@ class TestEncryptedTokenStore:
     def test_secure_permissions(self, temp_token_file, monkeypatch):
         monkeypatch.delenv("SECRET_ENCRYPTION_KEY", raising=False)
         SecretManager.reset_instance()
-        
+
         store = EncryptedTokenStore(temp_token_file)
         state = {"access_token": "test_token"}
         store.save(state)
-        
+
         # Check file permissions (should be 0o600)
         stat = temp_token_file.stat()
         assert stat.st_mode & 0o777 == 0o600
@@ -198,15 +195,15 @@ class TestBackwardCompatibility:
         # First save unencrypted
         monkeypatch.delenv("SECRET_ENCRYPTION_KEY", raising=False)
         SecretManager.reset_instance()
-        
+
         store_unencrypted = EncryptedTokenStore(temp_token_file)
         state = {"access_token": "unencrypted_token"}
         store_unencrypted.save(state)
-        
+
         # Now enable encryption and load
         monkeypatch.setenv("SECRET_ENCRYPTION_KEY", encryption_key)
         SecretManager.reset_instance()
-        
+
         store_encrypted = EncryptedTokenStore(temp_token_file)
         loaded = store_encrypted.load()
         assert loaded is not None
@@ -217,11 +214,11 @@ class TestBackwardCompatibility:
         """Should detect and decrypt encrypted files."""
         monkeypatch.setenv("SECRET_ENCRYPTION_KEY", encryption_key)
         SecretManager.reset_instance()
-        
+
         store = EncryptedTokenStore(temp_token_file)
         state = {"access_token": "encrypted_token"}
         store.save(state)
-        
+
         # Verify it's detected as encrypted
         raw_content = temp_token_file.read_text()
         assert store._is_encrypted_format(raw_content) is True

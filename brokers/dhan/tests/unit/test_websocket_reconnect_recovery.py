@@ -39,13 +39,13 @@ class TestDhanWebSocketReconnectRecovery:
         )
         assert not stream.is_connected
 
-    def test_market_feed_instruments_int_conversion(self):
+    def test_market_feed_instruments_keep_string(self):
         feed = DhanMarketFeed(
             client_id="CLIENT",
             access_token="TOKEN",
             instruments=[(1, "2885", 15)],
         )
-        assert feed._instruments == [(1, 2885, 15)]
+        assert feed._instruments == [(1, "2885", 15)]
 
     def test_market_feed_preserves_multiple_instruments(self):
         instruments = [(1, str(i), 15) for i in range(100)]

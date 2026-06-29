@@ -24,6 +24,9 @@ This module centralises the contract:
   :func:`make_payload` — but the contract is documented.
 - :func:`canonical_event_types` returns the full set so tests
   and lint rules can verify no unknown event types are introduced.
+- **P5 Stability Engineering**: Typed event classes provide
+  compile-time safety for critical OMS events, eliminating raw
+  dict access patterns that cause runtime errors.
 
 Migration
 ---------
@@ -32,13 +35,29 @@ continue to pass strings; the bus does not enforce the enum and the
 constants on the enum are the same as the legacy strings. A future
 audit pass can tighten this — for now the goal is to provide a
 single, grep-able source of truth, not to break callers.
+
+P5: Typed Event Classes
+-----------------------
+Critical OMS events now have typed dataclasses that wrap DomainEvent
+with type-safe accessors. These eliminate raw dict payload access:
+
+    # OLD (unsafe):
+    order = event.payload.get("order")  # No type safety!
+
+    # NEW (safe):
+    typed_event = OrderUpdatedEvent.from_domain_event(event)
+    order = typed_event.order  # Type: Order, compile-time checked
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from domain.entities.order import Order
+    from domain.entities.trade import Trade
 
 
 class EventType(str, Enum):
@@ -426,6 +445,183 @@ __all__ = [
     "EVENT_PAYLOADS",
     "EventPayload",
     "EventType",
+    "OrderUpdatedEvent",
+    "TradeAppliedEvent",
+    "TradeFilledEvent",
     "canonical_event_types",
     "make_payload",
 ]
+
+
+# ── P5: Typed Event Classes (Stability Engineering) ─────────────────────
+# These provide compile-time safety for critical OMS events,
+# eliminating raw dict payload access that causes runtime errors.
+
+
+@dataclass(frozen=True)
+class OrderUpdatedEvent:
+    """Typed wrapper for ORDER_UPDATED events.
+
+    P5 Stability Engineering: Provides type-safe access to Order objects
+    in event handlers, eliminating `event.payload.get("order")` pattern.
+
+    Usage:
+        def on_order_update(self, event: DomainEvent) -> None:
+            typed = OrderUpdatedEvent.from_domain_event(event)
+            order = typed.order  # Type: Order, compile-time safe!
+            self.upsert_order(order)
+    """
+
+    order: Order
+    underlying_event: Any  # DomainEvent (avoid circular import)
+
+    @classmethod
+    def from_domain_event(cls, event: Any) -> OrderUpdatedEvent:
+        """Create typed event from DomainEvent.
+
+        Args:
+            event: DomainEvent with payload containing 'order' key
+
+        Returns:
+            Typed OrderUpdatedEvent
+
+        Raises:
+            ValueError: If payload doesn't contain valid Order object
+        """
+        from domain.entities.order import Order
+
+        order = event.payload.get("order")
+        if not isinstance(order, Order):
+            raise ValueError(
+                f"ORDER_UPDATED event must contain Order object in payload, "
+                f"got {type(order).__name__}"
+            )
+        return cls(order=order, underlying_event=event)
+
+    @property
+    def event_type(self) -> str:
+        """Delegate to underlying event."""
+        return self.underlying_event.event_type
+
+    @property
+    def event_id(self) -> str:
+        """Delegate to underlying event."""
+        return self.underlying_event.event_id
+
+    @property
+    def correlation_id(self) -> str | None:
+        """Delegate to underlying event."""
+        return self.underlying_event.correlation_id
+
+
+@dataclass(frozen=True)
+class TradeFilledEvent:
+    """Typed wrapper for TRADE events (broker fill received).
+
+    P5 Stability Engineering: Provides type-safe access to Trade objects
+    in event handlers, eliminating `event.payload.get("trade")` pattern.
+
+    Usage:
+        def on_trade(self, event: DomainEvent) -> None:
+            typed = TradeFilledEvent.from_domain_event(event)
+            trade = typed.trade  # Type: Trade, compile-time safe!
+            self.record_trade(trade)
+    """
+
+    trade: Trade
+    underlying_event: Any  # DomainEvent (avoid circular import)
+
+    @classmethod
+    def from_domain_event(cls, event: Any) -> TradeFilledEvent:
+        """Create typed event from DomainEvent.
+
+        Args:
+            event: DomainEvent with payload containing 'trade' key
+
+        Returns:
+            Typed TradeFilledEvent
+
+        Raises:
+            ValueError: If payload doesn't contain valid Trade object
+        """
+        from domain.entities.trade import Trade
+
+        trade = event.payload.get("trade")
+        if not isinstance(trade, Trade):
+            raise ValueError(
+                f"TRADE event must contain Trade object in payload, "
+                f"got {type(trade).__name__}"
+            )
+        return cls(trade=trade, underlying_event=event)
+
+    @property
+    def event_type(self) -> str:
+        """Delegate to underlying event."""
+        return self.underlying_event.event_type
+
+    @property
+    def event_id(self) -> str:
+        """Delegate to underlying event."""
+        return self.underlying_event.event_id
+
+    @property
+    def correlation_id(self) -> str | None:
+        """Delegate to underlying event."""
+        return self.underlying_event.correlation_id
+
+
+@dataclass(frozen=True)
+class TradeAppliedEvent:
+    """Typed wrapper for TRADE_APPLIED events (OMS accepted trade).
+
+    P5 Stability Engineering: TRADE_APPLIED is the OMS-private downstream
+    of TRADE, published only after idempotency check passes. This typed
+    wrapper ensures PositionManager receives valid Trade objects.
+
+    Usage:
+        def on_trade_applied(self, event: DomainEvent) -> None:
+            typed = TradeAppliedEvent.from_domain_event(event)
+            trade = typed.trade  # Type: Trade, compile-time safe!
+            self._apply_trade(trade)
+    """
+
+    trade: Trade
+    underlying_event: Any  # DomainEvent (avoid circular import)
+
+    @classmethod
+    def from_domain_event(cls, event: Any) -> TradeAppliedEvent:
+        """Create typed event from DomainEvent.
+
+        Args:
+            event: DomainEvent with payload containing 'trade' key
+
+        Returns:
+            Typed TradeAppliedEvent
+
+        Raises:
+            ValueError: If payload doesn't contain valid Trade object
+        """
+        from domain.entities.trade import Trade
+
+        trade = event.payload.get("trade")
+        if not isinstance(trade, Trade):
+            raise ValueError(
+                f"TRADE_APPLIED event must contain Trade object in payload, "
+                f"got {type(trade).__name__}"
+            )
+        return cls(trade=trade, underlying_event=event)
+
+    @property
+    def event_type(self) -> str:
+        """Delegate to underlying event."""
+        return self.underlying_event.event_type
+
+    @property
+    def event_id(self) -> str:
+        """Delegate to underlying event."""
+        return self.underlying_event.event_id
+
+    @property
+    def correlation_id(self) -> str | None:
+        """Delegate to underlying event."""
+        return self.underlying_event.correlation_id

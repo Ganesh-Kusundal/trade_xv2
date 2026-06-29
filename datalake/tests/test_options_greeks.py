@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from datalake.features import rsi, macd, atr, historical_volatility
+from datalake.features import atr, historical_volatility, macd, rsi
 
 
 class TestBlackScholesGreeks:

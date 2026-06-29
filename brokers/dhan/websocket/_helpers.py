@@ -103,10 +103,10 @@ def _to_sdk_instruments(instruments: list[tuple]) -> list[tuple]:
             continue
         exchange, security_id, mode = item
 
-        # Already SDK-format integers — pass through
+        # Already SDK-format — pass through but keep security_id as string
         if isinstance(exchange, int) and isinstance(mode, int):
-            sid_int = int(security_id)
-            sdk_instruments.append((exchange, sid_int, mode))
+            sid_str = str(security_id)
+            sdk_instruments.append((exchange, sid_str, mode))
             continue
 
         # Convert strings to SDK integers
@@ -120,13 +120,13 @@ def _to_sdk_instruments(instruments: list[tuple]) -> list[tuple]:
         if exch_int is None:
             logger.warning("Unknown exchange: %s", exchange)
             continue
-        sid_int = int(security_id)
+        sid_str = str(security_id)
         mode_int = (
             mode_map.get(str(mode).upper(), default_mode)
             if isinstance(mode, str)
             else int(mode)
         )
-        sdk_instruments.append((exch_int, sid_int, mode_int))
+        sdk_instruments.append((exch_int, sid_str, mode_int))
     return sdk_instruments
 
 

@@ -89,11 +89,22 @@ class TestRealDhanWebSocketPayloads:
     def test_transform_depth_full_5_level(self):
         feed = self._make_feed()
         depth_data = [
-            {"price": "2450.00", "quantity": 100, "orders": 5},
-            {"price": "2451.00", "quantity": 80, "orders": 4},
-            {"price": "2449.50", "quantity": 200, "orders": 3},
-            {"price": "2451.50", "quantity": 120, "orders": 2},
-            {"price": "2449.00", "quantity": 150, "orders": 2},
+            {
+                "bid_quantity": 100,
+                "ask_quantity": 50,
+                "bid_orders": 5,
+                "ask_orders": 2,
+                "bid_price": "2450.00",
+                "ask_price": "2451.00",
+            },
+            {
+                "bid_quantity": 80,
+                "ask_quantity": 60,
+                "bid_orders": 4,
+                "ask_orders": 3,
+                "bid_price": "2449.50",
+                "ask_price": "2451.50",
+            },
         ]
         payload = {
             "security_id": "2885",
@@ -103,7 +114,8 @@ class TestRealDhanWebSocketPayloads:
         result = feed._transform_depth(payload)
         assert result["security_id"] == "2885"
         assert result["ltp"] == Decimal("2450.55")
-        assert len(result["depth"]) == 5
+        assert len(result["depth"]["bids"]) == 2
+        assert len(result["depth"]["asks"]) == 2
 
     def test_transform_depth_empty_levels(self):
         feed = self._make_feed()
@@ -113,7 +125,7 @@ class TestRealDhanWebSocketPayloads:
         }
         result = feed._transform_depth(payload)
         assert result["security_id"] == "2885"
-        assert result["depth"] == []
+        assert result["depth"] == {"bids": [], "asks": []}
 
     def test_transform_quote_volume_as_int(self):
         feed = self._make_feed()

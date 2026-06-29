@@ -24,6 +24,7 @@ from domain import (
     OrderType,
     Quote,
 )
+from domain.symbols import make_position_key, normalize_exchange, normalize_symbol
 
 
 @dataclass
@@ -52,8 +53,8 @@ class MockBrokerGateway:
 
         order = Order(
             order_id=order_id,
-            symbol=request.symbol.upper(),
-            exchange=request.exchange.upper(),
+            symbol=normalize_symbol(request.symbol),
+            exchange=normalize_exchange(request.exchange),
             side=request.side,
             order_type=request.order_type,
             quantity=request.quantity,
@@ -97,7 +98,7 @@ class MockBrokerGateway:
     def ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:
         if "ltp" in self._fail_on:
             raise RuntimeError(f"{self.name}: ltp failed")
-        key = f"{symbol.upper()}:{exchange.upper()}"
+        key = make_position_key(symbol, exchange)
         if key in self._ltp_override:
             return self._ltp_override[key]
         return Decimal("100.0")
@@ -151,7 +152,7 @@ class MockBrokerGateway:
 
     def set_ltp(self, symbol: str, exchange: str, price: Decimal) -> None:
         """Override LTP for a symbol."""
-        key = f"{symbol.upper()}:{exchange.upper()}"
+        key = make_position_key(symbol, exchange)
         self._ltp_override[key] = price
 
     def reset(self) -> None:
