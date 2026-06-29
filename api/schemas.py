@@ -15,6 +15,7 @@ Defines typed contracts for:
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -424,20 +425,20 @@ class PositionResponse(BaseModel):
 
     symbol: str
     exchange: str
-    quantity: float
-    average_price: float
-    current_price: float
-    unrealized_pnl: float
-    realized_pnl: float
-    pnl_pct: float
+    quantity: int
+    average_price: Decimal
+    current_price: Decimal
+    unrealized_pnl: Decimal
+    realized_pnl: Decimal
+    pnl_pct: Decimal
 
 
 class PositionListResponse(BaseModel):
     """All positions."""
 
     positions: list[PositionResponse]
-    total_pnl: float
-    total_exposure: float
+    total_pnl: Decimal
+    total_exposure: Decimal
 
 
 class OrderRequest(BaseModel):
@@ -452,9 +453,9 @@ class OrderRequest(BaseModel):
     quantity: int = Field(
         ..., ge=1, le=1000000, description="Order quantity (must be > 0 and <= 1M)"
     )
-    price: float | None = Field(None, ge=0.01, le=1000000, description="Price for LIMIT/SL orders")
-    trigger_price: float | None = Field(
-        None, ge=0.01, le=1000000, description="Trigger price for SL/SL-M orders"
+    price: Decimal | None = Field(None, ge=Decimal("0.01"), le=Decimal("1000000"), description="Price for LIMIT/SL orders")
+    trigger_price: Decimal | None = Field(
+        None, ge=Decimal("0.01"), le=Decimal("1000000"), description="Trigger price for SL/SL-M orders"
     )
     product_type: str = Field("INTRADAY", description="INTRADAY, DELIVERY, MARGIN, CO, BO")
 
@@ -527,10 +528,10 @@ class OrderResponse(BaseModel):
     transaction_type: str
     order_type: str
     quantity: int
-    price: float | None = None
+    price: Decimal | None = None
     status: str
     filled_quantity: int = 0
-    average_price: float | None = None
+    average_price: Decimal | None = None
     timestamp: datetime = Field(default_factory=datetime.now)
 
 
@@ -546,12 +547,12 @@ class Position(BaseModel):
 
     symbol: str
     exchange: str
-    quantity: float
-    average_price: float
-    current_price: float
-    unrealized_pnl: float
-    realized_pnl: float
-    pnl_pct: float
+    quantity: int
+    average_price: Decimal
+    current_price: Decimal
+    unrealized_pnl: Decimal
+    realized_pnl: Decimal
+    pnl_pct: Decimal
 
 
 class PositionsResponse(BaseModel):
@@ -559,8 +560,8 @@ class PositionsResponse(BaseModel):
 
     positions: list[Position]
     count: int
-    total_pnl: float
-    total_pnl_percent: float
+    total_pnl: Decimal
+    total_pnl_percent: Decimal
 
 
 class Holding(BaseModel):
@@ -569,12 +570,12 @@ class Holding(BaseModel):
     symbol: str
     exchange: str
     quantity: int
-    average_price: float
-    current_price: float
-    invested_value: float
-    current_value: float
-    pnl: float
-    pnl_percent: float
+    average_price: Decimal
+    current_price: Decimal
+    invested_value: Decimal
+    current_value: Decimal
+    pnl: Decimal
+    pnl_percent: Decimal
 
 
 class HoldingsResponse(BaseModel):
@@ -582,22 +583,22 @@ class HoldingsResponse(BaseModel):
 
     holdings: list[Holding]
     count: int
-    total_value: float
-    total_invested: float
-    total_pnl: float
+    total_value: Decimal
+    total_invested: Decimal
+    total_pnl: Decimal
 
 
 class PortfolioSummary(BaseModel):
     """Portfolio summary."""
 
-    total_value: float
-    total_invested: float
-    total_pnl: float
-    total_pnl_percent: float
-    realized_pnl: float
-    unrealized_pnl: float
-    margin_used: float
-    margin_available: float
+    total_value: Decimal
+    total_invested: Decimal
+    total_pnl: Decimal
+    total_pnl_percent: Decimal
+    realized_pnl: Decimal
+    unrealized_pnl: Decimal
+    margin_used: Decimal
+    margin_available: Decimal
     positions_count: int
     holdings_count: int
 
@@ -611,7 +612,7 @@ class Trade(BaseModel):
     exchange: str
     transaction_type: str
     quantity: int
-    price: float
+    price: Decimal
     timestamp: datetime
 
 
