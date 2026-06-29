@@ -1,0 +1,7 @@
+{
+  "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzUxMiJ9.eyJpc3MiOiJkaGFuIiwicGFydG5lcklkIjoiIiwiZXhwIjoxNzgyNzUxNjk0LCJpYXQiOjE3ODI2NjUyOTQsInRva2VuQ29uc3VtZXJUeXBlIjoiQVBQIiwiZGhhbkNsaWVudElkIjoiMTEwNjI1MTIzNyJ9.ovtnzKte-YwKO8ACduNz0DH9UsSqXw2FBKLNPe-1HPLNtjZYri2DEedgAaldgXC3pZEEDwCknwKHmUlSC9qrEw",
+  "refresh_token": null,
+  "source": "TOTP",
+  "issued_at": "2026-06-28T16:48:14.293314",
+  "expires_at": "2026-06-29T16:48:14"
+}

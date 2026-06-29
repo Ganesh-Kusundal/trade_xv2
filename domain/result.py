@@ -19,7 +19,7 @@ class ResultMetadata:
     """Metadata attached to every GatewayResult (source, latency)."""
 
     source: str = ""
-    latency_ms: float = 0.0
+    latency_ms: int = 0  # Use int for milliseconds - no floats in timing fields
 
 
 class GatewayResult(Generic[T]):

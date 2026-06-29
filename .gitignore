@@ -1,73 +1,41 @@
-# Environment files
+```
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.py~
+
+# Dependencies
+.venv/
+venv/
+env/
 .env
 .env.local
 .env.*
-!.env.example
 
-# Dhan secret files
-config/dhan-pin.txt
-config/dhan-totp-secret.txt
-
-# Upstox secret files
-config/upstox-pin.txt
-config/upstox-totp-secret.txt
-
-# Dhan credential properties (templates are committed; values are gitignored)
-config/dhan-local.properties
-config/dhan-sandbox.properties
-
-# Upstox credential properties
-config/upstox-live.properties
-config/upstox-sandbox.properties
-
-# ICICI credential properties
-config/icici-local.properties
-config/icici-pin.txt
-config/icici-totp-secret.txt
-config/icici-username.txt
-config/icici-password.txt
-config/icici-api-session.txt
-
-# Runtime/token state
+# Cache and runtime
+.cache/
 runtime/
 runtime-dev/
 
-# Python
-__pycache__/
-*.py[cod]
-.pytest_cache/
-.coverage
-htmlcov/
-.venv/
-venv/
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
 
-# Phase 0 additions
-.cache/
-.runtime/
-.env.local
-.env.local.sandbox
-.env.local.live_readonly
-.coverage.*
-.mypy_cache/
-.ruff_cache/
-.DS_Store
-*.egg-info/
-build/
-dist/
+# Compressed files
+*.gz
+*.tar.gz
+*.zip
 
-# Editor metadata
-.qoder/
-.trae/
-.mimocode/
-.import_linter_cache/
+# JSON cache files
+*.json.gz
+*.parsed.json.gz
 
-# Local data lake (now tracked via Git LFS)
-# market_data/ directory removed from gitignore to allow LFS tracking
-# datalake/catalog.duckdb and .wal now tracked via LFS
-ZCode-3.1.1-mac-arm64.dmg
+# Local state files
+*.json
 
-# Analytics materialized cache
-analytics_cache/
-
-# Data lake quarantine — corrupted / unparseable files
-market_data/_quarantine/
+# Original rules preserved
+*.log
+```

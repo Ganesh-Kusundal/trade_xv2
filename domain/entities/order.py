@@ -168,7 +168,7 @@ class OrderResponse:
     error_code: str = ""
     http_status: int | None = None
     raw_payload: dict[str, Any] | None = None
-    latency_ms: float = 0.0
+    latency_ms: int = 0  # Use int for milliseconds - no floats in timing fields
 
     @classmethod
     def ok(
@@ -178,7 +178,7 @@ class OrderResponse:
         status: OrderStatus = OrderStatus.OPEN,
         raw_payload: dict[str, Any] | None = None,
         http_status: int | None = 200,
-        latency_ms: float = 0.0,
+        latency_ms: int = 0,
     ) -> OrderResponse:
         """Construct a successful response."""
         return cls(
@@ -199,7 +199,7 @@ class OrderResponse:
         error_code: str = "",
         http_status: int | None = None,
         raw_payload: dict[str, Any] | None = None,
-        latency_ms: float = 0.0,
+        latency_ms: int = 0,
         status: OrderStatus = OrderStatus.REJECTED,
     ) -> OrderResponse:
         """Construct a failed response."""

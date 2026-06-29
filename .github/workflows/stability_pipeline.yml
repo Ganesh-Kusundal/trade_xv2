@@ -1,0 +1,111 @@
+name: Trade_XV2 Stability Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  stability-gates:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11"]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov hypothesis archguard
+
+    # PHASE 1: Architecture Enforcement
+    - name: Run Architecture Guard Tests
+      run: |
+        echo "🏗️ Running Architecture Enforcement..."
+        PYTHONPATH=/workspace pytest tests/architecture/test_layer_enforcement.py -v --tb=short
+      continue-on-error: false
+
+    # PHASE 2: Contract Certification
+    - name: Run Broker Contract Tests (Paper Mode)
+      run: |
+        echo "📜 Running Broker Certification Suite..."
+        PYTHONPATH=/workspace pytest tests/contract/test_broker_certification.py -v --broker=paper --tb=short
+      continue-on-error: false
+
+    # PHASE 3: Unit & Integration Tests
+    - name: Run Unit Tests
+      run: |
+        echo "🧪 Running Unit Tests..."
+        PYTHONPATH=/workspace pytest tests/unit -v --cov=domain --cov=application --cov=brokers --tb=short
+      continue-on-error: false
+
+    # PHASE 4: Replay Regression Tests
+    - name: Run Replay Regression Suite
+      run: |
+        echo "🔄 Running Replay-Driven Regression Tests..."
+        PYTHONPATH=/workspace pytest tests/replay/test_regression_suite.py -v --tb=short
+      continue-on-error: false
+
+    # PHASE 5: Chaos Engineering Tests
+    - name: Run Chaos Engineering Tests
+      run: |
+        echo "💥 Running Chaos Engineering Suite..."
+        PYTHONPATH=/workspace pytest tests/chaos -v --tb=short
+      continue-on-error: false
+
+    # PHASE 6: Property-Based Tests
+    - name: Run Property-Based Tests
+      run: |
+        echo "🎲 Running Property-Based Testing..."
+        PYTHONPATH=/workspace pytest tests/property -v --tb=short
+      continue-on-error: false
+
+    # PHASE 7: Code Quality & Coverage
+    - name: Check Test Coverage
+      run: |
+        echo "📊 Checking Coverage Thresholds..."
+        PYTHONPATH=/workspace pytest tests/unit tests/contract tests/chaos tests/property \
+          --cov=domain --cov=application --cov=brokers \
+          --cov-report=term-missing \
+          --cov-fail-under=85
+      continue-on-error: false
+
+    # PHASE 8: Generate Stability Report
+    - name: Generate Stability Scorecard
+      run: |
+        echo "📈 Generating Stability Scorecard..."
+        cat << EOF > stability_report.md
+        # Trade_XV2 Stability Scorecard
+        
+        ## Test Results Summary
+        - Architecture Guards: ✅ PASS
+        - Contract Certification: ✅ PASS
+        - Unit Tests: ✅ PASS
+        - Replay Regression: ✅ PASS
+        - Chaos Engineering: ✅ PASS
+        - Property-Based Tests: ✅ PASS
+        - Coverage (>85%): ✅ PASS
+        
+        ## Verdict
+        **System is STABLE and ready for deployment.**
+        
+        Generated at: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        Commit: ${{ github.sha }}
+        EOF
+        cat stability_report.md
+
+    - name: Upload Stability Report
+      uses: actions/upload-artifact@v4
+      with:
+        name: stability-scorecard
+        path: stability_report.md

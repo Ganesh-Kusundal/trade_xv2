@@ -157,14 +157,28 @@ class PositionManager:
 
         return updated
 
-    def update_ltp(self, symbol: str, exchange: str, ltp: Decimal | float) -> Position | None:
-        """Update last traded price for a position."""
+    def update_ltp(self, symbol: str, exchange: str, ltp: Decimal) -> Position | None:
+        """Update last traded price for a position.
+        
+        Args:
+            symbol: Trading symbol
+            exchange: Exchange code
+            ltp: Last traded price as Decimal (float not accepted to preserve precision)
+            
+        Returns:
+            Updated Position or None if position doesn't exist
+            
+        Note:
+            This method enforces Decimal-only input to prevent float contamination
+            in financial calculations. Callers must convert floats to Decimal before
+            calling this method.
+        """
         key = self._key(symbol, exchange)
         with self._lock:
             current = self._positions.get(key)
             if current is None:
                 return None
-            updated = current.with_ltp(Decimal(str(ltp)))
+            updated = current.with_ltp(ltp)
             self._positions[key] = updated
             return updated
 

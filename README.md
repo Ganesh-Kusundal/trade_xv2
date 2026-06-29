@@ -260,8 +260,6 @@ The architecture mirrors the Java sibling project `Trade_J`:
 | CLI composition | `cli/services/composition.py` | `build_cli_runtime()` |
 | Batch utility | `brokers/common/batch_executor.py` | Shared parallel fetch |
 
-See ADR-006 (exchange resolution) and ADR-007 (OMS-first execution) in `docs/adr/`.
-
 The Python translation uses `@dataclass(slots=True, frozen=True)` for
 domain types, `threading.RLock` for concurrency, and `pydantic` only
 at adapter boundaries (now eliminated in favor of dataclasses).
