@@ -798,7 +798,7 @@ class FeaturePrecomputer:
             """
             conn.execute(copy_sql)
 
-            target_rows = int(self.target_file_mb * 1_000_000 / 1024)
+            int(self.target_file_mb * 1_000_000 / 1024)
 
             return feature_dir
         except Exception:

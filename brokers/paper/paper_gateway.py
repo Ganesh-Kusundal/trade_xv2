@@ -312,9 +312,9 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway):
         validity: str | Validity | None = None,
     ) -> OrderResponse:
         """Modify an open order - delegates to PaperOrders.modify_order.
-        
+
         P-2.1 Critical Fix: Implements modify_order for paper trading gateway.
-        
+
         Args:
             order_id: Order ID to modify
             quantity: New quantity (optional)
@@ -322,7 +322,7 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway):
             order_type: New order type (optional)
             trigger_price: New trigger price (optional)
             validity: New validity (optional)
-            
+
         Returns:
             OrderResponse with modified order details
         """

@@ -23,18 +23,20 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
+from brokers.common.resilience.errors import TradeXV2Error
 from infrastructure.di_scopes import ScopeManager
 
 logger = logging.getLogger(__name__)
 
 
-class CircularDependencyError(Exception):
+class CircularDependencyError(TradeXV2Error):
     """Raised when a circular dependency is detected during resolution."""
 
 
-class ServiceNotFoundError(Exception):
+class ServiceNotFoundError(TradeXV2Error):
     """Raised when resolving a service that is not registered."""
 
 

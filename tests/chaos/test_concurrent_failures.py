@@ -231,7 +231,7 @@ class TestConcurrentStrategyExecutionConflicts:
         # Two strategies placing orders for same symbol
         with ThreadPoolExecutor(max_workers=10) as ex:
             futures = []
-            for i in range(5):
+            for _i in range(5):
                 futures.append(ex.submit(place_order, "RELIANCE", "STRAT-1"))
                 futures.append(ex.submit(place_order, "RELIANCE", "STRAT-2"))
 
@@ -248,7 +248,7 @@ class TestConcurrentStrategyExecutionConflicts:
     def test_position_reconciliation_handles_concurrent_updates(self):
         """Position reconciliation handles concurrent position updates."""
         pm = PositionManager()
-        rm = RiskManager(pm, RiskConfig(), capital_fn=lambda: Decimal("100000"))
+        RiskManager(pm, RiskConfig(), capital_fn=lambda: Decimal("100000"))
 
         errors = []
 
@@ -466,7 +466,7 @@ class TestConcurrentStrategyExecutionConflicts:
         # Multiple strategies subscribing to same symbols
         with ThreadPoolExecutor(max_workers=10) as ex:
             futures = []
-            for i in range(5):
+            for _i in range(5):
                 futures.append(ex.submit(subscribe, "RELIANCE", "NSE"))
                 futures.append(ex.submit(subscribe, "TCS", "NSE"))
 

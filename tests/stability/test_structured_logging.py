@@ -285,8 +285,8 @@ class TestGetLogger:
         import logging.handlers
 
         # Create a string handler to capture output
-        stream = StringIO()
-        handler = logging.handlers.MemoryHandler(capacity=100, flushLevel=logging.ERROR)
+        StringIO()
+        logging.handlers.MemoryHandler(capacity=100, flushLevel=logging.ERROR)
 
         with with_correlation("test-corr-456"):
             logger = get_logger("test.correlation")
@@ -339,7 +339,7 @@ class TestProductionMode:
 
     def test_set_production_mode_json_output(self):
         """Production mode should use JSON formatter."""
-        from infrastructure.logging_config import configure_logging, StructuredFormatter
+        from infrastructure.logging_config import StructuredFormatter, configure_logging
 
         configure_logging(service="test", log_format="json")
 
@@ -350,7 +350,7 @@ class TestProductionMode:
 
     def test_set_production_mode_console_output(self):
         """Development mode should use console formatter."""
-        from infrastructure.logging_config import configure_logging, HumanReadableFormatter
+        from infrastructure.logging_config import HumanReadableFormatter, configure_logging
 
         configure_logging(service="test", log_format="human")
 
@@ -368,7 +368,7 @@ class TestIntegration:
         set_production_mode(True)
 
         with with_correlation("e2e-test-corr"):
-            logger = get_logger("test.integration")
+            get_logger("test.integration")
 
             # Create a log record manually to test
             record = logging.LogRecord(
@@ -397,7 +397,7 @@ class TestIntegration:
 
     def test_logging_without_correlation_context(self):
         """Logging should work even without correlation ID set."""
-        logger = get_logger("test.no_correlation")
+        get_logger("test.no_correlation")
 
         # Should not crash
         record = logging.LogRecord(

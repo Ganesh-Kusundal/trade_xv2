@@ -26,7 +26,7 @@ class TestValidationAudit:
             "event_time": pd.date_range("2024-01-01", periods=5),
             "published_at": pd.date_range("2024-01-01 00:00:01", periods=5),
         })
-        result, audit = validate_candles(df, "TEST", return_audit=True)
+        _result, audit = validate_candles(df, "TEST", return_audit=True)
         assert audit.is_clean
         assert audit.dropped_rows == 0
 
@@ -40,13 +40,13 @@ class TestValidationAudit:
             "event_time": ts,
             "published_at": ts - pd.Timedelta(hours=1),
         })
-        result, audit = validate_candles(df, "TEST", return_audit=True)
+        _result, audit = validate_candles(df, "TEST", return_audit=True)
         assert audit.dropped_rows == 5
         assert any("causality" in i for i in audit.issues)
 
     def test_empty_df_returns_audit(self):
         df = pd.DataFrame()
-        result, audit = validate_candles(df, "TEST", return_audit=True)
+        _result, audit = validate_candles(df, "TEST", return_audit=True)
         assert audit.total_rows == 0
 
 

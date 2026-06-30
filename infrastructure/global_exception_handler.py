@@ -36,8 +36,8 @@ from brokers.common.resilience.errors import (
     TradeXV2Error,
     ValidationError,
 )
-from infrastructure.metrics.registry import metrics_registry
 from infrastructure.correlation import get_current_correlation_id
+from infrastructure.metrics.registry import metrics_registry
 
 logger = logging.getLogger(__name__)
 

@@ -11,10 +11,10 @@ Fakes are:
 
 Usage:
     from tests.fakes import FakeOrderManager, FakeRiskManager
-    
+
     # Instead of:
     # monkeypatch.setattr(order_manager, '_risk_check', lambda: True)
-    
+
     # Use:
     fake_risk = FakeRiskManager(allow_all=True)
     order_manager = OrderManager(risk_manager=fake_risk)

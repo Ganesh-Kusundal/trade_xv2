@@ -13,6 +13,7 @@ Run with: pytest tests/integration/test_dhan_websocket_regression.py -v -s
 
 from __future__ import annotations
 
+import contextlib
 import time
 from decimal import Decimal
 
@@ -37,10 +38,8 @@ def gateway():
         pytest.skip(f"Dhan gateway not available: {result.error}")
     gw = result.gateway
     yield gw
-    try:
+    with contextlib.suppress(Exception):
         gw.close()
-    except Exception:
-        pass
 
 
 def _wait_for_ticks(collector: list, min_count: int = 1, timeout: float = 10.0) -> bool:
@@ -65,7 +64,6 @@ class TestGatewayStream:
     def test_stream_receives_ticks(self, gateway):
         """gateway.stream() must deliver ticks to on_tick callback."""
         ticks: list[Quote] = []
-        errors: list[str] = []
 
         def on_tick(quote: Quote):
             ticks.append(quote)
@@ -73,10 +71,8 @@ class TestGatewayStream:
         try:
             feed = gateway.stream("TCS", "NSE", mode="LTP", on_tick=on_tick)
             received = _wait_for_ticks(ticks, min_count=1, timeout=10)
-            try:
+            with contextlib.suppress(Exception):
                 feed.stop(timeout_seconds=3)
-            except Exception:
-                pass
             assert received, "gateway.stream() must deliver at least 1 tick within 10s"
         except Exception as exc:
             if _is_rate_limited(str(exc)):
@@ -93,10 +89,8 @@ class TestGatewayStream:
         try:
             feed = gateway.stream("TCS", "NSE", mode="LTP", on_tick=on_tick)
             _wait_for_ticks(ticks, min_count=2, timeout=10)
-            try:
+            with contextlib.suppress(Exception):
                 feed.stop(timeout_seconds=3)
-            except Exception:
-                pass
         except Exception as exc:
             if _is_rate_limited(str(exc)):
                 pytest.skip(f"Rate limited by Dhan: {exc}")
@@ -117,10 +111,8 @@ class TestGatewayStream:
         try:
             feed = gateway.stream("TCS", "NSE", mode="LTP", on_tick=on_tick)
             _wait_for_ticks(received_types, min_count=1, timeout=10)
-            try:
+            with contextlib.suppress(Exception):
                 feed.stop(timeout_seconds=3)
-            except Exception:
-                pass
         except Exception as exc:
             if _is_rate_limited(str(exc)):
                 pytest.skip(f"Rate limited by Dhan: {exc}")
@@ -169,12 +161,10 @@ class TestGatewayDepth20:
                 pytest.skip(f"Rate limited by Dhan: {exc}")
             raise
         finally:
-            try:
+            with contextlib.suppress(Exception):
                 feed = gateway._conn.depth_20_feed
                 if feed:
                     feed.stop(timeout_seconds=3)
-            except Exception:
-                pass
 
         assert len(updates) >= 1, "depth_20 WebSocket must deliver at least 1 update"
         for update in updates:
@@ -199,10 +189,8 @@ class TestZeroLTPFiltering:
         try:
             feed = gateway.stream("TCS", "NSE", mode="LTP", on_tick=on_tick)
             _wait_for_ticks(ticks, min_count=2, timeout=10)
-            try:
+            with contextlib.suppress(Exception):
                 feed.stop(timeout_seconds=3)
-            except Exception:
-                pass
         except Exception as exc:
             if _is_rate_limited(str(exc)):
                 pytest.skip(f"Rate limited by Dhan: {exc}")

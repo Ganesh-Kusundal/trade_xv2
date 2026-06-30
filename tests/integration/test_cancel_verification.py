@@ -253,7 +253,7 @@ class TestUpstoxGatewayCancelVerification:
 
     def test_analytics_only_mode_blocks_cancel(self, mock_upstox_gateway):
         """Cancel should be blocked in analytics-only mode."""
-        gw, mock_order_cmd = mock_upstox_gateway
+        gw, _mock_order_cmd = mock_upstox_gateway
         gw._broker.settings.analytics_only = True
 
         cancel_resp = gw.cancel_order("UPSTOX-789")

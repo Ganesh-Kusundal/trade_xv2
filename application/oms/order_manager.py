@@ -17,9 +17,6 @@ Orchestration contract
 
 from __future__ import annotations
 
-from infrastructure.logging_config import get_logger
-from infrastructure.tracing import trace_operation
-
 import threading
 import time
 import uuid
@@ -45,8 +42,10 @@ from infrastructure.event_bus import (
     ProcessedTradeRepository,
     TradeIdKey,
 )
-from infrastructure.observability.event_metrics import EventMetrics
+from infrastructure.logging_config import get_logger
 from infrastructure.metrics import metrics_registry
+from infrastructure.observability.event_metrics import EventMetrics
+from infrastructure.tracing import trace_operation
 
 if TYPE_CHECKING:
     pass

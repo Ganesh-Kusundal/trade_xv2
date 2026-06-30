@@ -21,7 +21,6 @@ from application.oms import PositionManager, RiskConfig, RiskManager
 from brokers.common.api import MarginCalculationError, MarginProvider, MarginResult
 from brokers.common.oms.margin_provider import BrokerMarginProvider
 from domain import Order, OrderStatus, OrderType, ProductType, Side
-from tests.fixtures.domain_helpers import make_order as _make_order_shared
 from domain.exchange_segments import is_derivative_segment
 
 # ── Helpers ────────────────────────────────────────────────────────────────

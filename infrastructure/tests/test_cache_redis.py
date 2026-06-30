@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import asyncio
-import json
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from infrastructure.cache import Cache, MemoryCache
-
 
 # ---------------------------------------------------------------------------
 # Helpers – minimal mock that mimics redis.asyncio.Redis

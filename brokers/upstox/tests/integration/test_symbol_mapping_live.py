@@ -17,7 +17,6 @@ def test_live_bidirectional_mapping(gateway):
     resolver = gateway._broker.instrument_resolver
 
     # Get all instrument definitions
-    all_defs = []
     # Try to get a sample of instruments from the resolver
     # The exact API depends on UpstoxInstrumentResolver implementation
 

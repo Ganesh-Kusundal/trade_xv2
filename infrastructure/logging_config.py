@@ -12,10 +12,10 @@ or API-key pattern. This is a defence-in-depth measure.
 
 Usage:
     from infrastructure.logging_config import configure_logging, get_logger
-    
+
     # Configure at application startup
     configure_logging(service="api", level="INFO")
-    
+
     # Get a structured logger
     logger = get_logger(__name__)
     logger.info("Order placed", extra={"order_id": "123", "symbol": "RELIANCE"})
@@ -31,7 +31,6 @@ import re
 import sys
 from datetime import datetime, timezone
 from typing import Any
-
 
 # Token redaction patterns (REF-29)
 _TOKEN_PATTERNS: tuple[re.Pattern[str], ...] = (
@@ -54,9 +53,9 @@ _SENSITIVE_EXTRA_KEYS: frozenset[str] = frozenset({
 
 class TokenRedactionFilter(logging.Filter):
     """Redact token-like substrings from log records."""
-    
+
     REDACTED = "<REDACTED>"
-    
+
     def filter(self, record: logging.LogRecord) -> bool:
         try:
             msg = record.getMessage()
@@ -120,11 +119,11 @@ class CorrelationFilter(logging.Filter):
 
 class StructuredFormatter(logging.Formatter):
     """JSON-structured log formatter for production use."""
-    
+
     def __init__(self, service: str = "tradexv2") -> None:
         super().__init__()
         self._service = service
-    
+
     def format(self, record: logging.LogRecord) -> str:
         log_entry: dict[str, Any] = {
             "timestamp": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
@@ -158,13 +157,13 @@ class StructuredFormatter(logging.Formatter):
 
 class HumanReadableFormatter(logging.Formatter):
     """Human-readable log formatter for development use."""
-    
+
     COLORS = {
         "DEBUG": "\033[36m", "INFO": "\033[32m", "WARNING": "\033[33m",
         "ERROR": "\033[31m", "CRITICAL": "\033[41m",
     }
     RESET = "\033[0m"
-    
+
     def format(self, record: logging.LogRecord) -> str:
         timestamp = datetime.fromtimestamp(record.created, tz=timezone.utc).strftime("%H:%M:%S.%f")[:-3]
         color = self.COLORS.get(record.levelname, "")
@@ -192,7 +191,7 @@ def configure_logging(
     enable_redaction: bool = True,
 ) -> None:
     """Configure logging for the entire application.
-    
+
     Args:
         service: Service name for log identification.
         level: Log level (DEBUG, INFO, WARNING, ERROR). Defaults to env var
@@ -205,16 +204,16 @@ def configure_logging(
     if level is None:
         level = os.environ.get("XV2_LOG_LEVEL", "INFO")
     level = level.upper()
-    
+
     if log_format is None:
         is_production = os.environ.get("APP_ENV", "").lower() in ("prod", "production")
         log_format = "json" if is_production else "human"
-    
+
     if log_format == "json":
         formatter = StructuredFormatter(service=service)
     else:
         formatter = HumanReadableFormatter()
-    
+
     handler_filters = ["correlation"]
     if enable_redaction:
         handler_filters.insert(0, "token_redaction")
@@ -237,7 +236,7 @@ def configure_logging(
             "formatter": "standard",
             "filters": handler_filters,
         }
-    
+
     filters: dict[str, Any] = {}
     if enable_redaction:
         filters["token_redaction"] = {"()": "infrastructure.logging_config.TokenRedactionFilter"}
@@ -257,9 +256,9 @@ def configure_logging(
             "asyncio": {"level": "WARNING", "handlers": list(handlers.keys())},
         },
     }
-    
+
     logging.config.dictConfig(config)
-    
+
     logger = logging.getLogger(__name__)
     logger.info(
         "Logging configured",
@@ -283,13 +282,13 @@ JSONFormatter = StructuredFormatter
 
 
 __all__ = [
+    "ConsoleFormatter",
+    "CorrelationFilter",
+    "HumanReadableFormatter",
+    "JSONFormatter",
+    "StructuredFormatter",
+    "TokenRedactionFilter",
     "configure_logging",
     "get_logger",
-    "TokenRedactionFilter",
-    "CorrelationFilter",
-    "StructuredFormatter",
-    "HumanReadableFormatter",
-    "ConsoleFormatter",
-    "JSONFormatter",
     "set_production_mode",
 ]

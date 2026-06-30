@@ -6,8 +6,6 @@ Protected by one ``threading.RLock`` and uses immutable ``Position`` values.
 
 from __future__ import annotations
 
-from infrastructure.logging_config import get_logger
-
 import threading
 from collections import deque
 from decimal import Decimal
@@ -17,6 +15,7 @@ from domain.entities import Position, Trade
 from domain.symbols import make_position_key
 from domain.types import POSITION_STATE_TRANSITIONS, PositionState
 from infrastructure.event_bus import DomainEvent, EventBus, EventType, ProcessedTradeRepository
+from infrastructure.logging_config import get_logger
 from infrastructure.observability.event_metrics import EventMetrics
 from infrastructure.state_machine import IllegalTransitionError, StateMachine
 

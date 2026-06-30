@@ -2,22 +2,18 @@
 
 from __future__ import annotations
 
-import json
 import tempfile
 import threading
-import time
 from pathlib import Path
 
 from infrastructure.audit import (
     AuditEvent,
     AuditLogger,
-    AuditStore,
     FileAuditStore,
     MemoryAuditStore,
     audit_logger,
 )
 from infrastructure.correlation import with_correlation
-
 
 # ---------------------------------------------------------------------------
 # AuditEvent creation

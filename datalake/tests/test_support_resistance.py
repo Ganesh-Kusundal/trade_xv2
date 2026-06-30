@@ -30,7 +30,7 @@ class TestFindPivots:
             "low": [90.0, 90.0, 90.0, 90.0, 90.0, 90.0, 90.0],
             "close": [95.0, 95.0, 95.0, 95.0, 95.0, 95.0, 95.0],
         })
-        supports, resistances = _find_pivots(daily, window=2)
+        _supports, resistances = _find_pivots(daily, window=2)
         assert len(resistances) == 1
         assert resistances[0] == (dates[3], 120.0)
 
@@ -43,7 +43,7 @@ class TestFindPivots:
             "low": [80.0, 80.0, 80.0, 60.0, 80.0, 80.0, 80.0],
             "close": [90.0, 90.0, 90.0, 90.0, 90.0, 90.0, 90.0],
         })
-        supports, resistances = _find_pivots(daily, window=2)
+        supports, _resistances = _find_pivots(daily, window=2)
         assert len(supports) == 1
         assert supports[0] == (dates[3], 60.0)
 
@@ -82,7 +82,7 @@ class TestFindPivots:
             "low": [90 + i * 5 for i in range(10)],
             "close": [95 + i * 5 for i in range(10)],
         })
-        supports, resistances = _find_pivots(daily, window=2)
+        supports, _resistances = _find_pivots(daily, window=2)
         # Monotonically increasing → no pivot lows (each low > previous)
         assert len(supports) == 0
 

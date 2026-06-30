@@ -7,7 +7,7 @@ Requirements:
 - Dhan sandbox credentials in .env.local:
   DHAN_SANDBOX_CLIENT_ID=...
   DHAN_SANDBOX_ACCESS_TOKEN=...
-  
+
 - Marked with @pytest.mark.sandbox to skip in regular CI
 
 Usage:

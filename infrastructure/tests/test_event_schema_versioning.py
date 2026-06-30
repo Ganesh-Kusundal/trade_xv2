@@ -2,18 +2,16 @@
 
 from __future__ import annotations
 
-import json
 import time
 from datetime import datetime, timezone
 
 import pytest
 
 from infrastructure.event_bus.event_bus import DomainEvent
+from infrastructure.events.replay import EventReplayStore
 from infrastructure.events.schema import EventSchema, SchemaRegistry
 from infrastructure.events.versioned_event import VersionedEvent
-from infrastructure.events.replay import EventReplayStore
 from infrastructure.observability.event_metrics import EventMetrics
-
 
 # ── Schema versioning tests ────────────────────────────────────────────
 

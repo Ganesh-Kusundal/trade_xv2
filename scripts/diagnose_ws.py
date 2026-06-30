@@ -14,8 +14,8 @@ from __future__ import annotations
 
 import logging
 import sys
-import time
 import threading
+import time
 from decimal import Decimal
 from pathlib import Path
 
@@ -84,7 +84,7 @@ def test_sdk_direct(client_id: str, access_token: str, security_id: str) -> bool
     t.start()
 
     # Wait for ticks
-    for i in range(10):
+    for _i in range(10):
         time.sleep(1)
         if ticks_received:
             log.info("Received %d ticks so far...", len(ticks_received))
@@ -122,7 +122,7 @@ def test_gateway_stream(gw, symbol: str = "TCS", exchange: str = "NSE") -> bool:
     log.info("stream() returned feed=%s, is_connected=%s", type(feed).__name__, feed.is_connected)
 
     # Wait for ticks
-    for i in range(10):
+    for _i in range(10):
         time.sleep(1)
         if ticks:
             log.info("Received %d ticks so far...", len(ticks))
@@ -193,7 +193,7 @@ def test_depth_20_feed(gw, symbol: str = "TCS", exchange: str = "NSE") -> bool:
         return False
 
     # Wait for WebSocket depth updates
-    for i in range(10):
+    for _i in range(10):
         time.sleep(1)
         if depths:
             log.info("Received %d depth updates so far...", len(depths))

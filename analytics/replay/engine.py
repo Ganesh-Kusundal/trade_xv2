@@ -259,7 +259,7 @@ class ReplayEngine:
 
             # Process pending signals from previous bar using this bar's open
             if pending_signals:
-                for sig, sig_bar in pending_signals:
+                for sig, _sig_bar in pending_signals:
                     self._process_signal(sig, bar, session, config, fill_price=bar.open)
                     if config.publish_events and self._event_bus is not None:
                         self._publish_signal(sig)
@@ -374,7 +374,7 @@ class ReplayEngine:
 
         # Process any remaining pending signals (next-bar-open with no next bar)
         if pending_signals:
-            for sig, sig_bar in pending_signals:
+            for sig, _sig_bar in pending_signals:
                 self._process_signal(sig, bar, session, config, fill_price=bar.open)
                 if config.publish_events and self._event_bus is not None:
                     self._publish_signal(sig)

@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 def _get_execution_composer(broker_service: BrokerService) -> ExecutionComposer:
     """Lazy-load ExecutionComposer via CLI helpers.
-    
+
     Uses lazy import to avoid circular dependency between cli.commands
     and cli.composer_helpers.
     """
@@ -42,7 +42,7 @@ def _get_execution_composer(broker_service: BrokerService) -> ExecutionComposer:
 
 def _run_async(coro):
     """Run async coroutine from sync CLI context.
-    
+
     Uses async_compat to handle both sync and async contexts safely.
     """
     from brokers.common.async_compat import run_async_compat

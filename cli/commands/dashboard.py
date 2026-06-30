@@ -28,7 +28,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
         if not dhan and not upstox:
             console.print("[red]No broker gateways available[/red]")
             return
-        gw = SimpleNamespace(dhan=dhan, upstox=upstox)
+        SimpleNamespace(dhan=dhan, upstox=upstox)
         # Primary gateway for health checks (dhan has broadest coverage)
         primary = dhan or upstox
     except Exception as e:

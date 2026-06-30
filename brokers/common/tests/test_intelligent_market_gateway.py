@@ -86,7 +86,7 @@ class TestIntelligentMarketDataGateway:
 
     def test_simple_mode_uses_primary_broker(self, mock_infrastructure):
         """Verify direct call when smart=False."""
-        infra, mock_gateway = mock_infrastructure
+        infra, _mock_gateway = mock_infrastructure
         gw = IntelligentMarketDataGateway(infra, smart=False, primary_broker="dhan")
 
         # Call ltp
@@ -107,7 +107,7 @@ class TestIntelligentMarketDataGateway:
         infra, mock_gateway = mock_infrastructure
         gw = IntelligentMarketDataGateway(infra, smart=True, primary_broker="dhan")
 
-        result = gw.quote("RELIANCE", "NSE")
+        gw.quote("RELIANCE", "NSE")
 
         infra.router.route.assert_called_once()
         infra.quota.acquire.assert_called_once()
@@ -118,7 +118,7 @@ class TestIntelligentMarketDataGateway:
         infra, mock_gateway = mock_infrastructure
         gw = IntelligentMarketDataGateway(infra, smart=True, primary_broker="dhan")
 
-        result = gw.depth("RELIANCE", "NSE")
+        gw.depth("RELIANCE", "NSE")
 
         infra.router.route.assert_called_once()
         infra.quota.acquire.assert_called_once()
@@ -129,7 +129,7 @@ class TestIntelligentMarketDataGateway:
         infra, mock_gateway = mock_infrastructure
         gw = IntelligentMarketDataGateway(infra, smart=True, primary_broker="dhan")
 
-        result = gw.option_chain("NIFTY", "NFO")
+        gw.option_chain("NIFTY", "NFO")
 
         infra.router.route.assert_called_once()
         infra.quota.acquire.assert_called_once()
@@ -140,7 +140,7 @@ class TestIntelligentMarketDataGateway:
         infra, mock_gateway = mock_infrastructure
         gw = IntelligentMarketDataGateway(infra, smart=True, primary_broker="dhan")
 
-        result = gw.future_chain("NIFTY", "NFO")
+        gw.future_chain("NIFTY", "NFO")
 
         infra.router.route.assert_called_once()
         infra.quota.acquire.assert_called_once()
@@ -152,7 +152,7 @@ class TestIntelligentMarketDataGateway:
         gw = IntelligentMarketDataGateway(infra, smart=True, primary_broker="dhan")
 
         symbols = ["RELIANCE", "TCS"]
-        result = gw.ltp_batch(symbols, "NSE")
+        gw.ltp_batch(symbols, "NSE")
 
         # Small batches should use single broker
         infra.router.route.assert_called_once()
@@ -160,14 +160,14 @@ class TestIntelligentMarketDataGateway:
 
     def test_smart_mode_ltp_batch_large(self, mock_infrastructure):
         """Verify smart mode for large batch splits across brokers."""
-        infra, mock_gateway = mock_infrastructure
+        infra, _mock_gateway = mock_infrastructure
         # Add multiple brokers
         infra.registry.list_brokers.return_value = ["dhan", "upstox"]
 
         gw = IntelligentMarketDataGateway(infra, smart=True, primary_broker="dhan")
 
         symbols = ["RELIANCE", "TCS", "INFY", "HDFCBANK", "ICICIBANK", "SBIN"]
-        result = gw.ltp_batch(symbols, "NSE")
+        gw.ltp_batch(symbols, "NSE")
 
         # Large batches should split across brokers
         assert infra.quota.acquire.call_count >= 1
@@ -178,14 +178,14 @@ class TestIntelligentMarketDataGateway:
         gw = IntelligentMarketDataGateway(infra, smart=False, primary_broker="dhan")
 
         symbols = ["RELIANCE", "TCS"]
-        result = gw.ltp_batch(symbols, "NSE")
+        gw.ltp_batch(symbols, "NSE")
 
         infra.router.route.assert_not_called()
         mock_gateway.ltp_batch.assert_called_once_with(symbols, "NSE")
 
     def test_smart_mode_history_uses_coordinator(self, mock_infrastructure):
         """Verify HistoricalDataCoordinator is used when smart=True."""
-        infra, mock_gateway = mock_infrastructure
+        infra, _mock_gateway = mock_infrastructure
         gw = IntelligentMarketDataGateway(infra, smart=True, primary_broker="dhan")
 
         # Mock historical coordinator
@@ -194,7 +194,7 @@ class TestIntelligentMarketDataGateway:
         mock_ledger = Mock()
         infra.historical.fetch.return_value = (mock_series, mock_ledger)
 
-        result = gw.history("RELIANCE", "NSE", "1D", 90)
+        gw.history("RELIANCE", "NSE", "1D", 90)
 
         # Should use historical coordinator
         infra.historical.fetch.assert_called_once()
@@ -205,7 +205,7 @@ class TestIntelligentMarketDataGateway:
         infra, mock_gateway = mock_infrastructure
         gw = IntelligentMarketDataGateway(infra, smart=False, primary_broker="dhan")
 
-        result = gw.history("RELIANCE", "NSE", "1D", 90)
+        gw.history("RELIANCE", "NSE", "1D", 90)
 
         infra.historical.fetch.assert_not_called()
         mock_gateway.history.assert_called_once()

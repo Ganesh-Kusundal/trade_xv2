@@ -137,7 +137,7 @@ class TestFeatureFlagDefinitions:
             assert flag_name in FeatureFlags.FLAG_DEFINITIONS
 
     def test_definition_structure(self):
-        for flag_name, definition in FeatureFlags.FLAG_DEFINITIONS.items():
+        for _flag_name, definition in FeatureFlags.FLAG_DEFINITIONS.items():
             # FlagDefinition dataclass or dict
             if hasattr(definition, 'default'):
                 assert definition.default is False
@@ -158,7 +158,7 @@ class TestFeatureFlagDefinitions:
                 assert flag_name in definition["env_var"]
 
     def test_description_not_empty(self):
-        for flag_name, definition in FeatureFlags.FLAG_DEFINITIONS.items():
+        for _flag_name, definition in FeatureFlags.FLAG_DEFINITIONS.items():
             if hasattr(definition, 'description'):
                 assert len(definition.description) > 0
             else:

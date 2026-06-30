@@ -177,7 +177,7 @@ class MarketConsoleWidget(Static):
                 atm_strike_val = float(atm_strike['strike'])
 
                 all_strikes = sorted([float(s['strike']) for s in strikes])
-                median_strike = float(opt_chain.get('spot', 0))
+                float(opt_chain.get('spot', 0))
 
                 # Show 5 strikes around ATM
                 idx = next((i for i, s in enumerate(all_strikes) if abs(s - atm_strike_val) < 0.01), len(all_strikes) // 2)

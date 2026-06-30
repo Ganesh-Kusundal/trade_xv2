@@ -44,7 +44,7 @@ import hashlib
 import logging
 import os
 import threading
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -226,7 +226,7 @@ class FeatureFlags:
             return False
 
         # Deterministic hash for user
-        hash_input = f"{flag_name}:{user_id}".encode("utf-8")
+        hash_input = f"{flag_name}:{user_id}".encode()
         hash_hex = hashlib.sha256(hash_input).hexdigest()
         # Use first 8 hex chars (32 bits) for integer conversion
         hash_int = int(hash_hex[:8], 16)

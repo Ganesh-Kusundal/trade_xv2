@@ -23,7 +23,6 @@ Usage::
 
 from __future__ import annotations
 
-from brokers.common.resilience.errors import TradeXV2Error
 import json
 import logging
 import os
@@ -32,6 +31,8 @@ from pathlib import Path
 from typing import Any
 
 from cryptography.fernet import Fernet, InvalidToken
+
+from brokers.common.resilience.errors import TradeXV2Error
 
 logger = logging.getLogger(__name__)
 

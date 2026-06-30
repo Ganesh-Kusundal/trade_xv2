@@ -340,11 +340,11 @@ class PaperOrders:
         validity: Validity | None = None,
     ) -> Order:
         """Modify an open order - simulates order modification.
-        
+
         P-2.1 Critical Fix: Implements modify_order for paper trading.
         Only allows modification if order is in OPEN status.
         Changes are applied to the order and a new modified order is created.
-        
+
         Args:
             order_id: Order ID to modify
             quantity: New quantity (optional)
@@ -352,10 +352,10 @@ class PaperOrders:
             order_type: New order type (optional)
             trigger_price: New trigger price for SL orders (optional)
             validity: New validity (optional)
-            
+
         Returns:
             Modified Order with updated fields
-            
+
         Raises:
             ValueError: If order not found or not in OPEN status
         """

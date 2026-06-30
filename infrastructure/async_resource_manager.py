@@ -26,7 +26,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any
 
-from infrastructure.health import HealthResult, HealthStatus, HealthRegistry
+from infrastructure.health import HealthRegistry, HealthResult, HealthStatus
 
 logger = logging.getLogger(__name__)
 

@@ -29,12 +29,12 @@ from infrastructure.event_bus import DomainEvent
 @dataclass
 class FakeRiskManager(IRiskManager):
     """Fake risk manager with configurable behavior.
-    
+
     Instead of monkeypatching risk checks, inject this fake:
-    
+
         # BEFORE:
         monkeypatch.setattr(order_manager, '_risk_manager', MagicMock())
-        
+
         # AFTER:
         fake_risk = FakeRiskManager(allow_all=True)
         order_manager = OrderManager(risk_manager=fake_risk)
@@ -51,7 +51,7 @@ class FakeRiskManager(IRiskManager):
 
     def check_order(self, order: Order) -> Any:
         """Simulate risk check result.
-        
+
         Returns a mock RiskResult with .allowed attribute.
         """
         from types import SimpleNamespace
@@ -68,12 +68,12 @@ class FakeRiskManager(IRiskManager):
 @dataclass
 class FakePositionManager(IPositionManager):
     """Fake position manager that tracks trade applications.
-    
+
     Instead of mocking position updates, use this observable fake:
-    
+
         # BEFORE:
         monkeypatch.setattr(position_manager, 'on_trade_applied', MagicMock())
-        
+
         # AFTER:
         fake_positions = FakePositionManager()
         # ... use in test ...
@@ -94,14 +94,14 @@ class FakePositionManager(IPositionManager):
 @dataclass
 class FakeOrderManager(IOrderManager):
     """Fake order manager that tracks order operations.
-    
+
     Provides a simple, deterministic order management implementation
     for testing without real broker dependencies.
-    
+
         # BEFORE:
         mock_om = MagicMock()
         mock_om.place_order.return_value = OrderResult(success=True)
-        
+
         # AFTER:
         fake_om = FakeOrderManager()
         result = fake_om.place_order(command)
@@ -166,13 +166,13 @@ class FakeOrderManager(IOrderManager):
 @dataclass
 class FakeReconciliationService(IReconciliationService):
     """Fake reconciliation service with configurable drift behavior.
-    
+
     Instead of using MagicMock for reconciliation:
-    
+
         # BEFORE:
         mock_recon = MagicMock()
         mock_recon.reconcile.return_value = MagicMock(has_drift=False)
-        
+
         # AFTER:
         fake_recon = FakeReconciliationService(has_drift=False)
         report = fake_recon.reconcile()
@@ -220,12 +220,12 @@ class FakeReconciliationService(IReconciliationService):
 @dataclass
 class FakeExecutionAdapter(IExecutionAdapter):
     """Fake execution adapter for paper/replay mode testing.
-    
+
     Simulates order execution with configurable fill behavior.
-    
+
         # BEFORE:
         monkeypatch.setattr(adapter, 'place_order', MagicMock())
-        
+
         # AFTER:
         fake_adapter = FakeExecutionAdapter(auto_fill=True)
         result = fake_adapter.place_order(command)
@@ -273,13 +273,13 @@ class FakeExecutionAdapter(IExecutionAdapter):
 @dataclass
 class FakeBrokerGateway(IBrokerGateway):
     """Fake broker gateway for testing order operations.
-    
+
     Simulates broker interactions without real network calls.
-    
+
         # BEFORE:
         mock_gateway = MagicMock()
         mock_gateway.cancel_order.return_value = OrderResult(success=True)
-        
+
         # AFTER:
         fake_gateway = FakeBrokerGateway()
         result = fake_gateway.cancel_order("ORD-001")

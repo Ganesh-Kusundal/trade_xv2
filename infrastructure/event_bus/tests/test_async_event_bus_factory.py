@@ -14,7 +14,7 @@ def test_factory_returns_event_bus():
 
 def test_factory_respects_parameters():
     """Factory must accept and record parameters."""
-    event_bus, config = AsyncEventBusFactory.create_from_config(
+    _event_bus, config = AsyncEventBusFactory.create_from_config(
         force_async=True, maxsize=5000,
     )
     assert config["force_async"] is True
@@ -51,7 +51,7 @@ def test_factory_returns_tuple():
 
 def test_factory_config_contains_metadata():
     """Factory config must contain useful metadata."""
-    event_bus, config = AsyncEventBusFactory.create_from_config(
+    _event_bus, config = AsyncEventBusFactory.create_from_config(
         force_async=True, maxsize=3000,
     )
     assert "created_by" in config

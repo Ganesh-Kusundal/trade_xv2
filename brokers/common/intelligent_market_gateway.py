@@ -200,7 +200,7 @@ class IntelligentMarketDataGateway(MarketDataGateway):
                     from_date=start,
                     to_date=end,
                 )
-                series, ledger = self._infra.historical.fetch(query)
+                series, _ledger = self._infra.historical.fetch(query)
                 return series.to_dataframe()
             except Exception as exc:
                 logger.warning(

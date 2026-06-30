@@ -324,8 +324,8 @@ class HttpObservabilityServer(ManagedService):
         # Check HealthRegistry (FastAPI /health checks)
         registry_not_ready: list[tuple[str, str]] = {}
         try:
+
             from infrastructure.health import health_registry
-            import asyncio as _aio
 
             results = await health_registry.run_all()
             for name, result in results.items():

@@ -22,12 +22,13 @@ under load" defect; this guard closes that pattern at the boundary.
 
 from __future__ import annotations
 
-from brokers.common.resilience.errors import TradeXV2Error
 import logging
 import os
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
+
+from brokers.common.resilience.errors import TradeXV2Error
 
 logger = logging.getLogger(__name__)
 

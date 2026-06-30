@@ -23,8 +23,7 @@ import json
 import threading
 import uuid
 from abc import ABC, abstractmethod
-from collections import Counter
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -169,9 +168,8 @@ class FileAuditStore(AuditStore):
 
     def append(self, event: AuditEvent) -> None:
         line = json.dumps(event.to_dict(), ensure_ascii=False, default=str) + "\n"
-        with self._write_lock:
-            with self._file_path.open("a", encoding="utf-8") as f:
-                f.write(line)
+        with self._write_lock, self._file_path.open("a", encoding="utf-8") as f:
+            f.write(line)
 
     def _read_all(self) -> list[AuditEvent]:
         if not self._file_path.exists():

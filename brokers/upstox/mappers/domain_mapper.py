@@ -499,7 +499,7 @@ class UpstoxDomainMapper:
         depth = data.get("depth")
         if depth is None:
             # Try to find depth in nested keys
-            for key, value in data.items():
+            for _key, value in data.items():
                 if isinstance(value, dict) and "depth" in value:
                     depth = value.get("depth", {})
                     break

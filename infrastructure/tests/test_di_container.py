@@ -11,11 +11,10 @@ Tests cover:
 """
 
 import threading
-import time
 
 import pytest
 
-from infrastructure.di import CircularDependencyError, Container, ServiceNotFoundError, container
+from infrastructure.di import CircularDependencyError, ServiceNotFoundError, container
 from infrastructure.di_scopes import NoActiveRequestScope, request_scope
 
 
@@ -143,10 +142,10 @@ class TestContainerRequestScope:
         container.request_scoped_svc = None
         container.register("nested_svc", object, scope="request")
 
-        with request_scope() as outer:
+        with request_scope():
             outer_result = container.resolve("nested_svc")
 
-            with request_scope() as inner:
+            with request_scope():
                 inner_result = container.resolve("nested_svc")
 
                 # Inner scope has its own instance

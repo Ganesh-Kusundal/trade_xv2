@@ -170,7 +170,7 @@ class TestEncryptedTokenStore:
 
     def test_creates_parent_directory(self, tmp_path):
         nested_path = tmp_path / "nested" / "dir" / "token.json"
-        store = EncryptedTokenStore(nested_path)
+        EncryptedTokenStore(nested_path)
         assert nested_path.parent.exists()
 
     def test_secure_permissions(self, temp_token_file, monkeypatch):

@@ -334,7 +334,7 @@ class TestDisconnectDuringMarketDataStream:
     def test_concurrent_websocket_disconnect_and_reconnect(self):
         """Multiple websocket feeds disconnect and reconnect independently."""
         feeds = []
-        for i in range(3):
+        for _i in range(3):
             feed = MagicMock()
             feed.is_connected = True
             feed.reconnect_count = 0

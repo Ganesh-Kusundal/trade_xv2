@@ -135,7 +135,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         Returns:
             Last traded price as Decimal
         """
-        key = self._resolve_instrument_key(symbol, exchange)
+        self._resolve_instrument_key(symbol, exchange)
         return self._market_data.ltp(symbol, exchange)
 
     def quote(self, symbol: str, exchange: str = "NSE") -> Quote:

@@ -12,10 +12,10 @@ from dotenv import load_dotenv
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from infrastructure.logging_config import configure_logging
 from brokers.dhan.factory import BrokerFactory
 from infrastructure.event_bus import EventBus
 from infrastructure.lifecycle import LifecycleManager
+from infrastructure.logging_config import configure_logging
 
 configure_logging()
 logger = logging.getLogger(__name__)

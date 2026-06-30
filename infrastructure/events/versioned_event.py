@@ -6,11 +6,11 @@ serialize/deserialize with automatic migration support.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any
 import json
 import uuid
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from typing import Any
 
 from infrastructure.event_bus.event_bus import DomainEvent
 from infrastructure.events.schema import SchemaRegistry

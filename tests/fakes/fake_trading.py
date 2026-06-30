@@ -10,13 +10,13 @@ from application.oms.protocols import ITradingOrchestrator
 @dataclass
 class FakeTradingOrchestrator(ITradingOrchestrator):
     """Fake trading orchestrator for lifecycle testing.
-    
+
     Instead of mocking the orchestrator:
-    
+
         # BEFORE:
         mock_orch = MagicMock()
         mock_orch.name = "test_orchestrator"
-        
+
         # AFTER:
         fake_orch = FakeTradingOrchestrator()
         fake_orch.start()

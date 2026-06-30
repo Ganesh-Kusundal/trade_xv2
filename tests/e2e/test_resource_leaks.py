@@ -23,7 +23,7 @@ class TestResourceLeaks:
 
         from application.oms.persistence.sqlite_order_store import SqliteOrderStore
 
-        for i in range(50):
+        for _i in range(50):
             try:
                 store = SqliteOrderStore(":memory:")
                 store._acquire_writer_lock()

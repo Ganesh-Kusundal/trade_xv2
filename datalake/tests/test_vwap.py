@@ -81,7 +81,7 @@ class TestDailyVwap:
         assert "vwap_daily" in result.columns
 
         day1 = result[result["timestamp"].dt.date == pd.Timestamp("2024-01-15").date()]
-        day2 = result[result["timestamp"].dt.date == pd.Timestamp("2024-01-16").date()]
+        result[result["timestamp"].dt.date == pd.Timestamp("2024-01-16").date()]
 
         assert day1["vwap_daily"].iloc[0] == pytest.approx(
             day1["vwap_daily"].iloc[-1], rel=0.1

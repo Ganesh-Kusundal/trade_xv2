@@ -18,9 +18,9 @@ from api.schemas import (
     Trade,
     TradesResponse,
 )
-from infrastructure.tracing import trace_operation
 from domain import OrderStatus, OrderType, ProductType, Side
 from domain.requests import OrderRequest as DomainOrderRequest
+from infrastructure.tracing import trace_operation
 
 logger = logging.getLogger(__name__)
 
@@ -320,7 +320,7 @@ async def modify_order(
     Uses multi-broker routing and quota management.
     """
     try:
-        side = Side(req.transaction_type.upper())
+        Side(req.transaction_type.upper())
         order_type = OrderType(req.order_type.upper())
         product_type = (
             ProductType(req.product_type.upper()) if req.product_type else ProductType.INTRADAY

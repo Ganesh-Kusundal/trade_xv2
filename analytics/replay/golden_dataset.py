@@ -6,7 +6,7 @@ and compare new runs against expected outputs to detect behavioral drift.
 Usage:
     # Save golden dataset
     python -m analytics.replay.golden_dataset save --symbol NIFTY --date 2026-05-12
-    
+
     # Run regression test
     pytest tests/regression/test_golden_dataset.py
 """
@@ -29,7 +29,7 @@ def save_golden_dataset(
     metadata: dict[str, Any] | None = None,
 ) -> Path:
     """Save replay result as golden dataset.
-    
+
     Parameters
     ----------
     symbol:
@@ -40,7 +40,7 @@ def save_golden_dataset(
         ReplayResult from completed replay session
     metadata:
         Optional metadata (broker used, strategy config, etc.)
-    
+
     Returns
     -------
     Path to saved dataset directory
@@ -73,16 +73,16 @@ def save_golden_dataset(
 
 def load_expected(dataset_path: Path) -> dict[str, Any]:
     """Load expected outputs from golden dataset.
-    
+
     Parameters
     ----------
     dataset_path:
         Path to golden dataset directory
-    
+
     Returns
     -------
     Dictionary with expected values
-    
+
     Raises
     ------
     FileNotFoundError:
@@ -96,14 +96,14 @@ def load_expected(dataset_path: Path) -> dict[str, Any]:
 
 def compare_results(actual: ReplayResult, expected: dict[str, Any]) -> list[str]:
     """Compare actual results against expected. Returns list of mismatches.
-    
+
     Parameters
     ----------
     actual:
         Actual ReplayResult from replay session
     expected:
         Expected values from golden dataset
-    
+
     Returns
     -------
     List of mismatch descriptions (empty if all match)

@@ -162,7 +162,7 @@ class TestMemoryUsage:
             client.get("/api/v1/health")
 
         # Get memory snapshot
-        current, peak = tracemalloc.get_traced_memory()
+        _current, peak = tracemalloc.get_traced_memory()
         tracemalloc.stop()
 
         # Peak memory should be reasonable (< 100MB for test)

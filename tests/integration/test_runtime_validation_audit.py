@@ -80,4 +80,4 @@ def test_runtime_factory_bootstrap_and_orchestrator_event_flow(mock_broker_servi
 
 def test_runtime_factory_exposes_real_oms_components(mock_broker_service) -> None:
     factory = TradingRuntimeFactory(skip_parity_gate=True)
-    runtime = factory.build_from_broker_service(mock_broker_service)
+    factory.build_from_broker_service(mock_broker_service)

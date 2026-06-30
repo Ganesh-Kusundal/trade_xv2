@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from infrastructure.async_event_bus import CRITICAL_EVENT_TYPES, AsyncEventBus
 from infrastructure.event_bus.event_bus import DomainEvent, EventBus
 

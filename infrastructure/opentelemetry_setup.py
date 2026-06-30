@@ -23,7 +23,8 @@ logger = logging.getLogger(__name__)
 
 try:
     from opentelemetry import trace as _otel_trace
-    from opentelemetry.sdk.resources import SERVICE_NAME as _SERVICE_NAME, Resource
+    from opentelemetry.sdk.resources import SERVICE_NAME as _SERVICE_NAME
+    from opentelemetry.sdk.resources import Resource
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import BatchSpanProcessor
 

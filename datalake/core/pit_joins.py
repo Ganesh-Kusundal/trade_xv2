@@ -90,7 +90,6 @@ def as_of_join(
     else:
         all_cols = left_cols
 
-    right_event_time = f"{right_alias}.{as_of_column}"
     right_published_at_col = f"{right_alias}.{right_published_at}"
 
     join_conditions = []

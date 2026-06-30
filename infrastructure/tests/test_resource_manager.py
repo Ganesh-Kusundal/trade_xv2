@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import threading
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -52,9 +51,8 @@ class TestResourceManager:
 
     def test_acquire_nonexistent_raises(self):
         rm = ResourceManager()
-        with pytest.raises(KeyError, match="not registered"):
-            with rm.acquire("nonexistent"):
-                pass
+        with pytest.raises(KeyError, match="not registered"), rm.acquire("nonexistent"):
+            pass
 
     def test_cleanup_on_shutdown(self):
         rm = ResourceManager()

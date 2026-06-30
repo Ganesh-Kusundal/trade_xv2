@@ -15,7 +15,6 @@ from __future__ import annotations
 import contextlib
 import logging
 from collections.abc import Callable
-from datetime import datetime
 
 from brokers.common.errors import RoutingError
 from brokers.common.models import (

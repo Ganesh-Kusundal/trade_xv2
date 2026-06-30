@@ -23,13 +23,13 @@ Usage::
 
 from __future__ import annotations
 
-from brokers.common.resilience.errors import TradeXV2Error
-
 import logging
 import os
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
+
+from brokers.common.resilience.errors import TradeXV2Error
 
 logger = logging.getLogger(__name__)
 

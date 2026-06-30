@@ -6,7 +6,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Tests for setup_telemetry
 # ---------------------------------------------------------------------------
@@ -68,9 +67,8 @@ class TestSetupTelemetry:
 
     def test_get_tracer_returns_noop_when_unavailable(self):
         """When OTel is not active, get_tracer returns a no-op module/object."""
-        from infrastructure.opentelemetry_setup import get_tracer
-
         import infrastructure.opentelemetry_setup as ots
+        from infrastructure.opentelemetry_setup import get_tracer
 
         original = ots.otel_available
         try:
@@ -324,9 +322,8 @@ class TestTraceContext:
         """TraceContext should log on exception and re-raise."""
         from infrastructure.tracing import TraceContext
 
-        with pytest.raises(RuntimeError, match="test-error"):
-            with TraceContext("failing-block"):
-                raise RuntimeError("test-error")
+        with pytest.raises(RuntimeError, match="test-error"), TraceContext("failing-block"):
+            raise RuntimeError("test-error")
 
 
 # ---------------------------------------------------------------------------

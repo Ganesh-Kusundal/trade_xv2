@@ -10,10 +10,10 @@ from __future__ import annotations
 import json
 import threading
 import time
-from dataclasses import dataclass, field
+from collections.abc import Iterator
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterator
 
 from infrastructure.event_bus.event_bus import DomainEvent
 from infrastructure.observability.event_metrics import EventMetrics

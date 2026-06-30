@@ -37,7 +37,7 @@ class UpstoxMarketDataAdapter(MarketDataProvider):
 
     def quote(self, symbol: str, exchange: str = "NSE") -> Quote:
         """Fetch full quote with OHLCV for an instrument.
-        
+
         P-2.1: Fixed - renamed from get_quote() to match ABC.
         """
         instrument_key = f"{_segment_wire(exchange)}|{symbol}"
@@ -46,7 +46,7 @@ class UpstoxMarketDataAdapter(MarketDataProvider):
 
     def ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:
         """Fetch last traded price.
-        
+
         P-2.1: Fixed - new method required by ABC.
         """
         instrument_key = f"{_segment_wire(exchange)}|{symbol}"
@@ -56,7 +56,7 @@ class UpstoxMarketDataAdapter(MarketDataProvider):
 
     def depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
         """Fetch order book depth.
-        
+
         P-2.1: Fixed - renamed from get_depth() to match ABC.
         """
         instrument_key = f"{_segment_wire(exchange)}|{symbol}"
@@ -73,7 +73,7 @@ class UpstoxMarketDataAdapter(MarketDataProvider):
         to_date: str | None = None,
     ) -> pd.DataFrame:
         """Fetch historical candle data.
-        
+
         P-2.1: Fixed - renamed from get_historical_*() to match ABC.
         Consolidates daily and intraday into single method.
         """

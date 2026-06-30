@@ -10,7 +10,6 @@ import importlib
 
 import pytest
 
-
 MODULES = [
     "infrastructure.logging_config",
     "infrastructure.metrics",

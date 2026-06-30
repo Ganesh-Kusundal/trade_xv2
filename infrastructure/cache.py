@@ -14,13 +14,13 @@ Usage:
 
 from __future__ import annotations
 
-import asyncio
 import functools
 import json
 import threading
 import time
 from abc import ABC, abstractmethod
-from typing import Any, Callable, TypeVar
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -34,23 +34,23 @@ _cache_size = metrics_registry.gauge("cache_size", "Current number of entries in
 
 class Cache(ABC):
     """Abstract cache interface."""
-    
+
     @abstractmethod
     def get(self, key: str) -> Any | None:
         ...
-    
+
     @abstractmethod
     def set(self, key: str, value: Any, ttl: int | None = None) -> None:
         ...
-    
+
     @abstractmethod
     def delete(self, key: str) -> None:
         ...
-    
+
     @abstractmethod
     def clear(self) -> None:
         ...
-    
+
     @abstractmethod
     def has(self, key: str) -> bool:
         ...
@@ -58,12 +58,12 @@ class Cache(ABC):
 
 class MemoryCache(Cache):
     """Thread-safe in-memory cache implementation."""
-    
+
     def __init__(self, default_ttl: int = 300) -> None:
         self._default_ttl = default_ttl
         self._store: dict[str, tuple[Any, float]] = {}
         self._lock = threading.RLock()
-    
+
     def get(self, key: str) -> Any | None:
         with self._lock:
             if key not in self._store:
@@ -95,10 +95,10 @@ class MemoryCache(Cache):
         with self._lock:
             self._store.clear()
             _cache_size.set(0)
-    
+
     def has(self, key: str) -> bool:
         return self.get(key) is not None
-    
+
     def snapshot(self) -> dict[str, Any]:
         with self._lock:
             return {k: v[0] for k, v in self._store.items()}
@@ -148,6 +148,6 @@ def create_cache() -> Cache:
     Returns :class:`RedisCache` when ``REDIS_URL`` is set **and** the
     ``redis`` package is installed; otherwise returns :class:`MemoryCache`.
     """
-    from infrastructure.cache_redis import get_redis_cache  # noqa: WPS433 – lazy import
+    from infrastructure.cache_redis import get_redis_cache
 
     return get_redis_cache()

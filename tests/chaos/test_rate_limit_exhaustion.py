@@ -137,7 +137,7 @@ class TestRateLimitExhausted:
             failure_threshold=2,
             open_duration_ms=5000,
         ))
-        limiter = _make_rate_limiter(rate=1.0, capacity=1)
+        _make_rate_limiter(rate=1.0, capacity=1)
 
         executor = RetryExecutor(
             config=RetryConfig(max_attempts=3),

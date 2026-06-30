@@ -55,7 +55,7 @@ def _df_to_historical_series(
     provenance = DataProvenance.now(broker_id="adapter", request_id="adapter-history")
 
     bars: list[HistoricalBar] = []
-    for idx, row in df.iterrows():
+    for _idx, row in df.iterrows():
         ts_raw = row.get("date", row.name if hasattr(row, "name") else None)
         if ts_raw is None:
             event_time = datetime.now(timezone.utc)

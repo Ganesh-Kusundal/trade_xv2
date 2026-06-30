@@ -15,7 +15,6 @@ from brokers.common.resilience.rate_limiter import MultiBucketRateLimiter
 from brokers.dhan.exceptions import AuthenticationError, DhanError, RateLimitError
 from brokers.dhan.metrics import (
     dhan_errors_total,
-    dhan_rate_limit_retries_total,
     dhan_request_duration_seconds,
     dhan_request_total,
 )
@@ -540,7 +539,7 @@ class DhanHttpClient:
           if last_exc:
               raise last_exc
           raise DhanError(f"Request failed after {max_attempts} attempts: {method} {url}")
-        except Exception as exc:
+        except Exception:
             dhan_errors_total.inc()
             raise
         finally:

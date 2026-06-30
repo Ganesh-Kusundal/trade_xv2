@@ -13,7 +13,6 @@ from infrastructure.serialization import (
     json_serializer,
 )
 
-
 # --- Test dataclasses --------------------------------------------------------
 
 

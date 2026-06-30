@@ -88,7 +88,7 @@ class TestValidPositionTransitions:
 
     def test_reducing_to_closed(self) -> None:
         """REDUCING → CLOSED: Complete exit from reducing state in one trade.
-        
+
         This is a common scenario: partial reduction followed by final close.
         BUY 10 → SELL 3 (REDUCING) → SELL 7 (CLOSED)
         """
@@ -111,7 +111,7 @@ class TestInvalidPositionTransitions:
 
     def test_flat_to_reducing_raises_error(self) -> None:
         """FLAT → REDUCING: Cannot reduce a flat position.
-        
+
         This would require manually manipulating the state machine, as the
         apply_trade logic doesn't naturally produce this transition. We test
         the enforcement mechanism by directly manipulating the state.
@@ -137,7 +137,7 @@ class TestInvalidPositionTransitions:
 
     def test_closed_to_open_raises_error(self) -> None:
         """CLOSED → OPEN: Cannot reopen a closed position without reset.
-        
+
         After a position is CLOSED, it must go through FLAT before reopening.
         This test verifies that CLOSED → OPEN is rejected.
         """
@@ -153,7 +153,7 @@ class TestInvalidPositionTransitions:
 
     def test_audit_mode_logs_but_accepts_invalid_transition(self) -> None:
         """Audit mode (enforce_state_transitions=False) should log but accept.
-        
+
         This verifies backward compatibility: the old default behavior still works
         when explicitly requested. Invalid transitions are logged as warnings but
         don't raise exceptions.

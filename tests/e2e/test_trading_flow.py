@@ -36,7 +36,7 @@ class TestTradingFlow:
 
     def test_order_placement_flow(self):
         """Verify: CLI → OMS → Risk Check → Gateway → Dhan API → Order ID
-        
+
         WARNING: This test should be run in sandbox/paper mode only!
         Set TRADING_MODE=paper in .env.local before running.
         """

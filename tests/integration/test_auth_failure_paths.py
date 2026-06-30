@@ -59,7 +59,7 @@ class TestTokenExpiryMidOrder:
         )
 
         # Mock the internal request method
-        with patch.object(client, '_request', side_effect=mock_post) as mock_request:
+        with patch.object(client, '_request', side_effect=mock_post):
             # Make a request
             response = client.post("/orders", json={
                 "symbol": "RELIANCE",
@@ -86,7 +86,7 @@ class TestTokenExpiryMidOrder:
                 refresh_count += 1
             return "new_token"
 
-        client = DhanHttpClient(
+        DhanHttpClient(
             base_url="https://api.dhan.co",
             client_id="test_client",
             access_token="expired_token",

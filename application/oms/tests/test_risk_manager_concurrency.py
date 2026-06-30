@@ -28,7 +28,6 @@ from application.oms import (
     RiskManager,
 )
 from domain import Order, OrderStatus, OrderType, ProductType, Side
-from tests.fixtures.domain_helpers import make_order as _make_order_shared
 from infrastructure.lifecycle.lifecycle import HealthState
 
 # ── Helpers ────────────────────────────────────────────────────────────────

@@ -16,7 +16,6 @@ from application.oms import (
     RiskManager,
 )
 from domain import Order, OrderStatus, OrderType, ProductType, Side, Trade
-from tests.fixtures.domain_helpers import make_order as _make_order_shared
 from infrastructure.event_bus import DomainEvent, EventBus, EventType
 
 

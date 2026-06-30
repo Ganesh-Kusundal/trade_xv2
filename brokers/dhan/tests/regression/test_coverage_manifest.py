@@ -57,7 +57,7 @@ class TestManifestCompleteness:
             if field.startswith("supports_") and getattr(caps, field) is True
         }
         # Capabilities covered by P0 cases
-        covered = frozenset(
+        frozenset(
             c.capability for c in ALL_CASES if c.severity == "P0"
         )
 

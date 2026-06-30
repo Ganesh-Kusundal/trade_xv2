@@ -10,8 +10,8 @@ from __future__ import annotations
 import logging
 import struct
 import sys
-import time
 import threading
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -75,7 +75,7 @@ def main():
 
     # Wait for WebSocket depth updates
     log.info("Waiting 15 seconds for depth updates...")
-    for i in range(15):
+    for _i in range(15):
         time.sleep(1)
         if depths and len(depths) >= 5:
             break

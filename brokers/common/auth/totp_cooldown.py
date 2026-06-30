@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from brokers.common.resilience.errors import TradeXV2Error
 import json
 import logging
 import threading
 import time
 from pathlib import Path
 from typing import ClassVar
+
+from brokers.common.resilience.errors import TradeXV2Error
 
 logger = logging.getLogger(__name__)
 

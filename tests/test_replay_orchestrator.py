@@ -13,16 +13,12 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-import pandas as pd
-import pytest
-
 from analytics.replay.orchestrator import (
     ReplayItem,
     UnifiedReplayOrchestrator,
     UnifiedReplayResult,
 )
 from infrastructure.event_bus.event_bus import DomainEvent
-
 
 # ---------------------------------------------------------------------------
 # ReplayItem ordering
@@ -197,7 +193,7 @@ class TestStateAssertion:
     def test_matches_when_no_trade_events(self) -> None:
         """When there are no trade events, state assertion passes."""
         orch = UnifiedReplayOrchestrator()
-        matches, diff = orch._assert_state(None, [])
+        matches, _diff = orch._assert_state(None, [])
         assert matches
 
     def test_mismatch_when_trade_count_differs(self) -> None:
@@ -238,14 +234,14 @@ class TestStateAssertion:
             (datetime(2026, 1, 15, 9, 0, tzinfo=timezone.utc), 100_000.0)
         )
         # Build a real ReplayResult so _assert_state can access .session
-        from analytics.replay.models import ReplayResult, ReplayConfig
+        from analytics.replay.models import ReplayConfig, ReplayResult
 
         replay_result = ReplayResult(
             session=session,
             config=ReplayConfig(initial_capital=100_000),
         )
         # _assert_state expects ReplayResult | None, not UnifiedReplayResult
-        matches, diff = orch._assert_state(replay_result, trade_events)
+        matches, _diff = orch._assert_state(replay_result, trade_events)
         # expected trade_count=2, actual trade_count=1 → mismatch
         assert not matches
 

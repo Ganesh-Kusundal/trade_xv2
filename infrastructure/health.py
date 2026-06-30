@@ -17,10 +17,11 @@ from __future__ import annotations
 import logging
 import time
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from threading import Lock
-from typing import Any, Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +43,7 @@ class HealthResult:
 
 class HealthCheck(ABC):
     """Base class for health checks."""
-    
+
     @abstractmethod
     async def check(self) -> HealthResult:
         ...
@@ -50,11 +51,11 @@ class HealthCheck(ABC):
 
 class HealthRegistry:
     """Central registry for health checks."""
-    
+
     def __init__(self) -> None:
         self._checks: dict[str, HealthCheck | Callable[[], HealthResult]] = {}
         self._lock = Lock()
-    
+
     def register(self, name: str, check: HealthCheck | Callable[[], HealthResult] | None = None):
         """Register a health check."""
         def decorator(obj):
@@ -66,7 +67,7 @@ class HealthRegistry:
                 self._checks[name] = check
             return check
         return decorator
-    
+
     async def run_all(self) -> dict[str, HealthResult]:
         results = {}
         with self._lock:
@@ -86,7 +87,7 @@ class HealthRegistry:
                     message=str(exc),
                 )
         return results
-    
+
     def summary(self, results: dict[str, HealthResult]) -> dict[str, Any]:
         statuses = [r.status for r in results.values()]
         if all(s == HealthStatus.HEALTHY for s in statuses):

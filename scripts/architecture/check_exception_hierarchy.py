@@ -71,9 +71,6 @@ KNOWN_GOOD_BASES = {
     "UpstoxAuthError",  # Inherits from UpstoxApiError
     "StreamError",  # Inherits from BrokerError
     "NetworkError",  # Inherits from RetryableError
-    "CircularDependencyError",  # Infrastructure DI
-    "ServiceNotFoundError",  # Infrastructure DI
-    "NoActiveRequestScope",  # Infrastructure DI
 }
 
 # Standard library exceptions that are OK to inherit from
@@ -119,7 +116,7 @@ def scan_file(file_path: Path) -> list[ExceptionViolation]:
     violations = []
 
     try:
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             content = f.read()
 
         tree = ast.parse(content)

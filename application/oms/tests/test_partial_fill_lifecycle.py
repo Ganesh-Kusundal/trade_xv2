@@ -11,7 +11,6 @@ from decimal import Decimal
 
 from application.oms.order_manager import OrderManager
 from domain import Order, OrderStatus, OrderType, Side, Trade
-from tests.fixtures.domain_helpers import make_order as _make_order_shared
 
 
 def _make_order(

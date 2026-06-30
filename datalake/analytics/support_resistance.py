@@ -151,7 +151,7 @@ class SupportResistance:
 
         distance_pct = None
         if nearest_support and nearest_resistance:
-            range_pct = (nearest_resistance.price - nearest_support.price) / current_price * 100
+            (nearest_resistance.price - nearest_support.price) / current_price * 100
             position = (current_price - nearest_support.price) / (nearest_resistance.price - nearest_support.price) * 100
             distance_pct = round(position, 1)
 

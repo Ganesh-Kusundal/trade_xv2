@@ -142,7 +142,7 @@ class CacheManager:
 
         Creates a new table with a temporary name, then atomically swaps it in
         via ALTER TABLE ... RENAME TO so readers never see a missing table.
-        
+
         Args:
             table_name: Name of the table to register.
             conn: DuckDB connection (uses self._conn if not provided).
@@ -185,7 +185,7 @@ class CacheManager:
         self, table_name: str, conn: duckdb.DuckDBPyConnection | None = None
     ) -> None:
         """Drop a materialized table and remove all its versions.
-        
+
         Args:
             table_name: Name of the table to drop.
             conn: DuckDB connection (uses self._conn if not provided).

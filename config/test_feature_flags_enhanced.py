@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import hashlib
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -119,7 +119,7 @@ class TestIsEnabledForUser:
         FeatureFlags.set_rollout_percentage("SMART_ROUTING", 50)
 
         user_id = "test_user"
-        hash_input = f"SMART_ROUTING:{user_id}".encode("utf-8")
+        hash_input = f"SMART_ROUTING:{user_id}".encode()
         hash_hex = hashlib.sha256(hash_input).hexdigest()
         hash_int = int(hash_hex[:8], 16)
         expected_bucket = hash_int % 100
@@ -190,7 +190,7 @@ class TestFlagInfo:
         assert "ADVANCED_ORDER_TYPES" in all_flags
         assert "EXPERIMENTAL_STRATEGIES" in all_flags
 
-        for flag_name, info in all_flags.items():
+        for _flag_name, info in all_flags.items():
             assert "name" in info
             assert "enabled" in info
             assert "rollout_percentage" in info

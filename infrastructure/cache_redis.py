@@ -13,7 +13,14 @@ import logging
 import os
 from typing import Any
 
-from infrastructure.cache import Cache, MemoryCache, _cache_evictions, _cache_hits, _cache_misses, _cache_size
+from infrastructure.cache import (
+    Cache,
+    MemoryCache,
+    _cache_evictions,
+    _cache_hits,
+    _cache_misses,
+    _cache_size,
+)
 
 try:
     import redis.asyncio as aioredis  # type: ignore[import-untyped]

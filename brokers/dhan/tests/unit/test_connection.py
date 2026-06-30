@@ -49,7 +49,7 @@ class TestDhanConnection:
 
     def test_load_instruments_from_rows(self):
         """Loading rows into the resolver updates its stats."""
-        conn, _, resolver = self._make_connection()
+        _conn, _, resolver = self._make_connection()
 
         # Before loading: resolver should report 0 instruments
         stats_before = resolver.stats()

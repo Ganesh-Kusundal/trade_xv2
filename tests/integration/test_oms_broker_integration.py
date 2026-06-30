@@ -39,7 +39,7 @@ class TestOMSBrokerIntegrationPaper:
     def order_manager(self, event_bus, paper_gateway):
         """Provide OrderManager wired to PaperGateway."""
         # REF: Using FakeRiskManager instead of MagicMock
-        risk_manager = FakeRiskManager(allow_all=True)
+        FakeRiskManager(allow_all=True)
         # RiskManager still needed for interface compatibility
         real_risk_manager = RiskManager(
             position_manager=FakePositionManager(),
@@ -54,7 +54,7 @@ class TestOMSBrokerIntegrationPaper:
 
     def test_place_order_through_oms(self, order_manager, event_bus_with_capturer):
         """Test OrderManager.place_order() → PaperGateway.place_order() flow."""
-        event_bus, capturer = event_bus_with_capturer
+        _event_bus, capturer = event_bus_with_capturer
         capturer.subscribe("ORDER_PLACED")
 
         make_order(
@@ -86,7 +86,7 @@ class TestOMSBrokerIntegrationPaper:
 
     def test_cancel_order_through_oms(self, order_manager, event_bus_with_capturer):
         """Test OrderManager.cancel_order() → PaperGateway.cancel_order() flow."""
-        event_bus, capturer = event_bus_with_capturer
+        _event_bus, capturer = event_bus_with_capturer
         capturer.subscribe("ORDER_PLACED", "ORDER_CANCELLED")
 
         # Place an order first
@@ -109,7 +109,7 @@ class TestOMSBrokerIntegrationPaper:
 
     def test_risk_manager_rejection(self, order_manager, event_bus_with_capturer):
         """Test that risk manager rejects orders before broker call."""
-        event_bus, capturer = event_bus_with_capturer
+        _event_bus, capturer = event_bus_with_capturer
         capturer.subscribe("RISK_CHECK_FAILED")
 
         # Configure strict risk limits
@@ -138,7 +138,7 @@ class TestOMSBrokerIntegrationPaper:
 @pytest.mark.oms_integration
 class TestOMSBrokerIntegrationMock:
     """Test OMS integration with fake broker gateways.
-    
+
     REF: Task 6.3 — Converted from MagicMock to FakeBrokerGateway
     """
 

@@ -202,7 +202,7 @@ def test_oms_capital_fn_uses_placeholder_before_gateway_set() -> None:
     from cli.services.broker_service import BrokerService
 
     bs = BrokerService()
-    rm, cp = bs._build_oms_risk_manager()
+    _rm, cp = bs._build_oms_risk_manager()
     # No gateway set yet → placeholder (with fail-open)
     assert cp.get_available_balance() > Decimal("0"), (
         f"Expected positive placeholder, got {cp.get_available_balance()}"

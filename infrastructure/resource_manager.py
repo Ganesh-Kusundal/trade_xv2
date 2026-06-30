@@ -23,7 +23,7 @@ import logging
 import threading
 from collections.abc import Callable
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from infrastructure.health import HealthRegistry, HealthResult, HealthStatus

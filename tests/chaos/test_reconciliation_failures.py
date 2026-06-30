@@ -211,7 +211,6 @@ class TestReconciliationServiceFailure:
             return orders_placed[-1]
 
         # Simulate reconciliation failure
-        reconciliation_failed = True
 
         # Trading should continue
         result = place_order()
@@ -292,7 +291,7 @@ class TestReconciliationServiceFailure:
             return [_make_position("RELIANCE", quantity=10)]
 
         # Simulate timeout scenario
-        start = time.monotonic()
+        time.monotonic()
         try:
             result = fetch_with_timeout()
             assert result is not None

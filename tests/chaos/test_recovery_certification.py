@@ -293,7 +293,7 @@ def test_scenario_4_crash_during_reconciliation_drift_persists(tmp_path):
     and recovered after a crash + restart.
     """
     events_dir = tmp_path / "events"
-    ctx, _, _ = _build_context(events_dir)
+    _ctx, _, _ = _build_context(events_dir)
     # Stub a DhanReconciliationService-style adapter that always reports drift.
     from brokers.dhan.reconciliation import (
         DriftItem,
@@ -343,7 +343,7 @@ def test_scenario_4_crash_during_reconciliation_drift_persists(tmp_path):
     assert rec.last_drift_count == 1
     # Restart: build a new context, the new reconciliation service
     # runs again and sees the same drift.
-    new_ctx, _, _ = _build_context(events_dir)
+    _new_ctx, _, _ = _build_context(events_dir)
     new_rec = _FakeRecSvc()
     new_rec.run_now()
     assert new_rec.last_drift_count == 1, (

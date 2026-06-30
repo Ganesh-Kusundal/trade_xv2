@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from infrastructure.time_service import TimeService, ExchangeCalendar, time_service
+from infrastructure.time_service import ExchangeCalendar, time_service
 
 
 class TestExchangeCalendar:
@@ -25,7 +25,7 @@ class TestExchangeCalendar:
         """NYSE must handle EST (UTC-5) vs EDT (UTC-4) correctly."""
         from zoneinfo import ZoneInfo
 
-        cal = ExchangeCalendar("America/New_York", "NYSE")
+        ExchangeCalendar("America/New_York", "NYSE")
 
         # January = EST = UTC-5
         jan_dt = datetime(2024, 1, 15, 12, 0, 0, tzinfo=ZoneInfo("America/New_York"))

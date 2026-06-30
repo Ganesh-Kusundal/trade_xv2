@@ -183,7 +183,7 @@ class BrokerFactory(BrokerProviderFactory):
         #   portfolio + admin -> admin_circuit_breaker
         cb_orders = cbs["orders"]
         cb_market_data = cbs["market_data"]
-        cb_portfolio = cbs["portfolio"]
+        cbs["portfolio"]
         cb_admin = cbs["admin"]
 
         # Create rate limiter

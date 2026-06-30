@@ -22,8 +22,11 @@ from __future__ import annotations
 
 import contextvars
 import threading
+from collections.abc import Callable
 from contextlib import contextmanager
-from typing import Any, Callable
+from typing import Any
+
+from brokers.common.resilience.errors import TradeXV2Error
 
 # Context variable for the current request scope
 _current_scope: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar(
@@ -31,7 +34,7 @@ _current_scope: contextvars.ContextVar[dict[str, Any] | None] = contextvars.Cont
 )
 
 
-class NoActiveRequestScope(Exception):
+class NoActiveRequestScope(TradeXV2Error):
     """Raised when resolving a request-scoped service outside a request_scope()."""
 
 

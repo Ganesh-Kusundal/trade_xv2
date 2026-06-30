@@ -39,13 +39,12 @@ class TestTraceOperation:
 
     def test_trace_operation_propagates_correlation_id(self):
         """trace_operation should capture correlation ID from context."""
-        captured_correlation = [None]
 
         @trace_operation("test_operation")
         def test_func() -> None:
             from infrastructure.logging_config import get_logger
 
-            logger = get_logger(__name__)
+            get_logger(__name__)
             # Can't easily capture log output, but verify no errors
             pass
 
