@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from brokers.common.connection.bootstrap_result import BootstrapResult, BootstrapStatus
+from brokers.common.resilience.errors import TradeXV2Error
 
 
-class BrokerNotReadyError(RuntimeError):
+class BrokerNotReadyError(TradeXV2Error):
     """Raised when a broker gateway is unavailable or not authenticated."""
 
     def __init__(

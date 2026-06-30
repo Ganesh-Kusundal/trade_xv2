@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
-from domain import Position, Trade
+from domain import Position, Side, Trade
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +68,7 @@ class PortfolioTracker:
 
     def get_positions(self) -> list[Position]:
         """Return current positions from OMS."""
-        return self._positions.get_all_positions()
+        return self._positions.get_positions()
 
     def get_position(self, symbol: str, exchange: str = "NSE") -> Position | None:
         """Return position for a specific symbol."""
@@ -97,7 +97,7 @@ class PortfolioTracker:
         self._trades.append(trade)
 
         # Update capital based on trade
-        if trade.side == "BUY":
+        if trade.side == Side.BUY:
             self._capital -= Decimal(str(trade.quantity)) * trade.price
         else:
             self._capital += Decimal(str(trade.quantity)) * trade.price
@@ -123,7 +123,7 @@ class PortfolioTracker:
     ) -> Decimal:
         """Calculate unrealized PnL from open positions."""
         total = Decimal("0")
-        for pos in self._positions.get_all_positions():
+        for pos in self._positions.get_positions():
             if pos.quantity == 0:
                 continue
 

@@ -57,6 +57,18 @@ MCX_CLOSE_HOUR_IST: int = 23
 #: MCX commodity market close minute.
 MCX_CLOSE_MINUTE_IST: int = 30
 
+# ── Indicator defaults ───────────────────────────────────────────────────────
+
+#: Default period for Average True Range (ATR) indicator.
+#: Used by FeatureBuilder, backtest optimizer, and scanner queries.
+ATR_PERIOD_DEFAULT: int = 14
+
+#: Default period for RSI indicator.
+RSI_PERIOD_DEFAULT: int = 14
+
+#: Default window for SMA (Simple Moving Average).
+SMA_WINDOW_DEFAULT: int = 20
+
 # ── Timezone (IST = UTC+5:30, no DST) ─────────────────────────────────────
 
 #: Fixed IST offset. Use this instead of ``timezone(timedelta(hours=5,
@@ -66,6 +78,7 @@ MCX_CLOSE_MINUTE_IST: int = 30
 IST_OFFSET = timezone(timedelta(hours=5, minutes=30))
 
 __all__ = [
+    "ATR_PERIOD_DEFAULT",
     "DEFAULT_DERIVATIVES_EXCHANGE",
     "DEFAULT_EXCHANGE",
     "DEFAULT_EXCHANGE_SEGMENT_FALLBACK",
@@ -79,4 +92,6 @@ __all__ = [
     "NSE_CLOSE_MINUTE_IST",
     "NSE_OPEN_HOUR_IST",
     "NSE_OPEN_MINUTE_IST",
+    "RSI_PERIOD_DEFAULT",
+    "SMA_WINDOW_DEFAULT",
 ]

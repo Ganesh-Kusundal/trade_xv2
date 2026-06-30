@@ -519,3 +519,48 @@ def test_end_to_end_scheduler_drains_pnl_at_rollover(
     s._maybe_reset()
     assert rm_real.daily_pnl == Decimal("0")
     assert s._reset_count == 1
+
+
+class TestKillSwitchConfigPreservation:
+    """Fix #5: set_kill_switch must preserve all RiskConfig fields."""
+
+    def test_margin_safety_multiplier_preserved(self):
+        """Toggling kill switch must not reset margin_safety_multiplier."""
+        pm = PositionManager()
+        config = RiskConfig(margin_safety_multiplier=Decimal("0.5"))
+        rm = RiskManager(pm, config, capital_fn=lambda: Decimal("100000"))
+
+        rm.set_kill_switch(True)
+        assert rm._config.margin_safety_multiplier == Decimal("0.5")
+        assert rm._config.kill_switch is True
+
+    def test_enable_margin_check_preserved(self):
+        """Toggling kill switch must not reset enable_margin_check."""
+        pm = PositionManager()
+        config = RiskConfig(enable_margin_check=False)
+        rm = RiskManager(pm, config, capital_fn=lambda: Decimal("100000"))
+
+        rm.set_kill_switch(True)
+        assert rm._config.enable_margin_check is False
+
+    def test_all_fields_preserved_after_toggle(self):
+        """All custom config fields survive a kill-switch on/off cycle."""
+        pm = PositionManager()
+        config = RiskConfig(
+            max_daily_loss_pct=Decimal("2.0"),
+            max_position_pct=Decimal("10.0"),
+            max_gross_exposure_pct=Decimal("80.0"),
+            margin_safety_multiplier=Decimal("0.75"),
+            enable_margin_check=False,
+        )
+        rm = RiskManager(pm, config, capital_fn=lambda: Decimal("100000"))
+
+        rm.set_kill_switch(True)
+        rm.set_kill_switch(False)
+
+        assert rm._config.max_daily_loss_pct == Decimal("2.0")
+        assert rm._config.max_position_pct == Decimal("10.0")
+        assert rm._config.max_gross_exposure_pct == Decimal("80.0")
+        assert rm._config.margin_safety_multiplier == Decimal("0.75")
+        assert rm._config.enable_margin_check is False
+        assert rm._config.kill_switch is False

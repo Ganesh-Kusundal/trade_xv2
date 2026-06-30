@@ -180,12 +180,12 @@ def main(argv: list | None = None) -> int:
     if argv is None:
         argv = sys.argv[1:]
     args = _parse_args(argv)
-    # Logging already initialized by cli/main.py setup_logging()
+    # Logging already initialized by cli/main.py configure_logging()
     # If run standalone, initialize here
     if not logging.getLogger().handlers:
-        from brokers.common.logging_config import setup_logging
+        from infrastructure.logging_config import configure_logging
 
-        setup_logging()
+        configure_logging()
 
     try:
         settings = UpstoxSettingsLoader.from_env(env_path=args.env_file)

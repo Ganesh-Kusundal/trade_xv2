@@ -186,3 +186,27 @@ class TestFeatureFlagsIntegration:
         _ = FeatureFlags.get_all_flags()
         # Should still be initialized
         assert FeatureFlags._initialized is True
+
+
+class TestFeatureFlagsThreadSafety:
+    """Fix #8: FeatureFlags init must be thread-safe (DCLP)."""
+
+    def test_concurrent_is_enabled_returns_same(self):
+        """100 threads calling is_enabled() after reset all get consistent results."""
+        import concurrent.futures
+
+        FeatureFlags.reset()
+        results = []
+
+        def check():
+            val = FeatureFlags.is_enabled("SMART_ROUTING")
+            results.append(val)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=100) as pool:
+            futures = [pool.submit(check) for _ in range(100)]
+            for f in futures:
+                f.result()
+
+        # All results must be identical (all False, the default)
+        assert len(set(results)) == 1
+        assert results[0] is False

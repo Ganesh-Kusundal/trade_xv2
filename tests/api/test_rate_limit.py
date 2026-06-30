@@ -131,6 +131,22 @@ class TestRateLimitMiddleware:
         assert resp.headers["X-RateLimit-Limit"] == "5"
         assert resp.headers["X-RateLimit-Remaining"] == "4"
 
+    def test_websocket_upgrade_bypasses_rate_limit(self):
+        app = FastAPI()
+        app.add_middleware(RateLimitMiddleware, max_requests=1, window_seconds=60.0)
+
+        @app.get("/test")
+        async def handler():
+            return {"ok": True}
+
+        client = TestClient(app)
+        # First request consumes the limit
+        resp = client.get("/test")
+        assert resp.status_code == 200
+        # A WebSocket upgrade request should bypass rate limiting
+        resp = client.get("/test", headers={"connection": "upgrade"})
+        assert resp.status_code == 200
+
     def test_health_endpoints_bypass_rate_limit(self):
         app = FastAPI()
         app.add_middleware(RateLimitMiddleware, max_requests=1, window_seconds=60.0)
@@ -145,20 +161,21 @@ class TestRateLimitMiddleware:
             resp = client.get("/api/v1/health")
             assert resp.status_code == 200
 
-    def test_rate_limit_disabled_by_default_in_api_config(self):
+    def test_rate_limit_default_is_100_per_minute(self):
         config = APIConfig()
-        assert config.rate_limit_per_minute == 0
+        assert config.rate_limit_per_minute == 100
 
 
 class TestRateLimitWithCreateApp:
     """Integration tests using the full create_app factory."""
 
-    def test_disabled_by_default(self):
+    def test_health_endpoints_exempt_with_default_config(self):
         app = create_app(config=APIConfig(auth_mode="none"))
         client = TestClient(app)
-        # Should work fine with rate limiting disabled
-        resp = client.get("/api/v1/health")
-        assert resp.status_code == 200
+        # Health endpoints bypass rate limiting even when enabled (default 100/min)
+        for _ in range(5):
+            resp = client.get("/api/v1/health")
+            assert resp.status_code == 200
 
     def test_rate_limit_active_when_configured(self):
         app = create_app(

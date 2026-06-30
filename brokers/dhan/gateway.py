@@ -3,9 +3,6 @@
 from __future__ import annotations
 
 import contextlib
-
-from infrastructure.logging import get_logger
-
 import threading
 from datetime import date, timedelta
 from decimal import Decimal
@@ -39,6 +36,7 @@ from domain import (
 )
 from domain.exchange_segments import parse_segment
 from domain.symbols import make_position_key, normalize_symbol
+from infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -467,8 +465,17 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
             }
         )
 
-    def funds(self) -> Balance:
+    def get_balance(self) -> Balance:
+        """Return current account balance (fund limits).
+
+        Delegates to the portfolio adapter's ``get_balance()`` which
+        calls ``GET /fundlimit`` on the Dhan API.
+        """
         return self._conn.portfolio.get_balance()
+
+    def funds(self) -> Balance:
+        """Alias for :meth:`get_balance` — backward-compatible contract name."""
+        return self.get_balance()
 
     def positions(self) -> list[Position]:
         return self._conn.portfolio.get_positions()
@@ -654,7 +661,7 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         """Fetch LTP for multiple symbols using native batch API (up to 1000)."""
         return self._conn.market_data.get_batch_ltp(symbols, exchange)
 
-    def quote_batch(self, symbols: list[str], exchange: str = "NSE") -> dict[str, Any]:
+    def quote_batch(self, symbols: list[str], exchange: str = "NSE") -> dict[str, Quote]:
         """Fetch quotes for multiple symbols using native batch API (up to 1000)."""
         return self._conn.market_data.get_batch_quote(symbols, exchange)
 

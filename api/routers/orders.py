@@ -289,22 +289,18 @@ async def place_order(
     if not result.success:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=result.error or "Order rejected by broker",
+            detail=result.error_code or result.message or "Order rejected by broker",
         )
 
-    order = result.order
     return OrderResponse(
-        order_id=order.order_id,
-        symbol=order.symbol,
-        exchange=order.exchange,
-        transaction_type=order.side.value,
-        order_type=order.order_type.value,
-        quantity=order.quantity,
-        price=float(order.price) if order.price else None,
-        status=order.status.value,
-        filled_quantity=order.filled_quantity,
-        average_price=float(order.average_price) if order.average_price else None,
-        timestamp=order.timestamp,
+        order_id=result.order_id,
+        symbol=req.symbol,
+        exchange=req.exchange,
+        transaction_type=req.transaction_type,
+        order_type=req.order_type,
+        quantity=req.quantity,
+        price=req.price,
+        status=result.status.value if hasattr(result.status, "value") else str(result.status),
     )
 
 
@@ -344,19 +340,15 @@ async def modify_order(
             detail=f"Cannot modify order in terminal state: {existing.status.value}",
         )
 
-    # Build modify request
+    # Build modify request — only pass valid ModifyOrderRequest fields
     from domain.requests import ModifyOrderRequest
 
     modify_req = ModifyOrderRequest(
         order_id=order_id,
-        symbol=req.symbol or existing.symbol,
-        exchange=req.exchange or existing.exchange,
-        transaction_type=side,
+        quantity=req.quantity,
+        price=Decimal(str(req.price)) if req.price else None,
         order_type=order_type,
-        quantity=req.quantity or existing.quantity,
-        price=Decimal(str(req.price)) if req.price else existing.price,
         product_type=product_type,
-        correlation_id=f"http-modify-{datetime.now().isoformat()}",
     )
 
     # Execute via composer
@@ -365,22 +357,18 @@ async def modify_order(
     if not result.success:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=result.error or "Order modification rejected",
+            detail=result.error_code or result.message or "Order modification rejected",
         )
 
-    order = result.order
     return OrderResponse(
-        order_id=order.order_id,
-        symbol=order.symbol,
-        exchange=order.exchange,
-        transaction_type=order.side.value,
-        order_type=order.order_type.value,
-        quantity=order.quantity,
-        price=float(order.price) if order.price else None,
-        status=order.status.value,
-        filled_quantity=order.filled_quantity,
-        average_price=float(order.average_price) if order.average_price else None,
-        timestamp=order.timestamp,
+        order_id=result.order_id,
+        symbol=existing.symbol,
+        exchange=existing.exchange,
+        transaction_type=existing.side.value,
+        order_type=req.order_type,
+        quantity=req.quantity or existing.quantity,
+        price=req.price,
+        status=result.status.value if hasattr(result.status, "value") else str(result.status),
     )
 
 
@@ -401,20 +389,18 @@ async def cancel_order(
     if not result.success:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=result.error or "Order cancellation rejected",
+            detail=result.error_code or result.message or "Order cancellation rejected",
         )
 
-    order = result.order
+    # Pre-fetch order from repo for symbol/exchange metadata
+    existing = repo.get_order(order_id) if repo else None
     return OrderResponse(
-        order_id=order.order_id,
-        symbol=order.symbol,
-        exchange=order.exchange,
-        transaction_type=order.side.value,
-        order_type=order.order_type.value,
-        quantity=order.quantity,
-        price=float(order.price) if order.price else None,
-        status=order.status.value,
-        filled_quantity=order.filled_quantity,
-        average_price=float(order.average_price) if order.average_price else None,
-        timestamp=order.timestamp,
+        order_id=result.order_id,
+        symbol=existing.symbol if existing else "",
+        exchange=existing.exchange if existing else "",
+        transaction_type=existing.side.value if existing else "",
+        order_type=existing.order_type.value if existing else "",
+        quantity=existing.quantity if existing else 0,
+        price=float(existing.price) if existing and existing.price else None,
+        status=result.status.value if hasattr(result.status, "value") else str(result.status),
     )

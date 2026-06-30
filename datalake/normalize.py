@@ -185,9 +185,9 @@ def main() -> int:
 
     # Initialize logging if not already configured
     if not logging.getLogger().handlers:
-        from brokers.common.logging_config import setup_logging
+        from infrastructure.logging_config import configure_logging
 
-        setup_logging()
+        configure_logging()
 
     print("Scanning all symbols...")
     counts = normalize_all(dry_run=args.dry_run)

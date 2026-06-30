@@ -12,6 +12,7 @@ from analytics.backtest import BacktestConfig, BacktestEngine
 from analytics.pipeline.features import ATR, ROC, RSI, SMA, Momentum, Trend
 from analytics.pipeline.pipeline import FeaturePipeline
 from analytics.strategy import StrategyPipeline
+from domain.constants import ATR_PERIOD_DEFAULT, RSI_PERIOD_DEFAULT, SMA_WINDOW_DEFAULT
 
 logger = logging.getLogger(__name__)
 
@@ -42,9 +43,9 @@ class OptimizationResult:
 
 
 def build_pipeline(
-    rsi_period: int = 14,
-    atr_period: int = 14,
-    sma_period: int = 20,
+    rsi_period: int = RSI_PERIOD_DEFAULT,
+    atr_period: int = ATR_PERIOD_DEFAULT,
+    sma_period: int = SMA_WINDOW_DEFAULT,
     roc_period: int = 5,
     momentum_period: int = 5,
     trend_fast: int = 10,
@@ -134,9 +135,9 @@ def optimize_grid(
         try:
             # Build pipeline with current parameters
             pipeline = build_pipeline(
-                rsi_period=params.get("rsi_period", 14),
-                atr_period=params.get("atr_period", 14),
-                sma_period=params.get("sma_period", 20),
+                rsi_period=params.get("rsi_period", RSI_PERIOD_DEFAULT),
+                atr_period=params.get("atr_period", ATR_PERIOD_DEFAULT),
+                sma_period=params.get("sma_period", SMA_WINDOW_DEFAULT),
                 roc_period=params.get("roc_period", 5),
                 momentum_period=params.get("momentum_period", 5),
                 trend_fast=params.get("trend_fast", 10),

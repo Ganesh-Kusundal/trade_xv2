@@ -49,7 +49,7 @@ class TestBrokerGateway:
     # -- portfolio delegation --------------------------------------------
 
     def test_get_balance_delegates(self):
-        """gateway.get_balance must call portfolio.get_balance."""
+        """gateway.funds() must call portfolio.get_balance."""
         gateway, conn = self._make_gateway()
 
         expected = Balance(available_balance=Decimal("50000"))
@@ -59,6 +59,36 @@ class TestBrokerGateway:
 
         conn._portfolio.get_balance.assert_called_once()
         assert result is expected
+
+    def test_get_balance_canonical_delegates(self):
+        """gateway.get_balance() must delegate to portfolio.get_balance."""
+        gateway, conn = self._make_gateway()
+
+        expected = Balance(
+            available_balance=Decimal("500000"),
+            sod_limit=Decimal("1000000"),
+            collateral_amount=Decimal("200000"),
+            utilized_amount=Decimal("300000"),
+            withdrawable_balance=Decimal("400000"),
+        )
+        conn._portfolio.get_balance.return_value = expected
+
+        result = gateway.get_balance()
+
+        conn._portfolio.get_balance.assert_called_once()
+        assert result is expected
+        assert result.available_balance == Decimal("500000")
+        assert result.sod_limit == Decimal("1000000")
+
+    def test_funds_aliases_get_balance(self):
+        """funds() and get_balance() must return the same result."""
+        gateway, conn = self._make_gateway()
+
+        expected = Balance(available_balance=Decimal("75000"))
+        conn._portfolio.get_balance.return_value = expected
+
+        assert gateway.funds() == gateway.get_balance()
+        assert conn._portfolio.get_balance.call_count == 2
 
     def test_get_positions_delegates(self):
         """gateway.get_positions must call portfolio.get_positions."""

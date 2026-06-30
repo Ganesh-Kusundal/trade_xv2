@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
-AUTH_MODE = os.getenv("AUTH_MODE", "none").lower()
+AUTH_MODE = os.getenv("AUTH_MODE", "api_key").lower()
 API_KEY = os.getenv("API_KEY", "")
 
 # Generate a default API key if not provided (for local dev)

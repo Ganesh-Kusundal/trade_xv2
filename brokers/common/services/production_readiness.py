@@ -22,6 +22,7 @@ under load" defect; this guard closes that pattern at the boundary.
 
 from __future__ import annotations
 
+from brokers.common.resilience.errors import TradeXV2Error
 import logging
 import os
 from collections.abc import Callable
@@ -38,7 +39,7 @@ class ReadinessCheck:
     message: str
 
 
-class ProductionReadinessError(RuntimeError):
+class ProductionReadinessError(TradeXV2Error):
     """Raised by :meth:`ProductionReadinessChecker.run_or_raise` when
     any pre-flight check failed.
 

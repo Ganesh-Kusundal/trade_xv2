@@ -181,10 +181,10 @@ class MarketDataGateway(
         ...
 
     @abstractmethod
-    def quote_batch(self, symbols: list[str], exchange: str = DEFAULT_EXCHANGE) -> dict[str, dict]:
+    def quote_batch(self, symbols: list[str], exchange: str = DEFAULT_EXCHANGE) -> dict[str, Quote]:
         """Return quotes for multiple symbols.
 
-        Returns dict mapping symbol -> quote dict.
+        Returns dict mapping symbol -> Quote domain object.
         """
         ...
 

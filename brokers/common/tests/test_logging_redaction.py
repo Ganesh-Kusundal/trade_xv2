@@ -11,7 +11,7 @@ import logging
 
 import pytest
 
-from brokers.common.logging_config import TokenRedactionFilter, _redact
+from infrastructure.logging_config import TokenRedactionFilter, _redact
 
 # ---------- pure-Python tests (no logger side effects) ----------
 

@@ -87,6 +87,11 @@ class BrokerFactory(BrokerProviderFactory):
             refresh_lock,
         )
 
+        # ── Health check registration ──────────────────────────────
+        from brokers.common.observability.health_check import register_broker_health_check
+
+        register_broker_health_check("dhan", gateway)
+
         return gateway
 
     # ── Bootstrapper helpers ──────────────────────────────────────────────

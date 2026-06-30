@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import logging
 from decimal import Decimal
-from typing import Any
 
 import pandas as pd
 
 from brokers.common.batch_executor import batch_execute
+from domain import Quote
 from domain.constants import BATCH_MAX_WORKERS
 
 logger = logging.getLogger(__name__)
@@ -33,7 +33,7 @@ class BatchFetchMixin:
                 results[sym] = Decimal("0")
         return results
 
-    def quote_batch(self, symbols: list[str], exchange: str = "NSE") -> dict[str, Any]:
+    def quote_batch(self, symbols: list[str], exchange: str = "NSE") -> dict[str, Quote]:
         return batch_execute(
             symbols,
             lambda sym: self.quote(sym, exchange),  # type: ignore[attr-defined]

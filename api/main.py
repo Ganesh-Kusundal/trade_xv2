@@ -279,6 +279,11 @@ def create_app(
         allow_headers=cfg.cors_allow_headers,
     )
 
+    # Global exception handler
+    from infrastructure.global_exception_handler import setup_exception_handlers
+
+    setup_exception_handlers(app)
+
     # ── Register Routers (imported lazily to avoid circular dependencies) ──
 
     # Health endpoints

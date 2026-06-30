@@ -23,6 +23,8 @@ Usage::
 
 from __future__ import annotations
 
+from brokers.common.resilience.errors import TradeXV2Error
+
 import logging
 import os
 from dataclasses import dataclass, field
@@ -40,7 +42,7 @@ class ValidationProfile(Enum):
     PROD = "prod"
 
 
-class ConfigValidationError(Exception):
+class ConfigValidationError(TradeXV2Error):
     """Raised when configuration validation fails."""
 
     def __init__(self, errors: list[str]) -> None:

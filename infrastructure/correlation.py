@@ -1,18 +1,23 @@
 """Correlation ID framework for distributed tracing.
 
-Thread-local correlation ID propagation used by the event bus, gateways,
-and OMS. Lives in infrastructure (no broker or domain imports).
+ContextVar-based correlation ID propagation used by the event bus,
+gateways, and OMS. Lives in infrastructure (no broker or domain imports).
+
+Uses ``contextvars.ContextVar`` instead of ``threading.local()`` so
+correlation IDs propagate correctly across async task boundaries.
 """
 
 from __future__ import annotations
 
 import contextlib
-import threading
+import contextvars
 import uuid
 from collections.abc import Generator
 from datetime import datetime, timezone
 
-_correlation_local = threading.local()
+_correlation_var: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "correlation_id", default=None
+)
 
 
 def generate_correlation_id() -> str:
@@ -23,13 +28,13 @@ def generate_correlation_id() -> str:
 
 
 def get_current_correlation_id() -> str | None:
-    """Return the correlation ID active on the current thread, or ``None``."""
-    return getattr(_correlation_local, "correlation_id", None)
+    """Return the correlation ID active on the current context, or ``None``."""
+    return _correlation_var.get()
 
 
 def set_current_correlation_id(cid: str | None) -> None:
-    """Set the correlation ID for the current thread."""
-    _correlation_local.correlation_id = cid
+    """Set the correlation ID for the current context."""
+    _correlation_var.set(cid)
 
 
 @contextlib.contextmanager

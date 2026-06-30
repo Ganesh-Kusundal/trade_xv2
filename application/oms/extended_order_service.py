@@ -10,6 +10,7 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
+from brokers.common.resilience.errors import TradeXV2Error
 from domain.events.types import EventType
 
 logger = logging.getLogger(__name__)
@@ -318,9 +319,9 @@ class ExtendedOrderService:
             )
 
 
-class KillSwitchActiveError(Exception):
+class KillSwitchActiveError(TradeXV2Error):
     """Raised when an order is rejected due to active kill switch."""
 
 
-class ExtendedFeatureUnavailableError(Exception):
+class ExtendedFeatureUnavailableError(TradeXV2Error):
     """Raised when an extended feature is not available on the current broker."""

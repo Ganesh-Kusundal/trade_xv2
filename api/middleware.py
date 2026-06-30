@@ -284,6 +284,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if path in RequestLoggingMiddleware._SKIP_PATHS:
             return await call_next(request)
 
+        # Skip WebSocket upgrade requests
+        if request.headers.get("connection", "").lower() == "upgrade":
+            return await call_next(request)
+
         ip = self._client_ip(request)
         allowed, remaining = self._counter.is_allowed(ip, self._max_requests)
 

@@ -38,6 +38,7 @@ import time
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
+from brokers.common.resilience.errors import TradeXV2Error
 from domain.entities import OrderResponse
 
 if TYPE_CHECKING:
@@ -47,7 +48,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class OrderBlockedError(Exception):
+class OrderBlockedError(TradeXV2Error):
     """Raised when an order operation is blocked by OMS enforcement.
 
     Attributes

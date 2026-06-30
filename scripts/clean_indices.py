@@ -130,9 +130,9 @@ def main():
     )
     args = parser.parse_args()
 
-    from brokers.common.logging_config import setup_logging
+    from infrastructure.logging_config import configure_logging
 
-    setup_logging()
+    configure_logging()
 
     # Identify indices
     print("Identifying index symbols...")

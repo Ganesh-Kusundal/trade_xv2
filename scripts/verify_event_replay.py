@@ -208,7 +208,7 @@ def main() -> int:
     parser.add_argument("-v", "--verbose", action="count", default=0)
     args = parser.parse_args()
 
-    from brokers.common.logging_config import setup_logging
+    from infrastructure.logging_config import configure_logging
 
     setup_logging(log_level="DEBUG" if args.verbose else "INFO")
 

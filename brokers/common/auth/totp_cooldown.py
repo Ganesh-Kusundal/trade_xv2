@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from brokers.common.resilience.errors import TradeXV2Error
 import json
 import logging
 import threading
@@ -14,7 +15,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_COOLDOWN_SECONDS = 120.0
 
 
-class TotpRateLimitError(RuntimeError):
+class TotpRateLimitError(TradeXV2Error):
     """Raised when TOTP generation is blocked by broker or local cooldown."""
 
 

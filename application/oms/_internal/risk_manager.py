@@ -45,7 +45,7 @@ from __future__ import annotations
 import logging
 import threading
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from decimal import Decimal
 
 from application.oms._internal.loss_circuit_breaker import (
@@ -197,7 +197,6 @@ class RiskManager:
                 },
             )
             return RiskResult(False, f"F&O order rejected: margin check error: {exc}")
-            return RiskResult(False, f"F&O order rejected: margin check failed: {exc}")
 
         required_with_buffer = margin_result.required_margin * self._config.margin_safety_multiplier
 
@@ -319,12 +318,7 @@ class RiskManager:
         """
         with self._lock:
             previous = self._config.kill_switch
-            self._config = RiskConfig(
-                max_daily_loss_pct=self._config.max_daily_loss_pct,
-                max_position_pct=self._config.max_position_pct,
-                max_gross_exposure_pct=self._config.max_gross_exposure_pct,
-                kill_switch=active,
-            )
+            self._config = replace(self._config, kill_switch=active)
             if previous != active:
                 self._kill_switch_toggles += 1
                 logger.warning(

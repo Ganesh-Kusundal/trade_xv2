@@ -1,0 +1,70 @@
+name: Architecture Enforcement
+
+on:
+  pull_request:
+    paths:
+      - '**.py'
+  push:
+    branches: [main, develop]
+    paths:
+      - '**.py'
+
+jobs:
+  exception-hierarchy:
+    name: Exception Hierarchy Compliance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install dependencies
+        run: pip install -e ".[dev]" || pip install -r requirements.txt
+      - name: Check exception hierarchy
+        run: python scripts/architecture/check_exception_hierarchy.py
+
+  import-rules:
+    name: Import Architecture Rules
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Verify no direct broker imports from application layer
+        run: |
+          violations=$(grep -r "from brokers\.\(dhan\|upstox\|paper\)" --include="*.py" application/ api/ cli/ infrastructure/ 2>/dev/null || true)
+          if [ -n "$violations" ]; then
+            echo "❌ Application layer importing broker-specific modules:"
+            echo "$violations"
+            exit 1
+          fi
+          echo "✅ No application-to-broker direct imports"
+
+  no-print-statements:
+    name: No Print Statements in Production Code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for print() in non-script files
+        run: |
+          violations=$(grep -rn "print(" --include="*.py" application/ brokers/ infrastructure/ config/ domain/ api/ cli/ 2>/dev/null | grep -v "__repr__\|__str__\|# noqa\|\.print(" || true)
+          if [ -n "$violations" ]; then
+            echo "❌ Found print() statements in production code:"
+            echo "$violations"
+            exit 1
+          fi
+          echo "✅ No print() statements in production code"
+
+  architecture-fitness:
+    name: Architecture Fitness Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install dependencies
+        run: pip install -e ".[dev]" || pip install -r requirements.txt
+      - name: Run architecture fitness tests
+        run: python -m pytest tests/architecture/test_architecture_fitness.py -v --tb=short

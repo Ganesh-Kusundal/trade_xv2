@@ -18,9 +18,9 @@ from rich.console import Console
 from brokers.common.auth.environment_bootstrap import bootstrap_environment
 
 # Initialize centralized logging BEFORE any other imports that log
-from brokers.common.logging_config import setup_logging
+from infrastructure.logging_config import configure_logging
 
-setup_logging()
+configure_logging(service="cli")
 
 # Load canonical broker env files once at startup.
 bootstrap_environment(Path(__file__).resolve().parent.parent)

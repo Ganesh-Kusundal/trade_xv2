@@ -20,9 +20,15 @@ async def health_check():
     """Check if the API server is alive.
 
     Returns 200 OK if the process is running.
+    Uses the centralized health registry for component-level checks.
     """
+    from infrastructure.health import health_registry as registry
+
+    results = await registry.run_all()
+    summary = registry.summary(results)
+
     return HealthResponse(
-        status="healthy",
+        status=summary["status"],
         version="1.0.0",
         timestamp=datetime.now(),
     )
@@ -124,8 +130,16 @@ async def get_metrics_prometheus():
 
     This endpoint is unauthenticated and returns ``text/plain``.
     Useful for Prometheus scrapers and Grafana data sources.
+    Combines HTTP request metrics with infrastructure metrics.
     """
     from api.middleware import http_metrics
+    from infrastructure.metrics.prometheus import PrometheusExporter
 
     body = http_metrics.render_prometheus()
+    try:
+        exporter = PrometheusExporter()
+        infra_metrics = exporter.generate()
+        body += "\n" + infra_metrics
+    except Exception:
+        logger.debug("Infrastructure metrics unavailable")
     return PlainTextResponse(content=body, media_type="text/plain")

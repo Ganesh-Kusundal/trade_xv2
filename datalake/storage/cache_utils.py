@@ -14,6 +14,36 @@ Usage::
 
     # Column-projected read (only loads requested columns)
     df = load_candles_projected("RELIANCE", "1m", ["timestamp", "close", "volume"])
+
+.. note:: **Why this module does NOT use ``infrastructure.cache``**
+
+    ``infrastructure.cache`` provides a general-purpose key-value store
+    (``MemoryCache`` with TTL, ``cached`` decorator).  The utilities here
+    serve a fundamentally different purpose and have incompatible requirements:
+
+    * **``generate_cache_key``** is a *deterministic hash function* that maps
+      data coordinates (symbol, timeframe, dates) to a fixed-length MD5 digest.
+      It is not a cache — it produces keys used by other layers (e.g.
+      ``parquet_store.ParquetStore.resample``).
+
+    * **``_get_cached_parquet_path``** uses ``functools.lru_cache(maxsize=256)``
+      to memoize parquet metadata checks (file existence + column validation).
+      ``lru_cache`` provides O(1) access with bounded memory and native tuple
+      argument handling.  The ``infrastructure.cache.cached`` decorator
+      serializes arguments via ``json.dumps``, which does not support tuples
+      or ``Path`` objects and offers no eviction policy — making it unsuitable
+      for this hot path.
+
+    * **``load_candles_projected``**, **``load_candles_fast``**, and
+      **``get_last_candle_fast``** are *data-access functions* that read from
+      parquet files and DuckDB.  They are I/O operations, not caching
+      abstractions.
+
+    In short: ``infrastructure.cache`` is a runtime key-value cache for
+    application data; this module is a set of parquet/DuckDB I/O helpers that
+    use memoization internally for filesystem metadata.  The concerns are
+    orthogonal and the caching strategies (LRU vs. TTL key-value) are
+    deliberately different.
 """
 
 from __future__ import annotations

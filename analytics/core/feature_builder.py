@@ -10,6 +10,7 @@ from analytics.core.models import FeatureSet, normalize_ohlcv
 from analytics.indicators.market_structure import MarketStructureAnalyzer
 from analytics.pipeline.features import ATR, ROC, RSI, Momentum
 from analytics.pipeline.pipeline import FeaturePipeline
+from domain.constants import ATR_PERIOD_DEFAULT, RSI_PERIOD_DEFAULT
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +20,8 @@ class FeatureBuilder:
         self,
         *,
         volume_bars: int = 20,
-        rsi_period: int = 14,
-        atr_period: int = 14,
+        rsi_period: int = RSI_PERIOD_DEFAULT,
+        atr_period: int = ATR_PERIOD_DEFAULT,
     ) -> None:
         if volume_bars < 2:
             raise ValueError("volume_bars must be >= 2")

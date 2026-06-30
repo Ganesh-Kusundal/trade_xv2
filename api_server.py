@@ -12,7 +12,7 @@ sys.path.insert(0, str(project_root))
 from api.config import APIConfig  # noqa: E402
 from api.main import create_app  # noqa: E402
 from brokers.common.auth.environment_bootstrap import bootstrap_environment  # noqa: E402
-from brokers.common.logging_config import setup_logging  # noqa: E402
+from infrastructure.logging_config import configure_logging  # noqa: E402
 from runtime.api_bootstrap import initialize_api_services  # noqa: E402
 
 logger = logging.getLogger(__name__)
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 def create_api_app():
     """Create API app with all services initialized via runtime bootstrap."""
-    setup_logging()
+    configure_logging()
     project_root = Path(__file__).parent
     bootstrap_environment(project_root)
     services = initialize_api_services(project_root)

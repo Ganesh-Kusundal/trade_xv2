@@ -13,6 +13,7 @@ import threading
 import time
 import uuid
 from contextlib import contextmanager
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
@@ -753,7 +754,7 @@ class OrdersAdapter:
             side=OrderSide(raw.get("transactionType", "BUY")),
             quantity=raw.get("tradedQty", raw.get("quantity", 0)),
             price=Decimal(str(raw.get("tradedPrice", raw.get("price", 0)))),
-            timestamp=raw.get("tradedTime", raw.get("createdAt")),
+            timestamp=_parse_timestamp(raw.get("tradedTime", raw.get("createdAt"))),
         )
 
 
@@ -764,3 +765,19 @@ def _opt_dec(val) -> Decimal | None:
     if val in (None, ""):
         return None
     return Decimal(str(val))
+
+
+def _parse_timestamp(val: Any) -> datetime | None:
+    """Parse a timestamp from Dhan API response to datetime.
+
+    Dhan returns ISO-8601 strings like '2026-06-30T10:15:30+05:30'.
+    Returns None if the value is missing or unparseable.
+    """
+    if val is None or val == "":
+        return None
+    if isinstance(val, datetime):
+        return val
+    try:
+        return datetime.fromisoformat(str(val))
+    except (ValueError, TypeError):
+        return None

@@ -15,7 +15,7 @@ from __future__ import annotations
 import contextlib
 import logging
 from collections.abc import Callable
-from datetime import datetime, timezone
+from datetime import datetime
 
 from brokers.common.errors import RoutingError
 from brokers.common.models import (
@@ -25,6 +25,7 @@ from brokers.common.models import (
 )
 from brokers.common.policy import RoutingPolicy, SourceSelectionPolicy
 from brokers.common.registry import BrokerRegistry
+from infrastructure.time_service import time_service
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +126,7 @@ class BrokerRouter:
             parallel_brokers=tuple(parallel),
             reason_codes=tuple(reason_codes),
             rejected=rejected,
-            decided_at=datetime.now(tz=timezone.utc),
+            decided_at=time_service.now(),
         )
         self._log_decision(
             request=request,

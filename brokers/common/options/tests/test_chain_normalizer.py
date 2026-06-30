@@ -9,6 +9,7 @@ from brokers.common.options.chain_normalizer import (
     upstox_chain_to_canonical,
 )
 from domain.entities import OptionChain, OptionContract
+from domain.entities.options import OptionLeg, OptionStrike
 
 
 def _row(strike: str, ce_ltp=100, pe_ltp=80, ce_iv=14, pe_iv=15) -> dict:
@@ -140,3 +141,83 @@ def test_option_chain_dict_roundtrip():
     assert restored.underlying == "NIFTY"
     assert len(restored.strikes) == 1
     assert restored.strikes[0].strike == Decimal("24500")
+
+
+def test_option_leg_from_dict_nested_greeks():
+    """OptionLeg.from_dict must parse greeks from nested dict."""
+    data = {
+        "ltp": 100,
+        "oi": 5000,
+        "volume": 2000,
+        "iv": 14.5,
+        "greeks": {"delta": 0.52, "theta": -11.5, "gamma": 0.0014, "vega": 14.8},
+    }
+    leg = OptionLeg.from_dict(data)
+    assert leg.ltp == Decimal("100")
+    assert leg.greeks is not None
+    assert leg.greeks["delta"] == 0.52
+    assert leg.greeks["theta"] == -11.5
+    assert leg.greeks["gamma"] == 0.0014
+    assert leg.greeks["vega"] == 14.8
+
+
+def test_option_leg_from_dict_flat_greeks():
+    """OptionLeg.from_dict must parse greeks from flat top-level keys (Dhan adapter format)."""
+    data = {
+        "ltp": 300,
+        "oi": 5000,
+        "volume": 2000,
+        "iv": 15.0,
+        "delta": 0.52,
+        "theta": -11.5,
+        "gamma": 0.0014,
+        "vega": 14.8,
+    }
+    leg = OptionLeg.from_dict(data)
+    assert leg.ltp == Decimal("300")
+    assert leg.greeks is not None
+    assert leg.greeks["delta"] == 0.52
+    assert leg.greeks["theta"] == -11.5
+    assert leg.greeks["gamma"] == 0.0014
+    assert leg.greeks["vega"] == 14.8
+
+
+def test_option_leg_from_dict_no_greeks():
+    """OptionLeg.from_dict returns greeks=None when no greek data present."""
+    data = {"ltp": 50, "oi": 1000}
+    leg = OptionLeg.from_dict(data)
+    assert leg.ltp == Decimal("50")
+    assert leg.greeks is None
+
+
+def test_option_strike_from_dict_preserves_greeks():
+    """Full round-trip: adapter dict -> OptionStrike -> greeks preserved."""
+    data = {
+        "strike": "24500",
+        "call": {
+            "ltp": 300,
+            "oi": 5000,
+            "volume": 2000,
+            "iv": 15.0,
+            "delta": 0.52,
+            "theta": -11.5,
+            "gamma": 0.0014,
+            "vega": 14.8,
+        },
+        "put": {
+            "ltp": 280,
+            "oi": 4500,
+            "volume": 1800,
+            "iv": 14.0,
+            "delta": -0.48,
+            "theta": -10.2,
+            "gamma": 0.0013,
+            "vega": 13.9,
+        },
+    }
+    strike = OptionStrike.from_dict(data)
+    assert strike.strike == Decimal("24500")
+    assert strike.call.greeks["delta"] == 0.52
+    assert strike.put.greeks["delta"] == -0.48
+    assert strike.call.greeks["vega"] == 14.8
+    assert strike.put.greeks["theta"] == -10.2

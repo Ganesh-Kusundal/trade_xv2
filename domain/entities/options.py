@@ -71,7 +71,18 @@ class OptionLeg:
     def from_dict(cls, data: dict | None) -> OptionLeg:
         if not isinstance(data, dict):
             return cls()
-        greeks = data.get("greeks")
+        # Greeks may arrive nested under "greeks" or as flat top-level keys
+        # (the Dhan adapter outputs delta/theta/gamma/vega inline).
+        nested_greeks = data.get("greeks")
+        if isinstance(nested_greeks, dict) and nested_greeks:
+            greeks = dict(nested_greeks)
+        else:
+            flat = {}
+            for key in ("delta", "theta", "gamma", "vega", "rho"):
+                val = data.get(key)
+                if val is not None:
+                    flat[key] = val
+            greeks = flat or None
         return cls(
             ltp=_decimal_or_none(data.get("ltp")),
             oi=_int_or_none(data.get("oi")),
@@ -82,7 +93,7 @@ class OptionLeg:
             symbol=data.get("symbol"),
             instrument_key=data.get("instrument_key") or data.get("security_id"),
             trading_symbol=data.get("trading_symbol") or data.get("tradingSymbol"),
-            greeks=dict(greeks) if isinstance(greeks, dict) else None,
+            greeks=greeks,
         )
 
     def to_dict(self) -> dict[str, Any]:

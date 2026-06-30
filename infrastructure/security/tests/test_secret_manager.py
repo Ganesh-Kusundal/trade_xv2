@@ -223,3 +223,27 @@ class TestBackwardCompatibility:
         raw_content = temp_token_file.read_text()
         assert store._is_encrypted_format(raw_content) is True
         SecretManager.reset_instance()
+
+
+class TestSecretManagerThreadSafety:
+    """Fix #7: SecretManager singleton must be thread-safe (DCLP)."""
+
+    def test_concurrent_get_instance_returns_same(self):
+        """100 threads calling get_instance() all get the same instance."""
+        import concurrent.futures
+
+        SecretManager.reset_instance()
+        instances = []
+
+        def get_it():
+            inst = SecretManager.get_instance()
+            instances.append(id(inst))
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=100) as pool:
+            futures = [pool.submit(get_it) for _ in range(100)]
+            for f in futures:
+                f.result()
+
+        # All instances must be the same object
+        assert len(set(instances)) == 1
+        SecretManager.reset_instance()

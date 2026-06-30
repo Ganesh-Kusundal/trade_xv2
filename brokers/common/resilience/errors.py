@@ -15,6 +15,12 @@ class RetryableError(BrokerError):
     """An error that can be retried (transient failure)."""
 
 
+# Alias used by the centralized retry framework (infrastructure.retry)
+# and the global exception handler to distinguish retryable (transient)
+# errors from fatal ones.
+TradeXV2RecoverableError = RetryableError
+
+
 class NonRetryableError(BrokerError):
     """An error that should NOT be retried (permanent failure)."""
 

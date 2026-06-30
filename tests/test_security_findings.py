@@ -332,7 +332,7 @@ class TestSecretsNotLogged:
 
     def test_query_token_redacted_in_logs(self):
         """WebSocket URL query tokens must be redacted."""
-        from brokers.common.logging_config import _redact
+        from infrastructure.logging_config import _redact
 
         raw = "connecting wss://api.upstox.com/v2/feed?token=eyJhbGciOiJIUzI1NiJ9.secret"
         redacted = _redact(raw)

@@ -43,6 +43,14 @@ from infrastructure.event_bus.event_bus import DomainEvent, EventBus, EventHandl
 
 logger = logging.getLogger(__name__)
 
+# Critical event types are never dropped — they overflow the queue rather
+# than being silently discarded. Normal events are dropped when full.
+CRITICAL_EVENT_TYPES: frozenset[str] = frozenset({
+    "TRADE_APPLIED",
+    "TRADE_FILLED",
+    "ORDER_PLACED",
+})
+
 
 class AsyncEventBus:
     """High-throughput event bus with background thread dispatch.
@@ -64,7 +72,7 @@ class AsyncEventBus:
     ) -> None:
         self._bus = bus
         self._max_queue_size = max_queue_size
-        self._queue: deque[DomainEvent] = deque(maxlen=max_queue_size)
+        self._queue: deque[DomainEvent] = deque()
         self._lock = threading.Lock()
         self._worker: threading.Thread | None = None
         self._stop_event = threading.Event()
@@ -89,20 +97,34 @@ class AsyncEventBus:
     def publish(self, event: DomainEvent) -> None:
         """Enqueue an event for background dispatch.
 
-        If the queue is full, the event is dropped and counted.  This
-        is intentional — backpressure prevents memory exhaustion when
-        producers outpace consumers.
+        Critical events (TRADE_APPLIED, TRADE_FILLED, ORDER_PLACED) are
+        never dropped — they overflow the queue to preserve trade integrity.
+        Normal events are dropped when the queue is full, applying
+        backpressure to prevent memory exhaustion.
         """
+        is_critical = event.event_type in CRITICAL_EVENT_TYPES
+
         with self._lock:
             if len(self._queue) >= self._max_queue_size:
-                self._dropped_count += 1
-                logger.warning(
-                    "AsyncEventBus: queue full (%d), dropping event %s (type=%s)",
-                    self._max_queue_size,
-                    event.event_id,
-                    event.event_type,
-                )
-                return
+                if not is_critical:
+                    self._dropped_count += 1
+                    logger.warning(
+                        "AsyncEventBus: queue full (%d), dropping non-critical event %s (type=%s)",
+                        self._max_queue_size,
+                        event.event_id,
+                        event.event_type,
+                    )
+                    return
+                # Critical event: allow queue to grow beyond max (bounded at 2x)
+                if len(self._queue) >= self._max_queue_size * 2:
+                    self._dropped_count += 1
+                    logger.error(
+                        "AsyncEventBus: queue critically full (%d/2x), dropping critical event %s (type=%s)",
+                        self._max_queue_size,
+                        event.event_id,
+                        event.event_type,
+                    )
+                    return
             self._queue.append(event)
             self._publish_count += 1
 

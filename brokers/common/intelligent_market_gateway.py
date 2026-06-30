@@ -290,7 +290,7 @@ class IntelligentMarketDataGateway(MarketDataGateway):
                 self._release_quota(token)
         return results
 
-    def quote_batch(self, symbols: list[str], exchange: str = DEFAULT_EXCHANGE) -> dict[str, dict]:
+    def quote_batch(self, symbols: list[str], exchange: str = DEFAULT_EXCHANGE) -> dict[str, Quote]:
         """Return quotes for multiple symbols with intelligent routing."""
         if not self._smart or len(symbols) < 5:
             gateway = self._get_gateway(OperationKind.GET_QUOTE)

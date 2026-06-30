@@ -24,6 +24,7 @@ try:
 except ImportError:  # pragma: no cover — Windows dev environments
     fcntl = None  # type: ignore[assignment]
 
+from brokers.common.resilience.errors import TradeXV2Error
 from domain.entities import Order, OrderStatus, OrderType, ProductType, Side
 
 logger = logging.getLogger(__name__)
@@ -70,7 +71,7 @@ def _row_to_order(row: sqlite3.Row) -> Order:
     )
 
 
-class OmsWriterLockError(RuntimeError):
+class OmsWriterLockError(TradeXV2Error):
     """Raised when another process owns the OMS SQLite writer lock."""
 
 

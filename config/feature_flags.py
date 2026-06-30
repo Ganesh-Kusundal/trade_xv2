@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import logging
 import os
+import threading
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -69,6 +70,7 @@ class FeatureFlags:
     # Runtime flag state (lazy-loaded from env)
     _flags: dict[str, bool] | None = None
     _initialized: bool = False
+    _init_lock = threading.Lock()
 
     # Class attributes for property-style access
     SMART_ROUTING: bool = False
@@ -103,9 +105,14 @@ class FeatureFlags:
 
     @classmethod
     def _ensure_initialized(cls) -> None:
-        """Ensure flags are loaded from environment."""
+        """Ensure flags are loaded from environment.
+
+        Thread-safe via double-checked locking pattern.
+        """
         if not cls._initialized:
-            cls._initialize()
+            with cls._init_lock:
+                if not cls._initialized:
+                    cls._initialize()
 
     @classmethod
     def is_enabled(cls, flag_name: str) -> bool:

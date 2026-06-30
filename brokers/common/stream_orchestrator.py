@@ -32,7 +32,7 @@ import contextlib
 import logging
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Literal, Protocol
 
 from brokers.common.broker_port import (
@@ -51,6 +51,7 @@ from domain.stream_health import (
     SubscriptionState,
     TransportState,
 )
+from infrastructure.time_service import time_service
 
 logger = logging.getLogger(__name__)
 
@@ -156,7 +157,7 @@ class _ActiveSubscription:
     session_id: str
     consumer: StreamConsumer
     request: SubscriptionRequest
-    registered_at: datetime = field(default_factory=lambda: datetime.now(tz=timezone.utc))
+    registered_at: datetime = field(default_factory=lambda: time_service.now())
 
 
 # ---------------------------------------------------------------------------
@@ -335,7 +336,7 @@ class StreamOrchestrator:
         # Update freshness on valid tick
         session = self._sessions.get(session_id)
         if session:
-            now = datetime.now(tz=timezone.utc)
+            now = time_service.now()
             session.record_message(now)
             session.update_freshness(FreshnessState.FRESH, at=now)
 
@@ -371,7 +372,7 @@ class StreamOrchestrator:
             instruments=request.instruments,
             modes=request.modes,
             health=StreamHealth(stale_seconds_threshold=request.freshness_sla_s),
-            created_at=datetime.now(tz=timezone.utc),
+            created_at=time_service.now(),
         )
         session.update_transport(TransportState.CONNECTING)
         self._sessions[session_id] = session
@@ -471,7 +472,7 @@ class StreamOrchestrator:
         if session is None:
             return
 
-        now = datetime.now(tz=timezone.utc)
+        now = time_service.now()
         session.record_message(now)
 
         if stream_kind == "market":
@@ -712,7 +713,7 @@ class StreamOrchestrator:
         """Periodic heartbeat: detect stale sessions and trigger failover."""
         while self._running:
             await asyncio.sleep(self._HEARTBEAT_INTERVAL_S)
-            now = datetime.now(tz=timezone.utc)
+            now = time_service.now()
             for _session_id, session in list(self._sessions.items()):
                 self._check_freshness(session, now)
 
@@ -786,7 +787,7 @@ class StreamOrchestrator:
                 "from_state": from_state,
                 "to_state": to_state,
                 "reason": reason,
-                "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+                "timestamp": time_service.now().isoformat(),
             },
         )
         with contextlib.suppress(Exception):

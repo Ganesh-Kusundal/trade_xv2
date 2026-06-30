@@ -13,8 +13,10 @@ replay, and live must consume data with identical provenance semantics.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 from decimal import Decimal
+
+from infrastructure.time_service import time_service
 
 
 @dataclass(frozen=True)
@@ -39,7 +41,7 @@ class ChunkRecord:
     bars_fetched: int
     error: str | None = None
     fetch_latency_ms: float = 0.0
-    fetched_at: datetime = field(default_factory=lambda: datetime.now(tz=timezone.utc))
+    fetched_at: datetime = field(default_factory=lambda: time_service.now())
 
     @property
     def succeeded(self) -> bool:
@@ -101,7 +103,7 @@ class ProvenanceLedger:
     merge_strategy: str = "prefer_primary"
     degraded: bool = False
     degraded_reason: str = ""
-    created_at: datetime = field(default_factory=lambda: datetime.now(tz=timezone.utc))
+    created_at: datetime = field(default_factory=lambda: time_service.now())
 
     def add_chunk(self, chunk: ChunkRecord) -> None:
         self.chunks.append(chunk)

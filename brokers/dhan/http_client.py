@@ -42,6 +42,7 @@ _MAX_DELAY_MS = 5000
 _REFRESH_COOLDOWN_SECONDS = 60
 _RATE_LIMIT_BACKOFF_SECONDS = 130  # Dhan's 2-min rate limit + 10s buffer
 
+
 # ── Endpoint categorization for circuit-breaker isolation (A1) ────────────
 #
 # Previously a single `CircuitBreaker("dhan-api")` protected every endpoint.
@@ -344,6 +345,32 @@ class DhanHttpClient:
                 logger.warning("token_refresh_failed", extra={"error": error_msg})
         return False
 
+    def _send_raw_http(self, method: str, url: str, json: dict | None) -> requests.Response:
+        """Execute a single HTTP request and convert network errors to DhanError.
+
+        This is a thin wrapper around ``session.request`` that:
+        * Records circuit-breaker failures on network errors.
+        * Converts ``requests.RequestException`` → ``DhanError`` so callers
+          only need to catch one exception type.
+
+        All retry logic (network-level, application-level) lives in the
+        outer ``_request`` loop — this method performs exactly **one**
+        HTTP attempt.
+
+        Raises:
+            DhanError: On any network failure.
+            requests.Response: On successful HTTP exchange (any status code).
+        """
+        cb = self._get_circuit_breaker(
+            url.replace(self._base_url, "") if url.startswith(self._base_url) else url
+        )
+        try:
+            return self._session.request(method, url, json=json, timeout=self._timeout)
+        except requests.RequestException as exc:
+            if cb:
+                cb.on_failure()
+            raise DhanError(f"HTTP {method} {url} failed: {exc}") from exc
+
     def _request(self, method: str, endpoint: str, json: dict | None = None) -> dict[str, Any]:
         # Circuit breaker check — fast-fail if the category-specific
         # breaker for this endpoint is OPEN. The split (read / write /
@@ -365,11 +392,13 @@ class DhanHttpClient:
 
         for attempt in range(1, max_attempts + 1):
             try:
-                resp = self._session.request(method, url, json=json, timeout=self._timeout)
-            except requests.RequestException as exc:
-                last_exc = DhanError(f"HTTP {method} {url} failed: {exc}")
-                if cb:
-                    cb.on_failure()
+                # Always route through _send_raw_http so that
+                # requests.RequestException is converted to DhanError
+                # regardless of whether retry is enabled.  The outer
+                # loop owns all retry logic (network + application).
+                resp = self._send_raw_http(method, url, json)
+            except DhanError as exc:
+                last_exc = exc
                 if attempt < max_attempts:
                     delay = self._backoff_delay(attempt)
                     logger.warning(
@@ -383,7 +412,7 @@ class DhanHttpClient:
                     )
                     time.sleep(delay)
                     continue
-                raise last_exc from exc
+                raise last_exc
 
             logger.debug(
                 "http_response",

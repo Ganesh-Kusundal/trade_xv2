@@ -20,6 +20,7 @@ from __future__ import annotations
 from infrastructure.logging import get_logger
 
 import threading
+import time
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -44,11 +45,30 @@ from infrastructure.event_bus import (
     TradeIdKey,
 )
 from infrastructure.observability.event_metrics import EventMetrics
+from infrastructure.metrics import metrics_registry
 
 if TYPE_CHECKING:
     pass
 
 logger = get_logger(__name__)
+
+# ── Centralized metrics (infrastructure.metrics) ──────────────────────
+# Counters, histograms, and gauges for OMS observability.
+# Registered via the shared metrics_registry so PrometheusExporter can
+# scrape them alongside any other module-level metrics.
+_orders_total = metrics_registry.counter(
+    "oms_orders_total",
+    "Total orders placed through the OMS",
+)
+_order_latency = metrics_registry.histogram(
+    "oms_order_placement_latency_seconds",
+    "End-to-end order placement latency in seconds",
+    buckets=[0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0],
+)
+_active_orders = metrics_registry.gauge(
+    "oms_active_orders",
+    "Currently open (non-terminal) orders in the OMS",
+)
 
 
 @dataclass(frozen=True)
@@ -221,29 +241,34 @@ class OrderManager:
         event publishing all happen OUTSIDE the lock to avoid holding
         it during network calls.
         """
-        # Phase 1: Idempotency + pending check (under lock)
-        order_id, early_result = self._check_idempotency_and_reserve(request)
-        if early_result is not None:
-            return early_result
-
-        # Phases 2-3: Build, validate, submit (no lock held)
+        _start = time.monotonic()
         try:
-            order, rejection = self._build_and_validate_order(order_id, request)
-            if rejection is not None:
-                self._release_pending(request)
-                return rejection
+            # Phase 1: Idempotency + pending check (under lock)
+            order_id, early_result = self._check_idempotency_and_reserve(request)
+            if early_result is not None:
+                return early_result
 
-            order, rejection = self._submit_to_broker(order, request, submit_fn)
-            if rejection is not None:
-                self._release_pending(request)
-                return rejection
-        except Exception:
-            self._release_pending(request)
-            raise
+            # Phases 2-3: Build, validate, submit (no lock held)
+            try:
+                order, rejection = self._build_and_validate_order(order_id, request)
+                if rejection is not None:
+                    self._release_pending(request)
+                    return rejection
 
-        # Phase 4: Record result (under lock)
-        self._record_and_publish(order, request)
-        return OrderResult(success=True, order=order)
+                order, rejection = self._submit_to_broker(order, request, submit_fn)
+                if rejection is not None:
+                    self._release_pending(request)
+                    return rejection
+            except Exception:
+                self._release_pending(request)
+                raise
+
+            # Phase 4: Record result (under lock)
+            self._record_and_publish(order, request)
+            _orders_total.inc()
+            return OrderResult(success=True, order=order)
+        finally:
+            _order_latency.observe(time.monotonic() - _start)
 
     # ── place_order phase helpers ─────────────────────────────────────────
 
@@ -386,6 +411,7 @@ class OrderManager:
             },
         )
         self._publish(EventType.ORDER_PLACED.value, order)
+        _active_orders.inc()
 
     def _release_pending(self, request: OmsOrderCommand) -> None:
         """Remove the correlation ID from the pending set (under lock)."""
@@ -416,6 +442,9 @@ class OrderManager:
                     existing.status,
                     order.status,
                 )
+                # Decrement active orders gauge when order reaches terminal state
+                if order.status.is_terminal:
+                    _active_orders.dec()
 
             self._publish(EventType.ORDER_UPDATED.value, order)
 
@@ -583,6 +612,7 @@ class OrderManager:
                 OrderStatus.CANCELLED,
                 details={"reason": "User requested"},
             )
+            _active_orders.dec()
 
             self._publish(EventType.ORDER_CANCELLED.value, updated)
             return OrderResult(success=True, order=updated)

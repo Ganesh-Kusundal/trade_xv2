@@ -53,9 +53,9 @@ from datalake.validation import validate_candles
 
 # Initialize logging if not already configured
 if not logging.getLogger().handlers:
-    from brokers.common.logging_config import setup_logging
+    from infrastructure.logging_config import configure_logging
 
-    setup_logging()
+    configure_logging()
 logger = logging.getLogger(__name__)
 
 TRADE_J_DUCKDB = "/Users/apple/Downloads/Trade_J/runtime-dev/historical.duckdb"

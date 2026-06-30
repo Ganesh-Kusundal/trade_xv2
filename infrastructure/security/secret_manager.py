@@ -23,9 +23,11 @@ Usage::
 
 from __future__ import annotations
 
+from brokers.common.resilience.errors import TradeXV2Error
 import json
 import logging
 import os
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -34,11 +36,11 @@ from cryptography.fernet import Fernet, InvalidToken
 logger = logging.getLogger(__name__)
 
 
-class TokenRotationError(Exception):
+class TokenRotationError(TradeXV2Error):
     """Raised when token rotation fails."""
 
 
-class EncryptionNotConfiguredError(Exception):
+class EncryptionNotConfiguredError(TradeXV2Error):
     """Raised when encryption is required but not configured."""
 
 
@@ -52,6 +54,7 @@ class SecretManager:
     _instance: SecretManager | None = None
     _fernet: Fernet | None = None
     _key: bytes | None = None
+    _instance_lock = threading.Lock()
 
     def __init__(self, encryption_key: str | None = None) -> None:
         """Initialize secret manager.
@@ -162,6 +165,8 @@ class SecretManager:
     def get_instance(cls, encryption_key: str | None = None) -> SecretManager:
         """Get singleton instance of SecretManager.
 
+        Thread-safe via double-checked locking pattern.
+
         Args:
             encryption_key: Optional encryption key.
 
@@ -169,7 +174,9 @@ class SecretManager:
             SecretManager instance.
         """
         if cls._instance is None:
-            cls._instance = cls(encryption_key=encryption_key)
+            with cls._instance_lock:
+                if cls._instance is None:
+                    cls._instance = cls(encryption_key=encryption_key)
         return cls._instance
 
     @classmethod

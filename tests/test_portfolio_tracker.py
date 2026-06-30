@@ -17,7 +17,7 @@ class TestPortfolioTracker:
         """Create a tracker with mock OMS."""
         oms = Mock()
         position_manager = Mock()
-        position_manager.get_all_positions.return_value = []
+        position_manager.get_positions.return_value = []
         position_manager.get_position.return_value = None
         return PortfolioTracker(oms, position_manager, initial_capital)
 
@@ -28,7 +28,7 @@ class TestPortfolioTracker:
     def test_positions_from_oms(self):
         tracker = self._make_tracker()
         pos = Position(symbol="RELIANCE", exchange="NSE", quantity=10, avg_price=Decimal("2500"))
-        tracker._positions.get_all_positions.return_value = [pos]
+        tracker._positions.get_positions.return_value = [pos]
         positions = tracker.get_positions()
         assert len(positions) == 1
         assert positions[0].symbol == "RELIANCE"
@@ -60,7 +60,7 @@ class TestPortfolioTracker:
     def test_equity_calculation(self):
         tracker = self._make_tracker(Decimal("100000"))
         pos = Position(symbol="RELIANCE", exchange="NSE", quantity=10, avg_price=Decimal("2500"))
-        tracker._positions.get_all_positions.return_value = [pos]
+        tracker._positions.get_positions.return_value = [pos]
         tracker._realized_pnl = Decimal("5000")
 
         equity = tracker.get_equity(current_prices={"RELIANCE": Decimal("2600")})

@@ -11,11 +11,12 @@ Mirrors Trade_J ``UpstoxV3SubscriptionLimits``:
 
 from __future__ import annotations
 
+from brokers.common.resilience.errors import TradeXV2Error
 import threading
 from dataclasses import dataclass
 
 
-class SubscriptionLimitExceededError(RuntimeError):
+class SubscriptionLimitExceededError(TradeXV2Error):
     pass
 
 

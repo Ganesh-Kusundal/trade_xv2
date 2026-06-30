@@ -29,9 +29,10 @@ from brokers.common.gateway_interfaces import (
     PortfolioProvider,
     SliceOrderCommand,
 )
+from brokers.common.resilience.errors import TradeXV2Error
 
 
-class MarginCalculationError(Exception):
+class MarginCalculationError(TradeXV2Error):
     """Raised when margin calculation fails."""
 
 

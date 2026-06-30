@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from brokers.common.resilience.errors import TradeXV2Error
 
-class UnsupportedGatewayOperationError(NotImplementedError):
+
+class UnsupportedGatewayOperationError(TradeXV2Error):
     """Raised when a gateway does not implement a contract method."""
 
     def __init__(self, gateway: str, operation: str) -> None:

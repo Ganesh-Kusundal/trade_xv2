@@ -77,7 +77,7 @@ class TestAlert:
             rule_name="test",
         )
         with pytest.raises(
-            Exception, match="dataclasses|frozen|attribute"
+            Exception, match=r"dataclasses|frozen|attribute|cannot assign"
         ):  # frozen dataclass raises
             alert.message = "modified"  # type: ignore
 

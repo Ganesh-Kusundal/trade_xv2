@@ -11,6 +11,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
+from brokers.common.resilience.errors import TradeXV2Error
 from domain.events.types import EventType
 from domain.symbols import normalize_symbol
 
@@ -51,11 +52,13 @@ class SquareOffService:
         position_manager: Any,
         risk_manager: Any,
         event_bus: Any,
+        submit_fn: Any = None,
     ) -> None:
         self._oms = order_manager
         self._positions = position_manager
         self._risk = risk_manager
         self._events = event_bus
+        self._submit_fn = submit_fn
 
     def square_off(self, symbol: str | None = None) -> SquareOffSummary:
         """Square off all or specific positions.
@@ -164,9 +167,7 @@ class SquareOffService:
 
     def _get_submit_fn(self) -> Any:
         """Get the broker submit function."""
-        if self._oms is not None and hasattr(self._oms, "_submit_fn"):
-            return self._oms._submit_fn
-        return None
+        return self._submit_fn
 
     def _publish_event(self, event_type: str, payload: dict[str, Any]) -> None:
         if self._events is None:
@@ -180,5 +181,5 @@ class SquareOffService:
             logger.exception("Failed to publish event %s", event_type)
 
 
-class SquareOffRejectedError(Exception):
+class SquareOffRejectedError(TradeXV2Error):
     """Raised when square-off is rejected by risk checks."""
