@@ -17,7 +17,7 @@ from domain.symbols import normalize_symbol
 logger = logging.getLogger(__name__)
 
 # Indices whose underlying segment uses INDEX exchange — canonical set from indices module
-from indices import INDEX_SYMBOLS as _INDEX_UNDERLYINGS  # noqa: E402
+from indices import INDEX_SYMBOLS as _INDEX_UNDERLYINGS
 
 
 def resolve_exchange(symbol: str) -> str:

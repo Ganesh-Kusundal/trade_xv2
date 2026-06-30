@@ -7,10 +7,10 @@ import asyncio
 import pytest
 
 aiohttp = pytest.importorskip("aiohttp")
-from aiohttp import ClientSession  # noqa: E402
+from aiohttp import ClientSession
 
-from brokers.upstox.auth.config import UpstoxConnectionSettings  # noqa: E402
-from brokers.upstox.auth.redirect_server import UpstoxRedirectServer  # noqa: E402
+from brokers.upstox.auth.config import UpstoxConnectionSettings
+from brokers.upstox.auth.redirect_server import UpstoxRedirectServer
 
 
 def _settings(port: int = 0) -> UpstoxConnectionSettings:
@@ -40,7 +40,7 @@ async def test_captures_code():
             ):
                 assert resp.status == 200
 
-        asyncio.create_task(_hit())  # noqa: RUF006
+        asyncio.create_task(_hit())
         code = await server.capture_code(timeout=2.0)
         assert code == "hello"
     finally:
@@ -61,7 +61,7 @@ async def test_default_path():
             ):
                 assert resp.status == 200
 
-        asyncio.create_task(_hit())  # noqa: RUF006
+        asyncio.create_task(_hit())
         code = await server.capture_code(timeout=2.0)
         assert code == "root-code"
     finally:
@@ -91,7 +91,7 @@ async def test_context_manager():
             ):
                 assert resp.status == 200
 
-        asyncio.create_task(_hit())  # noqa: RUF006
+        asyncio.create_task(_hit())
         code = await server.capture_code(timeout=2.0)
         assert code == "ctx-code"
 
@@ -118,8 +118,8 @@ async def test_duplicate_callback_only_resolves_first():
             ):
                 assert resp.status == 200
 
-        asyncio.create_task(_hit1())  # noqa: RUF006
-        asyncio.create_task(_hit2())  # noqa: RUF006
+        asyncio.create_task(_hit1())
+        asyncio.create_task(_hit2())
         code = await server.capture_code(timeout=2.0)
         assert code == "first"
     finally:
@@ -144,7 +144,7 @@ async def test_capture_starts_server_if_not_started():
         ):
             assert resp.status == 200
 
-    asyncio.create_task(_hit())  # noqa: RUF006
+    asyncio.create_task(_hit())
     code = await server.capture_code(timeout=2.0)
     assert code == "auto"
     await server.stop()

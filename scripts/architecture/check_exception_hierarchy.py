@@ -86,10 +86,7 @@ ALLOWED_STANDARD_BASES = {
 
 def should_exclude(file_path: Path) -> bool:
     """Check if file should be excluded from scanning."""
-    for pattern in EXCLUDE_PATTERNS:  # noqa: SIM110
-        if file_path.match(pattern):
-            return True
-    return False
+    return any(file_path.match(pattern) for pattern in EXCLUDE_PATTERNS)
 
 
 def _inherits_from_good_base(

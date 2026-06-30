@@ -360,7 +360,7 @@ class FeaturePrecomputer:
             MONTH(event_time) as month
         FROM daily_filled
         QUALIFY ROW_NUMBER() OVER (PARTITION BY symbol, event_time) = 1
-        """  # noqa: S608
+        """
 
     # ── Intraday features ──────────────────────────────────────────────────
 
@@ -620,7 +620,7 @@ class FeaturePrecomputer:
             MONTH(event_time) as month
         FROM gains_losses
         QUALIFY ROW_NUMBER() OVER (PARTITION BY symbol, event_time) = 1
-        """  # noqa: S608
+        """
 
     # ── Options features ───────────────────────────────────────────────────
 
@@ -777,7 +777,7 @@ class FeaturePrecomputer:
         LEFT JOIN atm_iv ai
             ON p.event_time = ai.event_time AND p.symbol = ai.symbol
         QUALIFY ROW_NUMBER() OVER (PARTITION BY p.symbol, p.event_time) = 1
-        """  # noqa: S608
+        """
 
     # ── Write utilities ────────────────────────────────────────────────────
 

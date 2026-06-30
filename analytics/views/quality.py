@@ -86,7 +86,7 @@ class QualityViews:
         near-100% scores even for symbols missing 1 candle per day.
         """
         conn.execute(
-            "CREATE OR REPLACE VIEW v_quality_score AS "  # noqa: S608
+            "CREATE OR REPLACE VIEW v_quality_score AS "
             "WITH completeness AS ("
             "SELECT symbol, COUNT(DISTINCT trade_date) as trading_days, "
             "MIN(trade_date) as first_candle, MAX(trade_date) as last_candle "

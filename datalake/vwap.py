@@ -1,2 +1,2 @@
 """Backward-compat shim — moved to datalake.analytics.vwap."""
-from datalake.analytics.vwap import *  # noqa: F403
+from datalake.analytics.vwap import *

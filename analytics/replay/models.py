@@ -35,12 +35,10 @@ class ReplayMode(str, Enum):
 
 
 # Re-export canonical models from domain.trading_costs (single source of truth)
-from domain.trading_costs import (  # noqa: E402, F401
+from domain.trading_costs import (
     CommissionModel,
     IndianMarketFees,
     SlippageModel,
-    compute_indian_equity_fees,
-    compute_indian_fno_fees,
 )
 
 

@@ -20,7 +20,7 @@ class ViewRegistry:
     """
 
     # Materialized table names managed by the system
-    MATERIALIZED_TABLES = [  # noqa: RUF012
+    MATERIALIZED_TABLES = [
         "m_intraday",
         "m_recent_daily",
         "m_symbol_snapshot",

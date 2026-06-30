@@ -135,7 +135,7 @@ async def get_metrics():
             total = cache_info.get("cache_hits_total", 0) + cache_info.get("cache_misses_total", 0)
             cache_info["hit_rate"] = round(cache_info.get("cache_hits_total", 0) / total, 4) if total > 0 else 0
             result["cache"] = cache_info
-    except Exception:  # noqa: S110
+    except Exception:
         pass
 
     return result

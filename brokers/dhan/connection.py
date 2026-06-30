@@ -8,6 +8,7 @@ import types
 import weakref
 from collections.abc import Callable
 from datetime import datetime
+from typing import Any
 
 from brokers.common.resilience.circuit_breaker import CircuitState
 from brokers.dhan.alerts import AlertsAdapter
@@ -31,6 +32,7 @@ from brokers.dhan.orders import OrdersAdapter
 from brokers.dhan.portfolio import PortfolioAdapter
 from brokers.dhan.resolver import SymbolResolver
 from brokers.dhan.resolver_refresher import ResolverRefresher
+from brokers.dhan.session_manager import DhanSessionManager
 from brokers.dhan.super_orders import SuperOrdersAdapter
 from brokers.dhan.user_profile import UserProfileAdapter
 from brokers.dhan.websocket import DhanMarketFeed, DhanOrderStream, PollingMarketFeed
@@ -177,6 +179,10 @@ class DhanConnection:
         # background thread is started by ``start_resolver_refresher``
         # (or by the LifecycleManager that owns this connection).
         self._resolver_refresher: ResolverRefresher | None = None
+        from brokers.dhan.subscription_engine import SubscriptionEngine
+
+        self.subscription_engine = SubscriptionEngine(self)
+        self._session_manager: DhanSessionManager | None = None
 
     @property
     def market_data(self) -> MarketDataAdapter:
@@ -318,6 +324,11 @@ class DhanConnection:
         """Active token-refresh scheduler, if one has been installed."""
         return getattr(self, "_token_scheduler", None)
 
+    @property
+    def session_manager(self) -> DhanSessionManager | None:
+        """Consolidated auth + connection + subscription session view."""
+        return getattr(self, "_session_manager", None)
+
     @token_scheduler.setter
     def token_scheduler(self, value: object) -> None:
         """Install a token-refresh scheduler on this connection."""
@@ -430,15 +441,11 @@ class DhanConnection:
         the new feed is registered with it. The feed's start() / stop()
         / health() are then driven by the lifecycle.
 
-        If an existing market feed is running, it is stopped first to
-        prevent orphaned WebSocket threads and duplicate tick processing.
+        If an existing market feed exists, return it so subscriptions multiplex
+        on the single host-wide connection instead of stopping/replacing the feed.
         """
-        # Stop existing feed to prevent dual WebSocket connections
         if self._market_feed is not None:
-            try:
-                self._market_feed.stop(timeout_seconds=5.0)
-            except Exception as exc:
-                logger.debug("old_market_feed_stop_failed: %s", exc)
+            return self._market_feed
 
         feed = DhanMarketFeed(
             client_id=self._client.client_id,
@@ -580,9 +587,10 @@ class DhanConnection:
         if receiver is None:
             return receiver
 
-        # Check if already registered
-        if receiver in self._token_receivers:
-            return receiver
+        # Check if already registered (compare dereferenced targets)
+        for ref in self._token_receivers:
+            if ref == receiver:
+                return receiver
 
         self._token_receivers.append(TokenReceiverRef(receiver))
         return receiver

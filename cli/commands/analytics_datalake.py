@@ -95,7 +95,7 @@ def run_datalake_backtest(args: list[str], console: Console) -> None:
                 close = df["close"]
                 ret_5d = (close.iloc[-1] / close.iloc[-120] - 1) * 100 if len(close) > 120 else 0
                 scored.append((sym, ret_5d))
-            except Exception:  # noqa: S112
+            except Exception:
                 continue
         scored.sort(key=lambda x: x[1], reverse=True)
 

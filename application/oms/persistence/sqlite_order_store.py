@@ -111,7 +111,7 @@ class SqliteOrderStore:
             logger.warning("fcntl unavailable — OMS single-writer lock skipped on this platform")
             return
         try:
-            self._lock_fd = open(self._lock_path, "w", encoding="utf-8")  # noqa: SIM115 — fd kept open for lock lifecycle
+            self._lock_fd = open(self._lock_path, "w", encoding="utf-8")
             try:
                 fcntl.flock(self._lock_fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError as exc:

@@ -134,7 +134,7 @@ class DhanConfig:
     rest_base_url: str = ""
     pin: str = ""
     totp_secret: str = ""
-    token_state_file: str = "runtime/dhan-token-state.json"  # noqa: S105
+    token_state_file: str = "runtime/dhan-token-state.json"
     refresh_buffer_minutes: int = 10
     allow_live_orders: bool = False
 
@@ -156,7 +156,7 @@ class UpstoxConfig:
     environment: str = "LIVE"
     auth_mode: str = "STATIC"
     redirect_uri: str = "http://127.0.0.1:18080/callback"
-    token_state_file: str = "runtime/upstox-token-state.json"  # noqa: S105
+    token_state_file: str = "runtime/upstox-token-state.json"
     analytics_only: bool = False
     allow_live_orders: bool = False
     mobile: str = ""

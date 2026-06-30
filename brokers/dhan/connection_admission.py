@@ -1,0 +1,187 @@
+"""Host-wide admission gate for a single Dhan market-feed WebSocket per account.
+
+Dhan allows up to five concurrent WebSocket connections, but this codebase
+enforces one market-feed connection per ``client_id`` per host via ``fcntl``
+file locking and a shared cooldown file after HTTP 429.
+"""
+
+from __future__ import annotations
+
+import contextlib
+import json
+import logging
+import os
+import re
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - Windows dev machines
+    fcntl = None  # type: ignore[assignment]
+
+
+def _sanitize_client_id(client_id: str) -> str:
+    return re.sub(r"[^A-Za-z0-9._-]+", "_", client_id.strip()) or "unknown"
+
+
+def _default_state_dir() -> Path:
+    env_dir = os.getenv("DHAN_TOKEN_STATE_DIR", "").strip()
+    if env_dir:
+        return Path(env_dir)
+    return Path(__file__).resolve().parents[2] / "runtime"
+
+
+def _parse_iso_utc(value: str) -> datetime | None:
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+    except (TypeError, ValueError):
+        return None
+
+
+class MarketFeedConnectionAdmission:
+    """Non-blocking host lock + shared 429 cooldown for one WS per account."""
+
+    def __init__(self, client_id: str, state_dir: Path | None = None) -> None:
+        self._client_id = client_id
+        self._state_dir = (state_dir or _default_state_dir()).resolve()
+        self._state_dir.mkdir(parents=True, exist_ok=True)
+        safe_id = _sanitize_client_id(client_id)
+        self._lock_path = self._state_dir / f"dhan-market-feed-{safe_id}.lock"
+        self._cooldown_path = self._state_dir / f"dhan-market-feed-{safe_id}.cooldown.json"
+        self._lock_file: Any | None = None
+        self._lock_held = False
+        self._blocked_by_lock = False
+
+    @property
+    def lock_held(self) -> bool:
+        return self._lock_held
+
+    @property
+    def blocked_by_lock(self) -> bool:
+        return self._blocked_by_lock
+
+    def try_acquire(self) -> bool:
+        """Attempt a non-blocking host-wide lock. Returns True when acquired."""
+        if self._lock_held:
+            return True
+        if fcntl is None:
+            logger.warning("market_feed_admission_no_fcntl; allowing connect without host lock")
+            self._lock_held = True
+            self._blocked_by_lock = False
+            return True
+
+        try:
+            handle = self._lock_path.open("a+")
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            self._blocked_by_lock = True
+            with contextlib.suppress(Exception):
+                handle.close()
+            logger.warning(
+                "market_feed_connection_lock_held",
+                extra={"client_id": self._client_id, "lock_path": str(self._lock_path)},
+            )
+            return False
+        except OSError as exc:
+            self._blocked_by_lock = True
+            logger.error(
+                "market_feed_admission_lock_error",
+                extra={"client_id": self._client_id, "error": str(exc)},
+            )
+            return False
+
+        self._lock_file = handle
+        self._lock_held = True
+        self._blocked_by_lock = False
+        logger.info(
+            "market_feed_connection_lock_acquired",
+            extra={"client_id": self._client_id, "lock_path": str(self._lock_path)},
+        )
+        return True
+
+    def release(self) -> None:
+        """Release the host-wide lock if this process holds it."""
+        if not self._lock_held:
+            return
+        if self._lock_file is not None and fcntl is not None:
+            with contextlib.suppress(OSError):
+                fcntl.flock(self._lock_file.fileno(), fcntl.LOCK_UN)
+            with contextlib.suppress(OSError):
+                self._lock_file.close()
+        self._lock_file = None
+        self._lock_held = False
+        self._blocked_by_lock = False
+        logger.info(
+            "market_feed_connection_lock_released",
+            extra={"client_id": self._client_id},
+        )
+
+    def seconds_until_connect_allowed(self) -> float:
+        """Return seconds to wait before the next SDK handshake is allowed."""
+        next_allowed = self.next_connect_allowed_at()
+        if next_allowed is None:
+            return 0.0
+        remaining = (next_allowed - datetime.now(timezone.utc)).total_seconds()
+        return max(0.0, remaining)
+
+    def next_connect_allowed_at(self) -> datetime | None:
+        if not self._cooldown_path.exists():
+            return None
+        try:
+            payload = json.loads(self._cooldown_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+        raw = payload.get("next_allowed_at")
+        if not isinstance(raw, str):
+            return None
+        return _parse_iso_utc(raw)
+
+    def record_rate_limit_cooldown(self) -> datetime:
+        """Persist cooldown after Dhan HTTP 429 on WebSocket handshake."""
+        cooldown_seconds = float(os.getenv("DHAN_WS_429_COOLDOWN_SECONDS", "60"))
+        next_allowed = datetime.now(timezone.utc).timestamp() + cooldown_seconds
+        next_dt = datetime.fromtimestamp(next_allowed, tz=timezone.utc)
+        payload = {
+            "client_id": self._client_id,
+            "next_allowed_at": next_dt.isoformat(),
+            "reason": "http_429",
+            "cooldown_seconds": cooldown_seconds,
+            "recorded_at": datetime.now(timezone.utc).isoformat(),
+        }
+        try:
+            self._cooldown_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        except OSError as exc:
+            logger.warning("market_feed_cooldown_write_failed: %s", exc)
+        logger.warning(
+            "market_feed_rate_limit_cooldown_recorded",
+            extra={
+                "client_id": self._client_id,
+                "cooldown_seconds": cooldown_seconds,
+                "next_allowed_at": next_dt.isoformat(),
+            },
+        )
+        return next_dt
+
+    def clear_cooldown(self) -> None:
+        with contextlib.suppress(OSError):
+            if self._cooldown_path.exists():
+                self._cooldown_path.unlink()
+
+    def status(self) -> dict[str, Any]:
+        next_allowed = self.next_connect_allowed_at()
+        return {
+            "connection_lock_acquired": self._lock_held,
+            "connection_blocked_by_lock": self._blocked_by_lock,
+            "next_connect_allowed_at": (
+                next_allowed.isoformat() if next_allowed is not None else None
+            ),
+            "seconds_until_connect_allowed": self.seconds_until_connect_allowed(),
+            "admission_lock_path": str(self._lock_path),
+        }

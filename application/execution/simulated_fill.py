@@ -13,7 +13,6 @@ from application.oms.protocols import IOrderManager
 from domain import Order, OrderStatus, ProductType, Side, Trade
 
 # Re-export from domain.trading_costs (single source of truth)
-from domain.trading_costs import apply_slippage  # noqa: F401
 
 
 def make_simulated_submit_fn(

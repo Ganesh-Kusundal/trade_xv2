@@ -136,7 +136,7 @@ class ProcessedTradeCleanupService:
         )
 
 
-from dataclasses import dataclass as _dataclass  # noqa: E402
+from dataclasses import dataclass as _dataclass
 
 
 @_dataclass(frozen=True)

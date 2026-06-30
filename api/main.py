@@ -45,10 +45,10 @@ async def lifespan(app: FastAPI):
     # Start TradingContext lifecycle (reconciliation, DLQ monitor, daily PnL reset)
     from api.ws.bridge import MarketBridge
     from api.ws.market import market_manager
-    from infrastructure.async_resource_manager import AsyncResourceManager
     from infrastructure.lifecycle import LifecycleManager
+    from infrastructure.resource_manager import ResourceManager
 
-    resource_manager = AsyncResourceManager()
+    resource_manager = ResourceManager()
     lifecycle: LifecycleManager | None = None
     market_bridge: MarketBridge | None = None
     lifecycle_started = False
@@ -148,7 +148,7 @@ async def _shutdown_cleanup(
     lifecycle_started:
         True if lifecycle.start_all() was called successfully.
     resource_manager:
-        AsyncResourceManager to perform reverse-order cleanup. If provided,
+        ResourceManager to perform reverse-order cleanup. If provided,
         it handles the shutdown of all registered resources.
     """
     # Use resource manager for coordinated shutdown if available
@@ -228,7 +228,7 @@ def create_app(
     cfg = config or APIConfig()
 
     # Initialise OpenTelemetry distributed tracing
-    from infrastructure.opentelemetry_setup import setup_telemetry
+    from infrastructure.observability.opentelemetry_setup import setup_telemetry
 
     setup_telemetry(
         service_name="tradex-api",
@@ -399,6 +399,11 @@ def create_app(
     from api.routers.risk import router as risk_router
 
     app.include_router(risk_router, prefix=f"{cfg.api_prefix}/risk", tags=["Risk"])
+
+    # Audit trail endpoints
+    from api.routers.audit import router as audit_router
+
+    app.include_router(audit_router, prefix=f"{cfg.api_prefix}/audit", tags=["Audit"])
 
     # News endpoints
     from api.routers.news import router as news_router

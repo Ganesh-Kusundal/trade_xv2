@@ -24,7 +24,7 @@ from typing import Any, TypeVar
 
 F = TypeVar("F", bound=Callable[..., Any])
 
-from infrastructure.metrics.registry import metrics_registry  # noqa: E402
+from infrastructure.metrics.registry import metrics_registry
 
 _cache_hits = metrics_registry.counter("cache_hits_total", "Total cache hits")
 _cache_misses = metrics_registry.counter("cache_misses_total", "Total cache misses")

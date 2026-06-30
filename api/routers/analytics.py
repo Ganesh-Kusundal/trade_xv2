@@ -57,7 +57,7 @@ async def get_indicators(
 
         view_name, value_col = view_map[type]
         query = (
-            f"SELECT timestamp, symbol, {value_col} FROM {view_name} "  # noqa: S608
+            f"SELECT timestamp, symbol, {value_col} FROM {view_name} "
             "WHERE symbol = ? ORDER BY timestamp DESC LIMIT ?"
         )
 
@@ -162,7 +162,7 @@ async def get_top_candidates(
         view_name = "v_top3_candidates" if limit <= 3 else "v_top10_candidates"
 
         query = (
-            "SELECT symbol, ltp, intraday_score, signal, trend, "  # noqa: S608
+            "SELECT symbol, ltp, intraday_score, signal, trend, "
             "rsi_14, roc_5, relative_volume, day_high, day_low, day_volume "
             f"FROM {view_name} "
             "LIMIT ?"

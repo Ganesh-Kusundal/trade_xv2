@@ -53,11 +53,14 @@ class _GatewayStreamHandle:
         feed: Any,
         instruments: list[str],
         on_tick: Any,
+        *,
+        stream_kind: str = "market",
     ) -> None:
         self._adapter = adapter
         self._feed = feed
         self._instruments = list(instruments)
         self._on_tick = on_tick
+        self._stream_kind = stream_kind
         self._broker_id = adapter.broker_id
         self._session_id = str(uuid.uuid4())
 
@@ -70,14 +73,20 @@ class _GatewayStreamHandle:
         return self._broker_id
 
     async def disconnect(self) -> None:
-        # 1. Unstream each instrument to clean up callbacks and unsubscribe on feed
+        if self._stream_kind == "order":
+            unstream_order = getattr(self._adapter.legacy_gateway, "unstream_order", None)
+            if callable(unstream_order):
+                await asyncio.to_thread(unstream_order, self._on_tick)
+            await self._adapter.release_order_stream(self)
+            return
+
+        # Market stream: unstream each instrument
         for instrument_key in self._instruments:
             if ":" in instrument_key:
                 symbol, exchange = instrument_key.split(":", 1)
             else:
                 symbol, exchange = instrument_key, "NSE"
 
-            # Use gateway.unstream to release the dynamically created _on_tick callback
             await asyncio.to_thread(
                 self._adapter.legacy_gateway.unstream,
                 symbol,
@@ -85,12 +94,20 @@ class _GatewayStreamHandle:
                 self._on_tick,
             )
 
-        # 2. Notify the adapter to release references
         await self._adapter.release_market_stream(self)
 
     def is_connected(self) -> bool:
         if self._feed is None:
             return False
+        health = getattr(self._feed, "health", None)
+        if callable(health):
+            try:
+                snapshot = health()
+                metrics = getattr(snapshot, "metrics", {}) or {}
+                if metrics.get("is_stale"):
+                    return False
+            except Exception:
+                logger.debug("stream_handle_health_check_failed", exc_info=True)
         connected = getattr(self._feed, "is_connected", None)
         if callable(connected):
             return bool(connected())
@@ -113,6 +130,7 @@ class MarketDataGatewayAdapter:
         self._capabilities = capabilities or capabilities_for_broker(broker_id)
         self._extensions = extensions or frozenset()
         self._active_market_handles: set[str] = set()
+        self._active_order_handles: set[str] = set()
         self._handle_lock = threading.Lock()
 
     @property
@@ -253,7 +271,25 @@ class MarketDataGatewayAdapter:
         return handle
 
     async def open_order_stream(self, plan: BrokerStreamPlan) -> BrokerStreamHandle:
-        return await self.open_market_stream(plan)
+        def _on_order(data: Any) -> None:
+            if plan.on_raw_frame is None:
+                return
+            frame = data if isinstance(data, dict) else {"order_id": str(data)}
+            plan.on_raw_frame(frame)
+
+        stream_order = getattr(self._gateway, "stream_order", None)
+        if not callable(stream_order):
+            raise RuntimeError(
+                f"Gateway {self._broker_id!r} does not implement stream_order()"
+            )
+
+        feed = await asyncio.to_thread(stream_order, _on_order)
+        handle = _GatewayStreamHandle(
+            self, feed, list(plan.instruments), _on_order, stream_kind="order"
+        )
+        with self._handle_lock:
+            self._active_order_handles.add(handle.session_id)
+        return handle
 
     async def release_market_stream(self, handle: _GatewayStreamHandle) -> None:
         with self._handle_lock:
@@ -267,7 +303,17 @@ class MarketDataGatewayAdapter:
                     await asyncio.to_thread(disconnect)
 
     async def release_order_stream(self, handle: _GatewayStreamHandle) -> None:
-        await self.release_market_stream(handle)
+        with self._handle_lock:
+            if handle.session_id in self._active_order_handles:
+                self._active_order_handles.remove(handle.session_id)
+
+            if not self._active_order_handles and handle._feed is not None:
+                stop = getattr(handle._feed, "stop", None)
+                disconnect = getattr(handle._feed, "disconnect", None)
+                if callable(stop):
+                    await asyncio.to_thread(stop, 5.0)
+                elif callable(disconnect):
+                    await asyncio.to_thread(disconnect)
 
     async def health(self) -> BrokerHealthSnapshot:
         describe = await asyncio.to_thread(self._gateway.describe)

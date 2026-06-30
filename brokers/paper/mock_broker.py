@@ -26,7 +26,7 @@ class MockBroker:
         trading_context: TradingContext | None = None,
     ) -> None:
         self._name = name
-        self._id = f"paper-{random.randint(1000, 9999)}"  # noqa: S311
+        self._id = f"paper-{random.randint(1000, 9999)}"
         self._connected = False
         self._gw = PaperGateway(
             initial_capital=initial_capital,

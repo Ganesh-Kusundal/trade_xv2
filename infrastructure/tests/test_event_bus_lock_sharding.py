@@ -113,12 +113,12 @@ def test_concurrent_subscribe_and_publish():
     pub_threads = [threading.Thread(target=publisher) for _ in range(3)]
     sub_thread = threading.Thread(target=subscriber_cycler)
 
-    for t in pub_threads + [sub_thread]:  # noqa: RUF005
+    for t in [*pub_threads, sub_thread]:
         t.start()
 
     time.sleep(0.5)  # Let threads run
     stop.set()
-    for t in pub_threads + [sub_thread]:  # noqa: RUF005
+    for t in [*pub_threads, sub_thread]:
         t.join(timeout=5)
 
     # No crashes occurred (we got here). Verify we received *some* events.

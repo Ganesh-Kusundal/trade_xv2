@@ -209,7 +209,7 @@ class CorporateActionStore:
             FROM corporate_actions
             WHERE {where}
             ORDER BY action_date ASC
-        """  # noqa: S608
+        """
         return self.conn.execute(query, params).fetchdf()
 
     def get_adjustment_factors(

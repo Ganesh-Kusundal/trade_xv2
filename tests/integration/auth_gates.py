@@ -21,12 +21,21 @@ class AuthGate:
 def _load_env_file(path: Path) -> None:
     if not path.exists():
         return
+    for key, value in _read_env_file(path).items():
+        os.environ[key] = value
+
+
+def _read_env_file(path: Path) -> dict[str, str]:
+    result: dict[str, str] = {}
+    if not path.exists():
+        return result
     for line in path.read_text().splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, _, value = line.partition("=")
-        os.environ[key.strip()] = value.strip().strip('"').strip("'")
+        result[key.strip()] = value.strip().strip('"').strip("'")
+    return result
 
 
 def _env_or_file(key: str, file_key: str) -> str:
@@ -57,29 +66,58 @@ def dhan_totp_gate() -> AuthGate:
     return AuthGate(True, env_path)
 
 
-def upstox_totp_gate() -> AuthGate:
-    """True when Upstox TOTP credentials are present for live token generation."""
-    env_path = REPO_ROOT / ".env.upstox"
-    if not env_path.exists() or env_path.stat().st_size == 0:
-        return AuthGate(False, None, ".env.upstox missing or empty")
-
-    _load_env_file(env_path)
-    client_id = (
-        os.environ.get("UPSTOX_CLIENT_ID", "").strip()
-        or os.environ.get("UPSTOX_API_KEY", "").strip()
-    )
-    auth_mode = os.environ.get("UPSTOX_AUTH_MODE", "STATIC").strip().upper()
-    mobile = os.environ.get("UPSTOX_MOBILE", "").strip()
-    pin = _env_or_file("UPSTOX_PIN", "UPSTOX_PIN_FILE")
-    totp_secret = _env_or_file("UPSTOX_TOTP_SECRET", "UPSTOX_TOTP_SECRET_FILE")
+def _upstox_totp_from_env(env: dict[str, str]) -> AuthGate | None:
+    """Return AuthGate when *env* has complete TOTP config, else None."""
+    client_id = env.get("UPSTOX_CLIENT_ID", "").strip() or env.get("UPSTOX_API_KEY", "").strip()
+    auth_mode = env.get("UPSTOX_AUTH_MODE", "STATIC").strip().upper()
+    mobile = env.get("UPSTOX_MOBILE", "").strip()
+    pin = env.get("UPSTOX_PIN", "").strip()
+    if not pin:
+        file_path = env.get("UPSTOX_PIN_FILE", "").strip()
+        if file_path and Path(file_path).exists():
+            pin = Path(file_path).read_text().strip()
+    totp_secret = env.get("UPSTOX_TOTP_SECRET", "").strip()
+    if not totp_secret:
+        file_path = env.get("UPSTOX_TOTP_SECRET_FILE", "").strip()
+        if file_path and Path(file_path).exists():
+            totp_secret = Path(file_path).read_text().strip()
+    client_secret = env.get("UPSTOX_CLIENT_SECRET", "").strip()
 
     if not client_id:
-        return AuthGate(False, env_path, "UPSTOX_CLIENT_ID / UPSTOX_API_KEY not set")
+        return None
     if auth_mode != "TOTP":
-        return AuthGate(False, env_path, f"UPSTOX_AUTH_MODE={auth_mode} (need TOTP)")
+        return None
     if not mobile or not pin or not totp_secret:
-        return AuthGate(False, env_path, "UPSTOX TOTP fields incomplete")
-    return AuthGate(True, env_path)
+        return None
+    if not client_secret:
+        return None
+    return AuthGate(True, None)
+
+
+def upstox_totp_gate() -> AuthGate:
+    """True when Upstox TOTP credentials are present (.env.upstox or .env.local)."""
+    last_reason = ".env.upstox and .env.local missing or empty"
+    for name in (".env.upstox", ".env.local"):
+        env_path = REPO_ROOT / name
+        if not env_path.exists() or env_path.stat().st_size == 0:
+            continue
+        env = _read_env_file(env_path)
+        client_id = env.get("UPSTOX_CLIENT_ID", "").strip() or env.get("UPSTOX_API_KEY", "").strip()
+        auth_mode = env.get("UPSTOX_AUTH_MODE", "STATIC").strip().upper()
+        if not client_id:
+            last_reason = f"{name}: UPSTOX_CLIENT_ID / UPSTOX_API_KEY not set"
+            continue
+        if auth_mode != "TOTP":
+            last_reason = f"{name}: UPSTOX_AUTH_MODE={auth_mode} (need TOTP)"
+            continue
+        gate = _upstox_totp_from_env(env)
+        if gate is not None:
+            return AuthGate(True, env_path)
+        last_reason = f"{name}: UPSTOX TOTP fields incomplete"
+        client_secret = env.get("UPSTOX_CLIENT_SECRET", "").strip()
+        if not client_secret:
+            last_reason = f"{name}: UPSTOX_CLIENT_SECRET not set"
+    return AuthGate(False, None, last_reason)
 
 
 def dhan_readonly_gate() -> AuthGate:

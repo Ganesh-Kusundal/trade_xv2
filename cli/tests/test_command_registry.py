@@ -105,7 +105,6 @@ def test_main_module_populates_registry_on_import() -> None:
     (``DISPATCH_TABLE``) must contain every name. If either is
     missing an entry, the next test will catch the divergence.
     """
-    import cli.main  # noqa: F401 — triggers registration
 
     missing_from_commands = [name for name in TOP_LEVEL_COMMANDS if name not in registry.COMMANDS]
     missing_from_dispatch = [

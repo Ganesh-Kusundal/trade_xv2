@@ -144,11 +144,11 @@ class UpstoxPortfolioStream:
             if isinstance(raw, bytes):
                 try:
                     raw = raw.decode("utf-8")
-                except Exception:  # noqa: S112
+                except Exception:
                     continue
             try:
                 msg = json.loads(raw)
-            except Exception:  # noqa: S112
+            except Exception:
                 continue
             update_type = msg.get("type") or msg.get("update_type")
             payload = msg.get("data") if isinstance(msg, dict) else {}

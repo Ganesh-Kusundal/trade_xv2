@@ -1,2 +1,2 @@
 """Backward-compat shim — moved to datalake.core.universe (was datalake.universe)."""
-from datalake.core.universe import *  # noqa: F403
+from datalake.core.universe import *

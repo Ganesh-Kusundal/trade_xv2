@@ -25,13 +25,13 @@ import pytest
 
 pytestmark = pytest.mark.e2e
 
-from analytics.views.manager import ViewManager  # noqa: E402
-from application.oms.order_manager import OmsOrderCommand, OrderManager  # noqa: E402
-from datalake.core.duckdb_utils import close_all_connections  # noqa: E402
-from domain import Order, OrderStatus, OrderType, ProductType, Side  # noqa: E402
-from domain.models.trading import SignalDTO  # noqa: E402
-from tests.e2e.fixtures.data_generators import generate_ohlcv_data  # noqa: E402
-from tests.e2e.fixtures.trading_context_factory import create_paper_trading_context  # noqa: E402
+from analytics.views.manager import ViewManager
+from application.oms.order_manager import OmsOrderCommand, OrderManager
+from datalake.core.duckdb_utils import close_all_connections
+from domain import Order, OrderStatus, OrderType, ProductType, Side
+from domain.models.trading import SignalDTO
+from tests.e2e.fixtures.data_generators import generate_ohlcv_data
+from tests.e2e.fixtures.trading_context_factory import create_paper_trading_context
 
 # ── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -316,7 +316,7 @@ def test_risk_check_before_order(view_manager: ViewManager, tmp_path) -> None:
         events_dir=tmp_path / "events",
     )
 
-    # Order: 1000 shares × 150 = 150,000 notional → 150% of capital  # noqa: RUF003
+    # Order: 1000 shares × 150 = 150,000 notional → 150% of capital
     order = Order(
         order_id="ORD-RISK-001",
         symbol="RELIANCE",
@@ -349,7 +349,7 @@ def test_order_placed_after_risk_pass(view_manager: ViewManager, tmp_path) -> No
         risk_manager=ctx.risk_manager,
     )
 
-    # Order: 10 shares × 120 = 1,200 notional → 1.2% of capital (well within 50%)  # noqa: RUF003
+    # Order: 10 shares × 120 = 1,200 notional → 1.2% of capital (well within 50%)
     command = OmsOrderCommand(
         symbol="RELIANCE",
         exchange="NSE",
@@ -492,7 +492,7 @@ def test_query_executor_read_only_safety(tmp_path) -> None:
     assert rows[0][0] == 42
 
     # Write MUST fail on a read-only connection
-    with pytest.raises(Exception):  # noqa: B017
+    with pytest.raises(Exception):
         conn_ro.execute("CREATE TABLE should_fail (id INTEGER)")
 
     conn_ro.close()

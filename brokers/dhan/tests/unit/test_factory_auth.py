@@ -5,7 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import time
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from brokers.common.auth import AuthManager, JsonTokenStateStore, TokenSource, TokenState
 
@@ -171,6 +171,44 @@ class TestAuthManagerIntegration:
         assert store.load() is not None
         auth.revoke()
         assert store.load() is None
+
+    def test_refresh_via_auth_prefers_force_refresh(self, tmp_path):
+        from brokers.dhan.factory import _refresh_via_auth
+
+        env_file = tmp_path / ".env.local"
+        env_file.write_text("DHAN_ACCESS_TOKEN=old\n")
+        auth = MagicMock()
+        state = MagicMock()
+        state.access_token = "forced"
+        auth.force_refresh.return_value = state
+        lock = __import__("threading").Lock()
+        token = _refresh_via_auth(auth, env_file, lock)
+        assert token == "forced"
+        auth.force_refresh.assert_called_once()
+
+
+class TestTokenSchedulerWithoutLifecycle:
+    def test_scheduler_registers_atexit_shutdown_when_lifecycle_absent(self):
+        from brokers.dhan.factory import BrokerFactory
+
+        factory = BrokerFactory()
+        scheduler = MagicMock()
+        gateway = MagicMock()
+        gateway._conn = MagicMock()
+
+        with patch("brokers.dhan.factory.TokenRefreshScheduler", return_value=scheduler):
+            with patch("atexit.register") as register_atexit:
+                factory._setup_token_refresh_scheduler(
+                    gateway,
+                    MagicMock(),
+                    MagicMock(),
+                    MagicMock(),
+                    MagicMock(),
+                    None,
+                    __import__("threading").Lock(),
+                )
+                scheduler.start.assert_called_once()
+                register_atexit.assert_called_once_with(scheduler.stop)
 
     def test_on_refresh_callback(self, tmp_path):
         callback = MagicMock()

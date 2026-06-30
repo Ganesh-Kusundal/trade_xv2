@@ -1,2 +1,2 @@
 """Backward-compat shim — moved to datalake.quality.engine."""
-from datalake.quality.engine import *  # noqa: F403
+from datalake.quality.engine import *

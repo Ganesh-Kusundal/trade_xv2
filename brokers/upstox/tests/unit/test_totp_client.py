@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from brokers.common.auth.totp_cooldown import TotpRateLimitError
 from brokers.upstox.auth.config import UpstoxConnectionSettings
 from brokers.upstox.auth.totp_client import UpstoxTotpClient
 
@@ -22,6 +23,17 @@ def _make_settings(**kwargs) -> UpstoxConnectionSettings:
     }
     defaults.update(kwargs)
     return UpstoxConnectionSettings(**defaults)
+
+
+@pytest.fixture(autouse=True)
+def _disable_totp_cooldown(monkeypatch):
+    """Isolate unit tests from process-wide TOTP cooldown state."""
+    guard = MagicMock()
+    guard.check_allowed.return_value = None
+    monkeypatch.setattr(
+        "brokers.common.auth.totp_cooldown.TotpCooldownGuard.for_broker",
+        lambda *args, **kwargs: guard,
+    )
 
 
 class TestUpstoxTotpClientInitialization:
@@ -98,6 +110,31 @@ class TestUpstoxTotpClientTokenGeneration:
 
             with pytest.raises(RuntimeError, match="TOTP token generation failed"):
                 client.generate_token()
+
+    def test_generate_token_records_upstox_lockout(self, monkeypatch):
+        """Broker-side Upstox OTP lockout must become a local cooldown."""
+        settings = _make_settings()
+        guard = MagicMock()
+        guard.check_allowed.return_value = None
+        monkeypatch.setattr(
+            "brokers.common.auth.totp_cooldown.TotpCooldownGuard.for_broker",
+            lambda *args, **kwargs: guard,
+        )
+
+        with patch("upstox_totp.UpstoxTOTP") as mock_totp:
+            mock_client = MagicMock()
+            mock_client.app_token.get_access_token.side_effect = Exception(
+                "UDAPI100500: You have exceeded the maximum number of times you can "
+                "generate an OTP. Kindly, try again after 10 mins."
+            )
+            mock_totp.return_value = mock_client
+
+            client = UpstoxTotpClient(settings)
+
+            with pytest.raises(TotpRateLimitError):
+                client.generate_token()
+
+        guard.record_rate_limited.assert_called_once()
 
 
 class TestUpstoxTotpClientValidation:

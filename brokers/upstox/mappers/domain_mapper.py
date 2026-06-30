@@ -274,6 +274,14 @@ class UpstoxDomainMapper:
         data = payload.get("data") if "data" in payload else payload
         if not isinstance(data, dict):
             data = {}
+        # Handle nested key structure: {"data": {"NSE_EQ|RELIANCE": {...}}}
+        if data and "symbol" not in data and "last_price" not in data and "ltp" not in data:
+            for _key, value in data.items():
+                if isinstance(value, dict) and (
+                    "last_price" in value or "ltp" in value or "symbol" in value
+                ):
+                    data = value
+                    break
         ohlc = data.get("ohlc") or {}
         depth = data.get("depth") or {}
         bid = depth.get("buy") if isinstance(depth, dict) else None

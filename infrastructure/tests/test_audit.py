@@ -6,7 +6,7 @@ import tempfile
 import threading
 from pathlib import Path
 
-from infrastructure.audit import (
+from application.audit import (
     AuditEvent,
     AuditLogger,
     FileAuditStore,

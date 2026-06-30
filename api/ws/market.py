@@ -29,8 +29,12 @@ class MarketConnectionManager:
         logger.info("Market WS connected: %s", connection_id)
 
     async def disconnect(self, connection_id: str):
+        symbols = self.subscriptions.pop(connection_id, None)
         self.active_connections.pop(connection_id, None)
-        self.subscriptions.pop(connection_id, None)
+        if symbols:
+            from api.ws.feed_wiring import unsubscribe_symbols_from_broker
+
+            unsubscribe_symbols_from_broker(symbols)
         logger.info("Market WS disconnected: %s", connection_id)
 
     async def subscribe(self, connection_id: str, symbols: list[str]):
@@ -127,6 +131,9 @@ async def market_websocket(websocket: WebSocket):
             elif action == "unsubscribe":
                 symbols = message.get("symbols", [])
                 await market_manager.unsubscribe(connection_id, symbols)
+                from api.ws.feed_wiring import unsubscribe_symbols_from_broker
+
+                unsubscribe_symbols_from_broker(symbols)
                 await market_manager.send_to_client(
                     connection_id,
                     {"type": "unsubscribed", "symbols": symbols},

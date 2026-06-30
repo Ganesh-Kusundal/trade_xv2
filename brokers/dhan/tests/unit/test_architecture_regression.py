@@ -80,10 +80,15 @@ class TestDualFeedPrevention:
 
 class TestStreamCallbackDedup:
     def _make_gateway(self):
+        from brokers.dhan.subscription_engine import SubscriptionEngine
+
         conn = MagicMock()
         conn.client_id = "TEST"
         conn.access_token = "TOKEN"
+        feed = MagicMock()
+        feed.is_connected = False
         conn.market_feed = None
+        conn.create_market_feed = MagicMock(return_value=feed)
         conn.instruments = MagicMock()
         conn.event_bus = None
 
@@ -92,6 +97,7 @@ class TestStreamCallbackDedup:
         inst.exchange.value = "NSE"
         inst.security_id = "2885"
         conn.instruments.resolve.return_value = inst
+        conn.subscription_engine = SubscriptionEngine(conn)
 
         gw = BrokerGateway(conn)
         return gw
@@ -107,7 +113,7 @@ class TestStreamCallbackDedup:
         gw.stream("RELIANCE", "NSE", on_tick=my_tick)
         gw.stream("RELIANCE", "NSE", on_tick=my_tick)
 
-        assert len(gw._stream_registry.get("RELIANCE:NSE", [])) == 1
+        assert len(gw._conn.subscription_engine._market_callbacks.get("RELIANCE:NSE", [])) == 1
 
     def test_different_callbacks_both_registered(self):
         """Different on_tick callbacks for the same symbol should both be registered."""
@@ -122,14 +128,14 @@ class TestStreamCallbackDedup:
         gw.stream("RELIANCE", "NSE", on_tick=tick_a)
         gw.stream("RELIANCE", "NSE", on_tick=tick_b)
 
-        assert len(gw._stream_registry.get("RELIANCE:NSE", [])) == 2
+        assert len(gw._conn.subscription_engine._market_callbacks.get("RELIANCE:NSE", [])) == 2
 
     def test_stream_without_callback_no_registry_entry(self):
-        """stream() without on_tick should not create a registry entry."""
+        """stream() without on_tick should not create a callback registry entry."""
         gw = self._make_gateway()
         gw.stream("RELIANCE", "NSE")
 
-        assert "RELIANCE:NSE" not in gw._stream_registry
+        assert "RELIANCE:NSE" not in gw._conn.subscription_engine._market_callbacks
 
 
 # ── Fix 3: Subscription limit enforcement ───────────────────────────────────
@@ -170,10 +176,15 @@ class TestUnstream:
         return gw, my_tick
 
     def _make_gateway(self):
+        from brokers.dhan.subscription_engine import SubscriptionEngine
+
         conn = MagicMock()
         conn.client_id = "TEST"
         conn.access_token = "TOKEN"
-        conn.market_feed = None
+        feed = MagicMock()
+        feed.is_connected = False
+        conn.market_feed = feed
+        conn.create_market_feed = MagicMock(return_value=feed)
         conn.instruments = MagicMock()
         conn.event_bus = None
 
@@ -182,6 +193,7 @@ class TestUnstream:
         inst.exchange.value = "NSE"
         inst.security_id = "2885"
         conn.instruments.resolve.return_value = inst
+        conn.subscription_engine = SubscriptionEngine(conn)
 
         return BrokerGateway(conn)
 
@@ -199,7 +211,7 @@ class TestUnstream:
         gw.stream("RELIANCE", "NSE", on_tick=tick_b)
         gw.unstream("RELIANCE", "NSE", on_tick=tick_a)
 
-        remaining = gw._stream_registry.get("RELIANCE:NSE", [])
+        remaining = gw._conn.subscription_engine._market_callbacks.get("RELIANCE:NSE", [])
         assert len(remaining) == 1
         assert remaining[0] is tick_b
 
@@ -208,7 +220,7 @@ class TestUnstream:
         gw, _my_tick = self._make_gateway_with_stream()
         gw.unstream("RELIANCE", "NSE")
 
-        assert "RELIANCE:NSE" not in gw._stream_registry
+        assert "RELIANCE:NSE" not in gw._conn.subscription_engine._market_callbacks
 
     def test_unstream_nonexistent_is_noop(self):
         """unstream() for a symbol never streamed should not raise."""
@@ -277,6 +289,11 @@ class TestCacheEviction:
         feed._last_tick_time = {}
         feed.is_connected = False
         conn.market_feed = feed
+        conn.create_market_feed = MagicMock(return_value=feed)
+
+        from brokers.dhan.subscription_engine import SubscriptionEngine
+
+        conn.subscription_engine = SubscriptionEngine(conn)
 
         gw = BrokerGateway(conn)
         gw.stream("RELIANCE", "NSE", on_tick=lambda q: None)
@@ -301,6 +318,12 @@ class TestThreadSafeStreamCreation:
         inst.exchange.value = "NSE"
         inst.security_id = "2885"
         conn.instruments.resolve.return_value = inst
+        feed = MagicMock()
+        feed.is_connected = False
+        conn.create_market_feed = MagicMock(return_value=feed)
+        from brokers.dhan.subscription_engine import SubscriptionEngine
+
+        conn.subscription_engine = SubscriptionEngine(conn)
 
         gw = BrokerGateway(conn)
 
@@ -332,8 +355,13 @@ class TestThreadSafeStreamCreation:
         assert isinstance(gw._stream_lock, type(threading.Lock()))
 
     def test_stream_registry_exists(self):
-        """BrokerGateway must have a _stream_registry attribute."""
+        """BrokerGateway connection must own a SubscriptionEngine."""
         conn = MagicMock()
+        from brokers.dhan.subscription_engine import SubscriptionEngine
+
+        conn.create_market_feed = MagicMock(return_value=MagicMock(is_connected=False))
+        conn.instruments = MagicMock()
+        conn.subscription_engine = SubscriptionEngine(conn)
         gw = BrokerGateway(conn)
-        assert hasattr(gw, "_stream_registry")
-        assert isinstance(gw._stream_registry, dict)
+        assert hasattr(gw._conn, "subscription_engine")
+        assert gw._conn.subscription_engine is not None

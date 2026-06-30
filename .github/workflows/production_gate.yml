@@ -228,6 +228,7 @@ jobs:
           PRE_PROD_GATE: "1"
         run: |
           pytest -m "auth_integration" tests/integration/test_auth_totp_live.py -v --tb=short
+          pytest brokers/upstox/tests/integration/test_ws_parity.py -v --tb=short
 
   # ── Phase 7: Production Certification Gate ──────────────────────────
   certification-gate:

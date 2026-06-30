@@ -201,6 +201,10 @@ class StreamOrchestrator:
         self._handles: dict[str, BrokerStreamHandle] = {}
         # sub_id → _ActiveSubscription
         self._subscriptions: dict[str, _ActiveSubscription] = {}
+        # session_id → on_raw_frame callback (survives reconnect)
+        self._session_frame_handlers: dict[str, Any] = {}
+        # session_id → reconnect monitor task
+        self._session_reconnect_tasks: dict[str, asyncio.Task] = {}
 
         self._lock = asyncio.Lock()
         self._running = False
@@ -246,6 +250,7 @@ class StreamOrchestrator:
             existing_session = self._find_reusable_session(broker_id, request)
             if existing_session is not None:
                 session_id = existing_session.session_id
+                await self._merge_session_instruments(existing_session, request)
             else:
                 session_id = await self._open_session(broker_id, request, trace_id)
 
@@ -338,7 +343,10 @@ class StreamOrchestrator:
         if session:
             now = time_service.now()
             session.record_message(now)
+            prev = session.health.freshness
             session.update_freshness(FreshnessState.FRESH, at=now)
+            if prev != FreshnessState.FRESH:
+                await self._notify_health_change(session_id, session.health)
 
     async def _deliver_order_update(self, session_id: str, update: OrderUpdate) -> None:
         """Deliver an order update to all consumers of the session."""
@@ -356,6 +364,57 @@ class StreamOrchestrator:
     # ------------------------------------------------------------------
     # Session management
     # ------------------------------------------------------------------
+
+    def _make_frame_callback(self, session_id: str, stream_kind: str) -> Any:
+        """Build an on_raw_frame handler that bridges sync broker threads to asyncio."""
+
+        def on_raw_frame(frame: Any) -> None:
+            loop = asyncio.get_event_loop()
+            loop.call_soon_threadsafe(
+                asyncio.ensure_future,
+                self._handle_frame(session_id, frame, stream_kind),
+            )
+
+        return on_raw_frame
+
+    async def _merge_session_instruments(
+        self,
+        session: StreamSession,
+        request: SubscriptionRequest,
+    ) -> None:
+        """Subscribe any new instruments when reusing an existing session."""
+        new_instruments = request.instruments - session.instruments
+        if not new_instruments:
+            return
+        session.instruments = session.instruments | request.instruments
+        if request.modes:
+            session.modes = session.modes | request.modes
+
+        gw = self._registry.get_gateway(session.broker_id)
+        frame_cb = self._session_frame_handlers.get(session.session_id)
+        plan = BrokerStreamPlan(
+            instruments=new_instruments,
+            modes=request.modes or session.modes,
+            on_raw_frame=frame_cb,
+        )
+        if session.stream_kind == "market":
+            await gw.open_market_stream(plan)
+        else:
+            await gw.open_order_stream(plan)
+        session.update_subscription(SubscriptionState.ACKNOWLEDGED)
+
+    async def _notify_health_change(self, session_id: str, health: StreamHealth) -> None:
+        subs = [s for s in self._subscriptions.values() if s.session_id == session_id]
+        for sub in subs:
+            notify = getattr(sub.consumer, "on_stream_health_change", None)
+            if callable(notify):
+                try:
+                    await notify(session_id, health)
+                except Exception:
+                    logger.exception(
+                        "stream.consumer.health_change.error",
+                        extra={"consumer_id": sub.consumer.consumer_id()},
+                    )
 
     async def _open_session(
         self,
@@ -380,13 +439,8 @@ class StreamOrchestrator:
 
         gw = self._registry.get_gateway(broker_id)
 
-        def on_raw_frame(frame: Any) -> None:
-            # Schedule delivery in the event loop; do not block the broker read loop
-            loop = asyncio.get_event_loop()
-            loop.call_soon_threadsafe(
-                asyncio.ensure_future,
-                self._handle_frame(session_id, frame, request.stream_kind),
-            )
+        on_raw_frame = self._make_frame_callback(session_id, request.stream_kind)
+        self._session_frame_handlers[session_id] = on_raw_frame
 
         plan = BrokerStreamPlan(
             instruments=request.instruments,
@@ -419,16 +473,25 @@ class StreamOrchestrator:
             raise
 
         # Spawn a reconnect monitor for this session
-        self._tasks.append(
-            asyncio.create_task(
-                self._reconnect_loop(session_id, request),
-                name=f"stream.reconnect.{session_id[:8]}",
-            )
+        reconnect_task = asyncio.create_task(
+            self._reconnect_loop(session_id, request),
+            name=f"stream.reconnect.{session_id[:8]}",
         )
+        self._session_reconnect_tasks[session_id] = reconnect_task
+        self._tasks.append(reconnect_task)
         return session_id
 
     async def _disconnect_session(self, session_id: str, reason: str = "") -> None:
         """Disconnect and clean up a session."""
+        reconnect_task = self._session_reconnect_tasks.pop(session_id, None)
+        if reconnect_task is not None:
+            reconnect_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await reconnect_task
+            if reconnect_task in self._tasks:
+                self._tasks.remove(reconnect_task)
+
+        self._session_frame_handlers.pop(session_id, None)
         handle = self._handles.pop(session_id, None)
         session = self._sessions.pop(session_id, None)
         if handle:
@@ -588,9 +651,11 @@ class StreamOrchestrator:
                 try:
                     broker_id = session.broker_id
                     gw = self._registry.get_gateway(broker_id)
+                    frame_cb = self._session_frame_handlers.get(session_id)
                     plan = BrokerStreamPlan(
                         instruments=session.instruments,
                         modes=session.modes,
+                        on_raw_frame=frame_cb,
                     )
                     if session.stream_kind == "market":
                         handle = await gw.open_market_stream(plan)
@@ -654,9 +719,11 @@ class StreamOrchestrator:
                 continue
             try:
                 gw = self._registry.get_gateway(fallback_broker)
+                frame_cb = self._session_frame_handlers.get(session_id)
                 plan = BrokerStreamPlan(
                     instruments=session.instruments,
                     modes=session.modes,
+                    on_raw_frame=frame_cb,
                 )
                 if session.stream_kind == "market":
                     handle = await gw.open_market_stream(plan)
@@ -736,6 +803,7 @@ class StreamOrchestrator:
                 FreshnessState.STALE.value,
                 f"no_valid_data_for_{elapsed:.0f}s",
             )
+            asyncio.create_task(self._notify_health_change(session.session_id, session.health))
 
     # ------------------------------------------------------------------
     # Broker selection

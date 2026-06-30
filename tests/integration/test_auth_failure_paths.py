@@ -131,7 +131,7 @@ class TestTOTPFailure:
         invalid_secret = "INVALID"
 
         # Should raise when trying to generate TOTP
-        with pytest.raises(Exception):  # noqa: B017
+        with pytest.raises(Exception):
             totp = TOTP(invalid_secret)
             totp.now()
 
@@ -168,7 +168,7 @@ class TestRateLimitedLogin:
         limiter.acquire("login")
 
         # Second request immediately should fail
-        with pytest.raises(Exception):  # Could be TimeoutError or custom  # noqa: B017
+        with pytest.raises(Exception):  # Could be TimeoutError or custom
             limiter.acquire("login", timeout=0)
 
         print("✅ Rate limited login raises error")
@@ -293,46 +293,61 @@ class TestInvalidCredentials:
 
 
 class TestTokenRefreshRaceCondition:
-    """Test token refresh race conditions (from broker audit)."""
+    """Test Upstox token refresh single-flight under concurrent 401 recovery."""
 
     def test_concurrent_refresh_does_not_cascade(self):
-        """Multiple threads hitting 401 should not trigger multiple refreshes."""
-        import threading
+        from unittest.mock import MagicMock, patch
 
-        refresh_count = 0
-        refresh_lock = threading.Lock()
+        from brokers.upstox.auth.config import UpstoxConnectionSettings
+        from brokers.upstox.auth.token_manager import UpstoxTokenManager
 
-        def tracked_refresh():
-            nonlocal refresh_count
-            time.sleep(0.05)  # Simulate network delay
-            with refresh_lock:
-                refresh_count += 1
-            return "new_token"
+        settings = UpstoxConnectionSettings(
+            client_id="CID",
+            client_secret="CSEC",
+            auth_mode="TOTP",
+            mobile="9999999999",
+            pin="1234",
+            totp_secret="SECRET",
+        )
+        mgr = UpstoxTokenManager(settings=settings, oauth_client=MagicMock())
+        refresh_count = {"n": 0}
+        lock = threading.Lock()
 
-        # Simulate concurrent 401 handling
+        def tracked_bootstrap():
+            time.sleep(0.05)
+            with lock:
+                refresh_count["n"] += 1
+            from brokers.upstox.auth.holders import TokenSnapshot
+
+            state = TokenSnapshot(
+                access_token="new-token",
+                refresh_token=None,
+                expires_at_ms=int(time.time() * 1000) + 3_600_000,
+                issued_at_ms=int(time.time() * 1000),
+                source="TOTP",
+            )
+            mgr._apply_token_state(state, label="test")
+            return state
+
         results = []
 
         def handle_401():
             try:
-                token = tracked_refresh()
-                results.append(("success", token))
-            except Exception as e:
-                results.append(("error", str(e)))
+                ok = mgr.try_refresh_on_401()
+                results.append(("success", ok))
+            except Exception as exc:
+                results.append(("error", str(exc)))
 
-        # Launch 10 concurrent "401 handlers"
-        threads = [threading.Thread(target=handle_401) for _ in range(10)]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
+        with patch.object(mgr, "_bootstrap_totp", side_effect=tracked_bootstrap):
+            threads = [threading.Thread(target=handle_401) for _ in range(10)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
 
-        # All should succeed
         assert len(results) == 10
-        assert all(r[0] == "success" for r in results)
-        # But refresh should only happen a few times (ideally once with proper locking)
-        # Allow up to 3 due to race window
-        assert refresh_count <= 3, f"Too many refreshes (race condition): {refresh_count}"
-        print(f"✅ Concurrent refresh: {refresh_count} refreshes for 10 requests")
+        assert all(r[0] == "success" and r[1] is True for r in results)
+        assert refresh_count["n"] == 1, f"Expected 1 refresh, got {refresh_count['n']}"
 
 
 @pytest.mark.integration

@@ -211,7 +211,7 @@ class DataQualityEngine:
         dates_sorted = sorted(dates)
 
         try:
-            from datalake.nse_calendar import is_trading_day, trading_days_between  # noqa: F401
+            from datalake.nse_calendar import is_trading_day, trading_days_between
 
             gaps = 0
             expected = trading_days_between(dates_sorted[0], dates_sorted[-1])

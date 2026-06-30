@@ -117,7 +117,7 @@ class ScannerQuery:
         rows = conn.execute(sql, [as_of_time] * param_count).fetchall()
         desc = conn.description
         columns = [d[0] for d in desc] if desc else []
-        return [dict(zip(columns, row)) for row in rows]  # noqa: B905
+        return [dict(zip(columns, row, strict=False)) for row in rows]
 
     @staticmethod
     def _rows_to_candidates(rows: list[dict]) -> list[Candidate]:

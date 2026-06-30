@@ -311,12 +311,30 @@ class ProductionReadinessChecker:
             auth_mode = os.environ.get("UPSTOX_AUTH_MODE", "STATIC").strip().upper()
             if auth_mode == "TOTP":
                 mobile = os.environ.get("UPSTOX_MOBILE", "").strip()
-                pin = os.environ.get("UPSTOX_PIN", "").strip()
-                secret = os.environ.get("UPSTOX_TOTP_SECRET", "").strip()
+                pin = (
+                    os.environ.get("UPSTOX_PIN", "").strip()
+                    or self._read_secret_file("UPSTOX_PIN_FILE")
+                )
+                secret = (
+                    os.environ.get("UPSTOX_TOTP_SECRET", "").strip()
+                    or self._read_secret_file("UPSTOX_TOTP_SECRET_FILE")
+                )
                 if mobile and pin and secret:
                     return True, ("UPSTOX_ACCESS_TOKEN unset but TOTP credentials present")
             return False, "UPSTOX_ACCESS_TOKEN is empty and no TOTP path configured"
         return True, "UPSTOX_ACCESS_TOKEN is set"
+
+    @staticmethod
+    def _read_secret_file(env_key: str) -> str:
+        path = os.environ.get(env_key, "").strip()
+        if not path:
+            return ""
+        from pathlib import Path
+
+        file_path = Path(path)
+        if file_path.exists():
+            return file_path.read_text(encoding="utf-8").strip()
+        return ""
 
     def _check_upstox_websocket_lifecycle(self) -> tuple[bool, str]:
         lifecycle = self._svc.lifecycle

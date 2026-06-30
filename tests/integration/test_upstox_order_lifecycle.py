@@ -32,7 +32,6 @@ from domain import (
 )
 from infrastructure.event_bus import EventBus
 from tests.integration.fixtures.upstox import (
-    make_cancel_response,
     make_instrument_defn,
     make_mock_broker,
 )
@@ -355,7 +354,11 @@ class TestOrderCancellation:
 
     def test_cancel_order_success_flow(self, mock_broker):
         """cancel_order() should return success on successful cancellation."""
-        mock_broker.order_client.cancel_order.return_value = make_cancel_response("ORD-CANCEL-001")
+        mock_broker.order_command.cancel_order.return_value = OrderResponse.ok(
+            order_id="ORD-CANCEL-001",
+            message="Order cancelled",
+        )
+        mock_broker.order_query.get_order.return_value = None
 
         gateway = UpstoxBrokerGateway(mock_broker)
         result = gateway.cancel_order("ORD-CANCEL-001")

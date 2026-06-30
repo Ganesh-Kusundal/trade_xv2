@@ -95,7 +95,7 @@ class TestOffMarketSmoke:
         assert len(expiries) >= 1, f"{underlying} extended expiries empty"
         time.sleep(1.5)
 
-    @pytest.mark.parametrize("underlying,exchange", NFO_INDEX + [("RELIANCE", "NFO")],  # noqa: RUF005
+    @pytest.mark.parametrize("underlying,exchange", [*NFO_INDEX, ("RELIANCE", "NFO")],
                               ids=lambda x: x if isinstance(x, str) else "")
     def test_future_chain(self, live_gateway, underlying, exchange):
         """Futures chain must have at least 1 contract with expiry."""

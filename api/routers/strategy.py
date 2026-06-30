@@ -47,21 +47,21 @@ async def get_strategy_signals(
 
         if strategy == "halftrend":
             query = (
-                "SELECT symbol, ltp, intraday_score, signal, trend, "  # noqa: S608
+                "SELECT symbol, ltp, intraday_score, signal, trend, "
                 "rsi_14, roc_5, relative_volume, atr_14, "
                 "stop_loss, target "
                 f"FROM {view_name}"
             )
         elif strategy == "momentum":
             query = (
-                "SELECT symbol, ltp, intraday_score, signal, trend, "  # noqa: S608
+                "SELECT symbol, ltp, intraday_score, signal, trend, "
                 "rsi_14, roc_5, relative_volume, atr_14, "
                 "entry_level, target_level "
                 f"FROM {view_name}"
             )
         elif strategy == "breakout":
             query = (
-                "SELECT symbol, ltp, intraday_score, signal, trend, "  # noqa: S608
+                "SELECT symbol, ltp, intraday_score, signal, trend, "
                 "rsi_14, roc_5, relative_volume, atr_14, "
                 "breakout_stop, breakout_target "
                 f"FROM {view_name}"

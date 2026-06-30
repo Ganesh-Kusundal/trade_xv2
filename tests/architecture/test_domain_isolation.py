@@ -20,9 +20,8 @@ def _extract_import_root(stmt: ast.stmt) -> str | None:
     if isinstance(stmt, ast.Import):
         if stmt.names:
             return stmt.names[0].name.split(".")[0]
-    elif isinstance(stmt, ast.ImportFrom):  # noqa: SIM102
-        if stmt.module:
-            return stmt.module.split(".")[0]
+    elif isinstance(stmt, ast.ImportFrom) and stmt.module:
+        return stmt.module.split(".")[0]
     return None
 
 

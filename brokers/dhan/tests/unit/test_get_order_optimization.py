@@ -53,6 +53,19 @@ class TestGetOrderDirectLookup:
         conn.orders.get_order.assert_called_once_with("NONEXISTENT")
         conn.orders.get_orderbook.assert_not_called()
 
+    def test_get_order_logs_warning_when_lookup_fails(self, caplog):
+        import logging
+
+        conn = MagicMock()
+        conn.orders.get_order.side_effect = RuntimeError("broker timeout")
+
+        gw = BrokerGateway(conn)
+        with caplog.at_level(logging.WARNING):
+            result = gw.get_order("ORD-999")
+
+        assert result is None
+        assert any("get_order_failed" in r.message for r in caplog.records)
+
     def test_get_order_returns_order_on_success(self):
         """get_order() returns the Order from the adapter on success."""
         conn = MagicMock()

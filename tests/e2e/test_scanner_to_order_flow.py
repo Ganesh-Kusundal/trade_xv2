@@ -21,15 +21,15 @@ import pytest
 
 pytestmark = pytest.mark.e2e
 
-from analytics.scanner.models import ScanResult  # noqa: E402
-from analytics.scanner.scanners import MomentumScanner, VolumeScanner  # noqa: E402
-from application.oms.order_manager import OmsOrderCommand  # noqa: E402
-from domain import OrderStatus, Side, Trade  # noqa: E402
-from tests.e2e.fixtures.data_generators import (  # noqa: E402
+from analytics.scanner.models import ScanResult
+from analytics.scanner.scanners import MomentumScanner, VolumeScanner
+from application.oms.order_manager import OmsOrderCommand
+from domain import OrderStatus, Side, Trade
+from tests.e2e.fixtures.data_generators import (
     generate_multi_symbol_data,
     generate_trending_data,
 )
-from tests.e2e.fixtures.trading_context_factory import create_paper_trading_context  # noqa: E402
+from tests.e2e.fixtures.trading_context_factory import create_paper_trading_context
 
 # ── Fixtures ────────────────────────────────────────────────────────────────
 

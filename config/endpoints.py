@@ -58,7 +58,7 @@ class Dhan:
         return cls.SANDBOX_REST_BASE
 
     # ── Auth ────────────────────────────────────────────────────────────
-    GENERATE_TOKEN_URL: str = "https://auth.dhan.co/app/generateAccessToken"  # noqa: S105
+    GENERATE_TOKEN_URL: str = "https://auth.dhan.co/app/generateAccessToken"
 
     # ── WebSocket Feeds ─────────────────────────────────────────────────
     WS_DEPTH_20: str = "wss://depth-api-feed.dhan.co/twentydepth"

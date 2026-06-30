@@ -49,14 +49,15 @@ class UpstoxAdapterContext:
             pool = get_connection_pool()
             http_session = pool.get_session("upstox")
 
+        self._oauth_client = UpstoxOAuthClient(base_url=settings.base_v2)
+        self._token_manager = token_manager or UpstoxTokenManager(
+            settings=settings, oauth_client=self._oauth_client
+        )
         self._http_client = UpstoxHttpClient(
             token_provider=token_provider,
             settings=settings,
             session=http_session,
-        )
-        self._oauth_client = UpstoxOAuthClient(base_url=settings.base_v2)
-        self._token_manager = token_manager or UpstoxTokenManager(
-            settings=settings, oauth_client=self._oauth_client
+            on_auth_failure=self._token_manager.try_refresh_on_401,
         )
 
     @property

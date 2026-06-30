@@ -20,3 +20,23 @@ dhan_rate_limit_retries_total = metrics_registry.counter(
     "dhan_rate_limit_retries_total",
     "Total Dhan rate limit retries",
 )
+dhan_ws_subscriptions = metrics_registry.gauge(
+    "dhan_ws_subscriptions",
+    "Current Dhan WebSocket instrument subscriptions",
+)
+dhan_ws_callbacks = metrics_registry.gauge(
+    "dhan_ws_callbacks",
+    "Current Dhan WebSocket registered callbacks",
+)
+dhan_ws_reconnect_total = metrics_registry.counter(
+    "dhan_ws_reconnect_total",
+    "Total Dhan WebSocket reconnect attempts",
+)
+dhan_ws_ticks_total = metrics_registry.counter(
+    "dhan_ws_ticks_total",
+    "Total Dhan WebSocket ticks published",
+)
+dhan_ws_dropped_ticks_total = metrics_registry.counter(
+    "dhan_ws_dropped_ticks_total",
+    "Total Dhan WebSocket ticks dropped (strict mode)",
+)

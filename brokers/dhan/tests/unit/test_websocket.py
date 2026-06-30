@@ -102,19 +102,19 @@ class TestDhanMarketFeed:
         assert len(feed._instruments) == 1
         assert feed._instruments[0] == (1, "2885", 15)
 
-    def test_unsubscribe_before_connect_raises(self):
-        """unsubscribe() must raise RuntimeError if not connected."""
+    def test_unsubscribe_before_connect_updates_local_state(self):
+        """unsubscribe() clears local tracking even when SDK feed is not connected."""
         feed = DhanMarketFeed(
             client_id="CLIENT",
             access_token="TOKEN",
             instruments=[],
         )
+        feed.subscribe([(1, "2885", 15)])
+        assert len(feed._subscribed_instruments) == 1
 
-        try:
-            feed.unsubscribe([(1, "2885", 15)])
-            raise AssertionError("Expected RuntimeError")
-        except RuntimeError as e:
-            assert "connect()" in str(e)
+        feed.unsubscribe([(1, "2885", 15)])
+        assert len(feed._subscribed_instruments) == 0
+        assert len(feed._instruments) == 0
 
     def test_transform_quote_without_resolver(self):
         """_transform_quote must produce a canonical dict even without resolver."""

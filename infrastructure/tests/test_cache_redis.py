@@ -10,7 +10,7 @@ import pytest
 from infrastructure.cache import Cache, MemoryCache
 
 # ---------------------------------------------------------------------------
-# Helpers – minimal mock that mimics redis.asyncio.Redis  # noqa: RUF003
+# Helpers – minimal mock that mimics redis.asyncio.Redis
 # ---------------------------------------------------------------------------
 
 class _FakeRedis:
@@ -69,7 +69,7 @@ def redis_cache(fake_redis: _FakeRedis):  # type: ignore[no-untyped-def]
     """Return a RedisCache wired to a _FakeRedis (no real Redis needed)."""
     import infrastructure.cache_redis as mod
 
-    with patch.object(mod, "_REDIS_AVAILABLE", True):  # noqa: SIM117
+    with patch.object(mod, "_REDIS_AVAILABLE", True):
         with patch("redis.asyncio.ConnectionPool") as mock_pool_cls:
             with patch("redis.asyncio.Redis") as mock_redis_cls:
                 mock_pool_cls.from_url.return_value = MagicMock()
@@ -105,7 +105,7 @@ class TestFallback:
     def test_get_redis_cache_without_package(self) -> None:
         import infrastructure.cache_redis as mod
 
-        with patch.object(mod, "_REDIS_AVAILABLE", False):  # noqa: SIM117
+        with patch.object(mod, "_REDIS_AVAILABLE", False):
             with patch.dict("os.environ", {}, clear=True):
                 from infrastructure.cache_redis import get_redis_cache
 
@@ -115,7 +115,7 @@ class TestFallback:
     def test_get_redis_cache_without_env_var(self) -> None:
         import infrastructure.cache_redis as mod
 
-        with patch.object(mod, "_REDIS_AVAILABLE", True):  # noqa: SIM117
+        with patch.object(mod, "_REDIS_AVAILABLE", True):
             with patch.dict("os.environ", {}, clear=True):
                 from infrastructure.cache_redis import get_redis_cache
 
@@ -126,7 +126,7 @@ class TestFallback:
         import infrastructure.cache_redis as mod
         from infrastructure.cache_redis import RedisCache
 
-        with patch.object(mod, "_REDIS_AVAILABLE", True):  # noqa: SIM117
+        with patch.object(mod, "_REDIS_AVAILABLE", True):
             with patch.dict("os.environ", {"REDIS_URL": "redis://localhost:6379"}):
                 with patch("redis.asyncio.ConnectionPool") as mock_pool:
                     with patch("redis.asyncio.Redis"):
@@ -225,7 +225,7 @@ class TestPrefix:
     async def test_custom_prefix(self, fake_redis: _FakeRedis) -> None:
         import infrastructure.cache_redis as mod
 
-        with patch.object(mod, "_REDIS_AVAILABLE", True):  # noqa: SIM117
+        with patch.object(mod, "_REDIS_AVAILABLE", True):
             with patch("redis.asyncio.ConnectionPool") as mock_pool_cls:
                 with patch("redis.asyncio.Redis") as mock_redis_cls:
                     mock_pool_cls.from_url.return_value = MagicMock()
@@ -295,6 +295,6 @@ class TestImportGuard:
     def test_redis_cache_raises_without_package(self) -> None:
         import infrastructure.cache_redis as mod
 
-        with patch.object(mod, "_REDIS_AVAILABLE", False):  # noqa: SIM117
+        with patch.object(mod, "_REDIS_AVAILABLE", False):
             with pytest.raises(ImportError, match="redis"):
                 mod.RedisCache()

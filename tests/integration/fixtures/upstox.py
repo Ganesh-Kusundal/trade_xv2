@@ -100,6 +100,7 @@ def make_mock_broker(
     # Settings
     settings_mock = MagicMock()
     settings_mock.allow_live_orders = allow_live_orders
+    settings_mock.analytics_only = False
     settings_mock.algo_name = ""
     settings_mock.market_protection_default = -1
     broker.settings = settings_mock
@@ -191,24 +192,16 @@ def make_instrument_defn(
 
 
 def make_ltp_response(symbol: str, price: float) -> dict[str, Any]:
-    """Create a realistic Upstox LTP API response.
+    """Create quote API response for LTP lookups (adapter uses get_quote).
 
     Args:
         symbol: Trading symbol.
         price: Last traded price.
 
     Returns:
-        Dict matching Upstox V2 LTP endpoint format.
+        Flat ``data`` dict matching ``UpstoxDomainMapper.to_quote`` expectations.
     """
-    return {
-        "status": "success",
-        "data": {
-            f"NSE_EQ|{symbol}": {
-                "instrument_key": f"NSE_EQ|{symbol}",
-                "last_price": price,
-            }
-        },
-    }
+    return make_quote_response(symbol, last_price=price)
 
 
 def make_quote_response(symbol: str, **kwargs: Any) -> dict[str, Any]:
@@ -219,12 +212,14 @@ def make_quote_response(symbol: str, **kwargs: Any) -> dict[str, Any]:
         **kwargs: OHLCV values to override defaults.
 
     Returns:
-        Dict matching Upstox V2 Quote endpoint format.
+        Dict with flat ``data`` payload for ``UpstoxDomainMapper.to_quote``.
     """
     data = {
+        "symbol": symbol,
+        "exchange_segment": kwargs.get("exchange_segment", "NSE_EQ"),
         "instrument_key": f"NSE_EQ|{symbol}",
         "last_price": kwargs.get("last_price", 1500.0),
-        "net_change": kwargs.get("net_change", 25.0),
+        "change": kwargs.get("net_change", kwargs.get("change", 25.0)),
         "volume": kwargs.get("volume", 500000),
         "ohlc": {
             "open": kwargs.get("open", 1480.0),
@@ -233,7 +228,19 @@ def make_quote_response(symbol: str, **kwargs: Any) -> dict[str, Any]:
             "close": kwargs.get("close", 1475.0),
         },
     }
-    return {"status": "success", "data": {f"NSE_EQ|{symbol}": data}}
+    return {"status": "success", "data": data}
+
+
+def mock_market_quote(
+    broker: MagicMock,
+    symbol: str,
+    price: float,
+    **kwargs: Any,
+) -> None:
+    """Configure broker mock so ``get_quote`` returns a flat quote payload."""
+    broker.market_data_v2.get_quote.return_value = make_quote_response(
+        symbol, last_price=price, **kwargs
+    )
 
 
 def make_depth_response(

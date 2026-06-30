@@ -422,6 +422,10 @@ class UpstoxBroker:
     def status(self) -> ConnectionStatus:
         return self._status
 
+    @property
+    def token_manager(self) -> UpstoxTokenManager:
+        return self._token_manager
+
     def connect(self) -> bool:
         try:
             self._token_manager.bootstrap()

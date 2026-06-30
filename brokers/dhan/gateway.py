@@ -36,8 +36,8 @@ from domain import (
     Validity,
 )
 from domain.exchange_segments import parse_segment
-from domain.symbols import make_position_key, normalize_symbol
-from infrastructure.tracing import trace_operation
+from domain.symbols import normalize_symbol
+from infrastructure.observability.tracing import trace_operation
 
 logger = logging.getLogger(__name__)
 
@@ -52,11 +52,9 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
     def __init__(self, connection: DhanConnection):
         self._conn = connection
         self._stream_lock = threading.Lock()
-        # Tracks (symbol, exchange) → callback list for dedup
+        # Deprecated: use connection.subscription_engine (kept for test backward compat)
         self._stream_registry: dict[tuple[str, str], list[Any]] = {}
-        # Tracks (symbol, exchange) -> list of (on_tick, wrapper) for callback cleanup
         self._wrapper_registry: dict[tuple[str, str], list[tuple[Any, Any]]] = {}
-        # P1 Fix: Track subscription mode per instrument for correct unsubscribe
         self._subscription_modes: dict[tuple[str, str], str] = {}
         # Broker-agnostic options facade — CLI/tests use ``gateway.options``.
         from brokers.common.options.gateway_facade import GatewayOptionsFacade
@@ -203,9 +201,11 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         """
         try:
             return self._conn.orders.get_order(order_id)
-        except Exception:
-            # Order not found or API error — return None to maintain
-            # the Order | None contract expected by callers.
+        except Exception as exc:
+            logger.warning(
+                "get_order_failed",
+                extra={"order_id": order_id, "error": str(exc)},
+            )
             return None
 
     @trace_operation("dhan_gateway.modify_order")
@@ -536,82 +536,13 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
     ) -> Any:
         """Subscribe to a live tick stream for *symbol* on *exchange*.
 
-        The *on_tick* callback receives a canonical
-        :class:`brokers.common.core.domain.Quote` object.  Broker-specific
-        ``security_id`` values are never exposed to the caller.
-
-        Thread-safe: uses ``_stream_lock`` to prevent race conditions
-        during lazy feed creation. Callbacks are deduplicated via
-        ``_stream_registry`` so the same *on_tick* is not registered
-        twice for the same instrument.
-
-        Args:
-            symbol:   Canonical trading symbol (e.g. ``"NIFTY"``).
-            exchange: Exchange string (``"NSE"`` | ``"MCX"`` | ``"INDEX"`` …).
-            mode:     Subscription mode — ``"LTP"`` | ``"QUOTE"`` | ``"FULL"``.
-            on_tick:  Callable receiving a :class:`Quote`.
+        Delegates to :class:`SubscriptionEngine` — the single source of truth
+        for instrument subscriptions and callback multiplexing.
         """
-        from domain import Quote
-
-        inst = self._conn.instruments.resolve(symbol, exchange)
-        segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, DEFAULT_SEGMENT)
-        sid = int(inst.security_id)
-        key = make_position_key(symbol, exchange)
-
         with self._stream_lock:
-            feed = self._conn.market_feed
-            if feed is None:
-                # P2 Fix: Use connection.create_market_feed() for proper lifecycle registration
-                # This prevents race condition where direct construction bypasses lifecycle
-                feed = self._conn.create_market_feed(
-                    access_token=self._conn.access_token,
-                    instruments=[],  # Empty — subscribe on-demand below
-                    access_token_fn=lambda: self._conn.access_token,
-                )
-                # Subscribe after creation — first call must also subscribe
-                feed.subscribe([(segment, sid, mode)])
-            else:
-                feed.subscribe([(segment, sid, mode)])
-
-            # P1 Fix: Track subscription mode for correct unsubscribe
-            self._subscription_modes[key] = mode
-
-            if on_tick:
-                # Dedup: skip if this exact on_tick is already registered
-                existing = self._stream_registry.get(key, [])
-                if on_tick in existing:
-                    logger.debug(
-                        "stream_callback_dedup", extra={"symbol": symbol, "exchange": exchange}
-                    )
-                else:
-
-                    def _wrap(data: dict, _sym: str = symbol, _cb: Any = on_tick) -> None:
-                        try:
-                            q = Quote(
-                                symbol=data.get("symbol", _sym),
-                                ltp=data.get("ltp", Decimal("0")),
-                                open=data.get("open", Decimal("0")),
-                                high=data.get("high", Decimal("0")),
-                                low=data.get("low", Decimal("0")),
-                                close=data.get("close", Decimal("0")),
-                                volume=int(data.get("volume", 0)),
-                                change=data.get("change", Decimal("0")),
-                            )
-                            _cb(q)
-                        except (ValueError, KeyError, TypeError) as exc:
-                            logger.warning(
-                                "tick_quote_wrap_failed", extra={"symbol": _sym, "error": str(exc)}
-                            )
-                            _cb(data)
-
-                    feed.on_quote(_wrap)
-                    self._stream_registry.setdefault(key, []).append(on_tick)
-                    self._wrapper_registry.setdefault(key, []).append((on_tick, _wrap))
-
-            if not feed.is_connected:
-                feed.connect()
-
-        return feed
+            return self._conn.subscription_engine.subscribe_market(
+                symbol, exchange, mode, on_tick
+            )
 
     def unstream(
         self,
@@ -619,65 +550,19 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         exchange: str = "NSE",
         on_tick: Any | None = None,
     ) -> None:
-        """Unsubscribe from a live tick stream.
-
-        Removes the *on_tick* callback from the registry. If no callbacks
-        remain for the instrument, the SDK subscription is also removed.
-
-        Args:
-            symbol:   Symbol to unsubscribe from.
-            exchange: Exchange string.
-            on_tick:  The callback to remove. If ``None``, removes ALL
-                      callbacks for the instrument.
-        """
-        key = make_position_key(symbol, exchange)
-
+        """Unsubscribe from a live tick stream."""
         with self._stream_lock:
-            callbacks = self._stream_registry.get(key, [])
-            wrappers = self._wrapper_registry.get(key, [])
-            if on_tick is not None:
-                # Remove specific callback
-                with contextlib.suppress(ValueError):
-                    callbacks.remove(on_tick)
-                # Find wrapper and call off_quote
-                to_remove = [(cb, wrap) for cb, wrap in wrappers if cb is on_tick]
-                for cb, wrap in to_remove:
-                    with contextlib.suppress(ValueError):
-                        wrappers.remove((cb, wrap))
-                    feed = self._conn.market_feed
-                    if feed is not None:
-                        feed.off_quote(wrap)
-            else:
-                # Remove all wrappers for this key
-                feed = self._conn.market_feed
-                for cb, wrap in wrappers:
-                    if feed is not None:
-                        feed.off_quote(wrap)
-                callbacks.clear()
-                wrappers.clear()
+            self._conn.subscription_engine.unsubscribe_market(symbol, exchange, on_tick)
 
-            if not callbacks:
-                self._stream_registry.pop(key, None)
-                self._wrapper_registry.pop(key, None)
+    def stream_order(self, on_order: Any | None = None) -> Any:
+        """Subscribe to account-wide order updates via the shared order stream."""
+        with self._stream_lock:
+            return self._conn.subscription_engine.subscribe_order(on_order)
 
-                # Unsubscribe from the SDK feed if no consumers remain
-                feed = self._conn.market_feed
-                if feed is not None:
-                    try:
-                        inst = self._conn.instruments.resolve(symbol, exchange)
-                        segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, DEFAULT_SEGMENT)
-                        sid = int(inst.security_id)
-                        # P1 Fix: Use tracked mode instead of hardcoded "LTP"
-                        mode = self._subscription_modes.get(key, "LTP")
-                        feed.unsubscribe([(segment, sid, mode)])
-                        self._subscription_modes.pop(key, None)
-                    except Exception as exc:
-                        logger.debug("unstream_unsubscribe_failed: %s", exc)
-
-                    # Clean up tick tracking cache
-                    sym_name = symbol.upper()
-                    with feed._lock:
-                        feed._last_tick_time.pop(sym_name, None)
+    def unstream_order(self, on_order: Any | None = None) -> None:
+        """Remove an order-update callback from the shared order stream."""
+        with self._stream_lock:
+            self._conn.subscription_engine.unsubscribe_order(on_order)
 
     # ── Parallel Data Fetching ──────────────────────────────────────
 
@@ -701,14 +586,45 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         Implements ObservabilityProvider protocol to expose connection
         status without exposing private attributes to CLI layer.
         """
-        status = {}
+        status: dict[str, bool | str | float | None] = {}
         mf = getattr(self._conn, "market_feed", None)
         if mf is not None:
             status["market_feed"] = mf.is_connected
+            with contextlib.suppress(Exception):
+                health = mf.health()
+                metrics = health.metrics or {}
+                status["market_feed_stale"] = bool(metrics.get("is_stale", False))
+                status["connection_lock_acquired"] = bool(
+                    metrics.get("connection_lock_acquired", False)
+                )
+                status["connection_blocked_by_lock"] = bool(
+                    metrics.get("connection_blocked_by_lock", False)
+                )
+                status["next_connect_allowed_at"] = metrics.get("next_connect_allowed_at")
 
         os_ = getattr(self._conn, "order_stream", None)
         if os_ is not None:
             status["order_stream"] = os_.is_connected
+
+        d20 = getattr(self._conn, "depth_20_feed", None)
+        if d20 is not None:
+            connected = getattr(d20, "is_connected", None)
+            if callable(connected):
+                status["depth_20"] = bool(connected())
+            else:
+                status["depth_20"] = bool(getattr(d20, "_is_connected", False))
+
+        d200 = getattr(self._conn, "depth_200_feed", None)
+        if d200 is not None:
+            connected = getattr(d200, "is_connected", None)
+            if callable(connected):
+                status["depth_200"] = bool(connected())
+            else:
+                status["depth_200"] = bool(getattr(d200, "_is_connected", False))
+
+        engine = getattr(self._conn, "subscription_engine", None)
+        if engine is not None:
+            status["has_active_subscriptions"] = engine.subscription_count() > 0
 
         return status
 

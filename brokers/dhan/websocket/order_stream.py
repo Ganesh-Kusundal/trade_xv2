@@ -105,7 +105,7 @@ class DhanOrderStream(ReconnectingServiceMixin, ManagedService):
                 logger.warning("Order stream already connected")
                 return
             self._stop_event.clear()
-            self._is_connected = True
+            self._is_connected = False
             self._order_update = _sdk_order_update_class()(dhan_context=self._context)
             self._order_update.on_update = self._on_order_update
             self._thread = threading.Thread(
@@ -124,14 +124,36 @@ class DhanOrderStream(ReconnectingServiceMixin, ManagedService):
         helpers own the ``_reconnect_count`` increment and backoff
         reset so the behaviour is uniform across all Dhan WS services.
         """
+        import os
+
         backoff = self.INITIAL_BACKOFF
+        max_reconnect_attempts = int(os.getenv("DHAN_MAX_RECONNECT_ATTEMPTS", "50"))
+        cooldown_seconds = float(os.getenv("DHAN_RECONNECT_COOLDOWN_SECONDS", "300"))
+
         while not self._stop_event.is_set():
+            with self._lock:
+                if self._reconnect_count >= max_reconnect_attempts:
+                    logger.critical(
+                        "order_stream_max_reconnect_attempts_exceeded",
+                        extra={
+                            "attempts": self._reconnect_count,
+                            "max_attempts": max_reconnect_attempts,
+                        },
+                    )
+                    self._emit_reconnect_metric()
+                    self._reconnect_count = 0
+                    if self._stop_event.wait(timeout=cooldown_seconds):
+                        return
+                    logger.info("order_stream_reconnect_cooldown_complete")
+
             try:
                 with self._lock:
                     ou = self._order_update
                 if ou is None:
                     return
                 ou.connect_to_dhan_websocket_sync()
+                with self._lock:
+                    self._is_connected = True
                 backoff = self._on_clean_disconnect()
             except Exception as exc:
                 logger.error("Order stream error: %s", exc)
@@ -205,6 +227,10 @@ class DhanOrderStream(ReconnectingServiceMixin, ManagedService):
     def on_order_update(self, callback: Callable[[dict], None]) -> None:
         """Register a callback for order updates (mixin-managed lock)."""
         self._register_callback(self._order_callbacks, callback)
+
+    def off_order_update(self, callback: Callable[[dict], None]) -> None:
+        """Remove a previously registered order-update callback."""
+        self._unregister_callback(self._order_callbacks, callback)
 
     @property
     def is_connected(self) -> bool:

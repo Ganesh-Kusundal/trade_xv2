@@ -34,7 +34,7 @@ _current_scope: contextvars.ContextVar[dict[str, Any] | None] = contextvars.Cont
 )
 
 
-class NoActiveRequestScope(TradeXV2Error):  # noqa: N818
+class NoActiveRequestScope(TradeXV2Error):
     """Raised when resolving a request-scoped service outside a request_scope()."""
 
 

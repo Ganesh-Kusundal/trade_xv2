@@ -13,7 +13,7 @@ import time
 import pytest
 
 from infrastructure.correlation import get_current_correlation_id, with_correlation
-from infrastructure.tracing import (
+from infrastructure.observability.tracing import (
     TraceContext,
     trace_event_handler,
     trace_operation,

@@ -62,7 +62,7 @@ class UpstoxInstrumentSearch:
                         freeze_qty=_to_int(row.get("freeze_qty")),
                     )
                 )
-            except Exception:  # noqa: S112
+            except Exception:
                 continue
         return out
 

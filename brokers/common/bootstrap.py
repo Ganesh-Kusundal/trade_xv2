@@ -63,7 +63,7 @@ async def bootstrap_from_broker_registry(
     **bootstrap_kwargs: Any,
 ) -> BrokerInfrastructure | None:
     """Bootstrap infrastructure using cli.services.broker_registry."""
-    from cli.services.broker_registry import bootstrap_gateway  # noqa: TID251
+    from cli.services.broker_registry import bootstrap_gateway
 
     wrapped: list[tuple[str, MarketDataGateway]] = []
     for name in broker_names:

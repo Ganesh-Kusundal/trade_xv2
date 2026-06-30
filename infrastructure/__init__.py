@@ -5,8 +5,8 @@ but are required by multiple layers:
 
 - **di.py** — Lightweight dependency injection container with singleton/transient/request scopes
 - **event_bus/** — Synchronous and asynchronous event publishing/subscription
+- **observability/** — Tracing, OpenTelemetry setup, metrics, and alerting
 - (future) **logging/** — Structured logging configuration
-- (future) **metrics/** — Observability and metrics collection
 - (future) **cache/** — Caching abstractions
 
 These services implement domain-defined ports (protocols) from

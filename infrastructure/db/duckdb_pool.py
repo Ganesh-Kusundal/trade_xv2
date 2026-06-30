@@ -48,7 +48,7 @@ class DuckDBPool:
         try:
             return self._queue.get(timeout=self._timeout)
         except Empty:
-            raise RuntimeError(  # noqa: B904
+            raise RuntimeError(
                 f"DuckDB pool exhausted: no connection available within {self._timeout}s"
             )
 

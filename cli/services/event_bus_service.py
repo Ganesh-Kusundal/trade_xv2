@@ -40,7 +40,7 @@ class EventBusService:
 
     def simulate_event(self) -> str:
         """Simulate a random event flowing through the pipeline."""
-        category = random.choice(list(self._counters.keys()))  # noqa: S311
+        category = random.choice(list(self._counters.keys()))
         msgs = {
             "Market Events": [
                 "LTP Update: RELIANCE NSE @ 2567.40",
@@ -68,6 +68,6 @@ class EventBusService:
                 "Max daily loss check: Daily loss at 0.00 / 5000.00 (OK)",
             ],
         }
-        msg = random.choice(msgs[category])  # noqa: S311
+        msg = random.choice(msgs[category])
         self.increment(category, f"[{category.split()[0].upper()}] {msg}")
         return f"[{category.split()[0].upper()}] {msg}"

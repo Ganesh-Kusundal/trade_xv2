@@ -72,6 +72,9 @@ class TestRegressionSuiteInfo:
             "test_schema_enforcement.py",
             "test_symbol_mapping_live.py",
             "test_live_extended.py",
+            "test_live_websocket.py",
+            "test_live_streaming.py",
+            "test_ws_parity.py",
         ]
 
         missing = []

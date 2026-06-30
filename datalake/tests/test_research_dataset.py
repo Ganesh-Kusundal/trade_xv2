@@ -81,16 +81,16 @@ class TestCreateDataset:
         _make_curated_data(market_root)
         ResearchDataset.root = temp_root
 
-        kwargs = dict(  # noqa: C408
-            universe="NIFTY50",
-            as_of_date="2026-01-01",
-            features=["atr_14"],
-            date_from="2026-01-01",
-            date_to="2026-01-02",
-            timeframe="1h",
-            catalog_root=str(market_root),
-            curated_root=str(market_root / "curated"),
-        )
+        kwargs = {
+            "universe": "NIFTY50",
+            "as_of_date": "2026-01-01",
+            "features": ["atr_14"],
+            "date_from": "2026-01-01",
+            "date_to": "2026-01-02",
+            "timeframe": "1h",
+            "catalog_root": str(market_root),
+            "curated_root": str(market_root / "curated"),
+        }
         ds1 = ResearchDataset.create(**kwargs)
         ds2 = ResearchDataset.create(**kwargs)
         assert ds1.metadata["hash"] == ds2.metadata["hash"]

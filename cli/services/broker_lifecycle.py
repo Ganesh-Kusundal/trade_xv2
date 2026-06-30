@@ -112,6 +112,12 @@ def close_all_gateways(
             logger.debug("upstox_gateway_close_failed: %s", exc)
     # Close connection pool to release all HTTP connection pools
     try:
+        from brokers.dhan.account_registry import AccountConnectionRegistry
+
+        AccountConnectionRegistry.release_all()
+    except Exception as exc:
+        logger.debug("account_registry_release_failed: %s", exc)
+    try:
         pool = get_connection_pool()
         pool.close_all()
     except Exception as exc:

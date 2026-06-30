@@ -106,6 +106,9 @@ jobs:
       - name: Runtime and walk-forward tests
         run: |
           pytest tests/runtime/ tests/integration/test_trading_runtime_orchestrator.py \
+            tests/integration/test_upstox_gateway_integration.py \
+            tests/integration/test_upstox_order_lifecycle.py \
+            tests/integration/test_upstox_market_data.py \
             analytics/walk_forward/tests/ -q --tb=short
       - name: Replay determinism verifier
         run: python -m scripts.verify_event_replay

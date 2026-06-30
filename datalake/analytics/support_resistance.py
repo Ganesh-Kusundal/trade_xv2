@@ -143,11 +143,11 @@ class SupportResistance:
         """
         levels = self.get_levels(symbol, days=days, top_n=10)
 
-        supports = [l for l in levels["support"] if l.price < current_price]  # noqa: E741
-        resistances = [l for l in levels["resistance"] if l.price > current_price]  # noqa: E741
+        supports = [l for l in levels["support"] if l.price < current_price]
+        resistances = [l for l in levels["resistance"] if l.price > current_price]
 
-        nearest_support = max(supports, key=lambda l: l.price) if supports else None  # noqa: E741
-        nearest_resistance = min(resistances, key=lambda l: l.price) if resistances else None  # noqa: E741
+        nearest_support = max(supports, key=lambda l: l.price) if supports else None
+        nearest_resistance = min(resistances, key=lambda l: l.price) if resistances else None
 
         distance_pct = None
         if nearest_support and nearest_resistance:
@@ -353,12 +353,12 @@ class SupportResistance:
             return d
 
         supports = sorted(
-            [l for l in levels if l.level_type == "support" and _to_date(l.last_touch) >= cutoff],  # noqa: E741
-            key=lambda l: (-l.touches, -l.price),  # noqa: E741
+            [l for l in levels if l.level_type == "support" and _to_date(l.last_touch) >= cutoff],
+            key=lambda l: (-l.touches, -l.price),
         )
         resistances = sorted(
-            [l for l in levels if l.level_type == "resistance" and _to_date(l.last_touch) >= cutoff],  # noqa: E741
-            key=lambda l: (-l.touches, l.price),  # noqa: E741
+            [l for l in levels if l.level_type == "resistance" and _to_date(l.last_touch) >= cutoff],
+            key=lambda l: (-l.touches, l.price),
         )
 
         return {

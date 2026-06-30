@@ -22,9 +22,9 @@ import pytest
 
 pytestmark = pytest.mark.e2e
 
-from application.oms.order_manager import OmsOrderCommand  # noqa: E402
-from application.oms.risk_manager import RiskConfig  # noqa: E402
-from domain import (  # noqa: E402
+from application.oms.order_manager import OmsOrderCommand
+from application.oms.risk_manager import RiskConfig
+from domain import (
     Order,
     OrderStatus,
     OrderType,
@@ -32,8 +32,8 @@ from domain import (  # noqa: E402
     Side,
     Trade,
 )
-from tests.e2e.fixtures.event_capturer import EventCapturer  # noqa: E402
-from tests.e2e.fixtures.trading_context_factory import (  # noqa: E402
+from tests.e2e.fixtures.event_capturer import EventCapturer
+from tests.e2e.fixtures.trading_context_factory import (
     create_paper_trading_context,
     create_test_trading_context,
 )

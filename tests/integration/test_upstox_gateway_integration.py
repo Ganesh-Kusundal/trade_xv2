@@ -33,12 +33,11 @@ from domain import (
     Quote,
 )
 from tests.integration.fixtures.upstox import (
-    make_cancel_response,
     make_depth_response,
     make_instrument_defn,
-    make_ltp_response,
     make_mock_broker,
     make_quote_response,
+    mock_market_quote,
 )
 
 # ─── Fixtures ──────────────────────────────────────────────────────────────
@@ -47,7 +46,13 @@ from tests.integration.fixtures.upstox import (
 @pytest.fixture
 def mock_broker():
     """Create a basic mock broker."""
-    return make_mock_broker(ws_connected=False)
+    return make_mock_broker(ws_connected=False, allow_live_orders=True)
+
+
+@pytest.fixture
+def mock_broker_orders_disabled():
+    """Mock broker with live orders disabled."""
+    return make_mock_broker(ws_connected=False, allow_live_orders=False)
 
 
 @pytest.fixture
@@ -91,9 +96,8 @@ class TestGatewayCreation:
 
         assert gateway._market_data is not None
         assert gateway._historical is not None
-        assert gateway._symbol_resolver is not None
         assert gateway._stream_manager is not None
-        assert gateway._order_adapter is not None
+        assert gateway._order_command is not None
         assert gateway._portfolio is not None
 
     def test_gateway_stores_broker_reference(self, mock_broker):
@@ -121,7 +125,7 @@ class TestMarketDataIntegration:
     def test_ltp_delegates_to_market_data_adapter(self, mock_broker, instrument_defn):
         """ltp() should resolve key and delegate to market data adapter."""
         mock_broker.instrument_resolver.resolve.return_value = instrument_defn
-        mock_broker.market_data_v2.get_ltp.return_value = make_ltp_response("RELIANCE", 2500.50)
+        mock_market_quote(mock_broker, "RELIANCE", 2500.50)
 
         gateway = UpstoxBrokerGateway(mock_broker)
         result = gateway.ltp("RELIANCE", "NSE")
@@ -132,7 +136,7 @@ class TestMarketDataIntegration:
     def test_ltp_returns_zero_on_missing_data(self, mock_broker, instrument_defn):
         """ltp() should return Decimal(0) when no data returned."""
         mock_broker.instrument_resolver.resolve.return_value = instrument_defn
-        mock_broker.market_data_v2.get_ltp.return_value = {"data": {}}
+        mock_broker.market_data_v2.get_quote.return_value = {"data": {}}
 
         gateway = UpstoxBrokerGateway(mock_broker)
         result = gateway.ltp("MISSING", "NSE")
@@ -170,7 +174,7 @@ class TestMarketDataIntegration:
         mock_broker.instrument_resolver.resolve.return_value = instrument_defn
         mock_broker.market_data_v2.get_quote.return_value = {
             "status": "success",
-            "data": {"NSE_EQ|RELIANCE": {"last_price": 2500.0}},
+            "data": {"symbol": "RELIANCE", "last_price": 2500.0},
         }
 
         gateway = UpstoxBrokerGateway(mock_broker)
@@ -228,10 +232,9 @@ class TestOrderIntegration:
         assert result.success is True
         mock_broker.order_command.place_order.assert_called_once()
 
-    def test_place_order_when_live_orders_disabled(self):
+    def test_place_order_when_live_orders_disabled(self, mock_broker_orders_disabled):
         """place_order() should fail when live orders are disabled."""
-        broker = make_mock_broker(allow_live_orders=False)
-        gateway = UpstoxBrokerGateway(broker)
+        gateway = UpstoxBrokerGateway(mock_broker_orders_disabled)
 
         result = gateway.place_order(
             symbol="RELIANCE",
@@ -263,7 +266,11 @@ class TestOrderIntegration:
 
     def test_cancel_order_success(self, mock_broker):
         """cancel_order() should return success response."""
-        mock_broker.order_client.cancel_order.return_value = make_cancel_response("ORD-001")
+        mock_broker.order_command.cancel_order.return_value = OrderResponse.ok(
+            order_id="ORD-001",
+            message="Order cancelled",
+        )
+        mock_broker.order_query.get_order.return_value = None
 
         gateway = UpstoxBrokerGateway(mock_broker)
         result = gateway.cancel_order("ORD-001")
@@ -274,8 +281,8 @@ class TestOrderIntegration:
 
     def test_cancel_order_failure(self, mock_broker):
         """cancel_order() should return failure on error."""
-        mock_broker.order_client.cancel_order.return_value = make_cancel_response(
-            "ORD-001", success=False
+        mock_broker.order_command.cancel_order.return_value = OrderResponse.fail(
+            message="Order not found",
         )
 
         gateway = UpstoxBrokerGateway(mock_broker)
@@ -284,10 +291,9 @@ class TestOrderIntegration:
         assert result.success is False
         assert "not found" in result.message.lower()
 
-    def test_cancel_order_when_live_orders_disabled(self):
+    def test_cancel_order_when_live_orders_disabled(self, mock_broker_orders_disabled):
         """cancel_order() should fail when live orders are disabled."""
-        broker = make_mock_broker(allow_live_orders=False)
-        gateway = UpstoxBrokerGateway(broker)
+        gateway = UpstoxBrokerGateway(mock_broker_orders_disabled)
 
         result = gateway.cancel_order("ORD-001")
 
@@ -296,7 +302,9 @@ class TestOrderIntegration:
 
     def test_cancel_order_network_error(self, mock_broker):
         """cancel_order() should handle network errors gracefully."""
-        mock_broker.order_client.cancel_order.side_effect = ConnectionError("Timeout")
+        mock_broker.order_command.cancel_order.return_value = OrderResponse.fail(
+            message="network error: Timeout",
+        )
 
         gateway = UpstoxBrokerGateway(mock_broker)
         result = gateway.cancel_order("ORD-001")
@@ -305,8 +313,10 @@ class TestOrderIntegration:
         assert "network error" in result.message.lower()
 
     def test_cancel_order_malformed_response(self, mock_broker):
-        """cancel_order() should handle non-dict response."""
-        mock_broker.order_client.cancel_order.return_value = "invalid response"
+        """cancel_order() should handle non-success response."""
+        mock_broker.order_command.cancel_order.return_value = OrderResponse.fail(
+            message="malformed broker response (not a dict)",
+        )
 
         gateway = UpstoxBrokerGateway(mock_broker)
         result = gateway.cancel_order("ORD-001")
@@ -394,7 +404,7 @@ class TestCapabilitiesAndMetadata:
         gateway = UpstoxBrokerGateway(mock_broker)
         caps = gateway.capabilities()
 
-        assert caps.websocket is True
+        assert caps.supports_order_stream is True
 
     def test_capabilities_has_order_types(self, mock_broker):
         """capabilities() should list supported order types."""
@@ -487,7 +497,7 @@ class TestThreadSafety:
     def test_concurrent_ltp_calls(self, mock_broker, instrument_defn):
         """Concurrent ltp() calls should not corrupt state."""
         mock_broker.instrument_resolver.resolve.return_value = instrument_defn
-        mock_broker.market_data_v2.get_ltp.return_value = make_ltp_response("RELIANCE", 2500.50)
+        mock_market_quote(mock_broker, "RELIANCE", 2500.50)
 
         gateway = UpstoxBrokerGateway(mock_broker)
         results = []

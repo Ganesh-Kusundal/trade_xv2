@@ -1,2 +1,2 @@
 """Backward-compat shim — moved to datalake.research.scanner_universe."""
-from datalake.research.scanner_universe import *  # noqa: F403
+from datalake.research.scanner_universe import *

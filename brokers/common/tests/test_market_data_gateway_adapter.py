@@ -1,10 +1,17 @@
 """Integration tests for MarketDataGatewayAdapter using PaperGateway."""
 
+from __future__ import annotations
+
+from unittest import mock
+
 import pytest
 
-from brokers.common.adapters.market_data_gateway_adapter import wrap_market_gateway
-from brokers.common.broker_port import HistoricalBarRequest, QuotaToken
-from brokers.common.capabilities import BrokerCapabilities
+from brokers.common.adapters.market_data_gateway_adapter import (
+    MarketDataGatewayAdapter,
+    wrap_market_gateway,
+)
+from brokers.common.broker_port import BrokerStreamPlan, HistoricalBarRequest, QuotaToken
+from brokers.common.capabilities import BrokerCapabilities, dhan_capabilities
 from brokers.paper import PaperGateway
 from domain.enums import OrderType, ProductType, Side, Validity
 from domain.historical import InstrumentRef
@@ -71,3 +78,18 @@ class TestMarketDataGatewayAdapter:
         health = await paper_adapter.health()
         assert health.broker_id == "paper"
         assert health.alive
+
+
+class TestMarketDataGatewayAdapterOrderStream:
+    @pytest.mark.asyncio
+    async def test_open_order_stream_routes_through_broker_order_api(self):
+        legacy = mock.MagicMock()
+        legacy.stream_order.return_value = mock.MagicMock(is_connected=True)
+
+        adapter = MarketDataGatewayAdapter(legacy, "dhan", capabilities=dhan_capabilities())
+        plan = BrokerStreamPlan(instruments=frozenset(), modes=frozenset())
+
+        await adapter.open_order_stream(plan)
+
+        legacy.stream_order.assert_called_once()
+        legacy.stream.assert_not_called()

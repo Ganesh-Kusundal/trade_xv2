@@ -1,2 +1,2 @@
 """Backward-compat shim — moved to datalake.research.journal."""
-from datalake.research.journal import *  # noqa: F403
+from datalake.research.journal import *

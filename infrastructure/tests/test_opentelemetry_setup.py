@@ -19,7 +19,7 @@ class TestSetupTelemetry:
         pytest.importorskip("opentelemetry.sdk.trace")
         from opentelemetry import trace
 
-        from infrastructure.opentelemetry_setup import setup_telemetry
+        from infrastructure.observability.opentelemetry_setup import setup_telemetry
 
         result = setup_telemetry(service_name="test-service")
 
@@ -30,7 +30,7 @@ class TestSetupTelemetry:
     def test_setup_console_exporter_dev_mode(self):
         """When no OTLP endpoint is given, ConsoleSpanExporter should be used."""
         pytest.importorskip("opentelemetry.sdk.trace")
-        from infrastructure.opentelemetry_setup import setup_telemetry
+        from infrastructure.observability.opentelemetry_setup import setup_telemetry
 
         result = setup_telemetry(service_name="test-dev")
         assert result is True
@@ -38,14 +38,14 @@ class TestSetupTelemetry:
     def test_setup_sets_otel_available_flag(self):
         """After successful setup, otel_available should be True."""
         pytest.importorskip("opentelemetry.sdk.trace")
-        import infrastructure.opentelemetry_setup as ots
+        import infrastructure.observability.opentelemetry_setup as ots
 
         ots.setup_telemetry(service_name="test-flag")
         assert ots.otel_available is True
 
     def test_setup_returns_false_when_sdk_not_installed(self):
         """When opentelemetry SDK is not importable, returns False."""
-        import infrastructure.opentelemetry_setup as ots
+        import infrastructure.observability.opentelemetry_setup as ots
 
         original = ots._HAS_SDK
         try:
@@ -58,7 +58,7 @@ class TestSetupTelemetry:
     def test_get_tracer_returns_tracer_when_available(self):
         """get_tracer should return a Tracer when OTel is initialised."""
         pytest.importorskip("opentelemetry.sdk.trace")
-        from infrastructure.opentelemetry_setup import get_tracer, setup_telemetry
+        from infrastructure.observability.opentelemetry_setup import get_tracer, setup_telemetry
 
         setup_telemetry(service_name="test-get-tracer")
         tracer = get_tracer("test-module")
@@ -67,8 +67,8 @@ class TestSetupTelemetry:
 
     def test_get_tracer_returns_noop_when_unavailable(self):
         """When OTel is not active, get_tracer returns a no-op module/object."""
-        import infrastructure.opentelemetry_setup as ots
-        from infrastructure.opentelemetry_setup import get_tracer
+        import infrastructure.observability.opentelemetry_setup as ots
+        from infrastructure.observability.opentelemetry_setup import get_tracer
 
         original = ots.otel_available
         try:
@@ -91,7 +91,7 @@ class TestTraceOperationOTel:
         """When OTel is active, @trace_operation should create a span."""
         pytest.importorskip("opentelemetry.sdk.trace")
 
-        from infrastructure import tracing
+        from infrastructure.observability import tracing
 
         mock_span = MagicMock()
         mock_tracer = MagicMock()
@@ -120,7 +120,7 @@ class TestTraceOperationOTel:
 
     def test_trace_operation_fallback_without_otel(self):
         """When OTel is not active, @trace_operation should still work (log-only)."""
-        from infrastructure import tracing
+        from infrastructure.observability import tracing
 
         original_has = tracing._HAS_OTEL
         original_active = tracing._otel_active
@@ -142,7 +142,7 @@ class TestTraceOperationOTel:
         """When the decorated function raises, the span should record the error."""
         pytest.importorskip("opentelemetry.sdk.trace")
 
-        from infrastructure import tracing
+        from infrastructure.observability import tracing
 
         mock_span = MagicMock()
         mock_tracer = MagicMock()
@@ -174,8 +174,8 @@ class TestTraceOperationOTel:
         """The span should include the current correlation_id as an attribute."""
         pytest.importorskip("opentelemetry.sdk.trace")
 
-        from infrastructure import tracing
         from infrastructure.correlation import with_correlation
+        from infrastructure.observability import tracing
 
         mock_span = MagicMock()
         mock_tracer = MagicMock()
@@ -206,7 +206,7 @@ class TestTraceOperationOTel:
         """The span should include the function name as an attribute."""
         pytest.importorskip("opentelemetry.sdk.trace")
 
-        from infrastructure import tracing
+        from infrastructure.observability import tracing
 
         mock_span = MagicMock()
         mock_tracer = MagicMock()
@@ -244,7 +244,7 @@ class TestTraceEventHandlerOTel:
         """@trace_event_handler should create a span named event_handler.<type>."""
         pytest.importorskip("opentelemetry.sdk.trace")
 
-        from infrastructure import tracing
+        from infrastructure.observability import tracing
 
         mock_span = MagicMock()
         mock_tracer = MagicMock()
@@ -275,7 +275,7 @@ class TestTraceEventHandlerOTel:
         """When the handler raises, the span should record the error."""
         pytest.importorskip("opentelemetry.sdk.trace")
 
-        from infrastructure import tracing
+        from infrastructure.observability import tracing
 
         mock_span = MagicMock()
         mock_tracer = MagicMock()
@@ -313,14 +313,14 @@ class TestTraceContext:
 
     def test_trace_context_logs_on_success(self):
         """TraceContext should not crash on normal exit."""
-        from infrastructure.tracing import TraceContext
+        from infrastructure.observability.tracing import TraceContext
 
         with TraceContext("test-block"):
             pass
 
     def test_trace_context_logs_on_exception(self):
         """TraceContext should log on exception and re-raise."""
-        from infrastructure.tracing import TraceContext
+        from infrastructure.observability.tracing import TraceContext
 
         with pytest.raises(RuntimeError, match="test-error"), TraceContext("failing-block"):
             raise RuntimeError("test-error")
@@ -337,7 +337,7 @@ class TestGracefulDegradation:
     def test_tracing_module_imports_without_otel(self):
         """infrastructure.tracing should import successfully even without OTel."""
         # This test passes if the module can be imported at all
-        from infrastructure import tracing
+        from infrastructure.observability import tracing
 
         assert hasattr(tracing, "trace_operation")
         assert hasattr(tracing, "trace_event_handler")
@@ -345,7 +345,7 @@ class TestGracefulDegradation:
 
     def test_opentelemetry_setup_module_imports(self):
         """The setup module should import even with partial OTel packages."""
-        from infrastructure import opentelemetry_setup
+        from infrastructure.observability import opentelemetry_setup
 
         assert hasattr(opentelemetry_setup, "setup_telemetry")
         assert hasattr(opentelemetry_setup, "get_tracer")

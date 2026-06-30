@@ -20,7 +20,7 @@ from api.schemas import (
 )
 from domain import OrderStatus, OrderType, ProductType, Side
 from domain.requests import OrderRequest as DomainOrderRequest
-from infrastructure.tracing import trace_operation
+from infrastructure.observability.tracing import trace_operation
 
 logger = logging.getLogger(__name__)
 

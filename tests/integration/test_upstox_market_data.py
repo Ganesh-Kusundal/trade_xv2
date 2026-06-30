@@ -27,10 +27,10 @@ from domain import MarketDepth, Quote
 from tests.integration.fixtures.upstox import (
     make_depth_response,
     make_instrument_defn,
-    make_ltp_response,
     make_mock_broker,
     make_quote_response,
     make_tick_payload,
+    mock_market_quote,
 )
 
 # ─── Fixtures ──────────────────────────────────────────────────────────────
@@ -388,9 +388,7 @@ class TestQuoteAccuracy:
     def test_ltp_accuracy(self, mock_broker_connected, instrument_defn):
         """ltp() should return accurate price."""
         mock_broker_connected.instrument_resolver.resolve.return_value = instrument_defn
-        mock_broker_connected.market_data_v2.get_ltp.return_value = make_ltp_response(
-            "RELIANCE", 2500.50
-        )
+        mock_market_quote(mock_broker_connected, "RELIANCE", 2500.50)
 
         gateway = UpstoxBrokerGateway(mock_broker_connected)
         result = gateway.ltp("RELIANCE", "NSE")
@@ -551,7 +549,7 @@ class TestMarketDataErrorHandling:
     def test_ltp_with_network_error(self, mock_broker_connected, instrument_defn):
         """ltp() should handle network errors gracefully."""
         mock_broker_connected.instrument_resolver.resolve.return_value = instrument_defn
-        mock_broker_connected.market_data_v2.get_ltp.side_effect = ConnectionError("Timeout")
+        mock_broker_connected.market_data_v2.get_quote.side_effect = ConnectionError("Timeout")
 
         gateway = UpstoxBrokerGateway(mock_broker_connected)
 
@@ -602,32 +600,15 @@ class TestMarketDataErrorHandling:
 
 # ─── Live read-only depth (gated) ─────────────────────────────────────────
 
-import os  # noqa: E402
-from pathlib import Path  # noqa: E402
-
-_LIVE_ENV = Path(__file__).resolve().parents[2] / ".env.upstox"
-_live_loaded = False
-if _LIVE_ENV.exists() and _LIVE_ENV.stat().st_size > 0:
-    from dotenv import load_dotenv
-
-    load_dotenv(_LIVE_ENV, override=True)
-    _live_loaded = bool(os.environ.get("UPSTOX_API_KEY") and os.environ.get("UPSTOX_ACCESS_TOKEN"))
+from brokers.upstox.tests.integration.conftest import skip_live
 
 
+@skip_live
 @pytest.mark.upstox_live_readonly
-@pytest.mark.skipif(not _live_loaded, reason="Requires .env.upstox credentials")
 class TestUpstoxDepthLive:
-    def test_depth_live_levels(self):
-        from brokers.upstox.factory import UpstoxBrokerFactory
-
-        gw = UpstoxBrokerFactory().create(
-            env_path=_LIVE_ENV, load_instruments=True, analytics_only=True
-        )
-        try:
-            depth = gw.depth("RELIANCE", "NSE")
-            assert len(depth.bids) >= 1
-            assert len(depth.asks) >= 1
-            assert len(depth.bids) <= 5
-            assert len(depth.asks) <= 5
-        finally:
-            gw.close()
+    def test_depth_live_levels(self, gateway):
+        depth = gateway.depth("RELIANCE", "NSE")
+        assert len(depth.bids) >= 1
+        assert len(depth.asks) >= 1
+        assert len(depth.bids) <= 5
+        assert len(depth.asks) <= 5

@@ -20,7 +20,7 @@ class TestLockContention:
         # Acquire OMS lock
         lock_path = Path("market_data/oms_orders.sqlite.lock")
         lock_path.parent.mkdir(parents=True, exist_ok=True)
-        lock_fd = open(lock_path, "w")  # noqa: SIM115
+        lock_fd = open(lock_path, "w")
         fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
 
         try:

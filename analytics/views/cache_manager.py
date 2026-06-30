@@ -164,13 +164,13 @@ class CacheManager:
         try:
             if latest.get("partitioned") or partition_by:
                 sql = (
-                    f"CREATE TABLE {temp_table} AS "  # noqa: S608
+                    f"CREATE TABLE {temp_table} AS "
                     "SELECT * FROM read_parquet(?, hive_partitioning=true)"
                 )
                 db_conn.execute(sql, [f"{version_path}/**/*.parquet"])
             else:
                 sql = (
-                    f"CREATE TABLE {temp_table} AS "  # noqa: S608
+                    f"CREATE TABLE {temp_table} AS "
                     "SELECT * FROM read_parquet(?)"
                 )
                 db_conn.execute(sql, [str(version_path)])

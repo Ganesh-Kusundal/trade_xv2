@@ -300,7 +300,7 @@ class UpstoxMarketDataV3Multiplexer:
                 # First-tick is JSON with market_info
                 try:
                     msg = json.loads(raw)
-                except Exception:  # noqa: S112
+                except Exception:
                     continue
                 if msg.get("type") == "market_info":
                     # Trigger backfill after market_info (reconnection confirmed)
@@ -315,7 +315,7 @@ class UpstoxMarketDataV3Multiplexer:
                 continue
             try:
                 frame = self._decoder.parse(raw)
-            except Exception:  # noqa: S112
+            except Exception:
                 continue
             if frame is None:
                 continue

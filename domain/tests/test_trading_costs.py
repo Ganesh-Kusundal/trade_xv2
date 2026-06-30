@@ -313,7 +313,7 @@ class TestIndianMarketFees:
     def test_frozen(self):
         fees = IndianMarketFees()
         original = fees.brokerage_pct
-        with pytest.raises(Exception):  # noqa: B017
+        with pytest.raises(Exception):
             fees.brokerage_pct = 0.05  # type: ignore[misc]
         assert fees.brokerage_pct == original
 

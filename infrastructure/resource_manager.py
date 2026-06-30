@@ -1,7 +1,9 @@
-"""Synchronous resource lifecycle manager.
+"""Unified resource lifecycle manager.
 
 Tracks named resources and ensures deterministic cleanup in reverse order.
-Thread-safe via threading.Lock.
+Supports both sync and async cleanup functions in the same instance.
+
+Thread-safe via threading.Lock (sync methods) and lazy asyncio.Lock (async methods).
 
 Usage:
     from infrastructure.resource_manager import ResourceManager
@@ -13,16 +15,21 @@ Usage:
     with rm.acquire("db_pool") as pool:
         conn = pool.acquire()
 
-    # On shutdown:
-    rm.shutdown_all()
+    # Or async:
+    async with arm.async_acquire("db_pool") as pool:
+        conn = await pool.acquire()
+
+    # On shutdown (async):
+    await rm.shutdown_all()
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import threading
-from collections.abc import Callable
-from contextlib import contextmanager
+from collections.abc import Awaitable, Callable
+from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass
 from typing import Any
 
@@ -35,7 +42,7 @@ logger = logging.getLogger(__name__)
 class _ResourceEntry:
     """Internal record for a registered resource."""
     resource: Any
-    cleanup_fn: Callable[[], Any]
+    cleanup_fn: Callable[[], Any] | Callable[[], Awaitable[Any]] | None
     acquired: bool = False
 
 
@@ -43,7 +50,11 @@ class ResourceManager:
     """Manages named resources with deterministic cleanup.
 
     Resources are cleaned up in reverse registration order on shutdown.
-    Thread-safe: all mutations go through a lock.
+    Supports both sync and async cleanup functions — the cleanup type is
+    detected at call time via ``asyncio.iscoroutine()``.
+
+    Thread-safe: sync methods use ``threading.Lock``; async methods lazily
+    create an ``asyncio.Lock``.
 
     Parameters
     ----------
@@ -54,6 +65,7 @@ class ResourceManager:
 
     def __init__(self, health_registry: HealthRegistry | None = None) -> None:
         self._lock = threading.Lock()
+        self._async_lock: asyncio.Lock | None = None
         self._resources: dict[str, _ResourceEntry] = {}
         self._shutdown_called = False
         self._health_registry = health_registry
@@ -61,11 +73,17 @@ class ResourceManager:
         if health_registry is not None:
             health_registry.register("resources", self._health_check)
 
+    def _get_async_lock(self) -> asyncio.Lock:
+        """Lazily create asyncio.Lock to avoid issues when instantiated outside an event loop."""
+        if self._async_lock is None:
+            self._async_lock = asyncio.Lock()
+        return self._async_lock
+
     def register(
         self,
         name: str,
         resource: Any,
-        cleanup_fn: Callable[[], Any] | None = None,
+        cleanup_fn: Callable[[], Any] | Callable[[], Awaitable[Any]] | None = None,
     ) -> None:
         """Register a resource with an optional cleanup function.
 
@@ -76,7 +94,8 @@ class ResourceManager:
         resource:
             The resource object to track.
         cleanup_fn:
-            Callable to clean up the resource. If None, no cleanup is performed.
+            Callable (sync or async) to clean up the resource. If None,
+            no cleanup is performed.
 
         Raises
         ------
@@ -149,17 +168,50 @@ class ResourceManager:
                 if entry is not None:
                     entry.acquired = False
 
-    def shutdown_all(self) -> None:
+    @asynccontextmanager
+    async def async_acquire(self, name: str):
+        """Async context manager that yields a resource.
+
+        Parameters
+        ----------
+        name:
+            Name of the resource to acquire.
+
+        Yields
+        ------
+        The registered resource.
+
+        Raises
+        ------
+        KeyError
+            If no resource is registered with this name.
+        """
+        async with self._get_async_lock():
+            entry = self._resources.get(name)
+            if entry is None:
+                raise KeyError(f"Resource '{name}' not registered")
+            entry.acquired = True
+
+        try:
+            yield entry.resource
+        finally:
+            async with self._get_async_lock():
+                entry = self._resources.get(name)
+                if entry is not None:
+                    entry.acquired = False
+
+    async def shutdown_all(self) -> None:
         """Clean up all registered resources in reverse registration order.
 
-        Errors during cleanup are logged but do not prevent subsequent
-        resources from being cleaned up.
+        Supports both sync and async cleanup functions — the type is detected
+        at call time. Errors during cleanup are logged but do not prevent
+        subsequent resources from being cleaned up.
         """
         if self._shutdown_called:
             logger.debug("ResourceManager.shutdown_all: already called")
             return
 
-        with self._lock:
+        async with self._get_async_lock():
             self._shutdown_called = True
             names = list(reversed(list(self._resources.keys())))
 
@@ -170,14 +222,17 @@ class ResourceManager:
 
         errors = []
         for name in names:
-            with self._lock:
+            async with self._get_async_lock():
                 entry = self._resources.pop(name, None)
 
             if entry is None:
                 continue
 
             try:
-                entry.cleanup_fn()
+                if entry.cleanup_fn is not None:
+                    result = entry.cleanup_fn()
+                    if asyncio.iscoroutine(result):
+                        await result
                 logger.debug("ResourceManager: cleaned up '%s'", name)
             except Exception as exc:
                 logger.warning(

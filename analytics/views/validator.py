@@ -112,7 +112,7 @@ class PointInTimeValidator:
         """Check that no view contains data from the future."""
         try:
             result = self._conn.execute(
-                "SELECT MAX(timestamp) as max_ts, "  # noqa: S608
+                "SELECT MAX(timestamp) as max_ts, "
                 "MAX(CAST(timestamp AS DATE)) as max_date "
                 f"FROM {view_name} "
                 "WHERE timestamp IS NOT NULL"
@@ -135,7 +135,7 @@ class PointInTimeValidator:
         if self._column_exists(view_name, "published_at"):
             try:
                 result = self._conn.execute(
-                    "SELECT MAX(published_at) as max_pub "  # noqa: S608
+                    "SELECT MAX(published_at) as max_pub "
                     f"FROM {view_name} "
                     "WHERE published_at IS NOT NULL"
                 ).fetchone()
@@ -152,7 +152,7 @@ class PointInTimeValidator:
         if self._column_exists(view_name, "ingested_at"):
             try:
                 result = self._conn.execute(
-                    "SELECT MAX(ingested_at) as max_ing "  # noqa: S608
+                    "SELECT MAX(ingested_at) as max_ing "
                     f"FROM {view_name} "
                     "WHERE ingested_at IS NOT NULL"
                 ).fetchone()
@@ -171,7 +171,7 @@ class PointInTimeValidator:
         ):
             try:
                 result = self._conn.execute(
-                    "SELECT COUNT(*) as violations FROM ("  # noqa: S608
+                    "SELECT COUNT(*) as violations FROM ("
                     f"SELECT 1 FROM {view_name} "
                     "WHERE published_at IS NOT NULL "
                     "AND event_time IS NOT NULL "
@@ -201,7 +201,7 @@ class PointInTimeValidator:
         """Check that data is temporally ordered."""
         try:
             result = self._conn.execute(
-                "SELECT COUNT(*) as out_of_order FROM ("  # noqa: S608
+                "SELECT COUNT(*) as out_of_order FROM ("
                 "SELECT symbol, timestamp, "
                 "LAG(timestamp) OVER (PARTITION BY symbol ORDER BY timestamp) as prev_ts "
                 f"FROM {view_name} "

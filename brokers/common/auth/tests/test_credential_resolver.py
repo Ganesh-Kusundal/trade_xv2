@@ -15,7 +15,21 @@ class TestCredentialResolver:
 
     def test_resolve_upstox_default(self):
         path = CredentialResolver.resolve_env_path("upstox")
-        assert path == Path(".env.upstox")
+        assert path in (Path(".env.upstox"), Path(".env.local"))
+
+    def test_resolve_upstox_prefers_dedicated_file(self, tmp_path, monkeypatch):
+        upstox = tmp_path / ".env.upstox"
+        local = tmp_path / ".env.local"
+        upstox.write_text("UPSTOX_API_KEY=k\n")
+        local.write_text("UPSTOX_API_KEY=other\n")
+        monkeypatch.chdir(tmp_path)
+        assert CredentialResolver.resolve_upstox_env_path().resolve() == upstox.resolve()
+
+    def test_resolve_upstox_falls_back_to_local(self, tmp_path, monkeypatch):
+        local = tmp_path / ".env.local"
+        local.write_text("UPSTOX_API_KEY=k\n")
+        monkeypatch.chdir(tmp_path)
+        assert CredentialResolver.resolve_upstox_env_path().resolve() == local.resolve()
 
     def test_resolve_explicit_override(self, tmp_path):
         custom = tmp_path / "custom.env"

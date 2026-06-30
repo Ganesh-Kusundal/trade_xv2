@@ -18,8 +18,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).parent.parent.parent  # tests/scripts/ -> project root
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from rich.console import Console  # noqa: E402
-from rich.table import Table  # noqa: E402
+from rich.console import Console
+from rich.table import Table
 
 console = Console()
 

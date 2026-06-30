@@ -333,7 +333,7 @@ class HttpObservabilityServer(ManagedService):
                 registry_not_ready[name] = status_val
                 if status_val not in ("healthy", "degraded"):
                     lifecycle_not_ready.append((f"health_registry.{name}", status_val))
-        except Exception:  # noqa: S110
+        except Exception:
             pass
 
         body: dict[str, Any] = {

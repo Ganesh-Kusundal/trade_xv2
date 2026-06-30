@@ -114,7 +114,7 @@ class TestProtocolImplementations:
 
         # Verify return type is None
         return_annotation = sig.return_annotation
-        assert return_annotation is None or return_annotation == type(None) or "None" in str(  # noqa: E721
+        assert return_annotation is None or return_annotation == type(None) or "None" in str(
             return_annotation
         ), f"on_trade_applied() must return None, got {return_annotation}"
 
@@ -145,7 +145,7 @@ class TestProtocolImplementations:
 
         # Verify return type is None
         return_annotation = sig.return_annotation
-        assert return_annotation is None or return_annotation == type(None) or "None" in str(  # noqa: E721
+        assert return_annotation is None or return_annotation == type(None) or "None" in str(
             return_annotation
         ), f"set_kill_switch() must return None, got {return_annotation}"
 

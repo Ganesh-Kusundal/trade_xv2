@@ -131,6 +131,30 @@ def _assert_observability_cb(gw: BrokerGateway) -> None:
     assert health is not None, "health() returned None"
 
 
+def _assert_subscription_engine_wired(gw: BrokerGateway) -> None:
+    """P0: gateway must delegate streaming to SubscriptionEngine."""
+    conn = gw._conn
+    assert hasattr(conn, "subscription_engine"), "missing SubscriptionEngine on connection"
+    engine = conn.subscription_engine
+    assert callable(getattr(engine, "subscribe_market", None))
+    assert callable(getattr(engine, "unsubscribe_market", None))
+
+
+def _assert_session_manager_wired(gw: BrokerGateway) -> None:
+    """P0: connection must expose consolidated session manager."""
+    conn = gw._conn
+    assert hasattr(conn, "_session_manager"), "missing DhanSessionManager on connection"
+    sm = conn._session_manager
+    assert callable(getattr(sm, "health_summary", None))
+
+
+def _assert_stream_order_not_market_alias(gw: BrokerGateway) -> None:
+    """P0: gateway must expose distinct order stream entry point."""
+    assert callable(getattr(gw, "stream_order", None))
+    assert callable(getattr(gw, "unstream_order", None))
+    assert gw.stream_order is not gw.stream
+
+
 def _assert_nse_depth_both_sides(gw: BrokerGateway) -> None:
     """After the fix: REST depth always returns both sides."""
     depth = gw.depth("TCS", "NSE")
@@ -349,6 +373,36 @@ OFF_MARKET_CASES: list[RegressionCase] = [
         description="health() returns status",
         assert_fn=_assert_observability_cb,
         severity="P1",
+    ),
+    RegressionCase(
+        id="arch_subscription_engine",
+        capability="supports_live_market_data",
+        tier="off_market_safe",
+        segment="NSE_EQ",
+        description="SubscriptionEngine is wired on the live connection",
+        assert_fn=_assert_subscription_engine_wired,
+        severity="P0",
+        tags=("architecture",),
+    ),
+    RegressionCase(
+        id="arch_session_manager",
+        capability="supports_live_market_data",
+        tier="off_market_safe",
+        segment="NSE_EQ",
+        description="DhanSessionManager is wired on the live connection",
+        assert_fn=_assert_session_manager_wired,
+        severity="P0",
+        tags=("architecture",),
+    ),
+    RegressionCase(
+        id="arch_stream_order_entry",
+        capability="supports_live_market_data",
+        tier="off_market_safe",
+        segment="NSE_EQ",
+        description="Order stream entry point is distinct from market stream",
+        assert_fn=_assert_stream_order_not_market_alias,
+        severity="P0",
+        tags=("architecture",),
     ),
 ]
 

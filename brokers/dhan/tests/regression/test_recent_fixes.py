@@ -381,7 +381,6 @@ class TestQuoteRateLimit:
 # Audit Fixes — Memory/Callback Leaks and Multiplexing refcount
 # ---------------------------------------------------------------------------
 
-import threading  # noqa: E402
 
 
 class TestAuditLeakAndMultiplexingFixes:
@@ -416,33 +415,29 @@ class TestAuditLeakAndMultiplexingFixes:
     def test_broker_gateway_callback_leak_prevention(self):
         """BrokerGateway unstream removes wrapper callback from feed."""
         from brokers.dhan.gateway import BrokerGateway
+        from brokers.dhan.subscription_engine import SubscriptionEngine
 
-        # Mock feed and connection
         feed = mock.MagicMock()
+        feed.is_connected = False
         conn = mock.MagicMock()
         conn.market_feed = feed
+        conn.access_token = "TOKEN"
+        conn.create_market_feed = mock.MagicMock(return_value=feed)
+        conn.instruments.resolve.return_value = mock.MagicMock(
+            security_id="500325", exchange=mock.MagicMock(value="NSE")
+        )
+        conn.subscription_engine = SubscriptionEngine(conn)
 
-        # Create gateway and mock instrument resolver
-        gw = BrokerGateway.__new__(BrokerGateway)
-        gw._conn = conn
-        gw._stream_lock = threading.Lock()
-        gw._stream_registry = {}
-        gw._wrapper_registry = {}
-        gw._subscription_modes = {}
-
-        conn.instruments.resolve.return_value = mock.MagicMock(security_id="500325", exchange=mock.MagicMock(value="NSE"))
+        gw = BrokerGateway(conn)
 
         cb1 = mock.MagicMock()
-
-        # Register stream
         gw.stream("RELIANCE", "NSE", on_tick=cb1)
         assert len(feed.on_quote.call_args_list) == 1
         registered_wrap = feed.on_quote.call_args[0][0]
 
-        # Unstream and verify off_quote is called with the SAME wrap function
         gw.unstream("RELIANCE", "NSE", on_tick=cb1)
         feed.off_quote.assert_called_once_with(registered_wrap)
-        assert len(gw._stream_registry) == 0
+        assert "RELIANCE:NSE" not in conn.subscription_engine._market_callbacks
 
     def test_market_data_gateway_adapter_ref_counting(self):
         """MarketDataGatewayAdapter tracks active handles and prevents premature stop."""

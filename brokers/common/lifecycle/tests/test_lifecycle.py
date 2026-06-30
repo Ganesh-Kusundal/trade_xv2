@@ -133,6 +133,18 @@ def test_stop_all_calls_stop_in_reverse_registration_order() -> None:
     assert a.stop_count == 1
 
 
+def test_register_after_start_all_auto_starts_late_service() -> None:
+    mgr = LifecycleManager()
+    early = _RecorderService("svc.early")
+    mgr.register(early)
+    mgr.start_all()
+    assert early.start_count == 1
+
+    late = _RecorderService("svc.late")
+    mgr.register(late)
+    assert late.start_count == 1
+
+
 def test_start_is_idempotent() -> None:
     mgr = LifecycleManager()
     svc = _RecorderService()

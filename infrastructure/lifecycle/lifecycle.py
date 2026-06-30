@@ -93,6 +93,7 @@ class LifecycleManager:
         self._services: dict[str, ManagedService] = {}
         self._started: set[str] = set()
         self._start_failed: set[str] = set()
+        self._start_all_invoked = False
         self._default_stop_timeout = default_stop_timeout
         self._start_order: list[str] = []
         self._stop_order: list[str] = []
@@ -118,6 +119,9 @@ class LifecycleManager:
                 last_check=datetime.now(timezone.utc),
                 detail="registered",
             )
+            start_all_invoked = self._start_all_invoked
+        if start_all_invoked:
+            self._start_one(name)
 
     def unregister(self, name: str) -> None:
         """Remove a service from the manager. Does not stop it."""
@@ -146,6 +150,7 @@ class LifecycleManager:
         from starting; the failure is recorded in :meth:`health_snapshot`.
         """
         with self._lock:
+            self._start_all_invoked = True
             names = list(self._start_order)
         for name in names:
             self._start_one(name)

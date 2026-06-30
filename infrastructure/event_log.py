@@ -154,7 +154,7 @@ class EventLog:
                     self._current_handle.close()
                 except Exception as exc:
                     logger.warning("Error closing old event log: %s", exc)
-            self._current_handle = open(target, "a", encoding="utf-8")  # noqa: SIM115
+            self._current_handle = open(target, "a", encoding="utf-8")
             self._current_file = target
         return self._current_handle
 

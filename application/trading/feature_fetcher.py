@@ -78,7 +78,7 @@ class PipelineFeatureFetcher:
             return FeatureSet.empty()
 
 
-def _series_to_df(series: HistoricalSeries) -> pd.DataFrame:  # noqa: F821
+def _series_to_df(series: HistoricalSeries) -> pd.DataFrame:
     """Convert a HistoricalSeries back to a DataFrame for pipeline processing."""
 
     rows = []

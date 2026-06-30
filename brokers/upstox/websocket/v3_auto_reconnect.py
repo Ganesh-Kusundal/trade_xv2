@@ -32,7 +32,7 @@ class UpstoxAutoReconnect:
         n = self._attempts if attempt is None else int(attempt)
         # exponential with jitter: base * 2^n +/- jitter
         base = self._interval * (2**n)
-        return base * (1.0 + random.uniform(-self._jitter, self._jitter))  # noqa: S311
+        return base * (1.0 + random.uniform(-self._jitter, self._jitter))
 
     def reset(self) -> None:
         self._attempts = 0

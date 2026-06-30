@@ -45,7 +45,7 @@ from infrastructure.event_bus import (
 from infrastructure.logging_config import get_logger
 from infrastructure.metrics import metrics_registry
 from infrastructure.observability.event_metrics import EventMetrics
-from infrastructure.tracing import trace_operation
+from infrastructure.observability.tracing import trace_operation
 
 if TYPE_CHECKING:
     pass

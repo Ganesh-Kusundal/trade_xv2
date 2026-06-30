@@ -1,2 +1,2 @@
 """Backward-compat shim — moved to datalake.quality.validation."""
-from datalake.quality.validation import *  # noqa: F403
+from datalake.quality.validation import *

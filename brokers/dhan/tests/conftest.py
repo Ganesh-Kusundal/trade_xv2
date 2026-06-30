@@ -20,6 +20,16 @@ def _clean_dhan_token_state_dir():
     else:
         os.environ["DHAN_TOKEN_STATE_DIR"] = saved
 
+
+@pytest.fixture(autouse=True)
+def _reset_account_connection_registry():
+    """Prevent AccountConnectionRegistry from leaking gateways across tests."""
+    from brokers.dhan.account_registry import AccountConnectionRegistry
+
+    AccountConnectionRegistry.release_all()
+    yield
+    AccountConnectionRegistry.release_all()
+
 # ---------------------------------------------------------------------------
 # Fake HTTP client — sync mock replacing DhanHttpClient
 # ---------------------------------------------------------------------------

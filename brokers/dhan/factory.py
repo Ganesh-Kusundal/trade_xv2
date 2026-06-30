@@ -17,6 +17,7 @@ from urllib.parse import urlencode
 from brokers.common.auth import AuthManager, JsonTokenStateStore, TokenSource, TokenState
 from brokers.common.factory import BrokerProviderFactory
 from brokers.common.gateway import MarketDataGateway
+from brokers.dhan.account_registry import AccountConnectionRegistry
 from brokers.dhan.connection import DhanConnection
 from brokers.dhan.gateway import BrokerGateway
 from brokers.dhan.http_client import DhanHttpClient
@@ -38,12 +39,41 @@ class BrokerFactory(BrokerProviderFactory):
         backfill_callback: Callable[[str, datetime, datetime], list[dict]] | None = None,
         reconciliation_service: object | None = None,
     ) -> MarketDataGateway:
-        # ── Load settings ──────────────────────────────────────────
         settings = DhanSettingsLoader.from_env(env_path=env_path)
+        cid = settings.client_id
+        resolved_env = env_path or Path(".env.local")
+
+        return AccountConnectionRegistry.get_or_create(
+            "dhan",
+            cid,
+            lambda: self._build_gateway(
+                settings=settings,
+                env_path=resolved_env,
+                load_instruments=load_instruments,
+                event_bus=event_bus,
+                risk_manager=risk_manager,
+                lifecycle=lifecycle,
+                backfill_callback=backfill_callback,
+                reconciliation_service=reconciliation_service,
+            ),
+        )
+
+    def _build_gateway(
+        self,
+        *,
+        settings: DhanConnectionSettings,
+        env_path: Path,
+        load_instruments: bool,
+        event_bus: Any | None,
+        risk_manager: Any | None,
+        lifecycle: Any | None,
+        backfill_callback: Callable[[str, datetime, datetime], list[dict]] | None,
+        reconciliation_service: object | None,
+    ) -> MarketDataGateway:
         cid = settings.client_id
 
         # ── Auth & token ───────────────────────────────────────────
-        auth, token = self._create_auth(settings, env_path or Path(".env.local"))
+        auth, token = self._create_auth(settings, env_path)
 
         # ── Per-instance refresh lock shared between the HTTP 401 handler and
         # the scheduler.  Created here (the natural owner) rather than inside
@@ -52,7 +82,7 @@ class BrokerFactory(BrokerProviderFactory):
 
         # ── HTTP client ────────────────────────────────────────────
         client = self._create_http_client(
-            settings, auth, cid, token, env_path or Path(".env.local"), refresh_lock
+            settings, auth, cid, token, env_path, refresh_lock
         )
 
         # ── Connection + Gateway ───────────────────────────────────
@@ -68,7 +98,6 @@ class BrokerFactory(BrokerProviderFactory):
         )
 
         # Register extension factories so brokers.common can find them
-        import brokers.dhan.common_extensions  # noqa: F401
 
         if load_instruments:
             gateway.load_instruments()
@@ -82,7 +111,7 @@ class BrokerFactory(BrokerProviderFactory):
             auth,
             client,
             settings,
-            env_path or Path(".env.local"),
+            env_path,
             lifecycle,
             refresh_lock,
         )
@@ -227,6 +256,9 @@ class BrokerFactory(BrokerProviderFactory):
             allow_live_orders=settings.allow_live_orders,
         )
         connection._auth = auth  # Store auth manager on connection
+        from brokers.dhan.session_manager import DhanSessionManager
+
+        connection._session_manager = DhanSessionManager(connection, auth)
         return BrokerGateway(connection)
 
     def _wire_websocket_services(
@@ -300,8 +332,15 @@ class BrokerFactory(BrokerProviderFactory):
             lifecycle.register(scheduler)
             gateway._conn.token_scheduler = scheduler
         else:
+            import atexit
+
             scheduler.start()
             gateway._conn.token_scheduler = scheduler
+            atexit.register(scheduler.stop)
+            logger.warning(
+                "token_scheduler_started_without_lifecycle",
+                extra={"hint": "registered atexit stop handler"},
+            )
 
 
 def _refresh_via_auth(
@@ -322,6 +361,10 @@ def _refresh_via_auth(
         logger.debug("Token refresh timed out waiting for in-flight refresh")
         return None
     try:
+        state = auth.force_refresh()
+        if state and state.access_token:
+            _update_env_token(env_file, state.access_token)
+            return state.access_token
         state = auth.acquire()
         if state and state.access_token:
             _update_env_token(env_file, state.access_token)
@@ -413,7 +456,7 @@ def _generate_totp_token(settings: DhanConnectionSettings | None = None) -> str 
         return None
 
 
-from brokers.dhan.secret_utils import read_secret as _read_secret  # noqa: E402
+from brokers.dhan.secret_utils import read_secret as _read_secret
 
 
 def _update_env_token(env_path: Path, token: str) -> None:

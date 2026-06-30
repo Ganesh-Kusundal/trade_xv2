@@ -141,7 +141,7 @@ class ViewManager:
 
     # ─── Materialization ─────────────────────────────────────────────────────
 
-    def materialize(self, table_name: str, sql: str, partition_by: str | None = None) -> float:  # noqa: F811
+    def materialize(self, table_name: str, sql: str, partition_by: str | None = None) -> float:
         """Materialize a query result into a versioned Parquet table.
 
         Writes to a timestamped directory first, then atomically promotes the
@@ -215,7 +215,7 @@ class ViewManager:
             except Exception as exc:
                 logger.warning("Failed to remove old materialized version %s: %s", entry, exc)
 
-    def register_materialized(self, table_name: str, partition_by: str | None = None) -> None:  # noqa: F811
+    def register_materialized(self, table_name: str, partition_by: str | None = None) -> None:
         """Register the latest materialized Parquet table as a DuckDB table.
 
         Creates a new table with a temporary name, then atomically swaps it in
@@ -233,13 +233,13 @@ class ViewManager:
         try:
             if latest.get("partitioned") or partition_by:
                 sql = (
-                    f"CREATE TABLE {temp_table} AS "  # noqa: S608
+                    f"CREATE TABLE {temp_table} AS "
                     "SELECT * FROM read_parquet(?, hive_partitioning=true)"
                 )
                 self.conn.execute(sql, [f"{version_path}/**/*.parquet"])
             else:
                 sql = (
-                    f"CREATE TABLE {temp_table} AS "  # noqa: S608
+                    f"CREATE TABLE {temp_table} AS "
                     "SELECT * FROM read_parquet(?)"
                 )
                 self.conn.execute(sql, [str(version_path)])
@@ -250,7 +250,7 @@ class ViewManager:
             self.conn.execute(f"DROP TABLE IF EXISTS {temp_table}")
             raise
 
-    def drop_materialized(self, table_name: str) -> None:  # noqa: F811
+    def drop_materialized(self, table_name: str) -> None:
         """Drop a materialized table and remove all its versions."""
         self.conn.execute(f"DROP TABLE IF EXISTS {table_name}")
         version_dir = MATERIALIZED_DIR / "versions" / table_name
@@ -643,7 +643,7 @@ class ViewManager:
 
     # ─── Querying ────────────────────────────────────────────────────────────
 
-    def query(self, sql: str, params: list | None = None) -> duckdb.DuckDBPyRelation:  # noqa: F811
+    def query(self, sql: str, params: list | None = None) -> duckdb.DuckDBPyRelation:
         """Execute a query against the analytics views."""
         if not self._read_only:
             if params:
@@ -653,14 +653,14 @@ class ViewManager:
             df = conn.execute(sql, params).fetchdf() if params else conn.execute(sql).fetchdf()
         return duckdb.from_df(df)
 
-    def query_df(self, sql: str, params: list | None = None) -> Any:  # noqa: F811
+    def query_df(self, sql: str, params: list | None = None) -> Any:
         """Execute a query and return as pandas DataFrame."""
         with self._query_connection() as conn:
             if params:
                 return conn.execute(sql, params).fetchdf()
             return conn.execute(sql).fetchdf()
 
-    def query_scalar(self, sql: str, params: list | None = None) -> Any:  # noqa: F811
+    def query_scalar(self, sql: str, params: list | None = None) -> Any:
         """Execute a query and return single scalar value."""
         with self._query_connection() as conn:
             if params:
@@ -671,7 +671,7 @@ class ViewManager:
 
     # ─── Introspection ───────────────────────────────────────────────────────
 
-    def list_views(self) -> list[dict]:  # noqa: F811
+    def list_views(self) -> list[dict]:
         """List all user-created views in the catalog."""
         with self._query_connection() as conn:
             results = conn.execute(
@@ -679,7 +679,7 @@ class ViewManager:
             ).fetchall()
             return [{"name": r[0], "definition": r[1] or ""} for r in results]
 
-    def view_exists(self, view_name: str) -> bool:  # noqa: F811
+    def view_exists(self, view_name: str) -> bool:
         """Check if a view exists."""
         with self._query_connection() as conn:
             result = conn.execute(
@@ -688,7 +688,7 @@ class ViewManager:
             ).fetchone()
             return result[0] > 0
 
-    def table_exists(self, table_name: str) -> bool:  # noqa: F811
+    def table_exists(self, table_name: str) -> bool:
         """Check if a table exists."""
         with self._query_connection() as conn:
             result = conn.execute(
@@ -697,7 +697,7 @@ class ViewManager:
             ).fetchone()
             return result[0] > 0
 
-    def view_columns(self, view_name: str) -> list[str]:  # noqa: F811
+    def view_columns(self, view_name: str) -> list[str]:
         """Get column names for a view or table."""
         try:
             with self._query_connection() as conn:
@@ -706,14 +706,14 @@ class ViewManager:
         except Exception:
             return []
 
-    def view_count(self) -> int:  # noqa: F811
+    def view_count(self) -> int:
         """Count total number of user-created views."""
         with self._query_connection() as conn:
             return conn.execute(
                 "SELECT COUNT(*) FROM duckdb_views() WHERE schema_name = 'main' AND internal = false"
             ).fetchone()[0]
 
-    def table_count(self) -> int:  # noqa: F811
+    def table_count(self) -> int:
         """Count total number of tables."""
         with self._query_connection() as conn:
             return conn.execute(

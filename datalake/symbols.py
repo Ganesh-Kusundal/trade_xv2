@@ -1,2 +1,2 @@
 """Backward-compat shim — moved to datalake.core.symbols."""
-from datalake.core.symbols import *  # noqa: F403
+from datalake.core.symbols import *

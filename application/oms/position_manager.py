@@ -210,7 +210,7 @@ class PositionManager:
         Also normalizes Upstox-specific keys for backward compatibility.
         """
         # Normalize Upstox-specific keys to domain format
-        _KEY_MAP = {  # noqa: N806
+        _KEY_MAP = {
             "trading_symbol": "symbol",
             "exchange_segment": "exchange",
             "net_quantity": "quantity",

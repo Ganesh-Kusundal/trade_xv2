@@ -36,7 +36,7 @@ from domain.entities import (
 )
 
 
-class GatewayContractSuite(ABC):  # noqa: B024
+class GatewayContractSuite(ABC):
     """Abstract contract tests for MarketDataGateway implementations.
 
     Subclasses MUST provide a ``gateway`` fixture that returns an instance

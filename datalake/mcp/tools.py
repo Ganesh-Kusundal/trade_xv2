@@ -142,7 +142,7 @@ def register_tools(mcp) -> None:
 
         with duckdb_connection(str(DEFAULT_CATALOG_PATH), read_only=True) as conn:
             result = conn.execute(
-                f"SELECT * FROM {table} WHERE underlying = ? ORDER BY timestamp DESC LIMIT 1",  # noqa: S608
+                f"SELECT * FROM {table} WHERE underlying = ? ORDER BY timestamp DESC LIMIT 1",
                 [underlying],
             ).fetchdf()
 

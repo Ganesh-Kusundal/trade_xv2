@@ -147,6 +147,7 @@ class TradingOrchestrator:
         self._executed_count: int = 0
         self._rejected_count: int = 0
         self._error_count: int = 0
+        self._candidate_subscription_token: str | None = None
         self.name = "trading_orchestrator"
 
     @property
@@ -163,6 +164,22 @@ class TradingOrchestrator:
     def error_count(self) -> int:
         """Number of execution errors (feature fetch failure, OMS error, etc.)."""
         return self._error_count
+
+    def attach_event_subscription(self) -> str:
+        """Subscribe to CANDIDATE_GENERATED if not already subscribed."""
+        if self._candidate_subscription_token is not None:
+            return self._candidate_subscription_token
+        self._candidate_subscription_token = self._event_bus.subscribe(
+            EventType.CANDIDATE_GENERATED.value,
+            self.on_candidate,
+        )
+        return self._candidate_subscription_token
+
+    def detach_event_subscription(self) -> None:
+        """Unsubscribe from CANDIDATE_GENERATED if this orchestrator owns the token."""
+        if self._candidate_subscription_token is not None:
+            self._event_bus.unsubscribe(self._candidate_subscription_token)
+            self._candidate_subscription_token = None
 
     def on_candidate(self, event: DomainEvent) -> None:
         """Handle CANDIDATE_GENERATED event.
@@ -520,7 +537,7 @@ class TradingOrchestrator:
             return False
         return risk_manager.is_kill_switch_active()
 
-    def health(self) -> HealthStatus:  # noqa: F821
+    def health(self) -> HealthStatus:
         """ManagedService health snapshot."""
 
         from domain.lifecycle_health import HealthState, HealthStatus
@@ -540,9 +557,10 @@ class TradingOrchestrator:
         """Start the orchestrator.
 
         Called by LifecycleManager when the system starts.
-        Event subscription (CANDIDATE_GENERATED) is the caller's
-        responsibility — subscribe before registering with lifecycle.
+        Subscribes to CANDIDATE_GENERATED unless the caller already
+        attached a subscription via :meth:`attach_event_subscription`.
         """
+        self.attach_event_subscription()
         logger.info(
             "TradingOrchestrator starting (dry_run=%s, min_confidence=%.2f)",
             self._config.dry_run,
@@ -555,6 +573,7 @@ class TradingOrchestrator:
         Called by LifecycleManager when the system shuts down.
         Unsubscribe from events and log final statistics.
         """
+        self.detach_event_subscription()
         logger.info(
             "TradingOrchestrator stopping: executed=%d, rejected=%d, errors=%d",
             self._executed_count,

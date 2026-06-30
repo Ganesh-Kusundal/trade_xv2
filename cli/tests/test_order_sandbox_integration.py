@@ -76,9 +76,9 @@ def _tradex_argv(args: list[str]) -> list[str]:
     """Build the full argv list for the tradex CLI."""
     tradex = _PROJECT_ROOT / "tradex"
     if tradex.exists():
-        return [str(tradex)] + args  # noqa: RUF005
+        return [str(tradex), *args]
     # Fallback: invoke as a module
-    return [sys.executable, "-m", "cli.main"] + args  # noqa: RUF005
+    return [sys.executable, "-m", "cli.main", *args]
 
 
 # ---------------------------------------------------------------------------

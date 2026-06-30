@@ -20,14 +20,14 @@ logger = logging.getLogger(__name__)
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from analytics.backtest.models import (  # noqa: E402
+from analytics.backtest.models import (
     BacktestConfig,
 )
-from analytics.indicators.halftrend import HalfTrend  # noqa: E402
-from analytics.scanner.models import Candidate  # noqa: E402
-from analytics.strategy import Signal, SignalType  # noqa: E402
-from datalake.gateway import DataLakeGateway  # noqa: E402
-from domain.trading_costs import apply_slippage as _apply_slippage  # noqa: E402
+from analytics.indicators.halftrend import HalfTrend
+from analytics.scanner.models import Candidate
+from analytics.strategy import Signal, SignalType
+from datalake.gateway import DataLakeGateway
+from domain.trading_costs import apply_slippage as _apply_slippage
 
 # ---------------------------------------------------------------------------
 # HalfTrend Strategy (wraps indicator for StrategyPipeline)

@@ -215,10 +215,20 @@ class ResolverRefresher(ManagedService):
         except Exception as exc:
             self._last_error = f"{type(exc).__name__}: {exc}"
             self._error_count += 1
-            logger.warning(
-                "resolver_refresh_failed",
-                extra={"error": str(exc), "elapsed_s": round(time.monotonic() - start, 2)},
-            )
+            if self._error_count >= 3:
+                logger.error(
+                    "resolver_refresh_repeated_failure",
+                    extra={
+                        "error_count": self._error_count,
+                        "error": str(exc),
+                        "hint": "instrument master may be stale — consider manual refresh",
+                    },
+                )
+            else:
+                logger.warning(
+                    "resolver_refresh_failed",
+                    extra={"error": str(exc), "elapsed_s": round(time.monotonic() - start, 2)},
+                )
             if self._on_error:
                 try:
                     self._on_error(exc)

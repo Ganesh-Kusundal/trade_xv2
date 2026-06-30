@@ -14,6 +14,7 @@ from typing import Any
 from brokers.common.factory import BrokerProviderFactory
 from brokers.common.gateway import MarketDataGateway
 from brokers.upstox.auth.config import UpstoxSettingsLoader
+from brokers.upstox.auth.exceptions import UpstoxAuthError
 from brokers.upstox.broker import UpstoxBroker
 from brokers.upstox.gateway import UpstoxBrokerGateway
 
@@ -45,12 +46,23 @@ class UpstoxBrokerFactory(BrokerProviderFactory):
             backfill_callback=backfill_callback,
             reconciliation_service=reconciliation_service,
         )
-        broker.connect()
+        if not broker.connect():
+            if settings.is_totp:
+                raise UpstoxAuthError(
+                    "Upstox TOTP bootstrap failed during connect; "
+                    "check credentials, cooldown state, and token persistence"
+                )
+            logger.warning("Upstox connect failed; gateway created in disconnected state")
+
+        if settings.is_totp and lifecycle is None:
+            logger.warning(
+                "Upstox TOTP mode without lifecycle manager: daily refresh scheduler "
+                "will not run until lifecycle.start_all() wires TotpRefreshScheduler"
+            )
 
         gateway = UpstoxBrokerGateway(broker)
 
         # Register extension factories so brokers.common can find them
-        import brokers.upstox.common_extensions  # noqa: F401
 
         if load_instruments:
             try:

@@ -292,7 +292,7 @@ class DhanSymbolValidator:
                         continue
                     if exp_day is not None and inst_day != exp_day:
                         continue
-                except Exception:  # noqa: S112
+                except Exception:
                     continue
             else:
                 continue

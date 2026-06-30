@@ -9,54 +9,15 @@ from __future__ import annotations
 import os
 import sys
 from decimal import Decimal
-from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 
 from brokers.upstox.gateway import UpstoxBrokerGateway
+from brokers.upstox.tests.integration.conftest import ENV_PATH, skip_live
 from domain import MarketDepth, Quote
 
-# ---------------------------------------------------------------------------
-# Live-skip guard
-# ---------------------------------------------------------------------------
-ENV_PATH = Path(__file__).resolve().parent.parent.parent.parent.parent / ".env.upstox"
-_live_env_loaded = False
-if ENV_PATH.exists() and ENV_PATH.stat().st_size > 0:
-    from dotenv import load_dotenv
-
-    load_dotenv(ENV_PATH, override=True)
-    # Only enable live tests if BOTH API key AND access token are present
-    _live_env_loaded = bool(
-        os.environ.get("UPSTOX_API_KEY") and os.environ.get("UPSTOX_ACCESS_TOKEN")
-    )
-
-
-def _should_skip_live() -> bool:
-    """Skip live tests if credentials missing, integration disabled, token expired, or market closed."""
-    if not _live_env_loaded:
-        return True
-    if os.environ.get("UPSTOX_INTEGRATION") != "1":
-        return True
-    # Validate token is not expired by checking JWT exp claim
-    token = os.environ.get("UPSTOX_ACCESS_TOKEN", "")
-    import time as _time
-
-    from brokers.common.auth.jwt_expiry import JwtExpiry
-
-    exp_ms = JwtExpiry.parse_expiry_epoch_ms(token)
-    if exp_ms > 0 and exp_ms < _time.time() * 1000:
-        return True
-    from tests.market_hours import is_market_open
-
-    return not is_market_open()
-
-
-skip_live = pytest.mark.skipif(
-    _should_skip_live(),
-    reason="Live API tests require UPSTOX_INTEGRATION=1, .env.upstox credentials, and open market hours",
-)
 pytestmark = pytest.mark.live_readonly
 
 

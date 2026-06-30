@@ -114,10 +114,10 @@ class DataQualityMonitor:
 
     # ------------------------------------------------------------------
     # Single consolidated query replacing the former 4 separate scans:
-    #   _check_basic_stats  – global symbol/candle counts & date range  # noqa: RUF003
-    #   _check_freshness    – per-symbol latest timestamp & staleness  # noqa: RUF003
-    #   _check_completeness – per-symbol avg daily candle count  # noqa: RUF003
-    #   _check_integrity    – per-symbol zero-volume & OHLC error counts  # noqa: RUF003
+    #   _check_basic_stats  – global symbol/candle counts & date range
+    #   _check_freshness    – per-symbol latest timestamp & staleness
+    #   _check_completeness – per-symbol avg daily candle count
+    #   _check_integrity    – per-symbol zero-volume & OHLC error counts
     #
     # The CTE *daily_counts* requires a second read_parquet call, but
     # DuckDB only reads the columns each scan needs (columnar pruning),

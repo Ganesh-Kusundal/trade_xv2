@@ -210,11 +210,11 @@ class InstrumentLoader:
         import io
         import urllib.request
 
-        req = urllib.request.Request(  # noqa: S310
+        req = urllib.request.Request(
             _DETAILED_MCX_URL,
             headers={"User-Agent": "TradeXV2/1.0"},
         )
-        with urllib.request.urlopen(req, timeout=30) as resp:  # noqa: S310
+        with urllib.request.urlopen(req, timeout=30) as resp:
             content = resp.read().decode("utf-8")
 
         reader = csv.DictReader(io.StringIO(content))

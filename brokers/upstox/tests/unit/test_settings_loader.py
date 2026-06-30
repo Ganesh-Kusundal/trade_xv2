@@ -198,6 +198,12 @@ class TestUpstoxSettingsLoaderFromEnv:
         assert s.auth_mode == "EXTENDED"
         assert s.extended_token == "ext-tok"
 
+    def test_totp_defaults_token_state_file(self):
+        os.environ["UPSTOX_CLIENT_ID"] = "cid"
+        os.environ["UPSTOX_AUTH_MODE"] = "TOTP"
+        s = UpstoxSettingsLoader.from_env(env_path=Path("/dev/null"))
+        assert s.token_state_file == Path("runtime/upstox-token-state.json")
+
 
 class TestUpstoxSettingsLoaderFromProperties:
     def test_minimal_properties(self, tmp_path: Path):
@@ -264,19 +270,19 @@ class TestUpstoxSettingsLoaderFromProperties:
     def test_missing_client_id_raises(self, tmp_path: Path):
         path = tmp_path / "empty.properties"
         path.write_text("upstox.environment=LIVE\n")
-        with pytest.raises(ValueError, match="must contain upstox.clientId"):  # noqa: RUF043
+        with pytest.raises(ValueError, match="must contain upstox.clientId"):
             UpstoxSettingsLoader.from_properties(path)
 
     def test_invalid_environment_raises(self, tmp_path: Path):
         path = tmp_path / "bad.properties"
         path.write_text("upstox.clientId=cid\nupstox.environment=BOGUS\n")
-        with pytest.raises(ValueError, match="upstox.environment must be one of"):  # noqa: RUF043
+        with pytest.raises(ValueError, match="upstox.environment must be one of"):
             UpstoxSettingsLoader.from_properties(path)
 
     def test_invalid_auth_mode_raises(self, tmp_path: Path):
         path = tmp_path / "bad.properties"
         path.write_text("upstox.clientId=cid\nupstox.authMode=BOGUS\n")
-        with pytest.raises(ValueError, match="upstox.authMode must be one of"):  # noqa: RUF043
+        with pytest.raises(ValueError, match="upstox.authMode must be one of"):
             UpstoxSettingsLoader.from_properties(path)
 
     def test_default_env_file(self, tmp_path: Path, monkeypatch):

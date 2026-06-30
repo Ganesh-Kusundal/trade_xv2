@@ -18,14 +18,14 @@ import pytest
 
 pytestmark = pytest.mark.e2e
 
-from application.oms.order_manager import OmsOrderCommand  # noqa: E402
-from domain import Order, OrderStatus, OrderType, ProductType, Side, Trade  # noqa: E402
-from domain.events.types import EventType  # noqa: E402
-from infrastructure.event_bus import DomainEvent  # noqa: E402
-from tests.e2e.fixtures.data_generators import generate_multi_symbol_data  # noqa: E402
-from tests.e2e.fixtures.event_capturer import EventCapturer  # noqa: E402
-from tests.e2e.fixtures.mock_brokers import MockBrokerGateway  # noqa: E402
-from tests.e2e.fixtures.trading_context_factory import (  # noqa: E402
+from application.oms.order_manager import OmsOrderCommand
+from domain import Order, OrderStatus, OrderType, ProductType, Side, Trade
+from domain.events.types import EventType
+from infrastructure.event_bus import DomainEvent
+from tests.e2e.fixtures.data_generators import generate_multi_symbol_data
+from tests.e2e.fixtures.event_capturer import EventCapturer
+from tests.e2e.fixtures.mock_brokers import MockBrokerGateway
+from tests.e2e.fixtures.trading_context_factory import (
     create_paper_trading_context,
 )
 
@@ -215,7 +215,7 @@ class TestQuoteUpdatesPositionPnl:
         pos = wired_ctx.position_manager.get_position("RELIANCE", "NSE")
         assert pos is not None
         assert pos.ltp == Decimal("105.0")
-        # 100 × (105.0 − 100.0) = 500.0  # noqa: RUF003
+        # 100 × (105.0 − 100.0) = 500.0
         assert pos.unrealized_pnl == Decimal("500.0")
 
         capturer.assert_event_published(EventType.POSITION_UPDATED.value, min_count=1)
@@ -252,7 +252,7 @@ class TestPnlDecimalPrecision:
         pos = wired_ctx.position_manager.get_position("RELIANCE", "NSE")
         assert pos is not None
         assert pos.ltp == Decimal("101.5000")
-        # 100 × (101.5000 − 100.0000) = 150.0000  # noqa: RUF003
+        # 100 × (101.5000 − 100.0000) = 150.0000
         assert pos.unrealized_pnl == Decimal("150.0000")
         assert pos.pnl == Decimal("150.0000")
 
@@ -291,7 +291,7 @@ class TestPositionEventPublished:
 
         position = event.payload["position"]
         assert position.ltp == Decimal("210.0")
-        # 50 × (210.0 − 200.0) = 500.0  # noqa: RUF003
+        # 50 × (210.0 − 200.0) = 500.0
         assert position.unrealized_pnl == Decimal("500.0")
 
 
@@ -417,7 +417,7 @@ class TestMultipleSymbolUpdates:
             assert pos.ltp == expected_price, (
                 f"{sym} LTP: expected {expected_price}, got {pos.ltp}"
             )
-            # qty=10, avg=100, ltp=100+i → pnl = 10 × i  # noqa: RUF003
+            # qty=10, avg=100, ltp=100+i → pnl = 10 × i
             expected_pnl = Decimal(str(10 * i))
             assert pos.unrealized_pnl == expected_pnl, (
                 f"{sym} PnL: expected {expected_pnl}, got {pos.unrealized_pnl}"
@@ -540,5 +540,5 @@ class TestSubscriptionRecoveryAfterDisconnect:
         # Final verification
         pos = wired_ctx.position_manager.get_position("RELIANCE", "NSE")
         assert pos.ltp == Decimal("110.0")
-        # 10 × (110.0 − 100.0) = 100.0  # noqa: RUF003
+        # 10 × (110.0 − 100.0) = 100.0
         assert pos.unrealized_pnl == Decimal("100.0")

@@ -16,7 +16,6 @@ Usage::
 from __future__ import annotations
 
 import logging
-import os
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -42,22 +41,23 @@ class UpstoxTotpClient:
         self._initialize_client()
 
     def _initialize_client(self) -> None:
-        """Initialize the upstox-totp client with environment variables."""
+        """Initialize the upstox-totp client with explicit credentials."""
         try:
-            # Set environment variables for upstox-totp library
-            # Map our variable names to what upstox-totp expects
-            os.environ["UPSTOX_CLIENT_ID"] = self._settings.client_id
-            os.environ["UPSTOX_CLIENT_SECRET"] = self._settings.client_secret
-            os.environ["UPSTOX_REDIRECT_URI"] = self._settings.redirect_uri
-            os.environ["UPSTOX_USERNAME"] = self._settings.mobile  # Mobile number
-            os.environ["UPSTOX_PASSWORD"] = self._settings.pin  # PIN
-            os.environ["UPSTOX_PIN_CODE"] = self._settings.pin  # PIN (duplicate)
-            os.environ["UPSTOX_TOTP_SECRET"] = self._settings.totp_secret
-            os.environ["UPSTOX_DEBUG"] = "false"
-
+            from pydantic import SecretStr
             from upstox_totp import UpstoxTOTP
 
-            self._client = UpstoxTOTP()
+            self._client = UpstoxTOTP(
+                username=self._settings.mobile,
+                # The current upstox-totp login path only uses pin_code for
+                # 2FA, but password is required by its config model.
+                password=SecretStr(self._settings.pin),
+                pin_code=SecretStr(self._settings.pin),
+                totp_secret=SecretStr(self._settings.totp_secret),
+                client_id=self._settings.client_id,
+                client_secret=SecretStr(self._settings.client_secret),
+                redirect_uri=self._settings.redirect_uri,
+                debug=False,
+            )
             logger.info("Upstox TOTP client initialized successfully")
         except ImportError as exc:
             logger.error("upstox-totp library not installed: %s", exc)
@@ -84,10 +84,17 @@ class UpstoxTotpClient:
         if not self._client:
             raise RuntimeError("TOTP client not initialized")
 
+        from brokers.common.auth.totp_cooldown import TotpCooldownGuard, TotpRateLimitError
+
+        guard = TotpCooldownGuard.for_broker("upstox")
+        guard.check_allowed()
+        guard.record_attempt()
+
         try:
             response = self._client.app_token.get_access_token()
 
             if response.success and response.data:
+                guard.record_success()
                 logger.info(
                     "TOTP token generated successfully for user: %s", response.data.user_name
                 )
@@ -96,14 +103,42 @@ class UpstoxTotpClient:
                     "user_name": response.data.user_name,
                     "success": True,
                 }
-            else:
-                error_msg = "TOTP token generation failed"
-                logger.error(error_msg)
-                raise RuntimeError(error_msg)
+            error_msg = self._response_error_message(response) or "TOTP token generation failed"
+            if self._is_rate_limit_error(error_msg):
+                guard.record_rate_limited()
+                raise TotpRateLimitError(error_msg)
+            logger.error(error_msg)
+            raise RuntimeError(error_msg)
 
+        except TotpRateLimitError:
+            raise
         except Exception as exc:
+            if self._is_rate_limit_error(exc):
+                guard.record_rate_limited()
+                raise TotpRateLimitError(str(exc)) from exc
             logger.error("TOTP token generation error: %s", exc)
             raise RuntimeError(f"TOTP token generation failed: {exc}") from exc
+
+    @staticmethod
+    def _response_error_message(response: Any) -> str:
+        error = getattr(response, "error", None)
+        if not error:
+            return ""
+        if isinstance(error, dict):
+            parts = [
+                str(error.get("message") or ""),
+                str(error.get("code") or error.get("errorCode") or ""),
+            ]
+            return " ".join(part for part in parts if part)
+        return str(error)
+
+    @staticmethod
+    def _is_rate_limit_error(exc: object) -> bool:
+        text = str(exc).lower()
+        return (
+            "udapi100500" in text
+            and ("maximum number" in text or "10 min" in text or "generate an otp" in text)
+        ) or "too many request" in text
 
     def validate_config(self) -> bool:
         """Validate that all required TOTP configuration is present.

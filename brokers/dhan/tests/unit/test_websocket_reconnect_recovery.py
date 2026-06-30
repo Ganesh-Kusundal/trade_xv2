@@ -39,6 +39,54 @@ class TestDhanWebSocketReconnectRecovery:
         )
         assert not stream.is_connected
 
+    def test_market_feed_start_does_not_mark_connected_before_handshake(self):
+        from unittest import mock
+
+        from brokers.dhan.reconnecting_service import ReconnectingServiceMixin
+
+        feed = DhanMarketFeed.__new__(DhanMarketFeed)
+        feed._lock = __import__("threading").Lock()
+        feed._thread = None
+        feed._instruments = [(1, 2885, 15)]
+        feed._stop_event = __import__("threading").Event()
+        feed._feed = None
+        feed._is_connected = False
+        feed._pending_subscriptions = []
+        feed._subscribed_instruments = set()
+        feed._quote_callbacks = []
+        feed._depth_callbacks = []
+        feed._context = mock.MagicMock()
+        ReconnectingServiceMixin._init_reconnect_state(feed)
+
+        with mock.patch("brokers.dhan.websocket.market_feed._sdk_market_feed_class") as sdk_cls:
+            sdk_cls.return_value = mock.MagicMock()
+            with mock.patch.object(feed, "_run"):
+                feed.start()
+
+        assert feed.is_connected is False
+
+    def test_order_stream_start_does_not_mark_connected_before_handshake(self):
+        from unittest import mock
+
+        from brokers.dhan.reconnecting_service import ReconnectingServiceMixin
+
+        stream = DhanOrderStream.__new__(DhanOrderStream)
+        stream._lock = __import__("threading").Lock()
+        stream._thread = None
+        stream._stop_event = __import__("threading").Event()
+        stream._order_update = None
+        stream._is_connected = False
+        stream._order_callbacks = []
+        stream._context = mock.MagicMock()
+        ReconnectingServiceMixin._init_reconnect_state(stream)
+
+        with mock.patch("brokers.dhan.websocket.order_stream._sdk_order_update_class") as sdk_cls:
+            sdk_cls.return_value = mock.MagicMock()
+            with mock.patch.object(stream, "_run"):
+                stream.start()
+
+        assert stream.is_connected is False
+
     def test_market_feed_instruments_keep_string(self):
         feed = DhanMarketFeed(
             client_id="CLIENT",

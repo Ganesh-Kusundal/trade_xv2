@@ -33,6 +33,7 @@ What the mixin does NOT own
 
 from __future__ import annotations
 
+import contextlib
 import itertools
 import threading
 import time
@@ -94,6 +95,11 @@ class ReconnectingServiceMixin(Generic[_CallbackT]):
         with self._callback_lock:
             callback_list.append(callback)
 
+    def _unregister_callback(self, callback_list: list[_CallbackT], callback: _CallbackT) -> None:
+        """Remove *callback* from *callback_list* under the mixin's lock."""
+        with self._callback_lock, contextlib.suppress(ValueError):
+            callback_list.remove(callback)
+
     def _snapshot_callbacks(self, callback_list: list[_CallbackT]) -> list[_CallbackT]:
         """Return a snapshot of *callback_list* for safe iteration.
 
@@ -135,7 +141,7 @@ class ReconnectingServiceMixin(Generic[_CallbackT]):
                 try:
                     self._run_once()
                     backoff = self._on_clean_disconnect()
-                except Exception:
+                except Exception:  # noqa: S110
                     backoff = self._on_reconnect_failure(backoff)
                 if self._stop_event.is_set():
                     break
@@ -167,7 +173,16 @@ class ReconnectingServiceMixin(Generic[_CallbackT]):
         current backoff so the caller escalates on the next iteration.
         """
         self._reconnect_count += 1
+        self._emit_reconnect_metric()
         return current
+
+    def _emit_reconnect_metric(self) -> None:
+        try:
+            from brokers.dhan.metrics import dhan_ws_reconnect_total
+
+            dhan_ws_reconnect_total.inc()
+        except Exception:
+            pass
 
     # ── Correlation-id generation ──────────────────────────────────────────
 

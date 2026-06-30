@@ -54,7 +54,7 @@ class RuleCompiler:
             partition = f"PARTITION BY {', '.join(feature.partition_by)}" if feature.partition_by else ""
             order = f"ORDER BY {', '.join(feature.order_by)}" if feature.order_by else ""
             ctes.append(
-                f"{feature.name} AS ("  # noqa: S608
+                f"{feature.name} AS ("
                 f"SELECT *, {feature.function} OVER ({partition} {order} {feature.frame}) AS {feature.name} "
                 f"FROM {rule.from_table})"
             )

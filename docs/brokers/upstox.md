@@ -25,8 +25,12 @@ g.buy("RELIANCE", qty=1)          # OrderCommandAdapter (V3 HFT)
 | `UPSTOX_EXTENDED_TOKEN` | empty | 1-year read-only extended token (EXTENDED mode) |
 | `UPSTOX_ANALYTICS_TOKEN` | empty | 1-year read-only analytics token |
 | `UPSTOX_REDIRECT_URI` | `http://localhost:18080` | OAuth redirect URI |
-| `UPSTOX_AUTH_MODE` | `STATIC` | `STATIC` / `OAUTH` / `INTERACTIVE` / `EXTENDED` / `WEBHOOK` |
+| `UPSTOX_AUTH_MODE` | `STATIC` | `TOTP` (recommended) / `STATIC` / `OAUTH` / `INTERACTIVE` / `EXTENDED` / `WEBHOOK` |
 | `UPSTOX_ENVIRONMENT` | `LIVE` | `LIVE` / `SANDBOX` |
+| `UPSTOX_MOBILE` | empty | Upstox login mobile (TOTP mode) |
+| `UPSTOX_PIN` | empty | Account PIN, or use `UPSTOX_PIN_FILE` |
+| `UPSTOX_TOTP_SECRET` | empty | Authenticator seed, or use `UPSTOX_TOTP_SECRET_FILE` |
+| `UPSTOX_INTEGRATION` | `0` | Set `1` to enable live integration test suite |
 | `UPSTOX_TOKEN_STATE_FILE` | empty | JSON state file (default `.upstox-token.json`) |
 | `UPSTOX_REFRESH_BUFFER_MINUTES` | `30` | Proactive refresh before expiry |
 | `UPSTOX_INSTRUMENT_CACHE` | `.cache/upstox/complete.json.gz` | Instrument master file |
@@ -38,6 +42,38 @@ g.buy("RELIANCE", qty=1)          # OrderCommandAdapter (V3 HFT)
 | `UPSTOX_SLICE_DEFAULT` | `false` | Default server-side slice |
 | `UPSTOX_REST_BASE_URL` | empty | Override the regular base URL |
 | `UPSTOX_SANDBOX_REST_BASE_URL` | empty | Override the sandbox base URL |
+
+## Auth flow (TOTP — recommended for automation)
+
+Configure `.env.upstox`:
+
+```bash
+UPSTOX_AUTH_MODE=TOTP
+UPSTOX_CLIENT_ID=your_api_key
+UPSTOX_CLIENT_SECRET=your_secret
+UPSTOX_MOBILE=9xxxxxxxxx
+UPSTOX_PIN=your_pin
+UPSTOX_TOTP_SECRET=your_authenticator_seed
+UPSTOX_ENVIRONMENT=LIVE   # or SANDBOX
+UPSTOX_TOKEN_STATE_FILE=runtime/upstox-token-state.json
+```
+
+On `UpstoxBrokerFactory.create()` / `broker.connect()`:
+
+1. Reuse a valid persisted token from `UPSTOX_TOKEN_STATE_FILE` when present.
+2. Otherwise generate one fresh daily token via `upstox-totp` using the configured PIN + TOTP secret.
+3. Persist the token immediately and reuse it until Upstox's daily 3:30 AM IST expiry.
+4. Enforce Upstox's broker-side OTP lockout as a 10-minute local cooldown.
+5. Optional daily refresh at `UPSTOX_TOTP_REFRESH_HOUR:MINUTE` IST when lifecycle wires `TotpRefreshScheduler`.
+
+Upstox's login API still sends an SMS when `upstox-totp` calls the OTP
+generation endpoint. The automation does not require that SMS code; it verifies
+the authenticator TOTP code generated from `UPSTOX_TOTP_SECRET`.
+
+```bash
+UPSTOX_INTEGRATION=1 pytest brokers/upstox/tests/integration/test_live_*.py -v
+PRE_PROD_GATE=1 UPSTOX_INTEGRATION=1 pytest brokers/upstox/tests/integration/test_ws_parity.py -v
+```
 
 ## Auth flow (interactive PKCE)
 
@@ -62,6 +98,7 @@ Subsequent restarts auto-bootstrap from the persisted JSON state.
 ## Token lifecycle
 
 `UpstoxTokenManager` supports:
+* **TOTP** — fully automated daily token via mobile + PIN + TOTP secret; single-flight refresh; 401 retry.
 * **STATIC** — fixed access token; no refresh, no 3:30 AM IST fallback.
 * **OAUTH** — bootstrap from configured `access_token` + `refresh_token`, then proactively refresh within `refresh_buffer_minutes` of expiry.
 * **EXTENDED** — 1-year read-only token; no refresh.

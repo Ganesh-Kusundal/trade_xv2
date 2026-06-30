@@ -5,7 +5,10 @@ from __future__ import annotations
 from dataclasses import replace
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from brokers.upstox.auth.config import UpstoxConnectionSettings
+from brokers.upstox.auth.exceptions import UpstoxAuthError
 from brokers.upstox.factory import UpstoxBrokerFactory
 from infrastructure.lifecycle import LifecycleManager
 
@@ -36,6 +39,7 @@ def _run_factory(*, settings: UpstoxConnectionSettings, lifecycle: LifecycleMana
     mock_broker.token_manager = MagicMock()
     mock_broker.market_data_websocket = MagicMock()
     mock_broker.portfolio_stream = MagicMock()
+    mock_broker.connect.return_value = True
 
     with (
         patch(
@@ -80,3 +84,35 @@ class TestUpstoxFactoryTotpScheduler:
         settings = replace(_totp_settings(), analytics_only=True)
         _run_factory(settings=settings, lifecycle=lifecycle)
         assert "upstox.totp_refresh_scheduler" in lifecycle.service_names()
+
+    def test_totp_connect_failure_raises_auth_error(self):
+        lifecycle = LifecycleManager()
+        mock_broker = MagicMock()
+        mock_broker.token_manager = MagicMock()
+        mock_broker.market_data_websocket = MagicMock()
+        mock_broker.portfolio_stream = MagicMock()
+        mock_broker.connect.return_value = False
+
+        with (
+            patch(
+                "brokers.upstox.factory.UpstoxSettingsLoader.from_env",
+                return_value=_totp_settings(),
+            ),
+            patch(
+                "brokers.upstox.factory.UpstoxBroker",
+                return_value=mock_broker,
+            ),
+            pytest.raises(UpstoxAuthError, match="TOTP bootstrap failed"),
+        ):
+            UpstoxBrokerFactory().create(
+                lifecycle=lifecycle,
+                load_instruments=False,
+            )
+
+    def test_late_registered_scheduler_starts_after_start_all(self):
+        lifecycle = LifecycleManager()
+        lifecycle.start_all()
+        _run_factory(settings=_totp_settings(), lifecycle=lifecycle)
+        scheduler = lifecycle.get("upstox.totp_refresh_scheduler")
+        assert scheduler is not None
+        assert scheduler.is_running is True

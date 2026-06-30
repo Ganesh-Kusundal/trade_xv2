@@ -10,7 +10,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
-from infrastructure.audit import audit_logger
+from application.audit import audit_logger
 
 router = APIRouter()
 

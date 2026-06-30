@@ -71,7 +71,7 @@ def structural_readiness_probe(gateway: Any, broker: str) -> tuple[bool, str | N
             tm = getattr(broker_obj, "token_manager", None)
             if tm is not None:
                 token = tm.current_token()
-                if token and token != "placeholder-totp-will-refresh":  # noqa: S105
+                if token and token != "placeholder-totp-will-refresh":
                     return True, None
                 return False, "Upstox token manager has no valid token"
             settings = getattr(broker_obj, "settings", None)

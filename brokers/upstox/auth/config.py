@@ -22,6 +22,9 @@ UPSTOX_WS_PING_TIMEOUT_SECONDS: int = 20
 #: Default on-disk instrument cache validity (hours).
 UPSTOX_INSTRUMENT_CACHE_HOURS: int = 24
 
+#: Default persisted TOTP/OAuth token state used for unattended daily auth.
+UPSTOX_DEFAULT_TOKEN_STATE_FILE = Path("runtime/upstox-token-state.json")
+
 VALID_ENVIRONMENTS = ("LIVE", "SANDBOX")
 VALID_AUTH_MODES = ("STATIC", "OAUTH", "INTERACTIVE", "EXTENDED", "WEBHOOK", "TOTP")
 
@@ -157,7 +160,7 @@ class UpstoxSettingsLoader(SettingsLoaderBase):
     """
 
     PREFIX = UPSTOX_PREFIX
-    DEFAULT_ENV_PATHS = (Path(".env.upstox"),)
+    DEFAULT_ENV_PATHS = (Path(".env.upstox"), Path(".env.local"))
 
     @classmethod
     def from_env(
@@ -225,7 +228,13 @@ class UpstoxSettingsLoader(SettingsLoaderBase):
         totp_refresh_minute = cls._get_int(prefix, "TOTP_REFRESH_MINUTE", default=0)
 
         token_state_file_path = cls._get(prefix, "TOKEN_STATE_FILE")
-        token_state_file = Path(token_state_file_path) if token_state_file_path else None
+        token_state_file = (
+            Path(token_state_file_path)
+            if token_state_file_path
+            else UPSTOX_DEFAULT_TOKEN_STATE_FILE
+            if auth_mode == "TOTP"
+            else None
+        )
         instrument_cache_str = cls._get(
             prefix, "INSTRUMENT_CACHE", default=".cache/upstox/complete.json.gz"
         )
@@ -281,6 +290,12 @@ class UpstoxSettingsLoader(SettingsLoaderBase):
                 f"{prefix}.authMode must be one of {VALID_AUTH_MODES}, got {auth_mode!r}"
             )
 
+        configured_token_state_file = cls._path_from_env(values.get(f"{prefix}.tokenStateFile"))
+        if auth_mode == "TOTP":
+            token_state_file = configured_token_state_file or UPSTOX_DEFAULT_TOKEN_STATE_FILE
+        else:
+            token_state_file = configured_token_state_file
+
         return UpstoxConnectionSettings(
             client_id=client_id,
             client_secret=values.get(f"{prefix}.clientSecret", ""),
@@ -293,7 +308,7 @@ class UpstoxSettingsLoader(SettingsLoaderBase):
             auth_mode=auth_mode,
             environment=environment,
             rest_base_url=values.get(f"{prefix}.restBaseUrl", ""),
-            token_state_file=cls._path_from_env(values.get(f"{prefix}.tokenStateFile")),
+            token_state_file=token_state_file,
             instrument_cache=cls._path_from_env(
                 values.get(f"{prefix}.instrumentCache"), Path(".cache/upstox/complete.json.gz")
             ),

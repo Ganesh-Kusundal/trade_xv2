@@ -287,7 +287,7 @@ class DataLakeGateway(
                         WHERE symbol IN ({placeholders})
                     )
                     WHERE rn = 1
-                """  # noqa: S608
+                """
                 df = duckdb.execute(query, [curated_glob, *normalized]).fetchdf()
                 return {
                     symbol: Decimal(str(close))
@@ -368,7 +368,7 @@ class DataLakeGateway(
                 SELECT *
                 FROM read_parquet(?)
                 WHERE symbol IN ({placeholders})
-            """  # noqa: S608
+            """
             df = duckdb.execute(query, [curated_glob, *normalized]).fetchdf()
             if not df.empty:
                 df = self._filter_by_date(df, lookback_days=lookback_days)
@@ -449,7 +449,7 @@ class DataLakeGateway(
             curated_glob = curated_equity_glob(root=str(self._curated_root))
             if list(self._curated_root.glob("year=*/month=*/data_*.parquet")):
                 return [curated_glob], normalized, "curated"
-        except Exception:  # noqa: S110
+        except Exception:
             pass
 
         # Try legacy layout

@@ -26,7 +26,7 @@ configure_logging(service="cli")
 bootstrap_environment(Path(__file__).resolve().parent.parent)
 
 # isort: off
-from cli.commands import (  # noqa: E402
+from cli.commands import (
     account as cmd_account,
     analytics as cmd_analytics,
     benchmark as cmd_benchmark,
@@ -55,7 +55,7 @@ from cli.commands import (  # noqa: E402
     views as cmd_views,
     websocket as cmd_websocket,
 )
-from cli.commands.market_handlers import (  # noqa: E402
+from cli.commands.market_handlers import (
     handle_depth,
     handle_futures,
     handle_history,
@@ -65,15 +65,15 @@ from cli.commands.market_handlers import (  # noqa: E402
     handle_stream,
     handle_validate,
 )
-from cli.commands.registry import (  # noqa: E402
+from cli.commands.registry import (
     DISPATCH_TABLE,
     CommandResult,
     lookup_handler,
     register_handler,
     register as _register_cmd,
 )
-from cli.services.broker_service import BrokerService  # noqa: E402
-from cli.services.event_bus_service import EventBusService  # noqa: E402
+from cli.services.broker_service import BrokerService
+from cli.services.event_bus_service import EventBusService
 # isort: on
 
 # ── Module-path registry (discoverability, kept for tests) ─────────────────

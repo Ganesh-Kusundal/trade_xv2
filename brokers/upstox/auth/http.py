@@ -57,9 +57,11 @@ class UpstoxHttpClient:
         read_circuit_breaker: CircuitBreaker | None = None,
         write_circuit_breaker: CircuitBreaker | None = None,
         admin_circuit_breaker: CircuitBreaker | None = None,
+        on_auth_failure: Callable[[], bool] | None = None,
     ) -> None:
         self._token_provider = token_provider
         self._settings = settings
+        self._on_auth_failure = on_auth_failure
         self._timeout_seconds = timeout_seconds
         self._rate_limiter = rate_limiter or UpstoxRateLimiter(
             rate_per_second=UPSTOX_DEFAULT_RATE_PER_SECOND,
@@ -236,48 +238,61 @@ class UpstoxHttpClient:
         params: dict[str, Any] | None = None,
         algo_name: str | None = None,
     ) -> dict[str, Any]:
-        # Rate limit by endpoint category
-        if "/market-quote" in url or "/market/" in url:
-            self._rate_limiter.acquire("market_data")
-        elif "/order" in url:
-            self._rate_limiter.acquire("order")
-        elif "/portfolio" in url or "/user/" in url:
-            self._rate_limiter.acquire("portfolio")
-        else:
-            self._rate_limiter.acquire("default")
+        last_auth_error: UpstoxAuthError | None = None
+        for attempt in (1, 2):
+            # Rate limit by endpoint category
+            if "/market-quote" in url or "/market/" in url:
+                self._rate_limiter.acquire("market_data")
+            elif "/order" in url:
+                self._rate_limiter.acquire("order")
+            elif "/portfolio" in url or "/user/" in url:
+                self._rate_limiter.acquire("portfolio")
+            else:
+                self._rate_limiter.acquire("default")
 
-        resp = self._session.request(
-            method=method,
-            url=url,
-            json=json,
-            params=params,
-            timeout=self._timeout_seconds,
-            headers=self._headers(algo_name=algo_name),
-        )
-        if resp.status_code >= 400:
-            if resp.status_code in (401, 403):
-                raise UpstoxAuthError(
+            resp = self._session.request(
+                method=method,
+                url=url,
+                json=json,
+                params=params,
+                timeout=self._timeout_seconds,
+                headers=self._headers(algo_name=algo_name),
+            )
+            if resp.status_code >= 400:
+                if resp.status_code in (401, 403):
+                    last_auth_error = UpstoxAuthError(
+                        f"Upstox API {method} {url} failed: HTTP {resp.status_code}",
+                        resp.status_code,
+                        resp.text,
+                    )
+                    if attempt == 1 and self._on_auth_failure is not None and self._on_auth_failure():
+                        logger.info(
+                            "Upstox HTTP retry after token refresh: %s %s",
+                            method,
+                            url,
+                        )
+                        continue
+                    raise last_auth_error
+                raise UpstoxApiError(
                     f"Upstox API {method} {url} failed: HTTP {resp.status_code}",
                     resp.status_code,
                     resp.text,
                 )
-            raise UpstoxApiError(
-                f"Upstox API {method} {url} failed: HTTP {resp.status_code}",
-                resp.status_code,
-                resp.text,
-            )
-        body = resp.json() if resp.text else {}
-        if isinstance(body, dict) and str(body.get("status", "")).lower() in {
-            "failure",
-            "error",
-        }:
-            errors = body.get("errors")
-            if isinstance(errors, list) and errors:
-                first = errors[0] if isinstance(errors[0], dict) else {}
-                message = first.get("message") or first.get("error")
-            else:
-                message = (
-                    body.get("message") or body.get("remarks") or "Upstox API returned failure"
-                )
-            raise UpstoxApiError(str(message), resp.status_code, body)
-        return body
+            body = resp.json() if resp.text else {}
+            if isinstance(body, dict) and str(body.get("status", "")).lower() in {
+                "failure",
+                "error",
+            }:
+                errors = body.get("errors")
+                if isinstance(errors, list) and errors:
+                    first = errors[0] if isinstance(errors[0], dict) else {}
+                    message = first.get("message") or first.get("error")
+                else:
+                    message = (
+                        body.get("message") or body.get("remarks") or "Upstox API returned failure"
+                    )
+                raise UpstoxApiError(str(message), resp.status_code, body)
+            return body
+        if last_auth_error is not None:
+            raise last_auth_error
+        raise UpstoxAuthError(f"Upstox API {method} {url} failed after auth retry")

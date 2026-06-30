@@ -31,6 +31,7 @@ config/icici-api-session.txt
 # Runtime/token state
 runtime/
 runtime-dev/
+brokers/runtime/
 
 # Python
 __pycache__/
@@ -61,9 +62,14 @@ dist/
 .mimocode/
 .import_linter_cache/
 
-# Local data lake (now tracked via Git LFS)
-# market_data/ directory removed from gitignore to allow LFS tracking
-# datalake/catalog.duckdb and .wal now tracked via LFS
+# Runtime data (created by the application)
+market_data/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.duckdb
+*.duckdb.wal
+
 ZCode-3.1.1-mac-arm64.dmg
 
 # Analytics materialized cache

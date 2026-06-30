@@ -90,14 +90,12 @@ class TestDhanRegistration:
     """Verify Dhan registers its factory at import time."""
 
     def test_dhan_factory_registered(self):
-        import brokers.dhan.common_extensions  # noqa: F401
 
         factory = get_extension_factory("dhan")
         assert factory is not None
         assert callable(factory)
 
     def test_dhan_factory_returns_bundle_with_providers(self):
-        import brokers.dhan.common_extensions  # noqa: F401
         from brokers.common.extensions.forever_order import ForeverOrderProvider
         from brokers.common.extensions.native_slice_order import NativeSliceOrderProvider
 
@@ -116,14 +114,12 @@ class TestUpstoxRegistration:
     """Verify Upstox registers its factory at import time."""
 
     def test_upstox_factory_registered(self):
-        import brokers.upstox.common_extensions  # noqa: F401
 
         factory = get_extension_factory("upstox")
         assert factory is not None
         assert callable(factory)
 
     def test_upstox_factory_returns_bundle_with_providers(self):
-        import brokers.upstox.common_extensions  # noqa: F401
         from brokers.common.extensions.forever_order import ForeverOrderProvider
         from brokers.common.extensions.fundamentals import FundamentalsProvider
 

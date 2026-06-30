@@ -16,9 +16,21 @@ CANONICAL_ENV_FILES: dict[str, str | None] = {
     "paper": None,
 }
 
+# Upstox: dedicated file first, then unified .env.local (same pattern as Dhan TOTP).
+UPSTOX_ENV_CANDIDATES: tuple[str, ...] = (".env.upstox", ".env.local")
+
 
 class CredentialResolver:
     """Resolve and load broker credential files."""
+
+    @staticmethod
+    def resolve_upstox_env_path() -> Path | None:
+        """First non-empty Upstox env file (.env.upstox, then .env.local)."""
+        for name in UPSTOX_ENV_CANDIDATES:
+            path = Path(name)
+            if path.exists() and path.stat().st_size > 0:
+                return path
+        return Path(CANONICAL_ENV_FILES["upstox"])
 
     @staticmethod
     def resolve_env_path(
@@ -28,7 +40,10 @@ class CredentialResolver:
         """Return the env file path for *broker* (may not exist)."""
         if env_path is not None:
             return Path(env_path)
-        default = CANONICAL_ENV_FILES.get(broker.lower().strip())
+        key = broker.lower().strip()
+        if key == "upstox":
+            return CredentialResolver.resolve_upstox_env_path()
+        default = CANONICAL_ENV_FILES.get(key)
         if default is not None:
             return Path(default)
         return None

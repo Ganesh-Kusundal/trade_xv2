@@ -21,23 +21,23 @@ import pytest
 
 pytestmark = pytest.mark.e2e
 
-from analytics.pipeline import ATR, ROC, RSI, SMA  # noqa: E402
-from analytics.pipeline.pipeline import FeaturePipeline  # noqa: E402
-from analytics.replay.engine import ReplayEngine  # noqa: E402
-from analytics.replay.models import (  # noqa: E402
+from analytics.pipeline import ATR, ROC, RSI, SMA
+from analytics.pipeline.pipeline import FeaturePipeline
+from analytics.replay.engine import ReplayEngine
+from analytics.replay.models import (
     ReplayConfig,
     ReplayResult,
     ReplaySession,
     SimulatedTrade,
 )
-from analytics.scanner.models import Candidate  # noqa: E402
-from analytics.strategy.models import SignalType  # noqa: E402
-from analytics.strategy.pipeline import MomentumStrategy, StrategyPipeline  # noqa: E402
-from tests.e2e.fixtures.data_generators import (  # noqa: E402
+from analytics.scanner.models import Candidate
+from analytics.strategy.models import SignalType
+from analytics.strategy.pipeline import MomentumStrategy, StrategyPipeline
+from tests.e2e.fixtures.data_generators import (
     generate_mean_reverting_data,
     generate_trending_data,
 )
-from tests.e2e.fixtures.trading_context_factory import create_paper_trading_context  # noqa: E402
+from tests.e2e.fixtures.trading_context_factory import create_paper_trading_context
 
 # ── Fixtures ────────────────────────────────────────────────────────────────
 

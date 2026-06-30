@@ -477,7 +477,9 @@ class BrokerService:
             self._active_name = "dhan"
         elif name_lower == "upstox":
             if self._upstox_gateway is None:
-                raise ValueError("Upstox broker not available. Check .env.upstox credentials.")
+                raise ValueError(
+                    "Upstox broker not available. Check .env.upstox or .env.local credentials."
+                )
             self._active_name = "upstox"
         else:
             raise ValueError(

@@ -132,7 +132,7 @@ class MarketDataAdapter:
                 assert_dhan_identity(sid, segment, context="market_data.get_batch_ltp")
                 segment_map.setdefault(segment, []).append(sid)
                 symbol_map[sid] = sym
-            except Exception:  # noqa: S112
+            except Exception:
                 continue
         if not segment_map:
             return {}
@@ -160,7 +160,7 @@ class MarketDataAdapter:
                 segment_map.setdefault(segment, []).append(sid)
                 symbol_map[sid] = sym
                 ref_map[sid] = ref
-            except Exception:  # noqa: S112
+            except Exception:
                 continue
         if not segment_map:
             return {}

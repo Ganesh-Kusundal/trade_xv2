@@ -144,4 +144,4 @@ from datalake.core.symbols import (
 from datalake.core.symbols import (
     symbol_to_path as symbol_to_path,
 )
-from datalake.core.universe import load_universe as load_universe  # noqa: F811
+from datalake.core.universe import load_universe as load_universe

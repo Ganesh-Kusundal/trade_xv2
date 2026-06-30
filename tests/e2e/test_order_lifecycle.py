@@ -16,14 +16,14 @@ import pytest
 
 pytestmark = pytest.mark.e2e
 
-from application.oms import (  # noqa: E402
+from application.oms import (
     PositionManager,
     RiskConfig,
     RiskManager,
     create_trading_context,
 )
-from brokers.common.observability.event_metrics import EventMetrics  # noqa: E402
-from domain import (  # noqa: E402
+from brokers.common.observability.event_metrics import EventMetrics
+from domain import (
     Order,
     OrderStatus,
     OrderType,
@@ -31,9 +31,9 @@ from domain import (  # noqa: E402
     Side,
     Trade,
 )
-from infrastructure.event_bus import DomainEvent, EventBus  # noqa: E402
-from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue  # noqa: E402
-from infrastructure.event_log import EventLog  # noqa: E402
+from infrastructure.event_bus import DomainEvent, EventBus
+from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
+from infrastructure.event_log import EventLog
 
 
 @pytest.fixture

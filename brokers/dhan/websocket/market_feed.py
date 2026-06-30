@@ -7,12 +7,14 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import os
 import threading
 from collections.abc import Callable
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
+from brokers.dhan.connection_admission import MarketFeedConnectionAdmission
 from brokers.dhan.reconnecting_service import ReconnectingServiceMixin
 from brokers.dhan.websocket._helpers import (
     _DhanContext,
@@ -91,12 +93,14 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
         self._backfill_callback = backfill_callback
         self._feed: Any | None = None
         self._thread: threading.Thread | None = None
+        self._watchdog_thread: threading.Thread | None = None
         self._lock = threading.RLock()
         self._quote_callbacks: list[Callable[[dict], None]] = []
         self._depth_callbacks: list[Callable[[dict], None]] = []
         # Reconnect backfill state
         self._last_tick_time: dict[str, datetime] = {}
         self._disconnect_time: datetime | None = None
+        self._connected_at: datetime | None = None
         # Plan §7.2: shared reconnect / message-tracking state.
         self._init_reconnect_state()
         # Plan §7.7: strict-mode tick publish counters (visible via health()).
@@ -108,6 +112,8 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
         self._dropped_depths = 0
         # Queue for instruments subscribed before SDK connection completes
         self._pending_subscriptions: list[tuple] = []
+        self._admission = MarketFeedConnectionAdmission(client_id)
+        self._admission_blocked = False
 
     def update_token(self, access_token: str) -> None:
         """Push a fresh token to the context (called by scheduler)."""
@@ -152,15 +158,8 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
                 return
 
             self._stop_event.clear()
-            self._is_connected = True
-            self._feed = _sdk_market_feed_class()(
-                dhan_context=self._context,
-                instruments=self._instruments,
-                on_connect=self._on_connect,
-                on_message=self._on_message,
-                on_close=self._on_close,
-                on_error=self._on_error,
-            )
+            self._is_connected = False
+            self._build_sdk_feed_locked()
 
             self._thread = threading.Thread(
                 target=self._run,
@@ -168,6 +167,30 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
                 daemon=True,
             )
             self._thread.start()
+            self._watchdog_thread = threading.Thread(
+                target=self._watchdog_loop,
+                name=f"{self.name}.watchdog",
+                daemon=True,
+            )
+            self._watchdog_thread.start()
+
+    def _build_sdk_feed_locked(self) -> Any:
+        """Create a fresh SDK feed from the current subscription snapshot.
+
+        The Dhan SDK feed object owns websocket/event-loop state. Reusing it
+        after a disconnect can preserve a poisoned transport; rebuilding it
+        keeps reconnect attempts independent while preserving subscriptions in
+        this wrapper.
+        """
+        self._feed = _sdk_market_feed_class()(
+            dhan_context=self._context,
+            instruments=list(self._instruments),
+            on_connect=self._on_connect,
+            on_message=self._on_message,
+            on_close=self._on_close,
+            on_error=self._on_error,
+        )
+        return self._feed
 
     def _run(self) -> None:
         """Run the market feed event loop with reconnection backoff.
@@ -181,8 +204,6 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
         retry loop masking auth failures. Also added staleness detection
         to identify ghost connections.
         """
-        import os
-
         backoff = 1.0
         max_backoff = 30.0
 
@@ -193,6 +214,27 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
         staleness_threshold_seconds = float(os.getenv("DHAN_STALENESS_THRESHOLD_SECONDS", "60.0"))
 
         while not self._stop_event.is_set():
+            # Host-wide: only one process per account may own the WS slot.
+            if not self._admission.lock_held:
+                if not self._admission.try_acquire():
+                    with self._lock:
+                        self._admission_blocked = True
+                    if self._stop_event.wait(timeout=5.0):
+                        break
+                    continue
+                with self._lock:
+                    self._admission_blocked = False
+
+            cooldown_wait = self._admission.seconds_until_connect_allowed()
+            if cooldown_wait > 0:
+                logger.info(
+                    "market_feed_connect_cooldown_wait",
+                    extra={"seconds": round(cooldown_wait, 2)},
+                )
+                if self._stop_event.wait(timeout=min(cooldown_wait, 5.0)):
+                    break
+                continue
+
             # H2: Check if we've exceeded max reconnect attempts
             with self._lock:
                 current_reconnects = self._reconnect_count
@@ -205,24 +247,36 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
                         "max_attempts": max_reconnect_attempts,
                     },
                 )
+                self._emit_reconnect_metric()
+                cooldown = float(os.getenv("DHAN_RECONNECT_COOLDOWN_SECONDS", "300"))
+                logger.warning(
+                    "market_feed_reconnect_cooldown",
+                    extra={"cooldown_seconds": cooldown},
+                )
+                if self._stop_event.wait(timeout=cooldown):
+                    break
                 with self._lock:
-                    self._is_connected = False
-                break
+                    self._reconnect_count = 0
+                logger.info("market_feed_reconnect_cooldown_complete")
+                continue
 
             try:
-                if self._feed is None:
-                    break
-                self._feed.run()
+                with self._lock:
+                    feed = self._feed or self._build_sdk_feed_locked()
+                feed.run()
                 # B-4: successful return from run() means the SDK
                 # closed the connection cleanly (Dhan "no close frame"
                 # is also caught below and treated as expected).
                 # Reset the backoff so the next reconnect is fast.
                 backoff = 1.0
 
-                # H2: Reset reconnect count on successful connection
                 with self._lock:
-                    self._reconnect_count = 0
-                    self._is_connected = True
+                    self._is_connected = False
+                    self._connected_at = None
+                    self._disconnect_time = self._disconnect_time or datetime.now(timezone.utc)
+                    self._feed = None
+                    self._reconnect_count += 1
+                self._emit_reconnect_metric()
 
             except Exception as exc:
                 err_str = str(exc).lower()
@@ -232,6 +286,7 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
                     backoff = 1.0  # B-4: not an error, reset
                 elif "429" in err_str:
                     logger.warning("WebSocket rate limited, backing off %ss", backoff)
+                    self._admission.record_rate_limit_cooldown()
                 else:
                     logger.error("Market feed error: %s", exc)
 
@@ -255,6 +310,10 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
                 with self._lock:
                     self._reconnect_count += 1
                     self._is_connected = False
+                    self._connected_at = None
+                    self._disconnect_time = self._disconnect_time or datetime.now(timezone.utc)
+                    self._feed = None
+                self._emit_reconnect_metric()
 
             # Check if we should stop
             if self._stop_event.is_set():
@@ -263,6 +322,37 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
             if self._stop_event.wait(timeout=backoff):
                 break
             backoff = min(backoff * 2, max_backoff)
+
+    def _watchdog_loop(self) -> None:
+        """Close ghost sockets when no market data arrives inside the SLA."""
+        threshold = self._staleness_threshold_seconds()
+        interval = float(os.getenv("DHAN_STALENESS_WATCHDOG_INTERVAL_SECONDS", "5.0"))
+        interval = max(1.0, min(interval, max(1.0, threshold / 2)))
+
+        while not self._stop_event.wait(timeout=interval):
+            feed = None
+            age = None
+            with self._lock:
+                if self._is_connected:
+                    age = self._last_activity_age_seconds_locked()
+                    if age is not None and age > threshold:
+                        feed = self._feed
+                        self._is_connected = False
+                        self._connected_at = None
+                        self._disconnect_time = datetime.now(timezone.utc)
+                        self._reconnect_count += 1
+            if feed is None:
+                continue
+            logger.warning(
+                "market_feed_stale_reconnect_forced",
+                extra={
+                    "age_seconds": age,
+                    "threshold_seconds": threshold,
+                },
+            )
+            self._emit_reconnect_metric()
+            with contextlib.suppress(Exception):
+                feed.close_connection()
 
     def disconnect(self, timeout_seconds: float = 5.0) -> None:
         """Stop the WebSocket connection.
@@ -291,8 +381,10 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
         self._stop_event.set()
         with self._lock:
             self._is_connected = False
+            self._connected_at = None
             feed = self._feed
             thread = self._thread
+            watchdog_thread = self._watchdog_thread
         if feed:
             try:
                 feed.close_connection()
@@ -302,6 +394,13 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
             thread.join(timeout=timeout_seconds)
             if thread.is_alive():
                 logger.warning("dhan.market_feed thread did not stop within %ss", timeout_seconds)
+        if watchdog_thread and watchdog_thread.is_alive() and watchdog_thread is not thread:
+            watchdog_thread.join(timeout=timeout_seconds)
+            if watchdog_thread.is_alive():
+                logger.warning(
+                    "dhan.market_feed watchdog did not stop within %ss", timeout_seconds
+                )
+        self._admission.release()
         logger.info("Market feed stopped")
 
     def health(self) -> HealthStatus:
@@ -318,21 +417,29 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
             thread_alive = bool(self._thread and self._thread.is_alive())
             is_connected = self._is_connected
             reconnect_count = self._reconnect_count
-            last_message_age = (
-                (datetime.now(timezone.utc) - self._last_message_at).total_seconds()
-                if self._last_message_at is not None
-                else None
-            )
+            last_message_age = self._last_activity_age_seconds_locked()
+            admission_blocked = self._admission_blocked
+
+        admission_status = self._admission.status()
 
         # H2: Staleness detection
-        staleness_threshold = float(os.getenv("DHAN_STALENESS_THRESHOLD_SECONDS", "60.0"))
+        staleness_threshold = self._staleness_threshold_seconds()
         is_stale = (
             last_message_age is not None and last_message_age > staleness_threshold
         ) if last_message_age is not None else False
 
-        if thread_alive and is_connected:
+        if thread_alive and is_connected and not is_stale:
             state = HealthState.HEALTHY
             detail = "running and connected"
+        elif thread_alive and admission_blocked:
+            state = HealthState.DEGRADED
+            detail = "market_feed_connection_lock_held by another process on this host"
+        elif thread_alive and admission_status.get("seconds_until_connect_allowed", 0) > 0:
+            state = HealthState.DEGRADED
+            detail = "waiting for rate-limit cooldown before next handshake"
+        elif thread_alive and is_connected and is_stale:
+            state = HealthState.DEGRADED
+            detail = "connected but stale; reconnect watchdog should close transport"
         elif thread_alive and not is_connected:
             state = HealthState.DEGRADED
             detail = "thread running but feed not connected (reconnecting?)"
@@ -359,8 +466,20 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
                 ),
                 "is_stale": is_stale,
                 "staleness_threshold_seconds": staleness_threshold,
+                **admission_status,
             },
         )
+
+    @staticmethod
+    def _staleness_threshold_seconds() -> float:
+        return float(os.getenv("DHAN_STALENESS_THRESHOLD_SECONDS", "60.0"))
+
+    def _last_activity_age_seconds_locked(self) -> float | None:
+        references = [ts for ts in (self._last_message_at, self._connected_at) if ts is not None]
+        if not references:
+            return None
+        reference = max(references)
+        return (datetime.now(timezone.utc) - reference).total_seconds()
 
     def subscribe(self, instruments: list[tuple]) -> None:
         """Add instruments to the subscription.
@@ -386,9 +505,17 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
             self._instruments.extend(new_instruments)
             self._subscribed_instruments.update(new_instruments)
             logger.info("subscribe: adding %d instruments (total=%d)", len(new_instruments), total)
-            if self._feed:
+            if self._feed and self._is_connected:
                 logger.info("subscribe: calling SDK subscribe_symbols with %d instruments", len(new_instruments))
-                self._feed.subscribe_symbols(new_instruments)
+                try:
+                    self._feed.subscribe_symbols(new_instruments)
+                except Exception as exc:
+                    self._pending_subscriptions.extend(new_instruments)
+                    self._is_connected = False
+                    self._disconnect_time = datetime.now(timezone.utc)
+                    logger.error("subscribe: SDK subscribe_symbols failed: %s", exc)
+                    with contextlib.suppress(Exception):
+                        self._feed.close_connection()
             else:
                 # Feed not connected yet — queue for _on_connect to flush
                 self._pending_subscriptions.extend(new_instruments)
@@ -406,10 +533,23 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
     def unsubscribe(self, instruments: list[tuple]) -> None:
         """Remove instruments from the subscription."""
         with self._lock:
-            if not self._feed:
-                raise RuntimeError("Not connected — call connect() first")
             sdk_instruments = _to_sdk_instruments(instruments)
-            self._feed.unsubscribe_symbols(sdk_instruments)
+            if self._feed and self._is_connected:
+                try:
+                    self._feed.unsubscribe_symbols(sdk_instruments)
+                except Exception as exc:
+                    logger.warning("unsubscribe: SDK unsubscribe_symbols failed: %s", exc)
+            for inst in sdk_instruments:
+                self._subscribed_instruments.discard(inst)
+                with contextlib.suppress(ValueError):
+                    self._instruments.remove(inst)
+                with contextlib.suppress(ValueError):
+                    self._pending_subscriptions.remove(inst)
+            logger.info(
+                "unsubscribe: removed %d instruments (remaining=%d)",
+                len(sdk_instruments),
+                len(self._subscribed_instruments),
+            )
 
     def on_quote(self, callback: Callable[[dict], None]) -> None:
         """Register callback for quote updates."""
@@ -439,25 +579,45 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
     @property
     def is_connected(self) -> bool:
         with self._lock:
-            return self._is_connected
+            age = self._last_activity_age_seconds_locked()
+            is_stale = (
+                self._is_connected
+                and age is not None
+                and age > self._staleness_threshold_seconds()
+            )
+            return self._is_connected and not is_stale
 
     def _on_connect(self, feed) -> None:
         with self._lock:
             was_connected = self._is_connected
             self._is_connected = True
+            self._connected_at = datetime.now(timezone.utc)
+            self._reconnect_count = 0
             disconnect_time = self._disconnect_time
             self._disconnect_time = None
             # Flush any instruments queued before connection
             pending = self._pending_subscriptions[:]
             self._pending_subscriptions.clear()
+            subscribed = list(self._subscribed_instruments)
         logger.info("Market feed connected")
-        # Subscribe any instruments that were queued before connection
-        if pending and feed is not None:
-            logger.info("Flushing %d pending subscriptions", len(pending))
+        self._admission.clear_cooldown()
+        # The SDK may lose dynamic subscriptions across reconnects. Replay the
+        # complete desired set, not only the queue accumulated while offline.
+        to_subscribe = list(dict.fromkeys(subscribed + pending))
+        if to_subscribe and feed is not None:
+            logger.info("Replaying %d market subscriptions", len(to_subscribe))
             try:
-                feed.subscribe_symbols(pending)
+                feed.subscribe_symbols(to_subscribe)
             except Exception as exc:
-                logger.error("Failed to subscribe pending instruments: %s", exc)
+                with self._lock:
+                    self._pending_subscriptions.extend(to_subscribe)
+                    self._is_connected = False
+                    self._connected_at = None
+                    self._disconnect_time = datetime.now(timezone.utc)
+                logger.error("Failed to replay market subscriptions: %s", exc)
+                with contextlib.suppress(Exception):
+                    feed.close_connection()
+                return
         # On reconnect, backfill the gap if a callback was provided
         if (
             not was_connected
@@ -703,10 +863,22 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
             ltp = _to_decimal(ltp_raw)
             if ltp_raw is None or ltp == 0:
                 self._dropped_ticks += 1
+                try:
+                    from brokers.dhan.metrics import dhan_ws_dropped_ticks_total
+
+                    dhan_ws_dropped_ticks_total.inc()
+                except Exception:
+                    pass
                 logger.warning("tick_dropped_missing_or_zero_ltp: symbol=%s", symbol or "<unknown>")
                 return
             if not symbol:
                 self._dropped_ticks += 1
+                try:
+                    from brokers.dhan.metrics import dhan_ws_dropped_ticks_total
+
+                    dhan_ws_dropped_ticks_total.inc()
+                except Exception:
+                    pass
                 logger.warning("tick_dropped_missing_symbol")
                 return
 
@@ -733,6 +905,12 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
                 )
             )
             self._published_ticks += 1
+            try:
+                from brokers.dhan.metrics import dhan_ws_ticks_total
+
+                dhan_ws_ticks_total.inc()
+            except Exception:
+                pass
         except Exception as exc:
             self._dropped_ticks += 1
             logger.error("EventBus TICK publish error: %s", exc)
@@ -814,6 +992,7 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
     def _on_close(self, feed) -> None:
         with self._lock:
             self._is_connected = False
+            self._connected_at = None
             self._disconnect_time = datetime.now(timezone.utc)
         logger.info("Market feed disconnected")
 
@@ -821,3 +1000,5 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
         logger.error("Market feed error: %s", error)
         with self._lock:
             self._is_connected = False
+            self._connected_at = None
+            self._disconnect_time = datetime.now(timezone.utc)

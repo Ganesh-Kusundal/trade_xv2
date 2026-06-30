@@ -43,7 +43,7 @@ class TestDuckDBPool:
         c1 = pool.acquire()
         try:
             pool.acquire()
-            assert False, "Should have raised RuntimeError"  # noqa: B011
+            raise AssertionError("Should have raised RuntimeError")
         except RuntimeError as e:
             assert "exhausted" in str(e)
         finally:
