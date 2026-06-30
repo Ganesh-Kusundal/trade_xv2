@@ -135,8 +135,8 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         Returns:
             Last traded price as Decimal
         """
-        self._resolve_instrument_key(symbol, exchange)
-        return self._market_data.ltp(symbol, exchange)
+        key = self._resolve_instrument_key(symbol, exchange)
+        return self._market_data.ltp(key, exchange)
 
     def quote(self, symbol: str, exchange: str = "NSE") -> Quote:
         """Fetch full quote with OHLCV for a symbol.
@@ -148,7 +148,8 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         Returns:
             Quote dataclass with OHLCV data
         """
-        return self._market_data.quote(symbol, exchange)
+        key = self._resolve_instrument_key(symbol, exchange)
+        return self._market_data.quote(key, exchange)
 
     def depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
         """Fetch order book depth for a symbol.
@@ -160,7 +161,8 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         Returns:
             MarketDepth with bid/ask levels
         """
-        return self._market_data.depth(symbol, exchange)
+        key = self._resolve_instrument_key(symbol, exchange)
+        return self._market_data.depth(key, exchange)
 
     def get_orderbook(self) -> list[Order]:
         """Fetch current order book.

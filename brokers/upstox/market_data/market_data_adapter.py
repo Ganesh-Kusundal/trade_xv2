@@ -40,7 +40,7 @@ class UpstoxMarketDataAdapter(MarketDataProvider):
 
         P-2.1: Fixed - renamed from get_quote() to match ABC.
         """
-        instrument_key = f"{_segment_wire(exchange)}|{symbol}"
+        instrument_key = symbol if "|" in symbol else f"{_segment_wire(exchange)}|{symbol}"
         body = self._v2.get_quote([instrument_key])
         return UpstoxDomainMapper.to_quote(body)
 
@@ -49,7 +49,7 @@ class UpstoxMarketDataAdapter(MarketDataProvider):
 
         P-2.1: Fixed - new method required by ABC.
         """
-        instrument_key = f"{_segment_wire(exchange)}|{symbol}"
+        instrument_key = symbol if "|" in symbol else f"{_segment_wire(exchange)}|{symbol}"
         body = self._v2.get_quote([instrument_key])
         quote = UpstoxDomainMapper.to_quote(body)
         return quote.ltp
@@ -59,7 +59,7 @@ class UpstoxMarketDataAdapter(MarketDataProvider):
 
         P-2.1: Fixed - renamed from get_depth() to match ABC.
         """
-        instrument_key = f"{_segment_wire(exchange)}|{symbol}"
+        instrument_key = symbol if "|" in symbol else f"{_segment_wire(exchange)}|{symbol}"
         body = self._v2.get_order_book(instrument_key)
         return UpstoxDomainMapper.to_market_depth(body)
 
@@ -82,7 +82,7 @@ class UpstoxMarketDataAdapter(MarketDataProvider):
             # Take first symbol for now
             symbol = symbol[0]
 
-        instrument_key = f"{_segment_wire(exchange)}|{symbol}"
+        instrument_key = symbol if "|" in symbol else f"{_segment_wire(exchange)}|{symbol}"
 
         # Determine candle interval from timeframe
         interval = timeframe.lower()

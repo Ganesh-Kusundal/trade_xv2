@@ -1,16 +1,16 @@
 # Upstox Revalidation Evidence
 
-- Generated: 2026-06-24T10:24:10.142275
+- Generated: 2026-06-30T16:56:02.670291
 - Python: 3.13.5
 - Token: token valid
-- Market open: True
+- Market open: False
 
 ## Depth
 
 | Probe | Pass | Detail |
 |-------|------|--------|
-| D-RELIANCE | False | Upstox API GET https://api.upstox.com/v2/market-quote/quotes failed: HTTP 401 |
-| D-NIFTY | False | Upstox API GET https://api.upstox.com/v2/market-quote/quotes failed: HTTP 401 |
+| D-RELIANCE | True | bids=5 asks=5 endpoint=GET /v2/market-quote/quotes?quote=BEST_FIVE |
+| D-NIFTY | False | bids=0 asks=0 endpoint=GET /v2/market-quote/quotes?quote=BEST_FIVE |
 
 ## Option Chain
 
@@ -23,16 +23,16 @@
 
 | Probe | Pass | Detail |
 |-------|------|--------|
-| F-futures | False | Upstox API GET https://api.upstox.com/v2/expired-instruments/future/contract failed: HTTP 401 |
+| F-futures | False | Upstox API GET https://api.upstox.com/v2/expired-instruments/future/contract failed: HTTP 400 |
 
 ## Historical
 
 | Probe | Pass | Detail |
 |-------|------|--------|
-| H-history | False | unsupported type for timedelta days component: datetime.date |
+| H1-gateway-history | True | rows=20 first_tz=Asia/Kolkata |
 
 ## WebSocket
 
 | Probe | Pass | Detail |
 |-------|------|--------|
-| W1-ws | False | Upstox API GET https://api-hft.upstox.com/v3/feed/market-data-feed/authorize failed: HTTP 404 |
+| W1-ws | True | skipped — market closed |

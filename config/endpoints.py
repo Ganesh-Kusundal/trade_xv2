@@ -230,7 +230,7 @@ class _UpstoxUrls:
         return f"{self._v2()}/feed/market-data-feed/authorize"
 
     def feed_authorize_v3_url(self) -> str:
-        return f"{self._hft()}/feed/market-data-feed/authorize"
+        return f"{self._v3()}/feed/market-data-feed/authorize"
 
     def portfolio_stream_authorize_url(self) -> str:
         return f"{self._v2()}/feed/portfolio-stream-feed/authorize"

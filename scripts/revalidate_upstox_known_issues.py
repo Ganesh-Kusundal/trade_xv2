@@ -173,7 +173,7 @@ def probe_history(gw: Any) -> list[dict[str, Any]]:
     try:
         end = date.today()
         start = end - timedelta(days=30)
-        df = gw.history("RELIANCE", "1d", start, end)
+        df = gw.history("RELIANCE", exchange="NSE", timeframe="1d", from_date=str(start), to_date=str(end))
         tz = None
         if df is not None and not df.empty and "timestamp" in df.columns:
             ts = df["timestamp"].iloc[0]
