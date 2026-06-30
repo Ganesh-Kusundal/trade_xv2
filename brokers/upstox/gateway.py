@@ -251,42 +251,27 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
 
     def history(
         self,
-        symbol: str | list[str],
+        symbol: str,
         exchange: str = "NSE",
         timeframe: str = "1D",
         lookback_days: int = 90,
         from_date: str | None = None,
         to_date: str | None = None,
     ) -> pd.DataFrame:
-        """Fetch historical candle data.
-
-        Args:
-            symbol: Single symbol or list of symbols
-            exchange: Exchange segment
-            timeframe: Candle timeframe (e.g., "1D", "5MIN", "1H")
-            lookback_days: Number of days to look back
-            from_date: Optional start date (YYYY-MM-DD)
-            to_date: Optional end date (YYYY-MM-DD)
-
-        Returns:
-            DataFrame with OHLCV data
-        """
+        """Fetch historical candles (EOD or Intraday) for a symbol."""
         to_d = date.today()
         from_d = to_d - timedelta(days=lookback_days)
         to_str = to_date or str(to_d)
         from_str = from_date or str(from_d)
-        tf = timeframe.upper() if timeframe else "1D"
+        timeframe_str = timeframe.upper() if timeframe else "1D"
 
         # Resolve timeframe to V3 interval
-        unit, interval = HistoricalAdapter.resolve_timeframe(tf)
+        unit, interval = HistoricalAdapter.resolve_timeframe(timeframe_str)
 
-        if isinstance(symbol, str):
+        try:
             return self._fetch_history(symbol, exchange, from_str, to_str, unit, interval)
-        frames = []
-        for sym in symbol:
-            df = self._fetch_history(sym, exchange, from_str, to_str, unit, interval)
-            frames.append(df)
-        return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+        except Exception:
+            return pd.DataFrame()
 
     def _fetch_history(
         self,

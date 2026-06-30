@@ -29,85 +29,16 @@ import traceback
 import uuid
 from collections import deque
 from collections.abc import Callable
-from dataclasses import dataclass, field, replace
-from datetime import datetime, timezone
+from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
-from infrastructure.correlation import get_current_correlation_id
+from domain.events import DomainEvent
 
 if TYPE_CHECKING:
     from domain.ports.observability import AlertingEnginePort, EventMetricsPort
     from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class DomainEvent:
-    """An immutable domain event published on the bus.
-
-    P4-Phase 4: Added sequence_number for deterministic replay ordering.
-    When two events share the same timestamp, sequence_number provides
-    a total order guarantee for replay determinism.
-    """
-
-    event_type: str
-    timestamp: datetime
-    payload: dict
-    symbol: str | None = None
-    source: str | None = None
-    event_id: str = field(default_factory=lambda: uuid.uuid4().hex[:16])
-    correlation_id: str | None = None
-    sequence_number: int = 0  # P4: Monotonic counter for deterministic ordering
-
-    def __post_init__(self) -> None:
-        # Fail-fast on naive timestamps — callers must provide timezone-aware datetimes.
-        # Normalization responsibility moved to DomainEvent.now() factory.
-        if self.timestamp.tzinfo is None:
-            raise ValueError(
-                f"DomainEvent requires timezone-aware timestamps. "
-                f"Got naive datetime: {self.timestamp}. "
-                f"Use DomainEvent.now() factory or provide tzinfo explicitly."
-            )
-
-    @classmethod
-    def now(
-        cls,
-        event_type: str,
-        payload: dict,
-        symbol: str | None = None,
-        source: str | None = None,
-        correlation_id: str | None = None,
-        sequence_number: int = 0,
-    ) -> DomainEvent:
-        """Factory using UTC now.
-
-        If *correlation_id* is not provided, the current thread's active
-        correlation ID (set via :func:`infrastructure.correlation.with_correlation`)
-        is used.  This enables automatic end-to-end tracing without
-        passing ``correlation_id=`` at every call site.
-
-        Args:
-            event_type: Type of the event
-            payload: Event payload dictionary
-            symbol: Optional symbol associated with the event
-            source: Optional source identifier
-            correlation_id: Optional correlation ID for tracing
-            sequence_number: Optional sequence number for replay ordering (P4)
-        """
-        if correlation_id is None:
-            cid = get_current_correlation_id()
-            if cid is not None:
-                correlation_id = cid
-        return cls(
-            event_type=event_type,
-            timestamp=datetime.now(timezone.utc),
-            payload=dict(payload),  # Defensive shallow copy — prevents handler mutation
-            symbol=symbol,
-            source=source,
-            correlation_id=correlation_id,
-            sequence_number=sequence_number,
-        )
 
 
 EventHandler = Callable[[DomainEvent], None]
@@ -342,6 +273,7 @@ class EventBus:
 
         # Inject correlation_id from thread-local context if missing
         if event.correlation_id is None:
+            from infrastructure.correlation import get_current_correlation_id
             cid = get_current_correlation_id()
             if cid is not None:
                 replacements["correlation_id"] = cid

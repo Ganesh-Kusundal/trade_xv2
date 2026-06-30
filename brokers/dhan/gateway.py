@@ -413,7 +413,7 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
 
     def history(
         self,
-        symbol: str | list[str],
+        symbol: str,
         exchange: str = "NSE",
         timeframe: str = "1D",
         lookback_days: int = 90,
@@ -425,21 +425,13 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         from_d = to_d - timedelta(days=lookback_days)
         to_str = to_date or str(to_d)
         from_str = from_date or str(from_d)
-        tf = timeframe.upper() if timeframe else "1D"
-        if isinstance(symbol, str):
-            try:
-                return self._conn.historical.get_historical(symbol, exchange, from_str, to_str, tf)
-            except InstrumentNotFoundError:
-                logger.warning("history: instrument not found: %s/%s", symbol, exchange)
-                return pd.DataFrame()
-        frames = []
-        for sym in symbol:
-            try:
-                df = self._conn.historical.get_historical(sym, exchange, from_str, to_str, tf)
-                frames.append(df)
-            except InstrumentNotFoundError:
-                logger.warning("history: instrument not found: %s/%s", sym, exchange)
-        return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+        timeframe_str = timeframe.upper() if timeframe else "1D"
+        
+        try:
+            return self._conn.historical.get_historical(symbol, exchange, from_str, to_str, timeframe_str)
+        except InstrumentNotFoundError:
+            logger.warning("history: instrument not found: %s/%s", symbol, exchange)
+            return pd.DataFrame()
 
     def option_chain(
         self,
@@ -600,11 +592,11 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         status without exposing private attributes to CLI layer.
         """
         status: dict[str, bool | str | float | None] = {}
-        mf = getattr(self._conn, "market_feed", None)
-        if mf is not None:
-            status["market_feed"] = mf.is_connected
+        market_feed = getattr(self._conn, "market_feed", None)
+        if market_feed is not None:
+            status["market_feed"] = market_feed.is_connected
             with contextlib.suppress(Exception):
-                health = mf.health()
+                health = market_feed.health()
                 metrics = health.metrics or {}
                 status["market_feed_stale"] = bool(metrics.get("is_stale", False))
                 status["connection_lock_acquired"] = bool(
@@ -615,25 +607,25 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
                 )
                 status["next_connect_allowed_at"] = metrics.get("next_connect_allowed_at")
 
-        os_ = getattr(self._conn, "order_stream", None)
-        if os_ is not None:
-            status["order_stream"] = os_.is_connected
+        order_stream = getattr(self._conn, "order_stream", None)
+        if order_stream is not None:
+            status["order_stream"] = order_stream.is_connected
 
-        d20 = getattr(self._conn, "depth_20_feed", None)
-        if d20 is not None:
-            connected = getattr(d20, "is_connected", None)
+        depth_20_feed = getattr(self._conn, "depth_20_feed", None)
+        if depth_20_feed is not None:
+            connected = getattr(depth_20_feed, "is_connected", None)
             if callable(connected):
                 status["depth_20"] = bool(connected())
             else:
-                status["depth_20"] = bool(getattr(d20, "_is_connected", False))
+                status["depth_20"] = bool(getattr(depth_20_feed, "_is_connected", False))
 
-        d200 = getattr(self._conn, "depth_200_feed", None)
-        if d200 is not None:
-            connected = getattr(d200, "is_connected", None)
+        depth_200_feed = getattr(self._conn, "depth_200_feed", None)
+        if depth_200_feed is not None:
+            connected = getattr(depth_200_feed, "is_connected", None)
             if callable(connected):
                 status["depth_200"] = bool(connected())
             else:
-                status["depth_200"] = bool(getattr(d200, "_is_connected", False))
+                status["depth_200"] = bool(getattr(depth_200_feed, "_is_connected", False))
 
         engine = getattr(self._conn, "subscription_engine", None)
         if engine is not None:
