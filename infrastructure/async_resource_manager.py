@@ -54,13 +54,19 @@ class AsyncResourceManager:
 
     def __init__(self, health_registry: HealthRegistry | None = None) -> None:
         self._sync_lock = threading.Lock()
-        self._async_lock = asyncio.Lock()
+        self._async_lock: asyncio.Lock | None = None
         self._resources: dict[str, _AsyncResourceEntry] = {}
         self._shutdown_called = False
         self._health_registry = health_registry
 
         if health_registry is not None:
             health_registry.register("async_resources", self._health_check)
+
+    def _get_async_lock(self) -> asyncio.Lock:
+        """Lazily create asyncio.Lock to avoid issues when instantiated outside an event loop."""
+        if self._async_lock is None:
+            self._async_lock = asyncio.Lock()
+        return self._async_lock
 
     def register(
         self,
@@ -123,7 +129,7 @@ class AsyncResourceManager:
         KeyError
             If no resource is registered with this name.
         """
-        async with self._async_lock:
+        async with self._get_async_lock():
             entry = self._resources.get(name)
             if entry is None:
                 raise KeyError(f"Resource '{name}' not registered")
@@ -132,7 +138,7 @@ class AsyncResourceManager:
         try:
             yield entry.resource
         finally:
-            async with self._async_lock:
+            async with self._get_async_lock():
                 entry = self._resources.get(name)
                 if entry is not None:
                     entry.acquired = False
@@ -148,7 +154,7 @@ class AsyncResourceManager:
             logger.debug("AsyncResourceManager.shutdown_all: already called")
             return
 
-        async with self._async_lock:
+        async with self._get_async_lock():
             self._shutdown_called = True
             names = list(reversed(list(self._resources.keys())))
 
@@ -159,7 +165,7 @@ class AsyncResourceManager:
 
         errors = []
         for name in names:
-            async with self._async_lock:
+            async with self._get_async_lock():
                 entry = self._resources.pop(name, None)
 
             if entry is None:

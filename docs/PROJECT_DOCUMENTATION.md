@@ -2575,3 +2575,1021 @@ class StateMachine(Generic[T]):
 
 **Error:** `IllegalTransitionError(from_state, to_state)` — extends `TradeXV2Error`
 
+
+
+---
+
+## 5. Domain Object Details
+
+### 5.1 Entity Catalog
+
+All entities are `@dataclass(slots=True, frozen=True)` — immutable value objects.
+
+#### 5.1.1 Order — `domain/entities/order.py`
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `order_id` | `str` | *(required)* | Unique order identifier |
+| `symbol` | `str` | *(required)* | Trading symbol |
+| `exchange` | `str` | *(required)* | Exchange code |
+| `side` | `Side` | *(required)* | BUY or SELL |
+| `order_type` | `OrderType` | *(required)* | LIMIT, MARKET, STOP_LOSS, STOP_LOSS_MARKET |
+| `quantity` | `int` | *(required)* | Order quantity |
+| `filled_quantity` | `int` | `0` | Quantity filled so far |
+| `price` | `Decimal` | `Decimal("0")` | Limit price |
+| `trigger_price` | `Decimal` | `Decimal("0")` | Stop-loss trigger |
+| `status` | `OrderStatus` | `OrderStatus.OPEN` | Current order status |
+| `timestamp` | `datetime \| None` | `None` | Order timestamp |
+| `product_type` | `ProductType` | `ProductType.INTRADAY` | CNC, INTRADAY, MARGIN, MTF |
+| `validity` | `Validity` | `Validity.DAY` | DAY or IOC |
+| `avg_price` | `Decimal` | `Decimal("0")` | Average fill price |
+| `reject_reason` | `str` | `""` | Rejection reason |
+| `correlation_id` | `str \| None` | `None` | Cross-system correlation |
+| `instrument_id` | `str \| None` | `None` | Canonical ID (e.g., `NSE:RELIANCE`) |
+
+**Properties:** `average_price`, `remaining_quantity`, `is_complete`
+**Methods:** `with_status(status)`, `with_fill(filled_quantity, avg_price)`, `from_broker_dict(d, field_mapping, exchange_resolver)`
+
+#### 5.1.2 OrderResponse — `domain/entities/order.py`
+
+| Field | Type | Default |
+|---|---|---|
+| `success` | `bool` | *(required)* |
+| `order_id` | `str` | `""` |
+| `message` | `str` | `""` |
+| `status` | `OrderStatus` | `OrderStatus.OPEN` |
+| `broker_order_id` | `str` | `""` |
+| `error_code` | `str` | `""` |
+| `http_status` | `int \| None` | `None` |
+| `raw_payload` | `dict[str, Any] \| None` | `None` |
+| `latency_ms` | `float` | `0.0` |
+
+**Class methods:** `ok(...)`, `fail(...)` · **Instance methods:** `with_broker_id(broker_id)`
+
+#### 5.1.3 Position — `domain/entities/position.py`
+
+| Field | Type | Default |
+|---|---|---|
+| `symbol` | `str` | *(required)* |
+| `exchange` | `str` | *(required)* |
+| `quantity` | `int` | `0` |
+| `avg_price` | `Decimal` | `Decimal("0")` |
+| `ltp` | `Decimal` | `Decimal("0")` |
+| `unrealized_pnl` | `Decimal` | `Decimal("0")` |
+| `realized_pnl` | `Decimal` | `Decimal("0")` |
+| `product_type` | `ProductType` | `ProductType.INTRADAY` |
+| `correlation_id` | `str \| None` | `None` |
+
+**Properties:** `pnl` (computed from quantity × price delta)
+**Methods:** `with_ltp(ltp)`, `with_fill(quantity, price)` — both return new instances with updated PnL
+
+#### 5.1.4 Holding — `domain/entities/position.py`
+
+| Field | Type | Default |
+|---|---|---|
+| `symbol` | `str` | *(required)* |
+| `exchange` | `str` | *(required)* |
+| `quantity` | `int` | `0` |
+| `available_quantity` | `int` | `0` |
+| `avg_price` | `Decimal` | `Decimal("0")` |
+| `ltp` | `Decimal` | `Decimal("0")` |
+| `pnl` | `Decimal` | `Decimal("0")` |
+| `correlation_id` | `str \| None` | `None` |
+
+#### 5.1.5 Trade — `domain/entities/trade.py`
+
+| Field | Type | Default |
+|---|---|---|
+| `trade_id` | `str` | *(required)* |
+| `order_id` | `str` | *(required)* |
+| `symbol` | `str` | *(required)* |
+| `exchange` | `str` | *(required)* |
+| `side` | `Side` | *(required)* |
+| `quantity` | `int` | *(required)* |
+| `price` | `Decimal` | `Decimal("0")` |
+| `trade_value` | `Decimal` | `Decimal("0")` |
+| `timestamp` | `datetime \| None` | `None` |
+| `product_type` | `ProductType` | `ProductType.INTRADAY` |
+| `correlation_id` | `str \| None` | `None` |
+
+**Properties:** `value` — returns `trade_value` if > 0, else `price × quantity`
+
+#### 5.1.6 Balance (FundLimits) — `domain/entities/account.py`
+
+| Field | Type | Default |
+|---|---|---|
+| `available_balance` | `Decimal` | `Decimal("0")` |
+| `used_margin` | `Decimal` | `Decimal("0")` |
+| `total_margin` | `Decimal` | `Decimal("0")` |
+| `sod_limit` | `Decimal` | `Decimal("0")` |
+| `collateral_amount` | `Decimal` | `Decimal("0")` |
+| `utilized_amount` | `Decimal` | `Decimal("0")` |
+| `withdrawable_balance` | `Decimal` | `Decimal("0")` |
+
+**Methods:** `has_sufficient(required) → bool`
+
+#### 5.1.7 Instrument — `domain/entities/instrument.py`
+
+| Field | Type | Default |
+|---|---|---|
+| `symbol` | `str` | *(required)* |
+| `exchange` | `str` | *(required)* |
+| `security_id` | `str` | *(required)* |
+| `instrument_type` | `str` | *(required)* |
+| `lot_size` | `int` | `1` |
+| `tick_size` | `Decimal` | `0.05` |
+| `name` | `str \| None` | `None` |
+| `option_type` | `str \| None` | `None` |
+| `strike_price` | `Decimal \| None` | `None` |
+| `expiry` | `str \| None` | `None` |
+| `underlying` | `str \| None` | `None` |
+| `canonical_symbol` | `str \| None` | `None` |
+
+#### 5.1.8 Market Data Entities — `domain/entities/market.py`
+
+**DepthLevel** (`@dataclass(frozen=True)`)
+
+| Field | Type | Default |
+|---|---|---|
+| `price` | `Decimal` | `Decimal("0")` |
+| `quantity` | `int` | `0` |
+| `orders` | `int` | `0` |
+
+**MarketDepth** (`@dataclass(frozen=False)` — mutable bid/ask lists)
+
+| Field | Type | Default |
+|---|---|---|
+| `symbol` | `str` | `""` |
+| `bids` | `list[DepthLevel] \| None` | `[]` |
+| `asks` | `list[DepthLevel] \| None` | `[]` |
+| `timestamp` | `datetime \| None` | `None` |
+| `depth_type` | `str` | `"DEPTH_5"` |
+
+**Quote** (`@dataclass(frozen=True)`)
+
+| Field | Type | Default |
+|---|---|---|
+| `symbol` | `str` | *(required)* |
+| `ltp` | `Decimal` | `Decimal("0")` |
+| `open/high/low/close` | `Decimal` | `Decimal("0")` |
+| `volume` | `int` | `0` |
+| `change` | `Decimal` | `Decimal("0")` |
+| `bid/ask` | `Decimal \| None` | `None` |
+| `timestamp` | `datetime \| None` | `None` |
+
+**MarketTick** (provenance-aware, `@dataclass(frozen=True)`)
+
+| Field | Type | Default |
+|---|---|---|
+| `instrument` | `InstrumentRef` | *(required)* |
+| `ltp` | `Decimal` | *(required)* |
+| `event_time` | `datetime` | *(required)* |
+| `provenance` | `DataProvenance` | *(required)* |
+| `volume` | `int` | `0` |
+| `bid/ask` | `Decimal \| None` | `None` |
+| `sequence` | `int \| None` | `None` |
+| `open/high/low` | `Decimal \| None` | `None` |
+
+**QuoteSnapshot** (provenance-aware, `@dataclass(frozen=True)`)
+
+| Field | Type | Default |
+|---|---|---|
+| `instrument` | `InstrumentRef` | *(required)* |
+| `ltp` | `Decimal` | *(required)* |
+| `event_time` | `datetime` | *(required)* |
+| `provenance` | `DataProvenance` | *(required)* |
+| `open/high/low/close` | `Decimal` | `Decimal("0")` |
+| `volume` | `int` | `0` |
+| `change_pct` | `Decimal` | `Decimal("0")` |
+| `bid/ask` | `Decimal \| None` | `None` |
+
+#### 5.1.9 Options/Futures Entities — `domain/entities/options.py`
+
+**OptionContract** (`@dataclass(frozen=True)`)
+
+| Field | Type | Default |
+|---|---|---|
+| `strike` | `Decimal` | `Decimal("0")` |
+| `expiry` | `str` | `""` |
+| `instrument_type` | `str` | `"OPTION"` |
+| `exchange` | `str` | `"NFO"` |
+| `lot_size` | `int` | `0` |
+| `call_ltp/call_bid/call_ask/call_iv` | `Decimal \| None` | `None` |
+| `call_oi/call_volume` | `int \| None` | `None` |
+| `put_ltp/put_bid/put_ask/put_iv` | `Decimal \| None` | `None` |
+| `put_oi/put_volume` | `int \| None` | `None` |
+
+**OptionLeg** · **OptionStrike** · **OptionChain** — all `@dataclass(frozen=True)` with `from_dict()` / `to_dict()` methods
+
+**FutureContract** · **FutureChain** — all `@dataclass(frozen=True)` with `from_dict()` / `to_dict()` methods
+
+#### 5.1.10 Alert & PnL Entities — `domain/entities/alerts.py`
+
+| Entity | Key Fields |
+|---|---|
+| `ConditionalAlert` | `alert_id`, `symbol`, `condition`, `status` |
+| `ConditionalAlertRequest` | `symbol`, `exchange`, `condition_type`, `threshold` |
+| `MarketIntelligenceSnapshot` | `underlying`, `pcr`, `max_pain`, `oi_data` (mutable) |
+| `PnlExitPolicy` | `target_pnl`, `stop_loss` |
+| `PnlExitResult` | `success`, `message` |
+
+---
+
+### 5.2 Value Objects
+
+#### 5.2.1 InstrumentId — `domain/instrument_id.py`
+
+`@dataclass(frozen=True, order=True)` — Immutable, hashable, ordered
+
+| Field | Type | Default |
+|---|---|---|
+| `exchange` | `str` | *(required)* |
+| `underlying` | `str` | *(required)* |
+| `expiry` | `date \| None` | `None` |
+| `strike` | `Decimal \| None` | `None` |
+| `right` | `str \| None` | `None` |
+
+**Factory methods:** `equity(exchange, symbol)`, `index(exchange, name)`, `future(exchange, underlying, expiry)`, `option(exchange, underlying, expiry, strike, right)`
+**Properties:** `asset_type`, `is_equity`, `is_index`, `is_future`, `is_option`, `is_call`, `is_put`, `key`
+**Format examples:** `NSE:RELIANCE`, `NFO:NIFTY:20260730:FUT`, `NFO:NIFTY:20260730:25000:CE`
+
+#### 5.2.2 Historical Models — `domain/historical.py`
+
+**InstrumentRef** — `symbol: str`, `exchange: str` (frozen, slots)
+
+**HistoricalBar** — `instrument: InstrumentRef`, `timeframe: str`, `event_time: datetime`, `open/high/low/close: Decimal`, `volume: int`, `provenance: DataProvenance`, `open_interest: int = 0`, `bar_index: int = 0`, `is_partial: bool = False`, `label_convention: BarLabelConvention = LEFT`
+
+**HistoricalSeries** — `bars: list[HistoricalBar]`, `coverage: DateRange`, `instrument: InstrumentRef`, `timeframe: str`, `gaps: list[Gap]`, `merge_manifest: MergeManifest | None`
+- Properties: `is_complete`, `is_degraded`, `bar_count`
+- Methods: `brokers_contributing() → set[str]`
+
+**DateRange** — `start: date`, `end: date` · Methods: `days() → int`, `__contains__(d)`
+
+**Gap** — `start: date`, `end: date`, `reason: str = "no_data"`
+
+#### 5.2.3 Provenance Models — `domain/provenance.py`
+
+**SourceIdentity** — `broker_id: str`, `account_id: str | None`, `connection_id: str | None`
+
+**TimestampSemantics** — `event_time: datetime`, `ingest_time: datetime`, `effective_time: datetime`
+
+**DataProvenance** — `source: SourceIdentity`, `fetched_at: datetime`, `request_id: str`, `confidence: ProvenanceConfidence = AUTHORITATIVE`, `provider_timestamp: datetime | None`, `transformation_chain: tuple[str, ...]`
+- Methods: `now(broker_id, request_id, ...)`, `with_transformation(step)`, `as_merged()`, `as_fallback()`
+
+#### 5.2.4 GatewayResult[T] — `domain/result.py`
+
+Generic monadic result with: `is_success`, `is_failure`, `value`, `error`, `metadata`
+Methods: `map(fn)`, `flat_map(fn)`, `recover(fn)`, `get_or_else(default)`
+
+#### 5.2.5 Reconciliation Models — `domain/reconciliation.py`
+
+**DriftItem** — `kind: str`, `severity: str`, `symbol: str`, `details: str`, `payload: dict | None`
+
+**ReconciliationReport** — `drift_items: list[DriftItem]`, `broker_orders: int`, `broker_positions: int`, `orders_repaired: int`, `positions_repaired: int`, `timestamp_ms: int`
+- Properties: `has_drift`, `high_severity_count`
+
+#### 5.2.6 Trading DTOs — `domain/models/trading.py`
+
+**CandidateDTO** — `symbol`, `exchange`, `score: Decimal`, `metrics: dict`, `reasons: list[str]`, `strategy_id`, `timestamp`
+
+**SignalDTO** — `symbol`, `exchange`, `side`, `signal_type`, `confidence: Decimal`, `quantity: int`, `price: Decimal | None`, `entry_price: Decimal | None`, `strategy: str`, `position_size_pct: Decimal`
+- Property: `is_actionable` — True if `signal_type ∈ {BUY, SELL, STRONG_BUY, STRONG_SELL, ENTRY, EXIT}` and `confidence > 0`
+
+#### 5.2.7 FeatureSet — `domain/models/features.py`
+
+`@dataclass(frozen=True)` — Immutable, pandas-free columnar container
+- Fields: `columns: dict[str, list]`, `index: list`
+- Properties: `row_count`, `column_names`, `is_empty`
+- Methods: `empty()`, `tail(n)`, `__getitem__(col)`, `__contains__(col)`
+
+#### 5.2.8 Stream Health Models — `domain/stream_health.py`
+
+**StreamHealth** — `transport: TransportState`, `subscription: SubscriptionState`, `freshness: FreshnessState`, `last_message_at: datetime | None`, `last_valid_tick_at: datetime | None`, `stale_seconds_threshold: float = 30.0`
+- Methods: `healthy() → bool`, `failure_reasons() → list[str]`
+
+**StreamSession** — `session_id`, `broker_id`, `stream_kind`, `instruments: frozenset[str]`, `modes: frozenset[str]`, `health: StreamHealth`, `reconnect_generation: int`, `created_at`, `last_state_change_at`
+
+**StreamStateSummary** — `broker_id`, `active_sessions`, `healthy_sessions`, `stale_sessions`, `degraded_sessions`
+
+#### 5.2.9 Other Value Objects
+
+| Object | File | Key Fields |
+|---|---|---|
+| `HealthStatus` | `domain/lifecycle_health.py` | `state: HealthState`, `service: str`, `detail: str`, `last_check: datetime`, `metrics: dict` |
+| `RuntimeHooks` | `domain/runtime_hooks.py` | `oms_backtest_factory`, `domain_event_factory`, `trading_context_factory` |
+| `IndianMarketFees` | `domain/trading_costs.py` | `brokerage_pct=0.03`, `brokerage_max=20.0`, `stt_pct_sell_delivery=0.1`, `gst_pct=18.0`, etc. |
+| `CapabilitySurface` | `domain/capability_manifest.py` | `id`, `capability`, `gateway_method`, `abc_required`, `tier`, `severity_if_gap` |
+| `CliExposure` / `RestExposure` | `domain/capability_manifest.py` | `command/module` and `method/path/module/data_source` |
+
+---
+
+### 5.3 Enums Catalog
+
+#### Core Trading Enums — `domain/enums.py`
+
+| Enum | Values |
+|---|---|
+| `Side` | `BUY`, `SELL` |
+| `OrderStatus` | `OPEN`, `PARTIALLY_FILLED`, `FILLED`, `CANCELLED`, `REJECTED`, `EXPIRED`, `UNKNOWN` |
+| `ProductType` | `CNC`, `INTRADAY`, `MARGIN`, `MTF` |
+| `OrderType` | `LIMIT`, `MARKET`, `STOP_LOSS`, `STOP_LOSS_MARKET` |
+| `Validity` | `DAY`, `IOC` |
+
+**OrderStatus properties:** `is_terminal` → True for {FILLED, CANCELLED, REJECTED, EXPIRED}
+**OrderStatus methods:** `normalize(raw: str) → OrderStatus` (delegates to `StatusMapperRegistry`)
+
+#### Market Enums — `domain/market_enums.py`
+
+| Enum | Values |
+|---|---|
+| `ExchangeSegment` | `NSE = "NSE_EQ"`, `BSE = "BSE_EQ"`, `NSE_FNO = "NSE_FNO"`, `BSE_FNO = "BSE_FNO"`, `MCX = "MCXCOMM"`, `NSE_CURRENCY = "NSE_CURRENCY"`, `BSE_CURRENCY = "BSE_CURRENCY"`, `IDX_I = "IDX_I"` |
+| `InstrumentType` | `EQUITY`, `FUTURES`, `OPTIONS`, `CURRENCY`, `COMMODITY`, `INDEX` |
+
+#### Capability Enums — `domain/capabilities.py`
+
+| Enum | Values (55 total) |
+|---|---|
+| `Capability` | `MARKET_DATA`, `ORDER_COMMAND`, `ORDER_QUERY`, `PORTFOLIO`, `OPTIONS_CHAIN`, `INSTRUMENTS`, `FUTURES`, `HISTORICAL_DATA`, `WEBSOCKET`, `COVER_ORDER`, `GTT_ORDER`, `SLICE_ORDER`, `MARGIN`, `NEWS`, `SESSION_RISK`, `ALERTS`, `MARKET_STATUS`, `DEPTH`, `ORDER_STREAM`, `IDEMPOTENCY`, `MULTI_ORDER`, `KILL_SWITCH`, `STATIC_IP`, `SMARTLIST`, `FII_DII`, `OI_PCR_MAXPAIN`, `MARKET_INTELLIGENCE`, `FUNDAMENTALS`, `IPO`, `MUTUAL_FUNDS`, `PAYMENTS`, `INSTRUMENT_SEARCH`, `HISTORICAL_TRADES`, `TSL`, `MTF`, `WEBHOOKS`, `AMO_ORDER`, `EXIT_ALL`, `PORTFOLIO_STREAM`, `ORDER_SLICING`, `DEPTH_30`, `LEVEL2_MARKET_DATA`, `OPTION_GREEKS`, `GLOBAL_MARKETS`, `VOLATILITY_INDEX` |
+| `ConnectionStatus` | `DISCONNECTED`, `CONNECTING`, `CONNECTED`, `RECONNECTING` |
+
+#### Position & Market Enums
+
+| Enum | File | Values |
+|---|---|---|
+| `PositionState` | `domain/entities/position.py` | `FLAT`, `OPEN`, `REDUCING`, `CLOSED`, `REVERSED` |
+| `DepthKind` | `domain/entities/market.py` | `REST_5`, `WS_20`, `WS_200` |
+
+#### Historical & Provenance Enums
+
+| Enum | File | Values |
+|---|---|---|
+| `BarLabelConvention` | `domain/historical.py` | `LEFT`, `RIGHT`, `CENTER` |
+| `ProvenanceConfidence` | `domain/provenance.py` | `AUTHORITATIVE`, `DERIVED`, `MERGED`, `FALLBACK` |
+
+#### Stream Health Enums — `domain/stream_health.py`
+
+| Enum | Values |
+|---|---|
+| `TransportState` | `DISCONNECTED`, `CONNECTING`, `AUTHENTICATING`, `CONNECTED`, `RECONNECTING` |
+| `SubscriptionState` | `IDLE`, `SUBSCRIBING`, `ACKNOWLEDGED`, `PARTIAL`, `DEGRADED` |
+| `FreshnessState` | `UNKNOWN`, `FRESH`, `STALE`, `NO_DATA` |
+
+#### Health & Cost Enums
+
+| Enum | File | Values |
+|---|---|---|
+| `HealthState` | `domain/lifecycle_health.py` | `STOPPED`, `STARTING`, `HEALTHY`, `DEGRADED`, `UNHEALTHY`, `STOPPING`, `FAILED` |
+| `CommissionModel` | `domain/trading_costs.py` | `FLAT`, `INDIAN_EQUITY`, `INDIAN_FNO` |
+| `SlippageModel` | `domain/trading_costs.py` | `FIXED_PCT`, `VOLUME_WEIGHTED` |
+
+---
+
+### 5.4 Domain Events — `domain/events/types.py`
+
+#### EventType Enum (53 event types)
+
+| Category | Event Types |
+|---|---|
+| **Market Data** | `TICK`, `DEPTH`, `INDEX_QUOTE`, `OPTION_CHAIN` |
+| **Orders/OMS** | `ORDER_PLACED`, `ORDER_SUBMITTED`, `ORDER_UPDATED`, `ORDER_CANCELLED`, `ORDER_REJECTED`, `TRADE`, `TRADE_APPLIED` |
+| **Risk/Position** | `POSITION_CHANGED`, `RISK_BREACH`, `KILL_SWITCH_FLIPPED`, `RISK_APPROVED`, `RISK_REJECTED` |
+| **Position Lifecycle** | `POSITION_OPENED`, `POSITION_CLOSED` |
+| **Reconciliation** | `RECONCILIATION_DRIFT`, `RECONCILIATION_OK` |
+| **Lifecycle** | `SERVICE_STARTED`, `SERVICE_STOPPED`, `SERVICE_FAILED`, `SYSTEM_STARTED`, `SYSTEM_SHUTDOWN` |
+| **Broker Connectivity** | `BROKER_CONNECTED`, `BROKER_DISCONNECTED`, `TOKEN_REFRESHED`, `TOKEN_EXPIRED`, `CIRCUIT_BREAKER_OPENED`, `CIRCUIT_BREAKER_CLOSED` |
+| **Scanner** | `SCAN_STARTED`, `CANDIDATE_GENERATED`, `SCAN_COMPLETED`, `SCANNER_STATE_CHANGED` |
+| **Strategy** | `SIGNAL_EXECUTED`, `STRATEGY_ACTIVATED`, `STRATEGY_PAUSED`, `STRATEGY_DISABLED` |
+| **Risk Decision** | `RISK_APPROVED`, `RISK_REJECTED` |
+| **Portfolio & Metrics** | `PORTFOLIO_UPDATED`, `METRICS_UPDATED` |
+| **Health** | `HEALTH_CHECK_PASSED`, `HEALTH_CHECK_FAILED` |
+| **Daily Operations** | `DAILY_PNL_RESET`, `DRAWDOWN_LIMIT_HIT`, `KILL_SWITCH_TOGGLED` |
+
+#### Event Payload Contracts
+
+`EventPayload` dataclass defines `required_keys`, `optional_keys`, `notes`, `version` for each event type. The `EVENT_PAYLOADS` dictionary maps every `EventType` to its contract.
+
+#### Typed Event Classes (P5 Stability Engineering)
+
+| Class | Fields | Factory |
+|---|---|---|
+| `OrderUpdatedEvent` | `order: Order`, `underlying_event: Any` | `from_domain_event(event)` |
+| `TradeFilledEvent` | `trade: Trade`, `underlying_event: Any` | `from_domain_event(event)` |
+| `TradeAppliedEvent` | `trade: Trade`, `underlying_event: Any` | `from_domain_event(event)` |
+
+All are `@dataclass(frozen=True)` with delegated properties: `event_type`, `event_id`, `correlation_id`
+
+---
+
+### 5.5 Ports / Interfaces
+
+All ports use `@runtime_checkable` Protocol classes for structural subtyping.
+
+| Port | File | Methods |
+|---|---|---|
+| `OrderTransportPort` | `domain/ports/broker_gateway.py` | `place_order(symbol, exchange, side, quantity, price, order_type, product_type, correlation_id, transport_only) → OrderResponse` |
+| `EventPublisher` | `domain/ports/event_publisher.py` | `publish(event) → None`, `subscribe(event_type, handler) → None` |
+| `MarginProviderPort` | `domain/ports/margin_provider.py` | `calculate_margin_for_order(order) → Any` |
+| `MarketDataPort` | `domain/ports/market_data.py` | `history(symbol, start, end, *, interval, exchange) → HistoricalSeries \| None` |
+| `EventMetricsPort` | `domain/ports/observability.py` | `inc(event_type, outcome, by=1) → None`, `snapshot() → dict` |
+| `AlertingEnginePort` | `domain/ports/observability.py` | `evaluate() → list[Any]`, `stop() → None` |
+| `OmsBacktestAdapterPort` | `domain/ports/oms_backtest_adapter.py` | `open_long(...)`, `close_long(...)`, `modify_order(...)`, `cancel_order(...)`, `get_position(...)`, `get_orders()` |
+| `RiskManagerPort` | `domain/ports/risk_manager.py` | `get_status() → dict`, `is_kill_switch_active() → bool`, `check_order(order_request) → Any` |
+| `StrategyEvaluator` | `domain/ports/strategy_evaluator.py` | `evaluate_single(candidate, features) → list[SignalDTO]` |
+| `FieldMapping` | `domain/entities/order.py` | `map_order_id(d)`, `map_symbol(d)`, `map_exchange(d)`, `map_side(d)`, `map_status(d)`, etc. (11 methods) |
+
+---
+
+### 5.6 Repositories
+
+| Repository | File | Methods |
+|---|---|---|
+| `OrderRepository` | `domain/repositories/order_repository.py` | `get_orders(*, symbol, status) → list[Order]`, `get_order(order_id) → Order \| None`, `place_order(request) → OrderResponse`, `cancel_order(order_id) → OrderResponse` |
+| `PositionRepository` | `domain/repositories/position_repository.py` | `get_positions() → list[Position]` |
+
+---
+
+### 5.7 State Machines
+
+#### Order Status Transitions — `domain/entities/order_lifecycle.py`
+
+```
+OPEN ──────────→ PARTIALLY_FILLED ──→ FILLED (terminal)
+  │                    │
+  ├──→ FILLED          ├──→ FILLED
+  ├──→ CANCELLED       ├──→ CANCELLED
+  ├──→ REJECTED        └──→ REJECTED
+  └──→ EXPIRED
+
+UNKNOWN → {OPEN, REJECTED, CANCELLED}
+```
+
+Terminal states: `FILLED`, `CANCELLED`, `REJECTED`, `EXPIRED`
+
+#### Position State Transitions — `domain/entities/position.py`
+
+```
+FLAT ──────→ OPEN ──────→ REDUCING ──→ FLAT
+  │            │               │
+  │            ├──→ CLOSED     ├──→ OPEN
+  │            └──→ REVERSED   ├──→ CLOSED
+  │                            └──→ REVERSED
+  └──→ REVERSED
+  
+CLOSED → FLAT
+REVERSED → {FLAT, OPEN, REDUCING, CLOSED}
+```
+
+---
+
+### 5.8 Constants Summary
+
+#### Auth Constants — `domain/constants/auth.py`
+
+| Constant | Value |
+|---|---|
+| `TOKEN_REFRESH_RECOMMENDED_BUFFER_SECONDS` | 300.0 |
+| `DHAN_TOKEN_REFRESH_BUFFER_SECONDS` | 600.0 |
+| `DHAN_TOKEN_SCHEDULER_INTERVAL_SECONDS` | 1200 |
+| `DHAN_TOKEN_LIFETIME_SECONDS` | 86400 |
+| `DHAN_REFRESH_COOLDOWN_SECONDS` | 60 |
+| `TOKEN_CLOCK_SKEW_SECONDS` | 30.0 |
+
+#### Risk Constants — `domain/constants/risk.py`
+
+| Constant | Value |
+|---|---|
+| `RISK_DAILY_LOSS_PERCENT` | 5.0 |
+| `RISK_POSITION_PERCENT` | 20.0 |
+| `RISK_GROSS_PERCENT` | 100.0 |
+| `RISK_LOSS_CIRCUIT_BREAKER_PERCENT` | 2.0 |
+| `RISK_LOSS_CB_COOLDOWN_SECONDS` | 1800 |
+| `RISK_LOSS_CB_WINDOW_SECONDS` | 86400 |
+| `RISK_MARGIN_SAFETY_MULTIPLIER` | 1.2 |
+| `PHANTOM_CAPITAL_INR` | 1,000,000 |
+| `DHAN_NOTIONAL_WARNING_INR` | 50,000 |
+
+#### Resilience Constants — `domain/constants/resilience.py`
+
+| Constant | Value |
+|---|---|
+| `MAX_RETRY_DELAY_MS` | 30,000 |
+| `RETRY_BASE_DELAY_MS` | 1,000 |
+| `MAX_RETRY_ATTEMPTS` | 3 |
+| `CIRCUIT_BREAKER_FAILURE_THRESHOLD` | 5 |
+| `CIRCUIT_BREAKER_SUCCESS_THRESHOLD` | 3 |
+| `CIRCUIT_BREAKER_OPEN_DURATION_MS` | 30,000 |
+| `BACKOFF_MULTIPLIER` | 2.0 |
+| `BACKOFF_JITTER` | 0.2 |
+
+#### Market Constants — `domain/constants/market.py`
+
+| Constant | Value |
+|---|---|
+| `DEFAULT_TICK_SIZE` | 0.05 |
+| `DEFAULT_EXCHANGE` | `"NSE"` |
+| `DEFAULT_DERIVATIVES_EXCHANGE` | `"NFO"` |
+| `NSE_OPEN_HOUR_IST / MINUTE` | 9:15 |
+| `NSE_CLOSE_HOUR_IST / MINUTE` | 15:30 |
+| `MCX_OPEN_HOUR_IST / MINUTE` | 9:00 |
+| `MCX_CLOSE_HOUR_IST / MINUTE` | 23:30 |
+| `ATR_PERIOD_DEFAULT` | 14 |
+| `RSI_PERIOD_DEFAULT` | 14 |
+| `SMA_WINDOW_DEFAULT` | 20 |
+| `IST_OFFSET` | UTC+5:30 |
+
+#### Timeout Constants — `domain/constants/timeouts.py`
+
+| Constant | Value |
+|---|---|
+| `DEFAULT_STOP_TIMEOUT_SECONDS` | 5.0 |
+| `DEFAULT_HTTP_TIMEOUT_SECONDS` | 15.0 |
+| `MIN_SLEEP_SECONDS` | 0.001 |
+| `QUOTE_CACHE_TTL_SECONDS` | 60 |
+| `HISTORY_CACHE_TTL_SECONDS` | 300 |
+
+#### OMS Constants — `domain/constants/__init__.py`
+
+| Constant | Value |
+|---|---|
+| `RECONCILIATION_INTERVAL_SECONDS` | 300.0 |
+| `DAILY_PNL_POLL_INTERVAL_SECONDS` | 60.0 |
+| `DAILY_PNL_ROLLOVER_HOUR_IST` | 0 |
+| `PROCESSED_TRADE_RETENTION_SECONDS` | 86,400 |
+| `PROCESSED_TRADE_CLEANUP_INTERVAL_SECONDS` | 3,600 |
+| `BATCH_MAX_WORKERS` | 5 |
+| `DEAD_LETTER_QUEUE_MAX_SIZE` | 10,000 |
+
+#### Default Constants — `domain/constants/defaults.py`
+
+| Constant | Value | Env Override |
+|---|---|---|
+| `RISK_FALLBACK_CAPITAL` | 100,000 | `RISK_FALLBACK_CAPITAL` |
+| `PAPER_INITIAL_CAPITAL` | 1,000,000 | `PAPER_INITIAL_CAPITAL` |
+| `PAPER_MAX_POSITION_PCT` | 10,000 | `PAPER_MAX_POSITION_PCT` |
+| `DEFAULT_LOOKBACK_DAYS` | 90 | — |
+| `DEFAULT_TIMEFRAME` | `"1D"` | — |
+
+
+
+---
+
+## 6. Event-Driven Framework Details
+
+### 6.1 Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  PRODUCERS                                                       │
+│  Broker WebSocket │ OMS │ Trading Orch. │ Scanner │ Lifecycle   │
+└──────────┬──────────────────────────────────────────────────────┘
+           │ publish(DomainEvent)
+           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  AsyncEventBus (infrastructure/async_event_bus.py)               │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  Bounded Queue (10,000 events, FIFO)                      │  │
+│  │  Critical events (TRADE_APPLIED, TRADE_FILLED,            │  │
+│  │  ORDER_PLACED) never dropped — overflow rather than lose  │  │
+│  └──────────────────────────┬────────────────────────────────┘  │
+│                             │ single worker thread drains       │
+│                             ▼                                   │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  EventBus (infrastructure/event_bus/event_bus.py)          │  │
+│  │  ┌──────────────┐  ┌──────────────┐  ┌───────────────┐   │  │
+│  │  │ Idempotency  │  │ Event Log    │  │ Dispatch to   │   │  │
+│  │  │ Check (LRU)  │  │ (persist)    │  │ Subscribers   │   │  │
+│  │  └──────────────┘  └──────────────┘  └───────┬───────┘   │  │
+│  └──────────────────────────────────────────────────────────────┘
+│                             │ on failure                      │
+│                             ▼                                   │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │  DeadLetterQueue (bounded FIFO, 10,000 entries)            │  │
+│  └───────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+           │
+           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  CONSUMERS                                                       │
+│  OrderManager │ PositionManager │ MarketBridge │ RiskManager    │
+│  Reconciliation │ DlqMonitor │ DailyPnLReset │ Metrics         │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 6.2 DomainEvent Structure
+
+**File:** `infrastructure/event_bus/event_bus.py`
+
+```python
+@dataclass(frozen=True)
+class DomainEvent:
+    event_type: str                                    # e.g., "TICK", "TRADE"
+    timestamp: datetime                                # Timezone-aware (UTC)
+    payload: dict                                      # Event-specific data
+    symbol: str | None = None                          # Associated symbol
+    source: str | None = None                          # Origin identifier
+    event_id: str = uuid.uuid4().hex[:16]              # Unique ID
+    correlation_id: str | None = None                  # Auto-injected from context
+    sequence_number: int = 0                           # Monotonic counter (P4)
+```
+
+**Factory method:** `DomainEvent.now(event_type, payload, symbol=None, source=None, correlation_id=None)`
+- Auto-sets `timestamp` to UTC now
+- Auto-injects `correlation_id` from `contextvars` if not provided
+- Defensive shallow copy of `payload` to prevent handler mutation
+
+### 6.3 Synchronous EventBus
+
+**File:** `infrastructure/event_bus/event_bus.py`
+
+#### Key Design Properties
+
+| Property | Implementation |
+|---|---|
+| **Thread-safe subscribe** | `threading.Lock` protects subscriber list mutations |
+| **Lock-free sequence numbering** | `itertools.count(1)` — atomic under CPython GIL |
+| **Snapshot-based dispatch** | Handlers snapshotted before iteration — handler can't corrupt dispatch loop |
+| **Mandatory failure observability** | Every handler failure is: (1) logged at WARNING, (2) counted in EventMetrics, (3) pushed to DeadLetterQueue |
+| **Idempotency** | Bounded LRU cache tracks processed `event_id` values — prevents duplicate processing |
+| **Replay mode** | Disables auto-persistence, preserves original timestamps for deterministic replay |
+| **Background alerting** | Optional thread evaluates alert rules periodically |
+
+#### Publish Flow
+
+```
+bus.publish(event)
+    │
+    ├── 1. Prepare event
+    │      ├── Inject correlation_id from contextvars (if missing)
+    │      └── Assign sequence_number from itertools.count(1)
+    │
+    ├── 2. Idempotency check
+    │      └── Skip if event_id already in _processed_events (bounded LRU)
+    │
+    ├── 3. Persist to event log
+    │      └── event_log.append(event) — crash recovery
+    │
+    ├── 4. Dispatch to handlers
+    │      ├── Snapshot handlers list (under lock)
+    │      └── For each handler: handler(event)
+    │
+    └── 5. Handle failures (per handler)
+           ├── Log WARNING with event_type, handler_id, error
+           ├── Count in EventMetrics: (event_type, handler_error:<ExceptionType>)
+           └── Push to DeadLetterQueue
+```
+
+#### Subscribe API
+
+```python
+# Returns a token for unsubscribing
+token = bus.subscribe("TICK", lambda event: print(event.payload))
+token = bus.subscribe(["TICK", "DEPTH"], handler_fn)
+bus.unsubscribe(token)
+```
+
+### 6.4 AsyncEventBus Adapter
+
+**File:** `infrastructure/async_event_bus.py`
+
+Wraps synchronous `EventBus` with background thread dispatch for high-throughput scenarios.
+
+| Property | Value |
+|---|---|
+| **Queue** | Bounded `deque` (default 10,000 events) |
+| **Backpressure** | When queue full, normal events are dropped; critical events overflow |
+| **Critical events** | `TRADE_APPLIED`, `TRADE_FILLED`, `ORDER_PLACED` — never dropped |
+| **Worker** | Single background thread preserves FIFO ordering |
+| **Batch draining** | Up to 64 events per wake-up cycle |
+| **Thread-safe** | `publish()` callable from any thread |
+
+#### Publish Behavior
+
+```
+async_bus.publish(event)
+    │
+    ├── Queue not full → enqueue event
+    ├── Queue full + critical event → overflow (expand queue, never drop)
+    └── Queue full + normal event → drop + increment dropped counter
+```
+
+### 6.5 Dead Letter Queue
+
+**File:** `infrastructure/event_bus/dead_letter_queue.py`
+
+```python
+@dataclass(frozen=True)
+class DeadLetter:
+    event: DomainEvent           # The original event
+    handler_id: str              # Which handler failed
+    error_type: str              # Exception class name
+    error_message: str           # Exception message
+    failed_at: datetime          # When it failed
+    traceback: str | None        # Full traceback (optional)
+```
+
+| Property | Value |
+|---|---|
+| **Storage** | Bounded `deque(maxlen=10_000)` |
+| **Eviction** | Oldest entry dropped when capacity exceeded |
+| **Drop callback** | Optional `on_drop` callback for metrics/alerting |
+| **Thread-safe** | Protected by `threading.RLock` |
+| **Convenience** | `push_failure(event, handler_id, exc, traceback)` builds and pushes |
+
+**DlqMonitorService** (`application/oms/context.py`) drains DLQ during graceful shutdown.
+
+### 6.6 Event Publisher Port
+
+**File:** `domain/ports/event_publisher.py`
+
+```python
+@runtime_checkable
+class EventPublisher(Protocol):
+    def publish(self, event: Any) -> None: ...
+    def subscribe(self, event_type: str, handler: Any) -> None: ...
+```
+
+Domain services depend on this Protocol — not the concrete `EventBus` — enabling test doubles and alternative implementations.
+
+### 6.7 Event Flow Examples
+
+#### Order Placement Event Chain
+
+```
+OrderManager.place_order()
+    │
+    ├── publishes ORDER_PLACED
+    │       payload: {order: Order, correlation_id: str}
+    │
+    ├── RiskManager.check_order()
+    │   ├── publishes RISK_APPROVED    (if approved)
+    │   └── publishes RISK_REJECTED    (if rejected)
+    │
+    ├── Broker submission
+    │   └── publishes ORDER_SUBMITTED
+    │
+    └── Broker fill (async)
+        └── publishes TRADE
+                │
+                ▼
+            OrderManager.on_trade()
+                ├── publishes ORDER_UPDATED
+                └── publishes TRADE_APPLIED (OMS-private)
+                        │
+                        ▼
+                    PositionManager.on_trade_applied()
+                        ├── publishes POSITION_OPENED   (FLAT→OPEN)
+                        ├── publishes POSITION_CHANGED  (quantity update)
+                        └── publishes POSITION_CLOSED   (OPEN→CLOSED)
+```
+
+#### Market Data Event Chain
+
+```
+Broker WebSocket receives tick
+    │
+    ├── Broker adapter publishes TICK event
+    │       payload: {symbol, ltp, volume, ...}
+    │
+    ├── MarketBridge subscribes to TICK, QUOTE, DEPTH, TRADE
+    │   └── Puts event into asyncio.Queue (drop-oldest policy)
+    │       └── Dispatch loop broadcasts to WebSocket clients
+    │
+    └── Scanner subscribes to TICK
+        └── Evaluates scan rules → publishes CANDIDATE_GENERATED
+```
+
+### 6.8 Event Log (Crash Recovery)
+
+**File:** `infrastructure/event_log.py`
+
+- Append-only JSONL files stored in `runtime/event-log/` (one file per day: `YYYY-MM-DD.jsonl`)
+- Each event serialized as JSON with all fields
+- On startup, events can be replayed to restore state
+- Replay mode on EventBus disables re-persistence and preserves original timestamps
+
+---
+
+## 7. Dependency Injection & Code Patterns
+
+### 7.1 Service Container (DI)
+
+**File:** `api/deps.py`
+
+#### Immutable ServiceContainer
+
+```python
+@dataclass(frozen=True)
+class ServiceContainer:
+    datalake_gateway: Any = None
+    view_manager: Any = None
+    data_catalog: Any = None
+    event_bus: Any = None
+    broker_service: Any = None
+    trading_context: Any = None
+    risk_manager: Any = None
+    order_manager: Any = None
+    position_manager: Any = None
+    market_data_composer: Any = None
+    execution_composer: Any = None
+    extra: dict[str, Any] = field(default_factory=dict)
+```
+
+**Key design decisions:**
+- **Immutable after creation** — prevents race conditions from mutable global dict
+- **Populated once at startup** — during FastAPI lifespan event
+- **Type-safe** — dataclass instead of raw dict for discoverability
+- **OMS readiness check** — `is_oms_ready()` validates all OMS components
+
+#### FastAPI Dependency Functions
+
+```python
+def get_container() -> ServiceContainer: ...         # Raises 503 if not initialized
+def get_trading_context() -> Any: ...                # Depends(get_container)
+def get_order_manager() -> Any: ...                  # Falls back to trading_context.order_manager
+def get_position_manager() -> Any: ...               # Falls back to trading_context.position_manager
+def get_risk_manager() -> Any: ...                   # Falls back to trading_context.risk_manager
+def get_market_data_composer() -> Any: ...           # Returns market_data_composer
+def get_execution_composer() -> Any: ...             # Returns execution_composer
+def get_datalake_gateway() -> Any: ...               # Returns datalake_gateway
+def get_view_manager() -> Any: ...                   # Returns view_manager
+def get_broker_service() -> Any: ...                 # Returns broker_service
+def get_order_repository() -> Any: ...               # Returns OrderManagerRepository adapter
+```
+
+#### Service Initialization
+
+`initialize_all_services()` is called once during FastAPI startup:
+1. Extracts OMS components from `TradingContext`
+2. Creates immutable `ServiceContainer`
+3. Logs missing services with 503 warnings
+
+### 7.2 Runtime Hooks (Factory Registration)
+
+**File:** `domain/runtime_hooks.py`
+
+**Problem:** Domain layer cannot import from infrastructure/application (architecture violation)
+
+**Solution:** Register factory functions at composition root
+
+```python
+@dataclass(frozen=True)
+class RuntimeHooks:
+    oms_backtest_factory: Callable[..., Any] | None = None
+    domain_event_factory: Callable[..., Any] | None = None
+    trading_context_factory: Callable[..., Any] | None = None
+
+# Registration at startup (api/main.py)
+register_oms_backtest_factory(create_oms_backtest_adapter)
+register_domain_event_factory(create_domain_event)
+register_trading_context_factory(create_trading_context)
+```
+
+**Usage in domain code:**
+```python
+event = create_domain_event(event_type="TICK", payload={"ltp": 100})
+```
+
+### 7.3 Design Patterns
+
+#### 7.3.1 Factory Pattern
+
+| Factory | File | Creates |
+|---|---|---|
+| `create_trading_context()` | `application/oms/factory.py` | `TradingContext` with all OMS components |
+| `create_composers_from_infra()` | `application/composer/factory.py` | `(MarketDataComposer, ExecutionComposer)` |
+| `AsyncEventBusFactory.create_from_config()` | `infrastructure/event_bus/factory.py` | `(EventBus, config)` |
+| `TradingRuntimeFactory` | `runtime/trading_runtime_factory.py` | `Runtime` dataclass (full system) |
+
+#### 7.3.2 Repository Pattern
+
+**Port** (domain layer):
+```python
+@runtime_checkable
+class OrderRepository(Protocol):
+    def get_orders(self, *, symbol=None, status=None) -> list[Order]: ...
+    def get_order(self, order_id: str) -> Order | None: ...
+    def place_order(self, request: OrderRequest) -> OrderResponse: ...
+    def cancel_order(self, order_id: str) -> OrderResponse: ...
+```
+
+**Adapter** (application layer):
+```python
+class OrderManagerRepository:
+    """Adapts OrderManager to OrderRepository protocol."""
+    def __init__(self, order_manager: OrderManager): ...
+    def get_orders(self, **kwargs) -> list[Order]: ...
+```
+
+**Usage in API:**
+```python
+@router.get("")
+async def get_orders(repo=Depends(get_order_repository)):
+    return repo.get_orders(status=status)
+```
+
+#### 7.3.3 Strategy Pattern
+
+**BrokerRouter** (`brokers/common/router.py`):
+- **Strategy:** `SourceSelectionPolicy` determines broker selection
+- **Context:** `BrokerRouter` uses policy to make routing decisions
+- **Algorithms:** priority-list, round-robin, quota-aware
+
+```python
+router = BrokerRouter(registry=registry, policy=policy)
+decision = router.route(RoutingRequest(operation=OperationKind.PLACE_ORDER))
+# decision.primary_broker = "dhan"
+```
+
+#### 7.3.4 Observer Pattern (Event Bus)
+
+- **Subject:** `EventBus` maintains subscriber list
+- **Observers:** Event handlers (`OrderManager`, `PositionManager`, `MarketBridge`, etc.)
+- **Notification:** `bus.publish(event)` notifies all subscribers for matching event types
+
+#### 7.3.5 Adapter Pattern
+
+**Broker Adapters** (`brokers/dhan/`, `brokers/upstox/`, `brokers/paper/`):
+- Adapt broker-specific APIs to `CommonBrokerGateway` protocol
+- Normalize broker DTOs to domain models
+- Map broker errors to `TradeXV2Error` hierarchy
+
+**Example:**
+```python
+class DhanGateway:
+    async def place_order(self, request, *, quota):
+        dhan_request = self._to_dhan_order(request)      # Domain → Dhan format
+        dhan_response = await self._client.place_order(dhan_request)
+        return self._to_order_response(dhan_response)    # Dhan → Domain format
+```
+
+#### 7.3.6 Composite Pattern
+
+**ExecutionComposer** (`application/composer/execution.py`):
+- Composes `BrokerRegistry`, `BrokerRouter`, `QuotaScheduler`
+- Provides unified interface for order execution
+- Delegates to individual components for routing, quota, and execution
+
+**MarketDataComposer** (`application/composer/market_data.py`):
+- Composes `HistoricalDataCoordinator`, `StreamOrchestrator`
+- Unified interface for historical and streaming data
+
+#### 7.3.7 Registry Pattern
+
+**BrokerRegistry** (`brokers/common/registry.py`):
+- Central registry for broker gateways
+- Tracks capabilities, health, stream summaries
+- Thread-safe with `threading.RLock`
+
+**ExtensionRegistry** (`brokers/common/extensions/`):
+- Registry for broker-specific extensions
+- Brokers register extension bundles at bootstrap
+
+#### 7.3.8 State Machine Pattern
+
+**Generic StateMachine** (`infrastructure/state_machine.py`):
+```python
+sm = StateMachine(transitions=ORDER_STATE_TRANSITIONS, initial=OrderStatus.OPEN)
+sm.transition_to(OrderStatus.PARTIALLY_FILLED)  # OK
+sm.transition_to(OrderStatus.OPEN)              # Raises IllegalTransitionError
+```
+
+Used by: Order lifecycle, Position lifecycle, Scanner lifecycle, Strategy lifecycle
+
+#### 7.3.9 Circuit Breaker Pattern
+
+**Location:** `brokers/common/resilience/circuit_breaker.py`
+
+| State | Behavior |
+|---|---|
+| **CLOSED** | Normal operation — requests pass through |
+| **OPEN** | Broker unavailable — requests fail fast with `CircuitBreakerOpenError` |
+| **HALF_OPEN** | Testing recovery — limited requests allowed |
+
+- Opens after N consecutive failures (default: `CIRCUIT_BREAKER_FAILURE_THRESHOLD = 5`)
+- Closes after M successful health checks (default: `CIRCUIT_BREAKER_SUCCESS_THRESHOLD = 3`)
+- Open duration: `CIRCUIT_BREAKER_OPEN_DURATION_MS = 30,000`
+
+#### 7.3.10 Unit of Work Pattern
+
+**TradingContext** (`application/oms/context.py`):
+- Wires together `EventBus`, `OrderManager`, `PositionManager`, `RiskManager`
+- Coordinates transaction boundaries
+- Manages lifecycle services:
+  - `ReconciliationService` — periodic order/position reconciliation
+  - `DlqMonitorService` — drains dead-letter queue on shutdown
+  - `DailyPnLResetScheduler` — polls for midnight IST rollover
+
+```python
+ctx = TradingContext(
+    event_bus=event_bus,
+    order_manager=order_manager,
+    position_manager=position_manager,
+    risk_manager=risk_manager,
+)
+ctx.start()   # Starts background services
+ctx.stop()    # Graceful shutdown — drains DLQ, stops reconciliation
+```
+
+---
+
+*End of Document*

@@ -77,7 +77,7 @@ class SchemaRegistry:
         """Return True if a schema is registered for (event_type, version)."""
         return (event_type, version) in self._schemas
 
-    def latest_version(self, event_type: int) -> int:
+    def latest_version(self, event_type: str) -> int:
         """Return the highest registered version for event_type, or 0."""
         versions = [v for (et, v) in self._schemas if et == event_type]
         return max(versions) if versions else 0
