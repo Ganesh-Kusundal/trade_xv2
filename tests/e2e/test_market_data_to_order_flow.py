@@ -316,7 +316,7 @@ def test_risk_check_before_order(view_manager: ViewManager, tmp_path) -> None:
         events_dir=tmp_path / "events",
     )
 
-    # Order: 1000 shares × 150 = 150,000 notional → 150% of capital
+    # Order: 1000 shares × 150 = 150,000 notional → 150% of capital  # noqa: RUF003
     order = Order(
         order_id="ORD-RISK-001",
         symbol="RELIANCE",
@@ -349,7 +349,7 @@ def test_order_placed_after_risk_pass(view_manager: ViewManager, tmp_path) -> No
         risk_manager=ctx.risk_manager,
     )
 
-    # Order: 10 shares × 120 = 1,200 notional → 1.2% of capital (well within 50%)
+    # Order: 10 shares × 120 = 1,200 notional → 1.2% of capital (well within 50%)  # noqa: RUF003
     command = OmsOrderCommand(
         symbol="RELIANCE",
         exchange="NSE",
@@ -492,7 +492,7 @@ def test_query_executor_read_only_safety(tmp_path) -> None:
     assert rows[0][0] == 42
 
     # Write MUST fail on a read-only connection
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017
         conn_ro.execute("CREATE TABLE should_fail (id INTEGER)")
 
     conn_ro.close()

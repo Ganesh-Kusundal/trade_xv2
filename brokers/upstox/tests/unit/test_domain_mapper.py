@@ -34,7 +34,7 @@ def test_status_normalisation():
         "trigger pending": OrderStatus.OPEN,
         "expired": OrderStatus.EXPIRED,
         "after market order req received": OrderStatus.OPEN,
-        "put order req received": OrderStatus.OPEN,
+        "put order req received": OrderStatus.OPEN,  # noqa: F601
     }
     for raw, expected in cases.items():
         assert UpstoxDomainMapper.normalize_status(raw) is expected, raw

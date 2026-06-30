@@ -60,7 +60,7 @@ class TestAuditEntry:
             new_status=OrderStatus.OPEN,
         )
         with pytest.raises(
-            Exception, match="dataclass|frozen|attribute"
+            Exception, match="dataclass|frozen|attribute"  # noqa: RUF043
         ):  # FrozenInstanceError or AttributeError
             entry.order_id = "order-2"
 

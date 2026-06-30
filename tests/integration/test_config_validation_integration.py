@@ -299,5 +299,5 @@ class TestConfigDefaults:
             "DHAN.accessToken": "dict_token",
         }
 
-        with pytest.raises(ValueError, match="dhan.clientId is required"):
+        with pytest.raises(ValueError, match="dhan.clientId is required"):  # noqa: RUF043
             DhanSettingsLoader.from_dict(values)

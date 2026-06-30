@@ -145,6 +145,6 @@ def register_dhan_extensions(gateway: MarketDataGateway) -> ExtensionBundle:
 
 
 # Register factory so brokers.common.adapters can find it without importing us
-from brokers.common.extensions import register_extension_factory
+from brokers.common.extensions import register_extension_factory  # noqa: E402
 
 register_extension_factory("dhan", register_dhan_extensions)

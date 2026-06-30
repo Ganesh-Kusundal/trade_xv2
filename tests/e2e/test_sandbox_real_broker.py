@@ -13,6 +13,7 @@ Requirements:
 Usage:
     ./venv/bin/python -m pytest tests/e2e/test_sandbox_real_broker.py -v -k sandbox
 """
+import contextlib
 import os
 
 import pytest
@@ -52,10 +53,8 @@ class TestDhanSandboxE2E:
         yield gw
 
         # Cleanup
-        try:
+        with contextlib.suppress(Exception):
             gw.close()
-        except Exception:
-            pass
 
     def test_sandbox_quote_returns_real_data(self, dhan_sandbox_gateway):
         """Verify quote command returns REAL data from Dhan sandbox."""
@@ -298,10 +297,8 @@ class TestUpstoxSandboxE2E:
         yield gw
 
         # Cleanup
-        try:
+        with contextlib.suppress(Exception):
             gw.close()
-        except Exception:
-            pass
 
     def test_sandbox_quote_returns_real_data(self, upstox_sandbox_gateway):
         """Verify quote command returns REAL data from Upstox sandbox."""
@@ -372,10 +369,8 @@ class TestCrossBrokerParity:
 
         yield gw
 
-        try:
+        with contextlib.suppress(Exception):
             gw.close()
-        except Exception:
-            pass
 
     @pytest.fixture
     def upstox_sandbox(self):
@@ -407,10 +402,8 @@ class TestCrossBrokerParity:
 
         yield gw
 
-        try:
+        with contextlib.suppress(Exception):
             gw.close()
-        except Exception:
-            pass
 
     def test_quote_returns_equivalent_schema(self, dhan_sandbox, upstox_sandbox):
         """All brokers should return Quote with same fields and types."""

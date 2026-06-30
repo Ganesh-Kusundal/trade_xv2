@@ -8,6 +8,7 @@ Tests verify drift detection, alerting, and auto-correction mechanisms.
 
 from __future__ import annotations
 
+import contextlib
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -234,10 +235,8 @@ class TestReconciliationServiceFailure:
 
         # Simulate multiple cycles
         for _ in range(3):
-            try:
+            with contextlib.suppress(Exception):
                 reconciliation_cycle()
-            except Exception:
-                pass  # Expected on first cycle
 
         assert cycle_count == 3
         assert success_count == 2  # Cycles 2 and 3 succeed
@@ -360,10 +359,8 @@ class TestReconciliationServiceFailure:
 
         # Run multiple cycles
         for _ in range(10):
-            try:
+            with contextlib.suppress(Exception):
                 unreliable_reconciliation()
-            except Exception:
-                pass
 
         # Should have some successes
         assert successes > 0

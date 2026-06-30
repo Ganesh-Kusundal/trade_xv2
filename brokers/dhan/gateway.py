@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import logging
 import threading
 from datetime import date, timedelta
 from decimal import Decimal
@@ -36,7 +37,6 @@ from domain import (
 )
 from domain.exchange_segments import parse_segment
 from domain.symbols import make_position_key, normalize_symbol
-import logging
 from infrastructure.tracing import trace_operation
 
 logger = logging.getLogger(__name__)
@@ -643,7 +643,7 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
             else:
                 # Remove all wrappers for this key
                 feed = self._conn.market_feed
-                for cb, wrap in pairs:
+                for cb, wrap in pairs:  # noqa: B007
                     if feed is not None:
                         feed.off_quote(wrap)
                 pairs.clear()

@@ -420,7 +420,7 @@ class DhanHttpClient:
                     )
                     time.sleep(delay)
                     continue
-                raise last_exc
+                raise last_exc  # noqa: B904
 
             logger.debug(
                 "http_response",

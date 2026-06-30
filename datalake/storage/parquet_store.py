@@ -195,7 +195,7 @@ class ParquetStore:
                 ).fetchdf()
                 if not df.empty:
                     return df["symbol"].tolist()
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
         # Fallback to legacy layout

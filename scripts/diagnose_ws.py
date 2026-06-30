@@ -12,6 +12,7 @@ Uses project venv and gateway.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import sys
 import threading
@@ -140,10 +141,8 @@ def test_gateway_stream(gw, symbol: str = "TCS", exchange: str = "NSE") -> bool:
     log.info("Gateway stream result: ticks=%d", len(ticks))
 
     # Stop
-    try:
+    with contextlib.suppress(Exception):
         feed.stop(timeout_seconds=3)
-    except Exception:
-        pass
 
     return len(ticks) > 0
 
@@ -275,10 +274,8 @@ def main():
         log.warning("SOME TESTS FAILED")
 
     # Cleanup
-    try:
+    with contextlib.suppress(Exception):
         gw.close()
-    except Exception:
-        pass
 
 
 if __name__ == "__main__":

@@ -150,7 +150,7 @@ def _calculate_delay(
         delay = policy.initial_delay * (policy.backoff_factor ** attempt)
 
     elif policy.backoff_strategy == BackoffStrategy.RANDOM:
-        delay = random.uniform(policy.initial_delay, policy.max_delay)
+        delay = random.uniform(policy.initial_delay, policy.max_delay)  # noqa: S311
 
     else:
         delay = policy.initial_delay
@@ -161,7 +161,7 @@ def _calculate_delay(
     # Add jitter to avoid thundering herd
     if policy.jitter:
         jitter_range = delay * 0.1  # 10% jitter
-        delay += random.uniform(-jitter_range, jitter_range)
+        delay += random.uniform(-jitter_range, jitter_range)  # noqa: S311
         delay = max(0, delay)  # Ensure non-negative
 
     return delay

@@ -362,7 +362,7 @@ class TestSensitiveDataHandling:
         result = validator.validate()
         # Should have masked version
         assert "DHAN_ACCESS_TOKEN_masked" in result.validated_vars
-        assert result.validated_vars["DHAN_ACCESS_TOKEN_masked"] == "***REDACTED***"
+        assert result.validated_vars["DHAN_ACCESS_TOKEN_masked"] == "***REDACTED***"  # noqa: S105
 
     def test_original_value_stored(self):
         env = {
@@ -372,7 +372,7 @@ class TestSensitiveDataHandling:
         validator = ConfigValidator(profile=ValidationProfile.STAGING, env=env)
         result = validator.validate()
         # Original value should also be stored
-        assert result.validated_vars["DHAN_ACCESS_TOKEN"] == "secret_token"
+        assert result.validated_vars["DHAN_ACCESS_TOKEN"] == "secret_token"  # noqa: S105
 
 
 class TestEnvVarSpec:

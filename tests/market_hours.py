@@ -131,7 +131,7 @@ def require_market_hours(reason: str | None = None):
         def test_depth_both_sides(gateway):
             ...
     """
-    msg = reason or "Market is closed — WebSocket/stream tests require NSE hours (09:15–15:30 IST)"
+    msg = reason or "Market is closed — WebSocket/stream tests require NSE hours (09:15–15:30 IST)"  # noqa: RUF001
     return pytest.mark.skipif(not is_market_open(), reason=msg)
 
 

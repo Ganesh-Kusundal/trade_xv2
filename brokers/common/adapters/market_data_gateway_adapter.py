@@ -246,7 +246,7 @@ class MarketDataGatewayAdapter:
                 mode,
                 _on_tick,
             )
-        
+
         handle = _GatewayStreamHandle(self, feed, plan.instruments, _on_tick)
         with self._handle_lock:
             self._active_market_handles.add(handle.session_id)
@@ -259,7 +259,7 @@ class MarketDataGatewayAdapter:
         with self._handle_lock:
             if handle.session_id in self._active_market_handles:
                 self._active_market_handles.remove(handle.session_id)
-            
+
             # Only stop the physical feed if no active logical handles remain
             if not self._active_market_handles and handle._feed is not None:
                 disconnect = getattr(handle._feed, "disconnect", None)

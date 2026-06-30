@@ -520,7 +520,7 @@ class TradingOrchestrator:
             return False
         return risk_manager.is_kill_switch_active()
 
-    def health(self) -> HealthStatus:
+    def health(self) -> HealthStatus:  # noqa: F821
         """ManagedService health snapshot."""
 
         from domain.lifecycle_health import HealthState, HealthStatus

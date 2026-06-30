@@ -88,7 +88,7 @@ def trace_operation(operation_name: str) -> Callable[[Callable[..., T]], Callabl
             start_time = time.perf_counter()
 
             logger.debug(
-                f"Operation started: {operation_name}",
+                f"Operation started: {operation_name}",  # noqa: G004
                 extra={
                     "operation": operation_name,
                     "function": func.__name__,
@@ -135,7 +135,7 @@ def trace_event_handler(event_type: str) -> Callable[[Callable[..., T]], Callabl
             start_time = time.perf_counter()
 
             logger.debug(
-                f"Event handler started: {event_type}",
+                f"Event handler started: {event_type}",  # noqa: G004
                 extra={
                     "event_type": event_type,
                     "handler": func.__name__,
@@ -173,7 +173,7 @@ def _execute_traced(
         duration_ms = (time.perf_counter() - start_time) * 1000
 
         logger.debug(
-            f"Operation completed: {operation_name}",
+            f"Operation completed: {operation_name}",  # noqa: G004
             extra={
                 "operation": operation_name,
                 "function": func.__name__,
@@ -192,8 +192,8 @@ def _execute_traced(
     except Exception as exc:
         duration_ms = (time.perf_counter() - start_time) * 1000
 
-        logger.error(
-            f"Operation failed: {operation_name}",
+        logger.error(  # noqa: G201
+            f"Operation failed: {operation_name}",  # noqa: G004
             extra={
                 "operation": operation_name,
                 "function": func.__name__,
@@ -236,7 +236,7 @@ class TraceContext:
         self.start_time = time.perf_counter()
 
         logger.debug(
-            f"Trace block started: {self.operation_name}",
+            f"Trace block started: {self.operation_name}",  # noqa: G004
             extra={
                 "operation": self.operation_name,
                 "correlation_id": self.correlation_id,
@@ -251,7 +251,7 @@ class TraceContext:
 
         if exc_type is not None:
             logger.error(
-                f"Trace block failed: {self.operation_name}",
+                f"Trace block failed: {self.operation_name}",  # noqa: G004
                 extra={
                     "operation": self.operation_name,
                     "duration_ms": round(duration_ms, 2),
@@ -265,7 +265,7 @@ class TraceContext:
             )
         else:
             logger.debug(
-                f"Trace block completed: {self.operation_name}",
+                f"Trace block completed: {self.operation_name}",  # noqa: G004
                 extra={
                     "operation": self.operation_name,
                     "duration_ms": round(duration_ms, 2),

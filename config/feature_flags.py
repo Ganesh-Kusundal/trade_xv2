@@ -77,7 +77,7 @@ class FeatureFlags:
     """
 
     # Flag definitions with descriptions
-    FLAG_DEFINITIONS: dict[str, FlagDefinition] = {
+    FLAG_DEFINITIONS: dict[str, FlagDefinition] = {  # noqa: RUF012
         "SMART_ROUTING": FlagDefinition(
             name="SMART_ROUTING",
             default=False,

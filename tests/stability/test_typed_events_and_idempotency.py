@@ -128,7 +128,7 @@ class TestTypedEventClasses:
         event = DomainEvent.now("ORDER_UPDATED", {"order": order})
         typed = OrderUpdatedEvent.from_domain_event(event)
 
-        with pytest.raises(Exception):  # FrozenInstanceError
+        with pytest.raises(Exception):  # FrozenInstanceError  # noqa: B017
             typed.order = None  # type: ignore[misc]
 
 

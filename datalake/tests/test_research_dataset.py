@@ -81,7 +81,7 @@ class TestCreateDataset:
         _make_curated_data(market_root)
         ResearchDataset.root = temp_root
 
-        kwargs = dict(
+        kwargs = dict(  # noqa: C408
             universe="NIFTY50",
             as_of_date="2026-01-01",
             features=["atr_14"],

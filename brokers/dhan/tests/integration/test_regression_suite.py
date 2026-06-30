@@ -13,7 +13,7 @@ Usage
     pytest brokers/dhan/tests/integration/test_regression_suite.py \\
         -m "dhan and off_market_safe and regression" -v
 
-    # Market-hours regression (NSE 09:15–15:30 IST, or FORCE_MARKET_OPEN=1)
+    # Market-hours regression (NSE 09:15-15:30 IST, or FORCE_MARKET_OPEN=1)
     FORCE_MARKET_OPEN=1 \\
     pytest brokers/dhan/tests/integration/test_regression_suite.py \\
         -m "dhan and market_hours and regression" -v

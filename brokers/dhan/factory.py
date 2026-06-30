@@ -413,7 +413,7 @@ def _generate_totp_token(settings: DhanConnectionSettings | None = None) -> str 
         return None
 
 
-from brokers.dhan.secret_utils import read_secret as _read_secret
+from brokers.dhan.secret_utils import read_secret as _read_secret  # noqa: E402
 
 
 def _update_env_token(env_path: Path, token: str) -> None:

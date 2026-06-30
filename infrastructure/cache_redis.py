@@ -85,7 +85,7 @@ class RedisCache(Cache):
             loop = None
 
         if loop and loop.is_running():
-            # We're already inside a running loop – spin up a thread.
+            # We're already inside a running loop – spin up a thread.  # noqa: RUF003
             import concurrent.futures
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:

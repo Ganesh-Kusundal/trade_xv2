@@ -94,4 +94,4 @@ class DhanTotpClient:
         return pin, totp_secret, _GENERATE_TOKEN_URL, client_id
 
 
-from brokers.dhan.secret_utils import read_secret as _read_secret
+from brokers.dhan.secret_utils import read_secret as _read_secret  # noqa: E402

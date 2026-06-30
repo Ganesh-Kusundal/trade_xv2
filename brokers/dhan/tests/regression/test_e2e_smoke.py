@@ -20,6 +20,7 @@ integration conftest; they are auto-tagged ``dhan``, ``integration``,
 
 from __future__ import annotations
 
+import contextlib
 import threading
 import time
 
@@ -94,7 +95,7 @@ class TestOffMarketSmoke:
         assert len(expiries) >= 1, f"{underlying} extended expiries empty"
         time.sleep(1.5)
 
-    @pytest.mark.parametrize("underlying,exchange", NFO_INDEX + [("RELIANCE", "NFO")],
+    @pytest.mark.parametrize("underlying,exchange", NFO_INDEX + [("RELIANCE", "NFO")],  # noqa: RUF005
                               ids=lambda x: x if isinstance(x, str) else "")
     def test_future_chain(self, live_gateway, underlying, exchange):
         """Futures chain must have at least 1 contract with expiry."""
@@ -173,10 +174,8 @@ class TestMarketHoursSmoke:
             got = received.wait(timeout=15)
             assert got and len(ticks) > 0, "LTP stream: 0 ticks in 15 s"
         finally:
-            try:
+            with contextlib.suppress(Exception):
                 feed.disconnect()
-            except Exception:
-                pass
 
     def test_quote_stream(self, live_gateway):
         """QUOTE stream must receive ticks within 15 s."""
@@ -192,10 +191,8 @@ class TestMarketHoursSmoke:
             got = received.wait(timeout=15)
             assert got and len(ticks) > 0, "QUOTE stream: 0 ticks in 15 s"
         finally:
-            try:
+            with contextlib.suppress(Exception):
                 feed.disconnect()
-            except Exception:
-                pass
             time.sleep(1)
 
     def test_full_mode_stream(self, live_gateway):
@@ -212,10 +209,8 @@ class TestMarketHoursSmoke:
             got = received.wait(timeout=15)
             assert got and len(ticks) > 0, "FULL mode: 0 ticks in 15 s"
         finally:
-            try:
+            with contextlib.suppress(Exception):
                 feed.disconnect()
-            except Exception:
-                pass
 
     def test_depth_20_ws_updates(self, live_gateway):
         """depth_20() EventBus must receive at least one depth update in 10 s."""
@@ -238,7 +233,5 @@ class TestMarketHoursSmoke:
             got = received.wait(timeout=10)
             assert got and len(updates) > 0, "Depth-20 WS: 0 EventBus events in 10 s"
         finally:
-            try:
+            with contextlib.suppress(Exception):
                 unsub()
-            except Exception:
-                pass

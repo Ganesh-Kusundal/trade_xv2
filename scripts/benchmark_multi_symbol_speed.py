@@ -14,6 +14,7 @@ Measures:
 - Memory usage for large batches
 """
 
+import contextlib
 import os
 import statistics
 import sys
@@ -79,7 +80,7 @@ def test_multi_symbol_performance(gw):
         symbols = nse_symbols[:size]
 
         def fetch_ltp_sequential():
-            return {sym: gw.ltp(sym, "NSE") for sym in symbols}
+            return {sym: gw.ltp(sym, "NSE") for sym in symbols}  # noqa: B023
 
         stats = benchmark_operation(f"LTP Sequential ({size})", fetch_ltp_sequential)
         throughput = size / (stats['avg_ms'] / 1000)  # symbols/sec
@@ -101,7 +102,7 @@ def test_multi_symbol_performance(gw):
         symbols = nse_symbols[:size]
 
         def fetch_ltp_batch():
-            return gw.ltp_batch(symbols, "NSE")
+            return gw.ltp_batch(symbols, "NSE")  # noqa: B023
 
         stats = benchmark_operation(f"LTP Batch ({size})", fetch_ltp_batch)
         throughput = size / (stats['avg_ms'] / 1000)
@@ -127,7 +128,7 @@ def test_multi_symbol_performance(gw):
         symbols = nse_symbols[:size]
 
         def fetch_quote_sequential():
-            return {sym: gw.quote(sym, "NSE") for sym in symbols}
+            return {sym: gw.quote(sym, "NSE") for sym in symbols}  # noqa: B023
 
         stats = benchmark_operation(f"Quote Sequential ({size})", fetch_quote_sequential)
         throughput = size / (stats['avg_ms'] / 1000)
@@ -148,7 +149,7 @@ def test_multi_symbol_performance(gw):
         symbols = nse_symbols[:size]
 
         def fetch_quote_batch():
-            return gw.quote_batch(symbols, "NSE")
+            return gw.quote_batch(symbols, "NSE")  # noqa: B023
 
         stats = benchmark_operation(f"Quote Batch ({size})", fetch_quote_batch)
         throughput = size / (stats['avg_ms'] / 1000)
@@ -174,7 +175,7 @@ def test_multi_symbol_performance(gw):
 
         def fetch_history_sequential():
             return {sym: gw.history(sym, "NSE", timeframe="1D", lookback_days=10)
-                    for sym in symbols}
+                    for sym in symbols}  # noqa: B023
 
         stats = benchmark_operation(f"History Sequential ({size})", fetch_history_sequential)
         throughput = size / (stats['avg_ms'] / 1000)
@@ -195,7 +196,7 @@ def test_multi_symbol_performance(gw):
         symbols = nse_symbols[:size]
 
         def fetch_history_batch():
-            return gw.history_batch(symbols, "NSE", timeframe="1D", lookback_days=10)
+            return gw.history_batch(symbols, "NSE", timeframe="1D", lookback_days=10)  # noqa: B023
 
         stats = benchmark_operation(f"History Batch ({size})", fetch_history_batch)
         # For batch history, result is a DataFrame, count unique symbols
@@ -401,10 +402,8 @@ def main():
             print(f"   Simple mode: {simple_ltp_10['avg_ms']:.0f}ms")
 
         # Close gateways
-        try:
+        with contextlib.suppress(BaseException):
             smart_gw.close()
-        except:
-            pass
 
         print(f"\n✅ Benchmark completed successfully.")
         print(f"   Smart mode: {len(smart_results)} tests")

@@ -6,7 +6,7 @@ behavioral parity (order lifecycle, error handling).
 
 These tests use:
 - PaperGateway for fast, deterministic parity checks
-- Mocked Dhan/Upstox for schema validation  
+- Mocked Dhan/Upstox for schema validation    # noqa: W291
 - Real sandbox brokers if credentials available (marked @pytest.mark.sandbox)
 """
 

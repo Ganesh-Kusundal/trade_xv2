@@ -11,6 +11,7 @@ when ``.env.local`` is missing.
 
 from __future__ import annotations
 
+import contextlib
 import os
 from pathlib import Path
 
@@ -46,7 +47,5 @@ def live_gateway() -> BrokerGateway:
 
     gw = BrokerFactory().create(env_path=ENV_PATH, load_instruments=True)
     yield gw
-    try:
+    with contextlib.suppress(Exception):
         gw.close()
-    except Exception:
-        pass

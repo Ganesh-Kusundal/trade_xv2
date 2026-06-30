@@ -24,6 +24,8 @@ logging.basicConfig(
 log = logging.getLogger("diag_depth")
 
 # Patch the depth feed to log response codes
+import contextlib
+
 from brokers.dhan.depth_feed_base import BinaryDepthFeed
 
 _original_process = BinaryDepthFeed._process_binary_message
@@ -90,16 +92,12 @@ def main():
         log.warning("NO ASK PACKETS RECEIVED! Only response codes: %s", list(response_codes_seen.keys()))
 
     # Cleanup
-    try:
+    with contextlib.suppress(Exception):
         feed = gw._conn.depth_20_feed
         if feed:
             feed.stop(timeout_seconds=3)
-    except Exception:
-        pass
-    try:
+    with contextlib.suppress(Exception):
         gw.close()
-    except Exception:
-        pass
 
 
 if __name__ == "__main__":

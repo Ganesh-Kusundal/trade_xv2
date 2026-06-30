@@ -2,7 +2,7 @@
 
 Tests that all broker gateways (Dhan, Upstox, Paper) implement the full
 MarketDataGateway ABC contract with correct signatures, return types,
-and error handling. 
+and error handling.   # noqa: W291
 
 Uses mocked HTTP clients so tests run without live broker credentials.
 """

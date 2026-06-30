@@ -2,12 +2,13 @@
 
 Tests all market data endpoints across:
 - NSE Equity (NSE)
-- NSE Futures & Options (NFO)  
+- NSE Futures & Options (NFO)    # noqa: W291
 - NSE Index (IDX_I)
 - MCX Commodity (MCX)
 - MCX Commodity Options (MCX)
 """
 
+import contextlib
 import os
 import sys
 import time
@@ -293,10 +294,8 @@ def main():
         print(f"Result: {'✅ ALL TESTS PASSED' if failed == 0 else f'❌ {failed} FAILURES'}")
 
         # Close gateway
-        try:
+        with contextlib.suppress(BaseException):
             gw._conn.close()
-        except:
-            pass
 
     except Exception as e:
         print(f"\n💥 FATAL: {e}")

@@ -27,6 +27,7 @@ Usage
 
 from __future__ import annotations
 
+import contextlib
 import os
 from pathlib import Path
 
@@ -84,10 +85,8 @@ def live_app():
     app = create_app()
     yield app
 
-    try:
+    with contextlib.suppress(Exception):
         gw.close()
-    except Exception:
-        pass
 
 
 @pytest.fixture(scope="module")

@@ -322,7 +322,7 @@ async def square_off_positions(
             },
         }
     except SquareOffRejectedError as exc:
-        raise HTTPException(
+        raise HTTPException(  # noqa: B904
             status_code=status.HTTP_403_FORBIDDEN,
             detail=str(exc),
         )

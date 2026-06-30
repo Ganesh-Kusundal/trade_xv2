@@ -117,10 +117,8 @@ def test_upstox_news():
         from cli.commands.news import run
         old_stdout = sys.stdout
         sys.stdout = StringIO()
-        try:
+        with contextlib.suppress(Exception):
             run.__wrapped__() if hasattr(run, '__wrapped__') else None
-        except Exception:
-            pass
         output = sys.stdout.getvalue()
         sys.stdout = old_stdout
         if "news" in output.lower() or "no broker" in output.lower() or "No news" in output:

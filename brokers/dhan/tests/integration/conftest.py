@@ -11,6 +11,7 @@ Every test module inside this directory is auto-tagged with the
 
 from __future__ import annotations
 
+import contextlib
 import os
 import threading
 import time
@@ -64,10 +65,8 @@ def live_gateway() -> BrokerGateway:
 
     gw = BrokerFactory().create(env_path=ENV_PATH, load_instruments=True)
     yield gw
-    try:
+    with contextlib.suppress(Exception):
         gw.close()
-    except Exception:
-        pass
 
 
 # ---------------------------------------------------------------------------

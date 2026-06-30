@@ -52,12 +52,12 @@ def _create_gateways(broker_ids: list[str] | None = None) -> list[Any]:
     try:
         from brokers.dhan.gateway import DhanBrokerGateway
     except ImportError:
-        DhanBrokerGateway = None
+        DhanBrokerGateway = None  # noqa: N806
 
     try:
         from brokers.paper.gateway import PaperBrokerGateway
     except ImportError:
-        PaperBrokerGateway = None
+        PaperBrokerGateway = None  # noqa: N806
     if broker_ids is None:
         broker_ids = _detect_enabled_brokers()
 

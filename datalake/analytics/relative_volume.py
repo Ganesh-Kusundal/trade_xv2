@@ -129,7 +129,7 @@ def rel_volume_14d_by_time(
         WHERE trade_date = '{target_date}'
           AND avg_volume > 0
         ORDER BY rel_volume DESC
-        """
+        """  # noqa: S608
         return conn.execute(sql).fetchdf()
     finally:
         if own_conn:
@@ -190,7 +190,7 @@ def rel_volume_20d_daily(
         WHERE trade_date = '{target_date}'
           AND avg_volume > 0
         ORDER BY rel_volume DESC
-        """
+        """  # noqa: S608
         return conn.execute(sql).fetchdf()
     finally:
         if own_conn:

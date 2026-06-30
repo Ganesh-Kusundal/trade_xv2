@@ -40,7 +40,7 @@ def to_instrument_id(
                     break
                 except ValueError:
                     continue
-        except Exception:
+        except Exception:  # noqa: S110
             pass
 
     # Determine underlying
@@ -98,4 +98,4 @@ def from_instrument_id(iid: InstrumentId) -> dict:
 
 
 # Needed for strptime
-from datetime import datetime
+from datetime import datetime  # noqa: E402

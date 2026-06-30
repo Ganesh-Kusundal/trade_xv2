@@ -45,7 +45,7 @@ class TestServiceContainerImmutability:
 
         # Verify it's frozen
         with pytest.raises(
-            Exception, match="frozen|dataclass"
+            Exception, match="frozen|dataclass"  # noqa: RUF043
         ):  # frozen=True raises FrozenInstanceError
             container.datalake_gateway = "new_value"
 
@@ -57,7 +57,7 @@ class TestServiceContainerImmutability:
         )
 
         for field in fields(ServiceContainer):
-            with pytest.raises(Exception, match="frozen|dataclass"):
+            with pytest.raises(Exception, match="frozen|dataclass"):  # noqa: RUF043
                 setattr(container, field.name, "modified")
 
     def test_container_extra_field_is_mutable(self):

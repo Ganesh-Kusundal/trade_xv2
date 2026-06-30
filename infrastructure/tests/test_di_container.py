@@ -385,7 +385,7 @@ class TestContainerThreadSafety:
         assert len(errors) == 0
         assert len(results) == 50
         # All should be different instances
-        assert len(set(id(r) for r in results)) == 50
+        assert len(set(id(r) for r in results)) == 50  # noqa: C401
 
     def test_concurrent_registration_and_resolution(self):
         """Concurrent registration and resolution is safe."""

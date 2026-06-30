@@ -142,8 +142,8 @@ def _legacy_placeholder():
                 tick_lock = threading.Lock()
 
                 def on_tick(data):
-                    with tick_lock:
-                        ticks.append(data)
+                    with tick_lock:  # noqa: B023
+                        ticks.append(data)  # noqa: B023
 
                 # Subscribe to FULL mode
                 feed = gateway.stream(symbol, exchange, mode="FULL", on_tick=on_tick)
@@ -284,8 +284,8 @@ def _legacy_placeholder():
                 depth_lock = threading.Lock()
 
                 def on_depth(data):
-                    with depth_lock:
-                        depth_updates.append(data)
+                    with depth_lock:  # noqa: B023
+                        depth_updates.append(data)  # noqa: B023
 
                 # Subscribe to depth-20
                 t0 = time.time()

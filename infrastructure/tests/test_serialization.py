@@ -191,7 +191,7 @@ def test_from_dict_rejects_non_dataclass() -> None:
     sut = JsonSerializer()
     try:
         sut.from_dict({}, dict)
-        assert False, "Should have raised TypeError"
+        assert False, "Should have raised TypeError"  # noqa: B011
     except TypeError:
         pass
 

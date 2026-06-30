@@ -98,7 +98,8 @@ def normalize_to_canonical(
         if col not in df.columns:
             df[col] = 0 if col in ("volume", "oi") else ""
 
-    df = df[*CANONICAL_COLUMNS, "event_time", "published_at", "ingested_at", "is_correction"]
+    _cols = list(CANONICAL_COLUMNS) + ["event_time", "published_at", "ingested_at", "is_correction"]  # noqa: RUF005
+    df = df[_cols]
     df = df.dropna(subset=["timestamp"])
 
     return df

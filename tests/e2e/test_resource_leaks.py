@@ -71,7 +71,7 @@ class TestResourceLeaks:
 
         # Verify lock file is not held
         if lock_path.exists():
-            lock_fd = open(lock_path, "r+")
+            lock_fd = open(lock_path, "r+")  # noqa: SIM115
             try:
                 fcntl.flock(lock_fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
                 # If we get here, lock was released

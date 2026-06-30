@@ -381,7 +381,8 @@ class TestQuoteRateLimit:
 # Audit Fixes — Memory/Callback Leaks and Multiplexing refcount
 # ---------------------------------------------------------------------------
 
-import threading
+import threading  # noqa: E402
+
 
 class TestAuditLeakAndMultiplexingFixes:
     """Audit verification tests for Dhan connection and WebSocket leak fixes."""
@@ -389,23 +390,24 @@ class TestAuditLeakAndMultiplexingFixes:
     def test_dhan_connection_token_receiver_weakref(self):
         """DhanConnection uses weak references and avoids leaking stopped feeds."""
         import gc
+
         from brokers.dhan.connection import DhanConnection
         from brokers.dhan.websocket.market_feed import DhanMarketFeed
 
         conn = DhanConnection(client=mock.MagicMock())
-        
+
         # Create a mock feed
         feed = mock.MagicMock(spec=DhanMarketFeed)
         # Register a bound method (update_token)
         conn.register_token_receiver(feed.update_token)
-        
+
         # Verify it is registered
         assert len(conn._token_receivers) == 1
-        
+
         # Simulate GC of the feed (since the connection only holds a WeakMethod)
         del feed
         gc.collect()
-        
+
         # Attempt to broadcast — should clean up the dead reference
         notified = conn.broadcast_token("new_token_123")
         assert notified == 0
@@ -414,28 +416,28 @@ class TestAuditLeakAndMultiplexingFixes:
     def test_broker_gateway_callback_leak_prevention(self):
         """BrokerGateway unstream removes wrapper callback from feed."""
         from brokers.dhan.gateway import BrokerGateway
-        
+
         # Mock feed and connection
         feed = mock.MagicMock()
         conn = mock.MagicMock()
         conn.market_feed = feed
-        
+
         # Create gateway and mock instrument resolver
         gw = BrokerGateway.__new__(BrokerGateway)
         gw._conn = conn
         gw._stream_lock = threading.Lock()
         gw._stream_registry = {}
         gw._subscription_modes = {}
-        
+
         conn.instruments.resolve.return_value = mock.MagicMock(security_id="500325", exchange=mock.MagicMock(value="NSE"))
-        
+
         cb1 = mock.MagicMock()
-        
+
         # Register stream
         gw.stream("RELIANCE", "NSE", on_tick=cb1)
         assert len(feed.on_quote.call_args_list) == 1
         registered_wrap = feed.on_quote.call_args[0][0]
-        
+
         # Unstream and verify off_quote is called with the SAME wrap function
         gw.unstream("RELIANCE", "NSE", on_tick=cb1)
         feed.off_quote.assert_called_once_with(registered_wrap)
@@ -444,40 +446,41 @@ class TestAuditLeakAndMultiplexingFixes:
     def test_market_data_gateway_adapter_ref_counting(self):
         """MarketDataGatewayAdapter tracks active handles and prevents premature stop."""
         import asyncio
+
         from brokers.common.adapters.market_data_gateway_adapter import wrap_market_gateway
         from brokers.common.broker_port import BrokerStreamPlan
-        
+
         legacy_gw = mock.MagicMock()
         adapter = wrap_market_gateway(legacy_gw, "dhan")
-        
+
         plan1 = BrokerStreamPlan(frozenset(["RELIANCE:NSE"]), frozenset(["LTP"]), on_raw_frame=mock.MagicMock())
         plan2 = BrokerStreamPlan(frozenset(["SBIN:NSE"]), frozenset(["LTP"]), on_raw_frame=mock.MagicMock())
-        
+
         loop = asyncio.new_event_loop()
         try:
             async def run_test():
                 # Open two sessions
                 h1 = await adapter.open_market_stream(plan1)
                 h2 = await adapter.open_market_stream(plan2)
-                
+
                 assert len(adapter._active_market_handles) == 2
-                
+
                 # Disconnect session 1
                 await h1.disconnect()
-                
+
                 # Sibling connection should still be open
                 legacy_gw.unstream.assert_called_once_with("RELIANCE", "NSE", mock.ANY)
                 # Physical feed should NOT have disconnect called
                 disconnect = getattr(h1._feed, "disconnect", None)
                 if disconnect:
                     disconnect.assert_not_called()
-                
+
                 assert len(adapter._active_market_handles) == 1
-                
+
                 # Disconnect session 2
                 await h2.disconnect()
                 assert len(adapter._active_market_handles) == 0
-                
+
             loop.run_until_complete(run_test())
         finally:
             loop.close()

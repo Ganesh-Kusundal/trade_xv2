@@ -229,7 +229,7 @@ class TestPrecomputation:
         # Read back
         levels = sr._read_precomputed("RELIANCE")
         assert len(levels) > 0
-        assert all(isinstance(l, PriceLevel) for l in levels)
+        assert all(isinstance(l, PriceLevel) for l in levels)  # noqa: E741
 
     def test_precomputed_vs_on_the_fly(self, tmp_path):
         """Precomputed and on-the-fly results should match."""
@@ -261,8 +261,8 @@ class TestAccuracy:
         result = sr.get_levels("RELIANCE", days=120, top_n=5)
 
         if result["support"] and result["resistance"]:
-            max_support = max(l.price for l in result["support"])
-            min_resistance = min(l.price for l in result["resistance"])
+            max_support = max(l.price for l in result["support"])  # noqa: E741
+            min_resistance = min(l.price for l in result["resistance"])  # noqa: E741
             # In a trending market, resistance can be below support
             # but typically resistance > support
             assert min_resistance > max_support * 0.9  # allow 10% tolerance

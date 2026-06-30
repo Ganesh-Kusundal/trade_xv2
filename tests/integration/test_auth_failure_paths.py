@@ -131,7 +131,7 @@ class TestTOTPFailure:
         invalid_secret = "INVALID"
 
         # Should raise when trying to generate TOTP
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017
             totp = TOTP(invalid_secret)
             totp.now()
 
@@ -168,7 +168,7 @@ class TestRateLimitedLogin:
         limiter.acquire("login")
 
         # Second request immediately should fail
-        with pytest.raises(Exception):  # Could be TimeoutError or custom
+        with pytest.raises(Exception):  # Could be TimeoutError or custom  # noqa: B017
             limiter.acquire("login", timeout=0)
 
         print("✅ Rate limited login raises error")

@@ -12,6 +12,7 @@ will fail CI if any P0 capability has no registered case.
 
 from __future__ import annotations
 
+import contextlib
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
@@ -177,10 +178,8 @@ def _assert_full_mode_tick(gw: BrokerGateway) -> None:
         got = received.wait(timeout=15)
         assert got and len(ticks) > 0, "FULL mode: 0 ticks received in 15 s during market hours"
     finally:
-        try:
+        with contextlib.suppress(Exception):
             feed.disconnect()
-        except Exception:
-            pass
 
 
 # ---------------------------------------------------------------------------

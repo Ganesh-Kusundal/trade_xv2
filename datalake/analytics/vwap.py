@@ -3,7 +3,7 @@
 Computes VWAP during data ingestion (loader/converter) and provides
 standalone VWAP calculation for any OHLCV DataFrame.
 
-VWAP = Σ(typical_price × volume) / Σ(volume)
+VWAP = sum(typical_price * volume) / sum(volume)
 where typical_price = (high + low + close) / 3
 """
 

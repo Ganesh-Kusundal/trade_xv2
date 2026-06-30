@@ -161,7 +161,7 @@ class OptionsGreeksPrecomputer:
           AND gamma IS NOT NULL
           AND theta IS NOT NULL
           AND vega IS NOT NULL
-        """
+        """  # noqa: S608
 
     def read_greeks(
         self,
@@ -199,7 +199,7 @@ class OptionsGreeksPrecomputer:
             SELECT * FROM read_parquet('{glob_pattern}')
             {where}
             ORDER BY underlying, timestamp, strike, option_type
-        """
+        """  # noqa: S608
         return duckdb.execute(query, params).fetchdf()
 
 

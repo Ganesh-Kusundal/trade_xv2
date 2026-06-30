@@ -101,7 +101,7 @@ def as_of_join(
         FROM {left_table} AS {left_alias}
         ASOF JOIN {right_table} AS {right_alias}
           ON {join_sql}
-    """
+    """  # noqa: S608
 
     if config.strict:
         lookahead_warnings = validate_no_lookahead(sql)

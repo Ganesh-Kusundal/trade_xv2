@@ -8,6 +8,7 @@ Tests cover both Dhan and Upstox brokers with realistic failure modes.
 
 from __future__ import annotations
 
+import contextlib
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -116,10 +117,8 @@ class TestDisconnectDuringOrderSubmission:
 
         # Trigger failures up to threshold
         for _ in range(2):
-            try:
+            with contextlib.suppress(Exception):
                 executor.execute(always_fails)
-            except Exception:
-                pass
 
         assert cb.state == CircuitState.OPEN
 

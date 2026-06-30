@@ -151,7 +151,7 @@ class MarketConsoleWidget(Static):
                 today_str = date.today().isoformat()
                 future_expiries = sorted([e for e in expiries if e >= today_str])
                 expiry = future_expiries[0] if future_expiries else None
-            except Exception:
+            except Exception:  # noqa: S110
                 pass
 
             if not expiry:
