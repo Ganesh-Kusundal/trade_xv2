@@ -102,7 +102,7 @@ class TestPhase3StructuralCleanup:
             pytest.skip("venv Python not found, skipping import-linter check")
 
         result = subprocess.run(
-            [str(venv_python), "-m", "importlinter", "check", "--config", str(import_linter_config)],
+            ["lint-imports", "--config", str(import_linter_config)],
             cwd=str(project_root),
             capture_output=True,
             text=True,

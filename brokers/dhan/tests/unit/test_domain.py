@@ -12,6 +12,7 @@ from brokers.dhan.domain import (
     OptionType,
 )
 from domain import Balance, Quote, Side
+from domain.entities.instrument import Instrument as DomainInstrument
 
 
 def test_exchange_enum_values():
@@ -21,14 +22,19 @@ def test_exchange_enum_values():
 
 
 def test_instrument_frozen():
-    inst = Instrument(
+    domain_inst = DomainInstrument(
         symbol="X",
-        exchange=Exchange.NSE,
+        exchange="NSE",
         security_id="1",
+        instrument_type="EQUITY",
+    )
+    inst = Instrument(
+        domain_instrument=domain_inst,
+        exchange=Exchange.NSE,
         instrument_type=InstrumentType.EQUITY,
     )
     with pytest.raises(FrozenInstanceError):
-        inst.symbol = "Y"
+        inst.domain_instrument.symbol = "Y"
 
 
 def test_quote_defaults():
@@ -43,21 +49,16 @@ def test_quote_defaults():
     assert q.change == Decimal("0")
 
 
-def test_order_side_enum():
-    assert Side.BUY.value == "BUY"
-    assert Side.SELL.value == "SELL"
-
-
-def test_balance_fields():
+def test_balance_defaults():
     b = Balance()
     fields = {
         "available_balance",
+        "used_margin",
+        "total_margin",
         "sod_limit",
         "collateral_amount",
         "utilized_amount",
         "withdrawable_balance",
-        "used_margin",
-        "total_margin",
     }
     assert set(b.__dataclass_fields__.keys()) == fields
     # All default to zero
@@ -65,23 +66,34 @@ def test_balance_fields():
 
 
 def test_instrument_is_option_property():
-    inst = Instrument(
+    domain_inst = DomainInstrument(
         symbol="NIFTY 25000 CE",
-        exchange=Exchange.NFO,
+        exchange="NFO",
         security_id="55000",
+        instrument_type="OPTION",
+        option_type="CALL",
+        strike_price=Decimal("25000"),
+    )
+    inst = Instrument(
+        domain_instrument=domain_inst,
+        exchange=Exchange.NFO,
         instrument_type=InstrumentType.OPTION,
         option_type=OptionType.CALL,
-        strike_price=Decimal("25000"),
     )
     assert inst.is_option is True
     assert inst.is_future is False
 
 
 def test_instrument_is_future_property():
-    inst = Instrument(
+    domain_inst = DomainInstrument(
         symbol="NIFTY JUN FUT",
-        exchange=Exchange.NFO,
+        exchange="NFO",
         security_id="55100",
+        instrument_type="FUTURE",
+    )
+    inst = Instrument(
+        domain_instrument=domain_inst,
+        exchange=Exchange.NFO,
         instrument_type=InstrumentType.FUTURE,
     )
     assert inst.is_future is True

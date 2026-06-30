@@ -219,6 +219,10 @@ class TestDhanMarketFeedChaosScenarios:
             mock_sdk_instance = MagicMock()
             mock_sdk_instance.run.side_effect = ConnectionError("Immediate fail")
             mock_sdk.return_value = mock_sdk_instance
+            # _build_sdk_feed_locked calls _sdk_market_feed_class()(...) — two levels:
+            # mock_sdk() → mock_sdk_instance (the class), mock_sdk_instance(...) → instance.
+            # Wire the second level back to the same mock so run() has the side effect.
+            mock_sdk.return_value.return_value = mock_sdk_instance
 
             feed = DhanMarketFeed(
                 client_id="test_client",
@@ -263,6 +267,10 @@ class TestDhanMarketFeedChaosScenarios:
 
             mock_sdk_instance.run.side_effect = pattern
             mock_sdk.return_value = mock_sdk_instance
+            # _build_sdk_feed_locked calls _sdk_market_feed_class()(...) — two levels:
+            # mock_sdk() → mock_sdk_instance (the class), mock_sdk_instance(...) → instance.
+            # Wire the second level back to the same mock so run() has the pattern side effect.
+            mock_sdk.return_value.return_value = mock_sdk_instance
 
             feed = DhanMarketFeed(
                 client_id="test_client",

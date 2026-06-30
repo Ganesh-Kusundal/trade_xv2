@@ -420,17 +420,25 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         from_date: str | None = None,
         to_date: str | None = None,
     ) -> pd.DataFrame:
+        from brokers.dhan.exceptions import InstrumentNotFoundError
         to_d = date.today()
         from_d = to_d - timedelta(days=lookback_days)
         to_str = to_date or str(to_d)
         from_str = from_date or str(from_d)
         tf = timeframe.upper() if timeframe else "1D"
         if isinstance(symbol, str):
-            return self._conn.historical.get_historical(symbol, exchange, from_str, to_str, tf)
+            try:
+                return self._conn.historical.get_historical(symbol, exchange, from_str, to_str, tf)
+            except InstrumentNotFoundError:
+                logger.warning("history: instrument not found: %s/%s", symbol, exchange)
+                return pd.DataFrame()
         frames = []
         for sym in symbol:
-            df = self._conn.historical.get_historical(sym, exchange, from_str, to_str, tf)
-            frames.append(df)
+            try:
+                df = self._conn.historical.get_historical(sym, exchange, from_str, to_str, tf)
+                frames.append(df)
+            except InstrumentNotFoundError:
+                logger.warning("history: instrument not found: %s/%s", sym, exchange)
         return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
     def option_chain(
@@ -449,7 +457,12 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
     ) -> FutureChain:
         from config.indices import INDEX_TO_FNO_EXCHANGE
 
-        dhan_exchange = INDEX_TO_FNO_EXCHANGE.get(underlying.upper(), exchange)
+        # Index futures use the mapped exchange; stock futures always trade on NFO.
+        # If a caller passes exchange="NSE" for a stock like RELIANCE, remap to NFO.
+        dhan_exchange = INDEX_TO_FNO_EXCHANGE.get(underlying.upper(), None)
+        if dhan_exchange is None:
+            # Not an index — it's a stock. Stock F&O always trades on NFO.
+            dhan_exchange = "NFO" if exchange.upper() in ("NSE", "BSE") else exchange
         contracts = self._conn.futures.get_contracts(underlying, dhan_exchange)
         expiries = self._conn.futures.get_expiries(underlying, dhan_exchange)
         chain = []

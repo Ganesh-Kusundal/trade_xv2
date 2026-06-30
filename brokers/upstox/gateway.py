@@ -222,8 +222,6 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         cache_path = Path(".cache/upstox/complete.json.gz")
         if source:
             path = Path(source)
-        elif cache_path.exists():
-            path = cache_path
         else:
             path = self._broker.instrument_loader.download(cache_path)
 
@@ -312,10 +310,18 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         Returns:
             DataFrame with OHLCV data
         """
-        key = self._resolve_instrument_key(symbol, exchange)
-        return self._historical.fetch_candles(
-            symbol, exchange, key, from_date, to_date, unit, interval
-        )
+        from brokers.upstox.auth.exceptions import UpstoxApiError
+        try:
+            key = self._resolve_instrument_key(symbol, exchange)
+            return self._historical.fetch_candles(
+                symbol, exchange, key, from_date, to_date, unit, interval
+            )
+        except UpstoxApiError as e:
+            logger.warning("Upstox history API error for symbol %s: %s", symbol, e)
+            return pd.DataFrame()
+        except Exception as e:
+            logger.warning("Failed to fetch history for symbol %s: %s", symbol, e)
+            return pd.DataFrame()
 
     def option_chain(
         self,
@@ -446,8 +452,13 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         results = []
         q = query.upper().strip()
         if hasattr(self._broker.instrument_resolver, "search"):
-            results = self._broker.instrument_resolver.search(q)
-        return results[:20] if isinstance(results, list) else []
+            defs = self._broker.instrument_resolver.search(q)
+            for d in defs:
+                dct = d.model_dump() if hasattr(d, "model_dump") else d.dict()
+                if not dct.get("symbol") and dct.get("trading_symbol"):
+                    dct["symbol"] = dct["trading_symbol"]
+                results.append(dct)
+        return results[:20]
 
     def stream(
         self,

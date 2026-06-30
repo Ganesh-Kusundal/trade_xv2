@@ -35,6 +35,7 @@ def _make_gateway_with_mock_broker() -> UpstoxBrokerGateway:
     ws = _make_multiplexer()
     broker.market_data_websocket = ws
     broker.instrument_resolver = MagicMock()
+    broker.instrument_resolver.resolve.return_value = None
     return UpstoxBrokerGateway(broker)
 
 
@@ -82,7 +83,7 @@ class TestUpstoxStreamCallbackDedup:
 
         # The key is constructed as f"{segment_to_wire(exchange)}|{symbol}"
         # segment_to_wire("NSE") returns "NSE"
-        inst_key = "NSE|RELIANCE"
+        inst_key = "NSE_EQ|RELIANCE"
         assert len(gw._stream_registry[inst_key]) == 2
 
 
@@ -106,7 +107,7 @@ class TestUpstoxUnstream:
         gw.stream("RELIANCE", "NSE", on_tick=tick_b)
         gw.unstream("RELIANCE", "NSE", on_tick=tick_a)
 
-        inst_key = "NSE|RELIANCE"
+        inst_key = "NSE_EQ|RELIANCE"
         remaining = gw._stream_registry.get(inst_key, [])
         assert len(remaining) == 1
         assert remaining[0][0] is tick_b
@@ -123,7 +124,7 @@ class TestUpstoxUnstream:
         gw.stream("RELIANCE", "NSE", on_tick=tick_a)
         gw.unstream("RELIANCE", "NSE")
 
-        inst_key = "NSE|RELIANCE"
+        inst_key = "NSE_EQ|RELIANCE"
         assert inst_key not in gw._stream_registry
 
     def test_unstream_removes_listener_from_multiplexer(self):

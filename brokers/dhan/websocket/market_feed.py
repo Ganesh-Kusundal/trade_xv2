@@ -312,7 +312,14 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
                     self._is_connected = False
                     self._connected_at = None
                     self._disconnect_time = self._disconnect_time or datetime.now(timezone.utc)
+                    old_feed = self._feed
                     self._feed = None
+                # Close the old feed connection after releasing the lock so
+                # that stop() (which may arrive concurrently) can observe
+                # closed=True on the same object.
+                if old_feed is not None:
+                    with contextlib.suppress(Exception):
+                        old_feed.close_connection()
                 self._emit_reconnect_metric()
 
             # Check if we should stop
@@ -322,6 +329,11 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
             if self._stop_event.wait(timeout=backoff):
                 break
             backoff = min(backoff * 2, max_backoff)
+
+        # Always release the host-wide admission lock when _run() exits so
+        # the lock file is not left held if the caller used _stop_event.set()
+        # directly (e.g. in unit tests) rather than going through stop().
+        self._admission.release()
 
     def _watchdog_loop(self) -> None:
         """Close ghost sockets when no market data arrives inside the SLA."""
@@ -415,12 +427,12 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
 
         with self._lock:
             thread_alive = bool(self._thread and self._thread.is_alive())
-            is_connected = self._is_connected
-            reconnect_count = self._reconnect_count
+            is_connected = getattr(self, "_is_connected", False)
+            reconnect_count = getattr(self, "_reconnect_count", 0)
             last_message_age = self._last_activity_age_seconds_locked()
-            admission_blocked = self._admission_blocked
+            admission_blocked = getattr(self, "_admission_blocked", False)
 
-        admission_status = self._admission.status()
+        admission_status = self._admission.status() if getattr(self, "_admission", None) else {}
 
         # H2: Staleness detection
         staleness_threshold = self._staleness_threshold_seconds()
@@ -434,7 +446,7 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
         elif thread_alive and admission_blocked:
             state = HealthState.DEGRADED
             detail = "market_feed_connection_lock_held by another process on this host"
-        elif thread_alive and admission_status.get("seconds_until_connect_allowed", 0) > 0:
+        elif thread_alive and isinstance(admission_status, dict) and admission_status.get("seconds_until_connect_allowed", 0) > 0:
             state = HealthState.DEGRADED
             detail = "waiting for rate-limit cooldown before next handshake"
         elif thread_alive and is_connected and is_stale:
@@ -474,8 +486,10 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
     def _staleness_threshold_seconds() -> float:
         return float(os.getenv("DHAN_STALENESS_THRESHOLD_SECONDS", "60.0"))
 
-    def _last_activity_age_seconds_locked(self) -> float | None:
-        references = [ts for ts in (self._last_message_at, self._connected_at) if ts is not None]
+    def _last_activity_age_seconds_locked(self) -> float:
+        last_msg = getattr(self, "_last_message_at", None)
+        conn_at = getattr(self, "_connected_at", None)
+        references = [ts for ts in (last_msg, conn_at) if ts is not None]
         if not references:
             return None
         reference = max(references)

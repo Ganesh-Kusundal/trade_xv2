@@ -258,7 +258,7 @@ class _UpstoxUrls:
         return f"{self._hft()}/order/history"
 
     def trades_for_day_url(self) -> str:
-        return f"{self._hft()}/order/trades/get-trades-for-day"
+        return f"{self._v2()}/order/trades/get-trades-for-day"
 
     # ── Orders (v2 legacy) ──────────────────────────────────────────────
     def place_order_v2_url(self) -> str:

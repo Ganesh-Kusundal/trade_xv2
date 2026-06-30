@@ -90,7 +90,7 @@ class TestUpstoxGatewayStream:
         assert not ws.connect_called
         assert len(ws.subscribed) == 1
         keys, mode = ws.subscribed[0]
-        assert keys == ["NSE|INFY"]
+        assert keys == ["NSE_EQ|INFY"]
         assert mode == "ltp"
 
     def test_stream_connects_when_not_connected(self):
@@ -101,7 +101,7 @@ class TestUpstoxGatewayStream:
         assert ws.connect_called
         assert len(ws.subscribed) == 1
         keys, mode = ws.subscribed[0]
-        assert keys == ["NSE|INFY"]
+        assert keys == ["NSE_EQ|INFY"]
         assert mode == "ltp"
 
     def test_stream_wraps_on_tick_to_quote(self):
@@ -162,7 +162,7 @@ class TestUpstoxGatewayStream:
         gateway.stream("RELIANCE", exchange="BSE", mode="FULL")
 
         keys, mode = ws.subscribed[0]
-        assert keys == ["BSE|RELIANCE"]
+        assert keys == ["BSE_EQ|RELIANCE"]
         assert mode == "full"
 
     def test_stream_accepts_on_tick_none(self):

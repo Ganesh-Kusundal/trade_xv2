@@ -31,7 +31,7 @@ class UpstoxInstrumentDefinition(BaseModel):
 
     @property
     def is_option(self) -> bool:
-        return self.instrument_type.upper() in ("OPTION", "OPT")
+        return self.instrument_type.upper() in ("OPTION", "OPT", "CE", "PE")
 
     @property
     def is_future(self) -> bool:

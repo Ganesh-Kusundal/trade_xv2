@@ -14,6 +14,7 @@ import time
 from decimal import Decimal
 from pathlib import Path
 
+import pandas as pd
 import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
@@ -80,13 +81,16 @@ class TestLiveBatchMarketData:
             assert hasattr(quote, "symbol") or "symbol" in quote
 
     def test_history_batch_nse_equity(self, gateway: BrokerGateway):
-        """history_batch() for multiple symbols should return concatenated DataFrame."""
+        """history_batch() for multiple symbols should return dict[str, DataFrame]."""
         symbols = ["RELIANCE", "TCS"]
-        df = gateway.history_batch(symbols, "NSE", timeframe="1D", lookback_days=3)
-        assert df is not None
-        assert len(df) > 0
-        # Should have data for both symbols
-        assert "symbol" in df.columns or len(df) >= 6  # At least 3 days * 2 symbols
+        result = gateway.history_batch(symbols, "NSE", timeframe="1D", lookback_days=3)
+        assert result is not None
+        assert isinstance(result, dict)
+        # Each symbol should have a DataFrame with at least some data
+        for sym in symbols:
+            assert sym in result, f"{sym} missing from history_batch result"
+            df = result[sym]
+            assert isinstance(df, pd.DataFrame), f"{sym} result is not a DataFrame"
 
     def test_ltp_batch_parity_with_individual(self, gateway: BrokerGateway):
         """ltp_batch() results should match individual ltp() calls."""

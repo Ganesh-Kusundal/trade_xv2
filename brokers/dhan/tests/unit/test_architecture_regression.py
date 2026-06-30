@@ -38,8 +38,8 @@ class TestDualFeedPrevention:
         conn._market_feed = None
         return conn
 
-    def test_create_market_feed_stops_existing_feed(self):
-        """create_market_feed() must stop the existing feed before creating a new one."""
+    def test_create_market_feed_returns_existing_feed(self):
+        """create_market_feed() must return the existing feed if one exists."""
         from brokers.dhan.connection import DhanConnection
 
         conn = MagicMock(spec=DhanConnection)
@@ -54,9 +54,9 @@ class TestDualFeedPrevention:
         conn._market_feed = old_feed
 
         # Call the real create_market_feed
-        DhanConnection.create_market_feed(conn, access_token="TOKEN")
+        result = DhanConnection.create_market_feed(conn, access_token="TOKEN")
 
-        old_feed.stop.assert_called_once_with(timeout_seconds=5.0)
+        assert result is old_feed
 
     def test_create_market_feed_noop_when_no_existing(self):
         """create_market_feed() should not fail when no existing feed."""

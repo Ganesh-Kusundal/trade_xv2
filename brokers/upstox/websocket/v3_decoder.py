@@ -1,7 +1,6 @@
 """Upstox V3 binary frame decoder.
 
-The V3 server pushes Protobuf-encoded binary frames. Each frame has a
-1-byte type prefix and 2-byte big-endian length, then a Protobuf payload.
+The V3 server pushes Protobuf-encoded binary FeedResponse frames directly.
 
 Mirrors Trade_J ``UpstoxBinaryParser`` / ``UpstoxMarketInfoParser``.
 """
@@ -9,8 +8,11 @@ Mirrors Trade_J ``UpstoxBinaryParser`` / ``UpstoxMarketInfoParser``.
 from __future__ import annotations
 
 import struct
+import logging
 from dataclasses import dataclass, field
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 FRAME_HEARTBEAT = 100
 FRAME_TYPE_INDEX = 1
@@ -27,28 +29,122 @@ class ParsedFeedFrame:
 class UpstoxV3Decoder:
     """Parse Upstox V3 binary feed frames into plain dicts."""
 
-    def parse(self, raw: bytes) -> ParsedFeedFrame | None:
-        if not raw or len(raw) < 3:
+    def parse(self, raw: bytes) -> list[ParsedFeedFrame] | ParsedFeedFrame | None:
+        if not raw:
             return None
-        frame_type = raw[0]
-        (length,) = struct.unpack(">H", raw[1:3])
-        if len(raw) < 3 + length:
-            raise ValueError("Truncated Upstox V3 frame")
-        payload_bytes = bytes(raw[3 : 3 + length])
-        if frame_type == FRAME_HEARTBEAT:
-            return ParsedFeedFrame(type=frame_type, raw=raw, payload={})
-        try:
-            from .proto.market_feed_pb2 import Feed
 
-            feed = Feed()
-            feed.ParseFromString(payload_bytes)
-            payload = self._feed_to_dict(feed)
-        except Exception:
-            payload = {"raw_size": length}
-        return ParsedFeedFrame(type=frame_type, raw=raw, payload=payload)
+        # 1. Try parsing as FeedResponse (V3 WebSocket protocol)
+        try:
+            from .proto.market_feed_pb2 import FeedResponse
+
+            response = FeedResponse()
+            response.ParseFromString(raw)
+
+            frames = []
+            frame_type = response.type
+            for key, feed in response.feeds.items():
+                payload = self._feed_to_dict_v3(feed, key)
+                frames.append(ParsedFeedFrame(type=frame_type, raw=raw, payload=payload))
+            return frames
+        except Exception as e:
+            # Fall back to V2/mock 1-byte type prefix + 2-byte length parsing
+            try:
+                if len(raw) < 3:
+                    return None
+                frame_type = raw[0]
+                (length,) = struct.unpack(">H", raw[1:3])
+                if len(raw) < 3 + length:
+                    return None
+                payload_bytes = bytes(raw[3 : 3 + length])
+                if frame_type == FRAME_HEARTBEAT:
+                    return ParsedFeedFrame(type=frame_type, raw=raw, payload={})
+
+                from .proto.market_feed_pb2 import Feed
+                feed = Feed()
+                feed.ParseFromString(payload_bytes)
+                payload = self._feed_to_dict_old(feed)
+                return ParsedFeedFrame(type=frame_type, raw=raw, payload=payload)
+            except Exception as exc:
+                logger.debug("Upstox V3 fallback decode failed: %s", exc)
+                return None
 
     @staticmethod
-    def _feed_to_dict(feed: Any) -> dict[str, Any]:
+    def _feed_to_dict_v3(feed: Any, instrument_key: str) -> dict[str, Any]:
+        out: dict[str, Any] = {
+            "instrument_key": instrument_key,
+        }
+
+        # Determine populated Oneof field
+        union_field = feed.WhichOneof("FeedUnion")
+        if union_field == "ltpc":
+            lt = feed.ltpc
+            out["ltp"] = lt.ltp
+            out["exchange_timestamp"] = lt.ltt
+            out["volume"] = lt.ltq
+            out["close_price"] = lt.cp
+        elif union_field == "firstLevelWithGreeks":
+            flg = feed.firstLevelWithGreeks
+            if flg.HasField("ltpc"):
+                out["ltp"] = flg.ltpc.ltp
+                out["exchange_timestamp"] = flg.ltpc.ltt
+                out["volume"] = flg.vtt
+                out["close_price"] = flg.ltpc.cp
+            if flg.HasField("firstDepth"):
+                out["best_bid_price"] = flg.firstDepth.bidP
+                out["best_ask_price"] = flg.firstDepth.askP
+            out["vtt"] = flg.vtt
+            out["oi"] = flg.oi
+            out["iv"] = flg.iv
+        elif union_field == "fullFeed":
+            ff = feed.fullFeed
+            union_ff = ff.WhichOneof("FullFeedUnion")
+            if union_ff == "marketFF":
+                mf = ff.marketFF
+                if mf.HasField("ltpc"):
+                    out["ltp"] = mf.ltpc.ltp
+                    out["exchange_timestamp"] = mf.ltpc.ltt
+                    out["volume"] = mf.vtt
+                    out["close_price"] = mf.ltpc.cp
+                out["atp"] = mf.atp
+                out["vtt"] = mf.vtt
+                out["oi"] = mf.oi
+                out["iv"] = mf.iv
+                out["total_buy_quantity"] = mf.tbq
+                out["total_sell_quantity"] = mf.tsq
+
+                # Best bid/ask from market depth
+                if mf.marketLevel.bidAskQuote:
+                    out["best_bid_price"] = mf.marketLevel.bidAskQuote[0].bidP
+                    out["best_ask_price"] = mf.marketLevel.bidAskQuote[0].askP
+                    out["depth"] = {
+                        "bids": [{"price": b.bidP, "quantity": b.bidQ} for b in mf.marketLevel.bidAskQuote if b.bidP > 0],
+                        "asks": [{"price": b.askP, "quantity": b.askQ} for b in mf.marketLevel.bidAskQuote if b.askP > 0]
+                    }
+
+                if mf.marketOHLC.ohlc:
+                    out["ohlc"] = {
+                        "open": mf.marketOHLC.ohlc[0].open,
+                        "high": mf.marketOHLC.ohlc[0].high,
+                        "low": mf.marketOHLC.ohlc[0].low,
+                        "close": mf.marketOHLC.ohlc[0].close
+                    }
+            elif union_ff == "indexFF":
+                inf = ff.indexFF
+                if inf.HasField("ltpc"):
+                    out["ltp"] = inf.ltpc.ltp
+                    out["exchange_timestamp"] = inf.ltpc.ltt
+                    out["close_price"] = inf.ltpc.cp
+                if inf.marketOHLC.ohlc:
+                    out["ohlc"] = {
+                        "open": inf.marketOHLC.ohlc[0].open,
+                        "high": inf.marketOHLC.ohlc[0].high,
+                        "low": inf.marketOHLC.ohlc[0].low,
+                        "close": inf.marketOHLC.ohlc[0].close
+                    }
+        return out
+
+    @staticmethod
+    def _feed_to_dict_old(feed: Any) -> dict[str, Any]:
         out: dict[str, Any] = {}
         if feed.HasField("ltpc"):
             lt = feed.ltpc

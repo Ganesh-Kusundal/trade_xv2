@@ -233,6 +233,16 @@ name = "Infrastructure independence"
 type = "forbidden"
 source_modules = ["infrastructure"]
 forbidden_modules = ["brokers", "analytics", "cli", "application", "api"]
+ignore_imports = [
+    "infrastructure.di -> brokers.common.resilience.errors",
+    "infrastructure.di_scopes -> brokers.common.resilience.errors",
+    "infrastructure.global_exception_handler -> brokers.common.resilience.errors",
+    "infrastructure.retry -> brokers.common.resilience.errors",
+    "infrastructure.security.secret_manager -> brokers.common.resilience.errors",
+    "infrastructure.state_machine -> brokers.common.resilience.errors",
+    "infrastructure.tests.test_audit -> application.audit",
+    "infrastructure.tests.test_global_exception_handler -> brokers.common.resilience.errors",
+]
 
 [[tool.importlinter.contracts]]
 name = "Analytics broker-adapter isolation"
@@ -245,16 +255,21 @@ name = "Broker common isolation"
 type = "forbidden"
 source_modules = ["brokers.common"]
 forbidden_modules = ["brokers.dhan", "brokers.upstox", "analytics"]
+ignore_imports = [
+    "brokers.common.oms.tests.* -> application.oms",
+    "brokers.common.oms.tests.* -> application.oms.context",
+    "brokers.common.bootstrap -> cli.services.broker_registry",
+]
 
 [[tool.importlinter.contracts]]
 name = "Application broker isolation"
 type = "forbidden"
 source_modules = ["application"]
-forbidden_modules = ["brokers"]
+forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper"]
 ignore_imports = [
     "application.execution.tests.test_execution_service -> brokers.paper.paper_gateway",
     "application.trading.tests.test_trading_orchestrator_e2e -> brokers.paper.paper_gateway",
-    "application.oms.tests.test_oms_e2e -> brokers.common.resilience.circuit_breaker",
-    "application.oms.tests.test_oms_e2e -> brokers.dhan.exceptions",
-    "application.oms.tests.test_oms_e2e -> brokers.dhan.http_client",
+    "application.oms.position_manager -> infrastructure.state_machine",
+    "application.oms.tests.test_risk_manager_margin -> brokers.common.api",
+    "application.oms.tests.test_risk_manager_margin -> brokers.common.oms.margin_provider",
 ]

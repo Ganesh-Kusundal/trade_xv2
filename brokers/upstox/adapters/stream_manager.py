@@ -80,7 +80,13 @@ class StreamManagerAdapter:
             WebSocket client instance
         """
         segment = UpstoxDomainMapper.segment_to_wire(exchange)
-        inst_key = f"{segment}|{symbol}"
+        if segment == "NSE":
+            segment = "NSE_EQ"
+        elif segment == "BSE":
+            segment = "BSE_EQ"
+        
+        defn = self._resolver.resolve(symbol=symbol, exchange_segment=segment)
+        inst_key = defn.instrument_key if defn and defn.instrument_key else f"{segment}|{symbol}"
         ws = self._broker.market_data_websocket
 
         with self._stream_lock:
@@ -138,7 +144,13 @@ class StreamManagerAdapter:
             on_tick: The callback to remove. None removes all.
         """
         segment = UpstoxDomainMapper.segment_to_wire(exchange)
-        inst_key = f"{segment}|{symbol}"
+        if segment == "NSE":
+            segment = "NSE_EQ"
+        elif segment == "BSE":
+            segment = "BSE_EQ"
+            
+        defn = self._resolver.resolve(symbol=symbol, exchange_segment=segment)
+        inst_key = defn.instrument_key if defn and defn.instrument_key else f"{segment}|{symbol}"
         ws = self._broker.market_data_websocket
 
         with self._stream_lock:

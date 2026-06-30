@@ -302,6 +302,7 @@ class TestRetryUsage:
             "brokers/common/services/download_engine.py",  # Download engine
             "brokers/dhan/reconnecting_service.py",  # Reconnection logic
             "brokers/dhan/depth_feed_base.py",  # Depth feed uses poll intervals
+            "brokers/dhan/http_client.py",  # Rate limiting + retry backoff
             "brokers/upstox/orders/slice_adapter.py",  # Slice adapter uses poll intervals
             "cli/load_testing/",  # Load testing
             "cli/commands/market.py",  # CLI polling loop

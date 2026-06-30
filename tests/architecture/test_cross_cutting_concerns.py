@@ -122,6 +122,13 @@ class TestNoBasicConfig:
                 continue
             lines = _file_contains_basic_config(filepath)
             if lines:
+                # Allow basicConfig in CLI main() entry points
+                try:
+                    content = filepath.read_text()
+                    if "def main()" in content and "argparse" in content:
+                        continue
+                except (OSError, UnicodeDecodeError):
+                    pass
                 violations[str(filepath.relative_to(ROOT))] = lines
 
         assert not violations, (

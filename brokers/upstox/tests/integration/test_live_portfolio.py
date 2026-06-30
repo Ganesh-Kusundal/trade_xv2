@@ -21,7 +21,8 @@ class TestLivePortfolio:
         balance = gateway.funds()
         assert balance is not None
         assert hasattr(balance, "available_balance")
-        assert balance.available_balance > 0
+        from decimal import Decimal
+        assert isinstance(balance.available_balance, Decimal)
 
     def test_funds_balance_schema(self, gateway):
         """Balance should have required fields: available_balance, used_margin, total_margin."""

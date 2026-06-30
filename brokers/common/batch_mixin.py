@@ -46,14 +46,9 @@ class BatchFetchMixin:
         exchange: str = "NSE",
         timeframe: str = "1D",
         lookback_days: int = 90,
-    ) -> pd.DataFrame:
-        frames: list[pd.DataFrame] = []
-        raw = batch_execute(
+    ) -> dict[str, pd.DataFrame]:
+        return batch_execute(
             symbols,
             lambda sym: self.history(sym, exchange, timeframe, lookback_days),  # type: ignore[attr-defined]
             max_workers=self._batch_max_workers,
         )
-        for df in raw.values():
-            if df is not None and not df.empty:
-                frames.append(df)
-        return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()

@@ -45,7 +45,7 @@ class UpstoxOptionsAdapter(OptionsProvider):
            (e.g. ``INDEX`` → ``NSE_INDEX``).
         3. Hard fail with a clear message — never synthesize invalid keys.
         """
-        from indices import index_upstox_key
+        from config.indices import index_upstox_key
 
         idx_key = index_upstox_key(underlying)
         if idx_key is not None:
@@ -54,7 +54,7 @@ class UpstoxOptionsAdapter(OptionsProvider):
         if self._resolver is not None:
             # Normalize segment: callers often pass "INDEX" but Upstox
             # instrument records use "NSE_INDEX" / "BSE_INDEX".
-            from indices import upstox_index_segment
+            from config.indices import upstox_index_segment
 
             seg = exchange_segment
             if underlying.upper() in {

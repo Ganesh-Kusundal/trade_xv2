@@ -180,7 +180,8 @@ class UpstoxMarketDataV3Multiplexer:
 
     async def _open_socket(self, url: str) -> Any:
         socket_or_awaitable = self._socket_factory(url)
-        if asyncio.iscoroutine(socket_or_awaitable):
+        import inspect
+        if inspect.isawaitable(socket_or_awaitable):
             return await socket_or_awaitable
         return socket_or_awaitable
 
@@ -258,12 +259,28 @@ class UpstoxMarketDataV3Multiplexer:
         send = getattr(self._socket, "send", None)
         if send is None:
             return
-        with self._send_lock:
+        
+        import asyncio
+        data = encode_subscribe_payload(payload)
+        
+        if asyncio.iscoroutinefunction(send):
             try:
-                send(encode_subscribe_payload(payload))
-            except Exception as exc:
-                logger.warning("Upstox V3 send failed: %s", exc)
-                self._reconnect.record_failure()
+                loop = asyncio.get_running_loop()
+                loop.create_task(send(data))
+            except RuntimeError:
+                # No running event loop in this thread, schedule it thread-safe if task loop exists
+                if self._task and not self._task.done():
+                    loop = self._task.get_loop()
+                    asyncio.run_coroutine_threadsafe(send(data), loop)
+                else:
+                    logger.warning("Upstox V3 send failed: no running event loop found to schedule send")
+        else:
+            with self._send_lock:
+                try:
+                    send(data)
+                except Exception as exc:
+                    logger.warning("Upstox V3 send failed: %s", exc)
+                    self._reconnect.record_failure()
 
     async def _read_loop(self) -> None:
         recv = getattr(self._socket, "recv", None)
@@ -314,18 +331,24 @@ class UpstoxMarketDataV3Multiplexer:
                             listener("market_info", msg)
                 continue
             try:
-                frame = self._decoder.parse(raw)
+                frames = self._decoder.parse(raw)
             except Exception:
                 continue
-            if frame is None:
+            if not frames:
                 continue
-            # Track tick times for backfill
-            self._track_tick_from_frame(frame)
-            with self._listener_lock:
-                listeners = list(self._listeners)
-            for listener in listeners:
-                with contextlib.suppress(Exception):
-                    listener("tick", {"frame_type": frame.type, "payload": frame.payload})
+            
+            # Support both list of frames and a single frame (backward/test compatibility)
+            if not isinstance(frames, list):
+                frames = [frames]
+                
+            for frame in frames:
+                # Track tick times for backfill
+                self._track_tick_from_frame(frame)
+                with self._listener_lock:
+                    listeners = list(self._listeners)
+                for listener in listeners:
+                    with contextlib.suppress(Exception):
+                        listener("tick", {"frame_type": frame.type, "payload": frame.payload})
 
     def _track_tick_from_frame(self, frame: Any) -> None:
         """Record latest tick time per instrument for gap detection."""

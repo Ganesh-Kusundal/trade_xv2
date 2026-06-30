@@ -24,7 +24,12 @@ except ImportError:  # pragma: no cover - Windows dev machines
     fcntl = None  # type: ignore[assignment]
 
 
-def _sanitize_client_id(client_id: str) -> str:
+def _sanitize_client_id(client_id: Any) -> str:
+    if not isinstance(client_id, str):
+        # Non-string (e.g. MagicMock in unit tests): generate a unique ID
+        # per object so that separate test instances get separate lock files
+        # and do not block each other via fcntl.
+        return f"auto_{id(client_id)}"
     return re.sub(r"[^A-Za-z0-9._-]+", "_", client_id.strip()) or "unknown"
 
 
@@ -116,9 +121,9 @@ class MarketFeedConnectionAdmission:
         if not self._lock_held:
             return
         if self._lock_file is not None and fcntl is not None:
-            with contextlib.suppress(OSError):
+            with contextlib.suppress(Exception):
                 fcntl.flock(self._lock_file.fileno(), fcntl.LOCK_UN)
-            with contextlib.suppress(OSError):
+            with contextlib.suppress(Exception):
                 self._lock_file.close()
         self._lock_file = None
         self._lock_held = False

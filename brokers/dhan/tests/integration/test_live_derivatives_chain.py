@@ -58,7 +58,12 @@ class TestLiveOptionChain:
 
     def test_option_chain_has_ce_pe_legs(self, gateway: BrokerGateway):
         """Option chain strikes should have CE and PE legs with greeks."""
-        chain = gateway.option_chain("NIFTY", "NFO")
+        try:
+            chain = gateway.option_chain("NIFTY", "NFO")
+        except Exception as exc:
+            if "429" in str(exc) or "rate" in str(exc).lower():
+                pytest.skip(f"Rate limited by Dhan API: {exc}")
+            raise
         if chain.strikes:
             first_strike = chain.strikes[0]
             # Verify CE leg
