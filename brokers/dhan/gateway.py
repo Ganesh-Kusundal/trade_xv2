@@ -52,8 +52,10 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
     def __init__(self, connection: DhanConnection):
         self._conn = connection
         self._stream_lock = threading.Lock()
-        # Tracks (symbol, exchange) → list of (on_tick, wrapper) for dedup
-        self._stream_registry: dict[tuple[str, str], list[tuple[Any, Any]]] = {}
+        # Tracks (symbol, exchange) → callback list for dedup
+        self._stream_registry: dict[tuple[str, str], list[Any]] = {}
+        # Tracks (symbol, exchange) -> list of (on_tick, wrapper) for callback cleanup
+        self._wrapper_registry: dict[tuple[str, str], list[tuple[Any, Any]]] = {}
         # P1 Fix: Track subscription mode per instrument for correct unsubscribe
         self._subscription_modes: dict[tuple[str, str], str] = {}
         # Broker-agnostic options facade — CLI/tests use ``gateway.options``.
@@ -577,7 +579,7 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
             if on_tick:
                 # Dedup: skip if this exact on_tick is already registered
                 existing = self._stream_registry.get(key, [])
-                if any(cb == on_tick for cb, _ in existing):
+                if on_tick in existing:
                     logger.debug(
                         "stream_callback_dedup", extra={"symbol": symbol, "exchange": exchange}
                     )
@@ -603,7 +605,8 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
                             _cb(data)
 
                     feed.on_quote(_wrap)
-                    self._stream_registry.setdefault(key, []).append((on_tick, _wrap))
+                    self._stream_registry.setdefault(key, []).append(on_tick)
+                    self._wrapper_registry.setdefault(key, []).append((on_tick, _wrap))
 
             if not feed.is_connected:
                 feed.connect()
@@ -630,26 +633,32 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         key = make_position_key(symbol, exchange)
 
         with self._stream_lock:
-            pairs = self._stream_registry.get(key, [])
+            callbacks = self._stream_registry.get(key, [])
+            wrappers = self._wrapper_registry.get(key, [])
             if on_tick is not None:
-                # Remove specific callback and its wrapper from the feed
-                to_remove = [(cb, wrap) for cb, wrap in pairs if cb is on_tick]
+                # Remove specific callback
+                with contextlib.suppress(ValueError):
+                    callbacks.remove(on_tick)
+                # Find wrapper and call off_quote
+                to_remove = [(cb, wrap) for cb, wrap in wrappers if cb is on_tick]
                 for cb, wrap in to_remove:
                     with contextlib.suppress(ValueError):
-                        pairs.remove((cb, wrap))
+                        wrappers.remove((cb, wrap))
                     feed = self._conn.market_feed
                     if feed is not None:
                         feed.off_quote(wrap)
             else:
                 # Remove all wrappers for this key
                 feed = self._conn.market_feed
-                for cb, wrap in pairs:  # noqa: B007
+                for cb, wrap in wrappers:
                     if feed is not None:
                         feed.off_quote(wrap)
-                pairs.clear()
+                callbacks.clear()
+                wrappers.clear()
 
-            if not pairs:
+            if not callbacks:
                 self._stream_registry.pop(key, None)
+                self._wrapper_registry.pop(key, None)
 
                 # Unsubscribe from the SDK feed if no consumers remain
                 feed = self._conn.market_feed

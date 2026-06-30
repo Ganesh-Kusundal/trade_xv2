@@ -427,6 +427,7 @@ class TestAuditLeakAndMultiplexingFixes:
         gw._conn = conn
         gw._stream_lock = threading.Lock()
         gw._stream_registry = {}
+        gw._wrapper_registry = {}
         gw._subscription_modes = {}
 
         conn.instruments.resolve.return_value = mock.MagicMock(security_id="500325", exchange=mock.MagicMock(value="NSE"))

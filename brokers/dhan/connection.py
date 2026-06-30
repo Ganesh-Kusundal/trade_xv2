@@ -40,6 +40,42 @@ from infrastructure.lifecycle import LifecycleManager
 
 logger = logging.getLogger(__name__)
 
+
+class TokenReceiverRef:
+    """Weak-reference wrapper for token receivers to prevent memory leaks."""
+
+    def __init__(self, callback: Callable[[str], None]) -> None:
+        if isinstance(callback, types.MethodType):
+            self._ref = weakref.WeakMethod(callback)
+            self._is_method = True
+        else:
+            try:
+                self._ref = weakref.ref(callback)
+                self._is_method = False
+            except TypeError:
+                self._ref = callback
+                self._is_method = None
+
+    def deref(self) -> Callable[[str], None] | None:
+        if self._is_method is None:
+            return self._ref  # type: ignore
+        return self._ref()
+
+    def __eq__(self, other: Any) -> bool:
+        target = self.deref()
+        if target is None:
+            return False
+        if isinstance(other, TokenReceiverRef):
+            return target == other.deref()
+        return target == other
+
+    def __ne__(self, other: Any) -> bool:
+        return not self.__eq__(other)
+
+    def __hash__(self) -> int:
+        target = self.deref()
+        return hash(target) if target is not None else hash(None)
+
 # ── Adapter registry: (attr_name, adapter_class) ──
 # Each entry constructs an adapter from (client, instruments).
 # Entries are split by whether the adapter's constructor takes the
@@ -545,26 +581,10 @@ class DhanConnection:
             return receiver
 
         # Check if already registered
-        for existing in list(self._token_receivers):
-            if isinstance(existing, (weakref.WeakMethod, weakref.ref)):
-                actual = existing()
-                if actual is None:
-                    with contextlib.suppress(ValueError):
-                        self._token_receivers.remove(existing)
-                elif actual == receiver:
-                    return receiver
-            elif existing == receiver:
-                return receiver
+        if receiver in self._token_receivers:
+            return receiver
 
-        if isinstance(receiver, types.MethodType):
-            ref = weakref.WeakMethod(receiver)
-        else:
-            try:
-                ref = weakref.ref(receiver)
-            except TypeError:
-                ref = receiver
-
-        self._token_receivers.append(ref)
+        self._token_receivers.append(TokenReceiverRef(receiver))
         return receiver
 
     def broadcast_token(self, new_token: str) -> int:
@@ -578,14 +598,12 @@ class DhanConnection:
             return 0
         delivered = 0
         for ref in list(self._token_receivers):
-            if isinstance(ref, (weakref.WeakMethod, weakref.ref)):
-                receiver = ref()
-                if receiver is None:
-                    with contextlib.suppress(ValueError):
-                        self._token_receivers.remove(ref)
-                    continue
-            else:
-                receiver = ref
+            # ref is a TokenReceiverRef
+            receiver = ref.deref()
+            if receiver is None:
+                with contextlib.suppress(ValueError):
+                    self._token_receivers.remove(ref)
+                continue
 
             try:
                 receiver(new_token)
