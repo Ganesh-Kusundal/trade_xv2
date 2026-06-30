@@ -447,7 +447,7 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         underlying: str,
         exchange: str = "NFO",
     ) -> FutureChain:
-        from indices import INDEX_TO_FNO_EXCHANGE
+        from config.indices import INDEX_TO_FNO_EXCHANGE
 
         dhan_exchange = INDEX_TO_FNO_EXCHANGE.get(underlying.upper(), exchange)
         contracts = self._conn.futures.get_contracts(underlying, dhan_exchange)
@@ -657,7 +657,7 @@ def _dhan_normalize_exchange(symbol: str, exchange: str) -> str:
     ``"NSE"`` / ``"BSE"``. The integration suite uses ``"INDEX"`` for index
     underlyings (NIFTY, BANKNIFTY); we keep that convention.
     """
-    from indices import dhan_index_exchange, is_index
+    from config.indices import dhan_index_exchange, is_index
 
     if is_index(symbol):
         return dhan_index_exchange(symbol) or exchange

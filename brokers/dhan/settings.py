@@ -28,7 +28,7 @@ from domain.constants.auth import (
     DHAN_TOKEN_REFRESH_BUFFER_SECONDS,
     DHAN_TOKEN_SCHEDULER_INTERVAL_SECONDS,
 )
-from endpoints import Dhan
+from config.endpoints import Dhan
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +138,7 @@ class DhanSettingsLoader(SettingsLoaderBase):
         """
         cls._load_default_env(env_path)
 
-        from secrets_manager import SecretsManager
+        from config.secrets_manager import SecretsManager
 
         secrets = SecretsManager()
 

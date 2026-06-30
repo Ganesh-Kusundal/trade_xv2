@@ -11,6 +11,7 @@ from decimal import Decimal
 from application.oms.order_manager import OmsOrderCommand
 from application.oms.protocols import IOrderManager
 from domain import Order, OrderStatus, ProductType, Side, Trade
+from domain.trading_costs import apply_slippage
 
 # Re-export from domain.trading_costs (single source of truth)
 

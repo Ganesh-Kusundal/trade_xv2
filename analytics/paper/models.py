@@ -12,17 +12,12 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any
 
+from domain.enums import OrderStatus
+
 
 class OrderSide(str, Enum):
     BUY = "BUY"
     SELL = "SELL"
-
-
-class OrderStatus(str, Enum):
-    PENDING = "PENDING"
-    FILLED = "FILLED"
-    CANCELLED = "CANCELLED"
-    REJECTED = "REJECTED"
 
 
 class PositionSide(str, Enum):
@@ -94,7 +89,7 @@ class PaperOrder:
     quantity: int
     price: float
     order_time: datetime
-    status: OrderStatus = OrderStatus.PENDING
+    status: OrderStatus = OrderStatus.OPEN
     fill_price: float = 0.0
     fill_time: datetime | None = None
     commission: float = 0.0

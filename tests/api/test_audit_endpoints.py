@@ -25,7 +25,7 @@ def client() -> TestClient:
 
 class TestAuditEndpoints:
     def test_audit_routes_are_registered(self, client: TestClient) -> None:
-        paths = {route.path for route in client.app.routes if hasattr(route, "path")}
+        paths = client.app.openapi()["paths"]
         assert "/api/v1/audit/events" in paths
         assert "/api/v1/audit/stats" in paths
         assert "/api/v1/audit/events/{event_id}" in paths

@@ -31,6 +31,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
+from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Any
 
@@ -46,8 +47,32 @@ from infrastructure.lifecycle.lifecycle import (
     LifecycleManager,
     ManagedService,
 )
+from infrastructure.metrics.registry import metrics_registry
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_event_metrics_from_registry() -> dict[str, dict[str, int]]:
+    """Extract EventMetrics-style counters from MetricsRegistry.
+
+    EventMetrics registers counters with names starting with
+    ``event_metrics__`` and labels ``{event_type, outcome}``.
+    This function reconstructs the nested dict format expected by
+    ``render_prometheus_metrics``.
+    """
+    from infrastructure.observability.event_metrics import _COUNTER_PREFIX
+
+    snap = metrics_registry.snapshot_detailed()
+    event_counters = snap.get("counters", {})
+    out: dict[str, dict[str, int]] = defaultdict(dict)
+    for name, info in event_counters.items():
+        if name.startswith(_COUNTER_PREFIX):
+            labels = info.get("labels", {})
+            event_type = labels.get("event_type", "")
+            outcome = labels.get("outcome", "")
+            if event_type and outcome:
+                out[event_type][outcome] = int(info.get("value", 0))
+    return dict(out)
 
 
 # ── Prometheus text format helpers ────────────────────────────────────────
@@ -351,16 +376,19 @@ class HttpObservabilityServer(ManagedService):
         """Prometheus text exposition format."""
         self._request_count += 1
         event_snap: dict[str, dict[str, int]] = {}
-        if self._event_metrics is not None and hasattr(self._event_metrics, "snapshot"):
-            try:
-                event_snap = self._event_metrics.snapshot()
-            except Exception as exc:
-                logger.warning("event_metrics_snapshot_failed: %s", exc)
+        try:
+            event_snap = _extract_event_metrics_from_registry()
+        except Exception as exc:
+            logger.warning("event_metrics_registry_extract_failed: %s", exc)
+            if self._event_metrics is not None and hasattr(self._event_metrics, "snapshot"):
+                try:
+                    event_snap = self._event_metrics.snapshot()
+                except Exception as inner_exc:
+                    logger.warning("event_metrics_snapshot_failed: %s", inner_exc)
         lifecycle_snap: dict[str, dict[str, Any]] = {}
         if self._lifecycle is not None:
             try:
                 lifecycle_snap = self._lifecycle.health_snapshot()
-                # Convert each HealthStatus to its dict form.
                 for name, info in lifecycle_snap.items():
                     if hasattr(info, "to_dict"):
                         lifecycle_snap[name] = info.to_dict()

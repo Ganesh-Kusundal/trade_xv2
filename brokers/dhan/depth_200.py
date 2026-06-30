@@ -48,7 +48,7 @@ class DhanDepth200Feed(BinaryDepthFeed):
         instrument: tuple[str, str] | None = None,
         event_bus: EventBus | None = None,
     ):
-        from endpoints import Dhan as _DhanEndpoints
+        from config.endpoints import Dhan as _DhanEndpoints
 
         super().__init__(
             client_id=client_id,

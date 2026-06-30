@@ -22,7 +22,7 @@ This module provides:
   or ``None`` if *symbol* is not a known index.
 Usage::
 
-    from indices import is_index, dhan_index_exchange, upstox_index_segment
+    from config.indices import is_index, dhan_index_exchange, upstox_index_segment
 
     # Dhan resolver fallback
     if is_index(symbol):

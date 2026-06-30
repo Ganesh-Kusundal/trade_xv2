@@ -19,7 +19,7 @@ from brokers.dhan.metrics import (
     dhan_request_total,
 )
 from brokers.dhan.resilience.rate_limiter import DhanRateLimiterMetrics
-from endpoints import Dhan
+from config.endpoints import Dhan
 
 logger = logging.getLogger(__name__)
 

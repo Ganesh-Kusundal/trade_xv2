@@ -7,7 +7,6 @@ This module pre-computes all features once, then runs the strategy in O(n).
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
 
@@ -24,24 +23,10 @@ from analytics.pipeline.pipeline import FeaturePipeline
 from analytics.scanner.models import Candidate
 from analytics.strategy.models import Signal, SignalType
 from analytics.strategy.pipeline import StrategyPipeline
+from domain.entities.trade import Trade
 from domain.trading_costs import apply_slippage as _apply_slippage
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class Trade:
-    symbol: str
-    side: str
-    entry_price: float
-    exit_price: float
-    entry_time: Any
-    exit_time: Any
-    quantity: int
-    pnl: float
-    pnl_pct: float
-    strategy: str = ""
-    reasons: list[str] = field(default_factory=list)
 
 
 class FastBacktestEngine:
@@ -190,17 +175,14 @@ class FastBacktestEngine:
                     pnl_pct = (exit_price / position["entry_price"] - 1) * 100
 
                     trade = Trade(
+                        trade_id=f"backtest:{symbol}:{len(trades)}",
+                        order_id="",
                         symbol=symbol,
-                        side=position["side"],
-                        entry_price=position["entry_price"],
-                        exit_price=exit_price,
-                        entry_time=position["entry_time"],
-                        exit_time=ts,
+                        exchange="NSE",
+                        side="BUY" if position["side"] == "LONG" else "SELL",
                         quantity=position["quantity"],
-                        pnl=pnl - commission - position["cost"],
-                        pnl_pct=pnl_pct,
-                        strategy=position["strategy"],
-                        reasons=position["reasons"],
+                        price=Decimal(str(position["entry_price"])),
+                        trade_value=Decimal(str(pnl - commission - position["cost"])),
                     )
                     trades.append(trade)
                     capital += pnl - commission
@@ -221,17 +203,14 @@ class FastBacktestEngine:
             exit_price = float(last["close"])
             pnl = (exit_price - position["entry_price"]) * position["quantity"]
             trade = Trade(
+                trade_id=f"backtest:{symbol}:{len(trades)}",
+                order_id="",
                 symbol=symbol,
-                side=position["side"],
-                entry_price=position["entry_price"],
-                exit_price=exit_price,
-                entry_time=position["entry_time"],
-                exit_time=last["timestamp"],
+                exchange="NSE",
+                side="BUY" if position["side"] == "LONG" else "SELL",
                 quantity=position["quantity"],
-                pnl=pnl - config.commission_flat - position["cost"],
-                pnl_pct=(exit_price / position["entry_price"] - 1) * 100,
-                strategy=position["strategy"],
-                reasons=position["reasons"],
+                price=Decimal(str(position["entry_price"])),
+                trade_value=Decimal(str(pnl - config.commission_flat - position["cost"])),
             )
             trades.append(trade)
 
@@ -245,16 +224,16 @@ class FastBacktestEngine:
             return PerformanceMetrics()
 
         # Trade analysis
-        winning = [t for t in trades if t.pnl > 0]
-        losing = [t for t in trades if t.pnl <= 0]
-        total_pnl = sum(t.pnl for t in trades)
+        winning = [t for t in trades if t.trade_value > 0]
+        losing = [t for t in trades if t.trade_value <= 0]
+        total_pnl = sum(t.trade_value for t in trades)
 
         win_rate = len(winning) / len(trades) if trades else 0
-        avg_win = np.mean([t.pnl for t in winning]) if winning else 0
-        avg_loss = np.mean([t.pnl for t in losing]) if losing else 0
+        avg_win = np.mean([t.trade_value for t in winning]) if winning else 0
+        avg_loss = np.mean([t.trade_value for t in losing]) if losing else 0
         profit_factor = (
-            abs(sum(t.pnl for t in winning) / sum(t.pnl for t in losing))
-            if losing and sum(t.pnl for t in losing) != 0
+            abs(sum(t.trade_value for t in winning) / sum(t.trade_value for t in losing))
+            if losing and sum(t.trade_value for t in losing) != 0
             else 0
         )
 

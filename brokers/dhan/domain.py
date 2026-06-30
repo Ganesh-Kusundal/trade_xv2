@@ -10,6 +10,8 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any
 
+import domain.entities.instrument
+
 _CANONICAL = frozenset(
     {
         "Holding",
@@ -124,21 +126,52 @@ class Alert:
 
 @dataclass(frozen=True)
 class Instrument:
-    """Full instrument definition as resolved by the Dhan symbol resolver."""
+    """Full instrument definition as resolved by the Dhan symbol resolver.
 
-    symbol: str
+    Uses composition to hold a reference to the canonical domain.Instrument.
+    """
+
+    domain_instrument: 'domain.entities.instrument.Instrument'
     exchange: Exchange
-    security_id: str
     instrument_type: DhanInstrumentType
-    lot_size: int = 1
-    tick_size: Decimal = Decimal("0.05")
-    name: str | None = None
     option_type: OptionType | None = None
-    strike_price: Decimal | None = None
-    expiry: str | None = None
-    underlying: str | None = None
-    canonical_symbol: str | None = None
     sm_symbol_name: str | None = None
+
+    @property
+    def symbol(self) -> str:
+        return self.domain_instrument.symbol
+
+    @property
+    def security_id(self) -> str:
+        return self.domain_instrument.security_id
+
+    @property
+    def lot_size(self) -> int:
+        return self.domain_instrument.lot_size
+
+    @property
+    def tick_size(self) -> Decimal:
+        return self.domain_instrument.tick_size
+
+    @property
+    def name(self) -> str | None:
+        return self.domain_instrument.name
+
+    @property
+    def strike_price(self) -> Decimal | None:
+        return self.domain_instrument.strike_price
+
+    @property
+    def expiry(self) -> str | None:
+        return self.domain_instrument.expiry
+
+    @property
+    def underlying(self) -> str | None:
+        return self.domain_instrument.underlying
+
+    @property
+    def canonical_symbol(self) -> str | None:
+        return self.domain_instrument.canonical_symbol
 
     @property
     def is_option(self) -> bool:

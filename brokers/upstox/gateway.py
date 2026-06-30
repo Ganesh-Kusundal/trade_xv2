@@ -345,7 +345,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         exchange: str = "NFO",
     ) -> FutureChain:
         """Get the future chain for an underlying."""
-        from indices import INDEX_TO_FNO_EXCHANGE
+        from config.indices import INDEX_TO_FNO_EXCHANGE
 
         segment = INDEX_TO_FNO_EXCHANGE.get(underlying.upper(), exchange)
         futures = getattr(self._broker, "futures", None)
@@ -729,7 +729,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
             Upstox instrument_key string (e.g., "NSE_EQ|INE002A01018")
         """
         from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
-        from indices import index_upstox_key
+        from config.indices import index_upstox_key
 
         # 1. Check hardcoded index mapping first
         idx_key = index_upstox_key(symbol)
@@ -770,7 +770,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
             Canonical ExchangeSegment enum value
         """
         from domain.exchange_segments import parse_segment
-        from indices import index_upstox_key
+        from config.indices import index_upstox_key
 
         # Index symbols use a dedicated segment
         if symbol and index_upstox_key(symbol) is not None:

@@ -38,7 +38,7 @@ from domain import (
 from domain.field_mapping import DefaultFieldMapping
 from domain.ports.risk_manager import RiskManagerPort
 from domain.symbols import normalize_exchange
-from endpoints import Dhan
+from config.endpoints import Dhan
 from infrastructure.event_bus import DomainEvent, EventBus
 
 logger = logging.getLogger(__name__)

@@ -10,6 +10,7 @@ Verifies:
 from __future__ import annotations
 
 from dataclasses import FrozenInstanceError
+from decimal import Decimal
 from unittest.mock import Mock
 
 import pytest
@@ -20,6 +21,7 @@ from brokers.dhan.exceptions import DhanIdentityError, InstrumentNotFoundError
 from brokers.dhan.identity import DhanIdentityProvider, DhanInstrumentRef
 from brokers.dhan.resolver import SymbolResolver
 from brokers.dhan.segments import EXCHANGE_TO_SEGMENT
+from domain.entities.instrument import Instrument as DomainInstrument
 
 # ── DhanInstrumentRef Tests ────────────────────────────────────────────────
 
@@ -132,6 +134,28 @@ class TestDhanInstrumentRef:
 class TestDhanIdentityProvider:
     """Test DhanIdentityProvider.resolve_ref()."""
 
+    def _create_instrument(
+        self,
+        symbol: str,
+        exchange: Exchange,
+        security_id: str,
+        instrument_type: InstrumentType,
+    ) -> Instrument:
+        """Helper to create a Dhan Instrument using composition."""
+        domain_inst = DomainInstrument(
+            symbol=symbol,
+            exchange=exchange.value,
+            security_id=security_id,
+            instrument_type=instrument_type.value,
+            lot_size=1,
+            tick_size=Decimal("0.05"),
+        )
+        return Instrument(
+            domain_instrument=domain_inst,
+            exchange=exchange,
+            instrument_type=instrument_type,
+        )
+
     def _create_mock_resolver(self, instrument: Instrument) -> SymbolResolver:
         """Create a mock resolver that returns the given instrument."""
         mock_resolver = Mock(spec=SymbolResolver)
@@ -140,7 +164,7 @@ class TestDhanIdentityProvider:
 
     def test_resolve_ref_equity(self):
         """Resolve equity instrument."""
-        inst = Instrument(
+        inst = self._create_instrument(
             symbol="RELIANCE",
             exchange=Exchange.NSE,
             security_id="11536",
@@ -159,7 +183,7 @@ class TestDhanIdentityProvider:
 
     def test_resolve_ref_option(self):
         """Resolve option instrument."""
-        inst = Instrument(
+        inst = self._create_instrument(
             symbol="NIFTY 26 JUN 25000 CE",
             exchange=Exchange.NFO,
             security_id="54321",
@@ -176,7 +200,7 @@ class TestDhanIdentityProvider:
 
     def test_resolve_ref_future(self):
         """Resolve future instrument."""
-        inst = Instrument(
+        inst = self._create_instrument(
             symbol="RELIANCE 27 JUN 2025",
             exchange=Exchange.NFO,
             security_id="67890",
@@ -192,7 +216,7 @@ class TestDhanIdentityProvider:
 
     def test_resolve_ref_index(self):
         """Resolve index instrument."""
-        inst = Instrument(
+        inst = self._create_instrument(
             symbol="NIFTY",
             exchange=Exchange.INDEX,
             security_id="13",
@@ -208,7 +232,7 @@ class TestDhanIdentityProvider:
 
     def test_resolve_ref_mcx(self):
         """Resolve MCX commodity instrument."""
-        inst = Instrument(
+        inst = self._create_instrument(
             symbol="CRUDEOIL",
             exchange=Exchange.MCX,
             security_id="12345",
@@ -233,7 +257,7 @@ class TestDhanIdentityProvider:
 
     def test_expected_segment_guard_index_vs_derivative(self):
         """Should raise error when index resolved but derivative expected."""
-        inst = Instrument(
+        inst = self._create_instrument(
             symbol="NIFTY",
             exchange=Exchange.INDEX,
             security_id="13",
@@ -247,7 +271,7 @@ class TestDhanIdentityProvider:
 
     def test_expected_segment_guard_all_derivative_segments(self):
         """Should raise error for all derivative segments."""
-        inst = Instrument(
+        inst = self._create_instrument(
             symbol="NIFTY",
             exchange=Exchange.INDEX,
             security_id="13",
@@ -263,7 +287,7 @@ class TestDhanIdentityProvider:
 
     def test_expected_segment_none_allows_index(self):
         """Should allow index resolution when expected_segment is None."""
-        inst = Instrument(
+        inst = self._create_instrument(
             symbol="NIFTY",
             exchange=Exchange.INDEX,
             security_id="13",
@@ -278,7 +302,7 @@ class TestDhanIdentityProvider:
 
     def test_expected_segment_allows_index_for_index_segment(self):
         """Should allow index resolution when expected_segment is IDX_I."""
-        inst = Instrument(
+        inst = self._create_instrument(
             symbol="NIFTY",
             exchange=Exchange.INDEX,
             security_id="13",
@@ -292,10 +316,10 @@ class TestDhanIdentityProvider:
 
     def test_security_id_is_string(self):
         """security_id in ref should always be string type."""
-        inst = Instrument(
+        inst = self._create_instrument(
             symbol="RELIANCE",
             exchange=Exchange.NSE,
-            security_id=11536,  # Integer in Instrument
+            security_id="11536",  # String in Instrument
             instrument_type=InstrumentType.EQUITY,
         )
         mock_resolver = self._create_mock_resolver(inst)

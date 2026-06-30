@@ -14,8 +14,9 @@ from collections.abc import Iterable
 from brokers.dhan.domain import Exchange, Instrument, InstrumentType, OptionType
 from brokers.dhan.exceptions import InstrumentNotFoundError
 from brokers.dhan.segments import SEGMENT_TO_EXCHANGE
+from domain.entities.instrument import Instrument as DomainInstrument
 from domain.symbols import normalize_exchange, normalize_symbol
-from indices import get_index_entry, is_index
+from config.indices import get_index_entry, is_index
 
 logger = logging.getLogger(__name__)
 
@@ -285,15 +286,21 @@ class SymbolResolver:
                         "canonical_name": entry.canonical_name,
                     },
                 )
-                return Instrument(
+                # Create domain instrument first
+                domain_inst = DomainInstrument(
                     symbol=clean,
-                    exchange=Exchange("INDEX"),
+                    exchange="INDEX",
                     security_id=entry.dhan_security_id,
-                    instrument_type=InstrumentType.EQUITY,
+                    instrument_type="EQUITY",
                     lot_size=1,
                     tick_size=Decimal("0.05"),
                     name="INDEX",
                     canonical_symbol=entry.canonical_name,
+                )
+                return Instrument(
+                    domain_instrument=domain_inst,
+                    exchange=Exchange("INDEX"),
+                    instrument_type=InstrumentType.EQUITY,
                 )
 
         return None
@@ -368,19 +375,27 @@ class SymbolResolver:
                 m = re.match(r"^([A-Z]+)\d+[A-Z]{3}FUT$", symbol.upper())
                 underlying = (m.group(1)                if m else symbol).upper()
 
-        return Instrument(
+        # Create domain instrument first
+        domain_inst = DomainInstrument(
             symbol=symbol,
-            exchange=exchange,
+            exchange=exchange.value,
             security_id=security_id,
-            instrument_type=itype,
+            instrument_type=itype.value,
             lot_size=lot_size,
             tick_size=tick_size,
             name=name,
-            option_type=option_type,
+            option_type=option_type.value if option_type else None,
             strike_price=strike_price,
             expiry=expiry,
             underlying=underlying,
             canonical_symbol=canonical,
+        )
+
+        return Instrument(
+            domain_instrument=domain_inst,
+            exchange=exchange,
+            instrument_type=itype,
+            option_type=option_type,
             sm_symbol_name=sm_symbol_name,
         )
 

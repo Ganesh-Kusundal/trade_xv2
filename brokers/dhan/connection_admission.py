@@ -58,6 +58,11 @@ class MarketFeedConnectionAdmission:
         self._lock_file: Any | None = None
         self._lock_held = False
         self._blocked_by_lock = False
+        # Consecutive 429 streak drives exponential cooldown escalation.
+        # Reload from any persisted cooldown so the backoff stays monotonic
+        # across process restarts instead of re-poking Dhan from the base
+        # delay on every fresh process.
+        self._consecutive_rate_limits = self._load_persisted_streak()
 
     @property
     def lock_held(self) -> bool:
@@ -143,16 +148,54 @@ class MarketFeedConnectionAdmission:
             return None
         return _parse_iso_utc(raw)
 
+    def _load_persisted_streak(self) -> int:
+        """Reload the consecutive-429 streak from a still-active cooldown file.
+
+        A streak only counts if the persisted cooldown has not yet expired.
+        Once the cooldown window passes, Dhan is assumed recovered and the
+        next 429 starts the escalation again from the base delay.
+        """
+        if not self._cooldown_path.exists():
+            return 0
+        try:
+            payload = json.loads(self._cooldown_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return 0
+        next_allowed = _parse_iso_utc(payload.get("next_allowed_at", "")) if isinstance(
+            payload.get("next_allowed_at"), str
+        ) else None
+        if next_allowed is None or next_allowed <= datetime.now(timezone.utc):
+            return 0
+        streak = payload.get("consecutive_rate_limits")
+        return int(streak) if isinstance(streak, int) and streak > 0 else 1
+
     def record_rate_limit_cooldown(self) -> datetime:
-        """Persist cooldown after Dhan HTTP 429 on WebSocket handshake."""
-        cooldown_seconds = float(os.getenv("DHAN_WS_429_COOLDOWN_SECONDS", "60"))
-        next_allowed = datetime.now(timezone.utc).timestamp() + cooldown_seconds
-        next_dt = datetime.fromtimestamp(next_allowed, tz=timezone.utc)
+        """Persist an escalating cooldown after Dhan HTTP 429 on WS handshake.
+
+        Dhan's connection rate-limit window is longer than a single base
+        cooldown when it is hot. Retrying every fixed interval keeps the
+        limit hot and never recovers, so each consecutive 429 multiplies the
+        wait exponentially up to a configured ceiling. A successful connect
+        (:meth:`clear_cooldown`) resets the streak.
+        """
+        base = float(os.getenv("DHAN_WS_429_COOLDOWN_SECONDS", "60"))
+        ceiling = float(os.getenv("DHAN_WS_429_COOLDOWN_MAX_SECONDS", "900"))
+
+        self._consecutive_rate_limits += 1
+        # 1st: base, 2nd: 2x, 3rd: 4x ... capped at ceiling.
+        multiplier = 2 ** (self._consecutive_rate_limits - 1)
+        cooldown_seconds = min(base * multiplier, ceiling)
+
+        next_dt = datetime.fromtimestamp(
+            datetime.now(timezone.utc).timestamp() + cooldown_seconds,
+            tz=timezone.utc,
+        )
         payload = {
             "client_id": self._client_id,
             "next_allowed_at": next_dt.isoformat(),
             "reason": "http_429",
             "cooldown_seconds": cooldown_seconds,
+            "consecutive_rate_limits": self._consecutive_rate_limits,
             "recorded_at": datetime.now(timezone.utc).isoformat(),
         }
         try:
@@ -164,12 +207,14 @@ class MarketFeedConnectionAdmission:
             extra={
                 "client_id": self._client_id,
                 "cooldown_seconds": cooldown_seconds,
+                "consecutive_rate_limits": self._consecutive_rate_limits,
                 "next_allowed_at": next_dt.isoformat(),
             },
         )
         return next_dt
 
     def clear_cooldown(self) -> None:
+        self._consecutive_rate_limits = 0
         with contextlib.suppress(OSError):
             if self._cooldown_path.exists():
                 self._cooldown_path.unlink()
@@ -183,5 +228,6 @@ class MarketFeedConnectionAdmission:
                 next_allowed.isoformat() if next_allowed is not None else None
             ),
             "seconds_until_connect_allowed": self.seconds_until_connect_allowed(),
+            "consecutive_rate_limits": self._consecutive_rate_limits,
             "admission_lock_path": str(self._lock_path),
         }

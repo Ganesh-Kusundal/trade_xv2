@@ -6,7 +6,7 @@ rather than defining its own hard-coded string.
 
 Usage::
 
-    from endpoints import Dhan, Upstox
+    from config.endpoints import Dhan, Upstox
 
     # Dhan REST
     client = DhanHttpClient(base_url=Dhan.REST_BASE)
@@ -415,7 +415,7 @@ class Upstox:
 
     Usage::
 
-        from endpoints import Upstox
+        from config.endpoints import Upstox
 
         urls = Upstox.production()
         # or urls = Upstox.sandbox()

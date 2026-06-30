@@ -12,7 +12,7 @@ import pandas as pd
 
 from brokers.dhan.segments import _COMPACT_SEGMENT_MAP
 from domain.symbols import normalize_exchange
-from endpoints import Dhan
+from config.endpoints import Dhan
 
 logger = logging.getLogger(__name__)
 

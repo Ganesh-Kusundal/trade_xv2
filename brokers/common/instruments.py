@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 
 from domain import ExchangeSegment, InstrumentType
+from domain.entities.instrument import Instrument as DomainInstrument
 from domain.exchange_segments import canonical_exchange_short, parse_segment
 from domain.symbols import normalize_exchange, normalize_symbol
 
@@ -34,18 +35,43 @@ def _normalize_instrument_symbol(symbol: str) -> str:
 
 @dataclass(frozen=True)
 class Instrument:
-    """Canonical instrument used by the trading engine."""
+    """Trading engine instrument — wraps domain.Instrument with broker-specific fields.
 
-    symbol: str
-    exchange: str
+    Uses composition to hold a reference to the canonical domain.Instrument.
+    """
+
+    domain_instrument: DomainInstrument
     asset_class: InstrumentType = InstrumentType.EQUITY
-    expiry: str | None = None
-    strike: Decimal | None = None
-    option_type: str | None = None
-    lot_size: int = 0
-    tick_size: Decimal = Decimal("0")
     broker_identifier: str = ""
     broker_symbol: str = ""
+
+    @property
+    def symbol(self) -> str:
+        return self.domain_instrument.symbol
+
+    @property
+    def exchange(self) -> str:
+        return self.domain_instrument.exchange
+
+    @property
+    def expiry(self) -> str | None:
+        return self.domain_instrument.expiry
+
+    @property
+    def strike(self) -> Decimal | None:
+        return self.domain_instrument.strike_price
+
+    @property
+    def option_type(self) -> str | None:
+        return self.domain_instrument.option_type
+
+    @property
+    def lot_size(self) -> int:
+        return self.domain_instrument.lot_size
+
+    @property
+    def tick_size(self) -> Decimal:
+        return self.domain_instrument.tick_size
 
     @property
     def key(self) -> tuple[str, str]:
@@ -85,15 +111,22 @@ class InstrumentRegistry:
         if not broker_symbol:
             broker_symbol = normalize_symbol(symbol)
 
-        instrument = Instrument(
+        # Create domain instrument first
+        domain_inst = DomainInstrument(
             symbol=canonical,
             exchange=exchange.upper(),
-            asset_class=asset_class,
-            expiry=expiry,
-            strike=self._decimal(strike),
-            option_type=option_type.upper() if option_type else None,
+            security_id=broker_identifier or "",
+            instrument_type=asset_class.value if hasattr(asset_class, 'value') else str(asset_class),
             lot_size=lot_size,
             tick_size=self._decimal(tick_size),
+            option_type=option_type.upper() if option_type else None,
+            strike_price=self._decimal(strike),
+            expiry=expiry,
+        )
+
+        instrument = Instrument(
+            domain_instrument=domain_inst,
+            asset_class=asset_class,
             broker_identifier=broker_identifier,
             broker_symbol=broker_symbol,
         )

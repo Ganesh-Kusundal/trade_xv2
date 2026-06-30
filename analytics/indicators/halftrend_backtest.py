@@ -99,29 +99,7 @@ class HalfTrendStrategy:
 # Fast Backtest Engine (pre-computes features)
 # ---------------------------------------------------------------------------
 
-
-@dataclass
-class Trade:
-    """Local trade record for HalfTrend backtest.
-
-    .. deprecated:: Phase-7
-        This is a local duplicate of the canonical
-        :class:`~analytics.replay.models.SimulatedTrade` and
-        :class:`~domain.entities.trade.Trade` classes.  Kept for backward
-        compatibility with ``HalfTrendStrategy`` consumers.  New code should
-        use the canonical trade entities.
-    """
-
-    symbol: str
-    side: str
-    entry_price: float
-    exit_price: float
-    entry_time: object
-    exit_time: object
-    quantity: int
-    pnl: float
-    pnl_pct: float
-    strategy: str = ""
+from datalake.research.fast_backtest import Trade
 
 
 def fast_backtest(

@@ -9,22 +9,49 @@ from brokers.common.instrument_adapter import from_instrument_id as common_from_
 from brokers.common.instrument_adapter import to_instrument_id as common_to_iid
 from brokers.common.instruments import Instrument
 from domain import InstrumentType
+from domain.entities.instrument import Instrument as DomainInstrument
 from domain.instrument_id import InstrumentId
+
+
+def _create_instrument(
+    symbol: str,
+    exchange: str,
+    asset_class: InstrumentType = InstrumentType.EQUITY,
+    *,
+    expiry: str | None = None,
+    strike: Decimal | None = None,
+    option_type: str | None = None,
+) -> Instrument:
+    """Helper to create a trading engine Instrument from old-style fields."""
+    domain_inst = DomainInstrument(
+        symbol=symbol,
+        exchange=exchange,
+        security_id="",
+        instrument_type=asset_class.value if hasattr(asset_class, 'value') else str(asset_class),
+        lot_size=0,
+        tick_size=Decimal("0"),
+        option_type=option_type,
+        strike_price=strike,
+        expiry=expiry,
+    )
+    return Instrument(
+        domain_instrument=domain_inst,
+        asset_class=asset_class,
+    )
 
 
 class TestCommonAdapter:
     """Test common broker adapter."""
 
     def test_equity_to_instrument_id(self):
-        inst = Instrument(symbol="RELIANCE", exchange="NSE", asset_class=InstrumentType.EQUITY)
+        inst = _create_instrument("RELIANCE", "NSE", InstrumentType.EQUITY)
         iid = common_to_iid(inst)
         assert iid == InstrumentId.equity("NSE", "RELIANCE")
         assert iid.asset_type == "EQUITY"
 
     def test_option_to_instrument_id(self):
-        inst = Instrument(
-            symbol="NIFTY", exchange="NFO",
-            asset_class=InstrumentType.OPTIONS,
+        inst = _create_instrument(
+            "NIFTY", "NFO", InstrumentType.OPTIONS,
             expiry="2026-07-30", strike=Decimal("25000"),
             option_type="CE",
         )
@@ -32,9 +59,8 @@ class TestCommonAdapter:
         assert iid == InstrumentId.option("NFO", "NIFTY", date(2026, 7, 30), 25000, "CE")
 
     def test_future_to_instrument_id(self):
-        inst = Instrument(
-            symbol="NIFTY", exchange="NFO",
-            asset_class=InstrumentType.FUTURES,
+        inst = _create_instrument(
+            "NIFTY", "NFO", InstrumentType.FUTURES,
             expiry="2026-07-30",
         )
         iid = common_to_iid(inst)

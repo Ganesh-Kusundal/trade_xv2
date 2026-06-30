@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
 
 from brokers.common.instruments import Instrument
 from domain import InstrumentType
+from domain.entities.instrument import Instrument as DomainInstrument
 from domain.instrument_id import InstrumentId
 from domain.symbols import normalize_exchange, normalize_symbol
 
@@ -50,11 +52,19 @@ def from_instrument_id(iid: InstrumentId) -> Instrument:
     elif iid.is_index:
         asset_class = InstrumentType.INDEX
 
-    return CommonInstrument(
+    domain_inst = DomainInstrument(
         symbol=iid.underlying,
         exchange=iid.exchange,
-        asset_class=asset_class,
-        expiry=iid.expiry.isoformat() if iid.expiry else None,
-        strike=iid.strike,
+        security_id="",
+        instrument_type=asset_class.value,
+        lot_size=0,
+        tick_size=Decimal("0"),
         option_type=iid.right if iid.right in ("CE", "PE") else None,
+        strike_price=iid.strike,
+        expiry=iid.expiry.isoformat() if iid.expiry else None,
+    )
+
+    return CommonInstrument(
+        domain_instrument=domain_inst,
+        asset_class=asset_class,
     )

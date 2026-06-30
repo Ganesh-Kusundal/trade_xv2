@@ -1,9 +1,7 @@
 """In-process event metrics for the OMS / event bus.
 
-This is intentionally tiny and dependency-free: a production deployment
-should replace it with a Prometheus / OpenTelemetry exporter, but the
-shape (counters and a snapshot method) stays the same so swapping is
-trivial.
+Uses MetricsRegistry Counter instances under the hood for unified
+metrics collection. The public API remains backward compatible.
 
 The metrics here are **never** swallowed. Every increment is observable
 via :func:`snapshot`, which is what the alerting layer polls.
@@ -11,11 +9,15 @@ via :func:`snapshot`, which is what the alerting layer polls.
 
 from __future__ import annotations
 
+import re
 import threading
 import time
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any
+
+from infrastructure.metrics.registry import metrics_registry
+from infrastructure.metrics.types import Counter
 
 
 @dataclass(frozen=True)
@@ -30,6 +32,14 @@ class TimestampedCounter:
     outcome: str
     timestamp: float
     by: int = 1
+
+
+_COUNTER_PREFIX = "event_metrics__"
+
+
+def _sanitize_name(name: str) -> str:
+    """Sanitize a string for use as a metric counter name."""
+    return re.sub(r"[^a-zA-Z0-9_]", "_", name)
 
 
 class EventMetrics:
@@ -57,10 +67,29 @@ class EventMetrics:
 
     def __init__(self) -> None:
         self._lock = threading.RLock()
-        self._counters: dict[tuple[str, str], int] = defaultdict(int)
-        # Timestamped counters for rate-based alerting.
-        # Keyed by (event_type, outcome), value is a list of (timestamp, count).
+        self._counters: dict[tuple[str, str], Counter] = {}
         self._timestamped: dict[tuple[str, str], list[tuple[float, int]]] = defaultdict(list)
+
+    @staticmethod
+    def _counter_name(event_type: str, outcome: str) -> str:
+        return f"{_COUNTER_PREFIX}{_sanitize_name(event_type)}__{_sanitize_name(outcome)}"
+
+    def _get_or_create_counter(self, event_type: str, outcome: str) -> Counter:
+        key = (event_type, outcome)
+        counter = self._counters.get(key)
+        if counter is not None:
+            return counter
+        with self._lock:
+            counter = self._counters.get(key)
+            if counter is None:
+                name = self._counter_name(event_type, outcome)
+                counter = metrics_registry.counter(
+                    name,
+                    description=f"Event counter for {event_type}/{outcome}",
+                    labels={"event_type": event_type, "outcome": outcome},
+                )
+                self._counters[key] = counter
+            return counter
 
     def inc(self, event_type: str, outcome: str, by: int = 1) -> None:
         """Increment a counter by *by* (must be positive).
@@ -70,8 +99,8 @@ class EventMetrics:
         """
         if by <= 0:
             return
-        with self._lock:
-            self._counters[(event_type, outcome)] += by
+        counter = self._get_or_create_counter(event_type, outcome)
+        counter.inc(by)
 
     def add_timestamped_counter(
         self,
@@ -99,9 +128,9 @@ class EventMetrics:
         if by <= 0:
             return
         ts = timestamp if timestamp is not None else time.time()
-        with self._lock:
-            self._counters[(event_type, outcome)] += by
-            self._timestamped[(event_type, outcome)].append((ts, by))
+        counter = self._get_or_create_counter(event_type, outcome)
+        counter.inc(by)
+        self._timestamped[(event_type, outcome)].append((ts, by))
 
     def rate(
         self,
@@ -148,7 +177,6 @@ class EventMetrics:
             if not entries:
                 return 0.0
 
-            # Filter entries within the window and compute total count.
             recent_entries: list[tuple[float, int]] = []
             total_count = 0
             for ts, count in entries:
@@ -156,7 +184,6 @@ class EventMetrics:
                     recent_entries.append((ts, count))
                     total_count += count
 
-            # Prune old entries to prevent unbounded memory growth.
             self._timestamped[(event_type, outcome)] = recent_entries
 
             if total_count == 0:
@@ -166,28 +193,30 @@ class EventMetrics:
 
     def get(self, event_type: str, outcome: str) -> int:
         """Return the cumulative counter value for ``(event_type, outcome)``."""
-        with self._lock:
-            return self._counters.get((event_type, outcome), 0)
+        counter = self._counters.get((event_type, outcome))
+        return int(counter.value) if counter else 0
 
     def snapshot(self) -> dict[str, dict[str, int]]:
         """Return a JSON-serializable view of every counter."""
         with self._lock:
             out: dict[str, dict[str, int]] = defaultdict(dict)
-            for (event_type, outcome), value in self._counters.items():
-                out[event_type][outcome] = value
+            for (event_type, outcome), counter in self._counters.items():
+                out[event_type][outcome] = int(counter.value)
             return dict(out)
 
     def reset(self) -> None:
         """Clear all counters and timestamped entries."""
         with self._lock:
+            for counter in self._counters.values():
+                counter.reset()
             self._counters.clear()
             self._timestamped.clear()
 
     def render(self) -> str:
         """Human-readable rendering, mostly for the CLI / logs."""
         lines = ["event_type | outcome | count"]
-        for (event_type, outcome), value in sorted(self._counters.items()):
-            lines.append(f"{event_type} | {outcome} | {value}")
+        for (event_type, outcome), counter in sorted(self._counters.items()):
+            lines.append(f"{event_type} | {outcome} | {int(counter.value)}")
         return "\n".join(lines)
 
     def as_dict(self) -> dict[str, Any]:
