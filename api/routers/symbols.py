@@ -51,7 +51,8 @@ async def search_symbols(
             query += " AND UPPER(exchange) = UPPER(?)"
             params.append(exchange.upper())
 
-        query += f" ORDER BY symbol LIMIT {int(limit)}"
+        query += " ORDER BY symbol LIMIT ?"
+        params.append(limit)
 
         results = catalog.conn.execute(query, params).fetchall()
 

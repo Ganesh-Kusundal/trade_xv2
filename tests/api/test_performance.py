@@ -80,7 +80,7 @@ class TestAnalyticsPerformance:
         """Scanner snapshot should respond in < 300ms."""
 
         def fetch_snapshot():
-            return client.get("/api/v1/analytics/snapshot", params={"limit": 50})
+            return client.get("/api/v1/scanner/snapshots", params={"limit": 50})
 
         result = benchmark(fetch_snapshot)
         assert result.status_code in [200, 500, 503]
@@ -89,7 +89,7 @@ class TestAnalyticsPerformance:
         """Top candidates should respond in < 200ms."""
 
         def fetch_candidates():
-            return client.get("/api/v1/analytics/top-candidates", params={"limit": 10})
+            return client.get("/api/v1/scanner/top-candidates", params={"limit": 10})
 
         result = benchmark(fetch_candidates)
         assert result.status_code in [200, 500, 503]

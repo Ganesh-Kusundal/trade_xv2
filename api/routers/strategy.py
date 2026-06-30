@@ -73,7 +73,8 @@ async def get_strategy_signals(
             query += " WHERE symbol = ?"
             params.append(symbol.upper())
 
-        query += f" ORDER BY intraday_score DESC LIMIT {int(limit)}"
+        query += " ORDER BY intraday_score DESC LIMIT ?"
+        params.append(limit)
 
         results = vm.query(query, params).fetchall()
 

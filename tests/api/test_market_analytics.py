@@ -142,8 +142,8 @@ class TestAnalyticsEndpoints:
         assert response.status_code in [400, 500, 503]
 
     def test_get_snapshot(self, client: TestClient):
-        """GET /api/v1/analytics/snapshot returns scanner snapshot."""
-        response = client.get("/api/v1/analytics/snapshot", params={"limit": 20})
+        """GET /api/v1/scanner/snapshots returns scanner snapshot."""
+        response = client.get("/api/v1/scanner/snapshots", params={"limit": 20})
 
         assert response.status_code in [200, 500, 503]
 
@@ -153,8 +153,8 @@ class TestAnalyticsEndpoints:
             assert "count" in data
 
     def test_get_top_candidates(self, client: TestClient):
-        """GET /api/v1/analytics/top-candidates returns top candidates."""
-        response = client.get("/api/v1/analytics/top-candidates", params={"limit": 10})
+        """GET /api/v1/scanner/top-candidates returns top candidates."""
+        response = client.get("/api/v1/scanner/top-candidates", params={"limit": 10})
 
         assert response.status_code in [200, 500, 503]
 

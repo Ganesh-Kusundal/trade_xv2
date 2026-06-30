@@ -33,39 +33,6 @@ class TestIndicatorsEndpoint:
         assert response.status_code in (200, 500, 503)
 
 
-class TestSnapshotEndpoint:
-    """Test GET /api/v1/analytics/snapshot endpoint."""
-
-    def test_snapshot_exists(self, client: TestClient):
-        """Should have snapshot endpoint."""
-        response = client.get("/api/v1/analytics/snapshot?limit=50")
-        assert response.status_code in (200, 404, 500, 503)
-
-    def test_snapshot_default_limit(self, client: TestClient):
-        """Should have default limit."""
-        response = client.get("/api/v1/analytics/snapshot")
-        assert response.status_code in (200, 404, 500, 503)
-
-    def test_snapshot_custom_limit(self, client: TestClient):
-        """Should accept custom limit."""
-        response = client.get("/api/v1/analytics/snapshot?limit=10")
-        assert response.status_code in (200, 404, 500, 503)
-
-
-class TestTopCandidatesEndpoint:
-    """Test GET /api/v1/analytics/top-candidates endpoint."""
-
-    def test_top_candidates_exists(self, client: TestClient):
-        """Should have top-candidates endpoint."""
-        response = client.get("/api/v1/analytics/top-candidates?limit=10")
-        assert response.status_code in (200, 404, 500, 503)
-
-    def test_top_candidates_custom_limit(self, client: TestClient):
-        """Should accept custom limit."""
-        response = client.get("/api/v1/analytics/top-candidates?limit=5")
-        assert response.status_code in (200, 404, 500, 503)
-
-
 class TestRelativeStrengthEndpoint:
     """Test GET /api/v1/analytics/relative-strength endpoint."""
 

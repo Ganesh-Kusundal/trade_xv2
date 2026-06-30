@@ -148,26 +148,49 @@ class MarketFeedConnectionAdmission:
             return None
         return _parse_iso_utc(raw)
 
-    def _load_persisted_streak(self) -> int:
-        """Reload the consecutive-429 streak from a still-active cooldown file.
-
-        A streak only counts if the persisted cooldown has not yet expired.
-        Once the cooldown window passes, Dhan is assumed recovered and the
-        next 429 starts the escalation again from the base delay.
-        """
+    def _read_cooldown_payload(self) -> dict[str, Any] | None:
         if not self._cooldown_path.exists():
-            return 0
+            return None
         try:
             payload = json.loads(self._cooldown_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
+            return None
+        return payload if isinstance(payload, dict) else None
+
+    def _penalty_window_seconds(self) -> float:
+        return float(os.getenv("DHAN_WS_429_PENALTY_WINDOW_SECONDS", "3600"))
+
+    def _cooldown_base_seconds(self) -> float:
+        return float(os.getenv("DHAN_WS_429_COOLDOWN_SECONDS", "120"))
+
+    def _cooldown_ceiling_seconds(self) -> float:
+        return float(os.getenv("DHAN_WS_429_COOLDOWN_MAX_SECONDS", "900"))
+
+    def _streak_from_payload(self, payload: dict[str, Any]) -> int:
+        recorded_at = (
+            _parse_iso_utc(payload["recorded_at"])
+            if isinstance(payload.get("recorded_at"), str)
+            else None
+        )
+        if recorded_at is None:
             return 0
-        next_allowed = _parse_iso_utc(payload.get("next_allowed_at", "")) if isinstance(
-            payload.get("next_allowed_at"), str
-        ) else None
-        if next_allowed is None or next_allowed <= datetime.now(timezone.utc):
+        age = (datetime.now(timezone.utc) - recorded_at).total_seconds()
+        if age > self._penalty_window_seconds():
             return 0
         streak = payload.get("consecutive_rate_limits")
         return int(streak) if isinstance(streak, int) and streak > 0 else 1
+
+    def _load_persisted_streak(self) -> int:
+        """Reload the consecutive-429 streak while Dhan's penalty window is active.
+
+        The streak must survive past ``next_allowed_at`` expiry. Otherwise each
+        cooldown cycle resets to the base delay, re-pokes Dhan too soon, and the
+        edge limiter never clears.
+        """
+        payload = self._read_cooldown_payload()
+        if payload is None:
+            return 0
+        return self._streak_from_payload(payload)
 
     def record_rate_limit_cooldown(self) -> datetime:
         """Persist an escalating cooldown after Dhan HTTP 429 on WS handshake.

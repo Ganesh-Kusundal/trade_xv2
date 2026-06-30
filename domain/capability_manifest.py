@@ -1070,10 +1070,10 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
                 "GET", "/api/v1/analytics/indicators", "api/routers/analytics.py", "datalake"
             ),
             RestExposure(
-                "GET", "/api/v1/analytics/snapshot", "api/routers/analytics.py", "datalake"
+                "GET", "/api/v1/scanner/snapshots", "api/routers/scanner.py", "datalake"
             ),
             RestExposure(
-                "GET", "/api/v1/analytics/top-candidates", "api/routers/analytics.py", "datalake"
+                "GET", "/api/v1/scanner/top-candidates", "api/routers/scanner.py", "datalake"
             ),
             RestExposure(
                 "GET", "/api/v1/analytics/relative-strength", "api/routers/analytics.py", "datalake"
