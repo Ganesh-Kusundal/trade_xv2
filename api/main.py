@@ -45,8 +45,10 @@ async def lifespan(app: FastAPI):
     # Start TradingContext lifecycle (reconciliation, DLQ monitor, daily PnL reset)
     from api.ws.bridge import MarketBridge
     from api.ws.market import market_manager
+    from infrastructure.async_resource_manager import AsyncResourceManager
     from infrastructure.lifecycle import LifecycleManager
 
+    resource_manager = AsyncResourceManager()
     lifecycle: LifecycleManager | None = None
     market_bridge: MarketBridge | None = None
     lifecycle_started = False
@@ -60,7 +62,7 @@ async def lifespan(app: FastAPI):
             exc,
         )
         yield
-        await _shutdown_cleanup(market_bridge, lifecycle, lifecycle_started)
+        await _shutdown_cleanup(market_bridge, lifecycle, lifecycle_started, resource_manager)
         return
 
     ctx = container.trading_context
@@ -70,7 +72,7 @@ async def lifespan(app: FastAPI):
             "To enable OMS, provide event_bus or trading_context to create_app()."
         )
         yield
-        await _shutdown_cleanup(market_bridge, lifecycle, lifecycle_started)
+        await _shutdown_cleanup(market_bridge, lifecycle, lifecycle_started, resource_manager)
         return
 
     # Build and start lifecycle
@@ -81,6 +83,13 @@ async def lifespan(app: FastAPI):
         lifecycle_started = True
         logger.info("TradingContext lifecycle started")
 
+        # Register lifecycle manager with resource manager
+        resource_manager.register(
+            "lifecycle",
+            lifecycle,
+            lambda: lifecycle.stop_all(),
+        )
+
         # Start MarketBridge for WebSocket market data
         market_bridge = MarketBridge(
             event_bus=ctx.event_bus,
@@ -88,6 +97,20 @@ async def lifespan(app: FastAPI):
         )
         await market_bridge.start()
         logger.info("MarketBridge started")
+
+        # Register market bridge with resource manager
+        resource_manager.register(
+            "market_bridge",
+            market_bridge,
+            market_bridge.stop,
+        )
+
+        # Register trading context for cleanup
+        resource_manager.register(
+            "trading_context",
+            ctx,
+            None,  # No explicit cleanup needed; lifecycle handles it
+        )
     except Exception as exc:
         logger.exception(
             "TradingContext lifecycle setup failed: %s: %s. "
@@ -99,8 +122,8 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # Shutdown
-    await _shutdown_cleanup(market_bridge, lifecycle, lifecycle_started)
+    # Shutdown via resource manager
+    await _shutdown_cleanup(market_bridge, lifecycle, lifecycle_started, resource_manager)
 
     from datalake.duckdb_utils import close_all_connections
 
@@ -112,6 +135,7 @@ async def _shutdown_cleanup(
     market_bridge: Any | None,
     lifecycle: Any | None,
     lifecycle_started: bool,
+    resource_manager: Any | None = None,
 ) -> None:
     """Clean shutdown of MarketBridge and LifecycleManager.
 
@@ -123,7 +147,20 @@ async def _shutdown_cleanup(
         LifecycleManager instance to stop (sync).
     lifecycle_started:
         True if lifecycle.start_all() was called successfully.
+    resource_manager:
+        AsyncResourceManager to perform reverse-order cleanup. If provided,
+        it handles the shutdown of all registered resources.
     """
+    # Use resource manager for coordinated shutdown if available
+    if resource_manager is not None:
+        try:
+            await resource_manager.shutdown_all()
+            logger.info("Resource manager shutdown completed")
+        except Exception as exc:
+            logger.warning("Resource manager shutdown failed: %s", exc)
+        return
+
+    # Fallback: manual cleanup (backward compat)
     # Stop async MarketBridge
     if market_bridge:
         try:
@@ -189,6 +226,14 @@ def create_app(
     validate_production_config(surface="api")
 
     cfg = config or APIConfig()
+
+    # Initialise OpenTelemetry distributed tracing
+    from infrastructure.opentelemetry_setup import setup_telemetry
+
+    setup_telemetry(
+        service_name="tradex-api",
+        otlp_endpoint=None,  # set via env/config when deploying
+    )
 
     # Auto-build TradingContext if not provided but event_bus is available
     if trading_context is None and event_bus is not None:
@@ -283,6 +328,15 @@ def create_app(
     from infrastructure.global_exception_handler import setup_exception_handlers
 
     setup_exception_handlers(app)
+
+    # Attach OpenTelemetry auto-instrumentation to this app instance
+    try:
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+
+        if FastAPIInstrumentor is not None:
+            FastAPIInstrumentor.instrument_app(app)
+    except ImportError:
+        pass
 
     # ── Register Routers (imported lazily to avoid circular dependencies) ──
 
