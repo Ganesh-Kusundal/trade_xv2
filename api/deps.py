@@ -12,6 +12,9 @@ Uses a module-level ServiceContainer dataclass instead of a raw dict
 so that services are discoverable and type-safe. The container is
 populated once during FastAPI lifespan startup and is immutable
 (no new services can be added mid-request).
+
+Also integrates with the infrastructure.di.Container for advanced
+DI features (transient/request scopes, circular dependency detection).
 """
 
 from __future__ import annotations
@@ -21,6 +24,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from fastapi import HTTPException, status
+
+from infrastructure.di import container as di_container
 
 if TYPE_CHECKING:
     pass
@@ -115,6 +120,42 @@ def set_container(container: ServiceContainer) -> None:
     )
     logger.info("Service container initialized with: %s", initialized)
 
+    # Also register in the DI container for advanced features
+    _register_in_di_container(container)
+
+
+def _register_in_di_container(service_container: ServiceContainer) -> None:
+    """Register all services from ServiceContainer into the DI container.
+
+    This enables advanced DI features like transient/request scopes
+    while maintaining backward compatibility.
+    """
+    # Register each service as an instance (already created)
+    services = {
+        "datalake_gateway": service_container.datalake_gateway,
+        "view_manager": service_container.view_manager,
+        "data_catalog": service_container.data_catalog,
+        "event_bus": service_container.event_bus,
+        "broker_service": service_container.broker_service,
+        "trading_context": service_container.trading_context,
+        "risk_manager": service_container.risk_manager,
+        "order_manager": service_container.order_manager,
+        "position_manager": service_container.position_manager,
+        "market_data_composer": service_container.market_data_composer,
+        "execution_composer": service_container.execution_composer,
+    }
+
+    for name, instance in services.items():
+        if instance is not None:
+            di_container.register_instance(name, instance)
+
+    # Register extra services
+    for name, instance in service_container.extra.items():
+        if instance is not None:
+            di_container.register_instance(name, instance)
+
+    logger.debug("Services registered in DI container: %s", list(services.keys()))
+
 
 def reset_container() -> None:
     """Reset the service container. FOR TESTING ONLY.
@@ -124,6 +165,7 @@ def reset_container() -> None:
     """
     global _container
     _container = None
+    di_container.reset()
 
 
 # ── FastAPI Dependencies ─────────────────────────────────────────────────────

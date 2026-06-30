@@ -3,6 +3,7 @@
 This package contains infrastructure services that are not domain-specific
 but are required by multiple layers:
 
+- **di.py** — Lightweight dependency injection container with singleton/transient/request scopes
 - **event_bus/** — Synchronous and asynchronous event publishing/subscription
 - (future) **logging/** — Structured logging configuration
 - (future) **metrics/** — Observability and metrics collection
