@@ -43,7 +43,7 @@ class TestTraceOperation:
 
         @trace_operation("test_operation")
         def test_func() -> None:
-            from infrastructure.logging import get_logger
+            from infrastructure.logging_config import get_logger
 
             logger = get_logger(__name__)
             # Can't easily capture log output, but verify no errors

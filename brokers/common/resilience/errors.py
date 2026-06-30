@@ -2,6 +2,14 @@
 
 from __future__ import annotations
 
+import functools
+import logging
+from collections.abc import Callable
+from typing import Any, TypeVar
+
+logger = logging.getLogger(__name__)
+F = TypeVar("F", bound=Callable[..., Any])
+
 
 class TradeXV2Error(Exception):
     """Root exception for all TradeXV2 errors."""
@@ -85,3 +93,71 @@ class BrokerDegradedError(BrokerError):
     ) -> None:
         super().__init__(message)
         self.health_status = health_status or {}
+
+
+class NetworkError(RetryableError):
+    """External network call failed (timeout, DNS, connection refused).
+
+    This is the canonical exception for *transport-level* failures.
+    Broker adapters should raise this (or a subclass) when the
+    underlying HTTP/TCP call fails, so that the retry framework and
+    circuit breakers can distinguish network failures from
+    application-level errors.
+    """
+
+
+def convert_network_errors(
+    error_factory: Callable[[Exception], NetworkError] | None = None,
+) -> Callable[[F], F]:
+    """Decorator that converts ``requests.RequestException`` → ``NetworkError``.
+
+    Provides a standard infrastructure-level pattern for broker adapters:
+    wrap the raw HTTP call so that callers only see domain exceptions,
+    never transport-level ``requests`` exceptions.
+
+    Usage::
+
+        @convert_network_errors()
+        def _send_raw_http(self, method, url, json):
+            return self._session.request(...)
+
+    Or with a custom error factory (e.g. broker-specific subclass)::
+
+        @convert_network_errors(
+            error_factory=lambda exc: DhanNetworkError(f"Dhan HTTP failed: {exc}")
+        )
+        def _send_raw_http(self, method, url, json):
+            return self._session.request(...)
+
+    Args:
+        error_factory: Optional callable that creates a ``NetworkError``
+            (or subclass) from the original ``RequestException``.
+            Defaults to ``NetworkError(str(exc))``.
+    """
+
+    def decorator(func: F) -> F:
+        @functools.wraps(func)
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
+            try:
+                return func(*args, **kwargs)
+            except ImportError:
+                # requests is optional — if not installed, just pass through
+                raise
+            except Exception as exc:
+                # Lazy import to avoid hard dependency on requests at
+                # module-load time (some adapters may use httpx).
+                try:
+                    import requests as _requests
+                except ImportError:
+                    raise
+                if isinstance(exc, _requests.RequestException):
+                    if error_factory is not None:
+                        raise error_factory(exc) from exc
+                    raise NetworkError(
+                        f"HTTP request failed: {exc}"
+                    ) from exc
+                raise
+
+        return wrapper  # type: ignore[return-value]
+
+    return decorator

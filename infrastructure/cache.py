@@ -14,6 +14,8 @@ Usage:
 
 from __future__ import annotations
 
+import asyncio
+import functools
 import json
 import threading
 import time
@@ -21,6 +23,13 @@ from abc import ABC, abstractmethod
 from typing import Any, Callable, TypeVar
 
 F = TypeVar("F", bound=Callable[..., Any])
+
+from infrastructure.metrics.registry import metrics_registry
+
+_cache_hits = metrics_registry.counter("cache_hits_total", "Total cache hits")
+_cache_misses = metrics_registry.counter("cache_misses_total", "Total cache misses")
+_cache_evictions = metrics_registry.counter("cache_evictions_total", "Total cache evictions")
+_cache_size = metrics_registry.gauge("cache_size", "Current number of entries in cache")
 
 
 class Cache(ABC):
@@ -58,26 +67,34 @@ class MemoryCache(Cache):
     def get(self, key: str) -> Any | None:
         with self._lock:
             if key not in self._store:
+                _cache_misses.inc()
                 return None
             value, expires_at = self._store[key]
             if expires_at and time.monotonic() > expires_at:
                 del self._store[key]
+                _cache_evictions.inc()
+                _cache_size.set(len(self._store))
+                _cache_misses.inc()
                 return None
+            _cache_hits.inc()
             return value
-    
+
     def set(self, key: str, value: Any, ttl: int | None = None) -> None:
         with self._lock:
             ttl_seconds = ttl if ttl is not None else self._default_ttl
             expires_at = time.monotonic() + ttl_seconds if ttl_seconds > 0 else 0
             self._store[key] = (value, expires_at)
-    
+            _cache_size.set(len(self._store))
+
     def delete(self, key: str) -> None:
         with self._lock:
             self._store.pop(key, None)
-    
+            _cache_size.set(len(self._store))
+
     def clear(self) -> None:
         with self._lock:
             self._store.clear()
+            _cache_size.set(0)
     
     def has(self, key: str) -> bool:
         return self.get(key) is not None
@@ -90,7 +107,7 @@ class MemoryCache(Cache):
 def cached(cache: Cache | None = None, ttl: int = 300) -> Callable[[F], F]:
     """Decorator to cache function results."""
     cache_instance = cache or memory_cache
-    
+
     def decorator(func: F) -> F:
         def wrapper(*args: Any, **kwargs: Any) -> Any:
             key = f"{func.__name__}:{json.dumps(args)}:{json.dumps(kwargs)}"
@@ -98,6 +115,24 @@ def cached(cache: Cache | None = None, ttl: int = 300) -> Callable[[F], F]:
             if result is not None:
                 return result
             result = func(*args, **kwargs)
+            cache_instance.set(key, result, ttl=ttl)
+            return result
+        return wrapper  # type: ignore
+    return decorator
+
+
+def async_cached(cache: Cache | None = None, ttl: int = 300) -> Callable[[F], F]:
+    """Decorator to cache async function results."""
+    cache_instance = cache or memory_cache
+
+    def decorator(func: F) -> F:
+        @functools.wraps(func)
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
+            key = f"{func.__name__}:{json.dumps(args)}:{json.dumps(kwargs)}"
+            result = cache_instance.get(key)
+            if result is not None:
+                return result
+            result = await func(*args, **kwargs)
             cache_instance.set(key, result, ttl=ttl)
             return result
         return wrapper  # type: ignore

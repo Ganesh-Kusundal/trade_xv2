@@ -3,23 +3,32 @@
 Provides a single, configurable retry mechanism for all external calls
 (broker APIs, database, websockets, etc.).
 
-Usage:
+Usage::
+
     from infrastructure.retry import retry, RetryPolicy
-    
-    # Use default policy
+
+    # Default policy
     @retry
     async def call_broker_api():
         ...
-    
+
     # Custom policy
     @retry(policy=RetryPolicy(max_attempts=5, backoff_factor=2.0))
     def call_database():
         ...
+
+Safety guards:
+    * **Double-wrap detection** — applying ``@retry`` twice on the same
+      function raises ``TypeError`` at decoration time.
+    * **Nesting detection** — calling a ``@retry``-decorated function
+      from inside another ``@retry`` loop logs a warning and sets the
+      ``retry.nested`` structured-log event so CI can catch regressions.
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextvars
 import functools
 import logging
 import random
@@ -36,6 +45,17 @@ logger = logging.getLogger(__name__)
 
 F = TypeVar("F", bound=Callable[..., Any])
 
+# ── Nesting detection ────────────────────────────────────────────────────
+# Tracks whether the current execution context is already inside a @retry
+# loop.  A second @retry entry while this is True indicates a nested-retry
+# bug (e.g. @retry on a method called from a manual retry loop).
+_retry_active: contextvars.ContextVar[bool] = contextvars.ContextVar(
+    "_retry_active", default=False
+)
+
+# Sentinel attribute name used to detect double-wrapped functions.
+_RETRY_MARKER = "_is_retry_wrapped"
+
 
 class BackoffStrategy(Enum):
     """Backoff strategies for retry delays."""
@@ -48,7 +68,7 @@ class BackoffStrategy(Enum):
 @dataclass
 class RetryPolicy:
     """Configuration for retry behavior.
-    
+
     Attributes:
         max_attempts: Maximum number of retry attempts (including first try).
         backoff_factor: Multiplier for delay between retries.
@@ -155,47 +175,58 @@ async def _async_retry(
 ) -> Any:
     """Execute async function with retry logic."""
 
+    # Nesting detection — if we're already inside a @retry loop, warn.
+    if _retry_active.get():
+        logger.warning(
+            "retry.nested",
+            extra={"function": _get_func_name(func)},
+        )
+
     last_exception: Exception | None = None
+    token = _retry_active.set(True)
 
-    for attempt in range(policy.max_attempts):
-        try:
-            return await func(*args, **kwargs)
+    try:
+        for attempt in range(policy.max_attempts):
+            try:
+                return await func(*args, **kwargs)
 
-        except policy.retryable_exceptions as exc:
-            last_exception = exc
+            except policy.retryable_exceptions as exc:
+                last_exception = exc
 
-            if attempt < policy.max_attempts - 1:
-                delay = _calculate_delay(attempt, policy)
+                if attempt < policy.max_attempts - 1:
+                    delay = _calculate_delay(attempt, policy)
 
-                logger.warning(
-                    "Retry attempt %d/%d for %s after %s: %s",
-                    attempt + 1,
-                    policy.max_attempts,
-                    _get_func_name(func),
-                    type(exc).__name__,
-                    str(exc),
-                )
+                    logger.warning(
+                        "Retry attempt %d/%d for %s after %s: %s",
+                        attempt + 1,
+                        policy.max_attempts,
+                        _get_func_name(func),
+                        type(exc).__name__,
+                        str(exc),
+                    )
 
-                await asyncio.sleep(delay)
-            else:
+                    await asyncio.sleep(delay)
+                else:
+                    logger.error(
+                        "All %d attempts failed for %s: %s",
+                        policy.max_attempts,
+                        _get_func_name(func),
+                        str(exc),
+                    )
+
+            except Exception as exc:
+                # Non-retryable exception
                 logger.error(
-                    "All %d attempts failed for %s: %s",
-                    policy.max_attempts,
+                    "Non-retryable exception in %s: %s",
                     _get_func_name(func),
                     str(exc),
                 )
+                raise
 
-        except Exception as exc:
-            # Non-retryable exception
-            logger.error(
-                "Non-retryable exception in %s: %s",
-                _get_func_name(func),
-                str(exc),
-            )
-            raise
-
-    # All retries exhausted
-    raise last_exception  # type: ignore[misc]
+        # All retries exhausted
+        raise last_exception  # type: ignore[misc]
+    finally:
+        _retry_active.reset(token)
 
 
 def _sync_retry(
@@ -206,47 +237,58 @@ def _sync_retry(
 ) -> Any:
     """Execute sync function with retry logic."""
 
+    # Nesting detection — if we're already inside a @retry loop, warn.
+    if _retry_active.get():
+        logger.warning(
+            "retry.nested",
+            extra={"function": _get_func_name(func)},
+        )
+
     last_exception: Exception | None = None
+    token = _retry_active.set(True)
 
-    for attempt in range(policy.max_attempts):
-        try:
-            return func(*args, **kwargs)
+    try:
+        for attempt in range(policy.max_attempts):
+            try:
+                return func(*args, **kwargs)
 
-        except policy.retryable_exceptions as exc:
-            last_exception = exc
+            except policy.retryable_exceptions as exc:
+                last_exception = exc
 
-            if attempt < policy.max_attempts - 1:
-                delay = _calculate_delay(attempt, policy)
+                if attempt < policy.max_attempts - 1:
+                    delay = _calculate_delay(attempt, policy)
 
-                logger.warning(
-                    "Retry attempt %d/%d for %s after %s: %s",
-                    attempt + 1,
-                    policy.max_attempts,
-                    _get_func_name(func),
-                    type(exc).__name__,
-                    str(exc),
-                )
+                    logger.warning(
+                        "Retry attempt %d/%d for %s after %s: %s",
+                        attempt + 1,
+                        policy.max_attempts,
+                        _get_func_name(func),
+                        type(exc).__name__,
+                        str(exc),
+                    )
 
-                time.sleep(delay)
-            else:
+                    time.sleep(delay)
+                else:
+                    logger.error(
+                        "All %d attempts failed for %s: %s",
+                        policy.max_attempts,
+                        _get_func_name(func),
+                        str(exc),
+                    )
+
+            except Exception as exc:
+                # Non-retryable exception
                 logger.error(
-                    "All %d attempts failed for %s: %s",
-                    policy.max_attempts,
+                    "Non-retryable exception in %s: %s",
                     _get_func_name(func),
                     str(exc),
                 )
+                raise
 
-        except Exception as exc:
-            # Non-retryable exception
-            logger.error(
-                "Non-retryable exception in %s: %s",
-                _get_func_name(func),
-                str(exc),
-            )
-            raise
-
-    # All retries exhausted
-    raise last_exception  # type: ignore[misc]
+        # All retries exhausted
+        raise last_exception  # type: ignore[misc]
+    finally:
+        _retry_active.reset(token)
 
 
 def retry(
@@ -254,28 +296,28 @@ def retry(
     policy: RetryPolicy | str | None = None,
 ) -> F | Callable[[F], F]:
     """Decorator for adding retry logic to functions.
-    
+
     Can be used in three ways:
-    
+
     1. With default policy:
         @retry
         async def my_func():
             ...
-    
+
     2. With custom policy:
         @retry(policy=RetryPolicy(max_attempts=5))
         async def my_func():
             ...
-    
+
     3. With named policy:
         @retry(policy="aggressive")
         async def my_func():
             ...
-    
+
     Args:
         func: Function to decorate (when used as @retry).
         policy: RetryPolicy instance or name of predefined policy.
-    
+
     Returns:
         Decorated function or decorator.
     """
@@ -289,19 +331,34 @@ def retry(
 
     # Handle @retry (no parentheses)
     if func is not None:
+        # Double-wrap detection — prevent @retry applied twice.
+        if getattr(func, _RETRY_MARKER, False):
+            raise TypeError(
+                f"{_get_func_name(func)} is already wrapped by @retry. "
+                "Applying @retry twice causes multiplicative attempt explosion."
+            )
         if asyncio.iscoroutinefunction(func):
             @functools.wraps(func)
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 return await _async_retry(func, args, kwargs, POLICIES["default"])
+            async_wrapper._is_retry_wrapped = True  # type: ignore[attr-defined]
             return async_wrapper  # type: ignore[return-value]
         else:
             @functools.wraps(func)
             def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
                 return _sync_retry(func, args, kwargs, POLICIES["default"])
+            sync_wrapper._is_retry_wrapped = True  # type: ignore[attr-defined]
             return sync_wrapper  # type: ignore[return-value]
 
     # Handle @retry() or @retry(policy=...)
     def decorator(f: F) -> F:
+        # Double-wrap detection — prevent @retry applied twice.
+        if getattr(f, _RETRY_MARKER, False):
+            raise TypeError(
+                f"{_get_func_name(f)} is already wrapped by @retry. "
+                "Applying @retry twice causes multiplicative attempt explosion."
+            )
+
         # Resolve policy
         if policy is None:
             resolved_policy = POLICIES["default"]
@@ -318,12 +375,14 @@ def retry(
             @functools.wraps(f)
             async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 return await _async_retry(f, args, kwargs, resolved_policy)
+            async_wrapper._is_retry_wrapped = True  # type: ignore[attr-defined]
             return async_wrapper  # type: ignore[return-value]
 
         else:
             @functools.wraps(f)
             def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
                 return _sync_retry(f, args, kwargs, resolved_policy)
+            sync_wrapper._is_retry_wrapped = True  # type: ignore[attr-defined]
             return sync_wrapper  # type: ignore[return-value]
 
     return decorator

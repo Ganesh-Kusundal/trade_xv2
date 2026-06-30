@@ -36,7 +36,8 @@ from domain import (
 )
 from domain.exchange_segments import parse_segment
 from domain.symbols import make_position_key, normalize_symbol
-from infrastructure.logging import get_logger
+from infrastructure.logging_config import get_logger
+from infrastructure.tracing import trace_operation
 
 logger = get_logger(__name__)
 
@@ -78,6 +79,7 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
 
     # ── Order shortcuts ──
 
+    @trace_operation("dhan_gateway.place_order")
     def place_order(
         self,
         symbol: str,
@@ -152,6 +154,7 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         except OrderError as exc:
             return OrderResponse.fail(str(exc))
 
+    @trace_operation("dhan_gateway.cancel_order")
     def cancel_order(self, order_id: str) -> OrderResponse:
         """Cancel an order with post-cancellation verification.
 
@@ -203,6 +206,7 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
             # the Order | None contract expected by callers.
             return None
 
+    @trace_operation("dhan_gateway.modify_order")
     def modify_order(self, order_id: str, **changes: Any) -> OrderResponse:
         from domain.entities import OrderResponse
 

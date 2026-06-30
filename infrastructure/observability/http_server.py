@@ -298,37 +298,52 @@ class HttpObservabilityServer(ManagedService):
     async def _handle_readyz(self, request: web.Request) -> web.Response:
         """Readiness: every registered ManagedService is HEALTHY (or
         DEGRADED, which is still serving). 503 if any service is
-        FAILED, STOPPED (after start_all), or UNHEALTHY."""
+        FAILED, STOPPED (after start_all), or UNHEALTHY.
+        Also checks the FastAPI HealthRegistry for consistency."""
         self._request_count += 1
-        if self._lifecycle is None:
-            return web.json_response(
-                {"status": "ready", "services": {}},
-                status=200,
-            )
-        snap = self._lifecycle.health_snapshot()
-        # A service is "ready" if its state is HEALTHY, DEGRADED, or
-        # STOPPED (only if no services are registered yet). Once any
-        # service is HEALTHY, STOPPED is treated as a regression.
-        registered = bool(snap)
-        ready_states = {HealthState.HEALTHY, HealthState.DEGRADED}
-        not_ready: list[tuple[str, str]] = []
-        for name, info in snap.items():
-            try:
-                state = HealthState(info["state"])
-            except (ValueError, KeyError):
-                state = HealthState.FAILED
-            if state in ready_states:
-                continue
-            # STOPPED is OK if no service has ever been started
-            if state == HealthState.STOPPED and not registered:
-                continue
-            not_ready.append((name, state.value))
-        body = {
-            "status": "ready" if not not_ready else "not_ready",
-            "services": {name: info.get("state", "UNKNOWN") for name, info in snap.items()},
+
+        # Check LifecycleManager services
+        lifecycle_not_ready: list[tuple[str, str]] = []
+        lifecycle_services: dict[str, str] = {}
+        if self._lifecycle is not None:
+            snap = self._lifecycle.health_snapshot()
+            registered = bool(snap)
+            ready_states = {HealthState.HEALTHY, HealthState.DEGRADED}
+            for name, info in snap.items():
+                try:
+                    state = HealthState(info["state"])
+                except (ValueError, KeyError):
+                    state = HealthState.FAILED
+                lifecycle_services[name] = info.get("state", "UNKNOWN")
+                if state in ready_states:
+                    continue
+                if state == HealthState.STOPPED and not registered:
+                    continue
+                lifecycle_not_ready.append((name, state.value))
+
+        # Check HealthRegistry (FastAPI /health checks)
+        registry_not_ready: list[tuple[str, str]] = {}
+        try:
+            from infrastructure.health import health_registry
+            import asyncio as _aio
+
+            results = await health_registry.run_all()
+            for name, result in results.items():
+                status_val = result.status.value
+                registry_not_ready[name] = status_val
+                if status_val not in ("healthy", "degraded"):
+                    lifecycle_not_ready.append((f"health_registry.{name}", status_val))
+        except Exception:
+            pass
+
+        body: dict[str, Any] = {
+            "status": "ready" if not lifecycle_not_ready else "not_ready",
+            "services": lifecycle_services,
         }
-        if not_ready:
-            body["not_ready"] = not_ready
+        if registry_not_ready:
+            body["health_registry"] = registry_not_ready
+        if lifecycle_not_ready:
+            body["not_ready"] = lifecycle_not_ready
             return web.json_response(body, status=503)
         return web.json_response(body, status=200)
 

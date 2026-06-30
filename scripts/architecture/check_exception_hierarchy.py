@@ -70,6 +70,7 @@ KNOWN_GOOD_BASES = {
     "UpstoxApiError",  # Inherits from BrokerError
     "UpstoxAuthError",  # Inherits from UpstoxApiError
     "StreamError",  # Inherits from BrokerError
+    "NetworkError",  # Inherits from RetryableError
 }
 
 # Standard library exceptions that are OK to inherit from

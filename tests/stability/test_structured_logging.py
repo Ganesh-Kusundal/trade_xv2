@@ -16,7 +16,7 @@ from io import StringIO
 from unittest.mock import patch
 
 from infrastructure.correlation import with_correlation
-from infrastructure.logging import (
+from infrastructure.logging_config import (
     ConsoleFormatter,
     CorrelationFilter,
     JSONFormatter,
@@ -339,37 +339,25 @@ class TestProductionMode:
 
     def test_set_production_mode_json_output(self):
         """Production mode should use JSON formatter."""
-        import infrastructure.logging as logging_module
+        from infrastructure.logging_config import configure_logging, StructuredFormatter
 
-        # Reset initialization state
-        logging_module._initialized = False
-        logging_module._is_production = True
+        configure_logging(service="test", log_format="json")
 
-        # Re-initialize
-        logger = get_logger("test.production.fresh")
-
-        # Verify root logger has JSON formatter
         root_logger = logging.getLogger()
         assert len(root_logger.handlers) > 0
         handler = root_logger.handlers[0]
-        assert isinstance(handler.formatter, JSONFormatter)
+        assert isinstance(handler.formatter, StructuredFormatter)
 
     def test_set_production_mode_console_output(self):
         """Development mode should use console formatter."""
-        import infrastructure.logging as logging_module
+        from infrastructure.logging_config import configure_logging, HumanReadableFormatter
 
-        # Reset initialization state
-        logging_module._initialized = False
-        logging_module._is_production = False
+        configure_logging(service="test", log_format="human")
 
-        # Re-initialize
-        logger = get_logger("test.development.fresh")
-
-        # Verify root logger has console formatter
         root_logger = logging.getLogger()
         assert len(root_logger.handlers) > 0
         handler = root_logger.handlers[0]
-        assert isinstance(handler.formatter, ConsoleFormatter)
+        assert isinstance(handler.formatter, HumanReadableFormatter)
 
 
 class TestIntegration:

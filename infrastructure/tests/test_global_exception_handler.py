@@ -16,6 +16,7 @@ class TestImportResolution:
         from brokers.common.resilience.errors import (
             AuthenticationError,
             BrokerError,
+            NetworkError,
             NonRetryableError,
             OrderError,
             RateLimitError,
@@ -29,6 +30,7 @@ class TestImportResolution:
         assert issubclass(RetryableError, BrokerError)
         assert issubclass(NonRetryableError, BrokerError)
         assert issubclass(BrokerError, TradeXV2Error)
+        assert issubclass(NetworkError, RetryableError)
 
 
 class TestExceptionMapping:
@@ -115,3 +117,9 @@ class TestExceptionMapping:
         from brokers.common.resilience.errors import DataError
         resp = self._map(DataError("corrupt"))
         assert resp.status_code == 500
+
+    def test_network_error_returns_503(self):
+        """NetworkError inherits RetryableError -> 503."""
+        from brokers.common.resilience.errors import NetworkError
+        resp = self._map(NetworkError("connection refused"))
+        assert resp.status_code == 503

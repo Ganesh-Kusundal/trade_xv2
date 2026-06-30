@@ -18,6 +18,7 @@ from api.schemas import (
     Trade,
     TradesResponse,
 )
+from infrastructure.tracing import trace_operation
 from domain import OrderStatus, OrderType, ProductType, Side
 from domain.requests import OrderRequest as DomainOrderRequest
 
@@ -244,6 +245,7 @@ async def get_order(
 
 
 @router.post("", response_model=OrderResponse)
+@trace_operation("api.orders.place_order")
 async def place_order(
     req: OrderRequest,
     composer=Depends(get_execution_composer),
@@ -305,6 +307,7 @@ async def place_order(
 
 
 @router.put("/{order_id}", response_model=OrderResponse)
+@trace_operation("api.orders.modify_order")
 async def modify_order(
     order_id: str,
     req: OrderRequest,
@@ -373,6 +376,7 @@ async def modify_order(
 
 
 @router.delete("/{order_id}", response_model=OrderResponse)
+@trace_operation("api.orders.cancel_order")
 async def cancel_order(
     order_id: str,
     composer=Depends(get_execution_composer),

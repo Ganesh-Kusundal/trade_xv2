@@ -49,6 +49,53 @@ class MetricsRegistry:
                 "histograms": {n: len(h.values) for n, h in self._histograms.items()},
                 "timers": {n: len(t.values) for n, t in self._timers.items()},
             }
+
+    def snapshot_detailed(self) -> dict[str, Any]:
+        """Full snapshot with bucket distributions and timer stats for Prometheus export."""
+        with self._lock:
+            histograms = {}
+            for n, h in self._histograms.items():
+                values = h.values
+                buckets = sorted(h.buckets)
+                bucket_counts: list[tuple[float, int]] = []
+                cumulative = 0
+                for bound in buckets:
+                    cumulative = sum(1 for v in values if v <= bound)
+                    bucket_counts.append((bound, cumulative))
+                bucket_counts.append((float("inf"), len(values)))
+                histograms[n] = {
+                    "description": h.description,
+                    "labels": h.labels,
+                    "buckets": bucket_counts,
+                    "sum": sum(values),
+                    "count": len(values),
+                }
+
+            timers = {}
+            for n, t in self._timers.items():
+                values = t.values
+                timers[n] = {
+                    "description": t.description,
+                    "labels": t.labels,
+                    "count": len(values),
+                    "sum": sum(values),
+                    "min": min(values) if values else 0,
+                    "max": max(values) if values else 0,
+                    "avg": sum(values) / len(values) if values else 0,
+                }
+
+            return {
+                "counters": {
+                    n: {"value": c.value, "description": c.description, "labels": c.labels}
+                    for n, c in self._counters.items()
+                },
+                "gauges": {
+                    n: {"value": g.value, "description": g.description, "labels": g.labels}
+                    for n, g in self._gauges.items()
+                },
+                "histograms": histograms,
+                "timers": timers,
+            }
     
     def reset_all(self) -> None:
         with self._lock:

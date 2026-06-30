@@ -19,6 +19,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
+from infrastructure.correlation import set_current_correlation_id
+
 logger = logging.getLogger(__name__)
 
 
@@ -172,6 +174,8 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         )
         if not request_id:
             request_id = uuid.uuid4().hex[:16]
+
+        set_current_correlation_id(request_id)
 
         method = request.method
         raw_path = request.url.path

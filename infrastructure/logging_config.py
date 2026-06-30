@@ -29,29 +29,8 @@ import logging.config
 import os
 import re
 import sys
-import threading
 from datetime import datetime, timezone
 from typing import Any
-
-# Thread-local storage for context
-_thread_local = threading.local()
-
-
-def set_context(**kwargs: Any) -> None:
-    """Set logging context for the current thread/async context."""
-    if not hasattr(_thread_local, "context"):
-        _thread_local.context = {}
-    _thread_local.context.update(kwargs)
-
-
-def clear_context() -> None:
-    """Clear all logging context for the current thread."""
-    _thread_local.context = {}
-
-
-def get_context() -> dict[str, Any]:
-    """Get current logging context."""
-    return getattr(_thread_local, "context", {})
 
 
 # Token redaction patterns (REF-29)
@@ -123,6 +102,22 @@ def _replace(match: re.Match[str]) -> str:
     return TokenRedactionFilter.REDACTED
 
 
+class CorrelationFilter(logging.Filter):
+    """Inject correlation_id and service_name into every log record."""
+
+    def __init__(self, service_name: str | None = None) -> None:
+        super().__init__()
+        import os
+        self.service_name = service_name or os.getenv("TRADING_SERVICE_NAME", "trading-platform")
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        from infrastructure.correlation import get_current_correlation_id
+
+        record.correlation_id = get_current_correlation_id() or "no-correlation"
+        record.service_name = self.service_name
+        return True
+
+
 class StructuredFormatter(logging.Formatter):
     """JSON-structured log formatter for production use."""
     
@@ -143,14 +138,18 @@ class StructuredFormatter(logging.Formatter):
             "thread": record.threadName,
             "process": record.process,
         }
+        correlation_id = getattr(record, "correlation_id", "")
+        if correlation_id:
+            log_entry["correlation_id"] = correlation_id
+        service_name = getattr(record, "service_name", "")
+        if service_name:
+            log_entry["service_name"] = service_name
         if record.exc_info and record.exc_info[0]:
             log_entry["exception"] = {
                 "type": record.exc_info[0].__name__,
                 "message": str(record.exc_info[1]),
+                "traceback": self.formatException(record.exc_info),
             }
-        context = get_context()
-        if context:
-            log_entry["context"] = context
         for key, value in record.__dict__.items():
             if key not in _LOG_RECORD_BUILTIN_KEYS:
                 log_entry[key] = value
@@ -170,14 +169,19 @@ class HumanReadableFormatter(logging.Formatter):
         timestamp = datetime.fromtimestamp(record.created, tz=timezone.utc).strftime("%H:%M:%S.%f")[:-3]
         color = self.COLORS.get(record.levelname, "")
         level = f"{record.levelname:<8}"
-        context = get_context()
-        context_str = ""
-        if context:
-            context_str = " [" + " ".join(f"{k}={v}" for k, v in context.items()) + "]"
+        correlation_id = getattr(record, "correlation_id", "")
+        corr_str = f" [{correlation_id}]" if correlation_id else ""
         message = record.getMessage()
         if record.exc_info and record.exc_info[0]:
             message += f" | {record.exc_info[0].__name__}: {record.exc_info[1]}"
-        return f"{color}{timestamp}{self.RESET} {color}{level}{self.RESET} {record.name:<30} {message}{context_str}"
+        extra_parts = []
+        for key, value in record.__dict__.items():
+            if key not in _LOG_RECORD_BUILTIN_KEYS and key not in ("correlation_id", "service_name"):
+                extra_parts.append(f"{key}={value}")
+        extra_str = " ".join(extra_parts)
+        if extra_str:
+            message += f" - {extra_str}"
+        return f"{color}{timestamp}{self.RESET} {color}{level}{self.RESET} {record.name:<30} {message}{corr_str}"
 
 
 def configure_logging(
@@ -211,16 +215,19 @@ def configure_logging(
     else:
         formatter = HumanReadableFormatter()
     
+    handler_filters = ["correlation"]
+    if enable_redaction:
+        handler_filters.insert(0, "token_redaction")
+
     handlers: dict[str, Any] = {
         "console": {
             "class": "logging.StreamHandler",
             "stream": sys.stdout,
             "formatter": "standard",
+            "filters": handler_filters,
         }
     }
-    if enable_redaction:
-        handlers["console"]["filters"] = ["token_redaction"]
-    
+
     if log_file:
         handlers["file"] = {
             "class": "logging.handlers.RotatingFileHandler",
@@ -228,18 +235,19 @@ def configure_logging(
             "maxBytes": 10 * 1024 * 1024,
             "backupCount": 5,
             "formatter": "standard",
+            "filters": handler_filters,
         }
-        if enable_redaction:
-            handlers["file"]["filters"] = ["token_redaction"]
     
+    filters: dict[str, Any] = {}
+    if enable_redaction:
+        filters["token_redaction"] = {"()": "infrastructure.logging_config.TokenRedactionFilter"}
+    filters["correlation"] = {"()": "infrastructure.logging_config.CorrelationFilter"}
+
     config: dict[str, Any] = {
         "version": 1,
         "disable_existing_loggers": False,
         "formatters": {"standard": {"()": lambda: formatter}},
-        "filters": (
-            {"token_redaction": {"()": "infrastructure.logging_config.TokenRedactionFilter"}}
-            if enable_redaction else {}
-        ),
+        "filters": filters,
         "handlers": handlers,
         "root": {"level": level, "handlers": list(handlers.keys())},
         "loggers": {
@@ -264,13 +272,24 @@ def get_logger(name: str) -> logging.Logger:
     return logging.getLogger(name)
 
 
+def set_production_mode(enabled: bool) -> None:
+    """Override production mode detection (for testing)."""
+    os.environ["APP_ENV"] = "production" if enabled else "development"
+
+
+# Backward-compat aliases for the old module name
+ConsoleFormatter = HumanReadableFormatter
+JSONFormatter = StructuredFormatter
+
+
 __all__ = [
     "configure_logging",
     "get_logger",
-    "set_context",
-    "clear_context",
-    "get_context",
     "TokenRedactionFilter",
+    "CorrelationFilter",
     "StructuredFormatter",
     "HumanReadableFormatter",
+    "ConsoleFormatter",
+    "JSONFormatter",
+    "set_production_mode",
 ]

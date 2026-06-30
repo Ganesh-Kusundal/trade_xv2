@@ -6,7 +6,7 @@ Protected by one ``threading.RLock`` and uses immutable ``Position`` values.
 
 from __future__ import annotations
 
-from infrastructure.logging import get_logger
+from infrastructure.logging_config import get_logger
 
 import threading
 from collections import deque

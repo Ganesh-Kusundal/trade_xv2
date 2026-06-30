@@ -26,7 +26,7 @@ from collections.abc import Callable
 from typing import Any, TypeVar
 
 from infrastructure.correlation import get_current_correlation_id
-from infrastructure.logging import get_logger
+from infrastructure.logging_config import get_logger
 
 logger = get_logger(__name__)
 

@@ -13,6 +13,12 @@ import requests
 from brokers.common.resilience.circuit_breaker import CircuitBreaker, CircuitState
 from brokers.common.resilience.rate_limiter import MultiBucketRateLimiter
 from brokers.dhan.exceptions import AuthenticationError, DhanError, RateLimitError
+from brokers.dhan.metrics import (
+    dhan_errors_total,
+    dhan_rate_limit_retries_total,
+    dhan_request_duration_seconds,
+    dhan_request_total,
+)
 from brokers.dhan.resilience.rate_limiter import DhanRateLimiterMetrics
 from endpoints import Dhan
 
@@ -390,7 +396,10 @@ class DhanHttpClient:
         max_attempts = _MAX_RETRIES if self._enable_retry else 1
         last_exc: Exception | None = None
 
-        for attempt in range(1, max_attempts + 1):
+        _start = time.monotonic()
+        dhan_request_total.inc()
+        try:
+          for attempt in range(1, max_attempts + 1):
             try:
                 # Always route through _send_raw_http so that
                 # requests.RequestException is converted to DhanError
@@ -527,10 +536,15 @@ class DhanHttpClient:
                 cb.on_success()
             return data
 
-        # Should not reach here, but just in case
-        if last_exc:
-            raise last_exc
-        raise DhanError(f"Request failed after {max_attempts} attempts: {method} {url}")
+          # Should not reach here, but just in case
+          if last_exc:
+              raise last_exc
+          raise DhanError(f"Request failed after {max_attempts} attempts: {method} {url}")
+        except Exception as exc:
+            dhan_errors_total.inc()
+            raise
+        finally:
+            dhan_request_duration_seconds.observe(time.monotonic() - _start)
 
     @staticmethod
     def _backoff_delay(attempt: int) -> float:

@@ -6,7 +6,7 @@ structured error payloads.
 
 Usage in FastAPI:
     from infrastructure.global_exception_handler import setup_exception_handlers
-    
+
     app = FastAPI()
     setup_exception_handlers(app)
 """
@@ -36,8 +36,13 @@ from brokers.common.resilience.errors import (
     TradeXV2Error,
     ValidationError,
 )
+from infrastructure.metrics.registry import metrics_registry
+from infrastructure.correlation import get_current_correlation_id
 
 logger = logging.getLogger(__name__)
+
+_exceptions_total = metrics_registry.counter("exceptions_total", "Total exceptions by type")
+_exceptions_by_status = metrics_registry.counter("exceptions_by_status", "Total exceptions by HTTP status")
 
 
 class ErrorResponse:
@@ -177,7 +182,9 @@ async def tradexv2_exception_handler(
 
     error_response = _map_exception_to_response(exc)
 
-    # Log the error
+    _exceptions_total.inc()
+    _exceptions_by_status.inc()
+
     logger.error(
         "Exception caught: %s - %s",
         error_response.error_type,
@@ -189,9 +196,14 @@ async def tradexv2_exception_handler(
         },
     )
 
+    content = error_response.to_dict()
+    correlation_id = get_current_correlation_id()
+    if correlation_id:
+        content["correlation_id"] = correlation_id
+
     return JSONResponse(
         status_code=error_response.status_code,
-        content=error_response.to_dict(),
+        content=content,
     )
 
 
@@ -200,6 +212,9 @@ async def generic_exception_handler(
     exc: Exception,
 ) -> JSONResponse:
     """Fallback handler for unexpected exceptions."""
+
+    _exceptions_total.inc()
+    _exceptions_by_status.inc()
 
     logger.exception(
         "Unexpected exception: %s",
@@ -214,22 +229,27 @@ async def generic_exception_handler(
     if os.getenv("TRADEXV2_DEBUG", "").lower() in ("1", "true"):
         details["type"] = type(exc).__name__
 
+    content: dict[str, Any] = {
+        "error": {
+            "type": "internal_server_error",
+            "message": "An unexpected error occurred",
+            "status_code": 500,
+            "details": details,
+        }
+    }
+    correlation_id = get_current_correlation_id()
+    if correlation_id:
+        content["correlation_id"] = correlation_id
+
     return JSONResponse(
         status_code=500,
-        content={
-            "error": {
-                "type": "internal_server_error",
-                "message": "An unexpected error occurred",
-                "status_code": 500,
-                "details": details,
-            }
-        },
+        content=content,
     )
 
 
 def setup_exception_handlers(app: FastAPI) -> None:
     """Register exception handlers on FastAPI app.
-    
+
     Args:
         app: FastAPI application instance.
     """

@@ -1,10 +1,15 @@
 """Dhan broker exceptions.
 
 All Dhan-specific exceptions extend from the canonical ``BrokerError``
-hierarchy in ``brokers.common.resilience.errors``. The only exception
-class defined here that also exists in common is ``RateLimitError`` —
-we alias it to the canonical one to avoid the silent-bug risk of
-catching the wrong class.
+hierarchy in ``brokers.common.resilience.errors``.  Where a Dhan exception
+shadows a common exception by name (e.g. ``AuthenticationError``), it uses
+**multiple inheritance** to also extend the common counterpart — ensuring
+that ``isinstance`` checks in the global exception handler and retry
+framework match correctly.
+
+The only exception class defined here that also exists in common is
+``RateLimitError`` — we alias it to the canonical one to avoid the
+silent-bug risk of catching the wrong class.
 
 Usage::
 
@@ -14,7 +19,22 @@ Usage::
 
 from __future__ import annotations
 
-from brokers.common.resilience.errors import BrokerError, RateLimitError
+from brokers.common.resilience.errors import (
+    AuthenticationError as _CommonAuthenticationError,
+)
+from brokers.common.resilience.errors import (
+    BrokerError,
+    RateLimitError,
+)
+from brokers.common.resilience.errors import (
+    ExitAllError as _CommonExitAllError,
+)
+from brokers.common.resilience.errors import (
+    InstrumentNotFoundError as _CommonInstrumentNotFoundError,
+)
+from brokers.common.resilience.errors import (
+    OrderError as _CommonOrderError,
+)
 
 # Re-export canonical RateLimitError so existing imports still work.
 # New code should import directly from brokers.common.resilience.errors.
@@ -46,20 +66,33 @@ class DhanError(BrokerError):
     """
 
 
-class InstrumentNotFoundError(DhanError):
-    """Instrument not found in resolver cache."""
+class InstrumentNotFoundError(DhanError, _CommonInstrumentNotFoundError):
+    """Instrument not found in resolver cache.
+
+    Inherits from both ``DhanError`` (broker scope) and the common
+    ``InstrumentNotFoundError`` so that the global exception handler's
+    ``isinstance`` check maps it to HTTP 404.
+    """
 
 
 class MarketDataError(DhanError):
     """Market data fetch failure."""
 
 
-class OrderError(DhanError):
-    """Order placement/modification/cancellation failure."""
+class OrderError(DhanError, _CommonOrderError):
+    """Order placement/modification/cancellation failure.
+
+    Inherits from both ``DhanError`` and the common ``OrderError`` so
+    that the global exception handler maps it to HTTP 400.
+    """
 
 
-class AuthenticationError(DhanError):
-    """Token expired or rejected."""
+class AuthenticationError(DhanError, _CommonAuthenticationError):
+    """Token expired or rejected.
+
+    Inherits from both ``DhanError`` and the common ``AuthenticationError``
+    so that the global exception handler maps it to HTTP 401.
+    """
 
 
 class ConfigurationError(DhanError):
@@ -97,8 +130,13 @@ class IPManagementError(DhanError):
     """IP management operation failure."""
 
 
-class ExitAllError(DhanError):
-    """Exit all operation failure."""
+class ExitAllError(DhanError, _CommonExitAllError):
+    """Exit all operation failure.
+
+    Inherits from both ``DhanError`` and the common ``ExitAllError``
+    (which extends ``NotSupportedError``) so that the global exception
+    handler maps it to HTTP 501.
+    """
 
 
 class EDISError(DhanError):

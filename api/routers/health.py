@@ -104,7 +104,7 @@ async def get_metrics():
 
     Returns HTTP request metrics (always available).
     If OMS is initialized, also includes event metrics, DLQ stats,
-    and processed trade stats.
+    and processed trade stats. Includes cache hit rate and size.
     """
     from api.middleware import http_metrics
 
@@ -120,6 +120,23 @@ async def get_metrics():
             result["processed_trades"] = ctx.processed_trade_repository.stats()
     except Exception:
         logger.debug("OMS metrics unavailable — returning HTTP metrics only")
+
+    try:
+        from infrastructure.metrics import metrics_registry
+
+        snap = metrics_registry.snapshot_detailed()
+        cache_info = {}
+        for name in ("cache_hits_total", "cache_misses_total", "cache_evictions_total", "cache_size"):
+            if name in snap.get("counters", {}):
+                cache_info[name] = snap["counters"][name]["value"]
+            elif name in snap.get("gauges", {}):
+                cache_info[name] = snap["gauges"][name]["value"]
+        if cache_info:
+            total = cache_info.get("cache_hits_total", 0) + cache_info.get("cache_misses_total", 0)
+            cache_info["hit_rate"] = round(cache_info.get("cache_hits_total", 0) / total, 4) if total > 0 else 0
+            result["cache"] = cache_info
+    except Exception:
+        pass
 
     return result
 

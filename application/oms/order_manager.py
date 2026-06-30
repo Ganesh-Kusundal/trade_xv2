@@ -17,7 +17,8 @@ Orchestration contract
 
 from __future__ import annotations
 
-from infrastructure.logging import get_logger
+from infrastructure.logging_config import get_logger
+from infrastructure.tracing import trace_operation
 
 import threading
 import time
@@ -229,6 +230,7 @@ class OrderManager:
 
     # ── Public API ──────────────────────────────────────────────────────────
 
+    @trace_operation("order_manager.place_order")
     def place_order(
         self,
         request: OmsOrderCommand,
