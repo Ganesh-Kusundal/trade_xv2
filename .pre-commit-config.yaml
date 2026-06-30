@@ -51,3 +51,19 @@ repos:
         ]
         pass_filenames: false
         description: Run fast unit tests on broker test files
+
+      - id: check-exception-hierarchy
+        name: Exception Hierarchy Check
+        entry: python scripts/architecture/check_exception_hierarchy.py
+        language: system
+        files: \.py$
+        pass_filenames: false
+        description: Verify all exceptions inherit from TradeXV2Error
+
+      - id: architecture-tests
+        name: Architecture Fitness Tests
+        entry: python -m pytest tests/architecture/ -x -q
+        language: system
+        files: \.py$
+        pass_filenames: false
+        description: Run architecture fitness tests (fast subset)

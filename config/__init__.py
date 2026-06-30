@@ -28,10 +28,12 @@ Usage::
     profile = load_profile()
 """
 
+from config.defaults import DEFAULT_CONFIG, get_config, reset_config
 from config.feature_flags import FeatureFlags, is_enabled, set_flag
 from config.profiles import EnvironmentProfile, load_profile
 from config.schema import (
     ApiConfig,
+    AppConfig,
     DhanConfig,
     TradingConfig,
     UpstoxConfig,
@@ -48,6 +50,11 @@ from config.validator import (
 )
 
 __all__ = [
+    # Central AppConfig
+    "AppConfig",
+    "DEFAULT_CONFIG",
+    "get_config",
+    "reset_config",
     # Schema
     "ApiConfig",
     "DhanConfig",

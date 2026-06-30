@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from config.schema import AppConfig
+
 
 @dataclass
 class APIConfig:
@@ -71,3 +73,17 @@ class APIConfig:
     def openapi_url(self) -> str:
         """URL for OpenAPI JSON schema."""
         return "/openapi.json"
+
+    @classmethod
+    def from_app_config(cls, app_cfg: AppConfig) -> APIConfig:
+        """Create an APIConfig from the central AppConfig.
+
+        Maps central config fields to API-specific fields. Explicit kwargs
+        passed to the constructor override values derived from AppConfig.
+        """
+        return cls(
+            host=app_cfg.api_host,
+            port=app_cfg.api_port,
+            cors_origins=app_cfg.cors_origins,
+            rate_limit_per_minute=app_cfg.rate_limit_max_requests,
+        )

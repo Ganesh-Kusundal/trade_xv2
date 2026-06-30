@@ -306,7 +306,7 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
 
     def health(self) -> HealthStatus:
         """ManagedService protocol: return a point-in-time health snapshot.
-        
+
         H2 Critical Fix: Added reconnect metrics for observability:
         - max_reconnect_attempts: configured limit
         - last_message_age_seconds: staleness indicator
@@ -548,20 +548,14 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
                         logger.error("Quote callback error: %s", exc)
                 self._publish_tick(quote, correlation_id=corr_id)
         else:
-            # Unknown type — still try to extract as quote
-            quote = self._transform_quote(data)
-            self._track_tick_time(quote)
-            with self._lock:
-                callbacks = list(self._quote_callbacks)
-            for cb in callbacks:
-                try:
-                    cb(quote)
-                except Exception as exc:
-                    logger.error(
-                        "dhan_ws_quote_callback_failed",
-                        extra={"exception_type": type(exc).__name__, "exception_message": str(exc)},
-                    )
-            self._publish_tick(quote, correlation_id=self._gen_ws_correlation_id())
+            # Informational packets (Previous Close, OI Data, Market Status)
+            # are NOT tradeable signals — skip them to prevent zero-LTP ticks.
+            # Only log at debug level to avoid log spam.
+            if data_type not in ("Previous Close", "OI Data", "Market Status"):
+                logger.debug(
+                    "dhan_ws_unknown_packet_type",
+                    extra={"data_type": data_type, "keys": list(data.keys())},
+                )
 
     @staticmethod
     def _gen_ws_correlation_id() -> str:

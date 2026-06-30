@@ -107,7 +107,7 @@ class TestStreamCallbackDedup:
         gw.stream("RELIANCE", "NSE", on_tick=my_tick)
         gw.stream("RELIANCE", "NSE", on_tick=my_tick)
 
-        assert len(gw._stream_registry.get(("RELIANCE", "NSE"), [])) == 1
+        assert len(gw._stream_registry.get("RELIANCE:NSE", [])) == 1
 
     def test_different_callbacks_both_registered(self):
         """Different on_tick callbacks for the same symbol should both be registered."""
@@ -122,14 +122,14 @@ class TestStreamCallbackDedup:
         gw.stream("RELIANCE", "NSE", on_tick=tick_a)
         gw.stream("RELIANCE", "NSE", on_tick=tick_b)
 
-        assert len(gw._stream_registry.get(("RELIANCE", "NSE"), [])) == 2
+        assert len(gw._stream_registry.get("RELIANCE:NSE", [])) == 2
 
     def test_stream_without_callback_no_registry_entry(self):
         """stream() without on_tick should not create a registry entry."""
         gw = self._make_gateway()
         gw.stream("RELIANCE", "NSE")
 
-        assert ("RELIANCE", "NSE") not in gw._stream_registry
+        assert "RELIANCE:NSE" not in gw._stream_registry
 
 
 # ── Fix 3: Subscription limit enforcement ───────────────────────────────────
@@ -199,16 +199,16 @@ class TestUnstream:
         gw.stream("RELIANCE", "NSE", on_tick=tick_b)
         gw.unstream("RELIANCE", "NSE", on_tick=tick_a)
 
-        remaining = gw._stream_registry.get(("RELIANCE", "NSE"), [])
+        remaining = gw._stream_registry.get("RELIANCE:NSE", [])
         assert len(remaining) == 1
         assert remaining[0] is tick_b
 
     def test_unstream_all_removes_everything(self):
         """unstream() without on_tick should remove ALL callbacks and registry entry."""
-        gw, my_tick = self._make_gateway_with_stream()
+        gw, _my_tick = self._make_gateway_with_stream()
         gw.unstream("RELIANCE", "NSE")
 
-        assert ("RELIANCE", "NSE") not in gw._stream_registry
+        assert "RELIANCE:NSE" not in gw._stream_registry
 
     def test_unstream_nonexistent_is_noop(self):
         """unstream() for a symbol never streamed should not raise."""

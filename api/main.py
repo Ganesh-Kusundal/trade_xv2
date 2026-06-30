@@ -405,6 +405,11 @@ def create_app(
 
     app.include_router(news_router, prefix=f"{cfg.api_prefix}/news", tags=["News"])
 
+    # Feature flags endpoints
+    from api.routers.feature_flags import router as feature_flags_router
+
+    app.include_router(feature_flags_router, prefix=f"{cfg.api_prefix}/flags", tags=["Feature Flags"])
+
     # Live broker endpoints (dual API — explicit live_broker provenance)
     from api.routers.live.router import router as live_router
 

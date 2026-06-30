@@ -7,8 +7,121 @@ and defaults so every consumer has a single source of truth.
 
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
+from typing import Literal
+
+from pydantic import BaseModel, field_validator
+
+logger = logging.getLogger(__name__)
+
+_VALID_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+
+
+class AppConfig(BaseModel):
+    """Central application configuration with env-var loading.
+
+    All fields map to environment variables. Use ``AppConfig.from_env()``
+    to load from the current environment, or construct directly for testing.
+    """
+
+    # ── Core ────────────────────────────────────────────────
+    app_env: Literal["dev", "staging", "prod"] = "dev"
+    log_level: str = "INFO"
+    debug: bool = False
+    redis_url: str | None = None
+
+    # ── API Server ──────────────────────────────────────────
+    api_host: str = "127.0.0.1"
+    api_port: int = 8000
+    observability_port: int = 8765
+    cors_origins: list[str] = ["http://localhost:5173"]
+
+    # ── Rate Limiting ───────────────────────────────────────
+    rate_limit_max_requests: int = 0
+    rate_limit_window_seconds: float = 60.0
+
+    model_config = {"env_prefix": "TRADEX_", "env_file": ".env", "env_file_encoding": "utf-8"}
+
+    @field_validator("log_level")
+    @classmethod
+    def _validate_log_level(cls, v: str) -> str:
+        upper = v.upper()
+        if upper not in _VALID_LOG_LEVELS:
+            raise ValueError(
+                f"Invalid log level '{v}'. Must be one of: {sorted(_VALID_LOG_LEVELS)}"
+            )
+        return upper
+
+    @field_validator("api_port", "observability_port")
+    @classmethod
+    def _validate_port(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError(f"Port must be > 0, got {v}")
+        return v
+
+    @classmethod
+    def from_env(cls) -> AppConfig:
+        """Load configuration from environment variables.
+
+        Reads env vars with ``TRADEX_`` prefix first, then falls back to
+        legacy names (APP_ENV, XV2_LOG_LEVEL, REDIS_URL, etc.) for backward
+        compatibility.
+        """
+        # Build kwargs from env, preferring TRADEX_ prefixed then legacy
+        kwargs: dict[str, object] = {}
+
+        # app_env: TRADEX_APP_ENV → APP_ENV
+        kwargs["app_env"] = os.environ.get(
+            "TRADEX_APP_ENV", os.environ.get("APP_ENV", "dev")
+        )
+
+        # log_level: TRADEX_LOG_LEVEL → XV2_LOG_LEVEL
+        kwargs["log_level"] = os.environ.get(
+            "TRADEX_LOG_LEVEL", os.environ.get("XV2_LOG_LEVEL", "INFO")
+        )
+
+        # debug: TRADEX_DEBUG → TRADEXV2_DEBUG
+        debug_raw = os.environ.get(
+            "TRADEX_DEBUG", os.environ.get("TRADEXV2_DEBUG", "")
+        )
+        kwargs["debug"] = debug_raw.lower() in ("1", "true", "yes") if debug_raw else False
+
+        # redis_url: TRADEX_REDIS_URL → REDIS_URL
+        kwargs["redis_url"] = os.environ.get(
+            "TRADEX_REDIS_URL", os.environ.get("REDIS_URL")
+        ) or None
+
+        # api_host: TRADEX_API_HOST → API_HOST
+        kwargs["api_host"] = os.environ.get(
+            "TRADEX_API_HOST", os.environ.get("API_HOST", "127.0.0.1")
+        )
+
+        # api_port: TRADEX_API_PORT → API_PORT
+        api_port_raw = os.environ.get(
+            "TRADEX_API_PORT", os.environ.get("API_PORT", "8000")
+        )
+        kwargs["api_port"] = int(api_port_raw)
+
+        # observability_port
+        obs_raw = os.environ.get("TRADEX_OBSERVABILITY_PORT", "8765")
+        kwargs["observability_port"] = int(obs_raw)
+
+        # cors_origins: comma-separated
+        cors_raw = os.environ.get("TRADEX_CORS_ORIGINS", "")
+        if cors_raw:
+            kwargs["cors_origins"] = [o.strip() for o in cors_raw.split(",") if o.strip()]
+
+        # rate_limit_max_requests
+        rl_raw = os.environ.get("TRADEX_RATE_LIMIT_MAX_REQUESTS", "0")
+        kwargs["rate_limit_max_requests"] = int(rl_raw)
+
+        # rate_limit_window_seconds
+        rw_raw = os.environ.get("TRADEX_RATE_LIMIT_WINDOW_SECONDS", "60.0")
+        kwargs["rate_limit_window_seconds"] = float(rw_raw)
+
+        return cls(**kwargs)
 
 
 @dataclass(frozen=True)
