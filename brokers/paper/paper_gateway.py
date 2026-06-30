@@ -290,6 +290,18 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway):
             status=OrderStatus.REJECTED,
         )
 
+    def seed_orders(self, orders: list[Order]) -> None:
+        self._orders._orders = orders
+
+    def seed_trades(self, trades: list[Trade]) -> None:
+        self._orders._trades = trades
+
+    def seed_positions(self, positions: dict[str, Position]) -> None:
+        self._orders._positions = positions
+
+    def seed_holdings(self, holdings: list[Holding]) -> None:
+        self._portfolio._holdings = holdings
+
     def get_order(self, order_id: str) -> Order | None:
         """Query a single order by ID from the orderbook.
 

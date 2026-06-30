@@ -487,7 +487,7 @@ class TestPublishLifecycle:
         assert received[0].event_id == orig_event_id
 
     def test_multiple_publishes_independent(self):
-        """Multiple publishes of the same event should each get unique sequence."""
+        """Multiple publishes of the same event are deduplicated by idempotency."""
         bus = EventBus(fail_fast=False)
         received = []
         bus.subscribe("TICK", lambda e: received.append(e))
@@ -497,8 +497,6 @@ class TestPublishLifecycle:
         bus.publish(original)
         bus.publish(original)
 
-        assert len(received) == 3
-        seqs = [e.sequence_number for e in received]
-        assert seqs == [1, 2, 3], "Each publish should get independent sequence number"
-        # All should share the same event_id
-        assert all(e.event_id == original.event_id for e in received)
+        # Idempotency: same event_id → only first delivery counts
+        assert len(received) == 1
+        assert received[0].event_id == original.event_id

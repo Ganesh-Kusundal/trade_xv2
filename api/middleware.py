@@ -74,7 +74,7 @@ class HttpRequestMetrics:
                 "duration_ms_count": {
                     f"{m}|{p}|{s}": v for (m, p, s), v in sorted(self._duration_count.items())
                 },
-                "active_requests": self.active_requests,
+                "active_requests": self._active_requests,
             }
 
     def render_prometheus(self) -> str:
@@ -126,8 +126,31 @@ class HttpRequestMetrics:
 http_metrics = HttpRequestMetrics()
 
 
+SKIP_PATHS = frozenset(
+    {
+        "/",
+        "/docs",
+        "/openapi.json",
+        "/redoc",
+        "/api/v1/health",
+        "/api/v1/health/readyz",
+        "/api/v1/health/metrics",
+        "/api/v1/health/metrics/prometheus",
+    }
+)
+
+
+def _is_id_like(segment: str) -> bool:
+    """Return True for path segments that look like dynamic IDs."""
+    if not segment:
+        return False
+    if segment.isdigit():
+        return True
+    return "-" in segment and any(c.isdigit() for c in segment)
+
+
 def _normalise_path(path: str) -> str:
-    """Replace numeric path segments with ``{id}`` to bound cardinality.
+    """Replace dynamic path segments with ``{id}`` to bound cardinality.
 
     ``/orders/12345`` → ``/orders/{id}``
     ``/replay/sessions/abc-123/play`` → ``/replay/sessions/{id}/play``
@@ -135,9 +158,8 @@ def _normalise_path(path: str) -> str:
     parts = path.split("/")
     result: list[str] = []
     for part in parts:
-        # Skip query-string from the last segment
         clean = part.split("?", 1)[0]
-        if clean.isdigit():
+        if _is_id_like(clean):
             result.append("{id}")
         else:
             result.append(clean)
@@ -154,19 +176,6 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
     - Skips health probe paths (/, /healthz, /readyz) to reduce noise.
     """
 
-    _SKIP_PATHS = frozenset(
-        {
-            "/",
-            "/docs",
-            "/openapi.json",
-            "/redoc",
-            "/api/v1/health",
-            "/api/v1/health/readyz",
-            "/api/v1/health/metrics",
-            "/api/v1/health/metrics/prometheus",
-        }
-    )
-
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         # Correlation / request ID
         request_id = request.headers.get("X-Request-ID") or request.headers.get(
@@ -181,8 +190,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         raw_path = request.url.path
         normalised_path = _normalise_path(raw_path)
 
-        # Skip noisy health probes
-        skip = raw_path in self._SKIP_PATHS
+        skip = raw_path in SKIP_PATHS
 
         start = time.perf_counter()
         status_code = 500
@@ -285,7 +293,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         # Skip health/metrics probes
         path = request.url.path
-        if path in RequestLoggingMiddleware._SKIP_PATHS:
+        if path in SKIP_PATHS:
             return await call_next(request)
 
         # Skip WebSocket upgrade requests

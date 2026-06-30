@@ -47,7 +47,7 @@ EventHandler = Callable[[DomainEvent], None]
 class EventBus:
     """Thread-safe in-memory event bus with mandatory failure observability.
 
-    P4-Phase 4: Added replay_mode for deterministic replay.
+    Added replay_mode for deterministic replay.
     When replay_mode=True:
     - Auto-persistence is disabled (no recursive writes to EventLog)
     - Events use original timestamps instead of datetime.now()
@@ -91,7 +91,7 @@ class EventBus:
         Defaults to False (the bus never stops the dispatch loop on a bad
         handler) but tests use True to assert on failures.
     replay_mode:
-        P4: If True, disables auto-persistence and preserves original
+        If True, disables auto-persistence and preserves original
         event timestamps for deterministic replay.
     alerting_engine:
         Optional :class:`AlertingEngine` for threshold-based alerting.
@@ -108,12 +108,12 @@ class EventBus:
         metrics: EventMetricsPort | None = None,
         logging_enabled: bool = True,
         fail_fast: bool = False,
-        replay_mode: bool = False,  # P4
+        replay_mode: bool = False,
         alerting_engine: AlertingEnginePort | None = None,
         alerting_interval_seconds: float = 10.0,
-        max_processed_events: int = 10000,  # P5: Idempotency cache size
+        max_processed_events: int = 10000,  # Idempotency cache size
     ) -> None:
-        # Task 4.4: Lock sharding — separate lightweight Lock for subscriber
+        # Lock sharding — separate lightweight Lock for subscriber
         # management from the (now lock-free) sequence counter.
         # RLock -> Lock downgrade is safe: no call-site requires reentrancy.
         self._subscribers_lock = threading.Lock()
@@ -124,14 +124,14 @@ class EventBus:
         self._metrics = metrics
         self._logging_enabled = logging_enabled
         self._fail_fast = fail_fast
-        self._replay_mode = replay_mode  # P4
-        # self._sequence_counter replaced by lock-free self._sequence (Task 4.4)
+        self._replay_mode = replay_mode
+        # self._sequence_counter replaced by lock-free self._sequence
         self._alerting_engine = alerting_engine
         self._alerting_interval = alerting_interval_seconds
         self._alerting_thread: threading.Thread | None = None
         self._alerting_stop = threading.Event()
 
-        # P5: Idempotency - track processed event_ids to prevent duplicate processing
+        # Idempotency - track processed event_ids to prevent duplicate processing
         self._processed_events: deque[str] = deque(maxlen=max_processed_events)
         self._processed_event_ids: set[str] = set()
         self._idempotency_lock = threading.Lock()
@@ -142,11 +142,11 @@ class EventBus:
 
     @property
     def replay_mode(self) -> bool:
-        """True if bus is in replay mode (P4)."""
+        """True if bus is in replay mode."""
         return self._replay_mode
 
     def set_replay_mode(self, enabled: bool) -> None:
-        """Enable or disable replay mode (P4).
+        """Enable or disable replay mode.
 
         This is the public API for mutating replay_mode.  All callers
         (including TradingContext._replay_log_into_oms) must use this
@@ -278,8 +278,8 @@ class EventBus:
             if cid is not None:
                 replacements["correlation_id"] = cid
 
-        # P4: Assign sequence number in live mode only
-        # Task 4.4: Lock-free — ``next(itertools.count(1))`` is atomic under
+        # Assign sequence number in live mode only
+        # Lock-free — ``next(itertools.count(1))`` is atomic under
         # the CPython GIL (single bytecode: CALL_FUNCTION on a C-level iterator).
         if not self._replay_mode:
             seq_num = next(self._sequence)
@@ -298,7 +298,7 @@ class EventBus:
     def _is_duplicate_event(self, event: DomainEvent) -> bool:
         """Check if event has already been processed (idempotency guard).
 
-        P5: Under at-least-once delivery (websockets, network retries),
+        Under at-least-once delivery (websockets, network retries),
         duplicate events can arrive. This method tracks processed event_ids
         in a bounded LRU cache (deque) to prevent double-processing.
 
@@ -335,13 +335,13 @@ class EventBus:
         traceable ID without requiring explicit propagation at every
         call site.
 
-        P4-Phase 4: In replay_mode, auto-persistence is disabled and
+        In replay_mode, auto-persistence is disabled and
         sequence numbers are preserved for deterministic ordering.
 
         Handler failures are logged, counted, and dead-lettered — they
         never disappear silently.
 
-        P5: Idempotency - duplicate events (same event_id) are silently
+        Idempotency - duplicate events (same event_id) are silently
         skipped to prevent double-processing under at-least-once delivery.
         """
         # Prepare event: inject infrastructure fields immutably
@@ -349,8 +349,12 @@ class EventBus:
 
         # Idempotency check: skip if already processed
         if not self._is_duplicate_event(event):
+            # Record published metric
+            if self._metrics is not None:
+                self._metrics.add_timestamped_counter(event.event_type, "published")
+
             # 1. Persist first (so a crash mid-dispatch can be recovered).
-            # P4: Skip persistence in replay mode (no recursive writes)
+            # Skip persistence in replay mode (no recursive writes)
             if self._event_log is not None and self._logging_enabled and not self._replay_mode:
                 try:
                     self._event_log.append(event)
@@ -401,10 +405,6 @@ class EventBus:
                 event.event_type,
                 event.symbol,
             )
-
-    def publish_sync(self, event: DomainEvent) -> None:
-        """Alias for :meth:`publish`; kept for explicit synchronous semantics."""
-        self.publish(event)
 
     def _handle_handler_failure(
         self, event: DomainEvent, handler_id: str, exc: BaseException

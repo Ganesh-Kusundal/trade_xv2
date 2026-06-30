@@ -15,87 +15,85 @@ Usage:
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True)
+class _ErrorPattern:
+    keywords: tuple[str, ...]
+    match_all: bool
+    user_message: str
+    severity: str
+    retryable: bool
+
+
+_ERROR_PATTERNS: list[_ErrorPattern] = [
+    _ErrorPattern(("401", "unauthorized", "invalid token"), False,
+                  "Authentication failed. Token may be expired. Run: tradex doctor",
+                  "critical", False),
+    _ErrorPattern(("forbidden", "403"), False,
+                  "Authentication failed. Token may be expired. Run: tradex doctor",
+                  "critical", False),
+    _ErrorPattern(("429", "rate limit", "too many requests"), False,
+                  "Rate limit exceeded. Retry after 60s or use --broker with different account.",
+                  "warning", True),
+    _ErrorPattern(("connection", "network", "refused"), False,
+                  "Network error. Check internet connection and broker API status.",
+                  "warning", True),
+    _ErrorPattern(("timeout", "timed out"), False,
+                  "Request timed out. Broker API may be slow. Retry or use --quick mode.",
+                  "warning", True),
+    _ErrorPattern(("502", "503", "504"), False,
+                  "Broker API unavailable. Retry in a few moments.",
+                  "warning", True),
+    _ErrorPattern(("instrument", "not found"), True,
+                  "Symbol not found. Use: tradex search <symbol> to find valid symbols.",
+                  "error", False),
+    _ErrorPattern(("symbol", "not found"), True,
+                  "Symbol not found. Use: tradex search <symbol> to find valid symbols.",
+                  "error", False),
+    _ErrorPattern(("risk", "rejected"), True,
+                  "Order rejected by risk manager. Check: tradex risk status",
+                  "error", False),
+    _ErrorPattern(("margin", "insufficient"), True,
+                  "Insufficient margin. Check: tradex funds",
+                  "error", False),
+    _ErrorPattern(("order", "invalid"), True,
+                  "Invalid order parameters. Check symbol, quantity, and order type.",
+                  "error", False),
+    _ErrorPattern(("no such file", "file not found"), False,
+                  "File not found. Check the file path and try again.",
+                  "error", False),
+    _ErrorPattern(("permission denied",), False,
+                  "Permission denied. Check file permissions and try again.",
+                  "error", False),
+    _ErrorPattern(("no data", "empty"), False,
+                  "No data available for the requested symbol/date range.",
+                  "warning", False),
+    _ErrorPattern(("dhan", "token"), True,
+                  "Dhan API token error. Run: tradex doctor to diagnose.",
+                  "critical", False),
+    _ErrorPattern(("upstox", "token"), True,
+                  "Upstox API token error. Run: tradex doctor to diagnose.",
+                  "critical", False),
+]
+
+
+def _match(error_str: str, pattern: _ErrorPattern) -> bool:
+    if pattern.match_all:
+        return all(kw in error_str for kw in pattern.keywords)
+    return any(kw in error_str for kw in pattern.keywords)
+
+
 def format_error(exc: Exception) -> str:
-    """Convert exception to user-friendly error message.
-
-    Parameters
-    ----------
-    exc :
-        Exception to format.
-
-    Returns
-    -------
-    str
-        User-friendly error message with actionable guidance.
-
-    Examples
-    --------
-    >>> from cli.utils.error_formatter import format_error
-    >>>
-    >>> try:
-    ...     gw.quote("RELIANCE")
-    ... except Exception as e:
-    ...     print(format_error(e))
-    "Authentication failed. Token may be expired. Run: tradex doctor"
-    """
+    """Convert exception to user-friendly error message."""
     error_str = str(exc).lower()
-
-    # Authentication errors
-    if "401" in error_str or "unauthorized" in error_str or "invalid token" in error_str:
-        return "Authentication failed. Token may be expired. Run: tradex doctor"
-
-    # Rate limit errors
-    if "429" in error_str or "rate limit" in error_str or "too many requests" in error_str:
-        return "Rate limit exceeded. Retry after 60s or use --broker with different account."
-
-    # Network errors
-    if "connection" in error_str or "network" in error_str or "refused" in error_str:
-        return "Network error. Check internet connection and broker API status."
-
-    if "timeout" in error_str or "timed out" in error_str:
-        return "Request timed out. Broker API may be slow. Retry or use --quick mode."
-
-    # Instrument errors
-    if "instrument" in error_str and "not found" in error_str:
-        return "Symbol not found. Use: tradex search <symbol> to find valid symbols."
-
-    if "symbol" in error_str and "not found" in error_str:
-        return "Symbol not found. Use: tradex search <symbol> to find valid symbols."
-
-    # Order errors
-    if "risk" in error_str and "rejected" in error_str:
-        return "Order rejected by risk manager. Check: tradex risk status"
-
-    if "margin" in error_str and "insufficient" in error_str:
-        return "Insufficient margin. Check: tradex funds"
-
-    if "order" in error_str and "invalid" in error_str:
-        return "Invalid order parameters. Check symbol, quantity, and order type."
-
-    # File errors
-    if "no such file" in error_str or "file not found" in error_str:
-        return "File not found. Check the file path and try again."
-
-    if "permission denied" in error_str:
-        return "Permission denied. Check file permissions and try again."
-
-    # Data errors
-    if "no data" in error_str or "empty" in error_str:
-        return "No data available for the requested symbol/date range."
-
-    # Broker-specific errors
-    if "dhan" in error_str and "token" in error_str:
-        return "Dhan API token error. Run: tradex doctor to diagnose."
-
-    if "upstox" in error_str and "token" in error_str:
-        return "Upstox API token error. Run: tradex doctor to diagnose."
-
-    # Generic fallback
+    for pattern in _ERROR_PATTERNS:
+        if _match(error_str, pattern):
+            return pattern.user_message
     return f"Unexpected error: {exc}"
 
 
@@ -106,30 +104,9 @@ def display_error(
     prefix: str = "Error",
     show_details: bool = False,
 ) -> None:
-    """Display formatted error message to console.
-
-    Parameters
-    ----------
-    exc :
-        Exception to display.
-    console :
-        Rich console instance.
-    prefix :
-        Error prefix (default: "Error").
-    show_details :
-        If True, also show raw exception details.
-
-    Examples
-    --------
-    >>> from cli.utils.error_formatter import display_error
-    >>>
-    >>> try:
-    ...     gw.quote("RELIANCE")
-    ... except Exception as e:
-    ...     display_error(e, console)
-    """
+    """Display formatted error message to console."""
     user_msg = format_error(exc)
-    console.print(f"[red]❌ {prefix}: {user_msg}[/red]")
+    console.print(f"[red]\u274c {prefix}: {user_msg}[/red]")
 
     if show_details:
         logger.exception("error_details", extra={"error": str(exc)})
@@ -137,87 +114,15 @@ def display_error(
 
 
 def is_retryable_error(exc: Exception) -> bool:
-    """Determine if an error is retryable (transient).
-
-    Parameters
-    ----------
-    exc :
-        Exception to check.
-
-    Returns
-    -------
-    bool
-        True if the error is likely transient and worth retrying.
-
-    Examples
-    --------
-    >>> from cli.utils.error_formatter import is_retryable_error
-    >>>
-    >>> if is_retryable_error(exc):
-    ...     # Retry the operation
-    ...     pass
-    """
+    """Determine if an error is retryable (transient)."""
     error_str = str(exc).lower()
-
-    # Network-related errors are usually transient
-    return bool(
-        any(
-            keyword in error_str
-            for keyword in [
-                "connection",
-                "timeout",
-                "timed out",
-                "network",
-                "refused",
-                "429",
-                "rate limit",
-                "502",
-                "503",
-                "504",
-            ]
-        )
-    )
+    return any(_match(error_str, p) for p in _ERROR_PATTERNS if p.retryable)
 
 
 def get_error_severity(exc: Exception) -> str:
-    """Determine error severity level.
-
-    Parameters
-    ----------
-    exc :
-        Exception to classify.
-
-    Returns
-    -------
-    str
-        One of: "critical", "error", "warning", "info"
-
-    Examples
-    --------
-    >>> from cli.utils.error_formatter import get_error_severity
-    >>>
-    >>> severity = get_error_severity(exc)
-    >>> if severity == "critical":
-    ...     # Handle critical error
-    ...     pass
-    """
+    """Determine error severity level: critical, error, warning, or info."""
     error_str = str(exc).lower()
-
-    # Critical: authentication, authorization
-    if any(keyword in error_str for keyword in ["401", "unauthorized", "forbidden", "403"]):
-        return "critical"
-
-    # Error: order rejection, margin issues
-    if any(
-        keyword in error_str for keyword in ["rejected", "margin", "insufficient", "invalid order"]
-    ):
-        return "error"
-
-    # Warning: rate limits, timeouts, no data
-    if any(
-        keyword in error_str for keyword in ["429", "rate limit", "timeout", "no data", "empty"]
-    ):
-        return "warning"
-
-    # Info: everything else
+    for pattern in _ERROR_PATTERNS:
+        if _match(error_str, pattern):
+            return pattern.severity
     return "info"

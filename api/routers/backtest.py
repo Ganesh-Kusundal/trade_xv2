@@ -29,20 +29,25 @@ router = APIRouter(dependencies=[Depends(require_auth)])
 _backtest_cache: dict[str, BacktestResultResponse] = {}
 _backtest_cache_lock = threading.Lock()
 _cache_store = BacktestCacheStore()
+_hydrated = False
 
 
-def _hydrate_cache() -> None:
+def _ensure_hydrated() -> None:
+    global _hydrated
+    if _hydrated:
+        return
     with _backtest_cache_lock:
+        if _hydrated:
+            return
         _backtest_cache.update(_cache_store.load_all())
+        _hydrated = True
 
 
 def _cache_result(resp: BacktestResultResponse) -> None:
+    _ensure_hydrated()
     with _backtest_cache_lock:
         _backtest_cache[resp.run_id] = resp
     _cache_store.save(resp)
-
-
-_hydrate_cache()
 
 
 @router.post("/run", response_model=BacktestResultResponse)
@@ -136,6 +141,7 @@ async def run_backtest(
 @router.get("/results/{backtest_id}", response_model=BacktestResultResponse)
 async def get_backtest_result(backtest_id: str):
     """Get backtest results for a completed run."""
+    _ensure_hydrated()
     with _backtest_cache_lock:
         result = _backtest_cache.get(backtest_id)
     if not result:
@@ -165,6 +171,7 @@ async def compare_backtests(
     run_ids: str | None = Query(None, description="Comma-separated run IDs to compare"),
 ):
     """Compare multiple backtest runs side by side."""
+    _ensure_hydrated()
     ids = _resolve_run_ids(run_id, run_ids)
     if len(ids) < 2 and run_ids:
         raise HTTPException(

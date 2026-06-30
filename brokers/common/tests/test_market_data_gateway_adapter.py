@@ -11,7 +11,8 @@ from brokers.common.adapters.market_data_gateway_adapter import (
     wrap_market_gateway,
 )
 from brokers.common.broker_port import BrokerStreamPlan, HistoricalBarRequest, QuotaToken
-from brokers.common.capabilities import BrokerCapabilities, dhan_capabilities
+from brokers.common.capabilities import BrokerCapabilities
+from brokers.dhan.capabilities import dhan_capabilities
 from brokers.paper import PaperGateway
 from domain.enums import OrderType, ProductType, Side, Validity
 from domain.historical import InstrumentRef
@@ -78,6 +79,17 @@ class TestMarketDataGatewayAdapter:
         health = await paper_adapter.health()
         assert health.broker_id == "paper"
         assert health.alive
+
+    def test_wrap_market_gateway_uses_legacy_gateway_capabilities_for_unknown_broker(self):
+        legacy = mock.MagicMock()
+        legacy.capabilities.return_value = BrokerCapabilities(
+            broker_id="custom",
+            supports_news=True,
+        )
+
+        adapter = wrap_market_gateway(legacy, "custom")
+
+        assert adapter.list_capabilities().capabilities.supports("news")
 
 
 class TestMarketDataGatewayAdapterOrderStream:

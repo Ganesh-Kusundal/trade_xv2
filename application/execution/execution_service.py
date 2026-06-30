@@ -49,7 +49,7 @@ class ExecutionService:
         return self._mode
 
     def _live_submit_fn(self) -> Callable[[OmsOrderCommand], Order]:
-        return make_gateway_submit_fn(self._gateway, transport_only=True)
+        return make_gateway_submit_fn(self._gateway)
 
     def place_order(
         self,

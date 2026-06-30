@@ -33,7 +33,7 @@ RISK_MARGIN_SAFETY_MULTIPLIER: float = 1.2
 
 #: Phantom capital (INR) used when ``capital_fn`` is not configured. This
 #: MUST be replaced with a real capital source before live trading; the
-#: production-readiness check (REF-17) fails closed if the operator
+#: production-readiness check fails closed if the operator
 #: leaves ``RISK_FAIL_OPEN=1`` set.
 PHANTOM_CAPITAL_INR: Decimal = Decimal("1_000_000")
 

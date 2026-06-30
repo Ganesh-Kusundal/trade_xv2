@@ -9,6 +9,7 @@ from brokers.dhan.domain import Alert, AlertRequest
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 from brokers.dhan.invariants import assert_dhan_payload
+from domain.utils.price import to_wire_float
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +55,7 @@ class AlertsAdapter:
             "exchangeSegment": segment,
             "securityId": ref.security_id_str(),
             "alertCondition": request.condition,
-            "triggerPrice": float(request.trigger_price),
+            "triggerPrice": to_wire_float(request.trigger_price),
         }
 
         if request.valid_until:

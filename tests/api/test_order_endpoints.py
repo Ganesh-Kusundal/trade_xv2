@@ -75,6 +75,22 @@ class TestPlaceOrderEndpoint:
         # May succeed (200) or fail with 503 if broker not connected
         assert response.status_code in (200, 400, 503)
 
+    def test_place_order_accepts_correlation_id(self, client: TestClient):
+        """Should accept correlation_id field without validation error (regression)."""
+        order_data = {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "transaction_type": "BUY",
+            "order_type": "MARKET",
+            "quantity": 1,
+            "correlation_id": "test-corr-123",
+        }
+        response = client.post("/api/v1/orders", json=order_data)
+        # Must NOT be 422 (validation error). May be 200/400/503 depending on broker.
+        assert response.status_code != 422, (
+            f"correlation_id field rejected by schema: {response.json()}"
+        )
+
     def test_place_order_invalid_transaction_type(self, client: TestClient):
         """Should reject invalid transaction type."""
         order_data = {

@@ -9,6 +9,7 @@ the concrete :class:`~infrastructure.event_bus.EventBus`.
 Usage::
 
     from domain.ports import EventPublisher
+    from domain.events import DomainEvent
 
     class MyService:
         def __init__(self, event_bus: EventPublisher | None = None):
@@ -16,7 +17,6 @@ Usage::
 
         def notify(self, order: Order) -> None:
             if self._event_bus is not None:
-                from infrastructure.event_bus import DomainEvent
                 self._event_bus.publish(
                     DomainEvent.now("ORDER_PLACED", {"order": order})
                 )

@@ -10,8 +10,10 @@ from typing import Any
 import pandas as pd
 
 from analytics.pipeline.pipeline import FeaturePipeline
+from domain.historical import HistoricalSeries
 from domain.models.features import FeatureSet
-from domain.ports.market_data import GatewayMarketDataAdapter, MarketDataPort
+from domain.ports.market_data import MarketDataPort
+from infrastructure.market_data_adapter import GatewayMarketDataAdapter
 
 logger = logging.getLogger(__name__)
 

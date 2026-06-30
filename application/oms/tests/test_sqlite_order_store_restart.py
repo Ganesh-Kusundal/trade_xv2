@@ -11,7 +11,8 @@ from decimal import Decimal
 
 from application.oms.order_manager import OrderManager
 from application.oms.persistence.sqlite_order_store import SqliteOrderStore
-from domain.entities import Order, OrderStatus, OrderType, ProductType, Side
+from domain.entities import Order
+from domain.types import OrderStatus, OrderType, ProductType, Side
 
 
 def _sample_order(

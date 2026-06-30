@@ -193,7 +193,7 @@ class TestProtocolImplementations:
 
     def test_order_command_matches_protocol(self) -> None:
         """Verify OmsOrderCommand has required fields for protocol usage."""
-        from domain.entities import Side
+        from domain.types import Side
 
         command = OmsOrderCommand(
             symbol="RELIANCE",

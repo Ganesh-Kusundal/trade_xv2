@@ -24,15 +24,15 @@ from domain.types import (
 )
 
 
-@dataclass(slots=True, frozen=False)
+@dataclass(slots=True, frozen=True)
 class OrderRequest:
     """Input model for placing an order — domain fields only.
 
-    Broker-transport fields (exchange_segment, is_amo, etc.) have been
-    moved to :class:`brokers.common.dtos.BrokerOrderPayload`.  Domain-level
-    consumers (``OrderManager``, ``RiskManager``, ``OrderRepository``)
-    should accept ``OrderRequest``; broker adapters that need transport
-    metadata should accept ``BrokerOrderPayload``.
+    Immutable by design. Broker-transport fields (exchange_segment, is_amo, etc.)
+    have been moved to :class:`brokers.common.dtos.BrokerOrderPayload`.
+    Domain-level consumers (``OrderManager``, ``RiskManager``,
+    ``OrderRepository``) should accept ``OrderRequest``; broker adapters that
+    need transport metadata should accept ``BrokerOrderPayload``.
     """
 
     security_id: str = ""
@@ -50,7 +50,7 @@ class OrderRequest:
     slice: bool = False
 
 
-@dataclass(slots=True, frozen=False)
+@dataclass(slots=True, frozen=True)
 class ModifyOrderRequest:
     """Input model for modifying an existing order."""
 
@@ -63,7 +63,7 @@ class ModifyOrderRequest:
     product_type: ProductType | None = None
 
 
-@dataclass(slots=True, frozen=False)
+@dataclass(slots=True, frozen=True)
 class SliceOrderRequest:
     """Request for splitting a large order into child orders."""
 
@@ -75,7 +75,7 @@ class SliceOrderRequest:
     product_type: ProductType = ProductType.INTRADAY
 
 
-@dataclass(slots=True, frozen=False)
+@dataclass(slots=True, frozen=True)
 class OrderPreview:
     """Outcome of pre-flight order validation."""
 
@@ -86,7 +86,7 @@ class OrderPreview:
     margin_required: Decimal | None = None
 
 
-@dataclass(slots=True, frozen=False)
+@dataclass(slots=True, frozen=True)
 class HistoricalCandle:
     """A single OHLCV candle returned by the historical-data endpoint."""
 

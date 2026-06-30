@@ -90,7 +90,7 @@ class TestPlaceOrder:
         """Test successful market order placement."""
         with (
             patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
-            patch("cli.commands.order_placement._run_async", return_value=mock_place_response),
+            patch("cli.commands.order_placement._await_in_sync_context", return_value=mock_place_response),
         ):
             result = place_order(
                 ["RELIANCE", "BUY", "10"],
@@ -110,7 +110,7 @@ class TestPlaceOrder:
         """Test successful limit order placement."""
         with (
             patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
-            patch("cli.commands.order_placement._run_async", return_value=mock_place_response),
+            patch("cli.commands.order_placement._await_in_sync_context", return_value=mock_place_response),
         ):
             result = place_order(
                 ["RELIANCE", "BUY", "10", "--type", "LIMIT", "--price", "2450.00"],
@@ -126,7 +126,7 @@ class TestPlaceOrder:
         """Test order with custom exchange."""
         with (
             patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
-            patch("cli.commands.order_placement._run_async", return_value=mock_place_response),
+            patch("cli.commands.order_placement._await_in_sync_context", return_value=mock_place_response),
         ):
             result = place_order(
                 ["NIFTY24600CE", "SELL", "75", "--exchange", "NFO"],
@@ -142,7 +142,7 @@ class TestPlaceOrder:
         """Test order with CNC product type."""
         with (
             patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
-            patch("cli.commands.order_placement._run_async", return_value=mock_place_response),
+            patch("cli.commands.order_placement._await_in_sync_context", return_value=mock_place_response),
         ):
             result = place_order(
                 ["RELIANCE", "BUY", "10", "--product", "CNC"],
@@ -234,7 +234,7 @@ class TestPlaceOrder:
         with (
             patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
             patch(
-                "cli.commands.order_placement._run_async",
+                "cli.commands.order_placement._await_in_sync_context",
                 side_effect=RuntimeError("Risk check failed"),
             ),
         ):
@@ -252,7 +252,7 @@ class TestPlaceOrder:
         with (
             patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
             patch(
-                "cli.commands.order_placement._run_async",
+                "cli.commands.order_placement._await_in_sync_context",
                 side_effect=ConnectionError("Network timeout"),
             ),
         ):
@@ -272,7 +272,7 @@ class TestPlaceOrder:
         """Test order with case-insensitive side."""
         with (
             patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
-            patch("cli.commands.order_placement._run_async", return_value=mock_place_response),
+            patch("cli.commands.order_placement._await_in_sync_context", return_value=mock_place_response),
         ):
             result = place_order(
                 ["RELIANCE", side, "10"],
@@ -289,7 +289,7 @@ class TestPlaceOrder:
         """Test all order types."""
         with (
             patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
-            patch("cli.commands.order_placement._run_async", return_value=mock_place_response),
+            patch("cli.commands.order_placement._await_in_sync_context", return_value=mock_place_response),
         ):
             result = place_order(
                 ["RELIANCE", "BUY", "10", "--type", order_type],
@@ -306,7 +306,7 @@ class TestPlaceOrder:
         """Test all exchanges."""
         with (
             patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
-            patch("cli.commands.order_placement._run_async", return_value=mock_place_response),
+            patch("cli.commands.order_placement._await_in_sync_context", return_value=mock_place_response),
         ):
             result = place_order(
                 ["RELIANCE", "BUY", "10", "--exchange", exchange],
@@ -323,7 +323,7 @@ class TestPlaceOrder:
         """Test all product types."""
         with (
             patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
-            patch("cli.commands.order_placement._run_async", return_value=mock_place_response),
+            patch("cli.commands.order_placement._await_in_sync_context", return_value=mock_place_response),
         ):
             result = place_order(
                 ["RELIANCE", "BUY", "10", "--product", product],
@@ -343,7 +343,7 @@ class TestCancelOrder:
         """Test successful order cancellation."""
         with (
             patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
-            patch("cli.commands.order_placement._run_async", return_value=mock_cancel_response),
+            patch("cli.commands.order_placement._await_in_sync_context", return_value=mock_cancel_response),
         ):
             result = cancel_order(
                 ["TEST-ORDER-001"],
@@ -362,7 +362,7 @@ class TestCancelOrder:
 
         with (
             patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
-            patch("cli.commands.order_placement._run_async", return_value=fail_resp),
+            patch("cli.commands.order_placement._await_in_sync_context", return_value=fail_resp),
         ):
             result = cancel_order(
                 ["TEST-ORDER-001"],
@@ -389,7 +389,7 @@ class TestCancelOrder:
         with (
             patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
             patch(
-                "cli.commands.order_placement._run_async",
+                "cli.commands.order_placement._await_in_sync_context",
                 side_effect=ConnectionError("Timeout"),
             ),
         ):
@@ -407,7 +407,7 @@ class TestCancelOrder:
         with (
             patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
             patch(
-                "cli.commands.order_placement._run_async",
+                "cli.commands.order_placement._await_in_sync_context",
                 side_effect=ValueError("Order not found"),
             ),
         ):
@@ -430,7 +430,7 @@ class TestModifyOrder:
         """Test modifying order price."""
         with (
             patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
-            patch("cli.commands.order_placement._run_async", return_value=mock_modify_response),
+            patch("cli.commands.order_placement._await_in_sync_context", return_value=mock_modify_response),
         ):
             result = modify_order(
                 ["TEST-ORDER-001", "--price", "2500.00"],
@@ -447,7 +447,7 @@ class TestModifyOrder:
         """Test modifying order quantity."""
         with (
             patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
-            patch("cli.commands.order_placement._run_async", return_value=mock_modify_response),
+            patch("cli.commands.order_placement._await_in_sync_context", return_value=mock_modify_response),
         ):
             result = modify_order(
                 ["TEST-ORDER-001", "--quantity", "100"],
@@ -464,7 +464,7 @@ class TestModifyOrder:
         """Test modifying both price and quantity."""
         with (
             patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
-            patch("cli.commands.order_placement._run_async", return_value=mock_modify_response),
+            patch("cli.commands.order_placement._await_in_sync_context", return_value=mock_modify_response),
         ):
             result = modify_order(
                 ["TEST-ORDER-001", "--price", "2500.00", "--quantity", "100"],
@@ -526,7 +526,7 @@ class TestModifyOrder:
 
         with (
             patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
-            patch("cli.commands.order_placement._run_async", return_value=fail_resp),
+            patch("cli.commands.order_placement._await_in_sync_context", return_value=fail_resp),
         ):
             result = modify_order(
                 ["TEST-ORDER-001", "--price", "2500.00"],
@@ -547,7 +547,7 @@ class TestPlaceOrdersBatch:
         """Test successful batch order placement."""
         with (
             patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
-            patch("cli.commands.order_placement._run_async", return_value=mock_place_response),
+            patch("cli.commands.order_placement._await_in_sync_context", return_value=mock_place_response),
         ):
             result = place_orders_batch(
                 ["--file", str(mock_csv_file)],
@@ -610,7 +610,7 @@ class TestPlaceOrdersBatch:
 
         with (
             patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
-            patch("cli.commands.order_placement._run_async", side_effect=side_effect_factory),
+            patch("cli.commands.order_placement._await_in_sync_context", side_effect=side_effect_factory),
         ):
             result = place_orders_batch(
                 ["--file", str(mock_csv_file)],
@@ -648,7 +648,7 @@ class TestOrderPlacementIntegration:
         """Test placing an order then cancelling it."""
         with (
             patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
-            patch("cli.commands.order_placement._run_async", return_value=mock_place_response),
+            patch("cli.commands.order_placement._await_in_sync_context", return_value=mock_place_response),
         ):
             place_result = place_order(
                 ["RELIANCE", "BUY", "10"],
@@ -659,7 +659,7 @@ class TestOrderPlacementIntegration:
 
         with (
             patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
-            patch("cli.commands.order_placement._run_async", return_value=mock_cancel_response),
+            patch("cli.commands.order_placement._await_in_sync_context", return_value=mock_cancel_response),
         ):
             cancel_result = cancel_order(
                 ["TEST-ORDER-001"],
@@ -675,7 +675,7 @@ class TestOrderPlacementIntegration:
         """Test complete lifecycle: place, modify, cancel."""
         with (
             patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
-            patch("cli.commands.order_placement._run_async", return_value=mock_place_response),
+            patch("cli.commands.order_placement._await_in_sync_context", return_value=mock_place_response),
         ):
             place_result = place_order(
                 ["RELIANCE", "BUY", "10", "--type", "LIMIT", "--price", "2450.00"],
@@ -686,7 +686,7 @@ class TestOrderPlacementIntegration:
 
         with (
             patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
-            patch("cli.commands.order_placement._run_async", return_value=mock_modify_response),
+            patch("cli.commands.order_placement._await_in_sync_context", return_value=mock_modify_response),
         ):
             modify_result = modify_order(
                 ["TEST-ORDER-001", "--price", "2460.00"],
@@ -697,7 +697,7 @@ class TestOrderPlacementIntegration:
 
         with (
             patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
-            patch("cli.commands.order_placement._run_async", return_value=mock_cancel_response),
+            patch("cli.commands.order_placement._await_in_sync_context", return_value=mock_cancel_response),
         ):
             cancel_result = cancel_order(
                 ["TEST-ORDER-001"],
@@ -716,7 +716,7 @@ class TestOrderPlacementEdgeCases:
         """Test order with large quantity."""
         with (
             patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
-            patch("cli.commands.order_placement._run_async", return_value=mock_place_response),
+            patch("cli.commands.order_placement._await_in_sync_context", return_value=mock_place_response),
         ):
             result = place_order(
                 ["RELIANCE", "BUY", "1000000"],
@@ -732,7 +732,7 @@ class TestOrderPlacementEdgeCases:
         """Test order with decimal price."""
         with (
             patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
-            patch("cli.commands.order_placement._run_async", return_value=mock_place_response),
+            patch("cli.commands.order_placement._await_in_sync_context", return_value=mock_place_response),
         ):
             result = place_order(
                 ["RELIANCE", "BUY", "10", "--type", "LIMIT", "--price", "2450.75"],
@@ -748,7 +748,7 @@ class TestOrderPlacementEdgeCases:
         """Test order for futures contract."""
         with (
             patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
-            patch("cli.commands.order_placement._run_async", return_value=mock_place_response),
+            patch("cli.commands.order_placement._await_in_sync_context", return_value=mock_place_response),
         ):
             result = place_order(
                 ["NIFTY24JANFUT", "BUY", "50", "--exchange", "NFO"],
@@ -764,7 +764,7 @@ class TestOrderPlacementEdgeCases:
         """Test order for options contract."""
         with (
             patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
-            patch("cli.commands.order_placement._run_async", return_value=mock_place_response),
+            patch("cli.commands.order_placement._await_in_sync_context", return_value=mock_place_response),
         ):
             result = place_order(
                 ["NIFTY24600CE", "SELL", "75", "--exchange", "NFO"],
@@ -780,7 +780,7 @@ class TestOrderPlacementEdgeCases:
         """Test order for commodity."""
         with (
             patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
-            patch("cli.commands.order_placement._run_async", return_value=mock_place_response),
+            patch("cli.commands.order_placement._await_in_sync_context", return_value=mock_place_response),
         ):
             result = place_order(
                 ["GOLD", "BUY", "1", "--exchange", "MCX"],
@@ -796,7 +796,7 @@ class TestOrderPlacementEdgeCases:
         """Test order for currency pair."""
         with (
             patch("cli.commands.order_placement._get_execution_composer", return_value=mock_composer),
-            patch("cli.commands.order_placement._run_async", return_value=mock_place_response),
+            patch("cli.commands.order_placement._await_in_sync_context", return_value=mock_place_response),
         ):
             result = place_order(
                 ["USDINR", "BUY", "1000", "--exchange", "CDS"],

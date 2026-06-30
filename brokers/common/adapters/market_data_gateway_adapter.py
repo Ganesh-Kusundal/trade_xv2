@@ -17,12 +17,7 @@ from brokers.common.broker_port import (
     HistoricalBarRequest,
     QuotaToken,
 )
-from brokers.common.capabilities import (
-    BrokerCapabilities,
-    CapabilityDescriptor,
-    dhan_capabilities,
-    upstox_capabilities,
-)
+from brokers.common.capabilities import BrokerCapabilities, CapabilityDescriptor
 from brokers.common.gateway import MarketDataGateway
 from domain.entities import Balance, Order, OrderResponse, Position, Quote, Trade
 from domain.entities.market import MarketDepth
@@ -31,16 +26,12 @@ from domain.requests import ModifyOrderRequest, OrderRequest
 
 logger = logging.getLogger(__name__)
 
-_CAPABILITY_FACTORIES: dict[str, Any] = {
-    "dhan": dhan_capabilities,
-    "upstox": upstox_capabilities,
-}
-
-
-def capabilities_for_broker(broker_id: str) -> BrokerCapabilities:
-    factory = _CAPABILITY_FACTORIES.get(broker_id)
-    if factory is not None:
-        return factory()
+def capabilities_for_gateway(gateway: MarketDataGateway, broker_id: str) -> BrokerCapabilities:
+    get_capabilities = getattr(gateway, "capabilities", None)
+    if callable(get_capabilities):
+        capabilities = get_capabilities()
+        if isinstance(capabilities, BrokerCapabilities):
+            return capabilities
     return BrokerCapabilities(broker_id=broker_id)
 
 
@@ -127,7 +118,7 @@ class MarketDataGatewayAdapter:
     ) -> None:
         self._gateway = gateway
         self._broker_id = broker_id
-        self._capabilities = capabilities or capabilities_for_broker(broker_id)
+        self._capabilities = capabilities or capabilities_for_gateway(gateway, broker_id)
         self._extensions = extensions or frozenset()
         self._active_market_handles: set[str] = set()
         self._active_order_handles: set[str] = set()
@@ -164,11 +155,6 @@ class MarketDataGatewayAdapter:
             "trigger_price": request.trigger_price or request.price,
             "correlation_id": request.correlation_id,
         }
-        import inspect
-
-        sig = inspect.signature(self._gateway.place_order)
-        if "transport_only" in sig.parameters:
-            kwargs["transport_only"] = request.transport_only
         return self._gateway.place_order(**kwargs)
 
     async def cancel_order(self, order_id: str, *, quota: QuotaToken) -> OrderResponse:

@@ -11,6 +11,7 @@ from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 from brokers.dhan.invariants import assert_dhan_payload
 from domain.entities import OrderResponse
+from domain.utils.price import to_wire_float
 
 logger = logging.getLogger(__name__)
 
@@ -72,16 +73,16 @@ class ForeverOrdersAdapter:
             "orderType": request.order_type,
             "validity": request.validity,
             "quantity": request.quantity,
-            "price": float(request.price),
-            "triggerPrice": float(request.trigger_price),
+            "price": to_wire_float(request.price),
+            "triggerPrice": to_wire_float(request.trigger_price),
         }
 
         # OCO-specific fields
         if request.order_flag == "OCO":
             if request.price1 is not None:
-                payload["price1"] = float(request.price1)
+                payload["price1"] = to_wire_float(request.price1)
             if request.trigger_price1 is not None:
-                payload["triggerPrice1"] = float(request.trigger_price1)
+                payload["triggerPrice1"] = to_wire_float(request.trigger_price1)
             if request.quantity1 is not None:
                 payload["quantity1"] = request.quantity1
 
@@ -142,15 +143,15 @@ class ForeverOrdersAdapter:
             "orderType": request.order_type,
             "validity": request.validity,
             "quantity": request.quantity,
-            "price": float(request.price),
-            "triggerPrice": float(request.trigger_price),
+            "price": to_wire_float(request.price),
+            "triggerPrice": to_wire_float(request.trigger_price),
         }
 
         if request.order_flag == "OCO":
             if request.price1 is not None:
-                payload["price1"] = float(request.price1)
+                payload["price1"] = to_wire_float(request.price1)
             if request.trigger_price1 is not None:
-                payload["triggerPrice1"] = float(request.trigger_price1)
+                payload["triggerPrice1"] = to_wire_float(request.trigger_price1)
             if request.quantity1 is not None:
                 payload["quantity1"] = request.quantity1
 

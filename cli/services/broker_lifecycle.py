@@ -137,6 +137,6 @@ def maybe_create_mock_broker(name: str) -> Any | None:
         Seeded MockBroker instance, or None.
     """
     if name == "dhan":
-        from brokers.paper.mock_broker import create_seeded_mock_broker
-        return create_seeded_mock_broker("dhan")
+        from brokers.paper.mock_broker import create_demo_broker
+        return create_demo_broker("dhan")
     return None

@@ -80,7 +80,7 @@ async def create_intelligent_gateway(
     *,
     smart: bool = True,
     policy: SourceSelectionPolicy | None = None,
-    primary_broker: str = "dhan",
+    primary_broker: str | None = None,
 ) -> IntelligentMarketDataGateway:
     """Create an intelligent gateway with optional smart routing.
 
@@ -94,8 +94,9 @@ async def create_intelligent_gateway(
         directly to primary_broker.
     policy : SourceSelectionPolicy | None
         Routing policy. If None, uses policy_from_env().
-    primary_broker : str, default="dhan"
-        The broker to use when smart=False or as the primary broker in smart mode.
+    primary_broker : str | None
+        The broker to use when smart=False or as the primary broker in smart
+        mode. If None, defaults to the first broker in ``gateways``.
 
     Returns
     -------
@@ -120,5 +121,8 @@ async def create_intelligent_gateway(
         )
         result = gw.ltp("NIFTY", "NSE")  # Direct call to Dhan
     """
+    if not gateways:
+        raise ValueError("create_intelligent_gateway requires at least one gateway")
+    resolved_primary = primary_broker if primary_broker is not None else gateways[0][0]
     infra = await bootstrap_from_gateways(gateways, policy=policy)
-    return IntelligentMarketDataGateway(infra, smart=smart, primary_broker=primary_broker)
+    return IntelligentMarketDataGateway(infra, smart=smart, primary_broker=resolved_primary)

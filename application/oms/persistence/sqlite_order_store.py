@@ -25,7 +25,8 @@ except ImportError:  # pragma: no cover — Windows dev environments
     fcntl = None  # type: ignore[assignment]
 
 from brokers.common.resilience.errors import TradeXV2Error
-from domain.entities import Order, OrderStatus, OrderType, ProductType, Side
+from domain.entities import Order
+from domain.types import OrderStatus, OrderType, ProductType, Side
 
 logger = logging.getLogger(__name__)
 

@@ -86,12 +86,14 @@ COMMON_STATUS_MAP: dict[str, OrderStatus] = {
     "PARTIALLY_FILLED": OrderStatus.PARTIALLY_FILLED,
     "FILLED": OrderStatus.FILLED,
     "CANCELLED": OrderStatus.CANCELLED,
+    "PARTIALLY_CANCELLED": OrderStatus.PARTIALLY_CANCELLED,
     "REJECTED": OrderStatus.REJECTED,
     "EXPIRED": OrderStatus.EXPIRED,
     "UNKNOWN": OrderStatus.UNKNOWN,
     # ── Terminal / filled ──
     "EXECUTED": OrderStatus.FILLED,
     "COMPLETE": OrderStatus.FILLED,
+    "COMPLETED": OrderStatus.FILLED,
     "TRADED": OrderStatus.FILLED,
     # ── Partial fills ──
     "PARTIAL": OrderStatus.PARTIALLY_FILLED,

@@ -21,7 +21,7 @@ class Instrument:
     * ``brokers.dhan.domain.Instrument`` — Dhan-specific instrument with
       typed ``Exchange`` and ``InstrumentType`` enums.
 
-    REF-027: Frozen for immutability — all fields are value types.
+    Frozen for immutability — all fields are value types.
     """
 
     symbol: str

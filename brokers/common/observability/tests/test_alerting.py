@@ -29,6 +29,15 @@ from brokers.common.observability.alerting import (
 from brokers.common.observability.event_metrics import EventMetrics
 from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
 from infrastructure.event_bus.event_bus import DomainEvent, EventBus
+from infrastructure.metrics.registry import metrics_registry
+
+
+@pytest.fixture(autouse=True)
+def _reset_global_metrics_registry() -> None:
+    """EventMetrics delegates to a process-global registry; reset for isolation."""
+    metrics_registry.reset_all()
+    yield
+    metrics_registry.reset_all()
 
 
 class TestAlertLevel:

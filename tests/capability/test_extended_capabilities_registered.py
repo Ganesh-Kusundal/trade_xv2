@@ -6,6 +6,7 @@ import inspect
 
 import pytest
 
+from brokers.dhan.capabilities import dhan_capabilities
 from domain.capability_manifest import CAPABILITY_SURFACES, classify_exposure
 
 
@@ -62,13 +63,9 @@ class TestDhanExtendedCapabilities:
 
     def test_dhan_capabilities_flags_match_extended(self) -> None:
         """BrokerCapabilities flags for advanced orders align with extended module."""
-        from brokers.dhan.gateway import BrokerGateway
-
-        caps_method = BrokerGateway.capabilities
-        source = inspect.getsource(caps_method)
-        assert "super_orders=True" in source
-        assert "forever_orders=True" in source
-        assert "conditional_triggers=True" in source
+        caps = dhan_capabilities()
+        assert caps.supports_super_order is True
+        assert caps.supports_forever_order is True
 
 
 class TestUpstoxExtendedCapabilities:

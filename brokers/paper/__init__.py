@@ -12,7 +12,7 @@ Usage::
     b = gw.funds()
 """
 
-from brokers.paper.mock_broker import MockBroker, PaperBroker
+from brokers.paper.mock_broker import MockBroker
 from brokers.paper.paper_gateway import PaperGateway
 from brokers.paper.paper_market_data import PaperMarketData
 from brokers.paper.paper_orders import PaperOrders
@@ -20,7 +20,6 @@ from brokers.paper.paper_portfolio import PaperPortfolio
 
 __all__ = [
     "MockBroker",
-    "PaperBroker",
     "PaperGateway",
     "PaperMarketData",
     "PaperOrders",

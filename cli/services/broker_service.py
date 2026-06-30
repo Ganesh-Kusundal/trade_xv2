@@ -133,6 +133,10 @@ class BrokerService:
 
     # -- initialization -----------------------------------------------------
 
+    def initialize(self) -> None:
+        """Public initialization entry point (delegates to ``_ensure_initialized``)."""
+        self._ensure_initialized()
+
     def _ensure_initialized(self) -> None:
         if self._initialized:
             return
@@ -561,3 +565,152 @@ class BrokerService:
         self._gateway = None
         self._upstox_gateway = None
         self._upstox_oms_proxy = None
+
+
+class BrokerServiceTestBuilder:
+    """Explicit test double factory for BrokerService.
+
+    Replaces the fragile ``create_test_double`` classmethod.  Tests declare
+    exactly which fields they need, making dependencies visible and
+    eliminating silent breakage when new private fields are added.
+    """
+
+    def __init__(self) -> None:
+        self._gateway: MarketDataGateway | None = None
+        self._upstox_gateway: MarketDataGateway | None = None
+        self._paper: Any | None = None
+        self._mock: Any | None = None
+        self._active_name: str = "dhan"
+        self._dhan_load_error: str | None = None
+        self._upstox_load_error: str | None = None
+        self._initialized: bool = True
+        self._trading_context: TradingContext | None = None
+        self._oms_proxy: OMSGatewayProxy | None = None
+        self._upstox_oms_proxy: OMSGatewayProxy | None = None
+        self._oms_risk_manager: Any = None
+        self._risk_fail_open: bool = False
+        self._capital_fallback_count: int = 0
+        self._lifecycle = LifecycleManager()
+        self._broker_infra: Any | None = None
+        self._http_observability: Any | None = None
+        self._readiness_report: Any | None = None
+        self._load_instruments: bool = False
+        self._event_bus: Any | None = None
+        self._readonly: bool = False
+        self._live_intent: bool = False
+        self._dhan_bootstrap: Any = None
+        self._upstox_bootstrap: Any = None
+
+    def with_gateway(self, gateway: MarketDataGateway | None) -> "BrokerServiceTestBuilder":
+        self._gateway = gateway
+        return self
+
+    def with_upstox_gateway(self, gateway: MarketDataGateway | None) -> "BrokerServiceTestBuilder":
+        self._upstox_gateway = gateway
+        return self
+
+    def with_paper(self, paper: Any | None) -> "BrokerServiceTestBuilder":
+        self._paper = paper
+        return self
+
+    def with_mock(self, mock: Any | None) -> "BrokerServiceTestBuilder":
+        self._mock = mock
+        return self
+
+    def with_active_name(self, name: str) -> "BrokerServiceTestBuilder":
+        self._active_name = name
+        return self
+
+    def with_dhan_load_error(self, error: str | None) -> "BrokerServiceTestBuilder":
+        self._dhan_load_error = error
+        return self
+
+    def with_upstox_load_error(self, error: str | None) -> "BrokerServiceTestBuilder":
+        self._upstox_load_error = error
+        return self
+
+    def with_initialized(self, initialized: bool = True) -> "BrokerServiceTestBuilder":
+        self._initialized = initialized
+        return self
+
+    def with_trading_context(self, ctx: TradingContext | None) -> "BrokerServiceTestBuilder":
+        self._trading_context = ctx
+        return self
+
+    def with_oms_proxy(self, proxy: OMSGatewayProxy | None) -> "BrokerServiceTestBuilder":
+        self._oms_proxy = proxy
+        return self
+
+    def with_upstox_oms_proxy(self, proxy: OMSGatewayProxy | None) -> "BrokerServiceTestBuilder":
+        self._upstox_oms_proxy = proxy
+        return self
+
+    def with_event_bus(self, bus: Any | None) -> "BrokerServiceTestBuilder":
+        self._event_bus = bus
+        return self
+
+    def with_readonly(self, readonly: bool = True) -> "BrokerServiceTestBuilder":
+        self._readonly = readonly
+        return self
+
+    def with_live_intent(self, live_intent: bool = True) -> "BrokerServiceTestBuilder":
+        self._live_intent = live_intent
+        return self
+
+    def with_broker_infra(self, infra: Any | None) -> "BrokerServiceTestBuilder":
+        self._broker_infra = infra
+        return self
+
+    def build(self) -> "BrokerService":
+        instance: BrokerService = object.__new__(BrokerService)
+        instance._gateway = self._gateway
+        instance._upstox_gateway = self._upstox_gateway
+        instance._paper = self._paper
+        instance._mock = self._mock
+        instance._active_name = self._active_name
+        instance._dhan_load_error = self._dhan_load_error
+        instance._upstox_load_error = self._upstox_load_error
+        instance._initialized = self._initialized
+        instance._trading_context = self._trading_context
+        instance._oms_proxy = self._oms_proxy
+        instance._upstox_oms_proxy = self._upstox_oms_proxy
+        instance._oms_risk_manager = self._oms_risk_manager
+        instance._risk_fail_open = self._risk_fail_open
+        instance._capital_fallback_count = self._capital_fallback_count
+        instance._lifecycle = self._lifecycle
+        instance._broker_infra = self._broker_infra
+        instance._http_observability = self._http_observability
+        instance._readiness_report = self._readiness_report
+        instance._load_instruments = self._load_instruments
+        instance._event_bus = self._event_bus
+        instance._readonly = self._readonly
+        instance._live_intent = self._live_intent
+        instance._dhan_bootstrap = self._dhan_bootstrap
+        instance._upstox_bootstrap = self._upstox_bootstrap
+        return instance
+
+    @classmethod
+    def create_test_double(cls, **overrides: Any) -> "BrokerService":
+        """Deprecated: use ``BrokerServiceTestBuilder(...).build()`` instead.
+
+        This classmethod is preserved for backward compatibility during the
+        transition but will be removed in a future release.
+        """
+        import warnings
+
+        warnings.warn(
+            "BrokerService.create_test_double is deprecated; "
+            "use BrokerServiceTestBuilder(...).build() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        builder = BrokerServiceTestBuilder()
+        for key, value in overrides.items():
+            setter = getattr(builder, f"with_{key}", None)
+            if setter is None:
+                raise ValueError(
+                    f"Unknown attribute {key!r}. "
+                    "Use the explicit with_*() methods on BrokerServiceTestBuilder."
+                )
+            setter(value)
+        return builder.build()

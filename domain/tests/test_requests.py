@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from dataclasses import FrozenInstanceError
 from decimal import Decimal
+
+import pytest
 
 from domain.requests import (
     HistoricalCandle,
@@ -42,10 +45,10 @@ class TestOrderRequest:
         assert r.price == Decimal("3500")
         assert r.product_type == ProductType.CNC
 
-    def test_is_mutable(self):
+    def test_is_frozen(self):
         r = OrderRequest()
-        r.symbol = "INFY"
-        assert r.symbol == "INFY"
+        with pytest.raises(FrozenInstanceError):
+            r.symbol = "INFY"
 
 
 class TestModifyOrderRequest:

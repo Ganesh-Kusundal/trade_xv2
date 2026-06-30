@@ -32,9 +32,9 @@ from application.oms._internal.order_state_validator import OrderStateValidator
 from application.oms._internal.reentrancy_guard import _ReentrancyGuard
 from application.oms.persistence.sqlite_order_store import SqliteOrderStore
 from application.oms.risk_manager import RiskManager
-from domain.entities import Order, OrderStatus, OrderType, ProductType, Side, Trade
+from domain.entities import Order, Trade
 from domain.symbols import normalize_exchange, normalize_symbol
-from domain.types import ORDER_STATUS_TRANSITIONS
+from domain.types import ORDER_STATUS_TRANSITIONS, OrderStatus, OrderType, ProductType, Side
 from infrastructure.event_bus import (
     DomainEvent,
     EventBus,

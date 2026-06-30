@@ -1,6 +1,6 @@
 """Tracing decorators for critical path observability.
 
-P5 Stability Engineering: Automatic tracing for order lifecycle, trade execution,
+Automatic tracing for order lifecycle, trade execution,
 and event handling with correlation ID propagation, duration tracking, and error capture.
 
 When OpenTelemetry is installed and initialised via ``setup_telemetry()``, each

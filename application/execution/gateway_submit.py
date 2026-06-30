@@ -1,4 +1,4 @@
-"""Build OMS submit_fn callables that delegate to broker gateways (transport-only)."""
+"""Build OMS submit_fn callables that delegate to broker gateways."""
 
 from __future__ import annotations
 
@@ -36,14 +36,11 @@ def order_from_response(command: OmsOrderCommand, response: OrderResponse) -> Or
 
 def make_gateway_submit_fn(
     gateway: OrderTransportPort,
-    *,
-    transport_only: bool = True,
 ) -> Callable[[OmsOrderCommand], Order]:
     """Return an OMS ``submit_fn`` that sends orders through *gateway*.
 
-    When *transport_only* is True, broker adapters skip duplicate risk checks
-    because :class:`~application.oms.order_manager.OrderManager` already
-    enforced risk before calling ``submit_fn``.
+    The OMS owns pre-submit validation; broker adapters remain free to enforce
+    their own boundary checks without needing a transport policy flag.
     """
 
     def submit(command: OmsOrderCommand) -> Order:
@@ -56,7 +53,6 @@ def make_gateway_submit_fn(
             order_type=command.order_type.value,
             product_type=command.product_type.value,
             correlation_id=command.correlation_id,
-            transport_only=transport_only,
         )
         return order_from_response(command, response)
 

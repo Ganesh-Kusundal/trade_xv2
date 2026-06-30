@@ -35,16 +35,25 @@ logger = logging.getLogger(__name__)
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
-AUTH_MODE = os.getenv("AUTH_MODE", "api_key").lower()
-API_KEY = os.getenv("API_KEY", "")
+AUTH_MODE: str = os.getenv("AUTH_MODE", "api_key").lower()
+API_KEY: str = os.getenv("API_KEY", "")
 
-# Generate a default API key if not provided (for local dev)
 if AUTH_MODE == "api_key" and not API_KEY:
     API_KEY = secrets.token_urlsafe(32)
     logger.warning(
         "AUTH_MODE=api_key but API_KEY not set. "
         "A temporary key was generated; set API_KEY explicitly in production."
     )
+
+
+def configure(*, auth_mode: str, api_key: str = "") -> None:
+    """Override auth settings from APIConfig (called by ``create_app``)."""
+    global AUTH_MODE, API_KEY
+    AUTH_MODE = auth_mode.lower()
+    if api_key:
+        API_KEY = api_key
+    elif AUTH_MODE == "api_key" and not API_KEY:
+        API_KEY = secrets.token_urlsafe(32)
 
 # ── Security Scheme ───────────────────────────────────────────────────────────
 

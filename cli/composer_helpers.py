@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from application.composer.execution import ExecutionComposer
     from application.composer.market_data import MarketDataComposer
-    from brokers.common.broker_port import CommonBrokerGateway
 
 logger = logging.getLogger(__name__)
 
@@ -46,22 +45,19 @@ def _create_gateways(broker_ids: list[str] | None = None) -> list[Any]:
     broker_ids
         List of broker IDs to initialize. If None, auto-detects from env.
     """
-    # Lazy imports to avoid circular dependency
-
-    # Import gateways lazily
     try:
         from brokers.dhan.gateway import DhanBrokerGateway
     except ImportError:
-        DhanBrokerGateway = None
+        DhanBrokerGateway = None  # noqa: N806
 
     try:
         from brokers.paper.gateway import PaperBrokerGateway
     except ImportError:
-        PaperBrokerGateway = None
+        PaperBrokerGateway = None  # noqa: N806
     if broker_ids is None:
         broker_ids = _detect_enabled_brokers()
 
-    gateways: list[CommonBrokerGateway] = []
+    gateways: list[Any] = []
 
     for broker_id in broker_ids:
         if broker_id == "dhan":
@@ -87,20 +83,12 @@ def _create_gateways(broker_ids: list[str] | None = None) -> list[Any]:
     return gateways
 
 
-@lru_cache(maxsize=1)
-def get_market_data_composer(
-    broker_ids: tuple[str, ...] | None = None,
-) -> MarketDataComposer:
-    """Get or create MarketDataComposer instance (cached).
-
-    Parameters
-    ----------
-    broker_ids
-        Tuple of broker IDs to initialize. Cached separately per combination.
-    """
+def _create_composer(broker_ids: tuple[str, ...] | None) -> tuple[Any, Any]:
+    """Build gateways and create both composers. Returns (market_data, execution)."""
     from application.composer.factory import create_composers
     from brokers.common.policy_defaults import default_source_selection_policy
     from brokers.common.quota_scheduler import QuotaScheduler
+
     gateways = _create_gateways(list(broker_ids) if broker_ids else None)
 
     if not gateways:
@@ -112,17 +100,20 @@ def get_market_data_composer(
     policy = default_source_selection_policy()
     quota_scheduler = QuotaScheduler()
 
-    market_data_composer, _ = create_composers(
+    return create_composers(
         gateways=gateways,
         policy=policy,
         quota_scheduler=quota_scheduler,
     )
 
-    logger.info(
-        "MarketDataComposer initialized with brokers: %s",
-        [gw.broker_id for gw in gateways],
-    )
 
+@lru_cache(maxsize=1)
+def get_market_data_composer(
+    broker_ids: tuple[str, ...] | None = None,
+) -> MarketDataComposer:
+    """Get or create MarketDataComposer instance (cached)."""
+    market_data_composer, _ = _create_composer(broker_ids)
+    logger.info("MarketDataComposer initialized")
     return market_data_composer
 
 
@@ -130,38 +121,9 @@ def get_market_data_composer(
 def get_execution_composer(
     broker_ids: tuple[str, ...] | None = None,
 ) -> ExecutionComposer:
-    """Get or create ExecutionComposer instance (cached).
-
-    Parameters
-    ----------
-    broker_ids
-        Tuple of broker IDs to initialize. Cached separately per combination.
-    """
-    from application.composer.factory import create_composers
-    from brokers.common.policy_defaults import default_source_selection_policy
-    from brokers.common.quota_scheduler import QuotaScheduler
-    gateways = _create_gateways(list(broker_ids) if broker_ids else None)
-
-    if not gateways:
-        raise RuntimeError(
-            "No broker gateways could be initialized. "
-            "Set DHAN_CLIENT_ID/DHAN_ACCESS_TOKEN for Dhan, or use paper trading."
-        )
-
-    policy = default_source_selection_policy()
-    quota_scheduler = QuotaScheduler()
-
-    _, execution_composer = create_composers(
-        gateways=gateways,
-        policy=policy,
-        quota_scheduler=quota_scheduler,
-    )
-
-    logger.info(
-        "ExecutionComposer initialized with brokers: %s",
-        [gw.broker_id for gw in gateways],
-    )
-
+    """Get or create ExecutionComposer instance (cached)."""
+    _, execution_composer = _create_composer(broker_ids)
+    logger.info("ExecutionComposer initialized")
     return execution_composer
 
 

@@ -1,6 +1,6 @@
 """HTTP observability server — /healthz, /readyz, /metrics.
 
-Phase B / B8 + B9: the system previously had no way for an operator
+The system previously had no way for an operator
 to see if a process was alive, ready to serve traffic, or what its
 internal state looked like. This module:
 
@@ -16,7 +16,7 @@ LifecycleManager added in Wave 2. The CLI's ``BrokerService`` can
 optionally register an instance; production deployments wire it up
 in their own entry points.
 
-Excluded from B8/B9:
+Excluded from the initial observability surface:
 
 * TLS / mTLS — left to a reverse proxy or service mesh. The server
   binds plain HTTP. An operator who needs TLS terminates it at the

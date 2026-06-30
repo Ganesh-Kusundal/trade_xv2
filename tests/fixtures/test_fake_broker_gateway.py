@@ -91,14 +91,16 @@ class TestFakeBrokerGateway:
         orders = gw.get_orders()
         assert orders[0]["correlation_id"] == "test:corr:123"
 
-    def test_records_transport_only_flag(self):
+    def test_records_order_without_broker_transport_flags(self):
+        """Place order records only canonical fields, no transport flags."""
         gw = FakeBrokerGateway()
         gw.place_order(
             symbol="RELIANCE",
             exchange="NSE",
             side="BUY",
             quantity=1,
-            transport_only=True,
         )
         orders = gw.get_orders()
-        assert orders[0]["transport_only"] is True
+        assert "transport_only" not in orders[0]
+        assert "is_amo" not in orders[0]
+        assert "algo_name" not in orders[0]

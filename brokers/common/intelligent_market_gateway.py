@@ -362,7 +362,6 @@ class IntelligentMarketDataGateway(MarketDataGateway):
         validity: str = "DAY",
         trigger_price: Decimal = Decimal("0"),
         correlation_id: str | None = None,
-        transport_only: bool = False,
     ) -> OrderResponse:
         """Place an order (always uses primary broker for execution)."""
         # Order execution is critical — always use primary broker
@@ -378,7 +377,6 @@ class IntelligentMarketDataGateway(MarketDataGateway):
             validity,
             trigger_price,
             correlation_id,
-            transport_only,
         )
 
     def cancel_order(self, order_id: str) -> OrderResponse:

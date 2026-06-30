@@ -6,7 +6,7 @@ from datetime import date, timedelta
 
 import pandas as pd
 
-from api.freshness import FreshnessResult, check_data_freshness
+from api.freshness import FRESHNESS_THRESHOLDS, FreshnessResult, check_data_freshness
 
 
 class TestDataFreshness:
@@ -161,3 +161,19 @@ class TestDataFreshness:
         assert hasattr(result, "threshold_days")
         assert hasattr(result, "status")
         assert result.threshold_days == 0  # 5m threshold
+
+
+class TestFreshnessThresholds:
+    def test_intraday_threshold_is_zero(self):
+        for tf in ("1m", "3m", "5m", "15m", "30m", "1h"):
+            assert FRESHNESS_THRESHOLDS[tf] == 0
+
+    def test_daily_threshold(self):
+        assert FRESHNESS_THRESHOLDS["1d"] == 2
+
+    def test_weekly_threshold(self):
+        assert FRESHNESS_THRESHOLDS["1w"] == 7
+
+    def test_unknown_timeframe_defaults_to_7(self):
+        result = check_data_freshness(pd.DataFrame(), "2h")
+        assert result.threshold_days == 7

@@ -47,6 +47,7 @@ import threading
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from decimal import Decimal
+from typing import Any, Protocol, runtime_checkable
 
 from application.oms._internal.loss_circuit_breaker import (
     LossCircuitBreaker,
@@ -64,8 +65,16 @@ from domain.constants import (
 from domain.constants.defaults import RISK_FALLBACK_CAPITAL
 from domain.exchange_segments import is_derivative_segment
 from domain.ports.margin_provider import MarginProviderPort
+from domain.utils.price import is_tick_aligned
 
 logger = logging.getLogger(__name__)
+
+
+@runtime_checkable
+class InstrumentProvider(Protocol):
+    """Narrow protocol for instrument lookups (tick size, lot size, etc.)."""
+
+    def resolve(self, symbol: str, exchange: str) -> Any: ...
 
 
 @dataclass(frozen=True)
@@ -110,10 +119,12 @@ class RiskManager:
         capital_provider: CapitalProvider | None = None,
         loss_cb_config: LossCircuitBreakerConfig | None = None,
         margin_provider: MarginProviderPort | None = None,
+        instrument_provider: InstrumentProvider | None = None,
     ) -> None:
         self._position_manager = position_manager
         self._config = config
         self._margin_provider = margin_provider
+        self._instrument_provider = instrument_provider
 
         # Support both old capital_fn and new capital_provider (P2-2)
         if capital_provider is not None:
@@ -248,6 +259,29 @@ class RiskManager:
             cb_allowed, cb_reason = self._loss_cb.allow_trading()
             if not cb_allowed:
                 return RiskResult(False, cb_reason)
+
+            # Tick size alignment check (pre-trade)
+            if self._instrument_provider is not None and order.price > 0:
+                try:
+                    instrument = self._instrument_provider.resolve(
+                        order.symbol, order.exchange
+                    )
+                    if instrument is not None:
+                        tick = Decimal(str(getattr(instrument, "tick_size", 0.05)))
+                        if tick > 0 and not is_tick_aligned(order.price, tick):
+                            return RiskResult(
+                                False,
+                                f"Price {order.price} not aligned to tick size {tick}",
+                            )
+                except Exception as exc:
+                    logger.warning(
+                        "tick_check_instrument_lookup_failed",
+                        extra={
+                            "symbol": order.symbol,
+                            "exchange": order.exchange,
+                            "error": str(exc),
+                        },
+                    )
 
             capital = self._capital_provider.get_available_balance()
             if capital <= 0:

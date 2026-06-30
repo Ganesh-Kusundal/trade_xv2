@@ -219,7 +219,6 @@ class MarketDataGateway(
         validity: str = "DAY",
         trigger_price: Decimal = Decimal("0"),
         correlation_id: str | None = None,
-        transport_only: bool = False,
     ) -> OrderResponse:
         """Place an order. Returns OrderResponse with success, order_id, message."""
         ...

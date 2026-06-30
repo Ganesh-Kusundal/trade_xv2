@@ -128,10 +128,16 @@ async def live_margin(
             raise HTTPException(
                 status.HTTP_501_NOT_IMPLEMENTED, detail="Dhan connection unavailable"
             )
-        return serialize_value(conn.margin.calculate(payload))
+        margin = getattr(conn, "margin", None)
+        if margin is None:
+            raise HTTPException(
+                status.HTTP_501_NOT_IMPLEMENTED, detail="Margin service unavailable"
+            )
+        return serialize_value(margin.calculate(payload))
     broker = getattr(gw, "_broker", None)
-    if broker is not None:
-        return serialize_value(broker.margin.calculate_margin(payload))
+    margin_svc = getattr(broker, "margin", None) if broker else None
+    if margin_svc is not None:
+        return serialize_value(margin_svc.calculate_margin(payload))
     raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, detail="Margin not supported")
 
 
@@ -159,8 +165,9 @@ async def live_ledger(
     if _broker_name() == "dhan":
         return serialize_value(ext.get_ledger(from_date, to_date))
     broker = getattr(gw, "_broker", None)
-    if broker is not None:
-        return serialize_value(broker.portfolio.get_ledger(from_date, to_date))
+    portfolio = getattr(broker, "portfolio", None) if broker else None
+    if portfolio is not None:
+        return serialize_value(portfolio.get_ledger(from_date, to_date))
     raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, detail="Ledger not supported")
 
 
@@ -187,8 +194,9 @@ async def live_get_ip(response: Response = None, gw: Any = Depends(require_live_
     if _broker_name() == "dhan":
         return serialize_value(_extended(gw).get_ip())
     broker = getattr(gw, "_broker", None)
-    if broker is not None:
-        return serialize_value(broker.static_ip.get_static_ip())
+    static_ip = getattr(broker, "static_ip", None) if broker else None
+    if static_ip is not None:
+        return serialize_value(static_ip.get_static_ip())
     raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, detail="IP management not supported")
 
 
@@ -204,8 +212,9 @@ async def live_set_ip(
             _extended(gw).set_ip(payload.get("ip", ""), payload.get("type", "static"))
         )
     broker = getattr(gw, "_broker", None)
-    if broker is not None:
-        return serialize_value(broker.static_ip.set_static_ip(payload))
+    static_ip = getattr(broker, "static_ip", None) if broker else None
+    if static_ip is not None:
+        return serialize_value(static_ip.set_static_ip(payload))
     raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, detail="IP management not supported")
 
 

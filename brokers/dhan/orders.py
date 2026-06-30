@@ -23,6 +23,7 @@ from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, DhanInstrumentRef, coerce_identity_provider
 from brokers.dhan.invariants import assert_dhan_payload
 from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT, segment_to_exchange
+from config.endpoints import Dhan
 from domain import (
     Order,
     OrderResponse,
@@ -38,7 +39,6 @@ from domain import (
 from domain.field_mapping import DefaultFieldMapping
 from domain.ports.risk_manager import RiskManagerPort
 from domain.symbols import normalize_exchange
-from config.endpoints import Dhan
 from infrastructure.event_bus import DomainEvent, EventBus
 
 logger = logging.getLogger(__name__)
@@ -173,6 +173,18 @@ class OrdersAdapter:
                 f"for {symbol} on {inst.exchange.value}"
             )
 
+        # Tick size alignment check for priced orders
+        if price is not None and price > 0:
+            tick = getattr(inst, "tick_size", None)
+            if tick is not None and tick > 0:
+                from domain.utils.price import is_tick_aligned
+
+                if not is_tick_aligned(price, tick):
+                    errors.append(
+                        f"Price {price} is not aligned to tick size {tick} "
+                        f"for {symbol}"
+                    )
+
         # Product type x segment check
         if segment in _DERIVATIVE_SEGMENTS and pt_val in _EQUITY_ONLY_PRODUCTS:
             errors.append(
@@ -286,8 +298,8 @@ class OrdersAdapter:
                 validity,
             )
 
-            # Pre-trade risk check (skipped when OMS already validated)
-            if self._risk_manager is not None and not request.transport_only:
+            # Pre-trade risk check is always enforced at the broker boundary.
+            if self._risk_manager is not None:
                 preview = Order(
                     order_id="",
                     symbol=symbol,
@@ -587,9 +599,13 @@ class OrdersAdapter:
             "quantity": quantity,
         }
         if price and price > 0:
-            payload["price"] = float(price)
+            from domain.utils.price import to_wire_float
+
+            payload["price"] = to_wire_float(price)
         if trigger_price and trigger_price > 0:
-            payload["triggerPrice"] = float(trigger_price)
+            from domain.utils.price import to_wire_float
+
+            payload["triggerPrice"] = to_wire_float(trigger_price)
         if correlation_id:
             payload["correlationId"] = correlation_id
         return payload

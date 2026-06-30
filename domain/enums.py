@@ -26,6 +26,7 @@ class OrderStatus(str, Enum):
     PARTIALLY_FILLED = "PARTIALLY_FILLED"
     FILLED = "FILLED"
     CANCELLED = "CANCELLED"
+    PARTIALLY_CANCELLED = "PARTIALLY_CANCELLED"
     REJECTED = "REJECTED"
     EXPIRED = "EXPIRED"
     UNKNOWN = "UNKNOWN"
@@ -46,6 +47,7 @@ class OrderStatus(str, Enum):
         return self in {
             OrderStatus.FILLED,
             OrderStatus.CANCELLED,
+            OrderStatus.PARTIALLY_CANCELLED,
             OrderStatus.REJECTED,
             OrderStatus.EXPIRED,
         }

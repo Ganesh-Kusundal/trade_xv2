@@ -98,7 +98,7 @@ def test_lifecycle_property_returns_same_instance() -> None:
 
 
 def test_lifecycle_starts_empty() -> None:
-    """Before _ensure_initialized runs, no services are registered.
+    """Before initialize runs, no services are registered.
     This is the contract for the no-gateway / failed-init case."""
     bs = _build_broker_service_with_fakes()
     assert bs.lifecycle.service_names() == []
@@ -140,7 +140,7 @@ def test_lifecycle_registers_token_scheduler_and_reconciliation(monkeypatch, tmp
     # ``from broker_registry import create_gateway`` creates a local
     # binding in broker_service's namespace. We patch that binding
     # directly via the dotted path.
-    # Note: _ensure_initialized may call create_gateway for both Dhan
+    # Note: initialize may call create_gateway for both Dhan
     # AND Upstox; only capture the first (Dhan) call.
     from brokers.common.connection.bootstrap_result import BootstrapResult, BootstrapStatus
 
@@ -188,7 +188,7 @@ def test_lifecycle_registers_token_scheduler_and_reconciliation(monkeypatch, tmp
 
     bs = BrokerService()
     # Force init
-    bs._ensure_initialized()
+    bs.initialize()
 
     # The factory MUST have received a lifecycle argument
     assert "lifecycle" in captured["factory_kwargs"]
@@ -261,7 +261,7 @@ def test_close_drains_lifecycle(monkeypatch, tmp_path) -> None:
     from cli.services.broker_service import BrokerService
 
     bs = BrokerService()
-    bs._ensure_initialized()
+    bs.initialize()
 
     # The OMS's DailyPnlResetScheduler is registered by the
     # BrokerService's _build_and_register_oms_services. The
@@ -280,7 +280,7 @@ def test_close_drains_lifecycle(monkeypatch, tmp_path) -> None:
 
 
 def test_close_is_safe_when_init_never_ran() -> None:
-    """If _ensure_initialized was never called (no .env.local, no
+    """If initialize was never called (no .env.local, no
     gateway, no scheduler), close() must still succeed without
     leaking threads or raising.
     """
@@ -316,7 +316,7 @@ def test_close_is_safe_when_factory_raised(monkeypatch, tmp_path) -> None:
     from cli.services.broker_service import BrokerService
 
     bs = BrokerService()
-    bs._ensure_initialized()
+    bs.initialize()
     assert bs._gateway is None
     assert bs.dhan_load_error is not None
 

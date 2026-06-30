@@ -9,6 +9,7 @@ from brokers.dhan.domain import MarginRequest, MarginResponse
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 from brokers.dhan.invariants import assert_dhan_payload
+from domain.utils.price import to_wire_float
 
 logger = logging.getLogger(__name__)
 
@@ -63,10 +64,10 @@ class MarginAdapter:
         }
 
         if request.price is not None and request.price > 0:
-            payload["price"] = float(request.price)
+            payload["price"] = to_wire_float(request.price)
 
         if request.trigger_price is not None and request.trigger_price > 0:
-            payload["triggerPrice"] = float(request.trigger_price)
+            payload["triggerPrice"] = to_wire_float(request.trigger_price)
 
         # PR-B: defence-in-depth invariant assertion.
         assert_dhan_payload(payload, context="margin.calculate")

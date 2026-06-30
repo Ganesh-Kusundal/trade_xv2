@@ -256,7 +256,9 @@ def test_place_order_risk_check_blocks_order(fake_client, resolver):
     assert len(fake_client.calls_for("POST", "/orders")) == 0
 
 
-def test_place_order_transport_only_skips_risk_check(fake_client, resolver):
+def test_place_order_transport_only_does_not_bypass_risk_check(fake_client, resolver):
+    """transport_only field has been removed — this test verifies that
+    risk checks are always enforced regardless of any transport flags."""
     from decimal import Decimal
 
     from application.oms.position_manager import PositionManager
@@ -271,19 +273,19 @@ def test_place_order_transport_only_skips_risk_check(fake_client, resolver):
     )
     adapter = OrdersAdapter(fake_client, resolver, risk_manager=risk, allow_live_orders=True)
 
-    order = adapter.place_order(
-        BrokerOrderPayload(
-            symbol="RELIANCE",
-            exchange="NSE",
-            transaction_type="BUY",
-            quantity=1000,
-            price=Decimal("100"),
-            order_type="LIMIT",
-            transport_only=True,
+    with pytest.raises(Exception) as exc_info:
+        adapter.place_order(
+            BrokerOrderPayload(
+                symbol="RELIANCE",
+                exchange="NSE",
+                transaction_type="BUY",
+                quantity=1000,
+                price=Decimal("100"),
+                order_type="LIMIT",
+            )
         )
-    )
-    assert order.order_id == "ORD123"
-    assert len(fake_client.calls_for("POST", "/orders")) == 1
+    assert "Risk check failed" in str(exc_info.value)
+    assert len(fake_client.calls_for("POST", "/orders")) == 0
     """Verify POST /sliceorder payload (same as regular order)."""
     fake_client.set_response("POST", "/sliceorder", {"data": {"orderId": "SLICE123"}})
     adapter = OrdersAdapter(fake_client, resolver, allow_live_orders=True)

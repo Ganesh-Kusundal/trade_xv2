@@ -12,10 +12,10 @@ from domain.historical import HistoricalSeries
 from domain.models.features import FeatureSet
 from domain.ports.broker_gateway import OrderTransportPort
 from domain.ports.event_publisher import EventPublisher
-from domain.ports.market_data import (
+from domain.ports.market_data import MarketDataPort
+from infrastructure.market_data_adapter import (
     DataFrameMarketDataAdapter,
     GatewayMarketDataAdapter,
-    MarketDataPort,
 )
 from domain.ports.risk_manager import RiskManagerPort
 from domain.ports.strategy_evaluator import StrategyEvaluator

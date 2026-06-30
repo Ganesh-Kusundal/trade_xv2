@@ -59,7 +59,7 @@ class UpstoxOrderCommandAdapter(OrderCommand):
             if cached is not None:
                 return cached
 
-        if self._risk_manager is not None and not request.transport_only:
+        if self._risk_manager is not None:
             preview_order = self._to_domain_order(request)
             risk_result = self._risk_manager.check_order(preview_order)
             if not risk_result.allowed:
@@ -196,6 +196,25 @@ class UpstoxOrderCommandAdapter(OrderCommand):
             request.trigger_price is None or request.trigger_price <= 0
         ):
             errors.append("SL/SL-M orders require trigger_price > 0")
+
+        # Tick size alignment (defense in depth)
+        if request.price and request.price > 0:
+            try:
+                seg_wire = UpstoxDomainMapper.segment_to_wire(request.exchange)
+                inst = self._instrument_resolver.resolve(
+                    symbol=request.symbol, exchange_segment=seg_wire
+                )
+                if inst is not None and inst.tick_size > 0:
+                    from domain.utils.price import is_tick_aligned
+
+                    if not is_tick_aligned(request.price, Decimal(str(inst.tick_size))):
+                        errors.append(
+                            f"Price {request.price} not aligned to tick size "
+                            f"{inst.tick_size} for {request.symbol}"
+                        )
+            except Exception as exc:
+                logger.debug("tick_check_skipped: %s", exc)
+
         return OrderPreview(valid=not errors, errors=errors)
 
     def _resolve_instrument_key(self, request: BrokerOrderPayload) -> str | None:

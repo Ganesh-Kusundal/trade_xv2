@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Any
 
 from brokers.common.broker_port import QuotaToken
-from brokers.common.extensions import ExtensionBundle
+from brokers.common.extensions import ExtensionBundle, register_extension_factory
 from brokers.common.extensions.forever_order import (
     ForeverOrderProvider,
     ForeverOrderRequest,
@@ -37,10 +37,10 @@ class DhanSuperOrderExtension(SuperOrderProvider):
             exchange=request.exchange,
             side=request.side.value,
             quantity=request.quantity,
-            price=float(request.entry_price),
-            target=float(request.target_price),
-            stop_loss=float(request.stop_loss_price),
-            trailing_jump=float(request.trailing_jump),
+            price=request.entry_price,
+            target=request.target_price,
+            stop_loss=request.stop_loss_price,
+            trailing_jump=request.trailing_jump,
             order_type=request.order_type.value,
             product_type=request.product_type.value,
         )
@@ -68,11 +68,11 @@ class DhanSuperOrderExtension(SuperOrderProvider):
     ) -> SuperOrderResult:
         kwargs: dict[str, Any] = {}
         if target_price is not None:
-            kwargs["target"] = float(target_price)
+            kwargs["target"] = target_price
         if stop_loss_price is not None:
-            kwargs["stop_loss"] = float(stop_loss_price)
+            kwargs["stop_loss"] = stop_loss_price
         if trailing_jump is not None:
-            kwargs["trailing_jump"] = float(trailing_jump)
+            kwargs["trailing_jump"] = trailing_jump
         self._extended.modify_super_order(entry_order_id, **kwargs)
         return SuperOrderResult(success=True, entry_order_id=entry_order_id)
 
@@ -89,8 +89,8 @@ class DhanForeverOrderExtension(ForeverOrderProvider):
             exchange=request.exchange,
             side=request.side.value,
             quantity=request.quantity,
-            price=float(request.price1),
-            trigger=float(request.trigger1),
+            price=request.price1,
+            trigger=request.trigger1,
             order_flag=request.order_flag,
         )
         order_id = str(getattr(result, "order_id", "") or "")
@@ -112,9 +112,9 @@ class DhanForeverOrderExtension(ForeverOrderProvider):
     ) -> ForeverOrderResult:
         kwargs: dict[str, Any] = {}
         if price1 is not None:
-            kwargs["price"] = float(price1)
+            kwargs["price"] = price1
         if trigger1 is not None:
-            kwargs["trigger"] = float(trigger1)
+            kwargs["trigger"] = trigger1
         self._extended.modify_forever_order(order_id, **kwargs)
         return ForeverOrderResult(success=True, order_id=order_id)
 
@@ -143,8 +143,5 @@ def register_dhan_extensions(gateway: MarketDataGateway) -> ExtensionBundle:
     bundle.register(NativeSliceOrderProvider, DhanNativeSliceExtension(gateway))
     return bundle
 
-
-# Register factory so brokers.common.adapters can find it without importing us
-from brokers.common.extensions import register_extension_factory
 
 register_extension_factory("dhan", register_dhan_extensions)

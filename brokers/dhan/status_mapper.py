@@ -15,7 +15,7 @@ DHAN_STATUS_MAP: dict[str, OrderStatus] = {
     # OPEN_PENDING, PUT_ORDER_REQ_RECEIVED are already in COMMON_STATUS_MAP)
     "PLACED": OrderStatus.OPEN,
     "TRIGGERED": OrderStatus.OPEN,
-    "PARTIALLY_CANCELLED": OrderStatus.PARTIALLY_FILLED,
+    "PARTIALLY_CANCELLED": OrderStatus.PARTIALLY_CANCELLED,
 }
 
 # Register Dhan mappings at module load

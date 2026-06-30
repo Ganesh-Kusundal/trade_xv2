@@ -10,6 +10,7 @@ ORDER_STATUS_TRANSITIONS: dict[OrderStatus, frozenset[OrderStatus]] = {
             OrderStatus.PARTIALLY_FILLED,
             OrderStatus.FILLED,
             OrderStatus.CANCELLED,
+            OrderStatus.PARTIALLY_CANCELLED,
             OrderStatus.REJECTED,
             OrderStatus.EXPIRED,
         }
@@ -18,11 +19,13 @@ ORDER_STATUS_TRANSITIONS: dict[OrderStatus, frozenset[OrderStatus]] = {
         {
             OrderStatus.FILLED,
             OrderStatus.CANCELLED,
+            OrderStatus.PARTIALLY_CANCELLED,
             OrderStatus.REJECTED,
         }
     ),
     OrderStatus.FILLED: frozenset(),
     OrderStatus.CANCELLED: frozenset(),
+    OrderStatus.PARTIALLY_CANCELLED: frozenset(),
     OrderStatus.REJECTED: frozenset(),
     OrderStatus.EXPIRED: frozenset(),
     OrderStatus.UNKNOWN: frozenset(

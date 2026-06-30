@@ -29,6 +29,7 @@ from domain.requests import ModifyOrderRequest, OrderRequest
 # ---------------------------------------------------------------------------
 
 
+@runtime_checkable
 class BrokerStreamHandle(Protocol):
     """Minimal handle returned by open_market_stream / open_order_stream.
 

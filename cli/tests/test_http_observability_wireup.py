@@ -3,7 +3,7 @@
 B8+B9 created the HttpObservabilityServer class. This commit
 verifies the production wire-up:
 
-  - The server is constructed in _ensure_initialized
+  - The server is constructed in initialize
   - It is registered with the LifecycleManager (so close() drains it)
   - The OMS's EventMetrics is shared with the server
   - The extra_gauges_fn returns OMS risk state (daily_pnl, kill_switch, etc.)
@@ -32,7 +32,7 @@ def _find_free_port() -> int:
 
 
 def test_http_observability_field_is_none_before_init() -> None:
-    """Before _ensure_initialized runs, http_observability is None.
+    """Before initialize runs, http_observability is None.
     This is the contract for the no-gateway / failed-init case."""
     from cli.services.broker_service import BrokerService
 
@@ -99,7 +99,7 @@ def test_extra_gauges_returns_daily_pnl_and_kill_switch() -> None:
 def test_http_observability_field_initialized_to_none() -> None:
     """The http_observability field is initialized to None and
     populated by _start_http_observability_server (called inside
-    _ensure_initialized). The test confirms the contract: a fresh
+    initialize). The test confirms the contract: a fresh
     BrokerService has no HTTP server until init runs."""
     from cli.services.broker_service import BrokerService
 

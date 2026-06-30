@@ -30,7 +30,7 @@ def test_order_from_response_success() -> None:
     assert order.symbol == "RELIANCE"
 
 
-def test_make_gateway_submit_fn_transport_only() -> None:
+def test_make_gateway_submit_fn_omits_transport_only() -> None:
     gateway = MagicMock()
     gateway.place_order.return_value = OrderResponse.ok(order_id="BR-456")
 
@@ -41,13 +41,13 @@ def test_make_gateway_submit_fn_transport_only() -> None:
         quantity=1,
         correlation_id="test:gateway:2",
     )
-    submit = make_gateway_submit_fn(gateway, transport_only=True)
+    submit = make_gateway_submit_fn(gateway)
     order = submit(cmd)
 
     assert order.order_id == "BR-456"
     gateway.place_order.assert_called_once()
     _, kwargs = gateway.place_order.call_args
-    assert kwargs["transport_only"] is True
+    assert "transport_only" not in kwargs
     assert kwargs["exchange"] == "MCX"
 
 

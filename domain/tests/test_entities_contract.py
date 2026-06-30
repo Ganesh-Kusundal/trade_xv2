@@ -1,4 +1,4 @@
-"""REF-004: Entity invariant tests — Hypothesis-based for Order and Position.
+"""Entity invariant tests — Hypothesis-based for Order and Position.
 
 These tests verify the core invariants of the domain value objects:
 - Order.with_status preserves all fields except status

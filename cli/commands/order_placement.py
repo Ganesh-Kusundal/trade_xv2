@@ -21,9 +21,13 @@ from typing import TYPE_CHECKING
 from rich.console import Console
 from rich.table import Table
 
+from brokers.common.async_compat import run_async_compat
+from cli.commands.argparse_helpers import parse_flag
 from cli.commands.registry import CommandResult
+from cli.composer_helpers import get_execution_composer
 from cli.services.broker_service import BrokerService
 from domain import OrderType, ProductType, Side
+from domain.requests import ModifyOrderRequest, OrderRequest
 
 if TYPE_CHECKING:
     from application.composer.execution import ExecutionComposer
@@ -32,23 +36,10 @@ logger = logging.getLogger(__name__)
 
 
 def _get_execution_composer(broker_service: BrokerService) -> ExecutionComposer:
-    """Lazy-load ExecutionComposer via CLI helpers.
-
-    Uses lazy import to avoid circular dependency between cli.commands
-    and cli.composer_helpers.
-    """
-    from cli.composer_helpers import get_execution_composer
-
-    # Get or create cached composer instance
     return get_execution_composer()
 
 
-def _run_async(coro):
-    """Run async coroutine from sync CLI context.
-
-    Uses async_compat to handle both sync and async contexts safely.
-    """
-    from brokers.common.async_compat import run_async_compat
+def _await_in_sync_context(coro):
     return run_async_compat(coro, fire_and_forget=False)
 
 
@@ -71,7 +62,6 @@ def place_order(
             success=False, error="Missing required arguments: SYMBOL SIDE QUANTITY"
         )
 
-    # Parse positional arguments
     symbol = args[0].upper()
     try:
         side = Side(args[1].upper())
@@ -87,45 +77,39 @@ def place_order(
         console.print(f"[red]Invalid quantity: {args[2]}. Must be positive integer[/red]")
         return CommandResult(success=False, error=f"Invalid quantity: {args[2]}")
 
-    # Parse optional flags
     order_type = OrderType.MARKET
     price = Decimal("0")
     exchange = "NSE"
     product_type = ProductType.INTRADAY
 
-    if "--type" in args:
-        idx = args.index("--type")
-        if idx + 1 < len(args):
-            try:
-                order_type = OrderType(args[idx + 1].upper())
-            except ValueError:
-                console.print(f"[red]Invalid order type: {args[idx + 1]}[/red]")
-                return CommandResult(success=False, error=f"Invalid order type: {args[idx + 1]}")
+    type_val = parse_flag(args, "--type")
+    if type_val is not None:
+        try:
+            order_type = OrderType(type_val.upper())
+        except ValueError:
+            console.print(f"[red]Invalid order type: {type_val}[/red]")
+            return CommandResult(success=False, error=f"Invalid order type: {type_val}")
 
-    if "--price" in args:
-        idx = args.index("--price")
-        if idx + 1 < len(args):
-            try:
-                price = Decimal(args[idx + 1])
-            except Exception:
-                console.print(f"[red]Invalid price: {args[idx + 1]}[/red]")
-                return CommandResult(success=False, error=f"Invalid price: {args[idx + 1]}")
+    price_val = parse_flag(args, "--price")
+    if price_val is not None:
+        try:
+            price = Decimal(price_val)
+        except Exception:
+            console.print(f"[red]Invalid price: {price_val}[/red]")
+            return CommandResult(success=False, error=f"Invalid price: {price_val}")
 
-    if "--exchange" in args:
-        idx = args.index("--exchange")
-        if idx + 1 < len(args):
-            exchange = args[idx + 1].upper()
+    exchange_val = parse_flag(args, "--exchange")
+    if exchange_val is not None:
+        exchange = exchange_val.upper()
 
-    if "--product" in args:
-        idx = args.index("--product")
-        if idx + 1 < len(args):
-            try:
-                product_type = ProductType(args[idx + 1].upper())
-            except ValueError:
-                console.print(f"[red]Invalid product type: {args[idx + 1]}[/red]")
-                return CommandResult(success=False, error=f"Invalid product type: {args[idx + 1]}")
+    product_val = parse_flag(args, "--product")
+    if product_val is not None:
+        try:
+            product_type = ProductType(product_val.upper())
+        except ValueError:
+            console.print(f"[red]Invalid product type: {product_val}[/red]")
+            return CommandResult(success=False, error=f"Invalid product type: {product_val}")
 
-    # Get ExecutionComposer (lazy-loaded, cached)
     try:
         composer = _get_execution_composer(broker_service)
     except Exception as exc:
@@ -138,8 +122,6 @@ def place_order(
         )
 
         # Build OrderRequest for ExecutionComposer
-        from domain.requests import OrderRequest
-
         request = OrderRequest(
             symbol=symbol,
             exchange=exchange,
@@ -151,7 +133,7 @@ def place_order(
         )
 
         # Execute via composer (async -> sync bridge)
-        response = _run_async(composer.place_order(request))
+        response = _await_in_sync_context(composer.place_order(request))
 
         # Display success with Rich table
         table = Table(title="✅ Order Placed Successfully", header_style="bold green")
@@ -203,7 +185,6 @@ def cancel_order(
 
     order_id = args[0]
 
-    # Get ExecutionComposer (lazy-loaded, cached)
     try:
         composer = _get_execution_composer(broker_service)
     except Exception as exc:
@@ -214,7 +195,7 @@ def cancel_order(
         console.print(f"[cyan]Cancelling order {order_id}...[/cyan]")
 
         # Execute via composer (async -> sync bridge)
-        response = _run_async(composer.cancel_order(order_id))
+        response = _await_in_sync_context(composer.cancel_order(order_id))
 
         if response.success:
             console.print(f"[green]✅ Order {order_id} cancelled successfully[/green]")
@@ -254,31 +235,28 @@ def modify_order(
     new_price: Decimal | None = None
     new_quantity: int | None = None
 
-    if "--price" in args:
-        idx = args.index("--price")
-        if idx + 1 < len(args):
-            try:
-                new_price = Decimal(args[idx + 1])
-            except Exception:
-                console.print(f"[red]Invalid price: {args[idx + 1]}[/red]")
-                return CommandResult(success=False, error=f"Invalid price: {args[idx + 1]}")
+    price_val = parse_flag(args, "--price")
+    if price_val is not None:
+        try:
+            new_price = Decimal(price_val)
+        except Exception:
+            console.print(f"[red]Invalid price: {price_val}[/red]")
+            return CommandResult(success=False, error=f"Invalid price: {price_val}")
 
-    if "--quantity" in args:
-        idx = args.index("--quantity")
-        if idx + 1 < len(args):
-            try:
-                new_quantity = int(args[idx + 1])
-                if new_quantity <= 0:
-                    raise ValueError
-            except ValueError:
-                console.print(f"[red]Invalid quantity: {args[idx + 1]}[/red]")
-                return CommandResult(success=False, error=f"Invalid quantity: {args[idx + 1]}")
+    qty_val = parse_flag(args, "--quantity")
+    if qty_val is not None:
+        try:
+            new_quantity = int(qty_val)
+            if new_quantity <= 0:
+                raise ValueError
+        except ValueError:
+            console.print(f"[red]Invalid quantity: {qty_val}[/red]")
+            return CommandResult(success=False, error=f"Invalid quantity: {qty_val}")
 
     if new_price is None and new_quantity is None:
         console.print("[yellow]No modifications specified. Use --price or --quantity[/yellow]")
         return CommandResult(success=False, error="No modifications specified")
 
-    # Get ExecutionComposer (lazy-loaded, cached)
     try:
         composer = _get_execution_composer(broker_service)
     except Exception as exc:
@@ -292,9 +270,6 @@ def modify_order(
         if new_quantity is not None:
             console.print(f"[cyan]  New quantity: {new_quantity}[/cyan]")
 
-        # Build ModifyOrderRequest for ExecutionComposer
-        from domain.requests import ModifyOrderRequest
-
         request = ModifyOrderRequest(
             order_id=order_id,
             price=new_price,
@@ -302,7 +277,7 @@ def modify_order(
         )
 
         # Execute via composer (async -> sync bridge)
-        response = _run_async(composer.modify_order(request))
+        response = _await_in_sync_context(composer.modify_order(request))
 
         if response.success:
             console.print(f"[green]✅ Order {order_id} modified successfully[/green]")
@@ -337,16 +312,8 @@ def place_orders_batch(
     Usage:
         tradex place-orders --file orders.csv
     """
-    file_path: str | None = None
-
-    if "--file" in args:
-        idx = args.index("--file")
-        if idx + 1 < len(args):
-            file_path = args[idx + 1]
-        else:
-            console.print("[red]Missing file path after --file[/red]")
-            return CommandResult(success=False, error="Missing file path")
-    else:
+    file_path = parse_flag(args, "--file")
+    if file_path is None:
         console.print("[yellow]Usage: tradex place-orders --file <csv_file>[/yellow]")
         return CommandResult(success=False, error="Missing --file argument")
 
@@ -370,7 +337,6 @@ def place_orders_batch(
 
     console.print(f"[cyan]Placing {len(orders)} orders from {file_path}...[/cyan]")
 
-    # Get ExecutionComposer (lazy-loaded, cached)
     try:
         composer = _get_execution_composer(broker_service)
     except Exception as exc:
@@ -380,8 +346,6 @@ def place_orders_batch(
     results = []
     success_count = 0
     failure_count = 0
-
-    from domain.requests import OrderRequest
 
     for i, order_data in enumerate(orders, 1):
         try:
@@ -409,7 +373,7 @@ def place_orders_batch(
             )
 
             # Execute via composer (async -> sync bridge)
-            response = _run_async(composer.place_order(request))
+            response = _await_in_sync_context(composer.place_order(request))
 
             results.append({"symbol": symbol, "status": "success", "order_id": response.order_id})
             success_count += 1

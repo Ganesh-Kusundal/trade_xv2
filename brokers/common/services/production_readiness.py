@@ -10,7 +10,7 @@ BrokerService init time. The CLI **must** fail to start a live path if:
   * Required credentials are missing
   * Health checks fail
 
-The checker is invoked from BrokerService._ensure_initialized. Failures
+The checker is invoked from BrokerService.initialize. Failures
 are returned as a list of (check_name, message) tuples so the CLI can
 print a structured "unsafe to deploy" report.
 
@@ -189,7 +189,7 @@ class ProductionReadinessChecker:
         if conn.market_feed is None:
             return False, (
                 "DhanMarketFeed was not created — streaming market data is OFF. "
-                "BrokerService._ensure_initialized must call "
+                "BrokerService.initialize must call "
                 "connection.create_market_feed(...) and register it with the lifecycle."
             )
         return True, "DhanMarketFeed exists"
@@ -201,7 +201,7 @@ class ProductionReadinessChecker:
         if conn.order_stream is None:
             return False, (
                 "DhanOrderStream was not created — live order updates are OFF. "
-                "BrokerService._ensure_initialized must call "
+                "BrokerService.initialize must call "
                 "connection.create_order_stream(...) and register it with the lifecycle."
             )
         return True, "DhanOrderStream exists"

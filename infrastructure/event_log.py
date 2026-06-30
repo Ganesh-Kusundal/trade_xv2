@@ -282,7 +282,7 @@ class EventLog:
 
 
 # ---------------------------------------------------------------------------
-# BufferedEventLog (P3-Phase 3)
+# BufferedEventLog
 # ---------------------------------------------------------------------------
 
 
@@ -356,8 +356,8 @@ class BufferedEventLog(EventLog):
                 "payload": _serialize_value(event.payload),
                 "symbol": event.symbol,
                 "source": event.source,
-                "correlation_id": event.correlation_id,  # B5
-                "sequence_number": event.sequence_number,  # B5
+                "correlation_id": event.correlation_id,
+                "sequence_number": event.sequence_number,
             }
             line = json.dumps(record, ensure_ascii=False) + "\n"
 

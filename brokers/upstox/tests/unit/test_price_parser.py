@@ -39,3 +39,30 @@ def test_round_trip_paise():
 def test_parse_none_or_empty_returns_zero():
     assert UpstoxPriceParser.parse(None) == Decimal("0.0000")
     assert UpstoxPriceParser.parse("") == Decimal("0.0000")
+
+
+def test_parse_paise_binary_ws_feed():
+    """Binary WS feed sends integer paise — verify conversion."""
+    p = UpstoxPriceParser.parse(1234567, is_paise=True)
+    assert p == Decimal("12345.6700")
+
+
+def test_parse_decimal_input_rupees():
+    p = UpstoxPriceParser.parse(Decimal("100.05"))
+    assert p == Decimal("100.0500")
+
+
+def test_parse_decimal_input_paise():
+    p = UpstoxPriceParser.parse(Decimal("10005"), is_paise=True)
+    assert p == Decimal("100.0500")
+
+
+def test_parse_zero():
+    assert UpstoxPriceParser.parse(0) == Decimal("0.0000")
+    assert UpstoxPriceParser.parse(0, is_paise=True) == Decimal("0.0000")
+
+
+def test_to_paise_rounding():
+    """Half-up rounding for fractional paise."""
+    assert UpstoxPriceParser.to_paise(Decimal("10.505")) == 1051
+    assert UpstoxPriceParser.to_paise(Decimal("10.504")) == 1050

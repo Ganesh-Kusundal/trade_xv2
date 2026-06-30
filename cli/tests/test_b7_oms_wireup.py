@@ -10,7 +10,7 @@ no canonical risk gate.
 
 B7 fixes this:
 
-  - ``BrokerService._ensure_initialized`` now constructs a
+  - ``BrokerService.initialize`` now constructs a
     :class:`RiskManager` first, threads it into
     ``BrokerFactory.create(risk_manager=...)``, which passes it
     to ``DhanConnection`` → ``OrdersAdapter``. The risk check
@@ -210,7 +210,7 @@ def test_oms_capital_fn_uses_placeholder_before_gateway_set() -> None:
 
 
 def test_oms_capital_fn_uses_real_gateway_funds_after_init() -> None:
-    """C.1: after _ensure_initialized completes, the OMS
+    """C.1: after initialize completes, the OMS
     capital_provider closure captures the real gateway. Calling
     get_available_balance() reads gateway.funds().available_balance.
     """
@@ -224,7 +224,7 @@ def test_oms_capital_fn_uses_real_gateway_funds_after_init() -> None:
     # Placeholder when gateway is None
     assert cp.get_available_balance() > Decimal("0")
 
-    # Simulate the gateway being set (as _ensure_initialized does)
+    # Simulate the gateway being set (as initialize does)
     fake_balance = Balance(
         available_balance=Decimal("250000.50"),
         sod_limit=Decimal("500000"),

@@ -136,3 +136,42 @@ def test_place_order_risk_check_blocks_order() -> None:
 
     assert not response.success
     assert "Risk check failed" in response.message
+
+
+def test_place_order_always_enforces_risk_check() -> None:
+    """Risk checks are always enforced regardless of any transport flags."""
+    from application.oms.position_manager import PositionManager
+    from application.oms.risk_manager import RiskConfig, RiskManager
+    from brokers.common.dtos import BrokerOrderPayload
+
+    resolver = MagicMock()
+    resolver.resolve.return_value = MagicMock(instrument_key="NSE_EQ|RELIANCE")
+
+    position_manager = PositionManager()
+    risk = RiskManager(
+        position_manager,
+        RiskConfig(max_position_pct=Decimal("1")),
+        lambda: Decimal("100000"),
+    )
+
+    adapter = UpstoxOrderCommandAdapter(
+        order_client=_FakeOrderClient(),
+        instrument_resolver=resolver,
+        risk_manager=risk,
+    )
+
+    request = BrokerOrderPayload(
+        symbol="RELIANCE",
+        exchange="NSE",
+        exchange_segment=ExchangeSegment.NSE,
+        transaction_type=Side.BUY,
+        quantity=1000,
+        price=Decimal("100"),
+        order_type=EnumsOrderType.LIMIT,
+        product_type=EnumsProductType.INTRADAY,
+        validity=EnumsValidity.DAY,
+    )
+    response = adapter.place_order(request)
+
+    assert not response.success
+    assert "Risk check failed" in response.message

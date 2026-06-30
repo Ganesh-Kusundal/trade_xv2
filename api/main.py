@@ -227,6 +227,10 @@ def create_app(
 
     cfg = config or APIConfig()
 
+    from api.auth import configure as _configure_auth
+
+    _configure_auth(auth_mode=cfg.auth_mode, api_key=cfg.api_key)
+
     # Initialise OpenTelemetry distributed tracing
     from infrastructure.observability.opentelemetry_setup import setup_telemetry
 

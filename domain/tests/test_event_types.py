@@ -12,6 +12,7 @@ from domain.entities.order import Order
 from domain.entities.trade import Trade
 from domain.events.types import (
     EVENT_PAYLOADS,
+    EventPayload,
     EventType,
     OrderUpdatedEvent,
     TradeAppliedEvent,
@@ -103,6 +104,23 @@ class TestMakePayload:
         payload = {"data": 123}
         result = make_payload("NONEXISTENT_EVENT", payload, validate=True)
         assert result is payload
+
+    @pytest.mark.parametrize("event_type", list(EventType))
+    def test_validate_passes_with_all_required_keys(self, event_type):
+        contract = EVENT_PAYLOADS.get(event_type)
+        if contract is None or not contract.required_keys:
+            return
+        payload = {k: "value" for k in contract.required_keys}
+        result = make_payload(event_type, payload, validate=True)
+        assert result is payload
+
+    @pytest.mark.parametrize(
+        "event_type",
+        [et for et in EventType if EVENT_PAYLOADS.get(et, EventPayload()).required_keys],
+    )
+    def test_validate_rejects_empty_payload_for_events_with_required_keys(self, event_type):
+        with pytest.raises(KeyError, match="missing required keys"):
+            make_payload(event_type, {}, validate=True)
 
 
 class TestOrderUpdatedEvent:

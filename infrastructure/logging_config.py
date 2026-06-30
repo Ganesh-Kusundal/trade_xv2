@@ -4,7 +4,7 @@ Provides a single, consistent logging setup for the entire TradeXV2 platform.
 Supports structured JSON logging for production and human-readable output for
 development.
 
-Token-leak protection (REF-29)
+Token-leak protection
 -------------------------------
 The :class:`TokenRedactionFilter` installed by ``configure_logging``
 redacts any substring that matches an access-token, refresh-token,
@@ -32,7 +32,7 @@ import sys
 from datetime import datetime, timezone
 from typing import Any
 
-# Token redaction patterns (REF-29)
+# Token redaction patterns
 _TOKEN_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"(access_token\s*=\s*)([^\s,;]+)", re.IGNORECASE),
     re.compile(r"(refresh_token\s*=\s*)([^\s,;]+)", re.IGNORECASE),

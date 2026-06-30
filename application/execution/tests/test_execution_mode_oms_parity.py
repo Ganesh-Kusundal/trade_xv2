@@ -59,7 +59,7 @@ def test_live_mode_uses_submit_fn_and_records_in_oms(trading_context) -> None:
     gateway.place_order.return_value = OrderResponse.ok(order_id="LIVE-001")
 
     cmd = _command("test:parity:live")
-    submit_fn = make_gateway_submit_fn(gateway, transport_only=True)
+    submit_fn = make_gateway_submit_fn(gateway)
     result = trading_context.order_manager.place_order(cmd, submit_fn=submit_fn)
 
     assert result.success
@@ -77,7 +77,7 @@ def test_all_modes_publish_same_initial_order_status(trading_context) -> None:
 
     paper_adapter = create_execution_adapter("paper", trading_context)
     replay_adapter = create_execution_adapter("replay", trading_context)
-    submit_fn = make_gateway_submit_fn(gateway, transport_only=True)
+    submit_fn = make_gateway_submit_fn(gateway)
 
     cases = [
         ("paper", paper_adapter, None),

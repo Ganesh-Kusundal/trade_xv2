@@ -5,10 +5,19 @@ the common ``OrderRequest`` (Pydantic) input model and canonical domain
 dataclasses (``Order``/``Quote``/``Position``/etc.), normalises status strings,
 and converts wire product / validity / order-type enums to the canonical
 Trade_XV2 domain enums.
+
+Provider metadata keys
+----------------------
+The ``BrokerOrderPayload.provider_metadata`` dict carries Upstox-specific
+fields that have no canonical domain equivalent. The keys are centralised
+here so adapters reference these constants rather than hardcoded strings::
+
+    payload["is_amo"] = provider_metadata.get(PROVIDER_IS_AMO, False)
 """
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
@@ -40,8 +49,17 @@ from domain.parsing import (
     parse_optional_str,
     parse_timestamp,
 )
+from domain.status_mapper import StatusMapperRegistry, UnmappedBrokerStatusError
 
 from .price_parser import UpstoxPriceParser
+
+# ── Provider metadata key constants ──────────────────────────────────────
+# These keys are used by Upstox adapters to read/write broker-specific
+# fields in ``BrokerOrderPayload.provider_metadata``. Centralising them
+# here eliminates hardcoded string literals scattered across the codebase.
+PROVIDER_IS_AMO: str = "is_amo"
+PROVIDER_MARKET_PROTECTION: str = "market_protection"
+PROVIDER_ALGO_NAME: str = "algo_name"
 
 _PRODUCT_TO_WIRE = {
     ProductType.INTRADAY: "I",
@@ -73,10 +91,16 @@ _WIRE_TO_TXN = {v: k for k, v in _TXN_TO_WIRE.items()}
 
 
 def _wire_status_to_domain_status(raw: str) -> OrderStatus:
-    """Convert Upstox wire status string to canonical domain OrderStatus."""
+    """Convert Upstox wire status string to canonical domain OrderStatus.
+
+    Uses strict status mapping to ensure unmapped statuses raise errors
+    instead of silently defaulting to UNKNOWN or OPEN.
+    """
     if not raw:
+        # Empty status is a special case - we default to OPEN for backward compatibility
+        # but this should be investigated as it might indicate missing data
         return OrderStatus.OPEN
-    return OrderStatus.normalize(raw)
+    return StatusMapperRegistry.normalize_strict(raw)
 
 
 # ── Parsing helpers (delegated to shared utilities) ─────────────────────
@@ -186,9 +210,18 @@ class UpstoxDomainMapper:
         market_protection: int | None = None,
         slice_orders: bool = False,
     ) -> dict[str, Any]:
+        provider_metadata = getattr(request, "provider_metadata", {}) or {}
         is_market = request.order_type == OrderType.MARKET
+        from domain.utils.price import to_wire_float
+
         price_value = (
-            0 if is_market else (float(request.price) if request.price and request.price > 0 else 0)
+            0
+            if is_market
+            else (
+                to_wire_float(request.price)
+                if request.price and request.price > 0
+                else 0
+            )
         )
         payload: dict[str, Any] = {
             "quantity": request.quantity,
@@ -199,8 +232,10 @@ class UpstoxDomainMapper:
             "order_type": UpstoxDomainMapper.order_type_to_wire(request.order_type),
             "transaction_type": UpstoxDomainMapper.txn_to_wire(request.transaction_type),
             "disclosed_quantity": int(getattr(request, "disclosed_quantity", 0) or 0),
-            "trigger_price": float(request.trigger_price) if request.trigger_price else 0,
-            "is_amo": bool(getattr(request, "is_amo", False)),
+            "trigger_price": to_wire_float(request.trigger_price)
+            if request.trigger_price
+            else 0,
+            PROVIDER_IS_AMO: bool(provider_metadata.get(PROVIDER_IS_AMO, False)),
         }
         tag = request.correlation_id or request.tag
         if tag:
@@ -209,10 +244,10 @@ class UpstoxDomainMapper:
             payload["slice"] = True
         mp = market_protection
         if mp is None:
-            mp = getattr(request, "market_protection", -1)
-        payload["market_protection"] = int(mp) if mp is not None else -1
+            mp = provider_metadata.get(PROVIDER_MARKET_PROTECTION, -1)
+        payload[PROVIDER_MARKET_PROTECTION] = int(mp) if mp is not None else -1
         if algo_name:
-            payload.setdefault("algo_name", algo_name)
+            payload.setdefault(PROVIDER_ALGO_NAME, algo_name)
         return payload
 
     @staticmethod
@@ -234,9 +269,13 @@ class UpstoxDomainMapper:
         if quantity is not None:
             payload["quantity"] = int(quantity)
         if price is not None:
-            payload["price"] = float(price)
+            from domain.utils.price import to_wire_float
+
+            payload["price"] = to_wire_float(price)
         if trigger_price is not None:
-            payload["trigger_price"] = float(trigger_price)
+            from domain.utils.price import to_wire_float
+
+            payload["trigger_price"] = to_wire_float(trigger_price)
         if order_type is not None:
             payload["order_type"] = UpstoxDomainMapper.order_type_to_wire(order_type)
         if validity is not None:
@@ -265,7 +304,31 @@ class UpstoxDomainMapper:
         if not order_id:
             remarks = payload.get("remarks") or payload.get("message") or "Order failed"
             return OrderResponse.fail(remarks)
-        return OrderResponse.ok(order_id, str(data) if data is not None else "")
+
+        # Extract and normalize status from payload
+        status_str = str(data.get("status") or payload.get("status") or "")
+        try:
+            status = UpstoxDomainMapper.normalize_status(status_str) if status_str else OrderStatus.OPEN
+        except UnmappedBrokerStatusError as exc:
+            # Log the unmapped status but don't fail the order response
+            # This allows the order to proceed while flagging the issue for investigation
+            logger = logging.getLogger(__name__)
+            logger.error(
+                "unmapped_order_status_in_response",
+                extra={
+                    "order_id": order_id,
+                    "raw_status": status_str,
+                    "error": str(exc)
+                }
+            )
+            # Default to OPEN but this should be investigated
+            status = OrderStatus.OPEN
+
+        return OrderResponse.ok(
+            order_id=order_id,
+            message=str(data) if data is not None else "",
+            status=status
+        )
 
     @staticmethod
     def to_quote(payload: Any) -> Quote:

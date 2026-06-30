@@ -5,13 +5,14 @@ from decimal import Decimal
 
 import pytest
 
-from brokers.common.capabilities import dhan_capabilities, upstox_capabilities
 from brokers.common.historical_coordinator import HistoricalDataCoordinator, HistoricalQuery
 from brokers.common.policy import auto_dual_broker_policy
 from brokers.common.quota_scheduler import PriorityClass, QuotaScheduler
 from brokers.common.registry import BrokerRegistry
 from brokers.common.router import BrokerRouter
 from brokers.common.tests.fixtures.in_memory_gateway import InMemoryBrokerGateway, _bar
+from brokers.dhan.capabilities import dhan_capabilities
+from brokers.upstox.capabilities import upstox_capabilities
 from domain.historical import HistoricalBar, InstrumentRef
 from domain.provenance import DataProvenance
 

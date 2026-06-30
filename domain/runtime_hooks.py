@@ -1,6 +1,6 @@
 """Runtime hooks registered at composition root (no broker imports in domain).
 
-REF-026: Module-level mutable globals replaced by frozen ``RuntimeHooks`` dataclass.
+Module-level mutable globals replaced by frozen ``RuntimeHooks`` dataclass.
 New code should use ``set_runtime_hooks(hooks)`` for dependency injection;
 legacy ``register_*`` / ``create_*`` functions delegate to the module singleton
 for backward compatibility.

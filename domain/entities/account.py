@@ -1,6 +1,6 @@
 """Account domain entities — Balance and FundLimits.
 
-REF-024: FundLimits has been consolidated into Balance. FundLimits is now
+FundLimits has been consolidated into Balance. FundLimits is now
 a type alias for backward compatibility.
 """
 
@@ -14,7 +14,7 @@ from decimal import Decimal
 class Balance:
     """Canonical account balance — returned by every broker adapter.
 
-    Consolidated from the former ``FundLimits`` class (REF-024).
+    Consolidated from the former ``FundLimits`` class.
     All ``FundLimits`` fields are a subset of ``Balance``.
     """
 

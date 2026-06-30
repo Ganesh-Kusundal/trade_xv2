@@ -22,7 +22,6 @@ class OrderTransportPort(Protocol):
         order_type: str = "MARKET",
         product_type: str = "INTRADAY",
         correlation_id: str | None = None,
-        transport_only: bool = False,
     ) -> OrderResponse: ...
 
 

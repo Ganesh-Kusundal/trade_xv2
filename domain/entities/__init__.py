@@ -19,13 +19,13 @@ The individual sub-modules are::
 
 from __future__ import annotations
 
-# Account (REF-024: FundLimits consolidated into Balance)
+# Account (FundLimits consolidated into Balance)
 from domain.entities.account import (
     Balance,
     FundLimits,
 )
 
-# Alerts / PnL (REF-027: frozen where applicable)
+# Alerts / PnL (frozen where applicable)
 from domain.entities.alerts import (
     ConditionalAlert,
     ConditionalAlertRequest,
@@ -34,7 +34,7 @@ from domain.entities.alerts import (
     PnlExitResult,
 )
 
-# Instrument (REF-027: frozen)
+# Instrument (frozen)
 from domain.entities.instrument import Instrument
 
 # Market data
@@ -76,17 +76,6 @@ from domain.entities.position import (
 # Trade
 from domain.entities.trade import Trade
 
-# Re-export types for backward compatibility (old domain/entities.py
-# imported these at module level, so `from domain.entities import OrderStatus`
-# was valid). New code should import from domain.types directly.
-from domain.types import (
-    OrderStatus,
-    OrderType,
-    ProductType,
-    Side,
-    Validity,
-)
-
 __all__ = [
     "ORDER_STATUS_TRANSITIONS",
     "POSITION_STATE_TRANSITIONS",
@@ -110,16 +99,11 @@ __all__ = [
     "OptionStrike",
     "Order",
     "OrderResponse",
-    "OrderStatus",
-    "OrderType",
     "PnlExitPolicy",
     "PnlExitResult",
     "Position",
     "PositionState",
-    "ProductType",
     "Quote",
     "QuoteSnapshot",
-    "Side",
     "Trade",
-    "Validity",
 ]

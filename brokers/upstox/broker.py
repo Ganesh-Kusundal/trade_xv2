@@ -95,7 +95,7 @@ _CORE_ADAPTER_REGISTRY: list[tuple[str, type, type, Capability | None]] = [
 ]
 
 # Extended adapters — loaded lazily via :meth:`_ensure_extended`.
-_EXTENDED_ADAPTER_REGISTRY: list[tuple[str, str, str, Capability | None]] = [
+_EXTENDED_ADAPTER_REGISTRY: list[tuple[str, str, str, str, str, Capability | None]] = [
     (
         "ipo",
         "brokers.upstox.ipo.client",
@@ -155,6 +155,229 @@ _EXTENDED_ADAPTER_REGISTRY: list[tuple[str, str, str, Capability | None]] = [
 ]
 
 
+class UpstoxBrokerBuilder:
+    """Encapsulates the full construction of an :class:`UpstoxBroker`.
+
+    Each named method corresponds to one construction phase, keeping the
+    ``__init__`` body thin and making the wiring order explicit.
+    """
+
+    def __init__(
+        self,
+        broker: UpstoxBroker,
+        settings: UpstoxConnectionSettings,
+        token_manager: UpstoxTokenManager | None,
+        oms: Any,
+        event_bus: EventBus | None,
+        risk_manager: RiskManagerPort | None,
+        backfill_callback: Any | None,
+        reconciliation_service: Any | None,
+    ) -> None:
+        self._broker = broker
+        self._settings = settings
+        self._token_manager = token_manager
+        self._oms = oms
+        self._event_bus = event_bus
+        self._risk_manager = risk_manager
+        self._backfill_callback = backfill_callback
+        self._reconciliation_service = reconciliation_service
+
+    def build(self) -> None:
+        self._init_basic_state()
+        self._init_http_clients()
+        self._init_core_adapters()
+        self._init_special_adapters()
+        self._init_websocket_layer()
+        self._init_services()
+        self._init_capabilities()
+
+    def _init_basic_state(self) -> None:
+        settings = self._settings
+        b = self._broker
+        b._name = "upstox"
+        b._broker_id = settings.client_id
+        b._capabilities: set[Capability] = set()
+        b._capability_map: dict[Capability, Any] = {}
+        b._status = ConnectionStatus.DISCONNECTED
+        b.settings = settings
+        b._token_manager = self._token_manager or UpstoxTokenManager(settings=settings)
+        b.context = UpstoxAdapterContext(
+            settings=settings,
+            token_provider=b._token_manager.bearer_token,
+            token_manager=b._token_manager,
+        )
+        b._oms = self._oms
+        b._event_bus = self._event_bus
+        b._risk_manager = self._risk_manager
+        b._backfill_callback = self._backfill_callback
+        b._reconciliation_service = self._reconciliation_service
+        b._extended_ready = False
+
+    def _init_http_clients(self) -> None:
+        b = self._broker
+        b.instrument_resolver = UpstoxInstrumentResolver()
+        b.instrument_loader = UpstoxInstrumentLoader()
+        b.instrument_search = UpstoxInstrumentSearch(b.context.http_client)
+
+    def _init_core_adapters(self) -> None:
+        b = self._broker
+        # Standalone clients (no corresponding adapter from registry)
+        b.market_data_v2 = UpstoxMarketDataV2Client(
+            b.context.http_client, b.context.url_resolver
+        )
+        b.market_data_v3 = UpstoxMarketDataV3Client(
+            b.context.http_client, b.context.url_resolver
+        )
+        b.historical_v2 = UpstoxHistoricalV2Client(
+            b.context.http_client, b.context.url_resolver
+        )
+        b.historical_v3 = UpstoxHistoricalV3Client(
+            b.context.http_client, url_resolver=b.context.url_resolver
+        )
+        b.order_client = UpstoxRestOrderClient(
+            b.context.http_client, b.context.url_resolver
+        )
+        b.expired_instruments_client = UpstoxExpiredInstrumentsClient(
+            b.context.http_client, b.context.url_resolver
+        )
+
+        # Core registry-driven client + adapter pairs
+        for name, client_cls, adapter_cls, capability in _CORE_ADAPTER_REGISTRY:
+            client = client_cls(b.context.http_client, b.context.url_resolver)
+            setattr(b, f"{name}_client", client)
+
+            if name == "options":
+                adapter = adapter_cls(client, b.instrument_resolver)
+            elif name == "futures":
+                futures_client = UpstoxFuturesClient(
+                    b.context.http_client,
+                    b.context.url_resolver,
+                    b.instrument_resolver,
+                )
+                b.futures_client = futures_client
+                adapter = adapter_cls(futures_client)
+            else:
+                adapter = adapter_cls(client)
+
+            setattr(b, name, adapter)
+            if capability is not None:
+                b._register_capability(capability, adapter)
+
+    def _init_special_adapters(self) -> None:
+        b = self._broker
+        b.market_data = UpstoxMarketDataAdapter(
+            b.market_data_v2, b.market_data_v3, b.historical_v2
+        )
+
+        # Orders
+        b.idempotency_cache = InMemoryIdempotencyCache()
+        b.order_command = UpstoxOrderCommandAdapter(
+            b.order_client,
+            b.instrument_resolver,
+            b.idempotency_cache,
+            use_v3=True,
+            algo_name=self._settings.algo_name or None,
+            market_protection_default=self._settings.market_protection_default,
+            event_bus=b._event_bus,
+            risk_manager=b._risk_manager,
+        )
+        b.order_query = UpstoxOrderQueryAdapter(b.order_client, b.instrument_resolver)
+        # self.gtt created by _init_core_adapters above
+        b.slice = UpstoxSliceAdapter(b.order_client, b.instrument_resolver)
+        b.cover = UpstoxCoverOrderAdapter(b.order_client)
+        b.alert = UpstoxAlertAdapter(b.gtt)
+        b.exit_all = UpstoxExitAllAdapter(b.kill_switch_client)
+
+    def _init_websocket_layer(self) -> None:
+        b = self._broker
+        settings = self._settings
+        b.feed_authorizer = UpstoxFeedAuthorizer(
+            b.context.http_client, b.context.url_resolver
+        )
+        ws_limits = (
+            UpstoxV3SubscriptionLimits.for_plus_plan()
+            if settings.ws_plus_plan
+            else UpstoxV3SubscriptionLimits()
+        )
+        b.market_data_websocket = UpstoxMarketDataV3Multiplexer(
+            authorizer=b.feed_authorizer,
+            decoder=UpstoxV3Decoder(),
+            limits=ws_limits,
+            auto_reconnect=UpstoxAutoReconnect(
+                enabled=settings.ws_auto_reconnect,
+                interval_seconds=settings.ws_reconnect_interval_s,
+                max_retries=settings.ws_reconnect_max_retries,
+            ),
+            event_bus=b._event_bus,
+            backfill_callback=b._backfill_callback,
+        )
+        b.portfolio_stream = UpstoxPortfolioStream(
+            authorizer=b.feed_authorizer,
+            event_bus=b._event_bus,
+        )
+
+    def _init_services(self) -> None:
+        b = self._broker
+        settings = self._settings
+        # Shared historical data service (V2 historical client)
+        b.historical_service = HistoricalDataService(
+            b.historical_v2,
+            parquet_cache_path=settings.instrument_cache_path,
+        )
+
+        # Reconciliation
+        if self._reconciliation_service is not None:
+            b.reconciliation_service = self._reconciliation_service
+        else:
+            b.reconciliation_service = UpstoxReconciliationService(
+                b.order_client, b.portfolio_client, oms=b._oms, auto_repair=False
+            )
+
+    def _init_capabilities(self) -> None:
+        b = self._broker
+        b.capabilities = _UpstoxCapabilities(
+            market_data=MarketDataCapability(
+                market_data=b.market_data,
+                market_data_v2=b.market_data_v2,
+                market_data_v3=b.market_data_v3,
+                historical_v2=b.historical_v2,
+                historical_v3=b.historical_v3,
+                options=b.options,
+                futures=b.futures,
+                expired_instruments_client=b.expired_instruments_client,
+                market_status=b.market_status,
+                intelligence=None,
+                intelligence_snapshot=None,
+            ),
+            orders=OrdersCapability(
+                order_command=b.order_command,
+                order_query=b.order_query,
+                slice=b.slice,
+                cover=b.cover,
+                gtt=b.gtt,
+                alert=b.alert,
+                exit_all=b.exit_all,
+                order_client=b.order_client,
+            ),
+            portfolio=PortfolioCapability(
+                portfolio=b.portfolio,
+                margin=b.margin,
+                portfolio_client=b.portfolio_client,
+                margin_client=b.margin_client,
+            ),
+            instruments=InstrumentsCapability(
+                instrument_resolver=b.instrument_resolver,
+                instrument_loader=b.instrument_loader,
+                instrument_search=b.instrument_search,
+            ),
+            streaming=StreamingCapability(
+                feed_authorizer=b.feed_authorizer,
+                market_data_websocket=b.market_data_websocket,
+            ),
+        )
+        b._register_all_capabilities()
+
+
 class UpstoxBroker:
     def __init__(
         self,
@@ -169,177 +392,18 @@ class UpstoxBroker:
     ) -> None:
         if settings is None:
             settings = UpstoxConnectionSettings(client_id="placeholder")
-        self._name = "upstox"
-        self._broker_id = settings.client_id
-        self._capabilities: set[Capability] = set()
-        self._capability_map: dict[Capability, Any] = {}
-        self._status: ConnectionStatus = ConnectionStatus.DISCONNECTED
-        self.settings = settings
-        self._token_manager = token_manager or UpstoxTokenManager(settings=settings)
-        self.context = UpstoxAdapterContext(
+
+        builder = UpstoxBrokerBuilder(
+            broker=self,
             settings=settings,
-            token_provider=self._token_manager.bearer_token,
-            token_manager=self._token_manager,
+            token_manager=token_manager,
+            oms=oms,
+            event_bus=event_bus,
+            risk_manager=risk_manager,
+            backfill_callback=backfill_callback,
+            reconciliation_service=reconciliation_service,
         )
-        self._oms = oms
-        self._event_bus = event_bus
-        self._risk_manager = risk_manager
-        self._backfill_callback = backfill_callback
-        self._reconciliation_service = reconciliation_service
-        self._extended_ready = False
-
-        self.instrument_resolver = UpstoxInstrumentResolver()
-        self.instrument_loader = UpstoxInstrumentLoader()
-        self.instrument_search = UpstoxInstrumentSearch(self.context.http_client)
-
-        # ── Standalone clients (no corresponding adapter from registry) ──
-        self.market_data_v2 = UpstoxMarketDataV2Client(
-            self.context.http_client, self.context.url_resolver
-        )
-        self.market_data_v3 = UpstoxMarketDataV3Client(
-            self.context.http_client, self.context.url_resolver
-        )
-        self.historical_v2 = UpstoxHistoricalV2Client(
-            self.context.http_client, self.context.url_resolver
-        )
-        self.historical_v3 = UpstoxHistoricalV3Client(
-            self.context.http_client, url_resolver=self.context.url_resolver
-        )
-        self.order_client = UpstoxRestOrderClient(
-            self.context.http_client, self.context.url_resolver
-        )
-        self.expired_instruments_client = UpstoxExpiredInstrumentsClient(
-            self.context.http_client, self.context.url_resolver
-        )
-
-        # ── Core registry-driven client + adapter pairs ──
-        for name, client_cls, adapter_cls, capability in _CORE_ADAPTER_REGISTRY:
-            client = client_cls(self.context.http_client, self.context.url_resolver)
-            setattr(self, f"{name}_client", client)
-
-            if name == "options":
-                adapter = adapter_cls(client, self.instrument_resolver)
-            elif name == "futures":
-                futures_client = UpstoxFuturesClient(
-                    self.context.http_client,
-                    self.context.url_resolver,
-                    self.instrument_resolver,
-                )
-                self.futures_client = futures_client
-                adapter = adapter_cls(futures_client)
-            else:
-                adapter = adapter_cls(client)
-
-            setattr(self, name, adapter)
-            if capability is not None:
-                self._register_capability(capability, adapter)
-
-        # ── Adapters with non-standard constructors ──
-        self.market_data = UpstoxMarketDataAdapter(
-            self.market_data_v2, self.market_data_v3, self.historical_v2
-        )
-
-        # Orders
-        self.idempotency_cache = InMemoryIdempotencyCache()
-        self.order_command = UpstoxOrderCommandAdapter(
-            self.order_client,
-            self.instrument_resolver,
-            self.idempotency_cache,
-            use_v3=True,
-            algo_name=settings.algo_name or None,
-            market_protection_default=settings.market_protection_default,
-            event_bus=self._event_bus,
-            risk_manager=self._risk_manager,
-        )
-        self.order_query = UpstoxOrderQueryAdapter(self.order_client, self.instrument_resolver)
-        # self.gtt created by _CORE_ADAPTER_REGISTRY loop above
-        self.slice = UpstoxSliceAdapter(self.order_client, self.instrument_resolver)
-        self.cover = UpstoxCoverOrderAdapter(self.order_client)
-        self.alert = UpstoxAlertAdapter(self.gtt)
-        self.exit_all = UpstoxExitAllAdapter(self.kill_switch_client)
-
-        # WebSocket
-        self.feed_authorizer = UpstoxFeedAuthorizer(
-            self.context.http_client, self.context.url_resolver
-        )
-        ws_limits = (
-            UpstoxV3SubscriptionLimits.for_plus_plan()
-            if settings.ws_plus_plan
-            else UpstoxV3SubscriptionLimits()
-        )
-        self.market_data_websocket = UpstoxMarketDataV3Multiplexer(
-            authorizer=self.feed_authorizer,
-            decoder=UpstoxV3Decoder(),
-            limits=ws_limits,
-            auto_reconnect=UpstoxAutoReconnect(
-                enabled=settings.ws_auto_reconnect,
-                interval_seconds=settings.ws_reconnect_interval_s,
-                max_retries=settings.ws_reconnect_max_retries,
-            ),
-            event_bus=self._event_bus,
-            backfill_callback=self._backfill_callback,
-        )
-        self.portfolio_stream = UpstoxPortfolioStream(
-            authorizer=self.feed_authorizer,
-            event_bus=self._event_bus,
-        )
-
-        # Shared historical data service (V2 historical client)
-        self.historical_service = HistoricalDataService(
-            self.historical_v2,
-            parquet_cache_path=settings.instrument_cache_path,
-        )
-
-        # Reconciliation
-        if reconciliation_service is not None:
-            self.reconciliation_service = reconciliation_service
-        else:
-            self.reconciliation_service = UpstoxReconciliationService(
-                self.order_client, self.portfolio_client, oms=self._oms, auto_repair=False
-            )
-
-        self.capabilities = _UpstoxCapabilities(
-            market_data=MarketDataCapability(
-                market_data=self.market_data,
-                market_data_v2=self.market_data_v2,
-                market_data_v3=self.market_data_v3,
-                historical_v2=self.historical_v2,
-                historical_v3=self.historical_v3,
-                options=self.options,
-                futures=self.futures,
-                expired_instruments_client=self.expired_instruments_client,
-                market_status=self.market_status,
-                intelligence=None,
-                intelligence_snapshot=None,
-            ),
-            orders=OrdersCapability(
-                order_command=self.order_command,
-                order_query=self.order_query,
-                slice=self.slice,
-                cover=self.cover,
-                gtt=self.gtt,
-                alert=self.alert,
-                exit_all=self.exit_all,
-                order_client=self.order_client,
-            ),
-            portfolio=PortfolioCapability(
-                portfolio=self.portfolio,
-                margin=self.margin,
-                portfolio_client=self.portfolio_client,
-                margin_client=self.margin_client,
-            ),
-            instruments=InstrumentsCapability(
-                instrument_resolver=self.instrument_resolver,
-                instrument_loader=self.instrument_loader,
-                instrument_search=self.instrument_search,
-            ),
-            streaming=StreamingCapability(
-                feed_authorizer=self.feed_authorizer,
-                market_data_websocket=self.market_data_websocket,
-            ),
-        )
-
-        self._register_all_capabilities()
+        builder.build()
 
     def _ensure_extended(self) -> None:
         """Load extended adapters on first access (IPO, payments, fundamentals, etc.)."""

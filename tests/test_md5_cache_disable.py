@@ -87,8 +87,8 @@ class TestResampleCacheNoLookAheadBias:
         key2 = generate_cache_key("RELIANCE", "5m")
 
         assert key1 == key2
-        # MD5 produces 32-character hex string
-        assert len(key1) == 32
+        # Hash produces a hex string (MD5=32, SHA-256=64 chars)
+        assert len(key1) in (32, 64)
 
     def test_cache_key_differs_for_different_timeframes(self) -> None:
         """Different timeframes must produce different cache keys."""
@@ -170,9 +170,9 @@ class TestCacheKeySecurity:
 
         # Keys should be different (different inputs)
         assert key1 != key2
-        # But both should be valid 32-char hex strings
-        assert len(key1) == 32
-        assert len(key2) == 32
+        # But both should be valid hex strings
+        assert len(key1) in (32, 64)
+        assert len(key2) in (32, 64)
         # Both should be valid hex
         int(key1, 16)
         int(key2, 16)

@@ -109,7 +109,6 @@ def test_orders_capability_place_delegates_to_order_command() -> None:
         product_type=ProductType.INTRADAY,
         validity=Validity.DAY,
         correlation_id="test:cap:1",
-        transport_only=True,
     )
     response = broker.capabilities.orders.place(request)
 

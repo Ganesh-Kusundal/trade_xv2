@@ -207,7 +207,6 @@ class OMSGatewayProxy:
         validity: str = "DAY",
         trigger_price: Decimal = Decimal("0"),
         correlation_id: str | None = None,
-        transport_only: bool = False,
     ) -> OrderResponse:
         """Place an order — enforced through OMS kill switch check.
 
@@ -234,7 +233,6 @@ class OMSGatewayProxy:
             validity=validity,
             trigger_price=trigger_price,
             correlation_id=correlation_id,
-            transport_only=transport_only,
         )
 
     def cancel_order(self, order_id: str) -> OrderResponse:

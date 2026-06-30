@@ -28,7 +28,6 @@ from typing import Any
 import pandas as pd
 
 from brokers.common.batch_mixin import BatchFetchMixin
-from brokers.common.capabilities import upstox_capabilities
 from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
 from brokers.upstox.adapters import (
     HistoricalAdapter,
@@ -36,6 +35,8 @@ from brokers.upstox.adapters import (
     StreamManagerAdapter,
 )
 from brokers.upstox.broker import UpstoxBroker
+from brokers.upstox.capabilities import upstox_capabilities
+from brokers.upstox.mappers.domain_mapper import PROVIDER_IS_AMO
 from brokers.upstox.extended import UpstoxExtendedCapabilities
 from brokers.upstox.market_data.market_data_adapter import (
     UpstoxMarketDataAdapter as MarketDataAdapter,
@@ -506,7 +507,6 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         trigger_price: Decimal = Decimal("0"),
         correlation_id: str | None = None,
         is_amo: bool = False,
-        transport_only: bool = False,
     ) -> OrderResponse:
         """Place an order via Upstox.
 
@@ -517,6 +517,9 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         If *correlation_id* is not provided, the current thread's active
         correlation ID (set via :func:`infrastructure.correlation.with_correlation`)
         is used for tracing.
+
+        The OMS owns all pre-submit risk validation; the broker adapter
+        enforces its own boundary checks independently.
         """
         # Security guard: prevent live orders if disabled or analytics-only
         if self._broker.settings.analytics_only:
@@ -548,7 +551,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
             product_type=ProductType(product_type.upper()),
             validity=Validity(validity.upper()),
             correlation_id=correlation_id,
-            transport_only=transport_only,
+            provider_metadata={PROVIDER_IS_AMO: is_amo},
         )
 
         try:

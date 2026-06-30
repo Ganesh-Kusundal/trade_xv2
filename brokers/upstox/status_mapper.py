@@ -14,11 +14,13 @@ UPSTOX_STATUS_MAP: dict[str, OrderStatus] = {
     # Upstox-specific additions
     "OPEN_ORDER": OrderStatus.OPEN,
     "TRIGGER_ORDER": OrderStatus.OPEN,
-    "CANCEL_PENDING": OrderStatus.CANCELLED,
+    "CANCEL_PENDING": OrderStatus.OPEN,
     "REJECTED_BY_BROKER": OrderStatus.REJECTED,
     "REJECTED_BY_EXCHANGE": OrderStatus.REJECTED,
     "MODIFIED": OrderStatus.OPEN,
     "MODIFIED_PENDING": OrderStatus.OPEN,
+    "PLACED": OrderStatus.OPEN,
+    "COMPLETED": OrderStatus.FILLED,
 }
 
 # Register Upstox mappings at module load

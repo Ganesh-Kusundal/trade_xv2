@@ -34,7 +34,7 @@ def test_live_actionable_false_when_auth_probe_fails(monkeypatch, tmp_path):
     from cli.services.broker_service import BrokerService
 
     bs = BrokerService()
-    bs._ensure_initialized()
+    bs.initialize()
     assert bs._gateway is None
     assert bs.dhan_load_error is not None
     assert bs.live_actionable is False
@@ -68,7 +68,7 @@ def test_lifecycle_not_started_when_auth_fails(monkeypatch, tmp_path):
         return real_start()
 
     monkeypatch.setattr(bs._lifecycle, "start_all", tracked_start)
-    bs._ensure_initialized()
+    bs.initialize()
     assert started["count"] == 0
 
 
@@ -94,7 +94,7 @@ def test_active_broker_raises_when_dhan_bootstrap_fails(monkeypatch, tmp_path):
     from cli.services.broker_service import BrokerService
 
     bs = BrokerService()
-    bs._ensure_initialized()
+    bs.initialize()
 
     with pytest.raises(BrokerNotReadyError) as exc_info:
         _ = bs.active_broker
@@ -147,7 +147,7 @@ def test_active_broker_raises_for_upstox_when_selected_and_unavailable(
     from cli.services.broker_service import BrokerService
 
     bs = BrokerService()
-    bs._ensure_initialized()
+    bs.initialize()
     bs._active_name = "upstox"
 
     with pytest.raises(BrokerNotReadyError) as exc_info:

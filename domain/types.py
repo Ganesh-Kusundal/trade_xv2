@@ -5,7 +5,7 @@ broker-agnostic core. Broker-specific status mappers live in each
 broker's ``status_mapper.py`` and delegate to :meth:`OrderStatus.normalize`
 for canonical values.
 
-**This is a re-export facade** (REF-025b). The actual definitions live in
+**This is a re-export facade**. The actual definitions live in
 narrow submodules:
 
 * :mod:`domain.enums` — ``Side``, ``OrderStatus``, ``OrderType``, ``ProductType``, ``Validity``

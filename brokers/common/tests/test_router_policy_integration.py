@@ -17,12 +17,12 @@ import pytest
 from brokers.common.capabilities import (
     BrokerCapabilities,
     CapabilityDescriptor,
-    dhan_capabilities,
-    upstox_capabilities,
 )
 from brokers.common.errors import RoutingError
 from brokers.common.models import BrokerHealthSnapshot, OperationKind, RoutingRequest
 from brokers.common.policy import RoutingPolicy, SourceSelectionPolicy
+from brokers.dhan.capabilities import dhan_capabilities
+from brokers.upstox.capabilities import upstox_capabilities
 from brokers.common.registry import BrokerRegistry
 from brokers.common.router import BrokerRouter
 

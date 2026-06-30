@@ -38,6 +38,36 @@ class TestAsyncRetryExecutorSuccess:
         assert result == 42
         assert isinstance(result, int)
 
+    async def test_uses_async_rate_limiter_when_available(self):
+        """Async execution should await non-blocking token acquisition."""
+
+        class AsyncAwareLimiter:
+            def __init__(self) -> None:
+                self.async_calls = 0
+
+            def acquire(self, category: str, tokens: int = 1, timeout: float | None = None) -> bool:
+                raise AssertionError("sync acquire should not be used in async executor")
+
+            async def acquire_async(
+                self,
+                category: str,
+                tokens: int = 1,
+                timeout: float | None = None,
+            ) -> bool:
+                self.async_calls += 1
+                return True
+
+        limiter = AsyncAwareLimiter()
+        executor = AsyncRetryExecutor(rate_limiter=limiter, rate_limit_category="orders")
+
+        async def succeed() -> str:
+            return "ok"
+
+        result = await executor.execute(succeed)
+
+        assert result == "ok"
+        assert limiter.async_calls == 1
+
 
 @pytest.mark.asyncio
 class TestAsyncRetryExecutorRetryableError:

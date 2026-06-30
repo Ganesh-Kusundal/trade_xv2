@@ -1,4 +1,4 @@
-"""Neutral trading DTOs for orchestrator boundary (REF-16)."""
+"""Neutral trading DTOs for orchestrator boundary."""
 
 from __future__ import annotations
 

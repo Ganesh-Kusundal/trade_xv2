@@ -10,7 +10,7 @@ from decimal import Decimal
 
 import pytest
 
-from brokers.paper.mock_broker import create_seeded_mock_broker
+from brokers.paper.mock_broker import create_demo_broker
 from brokers.paper.paper_gateway import PaperGateway
 from tests.e2e.fixtures.trading_context_factory import create_paper_trading_context
 
@@ -35,10 +35,10 @@ def paper_gateway_small_capital():
 def seeded_paper_broker():
     """Provide a MockBroker pre-populated with realistic seed data.
 
-    Uses create_seeded_mock_broker() from brokers.paper.mock_broker
+    Uses create_demo_broker() from brokers.paper.mock_broker
     to create a broker with pre-seeded orders, trades, positions, and holdings.
     """
-    return create_seeded_mock_broker(name="paper", initial_capital=Decimal("1000000"))
+    return create_demo_broker(name="paper", initial_capital=Decimal("1000000"))
 
 
 @pytest.fixture

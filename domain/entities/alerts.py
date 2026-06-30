@@ -10,7 +10,7 @@ from decimal import Decimal
 class ConditionalAlert:
     """Conditional alert state.
 
-    REF-027: Frozen for immutability.
+    Frozen for immutability.
     """
 
     alert_id: str = ""
@@ -23,7 +23,7 @@ class ConditionalAlert:
 class ConditionalAlertRequest:
     """Request model for placing a conditional alert.
 
-    REF-027: Frozen for immutability.
+    Frozen for immutability.
     """
 
     symbol: str = ""
@@ -50,7 +50,7 @@ class MarketIntelligenceSnapshot:
 class PnlExitPolicy:
     """Policy for PnL-based exit automation.
 
-    REF-027: Frozen for immutability.
+    Frozen for immutability.
     """
 
     target_pnl: Decimal = Decimal("0")
@@ -61,7 +61,7 @@ class PnlExitPolicy:
 class PnlExitResult:
     """Result returned by PnL-exit automation.
 
-    REF-027: Frozen for immutability.
+    Frozen for immutability.
     """
 
     success: bool = False

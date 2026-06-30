@@ -43,11 +43,42 @@ def ensure_timestamp_dtype(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def convert_paise_to_rupees(df: pd.DataFrame) -> pd.DataFrame:
-    """Convert price columns from paise to rupees if values are too large."""
-    for col in ["open", "high", "low", "close"]:
-        if col in df.columns and df[col].max() > PAISE_THRESHOLD:
+def convert_paise_to_rupees(
+    df: pd.DataFrame, *, source_unit: str = "auto"
+) -> pd.DataFrame:
+    """Convert price columns from paise to rupees.
+
+    Parameters
+    ----------
+    source_unit : str
+        ``"paise"`` — always divide by 100.
+        ``"rupees"`` — no conversion; warn if values exceed PAISE_THRESHOLD.
+        ``"auto"`` (default) — legacy heuristic: divide if max > PAISE_THRESHOLD.
+    """
+    price_cols = ["open", "high", "low", "close"]
+    existing = [c for c in price_cols if c in df.columns]
+    if not existing:
+        return df
+
+    if source_unit == "paise":
+        for col in existing:
             df[col] = df[col] / 100.0
+    elif source_unit == "rupees":
+        max_val = max(df[c].max() for c in existing)
+        if max_val > PAISE_THRESHOLD:
+            logger.warning(
+                "paise_threshold_warning",
+                extra={
+                    "max_value": max_val,
+                    "threshold": PAISE_THRESHOLD,
+                    "detail": "Values exceed threshold but source_unit='rupees'. "
+                    "Verify data is actually in rupees.",
+                },
+            )
+    else:  # auto — legacy heuristic
+        for col in existing:
+            if df[col].max() > PAISE_THRESHOLD:
+                df[col] = df[col] / 100.0
     return df
 
 

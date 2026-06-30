@@ -1,4 +1,4 @@
-"""REF-005: Status normalization contract tests.
+"""Status normalization contract tests.
 
 Covers:
 - Common status strings (OPEN, FILLED, CANCELLED, etc.)

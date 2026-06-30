@@ -4,6 +4,9 @@ These DTOs live in the broker layer and carry fields that are concerns of the
 transport/API boundary — not the domain. Domain-level consumers (``OrderManager``,
 ``RiskManager``) never see these extra fields.
 
+The OMS owns all pre-submit risk validation; broker adapters enforce their
+own boundary checks without needing a ``transport_only`` policy flag.
+
 Usage
 -----
 Gateways (``DhanBrokerGateway``, ``UpstoxBrokerGateway``) construct a
@@ -17,20 +20,21 @@ Gateways (``DhanBrokerGateway``, ``UpstoxBrokerGateway``) construct a
         transaction_type=Side.BUY,
         quantity=10,
         exchange_segment=segment,
-        transport_only=True,
     )
     order = adapter.place_order(payload)
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from copy import deepcopy
+from dataclasses import dataclass, field
+from typing import Any
 
 from domain.requests import OrderRequest
 from domain.types import ExchangeSegment
 
 
-@dataclass(slots=True, frozen=False)
+@dataclass(slots=True, frozen=True)
 class BrokerOrderPayload(OrderRequest):
     """Order request with broker-transport metadata.
 
@@ -38,17 +42,19 @@ class BrokerOrderPayload(OrderRequest):
     only at the broker-API transport layer:
 
     * ``exchange_segment`` — broker-specific segment enum
-    * ``is_amo`` — After Market Order flag (Upstox)
-    * ``algo_name`` — algo identifier for UPSTX orders
-    * ``market_protection`` — market protection value
-    * ``transport_only`` — skip risk checks (OMS has already validated)
+    * ``provider_metadata`` — broker-specific transport extensions
+
+    Immutable by design. The ``provider_metadata`` dict is deep-copied on
+    construction so mutating the caller's original dict does not affect
+    the payload.
     """
 
     exchange_segment: ExchangeSegment = ExchangeSegment.NSE
-    is_amo: bool = False
-    algo_name: str | None = None
-    market_protection: int = -1
-    transport_only: bool = False
+    provider_metadata: dict[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        # Deep-copy the mutable dict to prevent aliasing bugs.
+        object.__setattr__(self, "provider_metadata", deepcopy(self.provider_metadata))
 
 
 __all__ = [

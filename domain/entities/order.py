@@ -8,6 +8,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any, Protocol
 
+from domain.parsing import parse_decimal as _parse_optional_decimal
 from domain.status_mapper import StatusMapperRegistry
 from domain.types import (
     OrderStatus,
@@ -16,6 +17,17 @@ from domain.types import (
     Side,
     Validity,
 )
+
+
+def _normalize_side(raw: str) -> Side:
+    return Side.BUY if raw == "BUY" else Side.SELL
+
+
+def _normalize_order_type(raw: str) -> OrderType:
+    try:
+        return OrderType(raw)
+    except ValueError:
+        return OrderType.MARKET
 
 
 class FieldMapping(Protocol):
@@ -64,7 +76,7 @@ class Order:
     avg_price: Decimal = Decimal("0")
     reject_reason: str = ""
     correlation_id: str | None = None
-    instrument_id: str | None = None  # Canonical: NSE:RELIANCE, NFO:NIFTY:20260730:25000:CE
+    instrument_id: str | None = None
 
     @property
     def average_price(self) -> Decimal:
@@ -107,27 +119,19 @@ class Order:
 
         mapping = field_mapping or DefaultFieldMapping()
 
-        order_id = mapping.map_order_id(d)
-        symbol = mapping.map_symbol(d)
-        raw_exchange = mapping.map_exchange(d)
-        exchange = exchange_resolver(raw_exchange) if exchange_resolver else raw_exchange
-
-        side_str = mapping.map_side(d)
-        side = Side.BUY if side_str == "BUY" else Side.SELL
-
-        ot_str = mapping.map_order_type(d)
-        try:
-            order_type = OrderType(ot_str)
-        except ValueError:
-            order_type = OrderType.MARKET
-
-        status_str = mapping.map_status(d)
-        status = StatusMapperRegistry.normalize(status_str)
-
-        def _opt_dec(v: str | None) -> Decimal | None:
-            if v in (None, ""):
-                return None
-            return Decimal(v)
+        return cls(
+            order_id=mapping.map_order_id(d),
+            symbol=mapping.map_symbol(d),
+            exchange=exchange_resolver(mapping.map_exchange(d)) if exchange_resolver else mapping.map_exchange(d),
+            side=_normalize_side(mapping.map_side(d)),
+            order_type=_normalize_order_type(mapping.map_order_type(d)),
+            status=StatusMapperRegistry.normalize(mapping.map_status(d)),
+            quantity=mapping.map_quantity(d),
+            filled_quantity=mapping.map_filled_quantity(d),
+            price=_parse_optional_decimal(mapping.map_price(d)) or Decimal("0"),
+            avg_price=_parse_optional_decimal(mapping.map_avg_price(d)) or Decimal("0"),
+            reject_reason=mapping.map_reject_reason(d),
+        )
 
         return cls(
             order_id=order_id,
@@ -137,8 +141,8 @@ class Order:
             order_type=order_type,
             quantity=mapping.map_quantity(d),
             filled_quantity=mapping.map_filled_quantity(d),
-            price=_opt_dec(mapping.map_price(d)) or Decimal("0"),
-            avg_price=_opt_dec(mapping.map_avg_price(d)) or Decimal("0"),
+            price=_parse_optional_decimal(mapping.map_price(d)) or Decimal("0"),
+            avg_price=_parse_optional_decimal(mapping.map_avg_price(d)) or Decimal("0"),
             status=status,
             reject_reason=mapping.map_reject_reason(d),
         )

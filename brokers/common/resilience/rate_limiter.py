@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import threading
 import time
 from dataclasses import dataclass
@@ -89,6 +90,30 @@ class TokenBucketRateLimiter:
             sleep_time = max(sleep_time, 0.001)
             time.sleep(sleep_time)
 
+    async def acquire_async(self, tokens: int = 1, timeout: float | None = None) -> bool:
+        """Async variant of ``acquire`` that never blocks the event loop."""
+        if tokens > self._capacity:
+            return False
+
+        deadline = (time.monotonic() + timeout) if timeout is not None else None
+
+        while True:
+            with self._lock:
+                self._refill()
+                if self._tokens >= tokens:
+                    self._tokens -= tokens
+                    return True
+
+            if deadline is not None and time.monotonic() >= deadline:
+                return False
+
+            sleep_time = min(
+                timeout if timeout is not None else 0.001,
+                1.0 / self.config.rate_per_second if self.config.rate_per_second > 0 else 0.001,
+            )
+            sleep_time = max(sleep_time, 0.001)
+            await asyncio.sleep(sleep_time)
+
     def reset(self) -> None:
         """Reset the bucket to full capacity."""
         with self._lock:
@@ -130,6 +155,18 @@ class MultiBucketRateLimiter:
         if bucket is None:
             raise ValueError(f"Unknown category: {category}")
         return bucket.acquire(tokens, timeout)
+
+    async def acquire_async(
+        self,
+        category: str,
+        tokens: int = 1,
+        timeout: float | None = None,
+    ) -> bool:
+        """Acquire tokens for a given category bucket without blocking the event loop."""
+        bucket = self._buckets.get(category)
+        if bucket is None:
+            raise ValueError(f"Unknown category: {category}")
+        return await bucket.acquire_async(tokens, timeout)
 
     def categories(self) -> list[str]:
         """Return a list of all category names."""

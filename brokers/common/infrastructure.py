@@ -10,7 +10,8 @@ Usage at composition root (bootstrap)::
 
     from brokers.common.infrastructure import BrokerInfrastructure, build_infrastructure
     from brokers.common.policy import auto_dual_broker_policy
-    from brokers.common.capabilities import dhan_capabilities, upstox_capabilities
+    from brokers.dhan.capabilities import dhan_capabilities
+    from brokers.upstox.capabilities import upstox_capabilities
 
     infra = await build_infrastructure(
         gateways=[dhan_gw, upstox_gw],

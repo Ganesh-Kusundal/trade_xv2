@@ -52,7 +52,6 @@ class FakeBrokerGateway:
         order_type: str = "MARKET",
         product_type: str = "INTRADAY",
         correlation_id: str | None = None,
-        transport_only: bool = False,
     ) -> OrderResponse:
         """Record the order and return a configurable response."""
         self._order_counter += 1
@@ -69,7 +68,6 @@ class FakeBrokerGateway:
                 "order_type": order_type,
                 "product_type": product_type,
                 "correlation_id": correlation_id,
-                "transport_only": transport_only,
             }
         )
 

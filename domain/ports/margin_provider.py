@@ -32,10 +32,3 @@ class MarginProviderPort(Protocol):
             Margin calculation result with required_margin field.
         """
         ...
-
-
-@runtime_checkable
-class MarginCalculationErrorPort(Protocol):
-    """Protocol for margin calculation errors."""
-
-    pass

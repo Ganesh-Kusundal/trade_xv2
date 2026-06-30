@@ -103,6 +103,28 @@ class TestGatewayOrderPlacement:
             },
         )
 
+    def test_place_order_passes_upstox_metadata_through_provider_metadata(self):
+        from brokers.upstox.gateway import UpstoxBrokerGateway
+
+        mock_broker = MagicMock()
+        mock_broker.settings.allow_live_orders = True
+        mock_broker.settings.analytics_only = False
+        mock_broker.instrument_resolver = MagicMock()
+        mock_broker.order_command.place_order.return_value = OrderResponse.ok(order_id="ORD123")
+
+        gateway = UpstoxBrokerGateway(mock_broker)
+
+        gateway.place_order(
+            symbol="RELIANCE",
+            exchange="NSE",
+            side="BUY",
+            quantity=10,
+            is_amo=True,
+        )
+
+        request = mock_broker.order_command.place_order.call_args.args[0]
+        assert request.provider_metadata["is_amo"] is True
+
     def test_place_order_failure_logs_warning(self):
         """Verify failed order placement logs warning."""
         from brokers.upstox.gateway import UpstoxBrokerGateway

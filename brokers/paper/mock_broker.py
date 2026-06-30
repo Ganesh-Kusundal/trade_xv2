@@ -56,9 +56,6 @@ class MockBroker:
     def is_connected(self) -> bool:
         return self._connected
 
-    def get_quote(self, symbol: str, exchange: str = "NSE") -> dict:
-        return self._gw.quote(symbol, exchange)
-
     def place_order(self, *args, **kwargs) -> OrderResponse:
         return self._gw.place_order(*args, **kwargs)
 
@@ -79,6 +76,20 @@ class MockBroker:
 
     def get_balance(self) -> Balance:
         return self._gw.funds()
+
+    # -- Seed API for test fixtures -----------------------------------------
+
+    def seed_orders(self, orders: list) -> None:
+        self._gw.seed_orders(orders)
+
+    def seed_trades(self, trades: list) -> None:
+        self._gw.seed_trades(trades)
+
+    def seed_positions(self, positions: dict) -> None:
+        self._gw.seed_positions(positions)
+
+    def seed_holdings(self, holdings: list) -> None:
+        self._gw.seed_holdings(holdings)
 
     # -- ABC-aligned aliases (match MarketDataGateway interface) -------------
 
@@ -109,11 +120,10 @@ class MockBroker:
         return self._gw.portfolio
 
 
-# Backward-compatibility alias
-PaperBroker = MockBroker
+# Backward-compatibility alias removed — use MockBroker directly.
 
 
-def create_seeded_mock_broker(
+def create_demo_broker(
     name: str = "dhan",
     initial_capital: Decimal = PAPER_INITIAL_CAPITAL,
 ) -> MockBroker:
@@ -142,85 +152,89 @@ def create_seeded_mock_broker(
     now = datetime.now(timezone.utc)
     prefix = name.upper()
 
-    # Seed orders
-    broker._gw._orders._orders = [
-        Order(
-            order_id=f"{prefix}-ORD-101",
-            symbol="RELIANCE",
-            exchange="NSE",
-            side=Side.BUY,
-            order_type=OrderType.LIMIT,
-            quantity=10,
-            filled_quantity=10,
-            price=Decimal("2550.00"),
-            status=OrderStatus.FILLED,
-            product_type=ProductType.INTRADAY,
-            avg_price=Decimal("2550.00"),
-            timestamp=now - timedelta(hours=2),
-        ),
-        Order(
-            order_id=f"{prefix}-ORD-102",
-            symbol="SBIN",
-            exchange="NSE",
-            side=Side.BUY,
-            order_type=OrderType.LIMIT,
-            quantity=50,
-            filled_quantity=0,
-            price=Decimal("590.00"),
-            status=OrderStatus.OPEN,
-            product_type=ProductType.INTRADAY,
-            timestamp=now - timedelta(minutes=15),
-        ),
-    ]
+    broker.seed_orders(
+        [
+            Order(
+                order_id=f"{prefix}-ORD-101",
+                symbol="RELIANCE",
+                exchange="NSE",
+                side=Side.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=10,
+                filled_quantity=10,
+                price=Decimal("2550.00"),
+                status=OrderStatus.FILLED,
+                product_type=ProductType.INTRADAY,
+                avg_price=Decimal("2550.00"),
+                timestamp=now - timedelta(hours=2),
+            ),
+            Order(
+                order_id=f"{prefix}-ORD-102",
+                symbol="SBIN",
+                exchange="NSE",
+                side=Side.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=50,
+                filled_quantity=0,
+                price=Decimal("590.00"),
+                status=OrderStatus.OPEN,
+                product_type=ProductType.INTRADAY,
+                timestamp=now - timedelta(minutes=15),
+            ),
+        ]
+    )
 
-    # Seed trades
-    broker._gw._orders._trades = [
-        Trade(
-            trade_id=f"{prefix}-TRD-201",
-            order_id=f"{prefix}-ORD-101",
-            symbol="RELIANCE",
-            exchange="NSE",
-            side=Side.BUY,
-            quantity=10,
-            price=Decimal("2550.00"),
-            timestamp=now - timedelta(hours=2),
-        ),
-    ]
+    broker.seed_trades(
+        [
+            Trade(
+                trade_id=f"{prefix}-TRD-201",
+                order_id=f"{prefix}-ORD-101",
+                symbol="RELIANCE",
+                exchange="NSE",
+                side=Side.BUY,
+                quantity=10,
+                price=Decimal("2550.00"),
+                timestamp=now - timedelta(hours=2),
+            ),
+        ]
+    )
 
-    # Seed positions (PaperOrders stores as dict keyed by "symbol:exchange")
-    broker._gw._orders._positions = {
-        "RELIANCE:NSE": Position(
-            symbol="RELIANCE",
-            exchange="NSE",
-            quantity=10,
-            avg_price=Decimal("2550.00"),
-            ltp=Decimal("2565.50"),
-            unrealized_pnl=Decimal("155.00"),
-            realized_pnl=Decimal("0.00"),
-            product_type=ProductType.INTRADAY,
-        ),
-    }
+    broker.seed_positions(
+        {
+            "RELIANCE:NSE": Position(
+                symbol="RELIANCE",
+                exchange="NSE",
+                quantity=10,
+                avg_price=Decimal("2550.00"),
+                ltp=Decimal("2565.50"),
+                unrealized_pnl=Decimal("155.00"),
+                realized_pnl=Decimal("0.00"),
+                product_type=ProductType.INTRADAY,
+            ),
+        }
+    )
 
-    # Seed holdings
-    broker._gw._portfolio._holdings = [
-        Holding(
-            symbol="INFY",
-            exchange="NSE",
-            quantity=20,
-            available_quantity=20,
-            avg_price=Decimal("1420.00"),
-            ltp=Decimal("1435.00"),
-            pnl=Decimal("300.00"),
-        ),
-        Holding(
-            symbol="HDFCBANK",
-            exchange="NSE",
-            quantity=50,
-            available_quantity=50,
-            avg_price=Decimal("1580.00"),
-            ltp=Decimal("1565.00"),
-            pnl=Decimal("-750.00"),
-        ),
-    ]
+    broker.seed_holdings(
+        [
+            Holding(
+                symbol="INFY",
+                exchange="NSE",
+                quantity=20,
+                available_quantity=20,
+                avg_price=Decimal("1420.00"),
+                ltp=Decimal("1435.00"),
+                pnl=Decimal("300.00"),
+            ),
+            Holding(
+                symbol="HDFCBANK",
+                exchange="NSE",
+                quantity=50,
+                available_quantity=50,
+                avg_price=Decimal("1580.00"),
+                ltp=Decimal("1565.00"),
+                pnl=Decimal("-750.00"),
+            ),
+        ]
+    )
 
     return broker

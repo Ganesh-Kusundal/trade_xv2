@@ -29,6 +29,15 @@ from infrastructure.event_bus import (
     EventType,
     ProcessedTradeRepository,
 )
+from infrastructure.metrics.registry import metrics_registry
+
+
+@pytest.fixture(autouse=True)
+def _reset_global_metrics_registry() -> None:
+    """EventMetrics delegates to a process-global registry; reset for isolation."""
+    metrics_registry.reset_all()
+    yield
+    metrics_registry.reset_all()
 
 
 def _make_order(symbol: str = "RELIANCE", quantity: int = 10) -> Order:

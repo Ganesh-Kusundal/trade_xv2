@@ -82,7 +82,11 @@ class AsyncRetryExecutor(Generic[T]):
 
                 # 2. Rate limit check
                 if self.rate_limiter and self.rate_limit_category:
-                    self.rate_limiter.acquire(self.rate_limit_category)
+                    acquire_async = getattr(self.rate_limiter, "acquire_async", None)
+                    if acquire_async is not None:
+                        await acquire_async(self.rate_limit_category)
+                    else:
+                        self.rate_limiter.acquire(self.rate_limit_category)
 
                 # 3. Execute (async)
                 result: T = await fn()

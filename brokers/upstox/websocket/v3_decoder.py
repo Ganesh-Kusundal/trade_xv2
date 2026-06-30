@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import struct
 import logging
+import threading
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -17,6 +18,23 @@ logger = logging.getLogger(__name__)
 FRAME_HEARTBEAT = 100
 FRAME_TYPE_INDEX = 1
 FRAME_TYPE_LIVE_FEED = 2
+
+# Thread-safe decode-failure counter for observability.
+# Incremented whenever both V3 and V2 fallback decoding fail.
+# Protected by _decode_lock for safe concurrent access from multiple
+# WebSocket connections or threads.
+_decode_failures: int = 0
+_decode_lock: threading.Lock = threading.Lock()
+
+
+def decode_failure_count() -> int:
+    """Return the total number of frames that could not be decoded.
+
+    A non-zero value visible on /healthz indicates a protocol mismatch,
+    corrupt feed, or version skew that warrants investigation.
+    """
+    with _decode_lock:
+        return _decode_failures
 
 
 @dataclass
@@ -46,14 +64,24 @@ class UpstoxV3Decoder:
                 payload = self._feed_to_dict_v3(feed, key)
                 frames.append(ParsedFeedFrame(type=frame_type, raw=raw, payload=payload))
             return frames
-        except Exception as e:
+        except (ImportError, AttributeError, ValueError, TypeError) as e:
+            # V3 protobuf decode failed — log and try V2 fallback.
+            # We catch only expected protocol-level exceptions so that
+            # genuine bugs (e.g. MemoryError, KeyboardInterrupt) propagate.
+            logger.warning(
+                "Upstox V3 protobuf decode failed, falling back to V2: %s: %s",
+                type(e).__name__,
+                e,
+            )
             # Fall back to V2/mock 1-byte type prefix + 2-byte length parsing
             try:
                 if len(raw) < 3:
+                    self._record_decode_failure()
                     return None
                 frame_type = raw[0]
                 (length,) = struct.unpack(">H", raw[1:3])
                 if len(raw) < 3 + length:
+                    self._record_decode_failure()
                     return None
                 payload_bytes = bytes(raw[3 : 3 + length])
                 if frame_type == FRAME_HEARTBEAT:
@@ -64,9 +92,21 @@ class UpstoxV3Decoder:
                 feed.ParseFromString(payload_bytes)
                 payload = self._feed_to_dict_old(feed)
                 return ParsedFeedFrame(type=frame_type, raw=raw, payload=payload)
-            except Exception as exc:
-                logger.debug("Upstox V3 fallback decode failed: %s", exc)
+            except (ImportError, AttributeError, ValueError, struct.error, TypeError) as exc:
+                self._record_decode_failure()
+                logger.error(
+                    "Upstox V3 fallback decode failed: %s: %s",
+                    type(exc).__name__,
+                    exc,
+                )
                 return None
+
+    @staticmethod
+    def _record_decode_failure() -> None:
+        """Thread-safe increment of the decode-failure counter."""
+        with _decode_lock:
+            global _decode_failures
+            _decode_failures += 1
 
     @staticmethod
     def _feed_to_dict_v3(feed: Any, instrument_key: str) -> dict[str, Any]:

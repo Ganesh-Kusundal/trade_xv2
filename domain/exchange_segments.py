@@ -1,10 +1,9 @@
-"""Typed exchange-segment helpers (REF-2).
+"""Typed exchange-segment helpers.
 
 This module is the single point of conversion between free-form
 exchange strings (user input, log lines, broker payloads) and the
 canonical :class:`ExchangeSegment` enum. Replacing the ad-hoc
-string comparisons scattered across 25+ files (see SMELL-1 in the
-audit) with these helpers is one of the main consolidation wins
+string comparisons scattered across 25+ files with these helpers is one of the main consolidation wins
 of the refactor.
 
 Design rules

@@ -21,12 +21,13 @@ class TestSide:
 
 class TestOrderStatus:
     def test_all_statuses_exist(self):
-        expected = {"OPEN", "PARTIALLY_FILLED", "FILLED", "CANCELLED", "REJECTED", "EXPIRED", "UNKNOWN"}
+        expected = {"OPEN", "PARTIALLY_FILLED", "FILLED", "CANCELLED", "PARTIALLY_CANCELLED", "REJECTED", "EXPIRED", "UNKNOWN"}
         assert {s.value for s in OrderStatus} == expected
 
     def test_terminal_statuses(self):
         assert OrderStatus.FILLED.is_terminal
         assert OrderStatus.CANCELLED.is_terminal
+        assert OrderStatus.PARTIALLY_CANCELLED.is_terminal
         assert OrderStatus.REJECTED.is_terminal
         assert OrderStatus.EXPIRED.is_terminal
 

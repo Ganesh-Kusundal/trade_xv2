@@ -44,7 +44,7 @@ from domain import (
     SliceOrderRequest,
     Trade,
 )
-from domain.constants import DEFAULT_LOOKBACK_DAYS
+from domain.constants import DEFAULT_DERIVATIVES_EXCHANGE, DEFAULT_EXCHANGE, DEFAULT_LOOKBACK_DAYS
 
 # ======================================================================
 # Section 1 — Core Gateway Interfaces (decomposed MarketDataGateway)
@@ -58,7 +58,7 @@ class MarketDataProvider(ABC):
     def history(
         self,
         symbol: str | list[str],
-        exchange: str = "NSE",
+        exchange: str = DEFAULT_EXCHANGE,
         timeframe: str = "1D",
         lookback_days: int = DEFAULT_LOOKBACK_DAYS,
         from_date: str | None = None,
@@ -66,13 +66,13 @@ class MarketDataProvider(ABC):
     ) -> pd.DataFrame: ...
 
     @abstractmethod
-    def quote(self, symbol: str, exchange: str = "NSE") -> Quote: ...
+    def quote(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> Quote: ...
 
     @abstractmethod
-    def ltp(self, symbol: str, exchange: str = "NSE") -> Decimal: ...
+    def ltp(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> Decimal: ...
 
     @abstractmethod
-    def depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth: ...
+    def depth(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> MarketDepth: ...
 
 
 class DerivativesProvider(ABC):
@@ -80,27 +80,27 @@ class DerivativesProvider(ABC):
 
     @abstractmethod
     def option_chain(
-        self, underlying: str, exchange: str = "NFO", expiry: str | None = None
+        self, underlying: str, exchange: str = DEFAULT_DERIVATIVES_EXCHANGE, expiry: str | None = None
     ) -> OptionChain: ...
 
     @abstractmethod
-    def future_chain(self, underlying: str, exchange: str = "NFO") -> FutureChain: ...
+    def future_chain(self, underlying: str, exchange: str = DEFAULT_DERIVATIVES_EXCHANGE) -> FutureChain: ...
 
 
 class BatchMarketDataProvider(ABC):
     """Narrow interface for batched LTP, quote, and history."""
 
     @abstractmethod
-    def ltp_batch(self, symbols: list[str], exchange: str = "NSE") -> dict[str, Decimal]: ...
+    def ltp_batch(self, symbols: list[str], exchange: str = DEFAULT_EXCHANGE) -> dict[str, Decimal]: ...
 
     @abstractmethod
-    def quote_batch(self, symbols: list[str], exchange: str = "NSE") -> dict[str, Quote]: ...
+    def quote_batch(self, symbols: list[str], exchange: str = DEFAULT_EXCHANGE) -> dict[str, Quote]: ...
 
     @abstractmethod
     def history_batch(
         self,
         symbols: list[str],
-        exchange: str = "NSE",
+        exchange: str = DEFAULT_EXCHANGE,
         timeframe: str = "1D",
         lookback_days: int = DEFAULT_LOOKBACK_DAYS,
     ) -> pd.DataFrame: ...
@@ -118,7 +118,7 @@ class TradingExecutor(ABC):
     def place_order(
         self,
         symbol: str,
-        exchange: str = "NSE",
+        exchange: str = DEFAULT_EXCHANGE,
         side: str = "BUY",
         quantity: int = 1,
         price: Decimal = Decimal("0"),
@@ -172,7 +172,7 @@ class StreamProvider(ABC):
     def stream(
         self,
         symbol: str,
-        exchange: str = "NSE",
+        exchange: str = DEFAULT_EXCHANGE,
         mode: str = "LTP",
         on_tick: Any | None = None,
     ) -> Any: ...

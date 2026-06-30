@@ -6,30 +6,15 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
 
-
-def _decimal_or_none(value: Any) -> Decimal | None:
-    if value is None or value == "":
-        return None
-    try:
-        return Decimal(str(value))
-    except Exception:
-        return None
-
-
-def _int_or_none(value: Any) -> int | None:
-    if value is None or value == "":
-        return None
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return None
+from domain.parsing import parse_decimal as _decimal_or_none
+from domain.parsing import parse_int as _parse_int_or_none
 
 
 @dataclass(slots=True, frozen=True)
 class OptionContract:
     """Option chain contract with greeks and market data.
 
-    REF-027: Frozen for immutability — all fields are value types.
+    Frozen for immutability — all fields are value types.
     """
 
     strike: Decimal = Decimal("0")
@@ -64,7 +49,7 @@ class OptionLeg:
     symbol: str | None = None
     instrument_key: str | None = None
     trading_symbol: str | None = None
-    instrument_id: str | None = None  # Canonical: NFO:NIFTY:20260730:25000:CE
+    instrument_id: str | None = None
     greeks: dict[str, Any] | None = None
 
     @classmethod
@@ -85,8 +70,8 @@ class OptionLeg:
             greeks = flat or None
         return cls(
             ltp=_decimal_or_none(data.get("ltp")),
-            oi=_int_or_none(data.get("oi")),
-            volume=_int_or_none(data.get("volume")),
+            oi=_parse_int_or_none(data.get("oi")),
+            volume=_parse_int_or_none(data.get("volume")),
             iv=_decimal_or_none(data.get("iv")),
             bid=_decimal_or_none(data.get("bid")),
             ask=_decimal_or_none(data.get("ask")),
@@ -186,7 +171,7 @@ class FutureContract:
     oi: int | None = None
     lot_size: int = 1
     underlying: str = ""
-    instrument_id: str | None = None  # Canonical: NFO:NIFTY:20260730:FUT
+    instrument_id: str | None = None
 
     @classmethod
     def from_dict(cls, data: dict) -> FutureContract:
@@ -194,7 +179,7 @@ class FutureContract:
             symbol=str(data.get("symbol", "")),
             expiry=str(data.get("expiry", "")),
             ltp=_decimal_or_none(data.get("ltp")),
-            oi=_int_or_none(data.get("oi")),
+            oi=_parse_int_or_none(data.get("oi")),
             lot_size=int(data.get("lot_size", 1) or 1),
             underlying=str(data.get("underlying", "")),
         )

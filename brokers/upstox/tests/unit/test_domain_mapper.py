@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+from brokers.common.dtos import BrokerOrderPayload
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from domain import (
     FundLimits,
@@ -111,6 +112,25 @@ def test_to_place_payload_with_slice():
     assert payload["price"] == 0
     assert payload["validity"] == "IOC"
     assert payload["order_type"] == "MARKET"
+
+
+def test_to_place_payload_reads_provider_metadata():
+    req = BrokerOrderPayload(
+        symbol="RELIANCE",
+        exchange="NSE",
+        transaction_type=Side.BUY,
+        quantity=10,
+        price=Decimal("2500.50"),
+        order_type=OrderType.LIMIT,
+        product_type=ProductType.CNC,
+        validity=Validity.DAY,
+        provider_metadata={"is_amo": True, "market_protection": 3},
+    )
+
+    payload = UpstoxDomainMapper.to_place_payload(req, "NSE_EQ|INE001A01023")
+
+    assert payload["is_amo"] is True
+    assert payload["market_protection"] == 3
 
 
 def test_to_modify_payload():

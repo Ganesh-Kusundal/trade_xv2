@@ -15,6 +15,7 @@ from domain import (
     ConditionalAlertRequest,
     Order,
 )
+from domain.utils.price import to_wire_float
 
 
 class UpstoxGttAdapter(GttOrderProvider):
@@ -33,7 +34,7 @@ class UpstoxGttAdapter(GttOrderProvider):
             {
                 "strategy": "ENTRY",
                 "trigger_type": order_flag,
-                "trigger_price": float(request.price or 0),
+                "trigger_price": to_wire_float(request.price or 0),
             }
         ]
         if quantity2 is not None and price2 is not None and trigger_price2 is not None:
@@ -41,9 +42,9 @@ class UpstoxGttAdapter(GttOrderProvider):
                 {
                     "strategy": "TARGET" if order_flag == "ABOVE" else "STOPLOSS",
                     "trigger_type": "IMMEDIATE",
-                    "trigger_price": float(trigger_price2),
+                    "trigger_price": to_wire_float(trigger_price2),
                     "quantity": int(quantity2),
-                    "price": float(price2),
+                    "price": to_wire_float(price2),
                 }
             )
         payload = {
@@ -117,8 +118,8 @@ class UpstoxGttAdapter(GttOrderProvider):
             "order_flag": order_flag,
             "leg_name": leg_name,
             "quantity": int(quantity),
-            "price": float(price),
-            "trigger_price": float(trigger_price),
+            "price": to_wire_float(price),
+            "trigger_price": to_wire_float(trigger_price),
         }
         self._client.modify_gtt(order_id, payload)
         return Order(order_id=order_id)
@@ -146,7 +147,9 @@ class UpstoxGttAdapter(GttOrderProvider):
                     {
                         "strategy": "ENTRY",
                         "trigger_type": request.operator or "ABOVE",
-                        "trigger_price": float(request.comparing_value or request.price or 0),
+                        "trigger_price": to_wire_float(
+                            request.comparing_value or request.price or 0
+                        ),
                     }
                 ],
             }

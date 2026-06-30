@@ -82,6 +82,17 @@ class TestTokenBucketRateLimiterAcquire:
         result = limiter.acquire(10, timeout=0.1)
         assert result is False
 
+    @pytest.mark.asyncio
+    async def test_acquire_async_waits_without_blocking(self):
+        limiter = TokenBucketRateLimiter(RateLimitConfig(rate_per_second=10, capacity=1))
+        assert limiter.acquire() is True
+
+        start = time.monotonic()
+        assert await limiter.acquire_async(timeout=0.5) is True
+        elapsed = time.monotonic() - start
+
+        assert 0.05 < elapsed < 0.5
+
 
 class TestTokenBucketRateLimiterConcurrency:
     def test_concurrent_acquisitions(self):

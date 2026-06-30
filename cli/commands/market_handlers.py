@@ -20,6 +20,7 @@ from cli.commands import oms as cmd_oms
 from cli.commands import validate as cmd_validate
 from cli.commands import validate_history as cmd_validate_history
 from cli.commands import validate_option_chain as cmd_validate_option_chain
+from cli.commands.argparse_helpers import parse_flag, require_symbol
 from cli.commands.registry import CommandResult
 from cli.services.broker_service import BrokerService
 from domain import DepthLevel, MarketDepth
@@ -29,13 +30,10 @@ from domain.symbols import normalize_symbol
 def handle_quote(
     args: list[str], broker_service: BrokerService, console: Console
 ) -> CommandResult | None:
-    if not args:
-        console.print("[yellow]Usage: tradex quote <symbol>[/yellow]")
-        return CommandResult(success=False, error="Missing symbol")
-    symbol = args[0]
-    gw = broker_service.active_broker
-    if gw is None:
-        return CommandResult(success=False, error="No broker gateway available. Check credentials.")
+    result = require_symbol(args, broker_service, console, usage="tradex quote <symbol>")
+    if isinstance(result, CommandResult):
+        return result
+    symbol, gw = result
     quote = gw.quote(symbol)
     if quote is None:
         return CommandResult(success=False, error=f"No quote data for {symbol}")
@@ -68,13 +66,10 @@ def handle_quote(
 def handle_depth(
     args: list[str], broker_service: BrokerService, console: Console
 ) -> CommandResult | None:
-    if not args:
-        console.print("[yellow]Usage: tradex depth <symbol>[/yellow]")
-        return CommandResult(success=False, error="Missing symbol")
-    symbol = args[0]
-    gw = broker_service.active_broker
-    if gw is None:
-        return CommandResult(success=False, error="No broker gateway available. Check credentials.")
+    result = require_symbol(args, broker_service, console, usage="tradex depth <symbol>")
+    if isinstance(result, CommandResult):
+        return result
+    symbol, gw = result
     depth_obj: Any = gw.depth(symbol)
     if depth_obj is None:
         return CommandResult(success=False, error=f"No depth data for {symbol}")
@@ -105,13 +100,10 @@ def handle_depth(
 def handle_history(
     args: list[str], broker_service: BrokerService, console: Console
 ) -> CommandResult | None:
-    if not args:
-        console.print("[yellow]Usage: tradex history <symbol>[/yellow]")
-        return CommandResult(success=False, error="Missing symbol")
-    symbol = args[0]
-    gw = broker_service.active_broker
-    if gw is None:
-        return CommandResult(success=False, error="No broker gateway available. Check credentials.")
+    result = require_symbol(args, broker_service, console, usage="tradex history <symbol>")
+    if isinstance(result, CommandResult):
+        return result
+    symbol, gw = result
     if not hasattr(gw, "history"):
         return CommandResult(
             success=False,
@@ -166,11 +158,7 @@ def handle_option_chain(
         console.print("[yellow]Usage: tradex option-chain <symbol> [--expiry <date>][/yellow]")
         return CommandResult(success=False, error="Missing symbol")
     symbol = args[0]
-    expiry = None
-    if "--expiry" in args:
-        idx = args.index("--expiry")
-        if idx + 1 < len(args):
-            expiry = args[idx + 1]
+    expiry = parse_flag(args, "--expiry")
     cmd_market.show_option_chain(broker_service, symbol, console, expiry)
     return CommandResult(success=True)
 

@@ -258,7 +258,7 @@ class TestPhase5GodObjectDecomposition:
         """
         from application.oms._internal.risk_manager import RiskConfig, RiskManager, RiskResult
         from application.oms.position_manager import PositionManager
-        from domain.constants.defaults import DEFAULT_EXCHANGE
+        from domain.constants.market import DEFAULT_EXCHANGE
         from domain.entities.order import Order
         from domain.enums import Side
         from domain.types import OrderType, ProductType
@@ -270,9 +270,9 @@ class TestPhase5GodObjectDecomposition:
 
         # Create RiskManager with strict limits
         config = RiskConfig(
-            max_position_size=100,
-            max_daily_loss=Decimal("1000"),
-            max_open_orders=10,
+            max_position_pct=Decimal("1"),
+            max_daily_loss_pct=Decimal("1"),
+            max_gross_exposure_pct=Decimal("1"),
         )
         risk_manager = RiskManager(
             position_manager=position_manager,
@@ -514,7 +514,7 @@ class TestPhase6TypeSafetyAndResilience:
         )
 
         # Test 4: Rate limiter allows requests within capacity
-        rate_limiter = TokenBucketRateLimiter(capacity=10, refill_rate=10)
+        rate_limiter = TokenBucketRateLimiter(rate_per_second=10, capacity=10)
         for _ in range(5):  # Request 5 tokens (within capacity)
             assert rate_limiter.acquire(), "Rate limiter should allow requests within capacity"
 

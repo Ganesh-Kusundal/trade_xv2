@@ -1,6 +1,7 @@
 """Golden tests for BrokerCapabilities snapshots and query API."""
 
-from brokers.common.capabilities import dhan_capabilities, upstox_capabilities
+from brokers.dhan.capabilities import dhan_capabilities
+from brokers.upstox.capabilities import upstox_capabilities
 
 
 class TestDhanCapabilities:

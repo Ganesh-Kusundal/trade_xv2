@@ -1,6 +1,6 @@
 """OMS backtest adapter protocol for analytics engines.
 
-REF-017: Expanded port with modify/cancel/query methods for full
+Expanded port with modify/cancel/query methods for full
 backtest-live parity.
 """
 

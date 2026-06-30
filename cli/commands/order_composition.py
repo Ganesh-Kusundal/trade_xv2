@@ -20,9 +20,13 @@ from typing import TYPE_CHECKING
 from rich.console import Console
 from rich.table import Table
 
+from brokers.common.async_compat import run_async_compat
+from cli.commands.argparse_helpers import parse_flag
 from cli.commands.registry import CommandResult
+from cli.composer_helpers import get_execution_composer
 from cli.services.broker_service import BrokerService
-from domain import Side
+from domain import OrderType, ProductType, Side
+from domain.requests import OrderRequest
 
 if TYPE_CHECKING:
     from application.composer.execution import ExecutionComposer
@@ -31,21 +35,10 @@ logger = logging.getLogger(__name__)
 
 
 def _get_execution_composer(broker_service: BrokerService) -> ExecutionComposer:
-    """Lazy-load ExecutionComposer via CLI helpers.
-
-    Uses lazy import to avoid circular dependency between cli.commands
-    and cli.composer_helpers.
-    """
-    from cli.composer_helpers import get_execution_composer
     return get_execution_composer()
 
 
-def _run_async(coro):
-    """Run async coroutine from sync CLI context.
-
-    Uses async_compat to handle both sync and async contexts safely.
-    """
-    from brokers.common.async_compat import run_async_compat
+def _await_in_sync_context(coro):
     return run_async_compat(coro, fire_and_forget=False)
 
 
@@ -80,23 +73,21 @@ def place_bracket_order(
     target_price = None
     stop_loss_price = None
 
-    if "--target" in args:
-        idx = args.index("--target")
-        if idx + 1 < len(args):
-            try:
-                target_price = Decimal(args[idx + 1])
-            except Exception:
-                console.print(f"[red]Invalid target price: {args[idx + 1]}[/red]")
-                return CommandResult(success=False, error="Invalid target price")
+    target_val = parse_flag(args, "--target")
+    if target_val is not None:
+        try:
+            target_price = Decimal(target_val)
+        except Exception:
+            console.print(f"[red]Invalid target price: {target_val}[/red]")
+            return CommandResult(success=False, error="Invalid target price")
 
-    if "--stop-loss" in args:
-        idx = args.index("--stop-loss")
-        if idx + 1 < len(args):
-            try:
-                stop_loss_price = Decimal(args[idx + 1])
-            except Exception:
-                console.print(f"[red]Invalid stop-loss price: {args[idx + 1]}[/red]")
-                return CommandResult(success=False, error="Invalid stop-loss price")
+    sl_val = parse_flag(args, "--stop-loss")
+    if sl_val is not None:
+        try:
+            stop_loss_price = Decimal(sl_val)
+        except Exception:
+            console.print(f"[red]Invalid stop-loss price: {sl_val}[/red]")
+            return CommandResult(success=False, error="Invalid stop-loss price")
 
     if not target_price or not stop_loss_price:
         console.print("[yellow]Missing --target or --stop-loss[/yellow]")
@@ -110,9 +101,6 @@ def place_bracket_order(
         return CommandResult(success=False, error=f"Composer initialization failed: {exc}")
 
     try:
-        from domain import OrderType, ProductType
-        from domain.requests import OrderRequest
-
         # Step 1: Place entry order
         console.print(f"[cyan]📦 Placing bracket order for {symbol}...[/cyan]")
         console.print(f"[cyan]   Entry: {side.value} {quantity} @ MARKET[/cyan]")
@@ -124,7 +112,7 @@ def place_bracket_order(
             order_type=OrderType.MARKET,
             product_type=ProductType.INTRADAY,
         )
-        entry_response = _run_async(composer.place_order(entry_request))
+        entry_response = _await_in_sync_context(composer.place_order(entry_request))
         console.print(f"[green]   ✅ Entry order placed: {entry_response.order_id}[/green]")
 
         # Determine exit side (opposite of entry)
@@ -142,7 +130,7 @@ def place_bracket_order(
             order_type=OrderType.LIMIT,
             product_type=ProductType.INTRADAY,
         )
-        target_response = _run_async(composer.place_order(target_request))
+        target_response = _await_in_sync_context(composer.place_order(target_request))
         console.print(f"[green]   ✅ Target order placed: {target_response.order_id}[/green]")
 
         # Step 3: Place stop-loss order
@@ -157,7 +145,7 @@ def place_bracket_order(
             order_type=OrderType.STOP_LOSS,
             product_type=ProductType.INTRADAY,
         )
-        sl_response = _run_async(composer.place_order(sl_request))
+        sl_response = _await_in_sync_context(composer.place_order(sl_request))
         console.print(f"[green]   ✅ Stop-loss order placed: {sl_response.order_id}[/green]")
 
         # Display bracket summary
@@ -234,15 +222,13 @@ def place_oco_order(
     order1_price = None
     order2_price = None
 
-    if "--order1-price" in args:
-        idx = args.index("--order1-price")
-        if idx + 1 < len(args):
-            order1_price = Decimal(args[idx + 1])
+    o1_val = parse_flag(args, "--order1-price")
+    if o1_val is not None:
+        order1_price = Decimal(o1_val)
 
-    if "--order2-price" in args:
-        idx = args.index("--order2-price")
-        if idx + 1 < len(args):
-            order2_price = Decimal(args[idx + 1])
+    o2_val = parse_flag(args, "--order2-price")
+    if o2_val is not None:
+        order2_price = Decimal(o2_val)
 
     if not order1_price or not order2_price:
         return CommandResult(success=False, error="Missing order1-price or order2-price")
@@ -255,9 +241,6 @@ def place_oco_order(
         return CommandResult(success=False, error=f"Composer initialization failed: {exc}")
 
     try:
-        from domain import OrderType, ProductType
-        from domain.requests import OrderRequest
-
         console.print(f"[cyan]🔀 Placing OCO order for {symbol}...[/cyan]")
 
         # Place both orders
@@ -270,7 +253,7 @@ def place_oco_order(
             order_type=OrderType.LIMIT,
             product_type=ProductType.INTRADAY,
         )
-        order1_response = _run_async(composer.place_order(order1_request))
+        order1_response = _await_in_sync_context(composer.place_order(order1_request))
         console.print(f"[green]   ✅ Order 1 placed: {order1_response.order_id}[/green]")
 
         console.print(f"[cyan]   Order 2: {side.value} {quantity} @ ₹{order2_price:,.2f}[/cyan]")
@@ -282,7 +265,7 @@ def place_oco_order(
             order_type=OrderType.LIMIT,
             product_type=ProductType.INTRADAY,
         )
-        order2_response = _run_async(composer.place_order(order2_request))
+        order2_response = _await_in_sync_context(composer.place_order(order2_request))
         console.print(f"[green]   ✅ Order 2 placed: {order2_response.order_id}[/green]")
 
         # Display OCO summary
@@ -319,14 +302,8 @@ def place_basket_order(
     Usage:
         tradex basket-order --file basket.csv
     """
-    file_path = None
-    if "--file" in args:
-        idx = args.index("--file")
-        if idx + 1 < len(args):
-            file_path = args[idx + 1]
-        else:
-            return CommandResult(success=False, error="Missing file path")
-    else:
+    file_path = parse_flag(args, "--file")
+    if file_path is None:
         return CommandResult(success=False, error="Missing --file argument")
 
     csv_path = Path(file_path)
@@ -356,9 +333,6 @@ def place_basket_order(
     success_count = 0
     failure_count = 0
 
-    from domain import OrderType, ProductType
-    from domain.requests import OrderRequest
-
     for i, order_data in enumerate(orders, 1):
         try:
             symbol = order_data.get("symbol", "").upper()
@@ -377,7 +351,7 @@ def place_basket_order(
             )
 
             # Execute via composer (async -> sync bridge)
-            response = _run_async(composer.place_order(request))
+            response = _await_in_sync_context(composer.place_order(request))
 
             results.append({"symbol": symbol, "status": "success", "order_id": response.order_id})
             success_count += 1

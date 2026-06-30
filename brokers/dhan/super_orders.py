@@ -11,6 +11,7 @@ from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 from brokers.dhan.invariants import assert_dhan_payload
 from domain.entities import OrderResponse
+from domain.utils.price import to_wire_float
 
 logger = logging.getLogger(__name__)
 
@@ -94,10 +95,10 @@ class SuperOrdersAdapter:
             "productType": product_type,
             "validity": "DAY",
             "quantity": quantity,
-            "price": float(price),
-            "targetPrice": float(target_price),
-            "stopLossPrice": float(stop_loss_price),
-            "trailingJump": float(trailing_jump),
+            "price": to_wire_float(price),
+            "targetPrice": to_wire_float(target_price),
+            "stopLossPrice": to_wire_float(stop_loss_price),
+            "trailingJump": to_wire_float(trailing_jump),
         }
 
         if correlation_id:
@@ -158,9 +159,9 @@ class SuperOrdersAdapter:
         if quantity is not None:
             payload["quantity"] = quantity
         if price is not None:
-            payload["price"] = float(price)
+            payload["price"] = to_wire_float(price)
         if trigger_price is not None:
-            payload["triggerPrice"] = float(trigger_price)
+            payload["triggerPrice"] = to_wire_float(trigger_price)
 
         try:
             data = self._client.put(f"/super/orders/{order_id}", json=payload)

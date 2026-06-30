@@ -8,7 +8,6 @@ from unittest import mock
 import pytest
 
 from brokers.common.broker_port import BrokerStreamPlan
-from brokers.common.capabilities import dhan_capabilities, upstox_capabilities
 from brokers.common.policy import auto_dual_broker_policy
 from brokers.common.registry import BrokerRegistry
 from brokers.common.router import BrokerRouter
@@ -18,6 +17,8 @@ from brokers.common.stream_orchestrator import (
     SubscriptionRequest,
 )
 from brokers.common.tests.fixtures.in_memory_gateway import InMemoryBrokerGateway
+from brokers.dhan.capabilities import dhan_capabilities
+from brokers.upstox.capabilities import upstox_capabilities
 from domain.stream_health import FreshnessState, SubscriptionState, TransportState
 from infrastructure.time_service import time_service
 

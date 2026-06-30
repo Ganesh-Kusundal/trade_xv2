@@ -1,4 +1,4 @@
-"""Canonical event-type catalogue for the in-process event bus (REF-11).
+"""Canonical event-type catalogue for the in-process event bus.
 
 Why this module exists
 ----------------------
@@ -51,13 +51,77 @@ with type-safe accessors. These eliminate raw dict payload access:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import uuid
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from domain.entities.order import Order
     from domain.entities.trade import Trade
+
+EVENT_ID_HEX_LENGTH = 16
+
+
+@dataclass(frozen=True)
+class DomainEvent:
+    """An immutable domain event — the core value object for the event bus.
+
+    This is a pure domain concept. The event bus infrastructure
+    (publish/subscribe/dispatch) lives in ``infrastructure.event_bus``;
+    the event *shape* lives here in domain.
+    """
+
+    event_type: str
+    timestamp: datetime
+    payload: dict
+    symbol: str | None = None
+    source: str | None = None
+    event_id: str = field(default_factory=lambda: uuid.uuid4().hex[:EVENT_ID_HEX_LENGTH])
+    correlation_id: str | None = None
+    sequence_number: int = 0
+
+    def __post_init__(self) -> None:
+        if self.timestamp.tzinfo is None:
+            raise ValueError(
+                f"DomainEvent requires timezone-aware timestamps. "
+                f"Got naive datetime: {self.timestamp}. "
+                f"Use DomainEvent.now() factory or provide tzinfo explicitly."
+            )
+
+    @classmethod
+    def now(
+        cls,
+        event_type: str,
+        payload: dict,
+        symbol: str | None = None,
+        source: str | None = None,
+        correlation_id: str | None = None,
+        sequence_number: int = 0,
+    ) -> DomainEvent:
+        """Factory using UTC now.
+
+        If *correlation_id* is not provided, the current thread's active
+        correlation ID is used for automatic end-to-end tracing.
+        """
+        if correlation_id is None:
+            try:
+                from domain.correlation import get_current_correlation_id
+                cid = get_current_correlation_id()
+                if cid is not None:
+                    correlation_id = cid
+            except ImportError:
+                pass
+        return cls(
+            event_type=event_type,
+            timestamp=datetime.now(timezone.utc),
+            payload=dict(payload),
+            symbol=symbol,
+            source=source,
+            correlation_id=correlation_id,
+            sequence_number=sequence_number,
+        )
 
 
 class EventType(str, Enum):
@@ -459,11 +523,27 @@ __all__ = [
 
 
 @dataclass(frozen=True)
-class OrderUpdatedEvent:
-    """Typed wrapper for ORDER_UPDATED events.
+class TypedDomainEvent:
+    """Base for typed event wrappers — delegates to the underlying DomainEvent."""
 
-    P5 Stability Engineering: Provides type-safe access to Order objects
-    in event handlers, eliminating `event.payload.get("order")` pattern.
+    underlying_event: Any  # DomainEvent (avoid circular import)
+
+    @property
+    def event_type(self) -> str:
+        return self.underlying_event.event_type
+
+    @property
+    def event_id(self) -> str:
+        return self.underlying_event.event_id
+
+    @property
+    def correlation_id(self) -> str | None:
+        return self.underlying_event.correlation_id
+
+
+@dataclass(frozen=True)
+class OrderUpdatedEvent(TypedDomainEvent):
+    """Typed wrapper for ORDER_UPDATED events.
 
     Usage:
         def on_order_update(self, event: DomainEvent) -> None:
@@ -472,22 +552,10 @@ class OrderUpdatedEvent:
             self.upsert_order(order)
     """
 
-    order: Order
-    underlying_event: Any  # DomainEvent (avoid circular import)
+    order: Order = None  # type: ignore[assignment]
 
     @classmethod
     def from_domain_event(cls, event: Any) -> OrderUpdatedEvent:
-        """Create typed event from DomainEvent.
-
-        Args:
-            event: DomainEvent with payload containing 'order' key
-
-        Returns:
-            Typed OrderUpdatedEvent
-
-        Raises:
-            ValueError: If payload doesn't contain valid Order object
-        """
         from domain.entities.order import Order
 
         order = event.payload.get("order")
@@ -498,28 +566,10 @@ class OrderUpdatedEvent:
             )
         return cls(order=order, underlying_event=event)
 
-    @property
-    def event_type(self) -> str:
-        """Delegate to underlying event."""
-        return self.underlying_event.event_type
-
-    @property
-    def event_id(self) -> str:
-        """Delegate to underlying event."""
-        return self.underlying_event.event_id
-
-    @property
-    def correlation_id(self) -> str | None:
-        """Delegate to underlying event."""
-        return self.underlying_event.correlation_id
-
 
 @dataclass(frozen=True)
-class TradeFilledEvent:
+class TradeFilledEvent(TypedDomainEvent):
     """Typed wrapper for TRADE events (broker fill received).
-
-    P5 Stability Engineering: Provides type-safe access to Trade objects
-    in event handlers, eliminating `event.payload.get("trade")` pattern.
 
     Usage:
         def on_trade(self, event: DomainEvent) -> None:
@@ -528,22 +578,10 @@ class TradeFilledEvent:
             self.record_trade(trade)
     """
 
-    trade: Trade
-    underlying_event: Any  # DomainEvent (avoid circular import)
+    trade: Trade = None  # type: ignore[assignment]
 
     @classmethod
     def from_domain_event(cls, event: Any) -> TradeFilledEvent:
-        """Create typed event from DomainEvent.
-
-        Args:
-            event: DomainEvent with payload containing 'trade' key
-
-        Returns:
-            Typed TradeFilledEvent
-
-        Raises:
-            ValueError: If payload doesn't contain valid Trade object
-        """
         from domain.entities.trade import Trade
 
         trade = event.payload.get("trade")
@@ -554,29 +592,14 @@ class TradeFilledEvent:
             )
         return cls(trade=trade, underlying_event=event)
 
-    @property
-    def event_type(self) -> str:
-        """Delegate to underlying event."""
-        return self.underlying_event.event_type
-
-    @property
-    def event_id(self) -> str:
-        """Delegate to underlying event."""
-        return self.underlying_event.event_id
-
-    @property
-    def correlation_id(self) -> str | None:
-        """Delegate to underlying event."""
-        return self.underlying_event.correlation_id
-
 
 @dataclass(frozen=True)
-class TradeAppliedEvent:
+class TradeAppliedEvent(TypedDomainEvent):
     """Typed wrapper for TRADE_APPLIED events (OMS accepted trade).
 
-    P5 Stability Engineering: TRADE_APPLIED is the OMS-private downstream
-    of TRADE, published only after idempotency check passes. This typed
-    wrapper ensures PositionManager receives valid Trade objects.
+    TRADE_APPLIED is the OMS-private downstream of TRADE, published only
+    after idempotency check passes. This typed wrapper ensures
+    PositionManager receives valid Trade objects.
 
     Usage:
         def on_trade_applied(self, event: DomainEvent) -> None:
@@ -585,22 +608,10 @@ class TradeAppliedEvent:
             self._apply_trade(trade)
     """
 
-    trade: Trade
-    underlying_event: Any  # DomainEvent (avoid circular import)
+    trade: Trade = None  # type: ignore[assignment]
 
     @classmethod
     def from_domain_event(cls, event: Any) -> TradeAppliedEvent:
-        """Create typed event from DomainEvent.
-
-        Args:
-            event: DomainEvent with payload containing 'trade' key
-
-        Returns:
-            Typed TradeAppliedEvent
-
-        Raises:
-            ValueError: If payload doesn't contain valid Trade object
-        """
         from domain.entities.trade import Trade
 
         trade = event.payload.get("trade")
@@ -610,18 +621,3 @@ class TradeAppliedEvent:
                 f"got {type(trade).__name__}"
             )
         return cls(trade=trade, underlying_event=event)
-
-    @property
-    def event_type(self) -> str:
-        """Delegate to underlying event."""
-        return self.underlying_event.event_type
-
-    @property
-    def event_id(self) -> str:
-        """Delegate to underlying event."""
-        return self.underlying_event.event_id
-
-    @property
-    def correlation_id(self) -> str | None:
-        """Delegate to underlying event."""
-        return self.underlying_event.correlation_id

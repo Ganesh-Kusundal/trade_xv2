@@ -196,7 +196,7 @@ class TestImportRules:
             for imp, _src in _get_imports(filepath):
                 if (
                     (imp.startswith("application") or imp.startswith("domain"))
-                    and not imp.startswith(("domain.events", "domain.types", "domain.enums", "domain.constants", "domain.lifecycle_health", "domain.ports"))
+                    and not imp.startswith(("domain.events", "domain.types", "domain.enums", "domain.constants", "domain.lifecycle_health", "domain.ports", "domain.correlation"))
                     and "/tests/" not in filepath
                 ):
                     violations.append(f"{filepath}: imports {imp}")

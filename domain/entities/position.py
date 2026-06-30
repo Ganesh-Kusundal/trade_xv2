@@ -42,39 +42,47 @@ class Position:
 
     def with_fill(self, quantity: int, price: Decimal) -> Position:
         """Return a new Position after applying a signed fill."""
-        old_qty = self.quantity
-        old_avg = self.avg_price
-        delta = quantity
-        new_qty = old_qty + delta
-
-        if old_qty == 0:
-            new_avg = price
-            new_realized = self.realized_pnl
-        elif (old_qty > 0 and delta < 0) or (old_qty < 0 and delta > 0):
-            closed = min(abs(old_qty), abs(delta))
-            pnl_factor = Decimal("1") if old_qty > 0 else Decimal("-1")
-            new_realized = self.realized_pnl + Decimal(str(closed)) * (price - old_avg) * pnl_factor
-            if new_qty == 0:
-                new_avg = Decimal("0")
-            elif abs(delta) > abs(old_qty):
-                new_avg = price
-            else:
-                new_avg = old_avg
-        else:
-            new_realized = self.realized_pnl
-            new_avg = (Decimal(str(old_qty)) * old_avg + Decimal(str(delta)) * price) / Decimal(
-                str(new_qty)
-            )
-
-        unrealized = Decimal(str(new_qty)) * (price - new_avg) if new_qty != 0 else Decimal("0")
+        new_qty = self.quantity + quantity
+        new_avg = self._compute_avg_price(new_qty, quantity, price)
+        new_realized = self._compute_realized_pnl(quantity, price)
+        new_unrealized = self._compute_unrealized(new_qty, price, new_avg)
         return replace(
             self,
             quantity=new_qty,
             avg_price=new_avg,
             ltp=price,
-            unrealized_pnl=unrealized,
+            unrealized_pnl=new_unrealized,
             realized_pnl=new_realized,
         )
+
+    def _compute_avg_price(self, new_qty: int, fill_qty: int, fill_price: Decimal) -> Decimal:
+        if self.quantity == 0:
+            return fill_price
+        is_closing = (self.quantity > 0 and fill_qty < 0) or (self.quantity < 0 and fill_qty > 0)
+        if is_closing:
+            if new_qty == 0:
+                return Decimal("0")
+            elif abs(fill_qty) > abs(self.quantity):
+                return fill_price
+            return self.avg_price
+        return (Decimal(str(self.quantity)) * self.avg_price + Decimal(str(fill_qty)) * fill_price) / Decimal(
+            str(new_qty)
+        )
+
+    def _compute_realized_pnl(self, fill_qty: int, fill_price: Decimal) -> Decimal:
+        if self.quantity == 0:
+            return self.realized_pnl
+        is_closing = (self.quantity > 0 and fill_qty < 0) or (self.quantity < 0 and fill_qty > 0)
+        if not is_closing:
+            return self.realized_pnl
+        closed = min(abs(self.quantity), abs(fill_qty))
+        pnl_factor = Decimal("1") if self.quantity > 0 else Decimal("-1")
+        return self.realized_pnl + Decimal(str(closed)) * (fill_price - self.avg_price) * pnl_factor
+
+    def _compute_unrealized(self, new_qty: int, price: Decimal, avg_price: Decimal) -> Decimal:
+        if new_qty == 0:
+            return Decimal("0")
+        return Decimal(str(new_qty)) * (price - avg_price)
 
 
 @dataclass(slots=True, frozen=True)
@@ -89,12 +97,6 @@ class Holding:
     ltp: Decimal = Decimal("0")
     pnl: Decimal = Decimal("0")
     correlation_id: str | None = None
-
-
-# ---------------------------------------------------------------------------
-# Position State Machine (migrated from domain/positions.py)
-# ---------------------------------------------------------------------------
-
 
 class PositionState(str, Enum):
     """Position lifecycle states.

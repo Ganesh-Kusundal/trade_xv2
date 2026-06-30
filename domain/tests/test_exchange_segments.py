@@ -1,4 +1,4 @@
-"""REF-2: typed exchange-segment helper tests."""
+"""Typed exchange-segment helper tests."""
 
 from __future__ import annotations
 

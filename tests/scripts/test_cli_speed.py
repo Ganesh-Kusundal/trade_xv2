@@ -24,7 +24,7 @@ print(f"  ✅ Import time: {import_time:.3f}s")
 print("\n[2/4] Testing broker service initialization...")
 start = time.time()
 service = BrokerService()
-service._ensure_initialized()
+service.initialize()
 init_time = time.time() - start
 print(f"  ✅ Initialization time: {init_time:.3f}s")
 
