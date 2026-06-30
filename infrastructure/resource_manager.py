@@ -84,7 +84,8 @@ class ResourceManager:
             If a resource with this name is already registered.
         """
         if cleanup_fn is None:
-            cleanup_fn = lambda: None
+            def cleanup_fn():
+                return None
 
         with self._lock:
             if name in self._resources:

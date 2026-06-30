@@ -13,15 +13,15 @@ from application.oms._internal.order_state_validator import OrderStateValidator
 from application.oms._internal.risk_manager import RiskConfig, RiskManager
 
 __all__ = [
-    # Risk & validation
-    "RiskConfig",
-    "RiskManager",
-    "OrderStateValidator",
-    # Audit & logging
-    "OrderAuditLogger",
     # Circuit breaker
     "LossCircuitBreaker",
     "LossCircuitState",
+    # Audit & logging
+    "OrderAuditLogger",
     # Position updates
     "OrderPositionUpdater",
+    "OrderStateValidator",
+    # Risk & validation
+    "RiskConfig",
+    "RiskManager",
 ]

@@ -99,10 +99,7 @@ class UpstoxMarketDataAdapter(MarketDataProvider):
 
         # Parse dates
         from datetime import datetime, timedelta
-        if to_date is None:
-            to_dt = datetime.now()
-        else:
-            to_dt = datetime.fromisoformat(to_date)
+        to_dt = datetime.now() if to_date is None else datetime.fromisoformat(to_date)
 
         if from_date is None:
             from_dt = to_dt - timedelta(days=lookback_days)

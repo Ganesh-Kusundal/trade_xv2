@@ -2,7 +2,7 @@
 
 Loads profile based on APP_ENV environment variable:
 - dev: Relaxed validation, verbose logging, mock brokers allowed
-- staging: Strict validation, real brokers, debug endpoints enabled  
+- staging: Strict validation, real brokers, debug endpoints enabled
 - prod: Maximum strictness, real brokers, no debug endpoints
 
 Usage::

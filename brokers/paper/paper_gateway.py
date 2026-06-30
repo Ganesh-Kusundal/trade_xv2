@@ -18,9 +18,11 @@ from domain import (
     Order,
     OrderResponse,
     OrderStatus,
+    OrderType,
     Position,
     Quote,
     Trade,
+    Validity,
 )
 from domain.constants.defaults import PAPER_INITIAL_CAPITAL
 

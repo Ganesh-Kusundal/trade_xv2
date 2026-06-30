@@ -58,8 +58,7 @@ class VersionedEvent:
         schema_version = data.get("schema_version", 1)
 
         # Auto-migrate if needed
-        if registry is not None and target_version is not None:
-            if schema_version < target_version:
+        if registry is not None and target_version is not None and schema_version < target_version:
                 data = registry.migrate_event(
                     data,
                     from_version=schema_version,

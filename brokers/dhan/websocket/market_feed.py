@@ -148,7 +148,7 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
                 return
 
             if not self._instruments:
-                logger.error("No valid instruments to subscribe")
+                logger.debug("No valid instruments to subscribe yet")
                 return
 
             self._stop_event.clear()

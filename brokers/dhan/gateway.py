@@ -36,10 +36,10 @@ from domain import (
 )
 from domain.exchange_segments import parse_segment
 from domain.symbols import make_position_key, normalize_symbol
-from infrastructure.logging_config import get_logger
+import logging
 from infrastructure.tracing import trace_operation
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
@@ -52,8 +52,8 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
     def __init__(self, connection: DhanConnection):
         self._conn = connection
         self._stream_lock = threading.Lock()
-        # Tracks (symbol, exchange) → callback wrapper for dedup
-        self._stream_registry: dict[tuple[str, str], list[Any]] = {}
+        # Tracks (symbol, exchange) → list of (on_tick, wrapper) for dedup
+        self._stream_registry: dict[tuple[str, str], list[tuple[Any, Any]]] = {}
         # P1 Fix: Track subscription mode per instrument for correct unsubscribe
         self._subscription_modes: dict[tuple[str, str], str] = {}
         # Broker-agnostic options facade — CLI/tests use ``gateway.options``.
@@ -577,7 +577,7 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
             if on_tick:
                 # Dedup: skip if this exact on_tick is already registered
                 existing = self._stream_registry.get(key, [])
-                if on_tick in existing:
+                if any(cb == on_tick for cb, _ in existing):
                     logger.debug(
                         "stream_callback_dedup", extra={"symbol": symbol, "exchange": exchange}
                     )
@@ -603,7 +603,7 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
                             _cb(data)
 
                     feed.on_quote(_wrap)
-                    self._stream_registry.setdefault(key, []).append(on_tick)
+                    self._stream_registry.setdefault(key, []).append((on_tick, _wrap))
 
             if not feed.is_connected:
                 feed.connect()
@@ -630,14 +630,25 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         key = make_position_key(symbol, exchange)
 
         with self._stream_lock:
-            callbacks = self._stream_registry.get(key, [])
+            pairs = self._stream_registry.get(key, [])
             if on_tick is not None:
-                with contextlib.suppress(ValueError):
-                    callbacks.remove(on_tick)
+                # Remove specific callback and its wrapper from the feed
+                to_remove = [(cb, wrap) for cb, wrap in pairs if cb is on_tick]
+                for cb, wrap in to_remove:
+                    with contextlib.suppress(ValueError):
+                        pairs.remove((cb, wrap))
+                    feed = self._conn.market_feed
+                    if feed is not None:
+                        feed.off_quote(wrap)
             else:
-                callbacks.clear()
+                # Remove all wrappers for this key
+                feed = self._conn.market_feed
+                for cb, wrap in pairs:
+                    if feed is not None:
+                        feed.off_quote(wrap)
+                pairs.clear()
 
-            if not callbacks:
+            if not pairs:
                 self._stream_registry.pop(key, None)
 
                 # Unsubscribe from the SDK feed if no consumers remain

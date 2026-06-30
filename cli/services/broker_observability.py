@@ -147,9 +147,7 @@ def compute_live_actionable(
         return False
     if dhan_bootstrap is None or not getattr(dhan_bootstrap, "live_ready", False):
         return False
-    if readiness_report is not None and not getattr(readiness_report, "passed", True):
-        return False
-    return True
+    return not (readiness_report is not None and not getattr(readiness_report, "passed", True))
 
 
 def compute_upstox_authenticated(upstox_bootstrap: Any | None) -> bool:

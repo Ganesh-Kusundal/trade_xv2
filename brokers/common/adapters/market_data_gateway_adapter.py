@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 import uuid
 from collections.abc import Sequence
 from typing import Any
@@ -44,11 +45,20 @@ def capabilities_for_broker(broker_id: str) -> BrokerCapabilities:
 
 
 class _GatewayStreamHandle:
-    """Stream handle wrapping a legacy gateway feed object."""
+    """Stream handle wrapping a legacy gateway feed object with subscription tracking."""
 
-    def __init__(self, feed: Any, broker_id: str) -> None:
+    def __init__(
+        self,
+        adapter: MarketDataGatewayAdapter,
+        feed: Any,
+        instruments: list[str],
+        on_tick: Any,
+    ) -> None:
+        self._adapter = adapter
         self._feed = feed
-        self._broker_id = broker_id
+        self._instruments = list(instruments)
+        self._on_tick = on_tick
+        self._broker_id = adapter.broker_id
         self._session_id = str(uuid.uuid4())
 
     @property
@@ -60,11 +70,23 @@ class _GatewayStreamHandle:
         return self._broker_id
 
     async def disconnect(self) -> None:
-        if self._feed is None:
-            return
-        disconnect = getattr(self._feed, "disconnect", None)
-        if callable(disconnect):
-            await asyncio.to_thread(disconnect)
+        # 1. Unstream each instrument to clean up callbacks and unsubscribe on feed
+        for instrument_key in self._instruments:
+            if ":" in instrument_key:
+                symbol, exchange = instrument_key.split(":", 1)
+            else:
+                symbol, exchange = instrument_key, "NSE"
+
+            # Use gateway.unstream to release the dynamically created _on_tick callback
+            await asyncio.to_thread(
+                self._adapter.legacy_gateway.unstream,
+                symbol,
+                exchange,
+                self._on_tick,
+            )
+
+        # 2. Notify the adapter to release references
+        await self._adapter.release_market_stream(self)
 
     def is_connected(self) -> bool:
         if self._feed is None:
@@ -90,6 +112,8 @@ class MarketDataGatewayAdapter:
         self._broker_id = broker_id
         self._capabilities = capabilities or capabilities_for_broker(broker_id)
         self._extensions = extensions or frozenset()
+        self._active_market_handles: set[str] = set()
+        self._handle_lock = threading.Lock()
 
     @property
     def broker_id(self) -> str:
@@ -222,10 +246,28 @@ class MarketDataGatewayAdapter:
                 mode,
                 _on_tick,
             )
-        return _GatewayStreamHandle(feed, self._broker_id)
+        
+        handle = _GatewayStreamHandle(self, feed, plan.instruments, _on_tick)
+        with self._handle_lock:
+            self._active_market_handles.add(handle.session_id)
+        return handle
 
     async def open_order_stream(self, plan: BrokerStreamPlan) -> BrokerStreamHandle:
         return await self.open_market_stream(plan)
+
+    async def release_market_stream(self, handle: _GatewayStreamHandle) -> None:
+        with self._handle_lock:
+            if handle.session_id in self._active_market_handles:
+                self._active_market_handles.remove(handle.session_id)
+            
+            # Only stop the physical feed if no active logical handles remain
+            if not self._active_market_handles and handle._feed is not None:
+                disconnect = getattr(handle._feed, "disconnect", None)
+                if callable(disconnect):
+                    await asyncio.to_thread(disconnect)
+
+    async def release_order_stream(self, handle: _GatewayStreamHandle) -> None:
+        await self.release_market_stream(handle)
 
     async def health(self) -> BrokerHealthSnapshot:
         describe = await asyncio.to_thread(self._gateway.describe)

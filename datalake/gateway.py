@@ -288,7 +288,7 @@ class DataLakeGateway(
                     )
                     WHERE rn = 1
                 """
-                df = duckdb.execute(query, [curated_glob] + normalized).fetchdf()
+                df = duckdb.execute(query, [curated_glob, *normalized]).fetchdf()
                 return {
                     symbol: Decimal(str(close))
                     for symbol, close in zip(df["symbol"], df["close"], strict=False)
@@ -369,7 +369,7 @@ class DataLakeGateway(
                 FROM read_parquet(?)
                 WHERE symbol IN ({placeholders})
             """
-            df = duckdb.execute(query, [curated_glob] + normalized).fetchdf()
+            df = duckdb.execute(query, [curated_glob, *normalized]).fetchdf()
             if not df.empty:
                 df = self._filter_by_date(df, lookback_days=lookback_days)
                 df["timeframe"] = timeframe

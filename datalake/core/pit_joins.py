@@ -85,10 +85,7 @@ def as_of_join(
 
     left_cols = ", ".join(f"{left_alias}.{c}" for c in select_left)
     right_cols = ", ".join(f"{right_alias}.{c}" for c in (select_right or []))
-    if select_right:
-        all_cols = f"{left_cols}, {right_cols}"
-    else:
-        all_cols = left_cols
+    all_cols = f"{left_cols}, {right_cols}" if select_right else left_cols
 
     right_published_at_col = f"{right_alias}.{right_published_at}"
 

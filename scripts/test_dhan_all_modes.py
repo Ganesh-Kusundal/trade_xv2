@@ -219,7 +219,7 @@ def _legacy_placeholder():
         console.print("[bold]═" * 70)
 
         for underlying in ["NIFTY", "RELIANCE"]:
-            exchange = "NFO" if underlying == "NIFTY" else "NFO"
+            exchange = "NFO"
             console.print(f"\n[cyan]Testing {underlying} Futures...[/cyan]")
 
             try:

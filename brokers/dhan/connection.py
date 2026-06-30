@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
+import types
+import weakref
 from collections.abc import Callable
 from datetime import datetime
 
@@ -538,8 +541,30 @@ class DhanConnection:
         Returns the receiver unchanged so the call site can be used in
         an expression.
         """
-        if receiver is not None and receiver not in self._token_receivers:
-            self._token_receivers.append(receiver)
+        if receiver is None:
+            return receiver
+
+        # Check if already registered
+        for existing in list(self._token_receivers):
+            if isinstance(existing, (weakref.WeakMethod, weakref.ref)):
+                actual = existing()
+                if actual is None:
+                    with contextlib.suppress(ValueError):
+                        self._token_receivers.remove(existing)
+                elif actual == receiver:
+                    return receiver
+            elif existing == receiver:
+                return receiver
+
+        if isinstance(receiver, types.MethodType):
+            ref = weakref.WeakMethod(receiver)
+        else:
+            try:
+                ref = weakref.ref(receiver)
+            except TypeError:
+                ref = receiver
+
+        self._token_receivers.append(ref)
         return receiver
 
     def broadcast_token(self, new_token: str) -> int:
@@ -552,7 +577,16 @@ class DhanConnection:
         if not new_token:
             return 0
         delivered = 0
-        for receiver in list(self._token_receivers):
+        for ref in list(self._token_receivers):
+            if isinstance(ref, (weakref.WeakMethod, weakref.ref)):
+                receiver = ref()
+                if receiver is None:
+                    with contextlib.suppress(ValueError):
+                        self._token_receivers.remove(ref)
+                    continue
+            else:
+                receiver = ref
+
             try:
                 receiver(new_token)
                 delivered += 1

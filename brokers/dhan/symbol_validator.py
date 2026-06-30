@@ -57,7 +57,8 @@ def parse_fo_symbol(symbol: str) -> dict[str, Any] | None:
     Returns a dict with:
       underlying, expiry_day, expiry_month, strike, option_type, is_future
     or None if it doesn't match F&O formats.
-    """        clean = normalize_symbol(symbol)
+    """
+    clean = normalize_symbol(symbol)
 
     # 1. Spaced Option
     m = _OPT_SPACED_PATTERN.match(clean)

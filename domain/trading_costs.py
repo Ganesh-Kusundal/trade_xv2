@@ -200,10 +200,7 @@ def apply_slippage(
     """
     if slippage_pct == 0:
         return price
-    if hasattr(side, "value"):
-        side_val = side.value.upper()  # Side enum
-    else:
-        side_val = str(side).upper()
+    side_val = side.value.upper() if hasattr(side, "value") else str(side).upper()
     factor = (1 + slippage_pct / 100) if side_val == "BUY" else (1 - slippage_pct / 100)
     return (price * Decimal(str(factor))).quantize(Decimal("0.0001"))
 

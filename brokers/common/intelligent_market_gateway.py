@@ -186,10 +186,7 @@ class IntelligentMarketDataGateway(MarketDataGateway):
         else:
             start = date.today() - pd.Timedelta(days=lookback_days)
 
-        if to_date:
-            end = datetime.strptime(to_date, "%Y-%m-%d").date()
-        else:
-            end = date.today()
+        end = datetime.strptime(to_date, "%Y-%m-%d").date() if to_date else date.today()
 
         if self._smart:
             # Use HistoricalDataCoordinator for parallel multi-broker fetching

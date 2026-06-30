@@ -173,8 +173,7 @@ def validate_candles(
                 df = df[is_bool].copy()
 
     # Check temporal causality: published_at >= event_time
-    if "published_at" in df.columns and "event_time" in df.columns:
-        if pd.api.types.is_datetime64_any_dtype(df.get("published_at")) and pd.api.types.is_datetime64_any_dtype(df.get("event_time")):
+    if "published_at" in df.columns and "event_time" in df.columns and pd.api.types.is_datetime64_any_dtype(df.get("published_at")) and pd.api.types.is_datetime64_any_dtype(df.get("event_time")):
             causality_violation = df["published_at"] < df["event_time"]
             if causality_violation.any():
                 n = int(causality_violation.sum())

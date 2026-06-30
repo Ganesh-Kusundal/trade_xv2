@@ -36,7 +36,7 @@ from datalake.gateway import DataLakeGateway
 # Initialize logging if not already configured
 if not logging.getLogger().handlers:
 
-    setup_logging(log_level="WARNING")
+    logging.basicConfig(level=logging.WARNING)
 logger = logging.getLogger(__name__)
 
 

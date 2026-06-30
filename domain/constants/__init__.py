@@ -167,9 +167,9 @@ __all__ = [
     # history
     "DEFAULT_HISTORY_PAGE_DAYS",
     "DEFAULT_HTTP_TIMEOUT_SECONDS",
-    "DEFAULT_LOOKBACK_DAYS",
     # logging
     "DEFAULT_LOG_LEVEL",
+    "DEFAULT_LOOKBACK_DAYS",
     "DEFAULT_MAX_DAILY_DAYS",
     "DEFAULT_MAX_INTRADAY_DAYS",
     # timeouts
