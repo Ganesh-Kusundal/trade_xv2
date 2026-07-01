@@ -20,10 +20,11 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import pandas as pd
 
@@ -36,8 +37,8 @@ from brokers.upstox.adapters import (
 )
 from brokers.upstox.broker import UpstoxBroker
 from brokers.upstox.capabilities import upstox_capabilities
-from brokers.upstox.mappers.domain_mapper import PROVIDER_IS_AMO
 from brokers.upstox.extended import UpstoxExtendedCapabilities
+from brokers.upstox.mappers.domain_mapper import PROVIDER_IS_AMO
 from brokers.upstox.market_data.market_data_adapter import (
     UpstoxMarketDataAdapter as MarketDataAdapter,
 )
@@ -876,8 +877,8 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         Returns:
             Canonical ExchangeSegment enum value
         """
-        from domain.exchange_segments import parse_segment
         from config.indices import index_upstox_key
+        from domain.exchange_segments import parse_segment
 
         # Index symbols use a dedicated segment
         if symbol and index_upstox_key(symbol) is not None:

@@ -25,9 +25,10 @@ Usage::
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from typing import Any, Callable
+from typing import Any
 
 import pandas as pd
 
