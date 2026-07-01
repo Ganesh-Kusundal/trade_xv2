@@ -16,6 +16,26 @@ parallel where the date range can be partitioned cleanly.
 Architecture invariant: the coordinator calls ``CommonBrokerGateway.get_historical_bars()``
 on individual gateways.  It does not call gateway.history() or any internal
 adapter method.  Provenance survives every step.
+
+Usage Example:
+    # Create coordinator with broker registry and router
+    coordinator = HistoricalDataCoordinator(
+        registry=BrokerRegistry(),
+        router=BrokerRouter(),
+        policy=default_source_selection_policy(),
+    )
+    
+    # Create and execute query
+    query = HistoricalQuery(
+        instrument=InstrumentRef(symbol="RELIANCE", exchange="NSE"),
+        timeframe="1D",
+        from_date=date(2024, 1, 1),
+        to_date=date(2024, 12, 31),
+        merge_strategy="prefer_primary",
+    )
+    
+    # Get historical bars (automatically federates across brokers)
+    bars = coordinator.get_historical_bars(query)
 """
 
 from __future__ import annotations

@@ -409,9 +409,19 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
     ) -> MarketDepth:
         """Subscribe to 200-level market depth for *symbol* via WebSocket.
 
-        Dhan allows only **one** instrument per depth-200 connection. Calling
-        this method with a different symbol after the feed is already running
+        IMPORTANT: Dhan allows only **one** instrument per depth-200 connection.
+        Calling this method with a different symbol after the feed is already running
         raises :class:`ValueError`.
+        
+        For multiple instruments, use the connection pool pattern:
+            from brokers.dhan.depth_200 import Depth200ConnectionPool
+            
+            pool = Depth200ConnectionPool(
+                client_id=self._conn.client_id,
+                access_token=self._conn.access_token,
+            )
+            feed1 = pool.get_feed((segment1, security_id1))
+            feed2 = pool.get_feed((segment2, security_id2))
         """
         self._validate_nse_exchange(exchange, "200")
         segment, sid_str, _ = self._resolve_depth_instrument(symbol, exchange)
