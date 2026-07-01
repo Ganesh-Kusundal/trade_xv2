@@ -266,7 +266,7 @@ def create_app(
     register_domain_event_factory(create_domain_event)
     register_trading_context_factory(create_trading_context)
 
-    # Initialize services (now includes TradingContext)
+    # Initialize services (now includes TradingContext and Composers)
     initialize_all_services(
         datalake_gateway=datalake_gateway,
         view_manager=view_manager,
@@ -274,6 +274,8 @@ def create_app(
         event_bus=event_bus,
         broker_service=broker_service,
         trading_context=trading_context,
+        market_data_composer=market_data_composer,
+        execution_composer=execution_composer,
         **additional_services,
     )
 

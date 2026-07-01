@@ -98,6 +98,11 @@ class FeatureFlags:
             default=False,
             description="Enable experimental trading strategies",
         ),
+        "COMPOSER_EXECUTION": FlagDefinition(
+            name="COMPOSER_EXECUTION",
+            default=False,
+            description="Route orders through ExecutionComposer instead of legacy ExecutionService",
+        ),
     }
 
     # Runtime flag state (lazy-loaded from env)
@@ -111,6 +116,7 @@ class FeatureFlags:
     INTELLIGENT_GATEWAY: bool = False
     ADVANCED_ORDER_TYPES: bool = False
     EXPERIMENTAL_STRATEGIES: bool = False
+    COMPOSER_EXECUTION: bool = False
 
     # Metrics (lazy-initialized)
     _evaluation_counter: Any = None
@@ -311,7 +317,7 @@ class FeatureFlags:
         cls._flags[flag_name] = value  # type: ignore[index]
 
         # Update class attributes for property access
-        if flag_name in ("SMART_ROUTING", "INTELLIGENT_GATEWAY", "ADVANCED_ORDER_TYPES", "EXPERIMENTAL_STRATEGIES"):
+        if flag_name in ("SMART_ROUTING", "INTELLIGENT_GATEWAY", "ADVANCED_ORDER_TYPES", "EXPERIMENTAL_STRATEGIES", "COMPOSER_EXECUTION"):
             setattr(cls, flag_name, value)
 
         # Track change
@@ -381,6 +387,7 @@ class FeatureFlags:
         cls.INTELLIGENT_GATEWAY = False
         cls.ADVANCED_ORDER_TYPES = False
         cls.EXPERIMENTAL_STRATEGIES = False
+        cls.COMPOSER_EXECUTION = False
         # Reset metrics
         cls._evaluation_counter = None
         cls._change_counter = None

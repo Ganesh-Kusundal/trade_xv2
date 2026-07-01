@@ -13,6 +13,8 @@ Two creation paths:
 
 from __future__ import annotations
 
+from typing import Any
+
 from application.composer.execution import ExecutionComposer
 from application.composer.market_data import MarketDataComposer
 from brokers.common.broker_port import CommonBrokerGateway
@@ -28,6 +30,7 @@ from brokers.common.stream_orchestrator import StreamOrchestrator
 
 def create_composers_from_infra(
     infra: BrokerInfrastructure,
+    risk_manager: Any | None = None,
 ) -> tuple[MarketDataComposer, ExecutionComposer]:
     """Create composers from an existing BrokerInfrastructure.
 
@@ -39,6 +42,8 @@ def create_composers_from_infra(
     infra
         Fully-wired BrokerInfrastructure with registry, router, quota,
         historical coordinator, stream orchestrator, and extensions.
+    risk_manager
+        Optional risk manager for kill-switch enforcement in ExecutionComposer.
 
     Returns
     -------
@@ -53,6 +58,7 @@ def create_composers_from_infra(
         registry=infra.registry,
         router=infra.router,
         quota_scheduler=infra.quota,
+        risk_manager=risk_manager,
     )
     return market_data, execution
 

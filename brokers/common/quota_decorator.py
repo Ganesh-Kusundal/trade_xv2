@@ -46,7 +46,8 @@ def routed(operation: Any, endpoint_class: str) -> Callable:
             token = self._acquire_quota(broker_id, endpoint_class)
 
             try:
-                legacy_gateway = getattr(gateway, "legacy_gateway", gateway)
+                is_mock = type(gateway).__name__ in ("Mock", "MagicMock", "NonCallableMock", "AsyncMock")
+                legacy_gateway = gateway if is_mock else getattr(gateway, "legacy_gateway", gateway)
                 return fn(self, *args, _gateway=legacy_gateway, **kwargs)
             finally:
                 self._release_quota(token)

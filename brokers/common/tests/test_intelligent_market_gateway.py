@@ -189,10 +189,11 @@ class TestIntelligentMarketDataGateway:
         gw = IntelligentMarketDataGateway(infra, smart=True, primary_broker="dhan")
 
         # Mock historical coordinator
+        from unittest.mock import AsyncMock
         mock_series = Mock()
         mock_series.to_dataframe.return_value = Mock()
         mock_ledger = Mock()
-        infra.historical.fetch.return_value = (mock_series, mock_ledger)
+        infra.historical.fetch = AsyncMock(return_value=(mock_series, mock_ledger))
 
         gw.history("RELIANCE", "NSE", "1D", 90)
 

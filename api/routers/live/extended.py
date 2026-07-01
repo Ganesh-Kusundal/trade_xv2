@@ -7,6 +7,7 @@ risk checks and event publishing. Read-only endpoints call broker directly.
 from __future__ import annotations
 
 import logging
+import warnings
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response, status
@@ -40,7 +41,26 @@ def _require_broker(expected: str) -> None:
         )
 
 
+def _get_extension_registry() -> Any | None:
+    """Return ExtensionRegistry from broker infrastructure (or None)."""
+    svc = get_broker_service()
+    infra = getattr(svc, "broker_infrastructure", None) if svc else None
+    if infra is not None:
+        return getattr(infra, "extensions", None)
+    return None
+
+
 def _extended(gw: Any) -> Any:
+    """Resolve extended capabilities from gateway.
+
+    Emits a deprecation warning — callers should migrate to
+    ExtensionRegistry-backed extension protocols.
+    """
+    warnings.warn(
+        "_extended() getattr probing is deprecated — use ExtensionRegistry instead",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     ext = getattr(gw, "extended", None)
     if ext is None:
         raise HTTPException(
@@ -58,6 +78,7 @@ def _get_extended_order_service() -> Any:
         risk_manager=get_risk_manager(),
         event_bus=get_event_bus(),
         broker_service=get_broker_service(),
+        extension_registry=_get_extension_registry(),
     )
 
 
@@ -123,6 +144,11 @@ async def live_margin(
 ) -> Any:
     apply_live_headers(response, get_live_broker_name())
     if _broker_name() == "dhan":
+        warnings.warn(
+            "getattr(gw, '_conn') probing is deprecated — use ExtensionRegistry instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         conn = getattr(gw, "_conn", None)
         if conn is None:
             raise HTTPException(
@@ -134,6 +160,11 @@ async def live_margin(
                 status.HTTP_501_NOT_IMPLEMENTED, detail="Margin service unavailable"
             )
         return serialize_value(margin.calculate(payload))
+    warnings.warn(
+        "getattr(gw, '_broker') probing is deprecated — use ExtensionRegistry instead",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     broker = getattr(gw, "_broker", None)
     margin_svc = getattr(broker, "margin", None) if broker else None
     if margin_svc is not None:
@@ -164,6 +195,11 @@ async def live_ledger(
     ext = _extended(gw)
     if _broker_name() == "dhan":
         return serialize_value(ext.get_ledger(from_date, to_date))
+    warnings.warn(
+        "getattr(gw, '_broker') probing is deprecated — use ExtensionRegistry instead",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     broker = getattr(gw, "_broker", None)
     portfolio = getattr(broker, "portfolio", None) if broker else None
     if portfolio is not None:
@@ -193,6 +229,11 @@ async def live_get_ip(response: Response = None, gw: Any = Depends(require_live_
     apply_live_headers(response, get_live_broker_name())
     if _broker_name() == "dhan":
         return serialize_value(_extended(gw).get_ip())
+    warnings.warn(
+        "getattr(gw, '_broker') probing is deprecated — use ExtensionRegistry instead",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     broker = getattr(gw, "_broker", None)
     static_ip = getattr(broker, "static_ip", None) if broker else None
     if static_ip is not None:
@@ -211,6 +252,11 @@ async def live_set_ip(
         return serialize_value(
             _extended(gw).set_ip(payload.get("ip", ""), payload.get("type", "static"))
         )
+    warnings.warn(
+        "getattr(gw, '_broker') probing is deprecated — use ExtensionRegistry instead",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     broker = getattr(gw, "_broker", None)
     static_ip = getattr(broker, "static_ip", None) if broker else None
     if static_ip is not None:

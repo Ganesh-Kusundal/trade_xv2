@@ -143,6 +143,7 @@ class UnifiedReplayOrchestrator:
         initial_capital: float = 100_000.0,
         warmup_bars: int = 20,
         trading_context: Any = None,
+        data_provider: Any | None = None,
     ) -> None:
         self._feature_pipeline = feature_pipeline
         self._strategy_pipeline = strategy_pipeline
@@ -151,6 +152,9 @@ class UnifiedReplayOrchestrator:
         self._initial_capital = initial_capital
         self._warmup_bars = warmup_bars
         self._trading_context = trading_context
+        self._data_provider = (
+            data_provider  # Injected data provider (DataLakeGateway or ResearchAPI)
+        )
 
         # Event log for reading persisted events
         self._event_log = EventLog(events_dir=events_dir) if events_dir else None
@@ -242,16 +246,21 @@ class UnifiedReplayOrchestrator:
 
     def _load_bars(self, date: str, symbols: list[str]) -> list[ReplayItem]:
         """Load OHLCV bars from the datalake for the target date."""
-        from datalake.research import ResearchAPI
+        # Use injected data_provider if available, otherwise fall back to ResearchAPI
+        if self._data_provider is None:
+            from datalake.research import ResearchAPI
+
+            data_provider = ResearchAPI(root=self._data_root)
+        else:
+            data_provider = self._data_provider
 
         items: list[ReplayItem] = []
-        research = ResearchAPI(root=self._data_root)
         seq = 0
 
         if symbols:
             for sym in symbols:
                 try:
-                    df = research.history(
+                    df = data_provider.history(
                         sym,
                         timeframe=self._timeframe,
                         from_date=date,

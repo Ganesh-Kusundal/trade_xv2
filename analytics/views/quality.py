@@ -12,7 +12,7 @@ import logging
 
 import duckdb
 
-from datalake.schema import TRADING_MINUTES_PER_DAY
+from analytics.views.manager import TRADING_MINUTES_PER_DAY
 
 logger = logging.getLogger(__name__)
 

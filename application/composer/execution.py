@@ -8,6 +8,7 @@ routing, quota acquisition, and audit trails.
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from brokers.common.broker_port import QuotaToken
 from brokers.common.models import OperationKind, RoutingRequest
@@ -28,6 +29,7 @@ class ExecutionComposer:
             registry=registry,
             router=router,
             quota_scheduler=scheduler,
+            risk_manager=risk_manager,  # optional kill-switch guard
         )
 
         # Place order with automatic routing and quota
@@ -42,10 +44,28 @@ class ExecutionComposer:
         registry: BrokerRegistry,
         router: BrokerRouter,
         quota_scheduler: object,  # QuotaScheduler (circular import)
+        risk_manager: Any | None = None,  # Optional kill-switch guard
     ) -> None:
         self._registry = registry
         self._router = router
         self._quota_scheduler = quota_scheduler
+        self._risk_manager = risk_manager
+
+    def _check_kill_switch(self, operation: str) -> None:
+        """Raise OrderBlockedError if kill switch is active.
+
+        No-op when risk_manager is not provided (backward compatible).
+        """
+        if self._risk_manager is None:
+            return
+        if self._risk_manager.is_kill_switch_active():
+            from application.oms.oms_gateway_proxy import OrderBlockedError
+
+            raise OrderBlockedError(
+                f"Order blocked: kill switch active ({operation})",
+                operation=operation,
+                reason="Kill switch active",
+            )
 
     async def place_order(
         self,
@@ -68,6 +88,8 @@ class ExecutionComposer:
 
         Raises
         ------
+        OrderBlockedError
+            If kill switch is active.
         RoutingError
             If no eligible broker can be selected.
         QuotaExhaustedError
@@ -75,6 +97,9 @@ class ExecutionComposer:
         BrokerUnavailableError
             If selected broker is unavailable.
         """
+        # 0. Risk check (kill-switch guard)
+        self._check_kill_switch("place_order")
+
         # 1. Route to broker
         target_broker = broker_id or self._route_order()
 
@@ -130,6 +155,9 @@ class ExecutionComposer:
         OrderResponse
             Cancellation result.
         """
+        # Risk check (kill-switch guard)
+        self._check_kill_switch("cancel_order")
+
         target_broker = broker_id or self._route_order()
         quota = await self._acquire_quota(target_broker, "orders", "EXECUTION_CRITICAL")
 
@@ -171,6 +199,9 @@ class ExecutionComposer:
         OrderResponse
             Modification result.
         """
+        # Risk check (kill-switch guard)
+        self._check_kill_switch("modify_order")
+
         target_broker = broker_id or self._route_order()
         quota = await self._acquire_quota(target_broker, "orders", "EXECUTION_CRITICAL")
 

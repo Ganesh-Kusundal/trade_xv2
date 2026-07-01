@@ -63,8 +63,8 @@ async def _stream_replay_candles(
     speed: float = 1.0,
     seek_ts: int | None = None,
 ) -> None:
+    from api.deps import _container
     from api.routers.replay import get_replay_session_store
-    from datalake.gateway import DataLakeGateway
 
     store = get_replay_session_store()
     session = store.get(session_id)
@@ -84,7 +84,12 @@ async def _stream_replay_candles(
     timeframe = session.get("timeframe") or "1m"
     speed = float(session.get("speed") or speed or 1.0)
 
-    gateway = DataLakeGateway(root="market_data")
+    gateway = _container.datalake_gateway if _container else None
+    if gateway is None:
+        from datalake.gateway import DataLakeGateway
+
+        logger.warning("DI container not available — falling back to direct DataLakeGateway")
+        gateway = DataLakeGateway(root="market_data")
     df = gateway.history(symbol, timeframe=timeframe, from_date=date, to_date=date)
     if df.empty:
         await replay_manager.send_to_client(

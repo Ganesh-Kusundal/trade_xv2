@@ -6,11 +6,12 @@ import logging
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from api.auth import require_auth
-from api.deps import get_execution_composer, get_order_repository
+from api.deps import get_broker_service, get_execution_composer, get_order_repository
 from api.schemas import (
     OrderRequest,
     OrderResponse,
@@ -248,19 +249,26 @@ async def get_order(
 @trace_operation("api.orders.place_order")
 async def place_order(
     req: OrderRequest,
-    composer=Depends(get_execution_composer),
+    broker_service: Any = Depends(get_broker_service),
+    composer: Any = Depends(get_execution_composer),
 ):
     """Place a new order through the multi-broker ExecutionComposer.
 
     Supports market, limit, SL, SL-M order types.
     Returns order ID for tracking.
 
-    Multi-broker features:
+    Execution paths (controlled by COMPOSER_EXECUTION feature flag):
+    - Path B (flag ON): ExecutionComposer with multi-broker routing + quota
+    - Path A (flag OFF): Legacy ExecutionService via OMS
+
+    Multi-broker features (Path B):
     - Automatic broker routing via BrokerRouter
     - Quota management to prevent rate limit violations
     - Full provenance tracking for audit compliance
-    - Returns 503 if composer not initialized
+    - Kill-switch enforcement via risk_manager
     """
+    from config.feature_flags import FeatureFlags
+
     # Convert HTTP request to domain request
     try:
         side = Side(req.transaction_type.upper())
@@ -274,36 +282,80 @@ async def place_order(
             detail=f"Invalid order parameter: {exc}",
         ) from exc
 
-    domain_req = DomainOrderRequest(
-        symbol=req.symbol,
-        exchange=req.exchange,
-        transaction_type=side,
-        order_type=order_type,
-        quantity=req.quantity,
-        price=Decimal(str(req.price)) if req.price else Decimal("0"),
-        product_type=product_type,
-        correlation_id=req.correlation_id or f"http-{uuid.uuid4().hex}",
-    )
+    # Check feature flag for execution path selection
+    use_composer = FeatureFlags.is_enabled("COMPOSER_EXECUTION") and composer is not None
 
-    # Execute via composer (handles routing, quota, provenance)
-    result = await composer.place_order(domain_req)
-
-    if not result.success:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=result.error_code or result.message or "Order rejected by broker",
+    if use_composer:
+        # Path B: ExecutionComposer (multi-broker, async, with kill-switch)
+        domain_req = DomainOrderRequest(
+            symbol=req.symbol,
+            exchange=req.exchange,
+            transaction_type=side,
+            order_type=order_type,
+            quantity=req.quantity,
+            price=Decimal(str(req.price)) if req.price else Decimal("0"),
+            product_type=product_type,
+            correlation_id=req.correlation_id or f"http-{uuid.uuid4().hex}",
         )
 
-    return OrderResponse(
-        order_id=result.order_id,
-        symbol=req.symbol,
-        exchange=req.exchange,
-        transaction_type=req.transaction_type,
-        order_type=req.order_type,
-        quantity=req.quantity,
-        price=req.price,
-        status=result.status.value if hasattr(result.status, "value") else str(result.status),
-    )
+        result = await composer.place_order(domain_req)
+
+        if not result.success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=result.error_code or result.message or "Order rejected by broker",
+            )
+
+        return OrderResponse(
+            order_id=result.order_id,
+            symbol=req.symbol,
+            exchange=req.exchange,
+            transaction_type=req.transaction_type,
+            order_type=req.order_type,
+            quantity=req.quantity,
+            price=req.price,
+            status=result.status.value if hasattr(result.status, "value") else str(result.status),
+        )
+    else:
+        # Path A: Legacy ExecutionService (OMS-first, sync)
+        exec_svc = broker_service.execution_service if broker_service else None
+        if exec_svc is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Execution service unavailable",
+            )
+
+        from application.oms.order_manager import OmsOrderCommand
+
+        command = OmsOrderCommand(
+            symbol=req.symbol,
+            exchange=req.exchange,
+            side=side,
+            order_type=order_type,
+            quantity=req.quantity,
+            price=Decimal(str(req.price)) if req.price else Decimal("0"),
+            product_type=product_type,
+            correlation_id=req.correlation_id or f"http-{uuid.uuid4().hex}",
+        )
+
+        result = exec_svc.place_order(command)
+
+        if not result.success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=result.error or "Order rejected",
+            )
+
+        return OrderResponse(
+            order_id=result.order_id or "",
+            symbol=req.symbol,
+            exchange=req.exchange,
+            transaction_type=req.transaction_type,
+            order_type=req.order_type,
+            quantity=req.quantity,
+            price=req.price,
+            status="PENDING",
+        )
 
 
 @router.put("/{order_id}", response_model=OrderResponse)
@@ -311,14 +363,17 @@ async def place_order(
 async def modify_order(
     order_id: str,
     req: OrderRequest,
-    composer=Depends(get_execution_composer),
+    broker_service: Any = Depends(get_broker_service),
+    composer: Any = Depends(get_execution_composer),
     repo=Depends(get_order_repository),
 ):
-    """Modify an existing order via ExecutionComposer.
+    """Modify an existing order via ExecutionComposer or legacy ExecutionService.
 
     Updates price, quantity, or order type for pending orders.
-    Uses multi-broker routing and quota management.
+    Uses feature flag to select execution path.
     """
+    from config.feature_flags import FeatureFlags
+
     try:
         Side(req.transaction_type.upper())
         order_type = OrderType(req.order_type.upper())
@@ -343,68 +398,144 @@ async def modify_order(
             detail=f"Cannot modify order in terminal state: {existing.status.value}",
         )
 
-    # Build modify request — only pass valid ModifyOrderRequest fields
-    from domain.requests import ModifyOrderRequest
+    use_composer = FeatureFlags.is_enabled("COMPOSER_EXECUTION") and composer is not None
 
-    modify_req = ModifyOrderRequest(
-        order_id=order_id,
-        quantity=req.quantity,
-        price=Decimal(str(req.price)) if req.price else None,
-        order_type=order_type,
-        product_type=product_type,
-    )
+    if use_composer:
+        # Path B: ExecutionComposer
+        from domain.requests import ModifyOrderRequest
 
-    # Execute via composer
-    result = await composer.modify_order(modify_req)
-
-    if not result.success:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=result.error_code or result.message or "Order modification rejected",
+        modify_req = ModifyOrderRequest(
+            order_id=order_id,
+            quantity=req.quantity,
+            price=Decimal(str(req.price)) if req.price else None,
+            order_type=order_type,
+            product_type=product_type,
         )
 
-    return OrderResponse(
-        order_id=result.order_id,
-        symbol=existing.symbol,
-        exchange=existing.exchange,
-        transaction_type=existing.side.value,
-        order_type=req.order_type,
-        quantity=req.quantity or existing.quantity,
-        price=req.price,
-        status=result.status.value if hasattr(result.status, "value") else str(result.status),
-    )
+        result = await composer.modify_order(modify_req)
+
+        if not result.success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=result.error_code or result.message or "Order modification rejected",
+            )
+
+        return OrderResponse(
+            order_id=result.order_id,
+            symbol=existing.symbol,
+            exchange=existing.exchange,
+            transaction_type=existing.side.value,
+            order_type=req.order_type,
+            quantity=req.quantity or existing.quantity,
+            price=req.price,
+            status=result.status.value if hasattr(result.status, "value") else str(result.status),
+        )
+    else:
+        # Path A: Legacy ExecutionService
+        exec_svc = broker_service.execution_service if broker_service else None
+        if exec_svc is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Execution service unavailable",
+            )
+
+        from application.oms.order_manager import OmsOrderCommand
+
+        command = OmsOrderCommand(
+            symbol=existing.symbol,
+            exchange=existing.exchange,
+            side=existing.side,
+            order_type=order_type,
+            quantity=req.quantity or existing.quantity,
+            price=Decimal(str(req.price)) if req.price else existing.price,
+            product_type=product_type,
+            order_id=order_id,
+        )
+
+        result = exec_svc.modify_order(command)
+
+        if not result.success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=result.error or "Order modification rejected",
+            )
+
+        return OrderResponse(
+            order_id=order_id,
+            symbol=existing.symbol,
+            exchange=existing.exchange,
+            transaction_type=existing.side.value,
+            order_type=req.order_type,
+            quantity=req.quantity or existing.quantity,
+            price=req.price,
+            status="PENDING",
+        )
 
 
 @router.delete("/{order_id}", response_model=OrderResponse)
 @trace_operation("api.orders.cancel_order")
 async def cancel_order(
     order_id: str,
-    composer=Depends(get_execution_composer),
+    broker_service: Any = Depends(get_broker_service),
+    composer: Any = Depends(get_execution_composer),
     repo=Depends(get_order_repository),
 ):
-    """Cancel a pending order via ExecutionComposer.
+    """Cancel a pending order via ExecutionComposer or legacy ExecutionService.
 
     Only works for orders in PENDING or TRIGGER_PENDING status.
-    Uses multi-broker routing and quota management.
+    Uses feature flag to select execution path.
     """
-    # Execute via composer
-    result = await composer.cancel_order(order_id)
-
-    if not result.success:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=result.error_code or result.message or "Order cancellation rejected",
-        )
+    from config.feature_flags import FeatureFlags
 
     # Pre-fetch order from repo for symbol/exchange metadata
     existing = repo.get_order(order_id) if repo else None
-    return OrderResponse(
-        order_id=result.order_id,
-        symbol=existing.symbol if existing else "",
-        exchange=existing.exchange if existing else "",
-        transaction_type=existing.side.value if existing else "",
-        order_type=existing.order_type.value if existing else "",
-        quantity=existing.quantity if existing else 0,
-        price=float(existing.price) if existing and existing.price else None,
-        status=result.status.value if hasattr(result.status, "value") else str(result.status),
-    )
+
+    use_composer = FeatureFlags.is_enabled("COMPOSER_EXECUTION") and composer is not None
+
+    if use_composer:
+        # Path B: ExecutionComposer
+        result = await composer.cancel_order(order_id)
+
+        if not result.success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=result.error_code or result.message or "Order cancellation rejected",
+            )
+
+        return OrderResponse(
+            order_id=result.order_id,
+            symbol=existing.symbol if existing else "",
+            exchange=existing.exchange if existing else "",
+            transaction_type=existing.side.value if existing else "",
+            order_type=existing.order_type.value if existing else "",
+            quantity=existing.quantity if existing else 0,
+            price=float(existing.price) if existing and existing.price else None,
+            status=result.status.value if hasattr(result.status, "value") else str(result.status),
+        )
+    else:
+        # Path A: Legacy ExecutionService
+        exec_svc = broker_service.execution_service if broker_service else None
+        if exec_svc is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Execution service unavailable",
+            )
+
+        result = exec_svc.cancel_order(order_id)
+
+        if not result.success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=result.error or "Order cancellation rejected",
+            )
+
+        return OrderResponse(
+            order_id=order_id,
+            symbol=existing.symbol if existing else "",
+            exchange=existing.exchange if existing else "",
+            transaction_type=existing.side.value if existing else "",
+            order_type=existing.order_type.value if existing else "",
+            quantity=existing.quantity if existing else 0,
+            price=float(existing.price) if existing and existing.price else None,
+            status="CANCELLED",
+        )

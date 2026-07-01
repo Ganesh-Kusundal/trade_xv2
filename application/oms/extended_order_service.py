@@ -7,13 +7,16 @@ and exit-all through the risk pipeline before broker transport.
 from __future__ import annotations
 
 import logging
+import warnings
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TypeVar
 
 from brokers.common.resilience.errors import TradeXV2Error
 from domain.events.types import EventType
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
 
 
 @dataclass(frozen=True)
@@ -32,6 +35,12 @@ class ExtendedOrderService:
     1. Kill switch check
     2. Risk manager validation (where applicable)
     3. Event publishing for audit trail
+
+    Extension Resolution:
+        When ``extension_registry`` is provided, extensions are resolved via
+        ``registry.require(broker_id, ExtensionType)`` — the preferred approach.
+        When ``extension_registry`` is None, falls back to ``getattr`` probing
+        (deprecated — will be removed in a future release).
     """
 
     def __init__(
@@ -39,10 +48,12 @@ class ExtendedOrderService:
         risk_manager: Any,
         event_bus: Any,
         broker_service: Any,
+        extension_registry: Any | None = None,
     ) -> None:
         self._risk = risk_manager
         self._events = event_bus
         self._broker_service = broker_service
+        self._extensions = extension_registry
 
     def _check_kill_switch(self) -> None:
         if self._risk is not None and self._risk.is_kill_switch_active():
@@ -74,7 +85,25 @@ class ExtendedOrderService:
             return "unknown"
         return str(getattr(svc, "active_broker_name", "unknown"))
 
+    def _require_extension(self, extension_type: type[T]) -> T:
+        """Acquire extension via ExtensionRegistry (preferred path).
+
+        Raises UnsupportedExtensionError if not registered.
+        """
+        if self._extensions is None:
+            raise ExtendedFeatureUnavailableError(
+                "ExtensionRegistry not configured — cannot resolve extensions"
+            )
+        broker_id = self._broker_name()
+        return self._extensions.require(broker_id, extension_type)
+
     def _get_extended(self, gw: Any) -> Any:
+        """DEPRECATED: Use _require_extension() instead."""
+        warnings.warn(
+            "_get_extended() is deprecated — use ExtensionRegistry instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         ext = getattr(gw, "extended", None)
         if ext is None:
             raise ExtendedFeatureUnavailableError(
@@ -83,6 +112,12 @@ class ExtendedOrderService:
         return ext
 
     def _get_broker(self, gw: Any) -> Any:
+        """DEPRECATED: Use _require_extension() instead."""
+        warnings.warn(
+            "_get_broker() is deprecated — use ExtensionRegistry instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         broker = getattr(gw, "_broker", None)
         if broker is None:
             raise ExtendedFeatureUnavailableError(
@@ -91,6 +126,12 @@ class ExtendedOrderService:
         return broker
 
     def _get_conn(self, gw: Any) -> Any:
+        """DEPRECATED: Use _require_extension() instead."""
+        warnings.warn(
+            "_get_conn() is deprecated — use ExtensionRegistry instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         conn = getattr(gw, "_conn", None)
         if conn is None:
             raise ExtendedFeatureUnavailableError(

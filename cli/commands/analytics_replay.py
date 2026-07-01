@@ -15,6 +15,7 @@ def run_replay(args: list[str], console: Console) -> None:
     """Run historical replay through the same pipeline used in live trading."""
     file_path = None
     symbol = "REPLAY"
+    date = None
     warmup = 20
     slippage = 0.01
     commission = 0.0003
@@ -26,6 +27,9 @@ def run_replay(args: list[str], console: Console) -> None:
             index += 2
         elif arg == "--symbol" and index + 1 < len(args):
             symbol = args[index + 1].upper()
+            index += 2
+        elif arg == "--date" and index + 1 < len(args):
+            date = args[index + 1]
             index += 2
         elif arg == "--warmup" and index + 1 < len(args):
             warmup = int(args[index + 1])
@@ -42,17 +46,36 @@ def run_replay(args: list[str], console: Console) -> None:
         else:
             index += 1
 
-    if not file_path:
-        console.print(
-            "[yellow]Usage: tradex analytics replay --file ohlcv.csv [--symbol RELIANCE] [--warmup 20] [--slippage 0.01] [--commission 0.0003][/yellow]"
-        )
-        return
+    # Load data from file or datalake
+    if file_path:
+        try:
+            data = pd.read_csv(file_path)
+            console.print(f"[dim]Loaded {len(data)} bars from {file_path}[/dim]")
+        except Exception as exc:
+            console.print(f"[red]Error loading file: {exc}[/red]")
+            return
+    elif symbol and date:
+        try:
+            from datalake.gateway import DataLakeGateway
 
-    try:
-        data = pd.read_csv(file_path)
-        console.print(f"[dim]Loaded {len(data)} bars from {file_path}[/dim]")
-    except Exception as exc:
-        console.print(f"[red]Error loading file: {exc}[/red]")
+            gw = DataLakeGateway(root="market_data")
+            data = gw.history(symbol, timeframe="1m", from_date=date, to_date=date)
+            if data.empty:
+                console.print(f"[red]No data for {symbol} on {date}[/red]")
+                return
+            console.print(
+                f"[dim]Loaded {len(data)} bars from datalake for {symbol} on {date}[/dim]"
+            )
+        except Exception as exc:
+            console.print(f"[red]Error loading from datalake: {exc}[/red]")
+            return
+    else:
+        console.print(
+            "[yellow]Usage: tradex analytics replay --file ohlcv.csv [--symbol RELIANCE] [--date 2024-01-15] [--warmup 20] [--slippage 0.01] [--commission 0.0003][/yellow]"
+        )
+        console.print(
+            "[yellow]   OR: tradex analytics replay --symbol RELIANCE --date 2024-01-15[/yellow]"
+        )
         return
 
     required = {"close"}

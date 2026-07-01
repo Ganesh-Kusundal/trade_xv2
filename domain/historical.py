@@ -158,3 +158,33 @@ class HistoricalSeries:
     def brokers_contributing(self) -> set[str]:
         """Return the set of broker_ids that contributed bars."""
         return {b.provenance.source.broker_id for b in self.bars}
+
+    def to_dataframe(self) -> pd.DataFrame:
+        """Convert this series to a canonical pandas DataFrame."""
+        import pandas as pd
+        records = []
+        for bar in self.bars:
+            records.append({
+                "timestamp": bar.event_time,
+                "open": float(bar.open),
+                "high": float(bar.high),
+                "low": float(bar.low),
+                "close": float(bar.close),
+                "volume": int(bar.volume),
+                "oi": int(bar.open_interest),
+                "symbol": bar.instrument.symbol,
+                "exchange": bar.instrument.exchange,
+                "timeframe": bar.timeframe,
+            })
+        return pd.DataFrame(records, columns=[
+            "timestamp",
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "oi",
+            "symbol",
+            "exchange",
+            "timeframe",
+        ])

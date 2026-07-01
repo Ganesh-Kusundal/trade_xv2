@@ -68,7 +68,8 @@ class TestFeatureFlagsAccess:
         assert "INTELLIGENT_GATEWAY" in flags
         assert "ADVANCED_ORDER_TYPES" in flags
         assert "EXPERIMENTAL_STRATEGIES" in flags
-        assert len(flags) == 4
+        assert "COMPOSER_EXECUTION" in flags
+        assert len(flags) == 5
 
     def test_get_flag_info(self):
         info = FeatureFlags.get_flag_info("SMART_ROUTING")

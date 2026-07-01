@@ -10,11 +10,11 @@ import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 
-import duckdb
 import pandas as pd
 
 from datalake.core.paths import timeframe_partition_dir
-from datalake.paths import CURATED_ROOT, curated_equity_glob
+from datalake.gateway import DataLakeGateway
+from datalake.paths import CURATED_ROOT
 
 logger = logging.getLogger(__name__)
 
@@ -22,10 +22,14 @@ logger = logging.getLogger(__name__)
 class ResearchAPI:
     """Fast local data access for research."""
 
-    def __init__(self, root: str = "market_data", curated_root: str = CURATED_ROOT, catalog=None) -> None:
+    def __init__(
+        self, root: str = "market_data", curated_root: str = CURATED_ROOT, catalog=None
+    ) -> None:
         self._root = Path(root)
         self._curated_root = Path(curated_root)
         self._catalog = catalog
+        # Delegate to DataLakeGateway for unified data access path
+        self._gateway = DataLakeGateway(root=str(self._root), curated_root=str(self._curated_root))
 
     def history(
         self,
@@ -54,54 +58,17 @@ class ResearchAPI:
         -------
         pd.DataFrame with canonical columns.
         """
-        df = self._try_curated(symbol, timeframe)
-        if df is None:
-            parquet_path = (
-                self._root
-                / "equities"
-                / "candles"
-                / f"timeframe={timeframe}"
-                / f"symbol={symbol}"
-                / "data.parquet"
-            )
-            if not parquet_path.exists():
-                logger.warning("No data for %s at %s", symbol, parquet_path)
-                return pd.DataFrame()
-            df = pd.read_parquet(parquet_path)
-
-        # Filter by date range
-        if "timestamp" in df.columns:
-            ts = pd.to_datetime(df["timestamp"])
-            if to_date:
-                ts_max = pd.Timestamp(to_date)
-                df = df[ts <= ts_max]
-                ts = ts[ts <= ts_max]
-            if from_date:
-                ts_min = pd.Timestamp(from_date)
-                df = df[ts >= ts_min]
-            elif years:
-                cutoff = pd.Timestamp.now() - pd.DateOffset(years=years)
-                df = df[ts >= cutoff]
-
-        return df.reset_index(drop=True)
-
-    def _try_curated(self, symbol: str, timeframe: str) -> pd.DataFrame | None:
-        """Try reading from the curated date-partitioned layout."""
-        glob_pattern = curated_equity_glob(root=str(self._curated_root))
-        try:
-            query = """
-                SELECT *
-                FROM read_parquet(?)
-                WHERE symbol = ?
-            """
-            df = duckdb.execute(query, [glob_pattern, symbol]).fetchdf()
-            if df.empty:
-                return None
-            if "timestamp" in df.columns:
-                df = df.sort_values("timestamp").reset_index(drop=True)
-            return df
-        except Exception:
-            return None
+        # Delegate to DataLakeGateway for unified Parquet access
+        lookback_days = years * 365 if not from_date else 0
+        df = self._gateway.history(
+            symbol,
+            exchange="NSE",
+            timeframe=timeframe,
+            lookback_days=lookback_days,
+            from_date=from_date,
+            to_date=to_date,
+        )
+        return df.reset_index(drop=True) if not df.empty else df
 
     def universe(
         self,
@@ -143,19 +110,8 @@ class ResearchAPI:
         symbols = self._load_universe_list(universe, as_of_date=as_of_date)
         available = []
         for symbol in symbols:
-            df = self._try_curated(symbol, "1m")
-            if df is not None and not df.empty:
-                available.append(symbol)
-                continue
-            parquet_path = (
-                self._root
-                / "equities"
-                / "candles"
-                / "timeframe=1m"
-                / f"symbol={symbol}"
-                / "data.parquet"
-            )
-            if parquet_path.exists():
+            df = self._gateway.history(symbol, exchange="NSE", timeframe="1m", lookback_days=1)
+            if not df.empty:
                 available.append(symbol)
         return available
 

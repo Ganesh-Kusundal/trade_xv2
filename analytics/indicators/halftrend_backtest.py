@@ -9,7 +9,6 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
-from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
 
@@ -26,7 +25,7 @@ from analytics.backtest.models import (
 from analytics.indicators.halftrend import HalfTrend
 from analytics.scanner.models import Candidate
 from analytics.strategy import Signal, SignalType
-from datalake.gateway import DataLakeGateway
+from domain.entities.trade import Trade
 from domain.trading_costs import apply_slippage as _apply_slippage
 
 # ---------------------------------------------------------------------------
@@ -99,8 +98,6 @@ class HalfTrendStrategy:
 # Fast Backtest Engine (pre-computes features)
 # ---------------------------------------------------------------------------
 
-from datalake.research.fast_backtest import Trade
-
 
 def fast_backtest(
     data: pd.DataFrame, strategy, config: BacktestConfig, symbol: str = "SYMBOL", cooldown: int = 50
@@ -127,12 +124,18 @@ def fast_backtest(
         if signal_str == "BUY" and position is None:
             qty = int((capital * config.max_position_pct) / price) if price > 0 else 0
             if qty > 0:
-                entry_p = float(_apply_slippage(Decimal(str(price)), side="BUY", slippage_pct=config.slippage_pct))
+                entry_p = float(
+                    _apply_slippage(
+                        Decimal(str(price)), side="BUY", slippage_pct=config.slippage_pct
+                    )
+                )
                 position = {"entry": entry_p, "qty": qty, "time": ts}
                 capital -= config.commission_flat
 
         elif signal_str == "SELL" and position is not None:
-            exit_p = float(_apply_slippage(Decimal(str(price)), side="SELL", slippage_pct=config.slippage_pct))
+            exit_p = float(
+                _apply_slippage(Decimal(str(price)), side="SELL", slippage_pct=config.slippage_pct)
+            )
             pnl = (exit_p - position["entry"]) * position["qty"]
             trades.append(
                 Trade(
@@ -211,13 +214,21 @@ def fast_backtest(
 # ---------------------------------------------------------------------------
 
 
-def run_halftrend_backtest(top_n: int = 50, years: int = 1):
-    """Run HalfTrend backtest across top N stocks by volume."""
-    print(f"\n{'=' * 60}")
-    print(f"HALFTREND BACKTEST: Top {top_n} by volume | {years}Y | 1m")
-    print(f"{'=' * 60}")
+def run_halftrend_backtest(top_n: int = 50, years: int = 1, gateway=None):
+    """Run HalfTrend backtest across top N stocks by volume.
 
-    gw = DataLakeGateway(root="market_data")
+    Parameters
+    ----------
+    top_n : int
+        Top N stocks by volume to backtest.
+    years : int
+        Years of history to use.
+    gateway : DataLakeGateway, optional
+        Data gateway instance. If None, creates a new one.
+    """
+    from datalake.gateway import DataLakeGateway
+
+    gw = gateway or DataLakeGateway(root="market_data")
     all_symbols = gw.list_symbols()
     print(f"Universe: {len(all_symbols)} symbols")
 

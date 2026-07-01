@@ -48,7 +48,7 @@ def _read_daily_candles(
 
     v_daily_summary columns: trade_date, symbol, day_open, day_high, day_low, day_close, day_volume
     """
-    from datalake.symbols import normalize_symbol
+    from domain.symbols import normalize_symbol
 
     sym = normalize_symbol(symbol)
 

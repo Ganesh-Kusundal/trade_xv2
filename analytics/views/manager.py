@@ -20,8 +20,8 @@ from analytics.views.query_executor import QueryExecutor
 from analytics.views.scanner import ScannerViews
 from analytics.views.strategy import StrategyViews
 from analytics.views.view_registry import ViewRegistry
-from datalake.duckdb_utils import DEFAULT_CATALOG_PATH, duckdb_connection, get_pool
-from datalake.options_analytics_sql import SQL_M_IV_SURFACE, SQL_M_MAX_PAIN, SQL_M_PCR
+from datalake.core.duckdb_utils import DEFAULT_CATALOG_PATH, duckdb_connection, get_pool
+from datalake.analytics.options_analytics_sql import SQL_M_IV_SURFACE, SQL_M_MAX_PAIN, SQL_M_PCR
 
 logger = logging.getLogger(__name__)
 
@@ -238,10 +238,7 @@ class ViewManager:
                 )
                 self.conn.execute(sql, [f"{version_path}/**/*.parquet"])
             else:
-                sql = (
-                    f"CREATE TABLE {temp_table} AS "
-                    "SELECT * FROM read_parquet(?)"
-                )
+                sql = f"CREATE TABLE {temp_table} AS SELECT * FROM read_parquet(?)"
                 self.conn.execute(sql, [str(version_path)])
             # Atomic swap: drop old, rename new.
             self.conn.execute(f"DROP TABLE IF EXISTS {table_name}")

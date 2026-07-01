@@ -12,7 +12,6 @@ import pandas as pd
 from analytics.pipeline.pipeline import FeaturePipeline
 from domain.historical import HistoricalSeries
 from domain.models.features import FeatureSet
-from domain.ports.market_data import MarketDataPort
 from infrastructure.market_data_adapter import GatewayMarketDataAdapter
 
 logger = logging.getLogger(__name__)
@@ -30,12 +29,12 @@ def _df_to_feature_set(df: pd.DataFrame) -> FeatureSet:
 
 
 class PipelineFeatureFetcher:
-    """Fetch features for a symbol using FeaturePipeline + :class:`MarketDataPort`."""
+    """Fetch features for a symbol using FeaturePipeline + :class:`GatewayMarketDataAdapter`."""
 
     def __init__(
         self,
         pipeline: FeaturePipeline,
-        market_data: MarketDataPort | Any | None = None,
+        market_data: GatewayMarketDataAdapter | Any | None = None,
         gateway: object | None = None,
         lookback_bars: int = 200,
         cache_max_entries: int = _DEFAULT_CACHE_MAX,
@@ -85,12 +84,14 @@ def _series_to_df(series: HistoricalSeries) -> pd.DataFrame:
 
     rows = []
     for bar in series.bars:
-        rows.append({
-            "date": bar.event_time,
-            "open": float(bar.open),
-            "high": float(bar.high),
-            "low": float(bar.low),
-            "close": float(bar.close),
-            "volume": bar.volume,
-        })
+        rows.append(
+            {
+                "date": bar.event_time,
+                "open": float(bar.open),
+                "high": float(bar.high),
+                "low": float(bar.low),
+                "close": float(bar.close),
+                "volume": bar.volume,
+            }
+        )
     return pd.DataFrame(rows)

@@ -24,7 +24,7 @@ from pathlib import Path
 
 import duckdb
 
-from datalake.duckdb_utils import DEFAULT_CATALOG_PATH, get_pool
+from datalake.core.duckdb_utils import DEFAULT_CATALOG_PATH, get_pool
 
 logger = logging.getLogger(__name__)
 
@@ -32,13 +32,25 @@ FEATURES_ROOT = Path("market_data/features")
 TARGET_FILE_MB = 150
 
 FEATURE_DAILY_COLUMNS = [
-    "symbol", "event_time", "published_at",
-    "open", "high", "low", "close", "volume",
+    "symbol",
+    "event_time",
+    "published_at",
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
 ]
 
 FEATURE_INTRADAY_COLUMNS = [
-    "symbol", "event_time", "published_at",
-    "open", "high", "low", "close", "volume",
+    "symbol",
+    "event_time",
+    "published_at",
+    "open",
+    "high",
+    "low",
+    "close",
+    "volume",
 ]
 
 
@@ -808,9 +820,7 @@ class FeaturePrecomputer:
 
     # ── Batch compute ──────────────────────────────────────────────────────
 
-    def compute_all(
-        self, conn: duckdb.DuckDBPyConnection | None = None
-    ) -> dict[str, list[str]]:
+    def compute_all(self, conn: duckdb.DuckDBPyConnection | None = None) -> dict[str, list[str]]:
         """Compute all feature groups. Returns dict of group -> list of paths."""
         if conn is None:
             conn = self._get_conn()
