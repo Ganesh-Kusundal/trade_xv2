@@ -201,6 +201,8 @@ class Depth200ConnectionPool:
     def get_feed(self, instrument: InstrumentKey) -> DhanDepth200Feed:
         """Get or create a depth-200 feed for the given instrument.
         
+        Uses WebSocket rate limiting to prevent exceeding broker connection limits.
+        
         Args:
             instrument: Tuple of (segment, security_id) e.g. ("NSE", "12345")
             
@@ -208,29 +210,52 @@ class Depth200ConnectionPool:
             DhanDepth200Feed instance for the instrument
         """
         with self._lock:
-            if instrument not in self._feeds:
-                # Enforce max connections limit
-                if self._max_connections and len(self._feeds) >= self._max_connections:
-                    # Close the oldest connection to make room
-                    oldest_key = next(iter(self._feeds))
-                    self._feeds[oldest_key].close()
-                    del self._feeds[oldest_key]
-                    logger.warning(
-                        "depth_200_pool_eviction",
-                        extra={"evicted_instrument": oldest_key, "new_instrument": instrument},
-                    )
+            # Check if feed already exists
+            if instrument in self._feeds:
+                return self._feeds[instrument]
+            
+            # Check WebSocket rate limiting for new connections
+            try:
+                from brokers.dhan.resilience.websocket_rate_limiter_simple import get_dhan_ws_rate_limiter
+                ws_rate_limiter = get_dhan_ws_rate_limiter()
                 
-                feed = DhanDepth200Feed(
-                    client_id=self._client_id,
-                    access_token=self._access_token,
-                    instrument=instrument,
-                    event_bus=self._event_bus,
+                # Check if we can create a new connection
+                if not ws_rate_limiter.can_create_depth_200_connection():
+                    logger.warning(
+                        "depth_200_pool_connection_rate_limited",
+                        extra={"instrument": instrument},
+                    )
+                    # Wait for connection to become available
+                    import time
+                    while not ws_rate_limiter.can_create_depth_200_connection():
+                        time.sleep(0.1)  # Wait 100ms and retry
+                
+            except ImportError:
+                # WebSocket rate limiter not available, use local limit
+                pass
+            
+            # Enforce max connections limit
+            if self._max_connections and len(self._feeds) >= self._max_connections:
+                # Close the oldest connection to make room
+                oldest_key = next(iter(self._feeds))
+                self._feeds[oldest_key].close()
+                del self._feeds[oldest_key]
+                logger.warning(
+                    "depth_200_pool_eviction",
+                    extra={"evicted_instrument": oldest_key, "new_instrument": instrument},
                 )
-                self._feeds[instrument] = feed
-                logger.debug(
-                    "depth_200_pool_feed_created",
-                    extra={"instrument": instrument, "total_feeds": len(self._feeds)},
-                )
+            
+            feed = DhanDepth200Feed(
+                client_id=self._client_id,
+                access_token=self._access_token,
+                instrument=instrument,
+                event_bus=self._event_bus,
+            )
+            self._feeds[instrument] = feed
+            logger.debug(
+                "depth_200_pool_feed_created",
+                extra={"instrument": instrument, "total_feeds": len(self._feeds)},
+            )
             
             return self._feeds[instrument]
     

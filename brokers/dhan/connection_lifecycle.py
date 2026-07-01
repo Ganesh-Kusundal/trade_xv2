@@ -34,7 +34,7 @@ from datetime import datetime
 from typing import Any
 
 from brokers.dhan.depth_20 import DhanDepth20Feed
-from brokers.dhan.depth_200 import DhanDepth200Feed
+from brokers.dhan.depth_200 import DhanDepth200Feed, Depth200ConnectionPool
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.resolver import SymbolResolver
 from brokers.dhan.resolver_refresher import ResolverRefresher
@@ -65,6 +65,7 @@ class ConnectionLifecycle:
         instruments: SymbolResolver,
         *,
         register_token_receiver: Callable[[Callable[[str], None]], None],
+        connection_owner: Any,
         event_bus: EventBus | None = None,
         lifecycle: LifecycleManager | None = None,
         backfill_callback: Callable[[str, datetime, datetime], list[dict]] | None = None,
@@ -72,6 +73,7 @@ class ConnectionLifecycle:
         self._client = client
         self._instruments = instruments
         self._register_token_receiver = register_token_receiver
+        self._connection_owner = connection_owner
         self._event_bus = event_bus
         self._lifecycle = lifecycle
         self._backfill_callback = backfill_callback
@@ -81,7 +83,7 @@ class ConnectionLifecycle:
         self._order_stream: DhanOrderStream | None = None
         self._polling_feed: PollingMarketFeed | None = None
         self._depth_20_feed: DhanDepth20Feed | None = None
-        self._depth_200_feed: DhanDepth200Feed | None = None
+        self._depth_200_pool: Depth200ConnectionPool | None = None
         self._resolver_refresher: ResolverRefresher | None = None
 
     # ── Factory methods ─────────────────────────────────────────────────
@@ -143,7 +145,27 @@ class ConnectionLifecycle:
         access_token: str | None = None,
         instrument: tuple[str, str] | None = None,
     ) -> DhanDepth20Feed:
-        """Create and return a DhanDepth20Feed for 20-level depth."""
+        """Create and return a DhanDepth20Feed for 20-level depth.
+        
+        Enforces singleton pattern: returns existing feed if already created.
+        This ensures exactly one Market Depth WebSocket connection per broker
+        instance, preventing rate limit violations.
+        
+        Args:
+            access_token: Optional access token override
+            instrument: Optional instrument tuple (segment, security_id)
+            
+        Returns:
+            The singleton DhanDepth20Feed instance
+        """
+        if self._depth_20_feed is not None:
+            # P0 Fix: Enforce singleton - return existing feed
+            logger.debug(
+                "depth_20_feed_singleton_reuse",
+                extra={"existing_feed": id(self._depth_20_feed)},
+            )
+            return self._depth_20_feed
+        
         feed = DhanDepth20Feed(
             client_id=self._client.client_id,
             access_token=access_token or self._client.access_token,
@@ -154,6 +176,11 @@ class ConnectionLifecycle:
         if hasattr(feed, "update_token"):
             self._register_token_receiver(feed.update_token)
         self._register_with_lifecycle(feed, feed.name)
+        
+        logger.info(
+            "depth_20_feed_singleton_created",
+            extra={"feed_id": id(feed), "client_id": self._client.client_id},
+        )
         return feed
 
     def create_depth_200_feed(
@@ -161,17 +188,58 @@ class ConnectionLifecycle:
         access_token: str | None = None,
         instrument: tuple[str, str] | None = None,
     ) -> DhanDepth200Feed:
-        """Create and return a DhanDepth200Feed for 200-level depth."""
-        feed = DhanDepth200Feed(
-            client_id=self._client.client_id,
-            access_token=access_token or self._client.access_token,
-            instrument=instrument,
-            event_bus=self._event_bus,
-        )
-        self._depth_200_feed = feed
-        if hasattr(feed, "update_token"):
-            self._register_token_receiver(feed.update_token)
-        self._register_with_lifecycle(feed, feed.name)
+        """Create and return a DhanDepth200Feed for 200-level depth.
+        
+        Uses Depth200ConnectionPool to manage multiple connections since Dhan's
+        depth-200 API only supports 1 instrument per connection. This allows
+        multiple instruments to be subscribed to depth-200 data without
+        violating broker rate limits.
+        
+        Args:
+            access_token: Optional access token override
+            instrument: Optional instrument tuple (segment, security_id)
+            
+        Returns:
+            DhanDepth200Feed instance from the connection pool
+        """
+        # Initialize the connection pool if it doesn't exist
+        if self._depth_200_pool is None:
+            self._depth_200_pool = Depth200ConnectionPool(
+                client_id=self._client.client_id,
+                access_token=access_token or self._client.access_token,
+                event_bus=self._event_bus,
+            )
+            logger.info(
+                "depth_200_connection_pool_created",
+                extra={"client_id": self._client.client_id},
+            )
+        
+        # If no instrument specified, return a placeholder feed
+        # (this maintains backward compatibility with existing code)
+        if instrument is None:
+            # For backward compatibility, we still need a default feed
+            # This will be used when instrument is specified later
+            if self._depth_200_feed is None:
+                # Create a temporary feed that will be replaced when instrument is provided
+                self._depth_200_feed = DhanDepth200Feed(
+                    client_id=self._client.client_id,
+                    access_token=access_token or self._client.access_token,
+                    instrument=None,
+                    event_bus=self._event_bus,
+                )
+                if hasattr(self._depth_200_feed, "update_token"):
+                    self._register_token_receiver(self._depth_200_feed.update_token)
+                self._register_with_lifecycle(self._depth_200_feed, self._depth_200_feed.name)
+            return self._depth_200_feed
+        
+        # Get or create a feed for the specific instrument from the pool
+        feed = self._depth_200_pool.get_feed(instrument)
+        
+        # For backward compatibility, also store as the "current" feed
+        # This ensures existing code that accesses conn.depth_200_feed still works
+        if self._depth_200_feed is None:
+            self._depth_200_feed = feed
+        
         return feed
 
     def create_polling_feed(
@@ -199,7 +267,7 @@ class ConnectionLifecycle:
         """Return the singleton ResolverRefresher for this connection."""
         if self._resolver_refresher is None:
             self._resolver_refresher = ResolverRefresher(
-                connection=self,  # type: ignore[arg-type]
+                connection=self._connection_owner,
                 interval_seconds=interval_seconds,
                 on_success=on_success,
                 on_error=on_error,
@@ -256,6 +324,10 @@ class ConnectionLifecycle:
         self._depth_200_feed = value
 
     @property
+    def depth_200_pool(self) -> Depth200ConnectionPool | None:
+        return self._depth_200_pool
+
+    @property
     def polling_feed(self) -> PollingMarketFeed | None:
         return self._polling_feed
 
@@ -297,3 +369,10 @@ class ConnectionLifecycle:
                     svc.stop(timeout_seconds=timeout_seconds)
                 except Exception as exc:
                     logger.warning("%s_stop_failed: %s", getattr(svc, "name", svc), exc)
+
+        # Close the depth-200 connection pool
+        if self._depth_200_pool is not None:
+            try:
+                self._depth_200_pool.close_all()
+            except Exception as exc:
+                logger.warning("depth_200_pool_close_failed: %s", exc)

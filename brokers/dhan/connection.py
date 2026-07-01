@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import contextlib
 import logging
-import types
-import weakref
 from collections.abc import Callable
 from datetime import datetime
 from typing import Any
@@ -13,8 +10,10 @@ from typing import Any
 from brokers.common.resilience.circuit_breaker import CircuitState
 from brokers.dhan.alerts import AlertsAdapter
 from brokers.dhan.conditional_triggers import ConditionalTriggersAdapter
+from brokers.dhan.connection_lifecycle import ConnectionLifecycle
+from brokers.dhan.connection_token_manager import ConnectionTokenManager
 from brokers.dhan.depth_20 import DhanDepth20Feed
-from brokers.dhan.depth_200 import DhanDepth200Feed
+from brokers.dhan.depth_200 import DhanDepth200Feed, Depth200ConnectionPool
 from brokers.dhan.edis import EDISAdapter
 from brokers.dhan.exit_all import ExitAllAdapter
 from brokers.dhan.forever_orders import ForeverOrdersAdapter
@@ -31,7 +30,6 @@ from brokers.dhan.options import OptionsAdapter
 from brokers.dhan.orders import OrdersAdapter
 from brokers.dhan.portfolio import PortfolioAdapter
 from brokers.dhan.resolver import SymbolResolver
-from brokers.dhan.resolver_refresher import ResolverRefresher
 from brokers.dhan.session_manager import DhanSessionManager
 from brokers.dhan.super_orders import SuperOrdersAdapter
 from brokers.dhan.user_profile import UserProfileAdapter
@@ -41,42 +39,6 @@ from infrastructure.event_bus import EventBus
 from infrastructure.lifecycle import LifecycleManager
 
 logger = logging.getLogger(__name__)
-
-
-class TokenReceiverRef:
-    """Weak-reference wrapper for token receivers to prevent memory leaks."""
-
-    def __init__(self, callback: Callable[[str], None]) -> None:
-        if isinstance(callback, types.MethodType):
-            self._ref = weakref.WeakMethod(callback)
-            self._is_method = True
-        else:
-            try:
-                self._ref = weakref.ref(callback)
-                self._is_method = False
-            except TypeError:
-                self._ref = callback
-                self._is_method = None
-
-    def deref(self) -> Callable[[str], None] | None:
-        if self._is_method is None:
-            return self._ref  # type: ignore
-        return self._ref()
-
-    def __eq__(self, other: Any) -> bool:
-        target = self.deref()
-        if target is None:
-            return False
-        if isinstance(other, TokenReceiverRef):
-            return target == other.deref()
-        return target == other
-
-    def __ne__(self, other: Any) -> bool:
-        return not self.__eq__(other)
-
-    def __hash__(self) -> int:
-        target = self.deref()
-        return hash(target) if target is not None else hash(None)
 
 # ── Adapter registry: (attr_name, adapter_class) ──
 # Each entry constructs an adapter from (client, instruments).
@@ -158,27 +120,18 @@ class DhanConnection:
             risk_manager=risk_manager,
             allow_live_orders=allow_live_orders,
         )
-        self._market_feed: DhanMarketFeed | None = None
-        self._order_stream: DhanOrderStream | None = None
-        self._polling_feed: PollingMarketFeed | None = None
-        self._depth_20_feed: DhanDepth20Feed | None = None
-        self._depth_200_feed: DhanDepth200Feed | None = None
+        self._token_manager = ConnectionTokenManager()
+        self._lifecycle_helper = ConnectionLifecycle(
+            client,
+            self.instruments,
+            register_token_receiver=self._token_manager.register_receiver,
+            connection_owner=self,
+            event_bus=event_bus,
+            lifecycle=lifecycle,
+            backfill_callback=backfill_callback,
+        )
         self._backfill_callback = backfill_callback
         self._reconciliation_service = reconciliation_service
-        # REF-13: token-receiver registry. Any service that holds a
-        # broker token (HTTP client, market feed, order stream, depth
-        # feeds) registers itself here so the TokenRefreshScheduler's
-        # callback can push fresh tokens to all of them in one pass.
-        # The previous design hard-coded the market feed only; the
-        # order stream and depth feeds silently continued with the
-        # stale token until their next reconnect — that was the
-        # documented DH-906-incident failure mode.
-        self._token_receivers: list[Callable[[str], None]] = []
-        # PR-C: ResolverRefresher. The refresher is created on first
-        # registration and reused on subsequent calls. The actual
-        # background thread is started by ``start_resolver_refresher``
-        # (or by the LifecycleManager that owns this connection).
-        self._resolver_refresher: ResolverRefresher | None = None
         from brokers.dhan.subscription_engine import SubscriptionEngine
 
         self.subscription_engine = SubscriptionEngine(self)
@@ -277,38 +230,43 @@ class DhanConnection:
     @property
     def depth_20_feed(self) -> DhanDepth20Feed | None:
         """Active 20-level depth feed, if created."""
-        return self._depth_20_feed
+        return self._lifecycle_helper.depth_20_feed
 
     @depth_20_feed.setter
     def depth_20_feed(self, value: DhanDepth20Feed) -> None:
-        self._depth_20_feed = value
+        self._lifecycle_helper.depth_20_feed = value
 
     @property
     def depth_200_feed(self) -> DhanDepth200Feed | None:
         """Active 200-level depth feed, if created."""
-        return self._depth_200_feed
+        return self._lifecycle_helper.depth_200_feed
 
     @depth_200_feed.setter
     def depth_200_feed(self, value: DhanDepth200Feed) -> None:
-        self._depth_200_feed = value
+        self._lifecycle_helper.depth_200_feed = value
+
+    @property
+    def depth_200_pool(self) -> Any:
+        """Active depth-200 connection pool for managing multiple instrument connections."""
+        return self._lifecycle_helper.depth_200_pool
 
     @property
     def market_feed(self) -> DhanMarketFeed | None:
         """Real-time market data feed (lazy — None until explicitly created)."""
-        return self._market_feed
+        return self._lifecycle_helper.market_feed
 
     @market_feed.setter
     def market_feed(self, value: DhanMarketFeed) -> None:
-        self._market_feed = value
+        self._lifecycle_helper.market_feed = value
 
     @property
     def order_stream(self) -> DhanOrderStream | None:
         """Real-time order update stream (lazy — None until explicitly created)."""
-        return self._order_stream
+        return self._lifecycle_helper.order_stream
 
     @order_stream.setter
     def order_stream(self, value: DhanOrderStream) -> None:
-        self._order_stream = value
+        self._lifecycle_helper.order_stream = value
 
     @property
     def client(self) -> DhanHttpClient:
@@ -435,243 +393,88 @@ class DhanConnection:
         instruments: list[tuple] | None = None,
         access_token_fn: Callable[[], str] | None = None,
     ) -> DhanMarketFeed:
-        """Create and return a DhanMarketFeed wired with this connection's backfill callback.
-
-        If a :class:`LifecycleManager` was supplied to the connection,
-        the new feed is registered with it. The feed's start() / stop()
-        / health() are then driven by the lifecycle.
-
-        If an existing market feed exists, return it so subscriptions multiplex
-        on the single host-wide connection instead of stopping/replacing the feed.
-        """
-        if self._market_feed is not None:
-            return self._market_feed
-
-        feed = DhanMarketFeed(
-            client_id=self._client.client_id,
+        """Create and return a DhanMarketFeed wired with this connection's backfill callback."""
+        return self._lifecycle_helper.create_market_feed(
             access_token=access_token,
-            instruments=instruments or [],
-            resolver=self.instruments,
+            instruments=instruments,
             access_token_fn=access_token_fn,
-            event_bus=self._event_bus,
-            backfill_callback=self._backfill_callback,
         )
-        self._market_feed = feed
-        # REF-13: self-register as a token receiver so the scheduler
-        # can push fresh tokens to the feed.
-        self.register_token_receiver(feed.update_token)
-        if self._lifecycle is not None and feed.name not in self._lifecycle.service_names():
-            try:
-                self._lifecycle.register(feed)
-            except Exception as exc:  # pragma: no cover - defensive
-                logger.debug("lifecycle_register_failed: %s", exc)
-        return feed
 
     def create_order_stream(
         self,
         access_token: str | None = None,
         access_token_fn: Callable[[], str] | None = None,
     ) -> DhanOrderStream:
-        """Create and return a DhanOrderStream.
-
-        If a :class:`LifecycleManager` was supplied, the new stream is
-        registered with it.
-        """
-        stream = DhanOrderStream(
-            client_id=self._client.client_id,
+        """Create and return a DhanOrderStream."""
+        return self._lifecycle_helper.create_order_stream(
             access_token=access_token,
             access_token_fn=access_token_fn,
-            event_bus=self._event_bus,
         )
-        self._order_stream = stream
-        # REF-13: order stream also receives refreshed tokens.
-        self.register_token_receiver(stream.update_token)
-        if self._lifecycle is not None and stream.name not in self._lifecycle.service_names():
-            try:
-                self._lifecycle.register(stream)
-            except Exception as exc:  # pragma: no cover - defensive
-                logger.debug("lifecycle_register_failed: %s", exc)
-        return stream
 
     def create_depth_20_feed(
         self,
         access_token: str | None = None,
         instrument: tuple[str, str] | None = None,
     ) -> DhanDepth20Feed:
-        """Create and return a DhanDepth20Feed for 20-level depth.
-
-        NSE Equity and Derivatives only. Max 50 instruments per connection.
-        """
-        feed = DhanDepth20Feed(
-            client_id=self._client.client_id,
-            access_token=access_token or self._client.access_token,
-            instruments=[instrument] if instrument else [],
-            event_bus=self._event_bus,
+        """Create and return a DhanDepth20Feed for 20-level depth."""
+        return self._lifecycle_helper.create_depth_20_feed(
+            access_token=access_token,
+            instrument=instrument,
         )
-        self._depth_20_feed = feed
-        # REF-13: depth feeds receive refreshed tokens too. The feed
-        # must define an update_token() method.
-        if hasattr(feed, "update_token"):
-            self.register_token_receiver(feed.update_token)
-        if self._lifecycle is not None and feed.name not in self._lifecycle.service_names():
-            try:
-                self._lifecycle.register(feed)
-            except Exception as exc:
-                logger.debug("lifecycle_register_failed: %s", exc)
-        return feed
 
     def create_depth_200_feed(
         self,
         access_token: str | None = None,
         instrument: tuple[str, str] | None = None,
     ) -> DhanDepth200Feed:
-        """Create and return a DhanDepth200Feed for 200-level depth.
-
-        NSE Equity and Derivatives only. Max 1 instrument per connection.
-        """
-        feed = DhanDepth200Feed(
-            client_id=self._client.client_id,
-            access_token=access_token or self._client.access_token,
+        """Create and return a DhanDepth200Feed for 200-level depth."""
+        return self._lifecycle_helper.create_depth_200_feed(
+            access_token=access_token,
             instrument=instrument,
-            event_bus=self._event_bus,
         )
-        self._depth_200_feed = feed
-        if hasattr(feed, "update_token"):
-            self.register_token_receiver(feed.update_token)
-        if self._lifecycle is not None and feed.name not in self._lifecycle.service_names():
-            try:
-                self._lifecycle.register(feed)
-            except Exception as exc:
-                logger.debug("lifecycle_register_failed: %s", exc)
-        return feed
 
     def create_polling_feed(
         self,
         instruments: list[tuple],
         interval_seconds: float = 2.0,
     ) -> PollingMarketFeed:
-        """Create and return a PollingMarketFeed.
-
-        If a :class:`LifecycleManager` was supplied, the new feed is
-        registered with it.
-        """
-        feed = PollingMarketFeed(
-            http_client=self._client,
-            resolver=self.instruments,
-            instruments=instruments,
+        """Create and return a PollingMarketFeed."""
+        return self._lifecycle_helper.create_polling_feed(
+            instruments,
             interval_seconds=interval_seconds,
         )
-        self._polling_feed = feed
-        if self._lifecycle is not None and feed.name not in self._lifecycle.service_names():
-            try:
-                self._lifecycle.register(feed)
-            except Exception as exc:  # pragma: no cover - defensive
-                logger.debug("lifecycle_register_failed: %s", exc)
-        return feed
 
     # ── Token-receiver registry (REF-13) ──────────────────────────────────
 
     def register_token_receiver(self, receiver: Callable[[str], None]) -> Callable[[str], None]:
-        """Register a callable invoked whenever a new access token arrives.
-
-        Used by the :class:`TokenRefreshScheduler`'s ``on_refresh``
-        callback to push fresh tokens to the HTTP client and every
-        WebSocket / depth service. The previous design hard-coded only
-        the market feed, so the order stream and depth feeds silently
-        kept using the stale token until their next reconnect cycle.
-
-        Idempotent: registering the same callable twice is a no-op.
-        Returns the receiver unchanged so the call site can be used in
-        an expression.
-        """
-        if receiver is None:
-            return receiver
-
-        # Check if already registered (compare dereferenced targets)
-        for ref in self._token_receivers:
-            if ref == receiver:
-                return receiver
-
-        self._token_receivers.append(TokenReceiverRef(receiver))
-        return receiver
+        """Register a callable invoked whenever a new access token arrives."""
+        return self._token_manager.register_receiver(receiver)
 
     def broadcast_token(self, new_token: str) -> int:
-        """Push ``new_token`` to every registered receiver.
-
-        Returns the number of receivers notified. Failures in any one
-        receiver are logged and isolated so a single broken subscriber
-        cannot block the others.
-        """
-        if not new_token:
-            return 0
-        delivered = 0
-        for ref in list(self._token_receivers):
-            # ref is a TokenReceiverRef
-            receiver = ref.deref()
-            if receiver is None:
-                with contextlib.suppress(ValueError):
-                    self._token_receivers.remove(ref)
-                continue
-
-            try:
-                receiver(new_token)
-                delivered += 1
-            except Exception as exc:  # pragma: no cover - defensive
-                receiver_name = getattr(receiver, "__qualname__", repr(receiver))
-                logger.warning(
-                    "token_receiver_failed",
-                    extra={"receiver": receiver_name, "error": str(exc)},
-                )
-        return delivered
-
-    # ── ResolverRefresher wiring (PR-C) ─────────────────────────────────
+        """Push ``new_token`` to every registered receiver."""
+        return self._token_manager.broadcast(new_token)
 
     def get_or_create_resolver_refresher(
         self,
         interval_seconds: int = 24 * 3600,
         on_success=None,
         on_error=None,
-    ) -> ResolverRefresher:
-        """Return the singleton :class:`ResolverRefresher` for this connection.
-
-        The refresher is created lazily so unit tests that build a
-        connection without ever wanting the background thread do not
-        pay the cost. The lifecycle manager (if any) should call
-        :meth:`register_resolver_refresher_with_lifecycle` to attach
-        the refresher as a :class:`ManagedService`.
-        """
-        if self._resolver_refresher is None:
-            self._resolver_refresher = ResolverRefresher(
-                connection=self,
-                interval_seconds=interval_seconds,
-                on_success=on_success,
-                on_error=on_error,
-            )
-        return self._resolver_refresher
+    ):
+        """Return the singleton :class:`ResolverRefresher` for this connection."""
+        return self._lifecycle_helper.get_or_create_resolver_refresher(
+            interval_seconds=interval_seconds,
+            on_success=on_success,
+            on_error=on_error,
+        )
 
     def register_resolver_refresher_with_lifecycle(
         self,
         interval_seconds: int = 24 * 3600,
-    ) -> ResolverRefresher:
-        """Create the refresher and register it with the lifecycle manager.
-
-        No-op (returns ``None``) if the connection was constructed
-        without a :class:`LifecycleManager`. Otherwise the refresher's
-        start/stop/health are driven by the lifecycle and the process
-        can drain it deterministically on shutdown.
-        """
-        if self._lifecycle is None:
-            logger.debug("resolver_refresher_not_registered: connection has no lifecycle manager")
-            return None
-        refresher = self.get_or_create_resolver_refresher(
+    ):
+        """Create the refresher and register it with the lifecycle manager."""
+        return self._lifecycle_helper.register_resolver_refresher_with_lifecycle(
             interval_seconds=interval_seconds,
         )
-        if refresher.name not in self._lifecycle.service_names():
-            try:
-                self._lifecycle.register(refresher)
-            except Exception as exc:  # pragma: no cover - defensive
-                logger.debug("resolver_refresher_register_failed: %s", exc)
-        return refresher
 
     def close(self) -> None:
         """Close HTTP client, stop token scheduler, and disconnect WebSocket connections.
@@ -688,28 +491,6 @@ class DhanConnection:
                 scheduler.stop()
             except Exception as exc:
                 logger.warning("token_scheduler_stop_failed: %s", exc)
-        # PR-C: stop the resolver refresher if one was created. The
-        # lifecycle manager (when present) handles this for us, but
-        # we explicitly call stop() to be safe for callers that did
-        # not register the refresher with a lifecycle.
-        if self._resolver_refresher is not None:
-            try:
-                self._resolver_refresher.stop(timeout_seconds=5.0)
-            except Exception as exc:
-                logger.warning("resolver_refresher_stop_failed: %s", exc)
-        # Stop the WebSocket services via their ManagedService.stop()
-        # method which joins the thread within timeout.
-        for svc in (
-            self._market_feed,
-            self._order_stream,
-            self._polling_feed,
-            self._depth_20_feed,
-            self._depth_200_feed,
-        ):
-            if svc is None:
-                continue
-            try:
-                svc.stop(timeout_seconds=5.0)
-            except Exception as exc:
-                logger.warning("%s_stop_failed: %s", getattr(svc, "name", svc), exc)
+        # PR-C: stop the resolver refresher if one was created.
+        self._lifecycle_helper.close(timeout_seconds=5.0)
         self._client.close()

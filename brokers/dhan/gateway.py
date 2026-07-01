@@ -7,13 +7,15 @@ import logging
 import threading
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, Callable
 
 import pandas as pd
 
 from brokers.common.batch_mixin import BatchFetchMixin
+from brokers.common.broker_port import CommonBrokerGateway
 from brokers.common.dtos import BrokerOrderPayload
 from brokers.common.gateway import BrokerCapabilities, MarketDataGateway, ObservabilityProvider
+from brokers.common.common_broker_access import to_common_broker_gateway
 from brokers.dhan.capabilities import dhan_capabilities
 from brokers.dhan.connection import DhanConnection
 from brokers.dhan.exceptions import OrderError
@@ -60,6 +62,10 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
             self._conn.options,
             exchange_normalize=_dhan_normalize_exchange,
         )
+
+    def common_broker_gateway(self) -> CommonBrokerGateway:
+        """Native CommonBrokerGateway port for infrastructure bootstrap."""
+        return to_common_broker_gateway(self, "dhan")
 
     @property
     def extended(self) -> Any:
@@ -312,6 +318,22 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         max_subscriptions: int | None = None,
     ) -> Any:
         feed = getattr(self._conn, feed_attr)
+        
+        # Special handling for depth_200_feed to use connection pool
+        if feed_attr == "depth_200_feed":
+            pool = getattr(self._conn, "depth_200_pool", None)
+            if pool is not None:
+                # Use connection pool for multiple instruments
+                feed = pool.get_feed(instrument)
+                if on_depth is not None:
+                    feed.on_depth(on_depth)
+                if not feed.is_running:
+                    feed.start()
+                return feed
+            else:
+                # Fallback to old behavior if pool not available
+                pass
+        
         if feed is None:
             feed = create_fn(
                 access_token=self._conn.access_token,
@@ -586,6 +608,21 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         """Unsubscribe from a live tick stream."""
         with self._stream_lock:
             self._conn.subscription_engine.unsubscribe_market(symbol, exchange, on_tick)
+
+    def stream_depth(
+        self,
+        symbol: str,
+        exchange: str = "NSE",
+        depth_type: str = "DEPTH_5",  # DEPTH_5, DEPTH_20, DEPTH_30, DEPTH_200
+        on_depth: Callable[[MarketDepth], None] | None = None,
+    ) -> Any:
+        """Map generic depth stream requests to Dhan's native 20-level and 200-level streams."""
+        if depth_type in ("DEPTH_5", "DEPTH_20"):
+            return self.depth_20(symbol, exchange=exchange, on_depth=on_depth)
+        elif depth_type == "DEPTH_200":
+            return self.depth_200(symbol, exchange=exchange, on_depth=on_depth)
+        else:
+            raise ValueError(f"Dhan does not support depth type: {depth_type}")
 
     def stream_order(self, on_order: Any | None = None) -> Any:
         """Subscribe to account-wide order updates via the shared order stream."""
