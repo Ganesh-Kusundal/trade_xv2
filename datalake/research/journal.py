@@ -78,6 +78,19 @@ def _table_columns(conn: sqlite3.Connection, table: str) -> list[str]:
     return [row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()]
 
 
+def _calculate_pnl(
+    side: str, entry_price: float, exit_price: float, quantity: int
+) -> tuple[float, float]:
+    """Calculate PnL and PnL percentage for a closed trade."""
+    if side == "BUY":
+        pnl = (exit_price - entry_price) * quantity
+        pnl_pct = ((exit_price - entry_price) / entry_price) * 100
+    else:
+        pnl = (entry_price - exit_price) * quantity
+        pnl_pct = ((entry_price - exit_price) / entry_price) * 100
+    return pnl, pnl_pct
+
+
 class TradeJournal:
     """Persistent trade journal backed by SQLite (WAL mode).
 
@@ -160,12 +173,7 @@ class TradeJournal:
         status = "OPEN"
 
         if exit_price is not None:
-            if side == "BUY":
-                pnl = (exit_price - entry_price) * quantity
-                pnl_pct = ((exit_price - entry_price) / entry_price) * 100
-            else:
-                pnl = (entry_price - exit_price) * quantity
-                pnl_pct = ((entry_price - exit_price) / entry_price) * 100
+            pnl, pnl_pct = _calculate_pnl(side, entry_price, exit_price, quantity)
             status = "CLOSED"
 
         conn = self._ensure_conn()
@@ -207,14 +215,9 @@ class TradeJournal:
         if trade is None:
             raise ValueError(f"Trade {trade_id} not found")
 
-        pnl = None
-        pnl_pct = None
-        if trade["side"] == "BUY":
-            pnl = (exit_price - trade["entry_price"]) * trade["quantity"]
-            pnl_pct = ((exit_price - trade["entry_price"]) / trade["entry_price"]) * 100
-        else:
-            pnl = (trade["entry_price"] - exit_price) * trade["quantity"]
-            pnl_pct = ((trade["entry_price"] - exit_price) / trade["entry_price"]) * 100
+        pnl, pnl_pct = _calculate_pnl(
+            trade["side"], trade["entry_price"], exit_price, trade["quantity"]
+        )
 
         conn = self._ensure_conn()
         conn.execute(

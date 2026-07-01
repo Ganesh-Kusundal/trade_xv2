@@ -33,7 +33,7 @@ import duckdb
 import pandas as pd
 import pyarrow as pa
 
-from datalake.core.duckdb_utils import DEFAULT_CATALOG_PATH, get_read_pool
+from datalake.core.duckdb_utils import DEFAULT_CATALOG_PATH, duckdb_connection
 from datalake.core.io import atomic_parquet_write
 from datalake.core.symbols import normalize_symbol
 
@@ -69,12 +69,6 @@ class SupportResistance:
         self._catalog_path = str(catalog_path)
         self._features_root = features_root
         self._sr_dir = features_root / "support_resistance"
-
-    def _get_conn(self) -> duckdb.DuckDBPyConnection:
-        return get_read_pool().acquire(self._catalog_path)
-
-    def _release_conn(self, conn) -> None:
-        get_read_pool().release(self._catalog_path, conn)
 
     # ── Query API ─────────────────────────────────────────────────────────
 
@@ -232,8 +226,7 @@ class SupportResistance:
         cluster_tolerance: float,
     ) -> list[dict]:
         """Compute S/R levels for a single symbol."""
-        conn = self._get_conn()
-        try:
+        with duckdb_connection(self._catalog_path, read_only=True) as conn:
             end_date = datetime.now().date()
             start_date = end_date - timedelta(days=days)
 
@@ -266,8 +259,6 @@ class SupportResistance:
                 })
 
             return levels
-        finally:
-            self._release_conn(conn)
 
     def _read_daily_candles(
         self,
@@ -389,8 +380,7 @@ class SupportResistance:
         cluster_tolerance: float,
     ) -> dict[str, list[PriceLevel]]:
         """Compute S/R levels on-the-fly from daily candles."""
-        conn = self._get_conn()
-        try:
+        with duckdb_connection(self._catalog_path, read_only=True) as conn:
             end_date = datetime.now().date()
             start_date = end_date - timedelta(days=days)
 
@@ -406,21 +396,17 @@ class SupportResistance:
                 "support": support_levels[:top_n],
                 "resistance": resistance_levels[:top_n],
             }
-        finally:
-            self._release_conn(conn)
 
     def _list_symbols_from_catalog(self) -> list[str]:
         """Get all symbols from the catalog."""
-        conn = self._get_conn()
         try:
-            result = conn.execute(
-                "SELECT DISTINCT symbol FROM symbols ORDER BY symbol"
-            ).fetchall()
-            return [r[0] for r in result]
+            with duckdb_connection(self._catalog_path, read_only=True) as conn:
+                result = conn.execute(
+                    "SELECT DISTINCT symbol FROM symbols ORDER BY symbol"
+                ).fetchall()
+                return [r[0] for r in result]
         except Exception:
             return []
-        finally:
-            self._release_conn(conn)
 
 
 # ── Core algorithms (pure functions) ──────────────────────────────────────

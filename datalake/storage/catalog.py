@@ -15,6 +15,7 @@ from pathlib import Path
 
 import duckdb
 
+from datalake.core.paths import timeframe_partition_dir
 from datalake.duckdb_utils import duckdb_connection, get_pool
 from datalake.symbols import normalize_symbol
 
@@ -70,6 +71,19 @@ class DataCatalog:
 
     def _init_schema(self, conn: duckdb.DuckDBPyConnection) -> None:
         """Create catalog tables if they don't exist."""
+        self._create_symbols_table(conn)
+        self._create_data_quality_table(conn)
+        self._create_download_jobs_table(conn)
+        self._create_universe_history_table(conn)
+        self._create_symbol_metadata_history_table(conn)
+        self._create_data_versions_table(conn)
+
+        from datalake.migrations import apply_migrations
+
+        apply_migrations(conn)
+
+    @staticmethod
+    def _create_symbols_table(conn: duckdb.DuckDBPyConnection) -> None:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS symbols (
                 symbol VARCHAR PRIMARY KEY,
@@ -89,6 +103,8 @@ class DataCatalog:
             )
         """)
 
+    @staticmethod
+    def _create_data_quality_table(conn: duckdb.DuckDBPyConnection) -> None:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS data_quality (
                 symbol VARCHAR,
@@ -108,6 +124,8 @@ class DataCatalog:
             )
         """)
 
+    @staticmethod
+    def _create_download_jobs_table(conn: duckdb.DuckDBPyConnection) -> None:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS download_jobs (
                 job_id INTEGER PRIMARY KEY,
@@ -123,6 +141,8 @@ class DataCatalog:
             )
         """)
 
+    @staticmethod
+    def _create_universe_history_table(conn: duckdb.DuckDBPyConnection) -> None:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS universe_history (
                 universe VARCHAR,
@@ -134,6 +154,8 @@ class DataCatalog:
             )
         """)
 
+    @staticmethod
+    def _create_symbol_metadata_history_table(conn: duckdb.DuckDBPyConnection) -> None:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS symbol_metadata_history (
                 symbol VARCHAR,
@@ -149,6 +171,8 @@ class DataCatalog:
             )
         """)
 
+    @staticmethod
+    def _create_data_versions_table(conn: duckdb.DuckDBPyConnection) -> None:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS data_versions (
                 table_name VARCHAR,
@@ -163,10 +187,6 @@ class DataCatalog:
             )
         """)
 
-        from datalake.migrations import apply_migrations
-
-        apply_migrations(conn)
-
     def register_symbol(
         self,
         symbol: str,
@@ -178,7 +198,6 @@ class DataCatalog:
         parquet_path: str = "",
         **kwargs,
     ) -> None:
-        """Register or update a symbol in the catalog."""
         if self._read_only:
             raise duckdb.InvalidInputException("DataCatalog is read-only; writes are not allowed")
         symbol = normalize_symbol(symbol)
@@ -227,7 +246,7 @@ class DataCatalog:
 
         Returns number of symbols registered.
         """
-        candles_dir = self._root / "equities" / "candles" / f"timeframe={timeframe}"
+        candles_dir = timeframe_partition_dir(str(self._root), timeframe)
         if not candles_dir.exists():
             return 0
 

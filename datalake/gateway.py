@@ -1,7 +1,7 @@
 """DataLakeGateway — read-only market-data access backed by a Parquet lake.
 
 Composes the narrow ISP interfaces (:class:`MarketDataProvider`,
-:class:`BatchMarketDataProvider`, :class:`DerivativesProvider`,
+:class:`BatchMarketDataProvider`,
 :class:`InstrumentProvider`, :class:`LifecycleAware`) instead of the
 full :class:`~brokers.common.gateway.MarketDataGateway` contract.
 
@@ -36,11 +36,10 @@ from cachetools import TTLCache
 
 from brokers.common.gateway import BrokerCapabilities
 from brokers.common.gateway_errors import (
-    UnsupportedGatewayOperationError as UnsupportedGatewayOperation,
+    UnsupportedGatewayOperationError,
 )
 from brokers.common.gateway_interfaces import (
     BatchMarketDataProvider,
-    DerivativesProvider,
     InstrumentProvider,
     LifecycleAware,
     MarketDataProvider,
@@ -58,19 +57,23 @@ logger = logging.getLogger(__name__)
 class DataLakeGateway(
     MarketDataProvider,
     BatchMarketDataProvider,
-    DerivativesProvider,
     InstrumentProvider,
     LifecycleAware,
 ):
     """Read-only market-data access backed by local Parquet data lake.
 
-    Composes five narrow ISP interfaces instead of the full
+    Composes four narrow ISP interfaces instead of the full
     ``MarketDataGateway`` contract. Trading and portfolio methods are
     intentionally absent — use a live broker gateway for those.
     """
 
-    def __init__(self, root: str = "market_data", curated_root: str = CURATED_ROOT) -> None:
-        self._store = ParquetStore(root, curated_root=curated_root)
+    def __init__(
+        self,
+        root: str = "market_data",
+        curated_root: str = CURATED_ROOT,
+        store: ParquetStore | None = None,
+    ) -> None:
+        self._store = store or ParquetStore(root, curated_root=curated_root)
         self._root = self._store.root
         self._curated_root = self._store.curated_root
         self._candles_dir = self._store.candles_dir
@@ -146,29 +149,10 @@ class DataLakeGateway(
         return df
 
     def quote(self, symbol: str, exchange: str = "NSE") -> Quote:
-        """Get latest quote snapshot for a symbol from OHLCV parquet data.
+        """Return latest OHLCV quote from the most recent 1-minute candle.
 
-        Results are cached for 5 minutes (TTLCache, maxsize=512) to avoid
-        repeated parquet reads when the same symbol is queried multiple
-        times within a short window (e.g. strategy polling loops).
-
-        Returns a Quote with OHLCV fields populated from the most recent 1-minute
-        candle. Bid/ask are always None because order book depth is not available
-        from historical OHLCV parquet files — only live broker market feeds provide
-        bid/ask quotations.
-
-        Args:
-            symbol: Trading symbol (e.g., "RELIANCE", "TCS").
-            exchange: Exchange name (default: "NSE").
-
-        Returns:
-            Quote with ltp, open, high, low, close, volume, change populated.
-            bid and ask are always None for historical data.
-
-        Note:
-            bid/ask require live market depth (Level 2 data) from broker WebSocket
-            feeds. OHLCV parquet files only contain aggregated candle data, not
-            the order book snapshots needed to derive bid/ask prices.
+        Results are cached for 5 minutes (TTLCache, maxsize=512).
+        bid/ask are always None — OHLCV parquet has no order book data.
         """
 
         symbol = normalize_symbol(symbol)
@@ -215,12 +199,8 @@ class DataLakeGateway(
     def ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:
         """Return the last traded price for *symbol*.
 
-        Uses :func:`~datalake.cache_utils.get_last_candle_fast` which
-        reads only the final row via DuckDB ``ORDER BY … LIMIT 1``
-        instead of loading the entire parquet file into memory.
-
-        Performance: 10-50x faster than the previous full-parquet-load
-        implementation for large files (millions of rows).
+        Reads only the final row via DuckDB ``ORDER BY ... LIMIT 1``
+        instead of loading the entire parquet file.
         """
         symbol = normalize_symbol(symbol)
         candle = get_last_candle_fast(symbol, "1m", root=str(self._root))
@@ -229,45 +209,16 @@ class DataLakeGateway(
         return Decimal(str(candle["close"]))
 
     def depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
-        from domain import MarketDepth as _MarketDepth
-
-        return _MarketDepth(symbol=symbol)
-
-    def option_chain(
-        self,
-        underlying: str,
-        exchange: str = "NSE",
-        expiry: str | None = None,
-    ):
-        from domain.entities import OptionChain
-
-        return OptionChain(underlying=underlying, exchange=exchange, expiry=expiry or "")
-
-    def future_chain(
-        self,
-        underlying: str,
-        exchange: str = "NFO",
-    ):
-        from domain.entities import FutureChain
-
-        return FutureChain(underlying=underlying, exchange=exchange)
-
-    def stream(self, symbols: list[str], exchange: str = "NSE") -> Any:
-        raise UnsupportedGatewayOperation("DataLakeGateway", "streaming")
+        raise UnsupportedGatewayOperationError("DataLakeGateway", "depth")
 
     # -----------------------------------------------------------------------
     # MarketDataGateway — Batch
     # -----------------------------------------------------------------------
 
     def ltp_batch(self, symbols: list[str], exchange: str = "NSE") -> dict[str, Decimal]:
-        """Get LTP for multiple symbols using batch parquet read.
+        """Get LTP for multiple symbols via batch DuckDB query.
 
-        Uses DuckDB to read the last row of each symbol's parquet file in a
-        single query, avoiding sequential pd.read_parquet() calls.
-
-        Performance: 500 symbols in <2 seconds (vs 5-10 seconds sequential).
-
-        Falls back to sequential read if DuckDB query fails.
+        Tries curated layout, then legacy per-symbol files, then sequential fallback.
         """
         if not symbols:
             return {}
@@ -299,14 +250,7 @@ class DataLakeGateway(
 
         # Try DuckDB with legacy layout
         try:
-            timeframe_dir = self._candles_dir / "timeframe=1m"
-            parquet_paths = []
-            for symbol in symbols:
-                symbol = normalize_symbol(symbol)
-                path = timeframe_dir / f"symbol={symbol}" / "data.parquet"
-                if path.exists():
-                    parquet_paths.append(str(path))
-
+            parquet_paths = self._legacy_parquet_paths(symbols, "1m")
             if parquet_paths:
                 query = """
                     SELECT symbol, close
@@ -330,14 +274,7 @@ class DataLakeGateway(
         return {s: self.ltp(s, exchange) for s in symbols}
 
     def quote_batch(self, symbols: list[str], exchange: str = "NSE") -> dict[str, dict]:
-        """Return quotes for multiple symbols using parallel execution.
-
-        Uses ThreadPoolExecutor to fetch quotes concurrently, with
-        exception isolation per symbol.
-
-        Performance: 4 symbols with 100ms each completes in ~100ms
-        (vs 400ms sequential).
-        """
+        """Return quotes for multiple symbols using parallel execution."""
         return self._batch_execute(lambda s: self.quote(s, exchange), symbols)
 
     def history_batch(
@@ -347,15 +284,7 @@ class DataLakeGateway(
         timeframe: str = "1D",
         lookback_days: int = 90,
     ) -> pd.DataFrame:
-        """Return historical data for multiple symbols using DuckDB glob query.
-
-        Uses DuckDB's read_parquet with list of paths to read all symbol files
-        in a single query, avoiding sequential pd.read_parquet() calls.
-
-        Performance: 500 symbols in <2 seconds (vs 5-10 seconds sequential).
-
-        Falls back to sequential read if DuckDB query fails.
-        """
+        """Return historical data for multiple symbols via DuckDB batch query."""
         if not symbols:
             return pd.DataFrame()
 
@@ -378,17 +307,7 @@ class DataLakeGateway(
             logger.debug("Curated history_batch failed, trying legacy: %s", exc)
 
         # Build list of legacy parquet paths
-        timeframe_dir = self._candles_dir / f"timeframe={timeframe}"
-        if not timeframe_dir.exists():
-            return pd.DataFrame()
-
-        parquet_paths = []
-        for symbol in symbols:
-            symbol = normalize_symbol(symbol)
-            path = timeframe_dir / f"symbol={symbol}" / "data.parquet"
-            if path.exists():
-                parquet_paths.append(str(path))
-
+        parquet_paths = self._legacy_parquet_paths(symbols, timeframe)
         if not parquet_paths:
             return pd.DataFrame()
 
@@ -433,36 +352,6 @@ class DataLakeGateway(
         from brokers.common.batch_executor import batch_execute
 
         return batch_execute(symbols, fn, max_workers=max_workers)
-
-    def _resolve_parquet_paths(
-        self, symbols: list[str], timeframe: str = "1m"
-    ) -> list[str]:
-        """Resolve parquet file paths for symbols, trying curated then legacy.
-
-        Returns list of paths (may be empty). Avoids duplicating this
-        logic across ltp_batch, history_batch, etc.
-        """
-        normalized = [normalize_symbol(s) for s in symbols]
-
-        # Try curated layout
-        try:
-            curated_glob = curated_equity_glob(root=str(self._curated_root))
-            if list(self._curated_root.glob("year=*/month=*/data_*.parquet")):
-                return [curated_glob], normalized, "curated"
-        except Exception:
-            pass
-
-        # Try legacy layout
-        timeframe_dir = self._candles_dir / f"timeframe={timeframe}"
-        paths = []
-        for sym in normalized:
-            path = timeframe_dir / f"symbol={sym}" / "data.parquet"
-            if path.exists():
-                paths.append(str(path))
-
-        if paths:
-            return paths, [], "legacy"
-        return [], [], "none"
 
     # -----------------------------------------------------------------------
     # Instrument (narrow interface: InstrumentProvider)
@@ -539,6 +428,16 @@ class DataLakeGateway(
     # DataLake-specific helpers
     # -----------------------------------------------------------------------
 
+    def _legacy_parquet_paths(self, symbols: list[str], timeframe: str) -> list[str]:
+        """Build list of existing legacy parquet paths for *symbols*."""
+        timeframe_dir = self._candles_dir / f"timeframe={timeframe}"
+        paths = []
+        for symbol in symbols:
+            path = timeframe_dir / f"symbol={normalize_symbol(symbol)}" / "data.parquet"
+            if path.exists():
+                paths.append(str(path))
+        return paths
+
     def list_symbols(self, timeframe: str = "1m") -> list[str]:
         return self._store.list_symbols(timeframe)
 
@@ -548,32 +447,7 @@ class DataLakeGateway(
         timeframe: str = "1m",
         max_workers: int | None = None,
     ) -> dict[str, pd.DataFrame]:
-        """Load candles for multiple symbols in parallel.
-
-        Uses thread pool to load historical data concurrently from
-        parquet files. Ideal for backtesting multiple symbols or
-        loading universe data.
-
-        Performance: 3-5x faster than sequential loads for I/O-bound
-        parquet reads, especially on SSD/NVMe storage.
-
-        Args:
-            symbols: List of instrument symbols
-            timeframe: Candle timeframe (default: "1m")
-            max_workers: Maximum parallel threads (default: 4)
-
-        Returns:
-            Dict mapping symbol -> DataFrame (only successful loads)
-
-        Example:
-            >>> gw = DataLakeGateway()
-            >>> data = gw.load_candles_parallel(
-            ...     ["RELIANCE", "TCS", "INFY"],
-            ...     timeframe="1m"
-            ... )
-            >>> len(data)  # Number of successful loads
-            3
-        """
+        """Load candles for multiple symbols in parallel using a thread pool."""
         if max_workers is None:
             max_workers = self._download_pool_max_workers
 

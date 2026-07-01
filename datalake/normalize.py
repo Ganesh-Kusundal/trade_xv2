@@ -22,7 +22,12 @@ from pathlib import Path
 import duckdb
 
 from datalake.core.io import atomic_parquet_write
-from datalake.core.paths import DEFAULT_DATA_ROOT, DEFAULT_TIMEFRAME, symbol_partition_path
+from datalake.core.paths import (
+    DEFAULT_DATA_ROOT,
+    DEFAULT_TIMEFRAME,
+    symbol_partition_path,
+    timeframe_partition_dir,
+)
 from datalake.core.schema import CANONICAL_COLUMNS
 
 logger = logging.getLogger(__name__)
@@ -95,7 +100,6 @@ def normalize_timestamps(
 
     if tz == "IST":
         return "IST"
-
     if tz == "UNKNOWN":
         return "SKIPPED"
 
@@ -107,29 +111,51 @@ def normalize_timestamps(
         logger.info("[DRY-RUN] %s: detected %s, would normalize", symbol, tz)
         return tz
 
+    return _apply_correction(conn, symbol, tz, path)
+
+
+_IST_SHIFTED_SQL = """
+    CREATE TABLE _tmp AS
+    SELECT * EXCLUDE (timestamp),
+           CAST(timestamp - INTERVAL '5 hours 30 minutes' AS TIMESTAMP) as timestamp
+    FROM read_parquet(?)
+"""
+
+_UTC_TO_IST_SQL = """
+    CREATE TABLE _tmp AS
+    SELECT * EXCLUDE (timestamp),
+           CAST(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata' AS TIMESTAMP) as timestamp
+    FROM read_parquet(?)
+"""
+
+
+def _apply_correction(
+    conn: duckdb.DuckDBPyConnection,
+    symbol: str,
+    tz: str,
+    path: Path,
+) -> str:
+    """Apply the appropriate timezone correction and rewrite the parquet file."""
     if tz == "IST_SHIFTED":
-        conn.execute(
-            """
-            CREATE TABLE _tmp AS
-            SELECT * EXCLUDE (timestamp),
-                   CAST(timestamp - INTERVAL '5 hours 30 minutes' AS TIMESTAMP) as timestamp
-            FROM read_parquet(?)
-        """,
-            [str(path)],
-        )
+        correction_sql = _IST_SHIFTED_SQL
     elif tz == "UTC":
-        conn.execute(
-            """
-            CREATE TABLE _tmp AS
-            SELECT * EXCLUDE (timestamp),
-                   CAST(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata' AS TIMESTAMP) as timestamp
-            FROM read_parquet(?)
-        """,
-            [str(path)],
-        )
+        correction_sql = _UTC_TO_IST_SQL
     else:
         logger.warning("%s: MIXED timezone, manual review needed", symbol)
         return "MIXED"
+
+    return _rewrite_parquet(conn, symbol, tz, path, correction_sql)
+
+
+def _rewrite_parquet(
+    conn: duckdb.DuckDBPyConnection,
+    symbol: str,
+    tz: str,
+    path: Path,
+    correction_sql: str,
+) -> str:
+    """Execute correction SQL, then overwrite the parquet file with corrected data."""
+    conn.execute(correction_sql, [str(path)])
 
     n = conn.execute("SELECT COUNT(*) FROM _tmp").fetchone()[0]
     if n == 0:
@@ -152,7 +178,7 @@ def normalize_timestamps(
 
 def normalize_all(dry_run: bool = False, data_root: str = DEFAULT_DATA_ROOT) -> dict[str, int]:
     """Normalize all symbols. Returns a count of each timezone detected."""
-    root = Path(data_root) / "equities" / "candles" / f"timeframe={DEFAULT_TIMEFRAME}"
+    root = timeframe_partition_dir(data_root, DEFAULT_TIMEFRAME)
     if not root.exists():
         logger.error("No data found at %s", root)
         return {}
@@ -201,7 +227,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-
-# Backward-compat alias
-normalize_symbol = normalize_timestamps

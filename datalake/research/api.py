@@ -13,6 +13,7 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 
+from datalake.core.paths import timeframe_partition_dir
 from datalake.paths import CURATED_ROOT, curated_equity_glob
 
 logger = logging.getLogger(__name__)
@@ -178,7 +179,7 @@ class ResearchAPI:
 
     def list_available_symbols(self, timeframe: str = "1m") -> list[str]:
         """List all symbols that have Parquet data."""
-        candles_dir = self._root / "equities" / "candles" / f"timeframe={timeframe}"
+        candles_dir = timeframe_partition_dir(str(self._root), timeframe)
         if not candles_dir.exists():
             return []
 

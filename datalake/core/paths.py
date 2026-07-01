@@ -107,6 +107,21 @@ def symbol_partition_glob(
     return f"{root}/equities/candles/timeframe={timeframe}/symbol=*/data.parquet"
 
 
+def timeframe_partition_dir(
+    root: str,
+    timeframe: str = DEFAULT_TIMEFRAME,
+) -> Path:
+    """Return the directory path for a timeframe's candle data.
+
+    Layout: ``{root}/equities/candles/timeframe={timeframe}/``
+    """
+    if timeframe not in SUPPORTED_TIMEFRAMES:
+        raise ValueError(
+            f"unsupported timeframe {timeframe!r}; supported: {sorted(SUPPORTED_TIMEFRAMES)}"
+        )
+    return Path(root) / "equities" / "candles" / f"timeframe={timeframe}"
+
+
 # ---------------------------------------------------------------------------
 # Curated (date-partitioned) layout — preferred for new readers/writers
 # ---------------------------------------------------------------------------
@@ -281,4 +296,5 @@ __all__ = [
     "partition_path_to_dict",
     "symbol_partition_glob",
     "symbol_partition_path",
+    "timeframe_partition_dir",
 ]

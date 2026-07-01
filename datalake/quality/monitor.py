@@ -11,11 +11,14 @@ Usage:
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
 import duckdb
+
+from datalake.core.paths import timeframe_partition_dir
 
 logger = logging.getLogger(__name__)
 
@@ -78,12 +81,121 @@ class OverallReport:
         return sum(scores) / len(scores) if scores else 0.0
 
 
+def _expected_candles_per_day(timeframe: str) -> int | None:
+    """Return expected candles per trading day for *timeframe*, or None."""
+    if timeframe in ("1m", "5m", "15m", "30m"):
+        candles_per_hour = 60 // int(timeframe.replace("m", ""))
+        return int(candles_per_hour * 6.25)  # 6.25 trading hours
+    return None
+
+
+def _check_freshness(days_old: int, last_date: str) -> tuple[QualityMetric, str | None]:
+    metric = QualityMetric(
+        name="freshness",
+        value=days_old,
+        threshold=7.0,
+        status="PASS" if days_old <= 1 else "WARNING" if days_old <= 7 else "FAIL",
+        details=f"Last update: {last_date} ({days_old} days ago)",
+    )
+    issue = f"Data is {days_old} days old" if metric.status != "PASS" else None
+    return metric, issue
+
+
+def _check_completeness(
+    avg_candles: float, expected: int
+) -> tuple[QualityMetric, str | None] | None:
+    if expected <= 0:
+        return None
+    completeness = min(avg_candles / expected, 1.0)
+    pct = completeness * 100
+    status = "PASS" if pct >= 90 else "WARNING" if pct >= 70 else "FAIL"
+    metric = QualityMetric(
+        name="completeness",
+        value=pct,
+        threshold=90.0,
+        status=status,
+        details=f"{avg_candles:.0f}/{expected} candles/day ({pct:.1f}%)",
+    )
+    issue = f"Only {pct:.0f}% complete ({avg_candles:.0f}/{expected} candles/day)" if status != "PASS" else None
+    return metric, issue
+
+
+def _check_zero_volume(
+    zero_vol: int, total: int
+) -> tuple[QualityMetric, str | None]:
+    pct = (zero_vol / total * 100) if total > 0 else 0.0
+    status = "PASS" if pct < 1 else "WARNING" if pct < 10 else "FAIL"
+    metric = QualityMetric(
+        name="zero_volume",
+        value=pct,
+        threshold=10.0,
+        status=status,
+        details=f"{zero_vol:,}/{total:,} ({pct:.1f}%)",
+    )
+    issue = f"{pct:.1f}% zero volume bars" if status != "PASS" else None
+    return metric, issue
+
+
+def _check_ohlc_integrity(
+    ohlc_err: int, total: int
+) -> tuple[QualityMetric, str | None]:
+    if ohlc_err == 0:
+        return QualityMetric(name="ohlc_integrity", value=0, threshold=0, status="PASS", details="No errors"), None
+    error_pct = ohlc_err / total * 100
+    return (
+        QualityMetric(
+            name="ohlc_integrity",
+            value=error_pct,
+            threshold=0,
+            status="FAIL",
+            details=f"{ohlc_err} errors ({error_pct:.2f}%)",
+        ),
+        f"{ohlc_err} OHLC errors",
+    )
+
+
+def _evaluate_symbol(sr: dict, expected_per_day: int | None) -> SymbolQuality:
+    """Build a SymbolQuality report from a single symbol row."""
+    sq = SymbolQuality(symbol=sr["symbol"])
+
+    metric, issue = _check_freshness(int(sr["days_old"]), sr["last_date"])
+    sq.metrics.append(metric)
+    if issue:
+        sq.issues.append(issue)
+
+    if expected_per_day is not None:
+        result = _check_completeness(float(sr["avg_candles_per_day"]), expected_per_day)
+        if result is not None:
+            metric, issue = result
+            sq.metrics.append(metric)
+            if issue:
+                sq.issues.append(issue)
+
+    total = int(sr["total_candles"])
+    metric, issue = _check_zero_volume(int(sr["zero_volume"]), total)
+    sq.metrics.append(metric)
+    if issue:
+        sq.issues.append(issue)
+
+    metric, issue = _check_ohlc_integrity(int(sr["ohlc_errors"]), total)
+    sq.metrics.append(metric)
+    if issue:
+        sq.issues.append(issue)
+
+    return sq
+
+
 class DataQualityMonitor:
     """Automated data quality monitoring."""
 
-    def __init__(self, root: str = "market_data") -> None:
+    def __init__(
+        self,
+        root: str = "market_data",
+        connect_fn: Callable[[], duckdb.DuckDBPyConnection] | None = None,
+    ) -> None:
         self._root = Path(root)
         self._catalog_path = self._root / "catalog.duckdb"
+        self._connect = connect_fn or (lambda: duckdb.connect(str(self._catalog_path), read_only=True))
 
     def run_checks(self, timeframe: str = "1m") -> OverallReport:
         """Run all quality checks with a single-pass DuckDB query.
@@ -94,7 +206,7 @@ class DataQualityMonitor:
         report = OverallReport()
 
         # Get parquet pattern
-        parquet_dir = self._root / "equities" / "candles" / f"timeframe={timeframe}"
+        parquet_dir = timeframe_partition_dir(str(self._root), timeframe)
         if not parquet_dir.exists():
             logger.error("Parquet directory not found: %s", parquet_dir)
             return report
@@ -102,7 +214,7 @@ class DataQualityMonitor:
         parquet_pattern = str(parquet_dir / "symbol=*" / "data.parquet")
 
         # Connect to DuckDB
-        conn = duckdb.connect(str(self._catalog_path), read_only=True)
+        conn = self._connect()
 
         try:
             report = self._run_all_checks(conn, parquet_pattern, timeframe, report)
@@ -188,123 +300,10 @@ class DataQualityMonitor:
         report.total_candles = total_candles
         report.date_range = (min_date, max_date)
 
-        # Pre-compute expected candles per day for completeness check
-        expected_per_day: int | None = None
-        if timeframe in ("1m", "5m", "15m", "30m"):
-            candles_per_hour = 60 // int(timeframe.replace("m", ""))
-            expected_per_day = int(candles_per_hour * 6.25)  # 6.25 trading hours
+        expected_per_day = _expected_candles_per_day(timeframe)
 
         for sr in symbol_rows:
-            symbol = sr["symbol"]
-            sq = SymbolQuality(symbol=symbol)
-
-            # ── Freshness ──────────────────────────────────────────
-            last_date = sr["last_date"]
-            days_old = int(sr["days_old"])
-
-            if days_old <= 1:
-                fresh_status = "PASS"
-            elif days_old <= 7:
-                fresh_status = "WARNING"
-            else:
-                fresh_status = "FAIL"
-
-            sq.metrics.append(
-                QualityMetric(
-                    name="freshness",
-                    value=days_old,
-                    threshold=7.0,
-                    status=fresh_status,
-                    details=f"Last update: {last_date} ({days_old} days ago)",
-                )
-            )
-            if fresh_status != "PASS":
-                sq.issues.append(f"Data is {days_old} days old")
-
-            # ── Completeness ───────────────────────────────────────
-            if expected_per_day is not None:
-                avg_candles = float(sr["avg_candles_per_day"])
-                completeness = (
-                    min(avg_candles / expected_per_day, 1.0)
-                    if expected_per_day > 0
-                    else 0.0
-                )
-
-                if completeness >= 0.90:
-                    comp_status = "PASS"
-                elif completeness >= 0.70:
-                    comp_status = "WARNING"
-                else:
-                    comp_status = "FAIL"
-
-                sq.metrics.append(
-                    QualityMetric(
-                        name="completeness",
-                        value=completeness * 100,
-                        threshold=90.0,
-                        status=comp_status,
-                        details=(
-                            f"{avg_candles:.0f}/{expected_per_day} candles/day"
-                            f" ({completeness * 100:.1f}%)"
-                        ),
-                    )
-                )
-                if comp_status != "PASS":
-                    sq.issues.append(
-                        f"Only {completeness * 100:.0f}% complete"
-                        f" ({avg_candles:.0f}/{expected_per_day} candles/day)"
-                    )
-
-            # ── Integrity: zero volume ─────────────────────────────
-            total = int(sr["total_candles"])
-            zero_vol = int(sr["zero_volume"])
-            ohlc_err = int(sr["ohlc_errors"])
-
-            zero_pct = (zero_vol / total * 100) if total > 0 else 0.0
-
-            if zero_pct < 1:
-                zv_status = "PASS"
-            elif zero_pct < 10:
-                zv_status = "WARNING"
-            else:
-                zv_status = "FAIL"
-
-            sq.metrics.append(
-                QualityMetric(
-                    name="zero_volume",
-                    value=zero_pct,
-                    threshold=10.0,
-                    status=zv_status,
-                    details=f"{zero_vol:,}/{total:,} ({zero_pct:.1f}%)",
-                )
-            )
-            if zv_status != "PASS":
-                sq.issues.append(f"{zero_pct:.1f}% zero volume bars")
-
-            # ── Integrity: OHLC consistency ────────────────────────
-            if ohlc_err == 0:
-                sq.metrics.append(
-                    QualityMetric(
-                        name="ohlc_integrity",
-                        value=0,
-                        threshold=0,
-                        status="PASS",
-                        details="No errors",
-                    )
-                )
-            else:
-                error_pct = ohlc_err / total * 100
-                sq.metrics.append(
-                    QualityMetric(
-                        name="ohlc_integrity",
-                        value=error_pct,
-                        threshold=0,
-                        status="FAIL",
-                        details=f"{ohlc_err} errors ({error_pct:.2f}%)",
-                    )
-                )
-                sq.issues.append(f"{ohlc_err} OHLC errors")
-
+            sq = _evaluate_symbol(sr, expected_per_day)
             report.symbol_reports.append(sq)
 
         return report

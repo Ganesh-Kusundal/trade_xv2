@@ -7,6 +7,7 @@ from pathlib import Path
 
 import duckdb
 
+from datalake.core.paths import timeframe_partition_dir
 from datalake.duckdb_utils import DEFAULT_CATALOG_PATH
 
 logger = logging.getLogger(__name__)
@@ -18,7 +19,7 @@ def create_views(db_path: str | Path | None = None) -> None:
     conn = duckdb.connect(str(path))
 
     # Register all Parquet files as a view
-    parquet_dir = Path(db_path).parent / "equities" / "candles" / "timeframe=1m"
+    parquet_dir = timeframe_partition_dir(str(Path(db_path).parent), "1m")
     if parquet_dir.exists():
         parquet_pattern = str(parquet_dir / "symbol=*" / "data.parquet")
 

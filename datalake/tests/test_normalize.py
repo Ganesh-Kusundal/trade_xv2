@@ -9,7 +9,7 @@ import pandas as pd
 import pyarrow as pa
 
 from datalake.io import atomic_parquet_write
-from datalake.normalize import detect_timezone, normalize_symbol
+from datalake.normalize import detect_timezone, normalize_timestamps
 
 
 def _make_hive_structure(root: Path, symbol: str, timestamps: list) -> Path:
@@ -80,7 +80,7 @@ class TestDetectTimezone:
         assert tz == "UNKNOWN"
 
 
-class TestNormalizeSymbol:
+class TestNormalizeTimestamps:
     def test_shifts_ist_shifted_back_to_ist(self, tmp_path: Path) -> None:
         """IST_SHIFTED data should be shifted back by 5:30 to get IST."""
         # Use enough data to span all IST market hours (9-15)
@@ -89,7 +89,7 @@ class TestNormalizeSymbol:
         )
 
         conn = duckdb.connect(":memory:")
-        result = normalize_symbol(conn, "RELIANCE", data_root=str(tmp_path))
+        result = normalize_timestamps(conn, "RELIANCE", data_root=str(tmp_path))
         conn.close()
 
         assert result == "IST_SHIFTED"
@@ -116,7 +116,7 @@ class TestNormalizeSymbol:
         )
 
         conn = duckdb.connect(":memory:")
-        result = normalize_symbol(conn, "RELIANCE", data_root=str(tmp_path))
+        result = normalize_timestamps(conn, "RELIANCE", data_root=str(tmp_path))
         conn.close()
 
         assert result == "IST"

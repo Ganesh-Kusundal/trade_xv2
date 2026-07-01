@@ -18,6 +18,7 @@ import pandas as pd
 import pyarrow as pa
 
 from brokers.common.batch_executor import batch_execute
+from datalake.core.paths import symbol_partition_path
 from datalake.io import atomic_parquet_write
 from datalake.schema import (
     MARKET_CLOSE_HOUR,
@@ -247,16 +248,7 @@ class HistoricalDataLoader:
         return len(df), invalid_count
 
     def _parquet_path(self, symbol: str, timeframe: str = "1m") -> Path:
-        from datalake.symbols import symbol_to_path
-
-        return (
-            self._root
-            / "equities"
-            / "candles"
-            / f"timeframe={timeframe}"
-            / symbol_to_path(symbol)
-            / "data.parquet"
-        )
+        return symbol_partition_path(str(self._root), normalize_symbol(symbol), timeframe)
 
     def _check_intraday_completeness(self, df: pd.DataFrame, timeframe: str) -> float:
         """Check intraday data completeness.
