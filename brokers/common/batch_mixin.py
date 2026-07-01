@@ -46,9 +46,25 @@ class BatchFetchMixin:
         exchange: str = "NSE",
         timeframe: str = "1D",
         lookback_days: int = 90,
-    ) -> dict[str, pd.DataFrame]:
-        return batch_execute(
+    ) -> pd.DataFrame:
+        """Return historical data for multiple symbols as a single concatenated DataFrame.
+
+        Each row includes a 'symbol' column for identification.
+        """
+        per_symbol = batch_execute(
             symbols,
             lambda sym: self.history(sym, exchange, timeframe, lookback_days),  # type: ignore[attr-defined]
             max_workers=self._batch_max_workers,
         )
+
+        frames = []
+        for sym in symbols:
+            if sym in per_symbol and not per_symbol[sym].empty:
+                df = per_symbol[sym].copy()
+                df["symbol"] = sym
+                frames.append(df)
+
+        if not frames:
+            return pd.DataFrame()
+
+        return pd.concat(frames, ignore_index=True)

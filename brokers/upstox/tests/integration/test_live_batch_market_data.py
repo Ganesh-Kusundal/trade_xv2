@@ -49,16 +49,17 @@ class TestLiveBatchMarketData:
                 assert hasattr(quote, "volume")
 
     def test_history_batch_nse_equity(self, gateway):
-        """history_batch() should return dict of DataFrames."""
+        """history_batch() should return concatenated DataFrame with symbol column."""
+        import pandas as pd
         symbols = ["RELIANCE", "TCS"]
         result = gateway.history_batch(symbols, "NSE", timeframe="1D", lookback_days=3)
-        assert isinstance(result, dict)
-        # Should have DataFrame for each symbol
+        assert isinstance(result, pd.DataFrame)
+        # Should have symbol column for identification
+        assert "symbol" in result.columns
+        # Verify all requested symbols are present
+        result_symbols = set(result["symbol"].unique())
         for symbol in symbols:
-            if symbol in result:
-                df = result[symbol]
-                assert len(df) > 0
-                assert "timestamp" in df.columns
+            assert symbol in result_symbols
 
     def test_ltp_batch_parity_with_individual(self, gateway):
         """ltp_batch() should return same values as individual ltp() calls."""

@@ -25,9 +25,9 @@ Usage::
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, Callable
 
 import pandas as pd
 
@@ -148,19 +148,25 @@ class IntelligentMarketDataGateway(MarketDataGateway):
     # -----------------------------------------------------------------------
 
     @routed(OperationKind.GET_QUOTE, "quotes")
-    def ltp(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> Decimal:
+    def ltp(self, symbol: str, exchange: str = DEFAULT_EXCHANGE, _gateway: Any = None) -> Decimal:
         """Return last traded price with intelligent routing."""
-        return self._gateway.ltp(symbol, exchange)
+        if _gateway is None:
+            _gateway = self._get_gateway(OperationKind.GET_QUOTE)
+        return _gateway.ltp(symbol, exchange)
 
     @routed(OperationKind.GET_QUOTE, "quotes")
-    def quote(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> Quote:
+    def quote(self, symbol: str, exchange: str = DEFAULT_EXCHANGE, _gateway: Any = None) -> Quote:
         """Return quote with intelligent routing."""
-        return self._gateway.quote(symbol, exchange)
+        if _gateway is None:
+            _gateway = self._get_gateway(OperationKind.GET_QUOTE)
+        return _gateway.quote(symbol, exchange)
 
     @routed(OperationKind.GET_DEPTH, "quotes")
-    def depth(self, symbol: str, exchange: str = DEFAULT_EXCHANGE) -> MarketDepth:
+    def depth(self, symbol: str, exchange: str = DEFAULT_EXCHANGE, _gateway: Any = None) -> MarketDepth:
         """Return market depth with intelligent routing."""
-        return self._gateway.depth(symbol, exchange)
+        if _gateway is None:
+            _gateway = self._get_gateway(OperationKind.GET_DEPTH)
+        return _gateway.depth(symbol, exchange)
 
     def history(
         self,
@@ -184,7 +190,7 @@ class IntelligentMarketDataGateway(MarketDataGateway):
         if from_date:
             start = datetime.strptime(from_date, "%Y-%m-%d").date()
         else:
-            start = date.today() - pd.Timedelta(days=lookback_days)
+            start = date.today() - timedelta(days=lookback_days)
 
         end = datetime.strptime(to_date, "%Y-%m-%d").date() if to_date else date.today()
 
@@ -253,6 +259,22 @@ class IntelligentMarketDataGateway(MarketDataGateway):
         """Start WebSocket streaming (delegates to primary broker)."""
         # Streaming is broker-specific, so always use primary broker
         return self._infra.gateway_for(self._primary).stream(symbol, exchange, mode, on_tick)
+
+    def stream_depth(
+        self,
+        symbol: str,
+        exchange: str = DEFAULT_EXCHANGE,
+        depth_type: str = "DEPTH_5",
+        on_depth: Callable[[MarketDepth], None] | None = None,
+    ) -> Any:
+        """Start WebSocket depth streaming (delegates to primary broker)."""
+        return self._infra.gateway_for(self._primary).stream_depth(
+            symbol, exchange=exchange, depth_type=depth_type, on_depth=on_depth
+        )
+
+    def stream_order(self, on_order: Any | None = None) -> Any:
+        """Start WebSocket order streaming (delegates to primary broker)."""
+        return self._infra.gateway_for(self._primary).stream_order(on_order)
 
     # -----------------------------------------------------------------------
     # Batch Market Data

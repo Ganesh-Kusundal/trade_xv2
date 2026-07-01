@@ -23,7 +23,7 @@ import time
 from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import pandas as pd
 
@@ -43,6 +43,7 @@ from brokers.upstox.market_data.market_data_adapter import (
 )
 from domain import (
     Balance,
+    DepthLevel,
     ExchangeSegment,
     FutureChain,
     Holding,
@@ -480,17 +481,122 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         exchange: str = "NSE",
         on_tick: Any | None = None,
     ) -> None:
-        """Unsubscribe from a live tick stream.
-
-        Removes the *on_tick* listener and SDK subscription. If *on_tick*
-        is ``None``, removes ALL listeners for the instrument.
-
-        Args:
-            symbol:   Symbol to unsubscribe from.
-            exchange: Exchange string.
-            on_tick:  The callback to remove. ``None`` removes all.
-        """
         self._stream_manager.unsubscribe(symbol, exchange, on_tick)
+
+    def stream_order(self, on_order: Any | None = None) -> Any:
+        """Subscribe to order updates via Upstox portfolio stream.
+
+        Returns:
+            A connection service wrapper that can be stopped/started.
+        """
+        def portfolio_listener(event_type: str, payload: dict[str, Any]) -> None:
+            if event_type == "order" and on_order is not None:
+                on_order(payload)
+
+        stream = self._broker.portfolio_stream
+
+        from brokers.common.async_compat import connect_async_then
+        if not stream.is_connected:
+            def _on_connected() -> None:
+                stream.add_listener(portfolio_listener)
+            connect_async_then(stream.connect(), _on_connected)
+        else:
+            stream.add_listener(portfolio_listener)
+
+        class OrderStreamHandle:
+            def __init__(self, stream_instance, listener):
+                self._stream = stream_instance
+                self._listener = listener
+
+            def stop(self, timeout=None):
+                self._stream.remove_listener(self._listener)
+
+            def disconnect(self):
+                self._stream.remove_listener(self._listener)
+
+        return OrderStreamHandle(stream, portfolio_listener)
+
+    def stream_depth(
+        self,
+        symbol: str,
+        exchange: str = "NSE",
+        depth_type: str = "DEPTH_5",  # DEPTH_5, DEPTH_30
+        on_depth: Callable[[MarketDepth], None] | None = None,
+    ) -> Any:
+        """Subscribe to Upstox L2 (D5) or L3 (D30) live WebSocket depth ticks."""
+        mode = "full_d30" if depth_type == "DEPTH_30" else "full"
+        inst_key = self._resolve_instrument_key(symbol, exchange)
+
+        def raw_depth_listener(event_type: str, raw_payload: dict[str, Any]) -> None:
+            if event_type == "tick" and on_depth is not None:
+                payload = raw_payload.get("payload", {})
+                if payload:
+                    depth_obj = self._translate_tick_to_depth(payload, symbol)
+                    on_depth(depth_obj)
+
+        ws = self._broker.market_data_websocket
+        ws.add_listener(raw_depth_listener)
+
+        from brokers.common.async_compat import connect_async_then
+        if not ws.is_connected:
+            def _on_connected() -> None:
+                ws.subscribe([inst_key], mode)
+            connect_async_then(ws.connect(), _on_connected)
+        else:
+            ws.subscribe([inst_key], mode)
+
+        class DepthStreamHandle:
+            def __init__(self, ws_instance, listener, key, sub_mode):
+                self._ws = ws_instance
+                self._listener = listener
+                self._key = key
+                self._mode = sub_mode
+
+            def stop(self, timeout=None):
+                self._ws.remove_listener(self._listener)
+                try:
+                    self._ws.unsubscribe([self._key])
+                except Exception:
+                    pass
+
+            def disconnect(self):
+                self.stop()
+
+        return DepthStreamHandle(ws, raw_depth_listener, inst_key, mode)
+
+    def _translate_tick_to_depth(self, payload: dict[str, Any], symbol: str) -> MarketDepth:
+        """Translate raw depth tick payload to MarketDepth domain model."""
+        raw_bids = payload.get("depth", {}).get("bids", [])
+        raw_asks = payload.get("depth", {}).get("asks", [])
+
+        bids = [
+            DepthLevel(
+                price=Decimal(str(b.get("price", 0))),
+                quantity=int(b.get("quantity", 0)),
+                orders=int(b.get("orders", 0))
+            )
+            for b in raw_bids
+        ]
+        asks = [
+            DepthLevel(
+                price=Decimal(str(a.get("price", 0))),
+                quantity=int(a.get("quantity", 0)),
+                orders=int(a.get("orders", 0))
+            )
+            for a in raw_asks
+        ]
+
+        depth_len = max(len(bids), len(asks))
+        depth_type = "DEPTH_30" if depth_len > 20 else "DEPTH_5"
+
+        from datetime import datetime, timezone
+        return MarketDepth(
+            symbol=symbol,
+            bids=bids,
+            asks=asks,
+            timestamp=datetime.now(timezone.utc),
+            depth_type=depth_type
+        )
 
     # ── MarketDataGateway required methods ──
 

@@ -28,8 +28,7 @@ logger = logging.getLogger(__name__)
 def routed(operation: Any, endpoint_class: str) -> Callable:
     """Decorator that adds routing and quota management to gateway methods.
 
-    The decorated method should accept `self` and call `self._gateway`
-    (set by the decorator) to access the routed gateway instance.
+    The decorated method receives the routed gateway instance as `_gateway` kwarg.
 
     Args:
         operation: OperationKind enum value for routing.
@@ -46,11 +45,8 @@ def routed(operation: Any, endpoint_class: str) -> Callable:
             # Acquire quota token
             token = self._acquire_quota(broker_id, endpoint_class)
 
-            # Set gateway reference for the wrapped method
-            self._gateway = gateway
-
             try:
-                return fn(self, *args, **kwargs)
+                return fn(self, *args, _gateway=gateway, **kwargs)
             finally:
                 self._release_quota(token)
 

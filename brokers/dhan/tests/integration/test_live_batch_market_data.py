@@ -37,14 +37,6 @@ if ENV_PATH.exists() and ENV_PATH.stat().st_size > 0:
     _live_env_loaded = bool(os.environ.get("DHAN_CLIENT_ID"))
 
 
-@pytest.fixture(scope="module")
-def gateway() -> BrokerGateway:
-    """Create a live BrokerGateway with instruments loaded."""
-    gw = BrokerFactory().create(env_path=ENV_PATH, load_instruments=True)
-    yield gw
-    gw.close()
-
-
 @pytest.mark.skipif(not _live_env_loaded, reason=".env.local with DHAN_CLIENT_ID required")
 class TestLiveBatchMarketData:
     """Batch market data endpoint tests against live Dhan API."""
@@ -81,16 +73,17 @@ class TestLiveBatchMarketData:
             assert hasattr(quote, "symbol") or "symbol" in quote
 
     def test_history_batch_nse_equity(self, gateway: BrokerGateway):
-        """history_batch() for multiple symbols should return dict[str, DataFrame]."""
+        """history_batch() for multiple symbols should return concatenated DataFrame."""
         symbols = ["RELIANCE", "TCS"]
         result = gateway.history_batch(symbols, "NSE", timeframe="1D", lookback_days=3)
         assert result is not None
-        assert isinstance(result, dict)
-        # Each symbol should have a DataFrame with at least some data
+        assert isinstance(result, pd.DataFrame)
+        # Verify concatenated DataFrame has symbol column
+        assert "symbol" in result.columns, "symbol column missing from history_batch result"
+        # Verify all symbols are present
+        result_symbols = set(result["symbol"].unique())
         for sym in symbols:
-            assert sym in result, f"{sym} missing from history_batch result"
-            df = result[sym]
-            assert isinstance(df, pd.DataFrame), f"{sym} result is not a DataFrame"
+            assert sym in result_symbols, f"{sym} missing from history_batch result"
 
     def test_ltp_batch_parity_with_individual(self, gateway: BrokerGateway):
         """ltp_batch() results should match individual ltp() calls."""
