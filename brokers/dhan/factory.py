@@ -199,13 +199,66 @@ class BrokerFactory(BrokerProviderFactory):
         Maintains backward compatibility with existing read/write/admin
         circuit breaker naming used by the HTTP client and connection.
         """
+        from brokers.dhan.config import DhanResilienceConfig, DEFAULT_CONFIG
+        from brokers.dhan.config_loader import DhanConfigLoader
         from brokers.dhan.resilience import (
             create_circuit_breakers,
             create_rate_limiter,
         )
 
-        # Create standardized circuit breakers
-        cbs = create_circuit_breakers()
+        # Load resilience configuration from settings or use defaults
+        resilience_config = settings.resilience_config
+        if resilience_config is None:
+            # Try to load from environment
+            resilience_config = DhanConfigLoader.load_from_environment()
+            if resilience_config.to_dict() == DEFAULT_CONFIG.to_dict():
+                # No custom config, use defaults
+                resilience_config = DEFAULT_CONFIG
+
+        # Create standardized circuit breakers with config-based thresholds
+        # If resilience_config has custom circuit breaker settings, use them
+        if resilience_config.circuit_breaker.orders_failure_threshold != 3 or \
+           resilience_config.circuit_breaker.default_failure_threshold != 5:
+            # Use custom thresholds
+            from brokers.common.resilience.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
+            cbs = {
+                "orders": CircuitBreaker(
+                    "dhan-orders",
+                    CircuitBreakerConfig(
+                        failure_threshold=resilience_config.circuit_breaker.orders_failure_threshold,
+                        success_threshold=resilience_config.circuit_breaker.success_threshold,
+                        open_duration_ms=resilience_config.circuit_breaker.recovery_timeout_ms,
+                    ),
+                ),
+                "market_data": CircuitBreaker(
+                    "dhan-market-data",
+                    CircuitBreakerConfig(
+                        failure_threshold=resilience_config.circuit_breaker.default_failure_threshold,
+                        success_threshold=resilience_config.circuit_breaker.success_threshold,
+                        open_duration_ms=resilience_config.circuit_breaker.recovery_timeout_ms,
+                    ),
+                ),
+                "portfolio": CircuitBreaker(
+                    "dhan-portfolio",
+                    CircuitBreakerConfig(
+                        failure_threshold=resilience_config.circuit_breaker.default_failure_threshold,
+                        success_threshold=resilience_config.circuit_breaker.success_threshold,
+                        open_duration_ms=resilience_config.circuit_breaker.recovery_timeout_ms,
+                    ),
+                ),
+                "admin": CircuitBreaker(
+                    "dhan-admin",
+                    CircuitBreakerConfig(
+                        failure_threshold=resilience_config.circuit_breaker.default_failure_threshold,
+                        success_threshold=resilience_config.circuit_breaker.success_threshold,
+                        open_duration_ms=resilience_config.circuit_breaker.recovery_timeout_ms,
+                    ),
+                ),
+            }
+        else:
+            # Use default circuit breakers
+            cbs = create_circuit_breakers()
+
         # Map new categories to legacy names for backward compat:
         #   orders -> write_circuit_breaker
         #   market_data -> read_circuit_breaker
@@ -215,7 +268,9 @@ class BrokerFactory(BrokerProviderFactory):
         cbs["portfolio"]
         cb_admin = cbs["admin"]
 
-        # Create rate limiter
+        # Create rate limiter with config-based settings
+        # Note: create_rate_limiter() uses hardcoded values from resilience/rate_limiter.py
+        # For now, we'll use the default rate limiter
         rate_limiter = create_rate_limiter()
 
         return DhanHttpClient(
@@ -225,6 +280,8 @@ class BrokerFactory(BrokerProviderFactory):
             timeout=settings.http_timeout,
             enable_retry=settings.enable_retry,
             token_refresh_fn=lambda: _refresh_via_auth(auth, env_file, refresh_lock),
+            # Pass resilience configuration
+            config=resilience_config,
             # Legacy naming for backward compatibility with http_client.py
             read_circuit_breaker=cb_market_data,
             write_circuit_breaker=cb_orders,

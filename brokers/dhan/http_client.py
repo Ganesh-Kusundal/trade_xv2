@@ -12,6 +12,7 @@ import requests
 
 from brokers.common.resilience.circuit_breaker import CircuitBreaker, CircuitState
 from brokers.common.resilience.rate_limiter import MultiBucketRateLimiter
+from brokers.dhan.config import DhanResilienceConfig, DEFAULT_CONFIG
 from brokers.dhan.exceptions import AuthenticationError, DhanError, RateLimitError
 from brokers.dhan.metrics import (
     dhan_errors_total,
@@ -26,26 +27,18 @@ logger = logging.getLogger(__name__)
 # Default base URL — imported from central endpoint registry.
 _DEFAULT_BASE_URL = Dhan.REST_BASE
 
-# Per-endpoint minimum interval (seconds) — matches Dhan documented rate limits
-# Non-Trading APIs: Up to 20 requests per second
-# Order APIs: Up to 25 requests per second
-# Data APIs: Up to 10 requests per second
-# Quote APIs: 1 request per second (Dhan documented limit)
-_RATE_LIMITS: dict[str, float] = {
-    "/marketfeed/quote": 1.0,
-    "/marketfeed/ltp": 0.15,  # Data APIs: up to 10 req/s
-    "/marketfeed/ohlc": 0.15,  # 10 req/s documented
-    "/optionchain": 0.35,  # 10 req/s documented
-    "/charts/": 0.15,  # 10 req/s documented
-    "/orders": 0.04,  # 25 req/s documented
-}
+# Default configuration - kept for backwards compatibility
+# When no config is provided, these defaults are used
+_DEFAULT_RESILIENCE_CONFIG = DEFAULT_CONFIG
 
-# Retry configuration
-_MAX_RETRIES = 3
-_BASE_DELAY_MS = 500
-_MAX_DELAY_MS = 5000
-_REFRESH_COOLDOWN_SECONDS = 60
-_RATE_LIMIT_BACKOFF_SECONDS = 130  # Dhan's 2-min rate limit + 10s buffer
+# Legacy constants - kept for backwards compatibility with existing code
+# These are now derived from DEFAULT_CONFIG but can be overridden
+_RATE_LIMITS = DEFAULT_CONFIG.rate_limit.limits
+_MAX_RETRIES = DEFAULT_CONFIG.retry.max_retries
+_BASE_DELAY_MS = DEFAULT_CONFIG.retry.base_delay_ms
+_MAX_DELAY_MS = DEFAULT_CONFIG.retry.max_delay_ms
+_REFRESH_COOLDOWN_SECONDS = DEFAULT_CONFIG.token.refresh_cooldown_seconds
+_RATE_LIMIT_BACKOFF_SECONDS = DEFAULT_CONFIG.token.rate_limit_backoff_seconds
 
 
 # ── Endpoint categorization for circuit-breaker isolation (A1) ────────────
@@ -66,24 +59,9 @@ _RATE_LIMIT_BACKOFF_SECONDS = 130  # Dhan's 2-min rate limit + 10s buffer
 #
 # Endpoints are matched by `endpoint.startswith(prefix)` so `/charts/historical`
 # matches the prefix `/charts/`. Unknown endpoints default to ADMIN.
-_READ_CB_PREFIXES: tuple[str, ...] = (
-    "/marketfeed/ltp",
-    "/marketfeed/quote",
-    "/marketfeed/ohlc",
-    "/charts/",
-    "/optionchain",
-    "/marketstatus",
-    "/instruments",
-)
-_WRITE_CB_PREFIXES: tuple[str, ...] = (
-    "/orders",  # POST/PUT/DELETE on /orders is a write; the GET orderbook
-    # is also matched here, but the factory wires the read category to a
-    # higher threshold. We accept the slight imprecision — orderbook
-    # reads are rare on the hot path and the admin CB's threshold still
-    # protects against runaway 5xx storms.
-    "/killswitch",  # PUT /killswitch mutates broker session state
-    "/sliceorder",
-)
+# These are now derived from DEFAULT_CONFIG but kept for backwards compatibility
+_READ_CB_PREFIXES = DEFAULT_CONFIG.circuit_breaker.read_prefixes
+_WRITE_CB_PREFIXES = DEFAULT_CONFIG.circuit_breaker.write_prefixes
 # Note: /traderbook and /trades are intentionally NOT in the write list.
 # They are account-state reads; the categorization defaults them to
 # "admin" so they share the admin CB with /positions, /holdings,
@@ -91,16 +69,23 @@ _WRITE_CB_PREFIXES: tuple[str, ...] = (
 # isolated from order placement.
 
 
-def _categorize_endpoint(endpoint: str) -> str:
+def _categorize_endpoint(endpoint: str, config: DhanResilienceConfig | None = None) -> str:
     """Return one of 'read', 'write', or 'admin' for an endpoint path.
 
     Used by ``DhanHttpClient._get_circuit_breaker`` to route failures to
     the category-specific circuit breaker.
+
+    Args:
+        endpoint: The API endpoint path.
+        config: Optional configuration to use. If None, uses DEFAULT_CONFIG.
     """
-    for prefix in _WRITE_CB_PREFIXES:
+    if config is None:
+        config = DEFAULT_CONFIG
+    
+    for prefix in config.circuit_breaker.write_prefixes:
         if endpoint.startswith(prefix):
             return "write"
-    for prefix in _READ_CB_PREFIXES:
+    for prefix in config.circuit_breaker.read_prefixes:
         if endpoint.startswith(prefix):
             return "read"
     return "admin"
@@ -108,16 +93,21 @@ def _categorize_endpoint(endpoint: str) -> str:
 
 # Circuit-breaker categories (read/write/admin) differ from token-bucket
 # names (market_data/orders/admin). Map before acquire().
-_RL_BUCKET_MAP: dict[str, str] = {
-    "read": "market_data",
-    "write": "orders",
-    "admin": "admin",
-}
+# Derived from DEFAULT_CONFIG for backwards compatibility
+_RL_BUCKET_MAP = DEFAULT_CONFIG.rate_limit.bucket_map
 
 
-def _rate_limit_bucket(endpoint: str) -> str:
-    """Return the MultiBucketRateLimiter category for *endpoint*."""
-    return _RL_BUCKET_MAP[_categorize_endpoint(endpoint)]
+def _rate_limit_bucket(endpoint: str, config: DhanResilienceConfig | None = None) -> str:
+    """Return the MultiBucketRateLimiter category for *endpoint*.
+
+    Args:
+        endpoint: The API endpoint path.
+        config: Optional configuration to use. If None, uses DEFAULT_CONFIG.
+    """
+    if config is None:
+        config = DEFAULT_CONFIG
+    category = _categorize_endpoint(endpoint, config)
+    return config.rate_limit.bucket_map.get(category, "admin")
 
 
 class DhanHttpClient:
@@ -139,6 +129,8 @@ class DhanHttpClient:
         # Standardized resilience parameters (from Dhan resilience package)
         _rate_limiter: MultiBucketRateLimiter | None = None,
         _circuit_breakers: dict[str, CircuitBreaker] | None = None,
+        # Configuration: if provided, overrides hardcoded defaults
+        config: DhanResilienceConfig | None = None,
     ) -> None:
         self.client_id = client_id
         self.access_token = access_token
@@ -146,6 +138,10 @@ class DhanHttpClient:
         self._timeout = timeout
         self._token_refresh_fn = token_refresh_fn
         self._enable_retry = enable_retry
+        
+        # Store the configuration
+        self._config = config if config is not None else DEFAULT_CONFIG
+        
         # Backwards-compat: a single ``circuit_breaker`` is used for any
         # category whose specific CB was not provided. This keeps every
         # existing test fixture working unchanged.
@@ -193,7 +189,7 @@ class DhanHttpClient:
         otherwise falls back to the single ``circuit_breaker`` argument
         (backwards-compat path).
         """
-        category = _categorize_endpoint(endpoint)
+        category = _categorize_endpoint(endpoint, self._config)
         if category == "read":
             return self._read_circuit_breaker
         if category == "write":
@@ -217,7 +213,8 @@ class DhanHttpClient:
         return self._request("DELETE", endpoint)
 
     def _throttle(self, endpoint: str) -> None:
-        static_interval = self._match_rate_limit(endpoint, _RATE_LIMITS)
+        # Use config-based rate limits
+        static_interval = self._match_rate_limit(endpoint, self._config.rate_limit.limits)
         adaptive_interval = self._match_rate_limit(endpoint, self._adaptive_intervals)
         min_interval = max(static_interval, adaptive_interval)
         if min_interval <= 0:
@@ -245,7 +242,7 @@ class DhanHttpClient:
         if self._rate_limiter is None:
             return True  # No rate limiter configured, allow request
 
-        category = _rate_limit_bucket(endpoint)
+        category = _rate_limit_bucket(endpoint, self._config)
         try:
             acquired = self._rate_limiter.acquire(category, tokens=1, timeout=timeout)
             if acquired:
@@ -315,7 +312,7 @@ class DhanHttpClient:
             return False
 
         # Standard cooldown check
-        if now - self._last_refresh_time < _REFRESH_COOLDOWN_SECONDS:
+        if now - self._last_refresh_time < self._config.token.refresh_cooldown_seconds:
             logger.debug("token_refresh_skipped", extra={"reason": "cooldown_active"})
             return False
 
@@ -336,16 +333,17 @@ class DhanHttpClient:
                 # Check response body for rate limit message
                 logger.warning("token_generation_failed", extra={"reason": "returned_none"})
                 # Set backoff to prevent rapid retries
-                self._refresh_backoff_until = now + _RATE_LIMIT_BACKOFF_SECONDS
+                self._refresh_backoff_until = now + self._config.token.rate_limit_backoff_seconds
                 return False
         except Exception as exc:
             error_msg = str(exc)
             # Detect Dhan's rate limit error
             if "once every 2 minutes" in error_msg or "rate limit" in error_msg.lower():
                 logger.warning(
-                    "dhan_token_rate_limit", extra={"backoff_seconds": _RATE_LIMIT_BACKOFF_SECONDS}
+                    "dhan_token_rate_limit", 
+                    extra={"backoff_seconds": self._config.token.rate_limit_backoff_seconds}
                 )
-                self._refresh_backoff_until = now + _RATE_LIMIT_BACKOFF_SECONDS
+                self._refresh_backoff_until = now + self._config.token.rate_limit_backoff_seconds
             else:
                 logger.warning("token_refresh_failed", extra={"error": error_msg})
         return False
@@ -392,7 +390,7 @@ class DhanHttpClient:
         self._throttle(endpoint)
         url = f"{self._base_url}{endpoint}" if endpoint.startswith("/") else endpoint
 
-        max_attempts = _MAX_RETRIES if self._enable_retry else 1
+        max_attempts = self._config.retry.max_retries if self._enable_retry else 1
         last_exc: Exception | None = None
 
         _start = time.monotonic()
@@ -446,7 +444,7 @@ class DhanHttpClient:
                     retry_after = self._parse_retry_after(resp)
                     if retry_after is not None:
                         delay = retry_after
-                        prefix = self._match_prefix(endpoint, _RATE_LIMITS)
+                        prefix = self._match_prefix(endpoint, self._config.rate_limit.limits)
                         key = prefix or endpoint
                         self._adaptive_intervals[key] = max(
                             delay, self._adaptive_intervals.get(key, 0)
@@ -545,10 +543,12 @@ class DhanHttpClient:
         finally:
             dhan_request_duration_seconds.observe(time.monotonic() - _start)
 
-    @staticmethod
-    def _backoff_delay(attempt: int) -> float:
+    def _backoff_delay(self, attempt: int) -> float:
         """Exponential backoff: 500ms, 1s, 2s, 4s... capped at 5s."""
-        delay_ms = min(_BASE_DELAY_MS * (2 ** (attempt - 1)), _MAX_DELAY_MS)
+        delay_ms = min(
+            self._config.retry.base_delay_ms * (2 ** (attempt - 1)), 
+            self._config.retry.max_delay_ms
+        )
         return delay_ms / 1000.0
 
     def close(self) -> None:

@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from brokers.common.settings import BrokerSettings, SettingsLoaderBase
+from brokers.dhan.config import DhanResilienceConfig
 from domain.constants.auth import (
     DHAN_TOKEN_LIFETIME_SECONDS,
     DHAN_TOKEN_REFRESH_BUFFER_SECONDS,
@@ -64,6 +65,9 @@ class DhanConnectionSettings(BrokerSettings):
     refresh_buffer_seconds: int = DHAN_TOKEN_REFRESH_BUFFER_SECONDS
     allow_live_orders: bool = False
     token_state_dir: str = ""
+    
+    # Resilience configuration
+    resilience_config: DhanResilienceConfig | None = None
 
     # ── Derived properties ────────────────────────────────────────────
 
@@ -175,6 +179,9 @@ class DhanSettingsLoader(SettingsLoaderBase):
         else:
             base_url = cls._get(prefix, "BASE_URL", default=_BASE_URL)
 
+        # Load resilience configuration from environment
+        resilience_config = cls._load_resilience_config(prefix, env_path)
+
         return DhanConnectionSettings(
             client_id=client_id,
             access_token=access_token,
@@ -197,7 +204,49 @@ class DhanSettingsLoader(SettingsLoaderBase):
             ),
             allow_live_orders=cls._get_bool(prefix, "ALLOW_LIVE_ORDERS", default=False),
             token_state_dir=cls._get(prefix, "TOKEN_STATE_DIR", default=""),
+            resilience_config=resilience_config,
         )
+
+    @classmethod
+    def _load_resilience_config(
+        cls, prefix: str, env_path: Path | None = None
+    ) -> DhanResilienceConfig | None:
+        """Load resilience configuration from environment variables.
+
+        Checks for DHAN_RESILIENCE_* environment variables. If none are found,
+        returns None to use the default configuration in the HTTP client.
+
+        Args:
+            prefix: The broker prefix (e.g., "DHAN").
+            env_path: Optional path to .env file.
+
+        Returns:
+            DhanResilienceConfig if any resilience env vars are set, else None.
+        """
+        from brokers.dhan.config_loader import DhanConfigLoader, ENV_PREFIX
+
+        # Check if any resilience env vars are set
+        resilience_prefix = ENV_PREFIX
+        has_resilience_vars = any(
+            key.startswith(resilience_prefix) 
+            for key in os.environ.keys()
+        )
+
+        if has_resilience_vars:
+            return DhanConfigLoader.load_from_environment(resilience_prefix)
+
+        # Check .env file for resilience config
+        if env_path and env_path.exists():
+            try:
+                from brokers.dhan.config_loader import load_from_env_file
+                config = load_from_env_file(env_path)
+                # Check if config has any non-default values
+                if config.to_dict() != DhanResilienceConfig().to_dict():
+                    return config
+            except Exception:
+                pass
+
+        return None
 
     @classmethod
     def from_dict(cls, values: dict[str, str], *, prefix: str = PREFIX) -> DhanConnectionSettings:
