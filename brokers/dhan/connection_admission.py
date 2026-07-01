@@ -1,8 +1,13 @@
-"""Host-wide admission gate for a single Dhan market-feed WebSocket per account.
+"""Host-wide admission gate for a single Dhan WebSocket connection per account.
 
 Dhan allows up to five concurrent WebSocket connections, but this codebase
-enforces one market-feed connection per ``client_id`` per host via ``fcntl``
-file locking and a shared cooldown file after HTTP 429.
+enforces one connection per ``(client_id, connection_type)`` pair per host via
+``fcntl`` file locking and a shared cooldown file after HTTP 429.
+
+Each connection *type* (market-feed, depth-20, depth-200, order-stream) gets
+its own lock and cooldown file so that, e.g., a depth-feed 429 does not block
+an unrelated market-feed reconnect — but each type independently honors
+Dhan's per-connection-type rate limit and backs off correctly.
 """
 
 from __future__ import annotations
@@ -51,15 +56,22 @@ def _parse_iso_utc(value: str) -> datetime | None:
 
 
 class MarketFeedConnectionAdmission:
-    """Non-blocking host lock + shared 429 cooldown for one WS per account."""
+    """Non-blocking host lock + shared 429 cooldown for one WS type per account."""
 
-    def __init__(self, client_id: str, state_dir: Path | None = None) -> None:
+    def __init__(
+        self,
+        client_id: str,
+        state_dir: Path | None = None,
+        connection_type: str = "market-feed",
+    ) -> None:
         self._client_id = client_id
+        self._connection_type = connection_type
         self._state_dir = (state_dir or _default_state_dir()).resolve()
         self._state_dir.mkdir(parents=True, exist_ok=True)
         safe_id = _sanitize_client_id(client_id)
-        self._lock_path = self._state_dir / f"dhan-market-feed-{safe_id}.lock"
-        self._cooldown_path = self._state_dir / f"dhan-market-feed-{safe_id}.cooldown.json"
+        safe_type = _sanitize_client_id(connection_type)
+        self._lock_path = self._state_dir / f"dhan-{safe_type}-{safe_id}.lock"
+        self._cooldown_path = self._state_dir / f"dhan-{safe_type}-{safe_id}.cooldown.json"
         self._lock_file: Any | None = None
         self._lock_held = False
         self._blocked_by_lock = False
@@ -96,14 +108,22 @@ class MarketFeedConnectionAdmission:
                 handle.close()
             logger.warning(
                 "market_feed_connection_lock_held",
-                extra={"client_id": self._client_id, "lock_path": str(self._lock_path)},
+                extra={
+                    "client_id": self._client_id,
+                    "connection_type": self._connection_type,
+                    "lock_path": str(self._lock_path),
+                },
             )
             return False
         except OSError as exc:
             self._blocked_by_lock = True
             logger.error(
                 "market_feed_admission_lock_error",
-                extra={"client_id": self._client_id, "error": str(exc)},
+                extra={
+                    "client_id": self._client_id,
+                    "connection_type": self._connection_type,
+                    "error": str(exc),
+                },
             )
             return False
 
@@ -112,7 +132,11 @@ class MarketFeedConnectionAdmission:
         self._blocked_by_lock = False
         logger.info(
             "market_feed_connection_lock_acquired",
-            extra={"client_id": self._client_id, "lock_path": str(self._lock_path)},
+            extra={
+                "client_id": self._client_id,
+                "connection_type": self._connection_type,
+                "lock_path": str(self._lock_path),
+            },
         )
         return True
 
@@ -130,7 +154,7 @@ class MarketFeedConnectionAdmission:
         self._blocked_by_lock = False
         logger.info(
             "market_feed_connection_lock_released",
-            extra={"client_id": self._client_id},
+            extra={"client_id": self._client_id, "connection_type": self._connection_type},
         )
 
     def seconds_until_connect_allowed(self) -> float:
@@ -220,6 +244,7 @@ class MarketFeedConnectionAdmission:
         )
         payload = {
             "client_id": self._client_id,
+            "connection_type": self._connection_type,
             "next_allowed_at": next_dt.isoformat(),
             "reason": "http_429",
             "cooldown_seconds": cooldown_seconds,
@@ -234,6 +259,7 @@ class MarketFeedConnectionAdmission:
             "market_feed_rate_limit_cooldown_recorded",
             extra={
                 "client_id": self._client_id,
+                "connection_type": self._connection_type,
                 "cooldown_seconds": cooldown_seconds,
                 "consecutive_rate_limits": self._consecutive_rate_limits,
                 "next_allowed_at": next_dt.isoformat(),
@@ -250,6 +276,7 @@ class MarketFeedConnectionAdmission:
     def status(self) -> dict[str, Any]:
         next_allowed = self.next_connect_allowed_at()
         return {
+            "connection_type": self._connection_type,
             "connection_lock_acquired": self._lock_held,
             "connection_blocked_by_lock": self._blocked_by_lock,
             "next_connect_allowed_at": (
@@ -259,3 +286,50 @@ class MarketFeedConnectionAdmission:
             "consecutive_rate_limits": self._consecutive_rate_limits,
             "admission_lock_path": str(self._lock_path),
         }
+
+
+class NoopAdmission:
+    """No-op admission gate for unit tests.
+
+    Always permits connects immediately, never touches the filesystem or
+    fcntl. Pass an instance via ``DhanMarketFeed(admission=NoopAdmission())``
+    in tests to avoid lock-file interference between parallel test runs.
+    """
+
+    @property
+    def lock_held(self) -> bool:
+        return True  # Always "held" so _run() never tries to acquire
+
+    @property
+    def blocked_by_lock(self) -> bool:
+        return False
+
+    def try_acquire(self) -> bool:
+        return True
+
+    def release(self) -> None:
+        pass
+
+    def seconds_until_connect_allowed(self) -> float:
+        return 0.0
+
+    def next_connect_allowed_at(self) -> None:
+        return None
+
+    def record_rate_limit_cooldown(self) -> datetime:
+        return datetime.now(timezone.utc)
+
+    def clear_cooldown(self) -> None:
+        pass
+
+    def status(self) -> dict[str, Any]:
+        return {
+            "connection_type": "noop",
+            "connection_lock_acquired": True,
+            "connection_blocked_by_lock": False,
+            "next_connect_allowed_at": None,
+            "seconds_until_connect_allowed": 0.0,
+            "consecutive_rate_limits": 0,
+            "admission_lock_path": "(noop)",
+        }
+

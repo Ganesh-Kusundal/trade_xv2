@@ -269,6 +269,15 @@ class DhanConnection:
         self._lifecycle_helper.order_stream = value
 
     @property
+    def polling_feed(self) -> PollingMarketFeed | None:
+        """Real-time polling market feed."""
+        return self._lifecycle_helper.polling_feed
+
+    @polling_feed.setter
+    def polling_feed(self, value: PollingMarketFeed) -> None:
+        self._lifecycle_helper.polling_feed = value
+
+    @property
     def client(self) -> DhanHttpClient:
         """Public accessor for the underlying HTTP client.
 

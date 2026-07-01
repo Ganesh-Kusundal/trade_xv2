@@ -190,9 +190,9 @@ def test_dhan_connection_close_drains_websocket_services() -> None:
     mf = MagicMock(spec=PollingMarketFeed)
     os_ = MagicMock(spec=PollingMarketFeed)
     pf = MagicMock(spec=PollingMarketFeed)
-    conn._market_feed = mf
-    conn._order_stream = os_
-    conn._polling_feed = pf
+    conn.market_feed = mf
+    conn.order_stream = os_
+    conn.polling_feed = pf
 
     conn.close()
 
@@ -206,9 +206,9 @@ def test_dhan_connection_close_drains_websocket_services() -> None:
 def test_dhan_connection_close_handles_no_websocket_services() -> None:
     """close() with no WebSocket services is a no-op for that part."""
     conn = DhanConnection(client=MagicMock())
-    assert conn._market_feed is None
-    assert conn._order_stream is None
-    assert conn._polling_feed is None
+    assert conn.market_feed is None
+    assert conn.order_stream is None
+    assert conn.polling_feed is None
     # Should not raise
     conn.close()
 

@@ -2,26 +2,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from datetime import timezone
-import asyncio
 from decimal import Decimal
-import uuid
-from typing import Any
+from typing import Any, Callable
 
 import pandas as pd
 
 from brokers.common.batch_mixin import BatchFetchMixin
-from brokers.common.broker_port import (
-    BrokerHealthSnapshot,
-    BrokerStreamHandle,
-    BrokerStreamPlan,
-    CommonBrokerGateway,
-    HistoricalBarRequest,
-    QuotaToken,
-)
-from brokers.common.capabilities import CapabilityDescriptor
-from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
+from brokers.common.gateway import MarketDataGateway
 from domain import (
     Balance,
     FutureChain,
@@ -40,29 +27,17 @@ from domain import (
     Validity,
 )
 from domain.constants.defaults import PAPER_INITIAL_CAPITAL
-from domain.historical import HistoricalBar, InstrumentRef
-from domain.provenance import DataProvenance, SourceIdentity
-from domain.requests import ModifyOrderRequest, OrderRequest
 
 from .paper_market_data import PaperMarketData
 from .paper_orders import PaperOrders
 from .paper_portfolio import PaperPortfolio
 
 
-class PaperGateway(BatchFetchMixin, MarketDataGateway, CommonBrokerGateway):
-    """Unified paper-trading API implementing both MarketDataGateway v1.0 and CommonBrokerGateway protocols.
+class PaperGateway(BatchFetchMixin, MarketDataGateway):
+    """Unified paper-trading API implementing MarketDataGateway v1.0.
 
     All market-data, order, and portfolio calls delegate to the
     corresponding adapter objects (``market_data``, ``orders``, ``portfolio``).
-
-    Implements:
-        - CommonBrokerGateway: Async protocol for modern infrastructure
-        - Market Data: history, quote, ltp, depth, option_chain, future_chain, stream
-        - Batch: ltp_batch, quote_batch, history_batch
-        - Trading: place_order, cancel_order, modify_order, get_orderbook, get_trade_book
-        - Portfolio: positions, holdings, funds, trades
-        - Instrument: search, load_instruments
-        - Lifecycle: describe, capabilities, close
     """
 
     def __init__(
@@ -89,8 +64,6 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway, CommonBrokerGateway):
             position_manager=position_manager,
         )
         self._portfolio = PaperPortfolio(self._orders, initial_capital)
-        # Cache for CommonBrokerGateway capability descriptor
-        self._capabilities_cache: CapabilityDescriptor | None = None
 
     @property
     def market_data(self) -> PaperMarketData:
@@ -108,94 +81,31 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway, CommonBrokerGateway):
     def portfolio(self) -> PaperPortfolio:
         return self._portfolio
 
-    # =======================================================================
-    # CommonBrokerGateway Protocol Implementation (Async)
-    # =======================================================================
-
-    @property
-    def broker_id(self) -> str:
-        """Canonical broker identifier for CommonBrokerGateway protocol."""
-        return "paper"
-
-    def list_capabilities(self) -> CapabilityDescriptor:
-        """Return the broker's capability descriptor for CommonBrokerGateway protocol."""
-        if self._capabilities_cache is None:
-            self._capabilities_cache = CapabilityDescriptor.build(
-                capabilities=self.capabilities(),
-                extensions=frozenset(),  # Paper gateway has no extensions
-            )
-        return self._capabilities_cache
-
-    def supports(self, feature: str) -> bool:
-        """Shorthand for capability check."""
-        return self.list_capabilities().capabilities.supports(feature)
-
-    async def health(self) -> BrokerHealthSnapshot:
-        """Return health snapshot for paper gateway - always healthy."""
-        return BrokerHealthSnapshot(
-            broker_id="paper",
-            alive=True,
-            auth_valid=True,
-            error_rate=0.0,
-            latency_p50=0.0,
-            reason="",
-        )
-
-    # Trading methods (async) - Paper trading uses asyncio.to_thread
-    # Note: Paper gateway is CPU-bound (simulation), so asyncio.to_thread is appropriate
-    # The quota parameter is validated but not enforced (paper trading has no real limits)
-    async def place_order(
+    def place_order(
         self,
-        request: OrderRequest,
-        *,
-        quota: QuotaToken,
+        symbol: str,
+        exchange: str = "NSE",
+        side: str = "BUY",
+        quantity: int = 1,
+        price: Decimal = Decimal("0"),
+        order_type: str = "MARKET",
+        product_type: str = "INTRADAY",
+        validity: str = "DAY",
+        trigger_price: Decimal = Decimal("0"),
+        correlation_id: str | None = None,
     ) -> OrderResponse:
-        """Async place_order for CommonBrokerGateway protocol.
-        
-        Note: Paper gateway uses asyncio.to_thread since order simulation is CPU-bound.
-        The quota token is validated for protocol compliance but not enforced.
-        """
-        # Validate quota token structure (protocol compliance)
-        self._validate_quota(quota)
-        
-        # Map OrderRequest fields to sync place_order parameters
-        side = request.transaction_type.value if hasattr(request.transaction_type, 'value') else str(request.transaction_type)
-        order_type = request.order_type.value if hasattr(request.order_type, 'value') else str(request.order_type)
-        product_type = request.product_type.value if hasattr(request.product_type, 'value') else str(request.product_type)
-        validity = request.validity.value if hasattr(request.validity, 'value') else str(request.validity)
-        
-        # Use asyncio.to_thread for CPU-bound simulation
-        return await asyncio.to_thread(
-            self._sync_place_order,
-            symbol=request.symbol,
-            exchange=request.exchange,
+        order = self._orders.place_order(
+            symbol=symbol,
+            exchange=exchange,
             side=side,
-            quantity=request.quantity,
-            price=request.price,
+            quantity=quantity,
+            price=price,
             order_type=order_type,
             product_type=product_type,
             validity=validity,
-            trigger_price=request.trigger_price or Decimal("0"),
-            correlation_id=request.correlation_id,
+            trigger_price=trigger_price,
+            correlation_id=correlation_id,
         )
-
-    def _validate_quota(self, quota: QuotaToken) -> None:
-        """Validate quota token structure for protocol compliance.
-        
-        Paper gateway doesn't enforce quota limits but validates the token structure
-        to ensure protocol compliance with CommonBrokerGateway.
-        """
-        if not isinstance(quota, QuotaToken):
-            raise TypeError(f"Expected QuotaToken, got {type(quota).__name__}")
-        if not quota.broker_id:
-            raise ValueError("QuotaToken must have a broker_id")
-        if not quota.endpoint_class:
-            raise ValueError("QuotaToken must have an endpoint_class")
-
-    def _sync_place_order(self, *args, **kwargs) -> OrderResponse:
-        """Internal sync place_order method that bypasses the async method."""
-        # Call the original sync implementation
-        order = self._orders.place_order(*args, **kwargs)
         return OrderResponse(
             success=True,
             order_id=order.order_id,
@@ -203,27 +113,11 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway, CommonBrokerGateway):
             status=order.status,
         )
 
-    async def cancel_order(
-        self,
-        order_id: str,
-        *,
-        quota: QuotaToken,
-    ) -> OrderResponse:
-        """Async cancel_order for CommonBrokerGateway protocol.
-        
-        Note: Uses asyncio.to_thread for CPU-bound simulation.
-        """
-        self._validate_quota(quota)
-        return await asyncio.to_thread(self._sync_cancel_order, order_id)
-
-    def _sync_cancel_order(self, order_id: str) -> OrderResponse:
-        """Internal sync cancel_order method."""
+    def cancel_order(self, order_id: str) -> OrderResponse:
         # PaperOrders.cancel_order returns True if order was found and cancelled, False otherwise
         success = self._orders.cancel_order(order_id)
-        
-        # Try to get the order to check its status
         cancelled_order = self._orders.get_order(order_id)
-        
+
         if success and cancelled_order:
             return OrderResponse(
                 success=True,
@@ -232,7 +126,6 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway, CommonBrokerGateway):
                 status=OrderStatus.CANCELLED,
             )
         elif cancelled_order and cancelled_order.status == OrderStatus.FILLED:
-            # Order was already filled, cannot cancel
             return OrderResponse(
                 success=False,
                 order_id=order_id,
@@ -247,222 +140,25 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway, CommonBrokerGateway):
                 status=OrderStatus.REJECTED,
             )
 
-    async def modify_order(
-        self,
-        request: ModifyOrderRequest,
-        *,
-        quota: QuotaToken,
-    ) -> OrderResponse:
-        """Async modify_order for CommonBrokerGateway protocol.
-        
-        Note: Uses asyncio.to_thread for CPU-bound simulation.
-        """
-        self._validate_quota(quota)
-        # Map ModifyOrderRequest to existing modify_order kwargs
-        # Note: PaperOrders.modify_order doesn't support product_type parameter
-        changes = {}
-        if request.quantity is not None:
-            changes["quantity"] = request.quantity
-        if request.price is not None:
-            changes["price"] = request.price
-        if request.trigger_price is not None:
-            changes["trigger_price"] = request.trigger_price
-        if request.order_type is not None:
-            changes["order_type"] = request.order_type.value if hasattr(request.order_type, 'value') else str(request.order_type)
-        if request.validity is not None:
-            changes["validity"] = request.validity.value if hasattr(request.validity, 'value') else str(request.validity)
-        # product_type is NOT passed to PaperOrders.modify_order as it doesn't support it
-        
-        return await asyncio.to_thread(self._sync_modify_order, request.order_id, changes)
+    def modify_order(self, order_id: str, **changes: Any) -> OrderResponse:
+        # Map values if they are enums
+        mapped_changes = {}
+        for k, v in changes.items():
+            if k == "order_type":
+                mapped_changes[k] = v.value if hasattr(v, 'value') else str(v)
+            elif k == "validity":
+                mapped_changes[k] = v.value if hasattr(v, 'value') else str(v)
+            elif k == "product_type":
+                mapped_changes[k] = v.value if hasattr(v, 'value') else str(v)
+            else:
+                mapped_changes[k] = v
 
-    def _sync_modify_order(self, order_id: str, changes: dict) -> OrderResponse:
-        """Internal sync modify_order method."""
-        order = self._orders.modify_order(order_id, **changes)
+        order = self._orders.modify_order(order_id, **mapped_changes)
         return OrderResponse(
             success=order is not None,
             order_id=order_id,
             message="Order modified (paper)" if order else "Order not found",
             status=order.status if order else None,
-        )
-
-    # Portfolio methods (async)
-    async def get_positions(self, *, quota: QuotaToken) -> list[Position]:
-        """Async get_positions for CommonBrokerGateway protocol.
-        
-        Note: Uses asyncio.to_thread for CPU-bound simulation.
-        """
-        self._validate_quota(quota)
-        return await asyncio.to_thread(self._sync_positions)
-
-    def _sync_positions(self) -> list[Position]:
-        """Internal sync positions method."""
-        return self.positions()
-
-    async def get_margins(self, *, quota: QuotaToken) -> Balance:
-        """Async get_margins for CommonBrokerGateway protocol.
-        
-        Note: Uses asyncio.to_thread for CPU-bound simulation.
-        """
-        self._validate_quota(quota)
-        return await asyncio.to_thread(self._sync_funds)
-
-    def _sync_funds(self) -> Balance:
-        """Internal sync funds method."""
-        return self.funds()
-
-    async def get_orders(self, *, quota: QuotaToken) -> list[Order]:
-        """Async get_orders for CommonBrokerGateway protocol.
-        
-        Note: Uses asyncio.to_thread for CPU-bound simulation.
-        """
-        self._validate_quota(quota)
-        return await asyncio.to_thread(self._sync_get_orderbook)
-
-    def _sync_get_orderbook(self) -> list[Order]:
-        """Internal sync get_orderbook method."""
-        return self.get_orderbook()
-
-    async def get_trades(self, *, quota: QuotaToken) -> list[Trade]:
-        """Async get_trades for CommonBrokerGateway protocol.
-        
-        Note: Uses asyncio.to_thread for CPU-bound simulation.
-        """
-        self._validate_quota(quota)
-        return await asyncio.to_thread(self._sync_get_trade_book)
-
-    def _sync_get_trade_book(self) -> list[Trade]:
-        """Internal sync get_trade_book method."""
-        return self.get_trade_book()
-
-    # Market data methods (async)
-    async def get_quote_snapshot(
-        self,
-        instrument: InstrumentRef,
-        *,
-        quota: QuotaToken,
-    ) -> Quote:
-        """Async get_quote_snapshot for CommonBrokerGateway protocol.
-        
-        Note: Uses asyncio.to_thread for CPU-bound simulation.
-        """
-        self._validate_quota(quota)
-        return await asyncio.to_thread(self._sync_quote, instrument.symbol, instrument.exchange)
-
-    def _sync_quote(self, symbol: str, exchange: str) -> Quote:
-        """Internal sync quote method."""
-        return self.quote(symbol, exchange)
-
-    async def get_depth_snapshot(
-        self,
-        instrument: InstrumentRef,
-        *,
-        quota: QuotaToken,
-    ) -> MarketDepth:
-        """Async get_depth_snapshot for CommonBrokerGateway protocol.
-        
-        Note: Uses asyncio.to_thread for CPU-bound simulation.
-        """
-        self._validate_quota(quota)
-        return await asyncio.to_thread(self._sync_depth, instrument.symbol, instrument.exchange)
-
-    def _sync_depth(self, symbol: str, exchange: str) -> MarketDepth:
-        """Internal sync depth method."""
-        return self.depth(symbol, exchange)
-
-    # Historical data method (async)
-    async def get_historical_bars(
-        self,
-        request: HistoricalBarRequest,
-        *,
-        quota: QuotaToken,
-    ) -> Sequence[HistoricalBar]:
-        """Async get_historical_bars for CommonBrokerGateway protocol.
-        
-        Note: Uses asyncio.to_thread for CPU-bound simulation.
-        """
-        self._validate_quota(quota)
-        # Call existing sync history method
-        df = self.history(
-            symbol=request.instrument.symbol,
-            exchange=request.instrument.exchange,
-            timeframe=request.timeframe,
-            from_date=request.from_date,
-            to_date=request.to_date,
-        )
-
-        # Convert DataFrame to HistoricalBar sequence
-        bars = []
-        bar_index = 0
-        for _, row in df.iterrows():
-            timestamp = row["timestamp"]
-            if pd.isna(timestamp):
-                timestamp = pd.Timestamp.now(tz=timezone.utc)
-            else:
-                timestamp = timestamp.replace(tzinfo=timezone.utc) if timestamp.tzinfo is None else timestamp
-                
-            open_price = Decimal(str(row["open"])) if pd.notna(row["open"]) else Decimal("0")
-            high = Decimal(str(row["high"])) if pd.notna(row["high"]) else Decimal("0") 
-            low = Decimal(str(row["low"])) if pd.notna(row["low"]) else Decimal("0")
-            close = Decimal(str(row["close"])) if pd.notna(row["close"]) else Decimal("0")
-            volume = int(row["volume"]) if pd.notna(row["volume"]) else 0
-            oi = int(row["oi"]) if pd.notna(row["oi"]) and row["oi"] != 0 else 0
-            
-            bar = HistoricalBar(
-                instrument=request.instrument,
-                timeframe=request.timeframe,
-                event_time=timestamp,
-                open=open_price,
-                high=high,
-                low=low,
-                close=close,
-                volume=volume,
-                open_interest=oi,
-                provenance=DataProvenance.now(
-                    source=SourceIdentity(broker_id="paper", venue=request.instrument.exchange),
-                    request_id=request.request_id,
-                ),
-                bar_index=bar_index,
-                is_partial=False,
-            )
-            bars.append(bar)
-            bar_index += 1
-        return bars
-
-    # Stream methods (async) - Paper implementation returns mock handles
-    class _PaperBrokerStreamHandle:
-        """Paper implementation of BrokerStreamHandle for CommonBrokerGateway protocol."""
-
-        def __init__(self, session_id: str, broker_id: str = "paper"):
-            self._session_id = session_id
-            self._broker_id = broker_id
-            self._connected = True
-
-        @property
-        def session_id(self) -> str:
-            return self._session_id
-
-        @property
-        def broker_id(self) -> str:
-            return self._broker_id
-
-        async def disconnect(self) -> None:
-            self._connected = False
-
-        def is_connected(self) -> bool:
-            return self._connected
-
-    async def open_market_stream(self, plan: BrokerStreamPlan) -> BrokerStreamHandle:
-        """Open a market data stream - paper implementation returns a mock handle."""
-        return self._PaperBrokerStreamHandle(
-            session_id=f"paper_market_{uuid.uuid4().hex[:8]}",
-            broker_id="paper",
-        )
-
-    async def open_order_stream(self, plan: BrokerStreamPlan) -> BrokerStreamHandle:
-        """Open an order stream - paper implementation returns a mock handle."""
-        return self._PaperBrokerStreamHandle(
-            session_id=f"paper_order_{uuid.uuid4().hex[:8]}",
-            broker_id="paper",
         )
 
     # =======================================================================
@@ -611,6 +307,40 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway, CommonBrokerGateway):
         mode: str = "LTP",
         on_tick: Any | None = None,
     ) -> Any:
+        class _PaperStream:
+            def connect(self):
+                pass
+
+            def disconnect(self):
+                pass
+
+            @property
+            def is_connected(self):
+                return False
+
+        return _PaperStream()
+
+    def stream_depth(
+        self,
+        symbol: str,
+        exchange: str = "NSE",
+        depth_type: str = "DEPTH_5",
+        on_depth: Callable[[MarketDepth], None] | None = None,
+    ) -> Any:
+        class _PaperStream:
+            def connect(self):
+                pass
+
+            def disconnect(self):
+                pass
+
+            @property
+            def is_connected(self):
+                return False
+
+        return _PaperStream()
+
+    def stream_order(self, on_order: Any | None = None) -> Any:
         class _PaperStream:
             def connect(self):
                 pass
@@ -790,10 +520,6 @@ class PaperGateway(BatchFetchMixin, MarketDataGateway, CommonBrokerGateway):
             "type": "simulated",
         }
 
-    def close_sync(self) -> None:
-        """Synchronous close method - kept for backward compatibility."""
+    def close(self) -> None:
+        """Close resources (noop for simulated gateway)."""
         pass
-    
-    async def close(self) -> None:
-        """Async close for CommonBrokerGateway protocol."""
-        self.close_sync()

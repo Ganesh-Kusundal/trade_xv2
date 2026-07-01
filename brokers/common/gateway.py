@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from decimal import Decimal
-from typing import Any
+from typing import Any, Callable
 
 import pandas as pd
 
@@ -166,6 +166,22 @@ class MarketDataGateway(
         -------
         Stream handle with .connect(), .disconnect(), .is_connected.
         """
+        ...
+
+    @abstractmethod
+    def stream_depth(
+        self,
+        symbol: str,
+        exchange: str = DEFAULT_EXCHANGE,
+        depth_type: str = "DEPTH_5",
+        on_depth: Callable[[MarketDepth], None] | None = None,
+    ) -> Any:
+        """Start WebSocket depth streaming for a symbol."""
+        ...
+
+    @abstractmethod
+    def stream_order(self, on_order: Any | None = None) -> Any:
+        """Start WebSocket order/portfolio updates streaming."""
         ...
 
     # -----------------------------------------------------------------------

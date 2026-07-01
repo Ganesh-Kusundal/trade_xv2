@@ -41,8 +41,8 @@ def test_register_token_receiver_returns_receiver(connection_with_mock_client):
         return None
 
     assert conn.register_token_receiver(fn) is fn
-    assert len(conn._token_receivers) == 1
-    assert conn._token_receivers[0] == fn
+    assert len(conn._token_manager._token_receivers) == 1
+    assert conn._token_manager._token_receivers[0] == fn
 
 
 def test_register_token_receiver_is_idempotent(connection_with_mock_client):
@@ -53,13 +53,13 @@ def test_register_token_receiver_is_idempotent(connection_with_mock_client):
 
     conn.register_token_receiver(fn)
     conn.register_token_receiver(fn)
-    assert len(conn._token_receivers) == 1
+    assert len(conn._token_manager._token_receivers) == 1
 
 
 def test_register_token_receiver_rejects_none(connection_with_mock_client):
     conn = connection_with_mock_client
     assert conn.register_token_receiver(None) is None  # type: ignore[arg-type]
-    assert conn._token_receivers == []
+    assert conn._token_manager._token_receivers == []
 
 
 def test_broadcast_token_calls_all_receivers(connection_with_mock_client):

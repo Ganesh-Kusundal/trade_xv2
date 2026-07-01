@@ -59,9 +59,7 @@ class TestAuditEntry:
             old_status=None,
             new_status=OrderStatus.OPEN,
         )
-        with pytest.raises(
-            Exception, match="dataclass|frozen|attribute"
-        ):  # FrozenInstanceError or AttributeError
+        with pytest.raises(Exception, match="dataclass|frozen|attribute|cannot assign"):
             entry.order_id = "order-2"
 
     def test_audit_entry_to_dict(self) -> None:

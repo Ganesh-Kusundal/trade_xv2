@@ -473,8 +473,31 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
             mode:     Subscription mode — ``"ltpc"`` | ``"full"`` | ``"option_greeks"``
             on_tick:  Callable receiving a :class:`Quote` (or raw dict on
                       resolution failure)
+
+        Returns:
+            A handle scoped to this subscription — ``stop()``/``disconnect()``
+            unsubscribe only this ``(symbol, exchange, on_tick)`` triple via
+            :meth:`unstream`, leaving the shared WebSocket connection and any
+            other active subscriptions untouched.
         """
-        return self._stream_manager.subscribe(symbol, exchange, mode, on_tick)
+        self._stream_manager.subscribe(symbol, exchange, mode, on_tick)
+
+        stream_manager = self._stream_manager
+
+        class LtpStreamHandle:
+            def __init__(self, manager: Any, sym: str, exch: str, callback: Any) -> None:
+                self._manager = manager
+                self._symbol = sym
+                self._exchange = exch
+                self._on_tick = callback
+
+            def stop(self, timeout: float | None = None) -> None:
+                self._manager.unsubscribe(self._symbol, self._exchange, self._on_tick)
+
+            def disconnect(self) -> None:
+                self.stop()
+
+        return LtpStreamHandle(stream_manager, symbol, exchange, on_tick)
 
     def unstream(
         self,

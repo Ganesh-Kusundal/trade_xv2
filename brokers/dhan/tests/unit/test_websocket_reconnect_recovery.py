@@ -51,7 +51,6 @@ class TestDhanWebSocketReconnectRecovery:
         feed._stop_event = __import__("threading").Event()
         feed._feed = None
         feed._is_connected = False
-        feed._pending_subscriptions = []
         feed._subscribed_instruments = set()
         feed._quote_callbacks = []
         feed._depth_callbacks = []

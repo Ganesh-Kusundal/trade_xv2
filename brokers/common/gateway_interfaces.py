@@ -21,7 +21,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from datetime import date
 from decimal import Decimal
-from typing import Any, Generic, TypeVar
+from typing import Any, Callable, Generic, TypeVar
 
 import pandas as pd
 
@@ -176,6 +176,18 @@ class StreamProvider(ABC):
         mode: str = "LTP",
         on_tick: Any | None = None,
     ) -> Any: ...
+
+    @abstractmethod
+    def stream_depth(
+        self,
+        symbol: str,
+        exchange: str = DEFAULT_EXCHANGE,
+        depth_type: str = "DEPTH_5",
+        on_depth: Callable[[MarketDepth], None] | None = None,
+    ) -> Any: ...
+
+    @abstractmethod
+    def stream_order(self, on_order: Any | None = None) -> Any: ...
 
 
 class LifecycleAware(ABC):

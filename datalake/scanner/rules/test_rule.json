@@ -1,0 +1,22 @@
+{
+  "name": "test_rule",
+  "version": "1.0",
+  "description": "Test rule for scanner",
+  "universe": "NIFTY50",
+  "timeframe": "1m",
+  "select": [
+    {"column": "symbol"},
+    {"column": "rsi_approx", "alias": "rsi"},
+    {"column": "roc_5", "alias": "momentum"}
+  ],
+  "from": "v_intraday_snapshot",
+  "where": [
+    {"field": "rsi_approx", "op": ">", "value": 60}
+  ],
+  "score": {
+    "expr": "rsi_approx * 2 + roc_5 * 10",
+    "normalize": {"min": 0, "max": 100}
+  },
+  "order_by": [{"field": "score", "direction": "DESC"}],
+  "limit": 10
+}

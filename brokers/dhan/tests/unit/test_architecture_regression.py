@@ -41,17 +41,13 @@ class TestDualFeedPrevention:
     def test_create_market_feed_returns_existing_feed(self):
         """create_market_feed() must return the existing feed if one exists."""
         from brokers.dhan.connection import DhanConnection
+        from brokers.dhan.connection_lifecycle import ConnectionLifecycle
 
         conn = MagicMock(spec=DhanConnection)
-        conn._client = MagicMock()
-        conn._client.client_id = "TEST"
-        conn._event_bus = None
-        conn._lifecycle = None
-        conn._backfill_callback = None
-        conn.instruments = MagicMock()
-
+        lifecycle_helper = MagicMock(spec=ConnectionLifecycle)
+        conn._lifecycle_helper = lifecycle_helper
         old_feed = MagicMock()
-        conn._market_feed = old_feed
+        lifecycle_helper.create_market_feed.return_value = old_feed
 
         # Call the real create_market_feed
         result = DhanConnection.create_market_feed(conn, access_token="TOKEN")
@@ -61,18 +57,16 @@ class TestDualFeedPrevention:
     def test_create_market_feed_noop_when_no_existing(self):
         """create_market_feed() should not fail when no existing feed."""
         from brokers.dhan.connection import DhanConnection
+        from brokers.dhan.connection_lifecycle import ConnectionLifecycle
 
         conn = MagicMock(spec=DhanConnection)
-        conn._client = MagicMock()
-        conn._client.client_id = "TEST"
-        conn._event_bus = None
-        conn._lifecycle = None
-        conn._backfill_callback = None
-        conn.instruments = MagicMock()
-        conn._market_feed = None
+        lifecycle_helper = MagicMock(spec=ConnectionLifecycle)
+        conn._lifecycle_helper = lifecycle_helper
+        new_feed = MagicMock()
+        lifecycle_helper.create_market_feed.return_value = new_feed
 
         feed = DhanConnection.create_market_feed(conn, access_token="TOKEN")
-        assert feed is not None
+        assert feed is new_feed
 
 
 # ── Fix 2: Callback dedup in stream() ───────────────────────────────────────
@@ -233,16 +227,15 @@ class TestUnstream:
 
 class TestCacheEviction:
     def test_last_tick_time_evicted_on_unsubscribe(self):
-        """unstream() should remove _last_tick_time entries for the symbol."""
+        """unstream() should call clear_symbol_tracking() for the symbol."""
         gw = self._make_gateway_with_feed()
         feed = gw._conn.market_feed
 
-        # Simulate tick tracking
-        feed._last_tick_time["RELIANCE"] = "some_timestamp"
-
         gw.unstream("RELIANCE", "NSE")
 
-        assert "RELIANCE" not in feed._last_tick_time
+        # Now that the abstraction boundary is clean, the subscription engine
+        # calls feed.clear_symbol_tracking() instead of accessing feed._lock.
+        feed.clear_symbol_tracking.assert_called_once_with("RELIANCE")
 
     def test_depth_20_cache_evicted_on_unsubscribe(self):
         """depth_20.unsubscribe() should evict _depth_cache entries."""

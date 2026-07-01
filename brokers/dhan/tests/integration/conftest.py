@@ -25,7 +25,7 @@ from brokers.dhan.gateway import BrokerGateway
 _INTEGRATION_DIR = Path(__file__).resolve().parent
 
 # Project root .env.local
-ENV_PATH = _INTEGRATION_DIR.parent.parent.parent.parent.parent / ".env.local"
+ENV_PATH = _INTEGRATION_DIR.parent.parent.parent.parent / ".env.local"
 
 _live_env_loaded = False
 if ENV_PATH.exists() and ENV_PATH.stat().st_size > 0:

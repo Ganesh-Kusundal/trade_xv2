@@ -37,14 +37,6 @@ if ENV_PATH.exists() and ENV_PATH.stat().st_size > 0:
     _live_env_loaded = bool(os.environ.get("DHAN_CLIENT_ID"))
 
 
-@pytest.fixture(scope="module")
-def gateway() -> BrokerGateway:
-    """Create a live BrokerGateway with instruments loaded."""
-    gw = BrokerFactory().create(env_path=ENV_PATH, load_instruments=True)
-    yield gw
-    gw.close()
-
-
 @pytest.mark.skipif(not _live_env_loaded, reason=".env.local with DHAN_CLIENT_ID required")
 class TestLiveOrderLifecycle:
     """End-to-end order lifecycle tests against live Dhan API."""
@@ -85,14 +77,7 @@ class TestLiveOrderLifecycle:
     def test_order_status_values(self, gateway: BrokerGateway):
         """Order status should be valid OrderStatus enum values."""
         orderbook = gateway.get_orderbook()
-        valid_statuses = {
-            OrderStatus.OPEN,
-            OrderStatus.FILLED,
-            OrderStatus.CANCELLED,
-            OrderStatus.REJECTED,
-            OrderStatus.MODIFIED,
-            OrderStatus.TRIGGER_PENDING,
-        }
+        valid_statuses = set(OrderStatus)
         for order in orderbook:
             if order.status is not None:
                 assert order.status in valid_statuses, f"Invalid status: {order.status}"

@@ -16,7 +16,7 @@ from typing import Any
 from unittest.mock import MagicMock
 
 from brokers.upstox.gateway import UpstoxBrokerGateway
-from domain import Quote
+from domain import Quote, MarketDepth
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -39,6 +39,13 @@ class _MockWebsocket:
 
     def add_listener(self, listener: Callable[[str, Any], None]) -> None:
         self.listeners.append(listener)
+
+    def remove_listener(self, listener: Callable[[str, Any], None]) -> None:
+        if listener in self.listeners:
+            self.listeners.remove(listener)
+
+    def unsubscribe(self, keys: list[str]) -> None:
+        pass
 
     async def connect(self) -> None:
         self.connect_called = True
@@ -170,8 +177,46 @@ class TestUpstoxGatewayStream:
 
         result = gateway.stream("INFY", exchange="NSE", mode="LTP")
 
-        assert result is ws
+        # stream() returns a subscription-scoped handle (not the raw shared
+        # WebSocket client) so callers can stop only their own subscription
+        # via result.stop()/disconnect() without touching other subscribers.
+        assert result is not ws
+        assert hasattr(result, "stop")
+        assert hasattr(result, "disconnect")
         assert ws.listeners == []
+
+        # stop() is safe to call even when on_tick was None (no listener to remove).
+        result.stop()
+
+    def test_stream_stop_removes_only_this_subscription(self):
+        """stop() must unsubscribe only the caller's own listener.
+
+        Regression test: gateway.stream() previously returned the raw shared
+        WebSocket client, so callers had no scoped way to stop just their own
+        subscription — stop() either did nothing (no such method) or, if
+        misused via disconnect(), would have torn down the shared connection
+        for every other active subscriber too.
+        """
+        gateway, ws, _broker = _make_gateway(connected=True)
+
+        received_a: list[Quote] = []
+        received_b: list[Quote] = []
+
+        def on_tick_a(q: Quote) -> None:
+            received_a.append(q)
+
+        def on_tick_b(q: Quote) -> None:
+            received_b.append(q)
+
+        handle_a = gateway.stream("INFY", exchange="NSE", mode="LTP", on_tick=on_tick_a)
+        gateway.stream("RELIANCE", exchange="NSE", mode="LTP", on_tick=on_tick_b)
+
+        assert len(ws.listeners) == 2
+
+        handle_a.stop()
+
+        # Only INFY's listener was removed; RELIANCE's subscription is untouched.
+        assert len(ws.listeners) == 1
 
     def test_stream_connects_async_when_loop_running(self):
         async def _inner() -> None:
@@ -363,3 +408,58 @@ class TestCanonicalSymbolForDefn:
     def test_empty_fallback_key(self):
         sym = UpstoxBrokerGateway._canonical_symbol_for_defn(None, "")
         assert sym == ""
+
+
+# ---------------------------------------------------------------------------
+# stream_depth
+# ---------------------------------------------------------------------------
+
+
+class TestUpstoxGatewayStreamDepth:
+    def test_stream_depth_subscribes_d30_mode(self):
+        gateway, ws, _broker = _make_gateway(connected=True)
+
+        gateway.stream_depth("INFY", exchange="NSE", depth_type="DEPTH_30")
+
+        assert len(ws.subscribed) == 1
+        keys, mode = ws.subscribed[0]
+        assert keys == ["NSE_EQ|INFY"]
+        assert mode == "full_d30"
+
+    def test_stream_depth_translates_to_market_depth(self):
+        defn = _make_defn(name="INFY", instrument_key="NSE_EQ|INFY")
+        gateway, ws, _broker = _make_gateway(connected=True, resolver_defn=defn)
+
+        received = []
+        gateway.stream_depth("INFY", exchange="NSE", on_depth=received.append)
+
+        assert len(ws.listeners) == 1
+        listener = ws.listeners[0]
+
+        listener(
+            "tick",
+            {
+                "frame_type": "full",
+                "payload": {
+                    "instrument_key": "NSE_EQ|INFY",
+                    "depth": {
+                        "bids": [{"price": 1800.5, "quantity": 100, "orders": 2}],
+                        "asks": [{"price": 1801.0, "quantity": 200, "orders": 1}],
+                    },
+                },
+            },
+        )
+
+        assert len(received) == 1
+        d = received[0]
+        assert isinstance(d, MarketDepth)
+        assert d.symbol == "INFY"
+        assert len(d.bids) == 1
+        assert d.bids[0].price == Decimal("1800.5")
+        assert d.bids[0].quantity == 100
+        assert d.bids[0].orders == 2
+        assert len(d.asks) == 1
+        assert d.asks[0].price == Decimal("1801.0")
+        assert d.asks[0].quantity == 200
+        assert d.asks[0].orders == 1
+        assert d.depth_type == "DEPTH_5"

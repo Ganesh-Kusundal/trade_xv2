@@ -401,7 +401,7 @@ class TestAuditLeakAndMultiplexingFixes:
         conn.register_token_receiver(feed.update_token)
 
         # Verify it is registered
-        assert len(conn._token_receivers) == 1
+        assert len(conn._token_manager._token_receivers) == 1
 
         # Simulate GC of the feed (since the connection only holds a WeakMethod)
         del feed
@@ -410,7 +410,7 @@ class TestAuditLeakAndMultiplexingFixes:
         # Attempt to broadcast — should clean up the dead reference
         notified = conn.broadcast_token("new_token_123")
         assert notified == 0
-        assert len(conn._token_receivers) == 0
+        assert len(conn._token_manager._token_receivers) == 0
 
     def test_broker_gateway_callback_leak_prevention(self):
         """BrokerGateway unstream removes wrapper callback from feed."""

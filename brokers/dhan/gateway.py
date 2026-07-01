@@ -224,7 +224,10 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         fetch. This halves API calls in cancel_order() verification.
         """
         try:
-            return self._conn.orders.get_order(order_id)
+            order = self._conn.orders.get_order(order_id)
+            if order is None or not order.order_id:
+                return None
+            return order
         except Exception as exc:
             logger.warning(
                 "get_order_failed",
@@ -322,7 +325,8 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         # Special handling for depth_200_feed to use connection pool
         if feed_attr == "depth_200_feed":
             pool = getattr(self._conn, "depth_200_pool", None)
-            if pool is not None:
+            from brokers.dhan.depth_200 import Depth200ConnectionPool
+            if isinstance(pool, Depth200ConnectionPool):
                 # Use connection pool for multiple instruments
                 feed = pool.get_feed(instrument)
                 if on_depth is not None:
@@ -687,7 +691,11 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
 
         engine = getattr(self._conn, "subscription_engine", None)
         if engine is not None:
-            status["has_active_subscriptions"] = engine.subscription_count() > 0
+            try:
+                count = engine.subscription_count()
+                status["has_active_subscriptions"] = int(count) > 0
+            except (TypeError, ValueError):
+                status["has_active_subscriptions"] = False
 
         return status
 

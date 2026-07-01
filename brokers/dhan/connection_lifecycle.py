@@ -83,6 +83,7 @@ class ConnectionLifecycle:
         self._order_stream: DhanOrderStream | None = None
         self._polling_feed: PollingMarketFeed | None = None
         self._depth_20_feed: DhanDepth20Feed | None = None
+        self._depth_200_feed: DhanDepth200Feed | None = None
         self._depth_200_pool: Depth200ConnectionPool | None = None
         self._resolver_refresher: ResolverRefresher | None = None
 
@@ -330,6 +331,10 @@ class ConnectionLifecycle:
     @property
     def polling_feed(self) -> PollingMarketFeed | None:
         return self._polling_feed
+
+    @polling_feed.setter
+    def polling_feed(self, value: PollingMarketFeed) -> None:
+        self._polling_feed = value
 
     @property
     def resolver_refresher(self) -> ResolverRefresher | None:

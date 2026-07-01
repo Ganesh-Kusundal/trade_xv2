@@ -424,6 +424,16 @@ class DataLakeGateway(
     def close(self) -> None:
         pass
 
+    def stream(
+        self,
+        symbol: str,
+        exchange: str = "NSE",
+        mode: str = "LTP",
+        on_tick: Any | None = None,
+    ) -> Any:
+        from brokers.common.gateway_errors import UnsupportedGatewayOperationError
+        raise UnsupportedGatewayOperationError("DataLakeGateway", "streaming")
+
     # -----------------------------------------------------------------------
     # DataLake-specific helpers
     # -----------------------------------------------------------------------

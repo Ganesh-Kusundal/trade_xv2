@@ -33,6 +33,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
+from brokers.dhan.connection_admission import MarketFeedConnectionAdmission
 from brokers.dhan.reconnecting_service import ReconnectingServiceMixin
 from domain import DepthLevel, MarketDepth
 from domain.symbols import normalize_symbol
@@ -102,10 +103,20 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
         event_name: str,
         header_carries_security_id: bool,
         event_bus: EventBus | None = None,
+        admission: Any | None = None,
     ):
         self._client_id = client_id
         self._access_token = access_token
         self._event_bus = event_bus
+        # Shared 429-cooldown tracking per (client_id, depth_type). Unlike
+        # market-feed, depth-200 intentionally opens multiple concurrent
+        # connections (one per instrument via Depth200ConnectionPool), so we
+        # only reuse the cooldown bookkeeping here, never try_acquire/release
+        # — the exclusive host lock is not appropriate for a connection type
+        # that legitimately runs several connections at once.
+        self._admission = admission or MarketFeedConnectionAdmission(
+            client_id, connection_type=f"depth-{depth_type.lower()}"
+        )
 
         self.ENDPOINT = endpoint
         self.REQUEST_CODE = request_code
@@ -374,6 +385,17 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
         max_backoff = 30.0
 
         while not self._stop_event.is_set():
+            # ── 429 cooldown ────────────────────────────────────────────────
+            cooldown_wait = self._admission.seconds_until_connect_allowed()
+            if cooldown_wait > 0:
+                logger.info(
+                    "%s_connect_cooldown_wait",
+                    self.DEPTH_TYPE.lower(),
+                    extra={"seconds": round(cooldown_wait, 2)},
+                )
+                await asyncio.sleep(min(cooldown_wait, 5.0))
+                continue
+
             url = self._build_ws_url()
             try:
                 async with websockets.connect(url) as ws:
@@ -383,6 +405,7 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
                         self._reconnect_count = 0
 
                     logger.info("%s_connected", self.DEPTH_TYPE.lower())
+                    self._admission.clear_cooldown()
 
                     if self._subscriptions:
                         self._send_subscription(self._subscriptions)
@@ -404,7 +427,14 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
                             break
 
             except Exception as exc:
-                logger.error("%s_connection_error: %s", self.DEPTH_TYPE.lower(), exc)
+                err_str = str(exc).lower()
+                if "429" in err_str:
+                    logger.warning(
+                        "%s WebSocket rate limited, backing off", self.DEPTH_TYPE.lower()
+                    )
+                    self._admission.record_rate_limit_cooldown()
+                else:
+                    logger.error("%s_connection_error: %s", self.DEPTH_TYPE.lower(), exc)
                 with self._lock:
                     self._is_connected = False
                     self._ws = None

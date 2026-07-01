@@ -41,16 +41,6 @@ def _load_credentials():
     return os.environ.get("DHAN_CLIENT_ID", ""), os.environ.get("DHAN_ACCESS_TOKEN", "")
 
 
-@pytest.fixture(scope="module")
-def gateway():
-    if not _live_env_loaded:
-        return None
-    from brokers.dhan import BrokerFactory
-
-    _load_credentials()
-    return BrokerFactory().create(env_path=ENV_PATH, load_instruments=True)
-
-
 @pytest.mark.skipif(not _live_env_loaded, reason=".env.local with DHAN_CLIENT_ID required")
 class TestLiveValidation:
     def test_validate_rejects_bad_lot_size(self, gateway):

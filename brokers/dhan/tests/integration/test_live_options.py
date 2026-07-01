@@ -33,14 +33,6 @@ if ENV_PATH.exists() and ENV_PATH.stat().st_size > 0:
     _live_env_loaded = bool(os.environ.get("DHAN_CLIENT_ID"))
 
 
-@pytest.fixture(scope="module")
-def gateway() -> BrokerGateway:
-    """Create a live BrokerGateway with instruments loaded."""
-    gw = BrokerFactory().create(env_path=ENV_PATH, load_instruments=True)
-    yield gw
-    gw.close()
-
-
 @pytest.mark.skipif(not _live_env_loaded, reason=".env.local with DHAN_CLIENT_ID required")
 class TestLiveOptions:
     """End-to-end option chain retrieval against the live Dhan API."""

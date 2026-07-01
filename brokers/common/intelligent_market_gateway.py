@@ -56,6 +56,42 @@ from domain.historical import InstrumentRef
 logger = logging.getLogger(__name__)
 
 
+class _QuotaReleasingStreamHandle:
+    """Wraps a broker stream handle to release its quota token on stop/disconnect.
+
+    WebSocket streams are long-lived (unlike REST calls), so the quota token
+    is acquired once at connection-open time and released when the caller
+    tears the stream down, not immediately after this call returns.
+    """
+
+    def __init__(self, handle: Any, release_fn: Callable[[], None]) -> None:
+        self._handle = handle
+        self._release_fn = release_fn
+        self._released = False
+
+    def _release_once(self) -> None:
+        if not self._released:
+            self._released = True
+            self._release_fn()
+
+    def stop(self, *args: Any, **kwargs: Any) -> Any:
+        try:
+            if hasattr(self._handle, "stop"):
+                return self._handle.stop(*args, **kwargs)
+        finally:
+            self._release_once()
+
+    def disconnect(self, *args: Any, **kwargs: Any) -> Any:
+        try:
+            if hasattr(self._handle, "disconnect"):
+                return self._handle.disconnect(*args, **kwargs)
+        finally:
+            self._release_once()
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._handle, name)
+
+
 class IntelligentMarketDataGateway(MarketDataGateway):
     """Intelligent gateway with smart routing and quota management.
 
@@ -152,21 +188,24 @@ class IntelligentMarketDataGateway(MarketDataGateway):
     def ltp(self, symbol: str, exchange: str = DEFAULT_EXCHANGE, _gateway: Any = None) -> Decimal:
         """Return last traded price with intelligent routing."""
         if _gateway is None:
-            _gateway = self._get_gateway(OperationKind.GET_QUOTE)
+            gateway = self._get_gateway(OperationKind.GET_QUOTE)
+            _gateway = getattr(gateway, "legacy_gateway", gateway)
         return _gateway.ltp(symbol, exchange)
 
     @routed(OperationKind.GET_QUOTE, "quotes")
     def quote(self, symbol: str, exchange: str = DEFAULT_EXCHANGE, _gateway: Any = None) -> Quote:
         """Return quote with intelligent routing."""
         if _gateway is None:
-            _gateway = self._get_gateway(OperationKind.GET_QUOTE)
+            gateway = self._get_gateway(OperationKind.GET_QUOTE)
+            _gateway = getattr(gateway, "legacy_gateway", gateway)
         return _gateway.quote(symbol, exchange)
 
     @routed(OperationKind.GET_DEPTH, "quotes")
     def depth(self, symbol: str, exchange: str = DEFAULT_EXCHANGE, _gateway: Any = None) -> MarketDepth:
         """Return market depth with intelligent routing."""
         if _gateway is None:
-            _gateway = self._get_gateway(OperationKind.GET_DEPTH)
+            gateway = self._get_gateway(OperationKind.GET_DEPTH)
+            _gateway = getattr(gateway, "legacy_gateway", gateway)
         return _gateway.depth(symbol, exchange)
 
     def history(
@@ -204,7 +243,9 @@ class IntelligentMarketDataGateway(MarketDataGateway):
                     from_date=start,
                     to_date=end,
                 )
-                series, _ledger = self._infra.historical.fetch(query)
+                from brokers.common.async_compat import run_async_compat
+                coro = self._infra.historical.fetch(query)
+                series, _ledger = run_async_compat(coro, fire_and_forget=False)
                 return series.to_dataframe()
             except Exception as exc:
                 logger.warning(
@@ -214,10 +255,11 @@ class IntelligentMarketDataGateway(MarketDataGateway):
 
         # Simple mode or fallback
         gateway = self._get_gateway(OperationKind.GET_HISTORICAL_BARS)
+        legacy_gateway = getattr(gateway, "legacy_gateway", gateway)
         broker_id = getattr(gateway, "broker_id", self._primary)
         token = self._acquire_quota(broker_id, "historical")
         try:
-            return gateway.history(symbol, exchange, timeframe, lookback_days, from_date, to_date)
+            return legacy_gateway.history(symbol, exchange, timeframe, lookback_days, from_date, to_date)
         finally:
             self._release_quota(token)
 
@@ -229,10 +271,11 @@ class IntelligentMarketDataGateway(MarketDataGateway):
     ) -> OptionChain:
         """Return option chain with intelligent routing."""
         gateway = self._get_gateway(OperationKind.FETCH_OPTION_CHAIN)
+        legacy_gateway = getattr(gateway, "legacy_gateway", gateway)
         broker_id = getattr(gateway, "broker_id", self._primary)
         token = self._acquire_quota(broker_id, "option_chain")
         try:
-            return gateway.option_chain(underlying, exchange, expiry)
+            return legacy_gateway.option_chain(underlying, exchange, expiry)
         finally:
             self._release_quota(token)
 
@@ -243,10 +286,11 @@ class IntelligentMarketDataGateway(MarketDataGateway):
     ) -> FutureChain:
         """Return future chain with intelligent routing."""
         gateway = self._get_gateway(OperationKind.GET_QUOTE)  # Future chain uses quote operation
+        legacy_gateway = getattr(gateway, "legacy_gateway", gateway)
         broker_id = getattr(gateway, "broker_id", self._primary)
         token = self._acquire_quota(broker_id, "quotes")
         try:
-            return gateway.future_chain(underlying, exchange)
+            return legacy_gateway.future_chain(underlying, exchange)
         finally:
             self._release_quota(token)
 
@@ -259,7 +303,12 @@ class IntelligentMarketDataGateway(MarketDataGateway):
     ) -> Any:
         """Start WebSocket streaming (delegates to primary broker)."""
         # Streaming is broker-specific, so always use primary broker
-        return self._infra.gateway_for(self._primary).stream(symbol, exchange, mode, on_tick)
+        gateway = self._infra.gateway_for(self._primary)
+        legacy_gateway = getattr(gateway, "legacy_gateway", gateway)
+        broker_id = getattr(gateway, "broker_id", self._primary)
+        token = self._acquire_quota(broker_id, "market_stream")
+        handle = legacy_gateway.stream(symbol, exchange, mode, on_tick)
+        return _QuotaReleasingStreamHandle(handle, lambda: self._release_quota(token))
 
     def stream_depth(
         self,
@@ -269,13 +318,23 @@ class IntelligentMarketDataGateway(MarketDataGateway):
         on_depth: Callable[[MarketDepth], None] | None = None,
     ) -> Any:
         """Start WebSocket depth streaming (delegates to primary broker)."""
-        return self._infra.gateway_for(self._primary).stream_depth(
+        gateway = self._infra.gateway_for(self._primary)
+        legacy_gateway = getattr(gateway, "legacy_gateway", gateway)
+        broker_id = getattr(gateway, "broker_id", self._primary)
+        token = self._acquire_quota(broker_id, "market_stream")
+        handle = legacy_gateway.stream_depth(
             symbol, exchange=exchange, depth_type=depth_type, on_depth=on_depth
         )
+        return _QuotaReleasingStreamHandle(handle, lambda: self._release_quota(token))
 
     def stream_order(self, on_order: Any | None = None) -> Any:
         """Start WebSocket order streaming (delegates to primary broker)."""
-        return self._infra.gateway_for(self._primary).stream_order(on_order)
+        gateway = self._infra.gateway_for(self._primary)
+        legacy_gateway = getattr(gateway, "legacy_gateway", gateway)
+        broker_id = getattr(gateway, "broker_id", self._primary)
+        token = self._acquire_quota(broker_id, "order_stream")
+        handle = legacy_gateway.stream_order(on_order)
+        return _QuotaReleasingStreamHandle(handle, lambda: self._release_quota(token))
 
     # -----------------------------------------------------------------------
     # Batch Market Data
@@ -290,10 +349,11 @@ class IntelligentMarketDataGateway(MarketDataGateway):
         if not self._smart or len(symbols) < 5:
             # Small batches or simple mode: use primary broker
             gateway = self._get_gateway(OperationKind.GET_QUOTE)  # Batch uses quote operation
+            legacy_gateway = getattr(gateway, "legacy_gateway", gateway)
             broker_id = getattr(gateway, "broker_id", self._primary)
             token = self._acquire_quota(broker_id, "quotes")
             try:
-                return gateway.ltp_batch(symbols, exchange)
+                return legacy_gateway.ltp_batch(symbols, exchange)
             finally:
                 self._release_quota(token)
 
@@ -302,9 +362,10 @@ class IntelligentMarketDataGateway(MarketDataGateway):
         results = {}
         for broker_id, broker_symbols in allocations.items():
             gateway = self._infra.registry.get_gateway(broker_id)
+            legacy_gateway = getattr(gateway, "legacy_gateway", gateway)
             token = self._acquire_quota(broker_id, "quotes")
             try:
-                batch_result = gateway.ltp_batch(broker_symbols, exchange)
+                batch_result = legacy_gateway.ltp_batch(broker_symbols, exchange)
                 results.update(batch_result)
             finally:
                 self._release_quota(token)
@@ -314,10 +375,11 @@ class IntelligentMarketDataGateway(MarketDataGateway):
         """Return quotes for multiple symbols with intelligent routing."""
         if not self._smart or len(symbols) < 5:
             gateway = self._get_gateway(OperationKind.GET_QUOTE)
+            legacy_gateway = getattr(gateway, "legacy_gateway", gateway)
             broker_id = getattr(gateway, "broker_id", self._primary)
             token = self._acquire_quota(broker_id, "quotes")
             try:
-                return gateway.quote_batch(symbols, exchange)
+                return legacy_gateway.quote_batch(symbols, exchange)
             finally:
                 self._release_quota(token)
 
@@ -326,9 +388,10 @@ class IntelligentMarketDataGateway(MarketDataGateway):
         results = {}
         for broker_id, broker_symbols in allocations.items():
             gateway = self._infra.registry.get_gateway(broker_id)
+            legacy_gateway = getattr(gateway, "legacy_gateway", gateway)
             token = self._acquire_quota(broker_id, "quotes")
             try:
-                batch_result = gateway.quote_batch(broker_symbols, exchange)
+                batch_result = legacy_gateway.quote_batch(broker_symbols, exchange)
                 results.update(batch_result)
             finally:
                 self._release_quota(token)
@@ -344,10 +407,11 @@ class IntelligentMarketDataGateway(MarketDataGateway):
         """Return historical data for multiple symbols with intelligent routing."""
         if not self._smart:
             gateway = self._get_gateway(OperationKind.GET_HISTORICAL_BARS)
+            legacy_gateway = getattr(gateway, "legacy_gateway", gateway)
             broker_id = getattr(gateway, "broker_id", self._primary)
             token = self._acquire_quota(broker_id, "historical")
             try:
-                return gateway.history_batch(symbols, exchange, timeframe, lookback_days)
+                return legacy_gateway.history_batch(symbols, exchange, timeframe, lookback_days)
             finally:
                 self._release_quota(token)
 
@@ -373,6 +437,8 @@ class IntelligentMarketDataGateway(MarketDataGateway):
     # Trading
     # -----------------------------------------------------------------------
 
+
+
     def place_order(
         self,
         symbol: str,
@@ -389,7 +455,8 @@ class IntelligentMarketDataGateway(MarketDataGateway):
         """Place an order (always uses primary broker for execution)."""
         # Order execution is critical — always use primary broker
         gateway = self._infra.gateway_for(self._primary)
-        return gateway.place_order(
+        legacy_gateway = getattr(gateway, "legacy_gateway", gateway)
+        return legacy_gateway.place_order(
             symbol,
             exchange,
             side,
@@ -405,22 +472,26 @@ class IntelligentMarketDataGateway(MarketDataGateway):
     def cancel_order(self, order_id: str) -> OrderResponse:
         """Cancel an order (always uses primary broker)."""
         gateway = self._infra.gateway_for(self._primary)
-        return gateway.cancel_order(order_id)
+        legacy_gateway = getattr(gateway, "legacy_gateway", gateway)
+        return legacy_gateway.cancel_order(order_id)
 
     def modify_order(self, order_id: str, **changes: Any) -> OrderResponse:
         """Modify an order (always uses primary broker)."""
         gateway = self._infra.gateway_for(self._primary)
-        return gateway.modify_order(order_id, **changes)
+        legacy_gateway = getattr(gateway, "legacy_gateway", gateway)
+        return legacy_gateway.modify_order(order_id, **changes)
 
     def get_orderbook(self) -> list[Order]:
         """Return all orders (from primary broker)."""
         gateway = self._infra.gateway_for(self._primary)
-        return gateway.get_orderbook()
+        legacy_gateway = getattr(gateway, "legacy_gateway", gateway)
+        return legacy_gateway.get_orderbook()
 
     def get_trade_book(self) -> list[Trade]:
         """Return all trades (from primary broker)."""
         gateway = self._infra.gateway_for(self._primary)
-        return gateway.get_trade_book()
+        legacy_gateway = getattr(gateway, "legacy_gateway", gateway)
+        return legacy_gateway.get_trade_book()
 
     # -----------------------------------------------------------------------
     # Portfolio
@@ -429,22 +500,26 @@ class IntelligentMarketDataGateway(MarketDataGateway):
     def positions(self) -> list[Position]:
         """Return current positions (from primary broker)."""
         gateway = self._infra.gateway_for(self._primary)
-        return gateway.positions()
+        legacy_gateway = getattr(gateway, "legacy_gateway", gateway)
+        return legacy_gateway.positions()
 
     def holdings(self) -> list[Holding]:
         """Return holdings (from primary broker)."""
         gateway = self._infra.gateway_for(self._primary)
-        return gateway.holdings()
+        legacy_gateway = getattr(gateway, "legacy_gateway", gateway)
+        return legacy_gateway.holdings()
 
     def funds(self) -> Balance:
         """Return fund limits (from primary broker)."""
         gateway = self._infra.gateway_for(self._primary)
-        return gateway.funds()
+        legacy_gateway = getattr(gateway, "legacy_gateway", gateway)
+        return legacy_gateway.funds()
 
     def trades(self) -> list[Trade]:
         """Return trades (from primary broker)."""
         gateway = self._infra.gateway_for(self._primary)
-        return gateway.trades()
+        legacy_gateway = getattr(gateway, "legacy_gateway", gateway)
+        return legacy_gateway.trades()
 
     # -----------------------------------------------------------------------
     # Instrument
@@ -453,12 +528,14 @@ class IntelligentMarketDataGateway(MarketDataGateway):
     def search(self, query: str) -> list[dict]:
         """Search instruments (from primary broker)."""
         gateway = self._infra.gateway_for(self._primary)
-        return gateway.search(query)
+        legacy_gateway = getattr(gateway, "legacy_gateway", gateway)
+        return legacy_gateway.search(query)
 
     def load_instruments(self, source: str | None = None, use_cache: bool = True) -> None:
         """Load instrument master data (from primary broker)."""
         gateway = self._infra.gateway_for(self._primary)
-        return gateway.load_instruments(source, use_cache)
+        legacy_gateway = getattr(gateway, "legacy_gateway", gateway)
+        return legacy_gateway.load_instruments(source, use_cache)
 
     # -----------------------------------------------------------------------
     # Lifecycle
@@ -467,12 +544,14 @@ class IntelligentMarketDataGateway(MarketDataGateway):
     def capabilities(self) -> Any:
         """Return broker capability matrix (from primary broker)."""
         gateway = self._infra.gateway_for(self._primary)
-        return gateway.capabilities()
+        legacy_gateway = getattr(gateway, "legacy_gateway", gateway)
+        return legacy_gateway.capabilities()
 
     def describe(self) -> dict:
         """Return broker metadata (from primary broker)."""
         gateway = self._infra.gateway_for(self._primary)
-        return gateway.describe()
+        legacy_gateway = getattr(gateway, "legacy_gateway", gateway)
+        return legacy_gateway.describe()
 
     def close(self) -> None:
         """Close all connections and clean up resources."""
@@ -480,7 +559,8 @@ class IntelligentMarketDataGateway(MarketDataGateway):
         for broker_id in self._infra.registry.list_brokers():
             try:
                 gateway = self._infra.registry.get_gateway(broker_id)
-                gateway.close()
+                legacy_gateway = getattr(gateway, "legacy_gateway", gateway)
+                legacy_gateway.close()
             except Exception as exc:
                 logger.warning(
                     "gateway_close_failed",

@@ -267,15 +267,14 @@ class SubscriptionEngine:
         feed: Any | None,
     ) -> None:
         self._instrument_refs.pop(key, None)
-        mode = self._instrument_modes.pop(key, "LTP")
+        mode = self._instrument_modes.pop(key, None) or "LTP"
         if feed is not None:
             try:
                 inst = self._conn.instruments.resolve(symbol, exchange)
                 segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, DEFAULT_SEGMENT)
                 sid = int(inst.security_id)
                 feed.unsubscribe([(segment, sid, mode)])
-                sym_name = symbol.upper()
-                with feed._lock:
-                    feed._last_tick_time.pop(sym_name, None)
+                # Use the public API instead of accessing feed._lock directly.
+                feed.clear_symbol_tracking(symbol)
             except Exception as exc:
                 logger.debug("subscription_engine.unsubscribe_failed: %s", exc)
