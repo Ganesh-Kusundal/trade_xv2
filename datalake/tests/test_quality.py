@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from datalake.quality import DataQualityEngine, QualityReport
+from datalake.quality.engine import DataQualityEngine, QualityReport
 
 
 def _write_parquet(path: Path, df: pd.DataFrame) -> None:
@@ -178,7 +178,7 @@ class TestCheckUniverse:
 
 class TestCheckWithCatalog:
     def test_records_to_catalog(self, tmp_path: Path) -> None:
-        from datalake.catalog import DataCatalog
+        from datalake.storage.catalog import DataCatalog
 
         df = _make_canonical_df(n=100)
         parquet_path = (

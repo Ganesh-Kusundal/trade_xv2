@@ -28,7 +28,7 @@ from __future__ import annotations
 
 from typing import Generic, TypeVar
 
-from brokers.common.resilience.errors import TradeXV2Error
+from domain.exceptions import TradeXV2Error
 
 T = TypeVar("T", bound=str)
 

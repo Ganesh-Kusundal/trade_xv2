@@ -11,6 +11,22 @@ Design invariants enforced here:
   ``QuotaScheduler`` remains the sole gatekeeper of API budget.
 - Stream lifecycle is owned by ``StreamOrchestrator``; the gateway only opens a
   raw transport handle.
+
+Relationship to MarketDataGateway
+----------------------------------
+There are TWO gateway abstractions in this codebase. This is intentional:
+
+- **CommonBrokerGateway** (this Protocol): Used by the OMS, execution layer,
+  and trading orchestrator. Includes trading, portfolio, and quota operations.
+  Defined as a ``Protocol`` for structural typing (duck typing).
+
+- **MarketDataGateway** (``brokers.common.gateway``): Used by the data layer,
+  analytics, and CLI. Includes market data, batch operations, and instrument
+  queries. Defined as an ``ABC`` for nominal typing.
+
+New code should prefer **CommonBrokerGateway** for trading operations and
+**MarketDataGateway** for read-only data access. The two interfaces will be
+merged in a future release (tracked as P2-1 technical debt).
 """
 
 from __future__ import annotations

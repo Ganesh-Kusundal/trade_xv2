@@ -15,6 +15,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from datalake.core.paths import DEFAULT_DATA_ROOT
+
 logger = logging.getLogger(__name__)
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -226,9 +228,9 @@ def run_halftrend_backtest(top_n: int = 50, years: int = 1, gateway=None):
     gateway : DataLakeGateway, optional
         Data gateway instance. If None, creates a new one.
     """
-    from datalake.gateway import DataLakeGateway
+    from datalake.adapters.analytics_provider import DataLakeMarketDataProvider
 
-    gw = gateway or DataLakeGateway(root="market_data")
+    gw = gateway or DataLakeMarketDataProvider(root=DEFAULT_DATA_ROOT)
     all_symbols = gw.list_symbols()
     print(f"Universe: {len(all_symbols)} symbols")
 

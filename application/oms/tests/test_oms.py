@@ -16,7 +16,8 @@ from application.oms import (
     RiskManager,
 )
 from domain import Order, OrderStatus, OrderType, ProductType, Side, Trade
-from infrastructure.event_bus import DomainEvent, EventBus, EventType
+from domain.events.types import DomainEvent, EventType
+from infrastructure.event_bus import EventBus
 
 
 @pytest.fixture

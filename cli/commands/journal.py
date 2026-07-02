@@ -7,7 +7,7 @@ from datetime import datetime
 from rich.console import Console
 from rich.table import Table
 
-from datalake.journal import TradeJournal
+from datalake.research.journal import TradeJournal
 
 
 def run_journal(args: list[str], console: Console) -> None:

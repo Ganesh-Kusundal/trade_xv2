@@ -11,7 +11,7 @@ Supported corporate actions:
 - Rights issues (at subscription price)
 
 Usage:
-    from datalake.corporate_actions import CorporateActionStore
+    from datalake.analytics.corporate_actions import CorporateActionStore
 
     store = CorporateActionStore("market_data")
     store.record_split("RELIANCE", date(2023, 7, 1), 2.0)
@@ -28,7 +28,7 @@ from typing import Literal
 
 import pandas as pd
 
-from datalake.duckdb_utils import get_pool
+from datalake.core.duckdb_utils import get_pool
 from domain.symbols import normalize_symbol
 
 logger = logging.getLogger(__name__)

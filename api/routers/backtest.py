@@ -19,7 +19,7 @@ from api.schemas import (
     BacktestResultResponse,
     BacktestRunRequest,
 )
-from datalake.backtest_cache_store import BacktestCacheStore
+from datalake.research.backtest_cache_store import BacktestCacheStore
 
 logger = logging.getLogger(__name__)
 

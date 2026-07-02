@@ -19,14 +19,14 @@ import pyarrow as pa
 
 from brokers.common.batch_executor import batch_execute
 from datalake.core.paths import symbol_partition_path
-from datalake.io import atomic_parquet_write
+from datalake.core.io import atomic_parquet_write
 from datalake.schema import (
     MARKET_CLOSE_HOUR,
     MARKET_CLOSE_MINUTE,
     MARKET_OPEN_HOUR,
     MARKET_OPEN_MINUTE,
 )
-from datalake.symbols import normalize_symbol
+from datalake.core.symbols import normalize_symbol
 from datalake.validation import validate_candles
 
 logger = logging.getLogger(__name__)

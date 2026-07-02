@@ -34,7 +34,7 @@ class AppConfig(BaseModel):
 
     # ── API Server ──────────────────────────────────────────
     api_host: str = "127.0.0.1"
-    api_port: int = 8000
+    api_port: int = 8080
     observability_port: int = 8765
     cors_origins: list[str] = ["http://localhost:5173"]
 
@@ -100,7 +100,7 @@ class AppConfig(BaseModel):
 
         # api_port: TRADEX_API_PORT → API_PORT
         api_port_raw = os.environ.get(
-            "TRADEX_API_PORT", os.environ.get("API_PORT", "8000")
+            "TRADEX_API_PORT", os.environ.get("API_PORT", "8080")
         )
         kwargs["api_port"] = int(api_port_raw)
 

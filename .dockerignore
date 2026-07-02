@@ -1,0 +1,56 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# Testing
+.pytest_cache
+.coverage
+htmlcov/
+*.cover
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+dist/
+build/
+*.egg-info/
+
+# Documentation
+docs/_build/
+
+# Frontend node_modules (build separately)
+frontend/node_modules/
+
+# Data files (mount as volumes instead)
+market_data/**/*.parquet
+market_data/**/*.duckdb
+market_data/**/*.sqlite
+logs/
+
+# Environment files (use secrets management)
+.env
+.env.local
+*.pem
+*.key
+
+# Qoder
+.qoder/

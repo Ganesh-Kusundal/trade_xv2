@@ -23,7 +23,7 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 
-from datalake.duckdb_utils import DEFAULT_CATALOG_PATH, get_pool
+from datalake.core.duckdb_utils import DEFAULT_CATALOG_PATH, get_pool
 
 logger = logging.getLogger(__name__)
 

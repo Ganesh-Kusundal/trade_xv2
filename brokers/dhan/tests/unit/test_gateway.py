@@ -10,7 +10,7 @@ from unittest.mock import MagicMock
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 
 from brokers.dhan.connection import DhanConnection
-from brokers.dhan.domain import Order, OrderType, Position, Side
+from brokers.dhan.domain import Position
 from brokers.dhan.gateway import BrokerGateway
 from brokers.dhan.tests.conftest import FakeHttpClient
 from domain import Balance, OrderRequest, Quote
@@ -110,13 +110,11 @@ class TestBrokerGateway:
 
         from domain import OrderResponse
 
-        expected = Order(
+        expected = OrderResponse(
+            success=True,
             order_id="ORD-001",
-            symbol="RELIANCE",
-            exchange="NSE",
-            side=Side.BUY,
-            order_type=OrderType.LIMIT,
-            quantity=10,
+            broker_order_id="ORD-001",
+            message="Order placed",
         )
         conn._orders.place_order.return_value = expected
 
@@ -147,16 +145,11 @@ class TestBrokerGateway:
 
     def test_place_order_mcx_resolves_canonical_segment(self):
         """MCX exchange must map to ExchangeSegment.MCX, not silently fall back to NSE."""
-        from domain import ExchangeSegment
+        from domain import ExchangeSegment, OrderResponse
 
         gateway, conn = self._make_gateway()
-        conn._orders.place_order.return_value = Order(
-            order_id="ORD-MCX",
-            symbol="GOLD",
-            exchange="MCX",
-            side=Side.BUY,
-            order_type=OrderType.MARKET,
-            quantity=1,
+        conn._orders.place_order.return_value = OrderResponse.ok(
+            order_id="ORD-MCX", message="Order placed"
         )
 
         gateway.place_order(symbol="GOLD", exchange="MCX", side="BUY", quantity=1)

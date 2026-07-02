@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from datalake.corporate_actions import CorporateActionStore
+from datalake.analytics.corporate_actions import CorporateActionStore
 
 
 @pytest.fixture

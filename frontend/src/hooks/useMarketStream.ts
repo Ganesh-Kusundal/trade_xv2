@@ -10,6 +10,8 @@ import type { Exchange, Quote } from '@/types'
 
 export type MarketStreamMessage =
   | { type: 'quote' | 'tick'; symbol: string; ltp: number; ts?: number; volume?: number; open?: number; high?: number; low?: number; prevClose?: number; change?: number; changePct?: number; exchange?: Exchange }
+  | { type: 'depth' | 'depth_20' | 'depth_200'; symbol: string; bids: any[]; asks: any[] }
+  | { type: 'trade'; symbol: string; price: number; size: number; side?: 'BUY' | 'SELL'; ts?: number }
   | { type: 'subscribed' | 'unsubscribed'; symbols: string[] }
   | { type: 'error'; reason?: string; message?: string }
 
@@ -88,6 +90,12 @@ class MarketStreamClient {
   }
 
   private connect(): void {
+    const isTest = typeof process !== 'undefined' && process.env.NODE_ENV === 'test'
+    const disableLiveWs = !isTest && import.meta.env.VITE_DISABLE_LIVE_WS !== 'false'
+    if (disableLiveWs) {
+      console.log('Live WebSocket connection is disabled by configuration. Using datalake HTTP polling.')
+      return
+    }
     if (!this.enabled || this.ws?.readyState === WebSocket.CONNECTING) return
     this.disconnect(false)
     try {
@@ -184,7 +192,8 @@ class MarketStreamClient {
   }
 }
 
-const sharedClient = new MarketStreamClient()
+export const sharedMarketClient = new MarketStreamClient()
+const sharedClient = sharedMarketClient
 
 export function useMarketStream(opts: UseMarketStreamOptions = {}): UseMarketStreamResult {
   const { symbols = [], enabled = true } = opts

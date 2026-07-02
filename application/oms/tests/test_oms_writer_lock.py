@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from application.oms.persistence.sqlite_order_store import OmsWriterLockError, SqliteOrderStore
+from infrastructure.persistence.sqlite_order_store import OmsWriterLockError, SqliteOrderStore
 
 
 @pytest.mark.skipif(

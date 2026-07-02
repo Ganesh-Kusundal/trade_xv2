@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from api.routers import backtest as backtest_router
 from api.schemas import BacktestMetrics, BacktestResultResponse
-from datalake.backtest_cache_store import BacktestCacheStore
+from datalake.research.backtest_cache_store import BacktestCacheStore
 
 
 def _sample_result(run_id: str, symbol: str = "RELIANCE") -> BacktestResultResponse:

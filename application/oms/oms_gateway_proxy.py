@@ -38,8 +38,8 @@ import time
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-from brokers.common.resilience.errors import TradeXV2Error
 from domain.entities import OrderResponse
+from domain.exceptions import TradeXV2Error
 
 if TYPE_CHECKING:
     from application.oms.risk_manager import RiskManager

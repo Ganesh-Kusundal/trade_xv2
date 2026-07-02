@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from datalake.paths import (
+from datalake.core.paths import (
     CURATED_EQUITY_CANDLES,
     CURATED_ROOT,
     DEFAULT_DATA_ROOT,

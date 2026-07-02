@@ -96,7 +96,7 @@ class UpstoxOrderCommandAdapter(OrderCommand):
             self._idempotency_cache.put(request.correlation_id, response)
         return response
 
-    def modify_order(self, order_id: str, **changes: Any) -> dict[str, Any]:
+    def modify_order(self, order_id: str, **changes: Any) -> OrderResponse:
         """Modify an existing order via the Upstox V3 modify endpoint.
 
         The Upstox V3 modify API requires both ``order_id`` and
@@ -106,7 +106,6 @@ class UpstoxOrderCommandAdapter(OrderCommand):
         """
         instrument_key = changes.pop("instrument_key", None)
         if not instrument_key:
-            # Look up the existing order to resolve the instrument_key.
             try:
                 body = self._order_client.get_order(order_id)
                 if isinstance(body, dict):
@@ -124,7 +123,11 @@ class UpstoxOrderCommandAdapter(OrderCommand):
             )
             instrument_key = order_id
         payload = UpstoxDomainMapper.to_modify_payload(order_id, instrument_key, **changes)
-        return self._order_client.modify_order_v3(payload)
+        try:
+            result = self._order_client.modify_order_v3(payload)
+        except (RuntimeError, OSError) as exc:
+            return OrderResponse.fail(str(exc))
+        return OrderResponse.ok(order_id=order_id, message="Order modified", raw_payload=result)
 
     def cancel_order(self, order_id: str) -> OrderResponse:
         """Cancel an order via the Upstox v3 cancel endpoint.
@@ -254,6 +257,10 @@ class UpstoxOrderCommandAdapter(OrderCommand):
 
     def _publish_order_placed(self, request: BrokerOrderPayload, response: OrderResponse) -> None:
         if self._event_bus is None:
+            return
+        from domain.ports.execution_context import is_oms_managed_submit
+
+        if is_oms_managed_submit():
             return
 
         try:

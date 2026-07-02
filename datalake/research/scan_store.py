@@ -10,13 +10,13 @@ from typing import Any
 
 import duckdb
 
-from datalake.duckdb_utils import DEFAULT_CATALOG_PATH
+from datalake.core.duckdb_utils import DEFAULT_CATALOG_PATH
 
 logger = logging.getLogger(__name__)
 
 
 def _get_connection() -> duckdb.DuckDBPyConnection:
-    from datalake.duckdb_utils import get_pool
+    from datalake.core.duckdb_utils import get_pool
     return get_pool().acquire(str(DEFAULT_CATALOG_PATH), read_only=False)
 
 

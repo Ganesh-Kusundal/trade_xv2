@@ -24,14 +24,14 @@ Usage:
     report = lake.quality.check("RELIANCE")
 """
 
-from datalake.catalog import DataCatalog
-from datalake.corporate_actions import CorporateActionStore
-from datalake.loader import HistoricalDataLoader
-from datalake.quality import DataQualityEngine
+from datalake.storage.catalog import DataCatalog
+from datalake.analytics.corporate_actions import CorporateActionStore
+from datalake.ingestion.loader import HistoricalDataLoader
+from datalake.quality.engine import DataQualityEngine
 from datalake.quality_universe import UniverseQualityEngine
-from datalake.research import ResearchAPI
+from datalake.research.api import ResearchAPI
 from datalake.updater import IncrementalUpdater
-from datalake.vwap import compute_daily_vwap, compute_vwap
+from datalake.analytics.vwap import compute_daily_vwap, compute_vwap
 
 __all__ = [
     "CorporateActionStore",

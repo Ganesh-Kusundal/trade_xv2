@@ -21,12 +21,23 @@ Usage:
 
 from infrastructure.metrics.prometheus import PrometheusExporter
 from infrastructure.metrics.registry import MetricsRegistry, metrics_registry
-from infrastructure.metrics.types import Counter, Gauge, Histogram, Timer
+from infrastructure.metrics.types import (
+    Counter,
+    Gauge,
+    Histogram,
+    LabelledCounter,
+    LabelledGauge,
+    LabelledHistogram,
+    Timer,
+)
 
 __all__ = [
     "Counter",
     "Gauge",
     "Histogram",
+    "LabelledCounter",
+    "LabelledGauge",
+    "LabelledHistogram",
     "MetricsRegistry",
     "PrometheusExporter",
     "Timer",

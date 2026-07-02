@@ -10,6 +10,14 @@ Defines typed contracts for:
 - Backtest Results
 - Portfolio & Orders
 - Error Responses
+
+NOTE (P2-3): Some schemas here (OrderRequest, OrderResponse, Trade) parallel
+definitions in ``domain/entities/order.py`` and ``domain/requests.py``.
+The domain entities are canonical; API schemas are serialization adapters.
+When modifying order/trade fields, update ALL THREE locations:
+  1. ``domain/entities/order.py`` — canonical domain model
+  2. ``domain/requests.py`` — canonical request objects
+  3. ``api/schemas.py`` — API serialization layer (this file)
 """
 
 from __future__ import annotations
@@ -126,7 +134,7 @@ class Candle(BaseModel):
     t: int = Field(..., description="Timestamp (ms)")
     o: float = Field(..., description="Open")
     h: float = Field(..., description="High")
-    low: float = Field(..., description="Low")
+    l: float = Field(..., description="Low")
     c: float = Field(..., description="Close")
     v: float = Field(..., description="Volume")
     oi: float = Field(0, description="Open interest")
@@ -603,7 +611,7 @@ class PortfolioSummary(BaseModel):
     holdings_count: int
 
 
-class Trade(BaseModel):
+class TradeResponse(BaseModel):
     """Trade execution model."""
 
     trade_id: str
@@ -619,7 +627,7 @@ class Trade(BaseModel):
 class TradesResponse(BaseModel):
     """All trades response."""
 
-    trades: list[Trade]
+    trades: list[TradeResponse]
     count: int
 
 
@@ -628,10 +636,6 @@ class OrdersResponse(BaseModel):
 
     orders: list[OrderResponse]
     count: int
-
-
-# Backwards compatibility aliases
-Order = OrderResponse
 
 
 # ── Health & Status Schemas ──────────────────────────────────────────────────

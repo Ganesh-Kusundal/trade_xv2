@@ -36,7 +36,7 @@ class APIConfig:
     """
 
     host: str = "127.0.0.1"
-    port: int = 8000
+    port: int = 8080
     cors_origins: list[str] = field(
         default_factory=lambda: [
             "http://localhost:5173",  # Vite dev server

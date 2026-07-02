@@ -14,7 +14,7 @@ from analytics.pipeline import ATR, ROC, RSI, SMA, FeaturePipeline, Trend
 from analytics.scanner import MomentumScanner
 from analytics.scanner.models import Candidate
 from analytics.strategy.pipeline import MomentumStrategy, StrategyPipeline
-from datalake.research import ResearchAPI
+from datalake.research.api import ResearchAPI
 
 
 def _write_parquet(path: Path, df: pd.DataFrame) -> None:

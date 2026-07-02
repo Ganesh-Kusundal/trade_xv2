@@ -2,13 +2,12 @@
  * NewsTicker — horizontally scrolling news headline bar.
  *
  * CSS-animated marquee. Pauses on hover. Uses real news from backend
- * via useNews hook. Falls back to mock when backend is unavailable.
+ * via useNews hook.
  */
 
 import { useMemo } from 'react'
-import { Newspaper, TrendingUp, TrendingDown, AlertCircle, Building2, Landmark, Scale, Wifi, WifiOff } from 'lucide-react'
-import { useNews, type NewsItem } from '@/hooks/useNews'
-import { generateNews, type NewsItem as MockNewsItem } from '@/data/orderflow'
+import { Newspaper, TrendingUp, TrendingDown, AlertCircle, Building2, Landmark, Scale } from 'lucide-react'
+import { useNews } from '@/hooks/useNews'
 import { cn, timeAgo } from '@/lib/utils'
 
 const CAT_ICON: Record<string, typeof TrendingUp> = {
@@ -32,20 +31,34 @@ const CAT_COLOR: Record<string, string> = {
 export function NewsTicker() {
   const { items: realNews, loading, error } = useNews({ limit: 20 })
 
-  // Use real news if available, otherwise fall back to mock
-  const useReal = realNews.length > 0 && !error
-  const news: MockNewsItem[] = useReal
-    ? realNews.map((n) => ({
-        t: n.timestamp ? new Date(n.timestamp).getTime() : Date.now(),
-        symbol: n.symbol,
-        category: (n.category.toUpperCase() as MockNewsItem['category']) || 'MARKET',
-        headline: n.headline,
-        source: n.source,
-      }))
-    : generateNews(20)
+  // Map real news items to display format
+  const news = useMemo(() => {
+    if (realNews.length === 0 || error) return []
+    return realNews.map((n) => ({
+      t: n.timestamp ? new Date(n.timestamp).getTime() : Date.now(),
+      symbol: n.symbol,
+      category: (n.category.toUpperCase() as string) || 'MARKET',
+      headline: n.headline,
+      source: n.source,
+    }))
+  }, [realNews, error])
 
   // Duplicate the list so the marquee loops seamlessly
   const items = useMemo(() => [...news, ...news], [news])
+
+  if (items.length === 0 && !loading) {
+    return (
+      <div className="flex items-center h-7 border-t border-bline bg-bbg1 overflow-hidden">
+        <div className="flex items-center gap-1.5 px-2 border-r border-bline bg-bbg2 text-bamb">
+          <Newspaper className="h-3 w-3" />
+          <span className="text-2xs font-semibold uppercase tracking-wider">News</span>
+        </div>
+        <div className="flex-1 flex items-center justify-center text-2xs text-fg-dim">
+          No news available
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex items-stretch h-7 border-t border-bline bg-bbg1 overflow-hidden">
@@ -53,11 +66,6 @@ export function NewsTicker() {
       <div className="flex items-center gap-1.5 px-2 border-r border-bline bg-bbg2 text-bamb">
         <Newspaper className="h-3 w-3" />
         <span className="text-2xs font-semibold uppercase tracking-wider">News</span>
-        {useReal ? (
-          <Wifi className="h-2 w-2 text-bull" />
-        ) : (
-          <WifiOff className="h-2 w-2 text-bear" />
-        )}
       </div>
 
       {/* Marquee */}

@@ -133,20 +133,6 @@ class Order:
             reject_reason=mapping.map_reject_reason(d),
         )
 
-        return cls(
-            order_id=order_id,
-            symbol=symbol,
-            exchange=exchange,
-            side=side,
-            order_type=order_type,
-            quantity=mapping.map_quantity(d),
-            filled_quantity=mapping.map_filled_quantity(d),
-            price=_parse_optional_decimal(mapping.map_price(d)) or Decimal("0"),
-            avg_price=_parse_optional_decimal(mapping.map_avg_price(d)) or Decimal("0"),
-            status=status,
-            reject_reason=mapping.map_reject_reason(d),
-        )
-
 
 @dataclass(slots=True, frozen=True)
 class OrderResponse:

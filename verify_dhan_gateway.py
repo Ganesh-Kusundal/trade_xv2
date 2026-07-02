@@ -61,8 +61,8 @@ def main():
         pass
 
     # Test 2: LTP endpoint
-    test_symbol = "RELIANCE"
-    test_exchange = "NSE"
+    test_symbol = sys.argv[1] if len(sys.argv) > 1 else "RELIANCE"
+    test_exchange = sys.argv[2] if len(sys.argv) > 2 else "NSE"
     try:
         ltp = gateway.ltp(test_symbol, test_exchange)
         if isinstance(ltp, Decimal) and ltp > 0:
@@ -121,7 +121,10 @@ def main():
         return False
 
     # Test 6: Batch LTP endpoint
-    test_symbols = ["RELIANCE", "TCS", "INFY"]
+    if test_exchange == "MCX":
+        test_symbols = ["CRUDEOIL-20Jul2026-FUT", "NATURALGAS-28Jul2026-FUT", "SILVER-03Jul2026-FUT"]
+    else:
+        test_symbols = ["RELIANCE", "TCS", "INFY"]
     try:
         batch_result = gateway.ltp_batch(test_symbols, test_exchange)
         if isinstance(batch_result, dict) and len(batch_result) > 0:

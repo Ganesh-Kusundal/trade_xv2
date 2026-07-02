@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from infrastructure.event_bus import DomainEvent, EventBus
+from domain.events.types import DomainEvent
+from infrastructure.event_bus import EventBus
 from infrastructure.event_log import EventLog
 from infrastructure.lifecycle import HealthState, LifecycleManager, build_health
 

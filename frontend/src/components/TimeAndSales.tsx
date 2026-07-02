@@ -12,7 +12,6 @@
 import { useMemo, useState } from 'react'
 import { Activity, ArrowDown, ArrowUp, Filter, Zap, AlertCircle, Box, Wifi, WifiOff } from 'lucide-react'
 import { useTrades, type Trade } from '@/hooks/useTrades'
-import { generateTrades, type Trade as MockTrade } from '@/data/orderflow'
 import { cn, formatIN, formatNumber, formatTime, pnlColor } from '@/lib/utils'
 
 interface TimeAndSalesProps {
@@ -27,7 +26,7 @@ export function TimeAndSales({ symbol, height = 360 }: TimeAndSalesProps) {
 
   // Use real trades if connected and has data, otherwise empty (component shows "Waiting...")
   const useReal = connected && realTrades.length > 0
-  const trades: (Trade | MockTrade)[] = useReal ? realTrades : []
+  const trades: Trade[] = useReal ? realTrades : []
 
   const visible = useMemo(() => trades.filter((t) => t.size >= minSize), [trades, minSize])
   const stats = useMemo(() => {

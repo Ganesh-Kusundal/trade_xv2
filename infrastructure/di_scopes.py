@@ -26,7 +26,7 @@ from collections.abc import Callable
 from contextlib import contextmanager
 from typing import Any
 
-from brokers.common.resilience.errors import TradeXV2Error
+from domain.exceptions import TradeXV2Error
 
 # Context variable for the current request scope
 _current_scope: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar(

@@ -97,6 +97,9 @@ def unsubscribe_symbols_from_broker(symbols: list[str], exchange: str = "NSE") -
 
 def _resolve_gateway(broker_service: Any) -> Any | None:
     """Return the active MarketDataGateway from BrokerService."""
+    getter = getattr(broker_service, "active_gateway", None)
+    if getter is not None:
+        return getter
     for attr in ("_gateway", "_upstox_gateway", "gateway"):
         gw = getattr(broker_service, attr, None)
         if gw is not None:

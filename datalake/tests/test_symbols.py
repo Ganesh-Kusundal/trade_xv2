@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from datalake.symbols import (
+from datalake.core.symbols import (
     are_same_symbol,
     normalize_symbol,
     path_to_symbol,

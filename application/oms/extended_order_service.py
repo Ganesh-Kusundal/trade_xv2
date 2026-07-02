@@ -11,8 +11,9 @@ import warnings
 from dataclasses import dataclass
 from typing import Any, TypeVar
 
-from brokers.common.resilience.errors import TradeXV2Error
 from domain.events.types import EventType
+from domain.exceptions import TradeXV2Error
+from domain.ports.execution_context import oms_managed
 
 logger = logging.getLogger(__name__)
 
@@ -146,7 +147,8 @@ class ExtendedOrderService:
             self._check_kill_switch()
             self._require_broker("dhan")
             ext = self._get_extended(gw)
-            resp = ext.place_super_order(**payload)
+            with oms_managed():
+                resp = ext.place_super_order(**payload)
             self._publish_event(
                 EventType.ORDER_PLACED,
                 {"order_type": "super_order", "payload_keys": list(payload.keys())},
@@ -168,10 +170,12 @@ class ExtendedOrderService:
 
             if broker_name == "dhan":
                 ext = self._get_extended(gw)
-                resp = ext.place_forever_order(payload)
+                with oms_managed():
+                    resp = ext.place_forever_order(payload)
             elif broker_name == "upstox":
                 broker = self._get_broker(gw)
-                resp = broker.gtt.place_forever_order(payload)
+                with oms_managed():
+                    resp = broker.gtt.place_forever_order(payload)
             else:
                 raise ExtendedFeatureUnavailableError("Forever orders not supported")
 
@@ -196,11 +200,13 @@ class ExtendedOrderService:
 
             if broker_name == "dhan":
                 ext = self._get_extended(gw)
-                resp = ext.place_conditional_trigger(payload)
+                with oms_managed():
+                    resp = ext.place_conditional_trigger(payload)
             else:
                 broker = self._get_broker(gw)
                 if hasattr(broker, "alert"):
-                    resp = broker.alert.place_alert(payload)
+                    with oms_managed():
+                        resp = broker.alert.place_alert(payload)
                 else:
                     raise ExtendedFeatureUnavailableError("Triggers not supported")
 
@@ -224,10 +230,12 @@ class ExtendedOrderService:
 
             ext = self._get_extended(gw)
             if hasattr(ext, "exit_all"):
-                resp = ext.exit_all()
+                with oms_managed():
+                    resp = ext.exit_all()
             else:
                 broker = self._get_broker(gw)
-                resp = broker.exit_all.exit_all()
+                with oms_managed():
+                    resp = broker.exit_all.exit_all()
 
             self._publish_event(
                 EventType.ORDER_PLACED,
@@ -248,7 +256,8 @@ class ExtendedOrderService:
             self._require_broker("upstox")
 
             broker = self._get_broker(gw)
-            resp = broker.gtt.place_gtt_single(payload)
+            with oms_managed():
+                resp = broker.gtt.place_gtt_single(payload)
             self._publish_event(
                 EventType.ORDER_PLACED,
                 {"order_type": "gtt", "payload_keys": list(payload.keys())},
@@ -283,9 +292,10 @@ class ExtendedOrderService:
                 validity=Validity(payload.get("validity", "DAY")),
                 price=Decimal(str(payload.get("price", "0"))),
             )
-            resp = broker.cover.place_cover_order(
-                req, Decimal(str(payload.get("stop_loss_price", "0")))
-            )
+            with oms_managed():
+                resp = broker.cover.place_cover_order(
+                    req, Decimal(str(payload.get("stop_loss_price", "0")))
+                )
             self._publish_event(
                 EventType.ORDER_PLACED,
                 {"order_type": "cover_order", "symbol": req.symbol},
@@ -307,13 +317,15 @@ class ExtendedOrderService:
 
             if broker_name == "dhan":
                 conn = self._get_conn(gw)
-                resp = conn.orders.place_slice_order(**payload)
+                with oms_managed():
+                    resp = conn.orders.place_slice_order(**payload)
             else:
                 broker = self._get_broker(gw)
                 from domain.requests import SliceOrderRequest
 
                 req = SliceOrderRequest(**payload)
-                resp = broker.slice.place_slice_order(req)
+                with oms_managed():
+                    resp = broker.slice.place_slice_order(req)
 
             self._publish_event(
                 EventType.ORDER_PLACED,

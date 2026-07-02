@@ -7,8 +7,8 @@ from pathlib import Path
 import pandas as pd
 import pyarrow as pa
 
-from datalake.io import atomic_parquet_write
-from datalake.store import ParquetStore
+from datalake.core.io import atomic_parquet_write
+from datalake.storage.parquet_store import ParquetStore
 
 
 def _make_dataframe(symbol: str, n: int = 60) -> pd.DataFrame:

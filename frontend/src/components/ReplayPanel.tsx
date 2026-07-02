@@ -15,7 +15,6 @@ import {
   createReplaySession,
   controlReplay,
   subscribeReplay,
-  dispatchReplayCommand,
   type ReplayAction,
 } from '@/api/client'
 import type { ReplaySession, ReplayState, Candle } from '@/types'
@@ -92,24 +91,10 @@ export function ReplayPanel({ symbol, onCandle, onState, onClose }: ReplayPanelP
 
   const onCommand = async (action: ReplayAction) => {
     if (!session) return
-    // Local mock dispatcher (real backend ignores this — it gets
-    // the same command via the control endpoint).
-    if (action.action === 'play')   dispatchReplayCommand(session.id, { action: 'play' })
-    if (action.action === 'pause')  dispatchReplayCommand(session.id, { action: 'pause' })
-    if (action.action === 'step')   {
-      // Treat step as a 1-candle advance via seek by 1m.
-      const t = Math.min(session.to_t, cursorT + 60_000)
-      dispatchReplayCommand(session.id, { action: 'seek', to_t: t })
-    }
-    if (action.action === 'seek')   dispatchReplayCommand(session.id, { action: 'seek', to_t: action.to_t })
-    if (action.action === 'set_speed') {
-      dispatchReplayCommand(session.id, { action: 'set_speed', speed: action.speed })
-      setSpeed(action.speed)
-    }
     try {
       const updated = await controlReplay(session.id, action)
       setSession((prev) => (prev ? { ...prev, ...updated } : updated))
-    } catch { /* mock fallback is fine */ }
+    } catch { /* ignore */ }
   }
 
   const onScrub = (e: React.ChangeEvent<HTMLInputElement>) => {

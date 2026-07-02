@@ -120,6 +120,8 @@ class ReplayEngine:
         execution_adapter: object | None = None,
         oms_adapter: OmsBacktestAdapterPort | None = None,
         portfolio_tracker=None,
+        event_schedule: dict[pd.Timestamp, list] | None = None,
+        allow_simulate_without_oms: bool = False,
     ) -> None:
         self._pipeline = pipeline or FeaturePipeline()
         self._strategy = strategy_pipeline or StrategyPipeline()
@@ -128,6 +130,11 @@ class ReplayEngine:
         self._trading_context = trading_context
         self._execution_adapter = execution_adapter
         self._portfolio_tracker = portfolio_tracker
+        # P0-1 fix: Event schedule maps timestamps to lists of DomainEvents
+        # that should be published BEFORE processing the bar at that timestamp.
+        # This ensures events and bars are interleaved in time order, not
+        # all events published before all bars are processed.
+        self._event_schedule = event_schedule or {}
 
         if oms_adapter is not None:
             self._oms_adapter = oms_adapter
@@ -140,10 +147,19 @@ class ReplayEngine:
                 commission_flat=cfg.commission_flat,
                 execution_adapter=execution_adapter,
             )
+        elif allow_simulate_without_oms:
+            # Pure backtest mode: no OMS routing, fills are simulated directly.
+            # This allows BacktestEngine and WalkForwardEngine to work standalone
+            # without requiring a TradingContext composition root.
+            self._oms_adapter = None
+            logger.debug(
+                "ReplayEngine running in pure-simulate mode (no OMS adapter). "
+                "Fills will be simulated without risk gates."
+            )
         else:
             raise TypeError(
                 "ReplayEngine requires trading_context (or oms_adapter) for order execution. "
-                "Pass a TradingContext instance from your composition root."
+                "Pass allow_simulate_without_oms=True for pure backtest mode without OMS."
             )
 
     def _compute_commission(self, notional: float, side: str) -> float:
@@ -220,11 +236,13 @@ class ReplayEngine:
         session.peak_equity = config.initial_capital
         session.equity_curve.append((df[ts_col].iloc[0], config.initial_capital))
 
-        # Pre-allocated numpy arrays as ring buffer.
-        # pd.DataFrame(list_of_dicts) is replaced by pd.DataFrame(dict_of_arrays)
-        # which is 10-20x faster because numpy arrays are columnar and don't require
-        # per-row dict unpacking. For window_size=200 with 100K bars, the numpy
-        # shift+append is O(window_size) in C, vs O(window_size) dict construction.
+        # Pre-allocated numpy arrays as circular buffer (ring buffer).
+        # pd.DataFrame(dict_of_arrays) is 10-20x faster than pd.DataFrame(list_of_dicts)
+        # because numpy arrays are columnar and don't require per-row dict unpacking.
+        # P5.2: Circular buffer uses modular indexing instead of O(n) shift-left per bar,
+        # eliminating the numpy memmove entirely. Write pointer advances with modulo
+        # arithmetic, and the window is reconstructed in chronological order only when
+        # building the DataFrame for the FeaturePipeline.
         window_size = config.window_size if config.window_size > 0 else 0
         if window_size > 0:
             # Pre-allocate numpy arrays for each column (contiguous memory)
@@ -236,6 +254,7 @@ class ReplayEngine:
             _arr_symbol = np.empty(window_size, dtype=object)
             _arr_timestamp = np.empty(window_size, dtype="datetime64[ns]")
             _filled = 0
+            _head = 0  # circular buffer write pointer
         else:
             # Unlimited window — fall back to deque (no pre-allocation possible)
             _window_data = deque()
@@ -257,6 +276,12 @@ class ReplayEngine:
                 volume=float(row.get("volume", 0)),
             )
 
+            # P0-1 fix: Publish scheduled events BEFORE processing this bar.
+            # Events are interleaved by timestamp to ensure deterministic replay
+            # that matches the original event/bar time ordering.
+            if self._event_schedule and self._event_bus is not None:
+                self._publish_scheduled_events(bar_ts)
+
             # Process pending signals from previous bar using this bar's open
             if pending_signals:
                 for sig, _sig_bar in pending_signals:
@@ -265,35 +290,19 @@ class ReplayEngine:
                         self._publish_signal(sig)
                 pending_signals.clear()
 
-            # Write bar into pre-allocated numpy arrays or deque
+            # Write bar into circular buffer (O(1) per bar — no memmove)
             if window_size > 0:
+                _widx = _head
+                _arr_open[_widx] = bar.open
+                _arr_high[_widx] = bar.high
+                _arr_low[_widx] = bar.low
+                _arr_close[_widx] = bar.close
+                _arr_volume[_widx] = bar.volume
+                _arr_symbol[_widx] = bar.symbol
+                _arr_timestamp[_widx] = bar.timestamp
                 if _filled < window_size:
-                    # Growing phase: write at the end
-                    _widx = _filled
-                    _arr_open[_widx] = bar.open
-                    _arr_high[_widx] = bar.high
-                    _arr_low[_widx] = bar.low
-                    _arr_close[_widx] = bar.close
-                    _arr_volume[_widx] = bar.volume
-                    _arr_symbol[_widx] = bar.symbol
-                    _arr_timestamp[_widx] = bar.timestamp
                     _filled += 1
-                else:
-                    # Full: shift left by 1 (numpy-level C memmove) and append
-                    _arr_open[:-1] = _arr_open[1:]
-                    _arr_high[:-1] = _arr_high[1:]
-                    _arr_low[:-1] = _arr_low[1:]
-                    _arr_close[:-1] = _arr_close[1:]
-                    _arr_volume[:-1] = _arr_volume[1:]
-                    _arr_symbol[:-1] = _arr_symbol[1:]
-                    _arr_timestamp[:-1] = _arr_timestamp[1:]
-                    _arr_open[-1] = bar.open
-                    _arr_high[-1] = bar.high
-                    _arr_low[-1] = bar.low
-                    _arr_close[-1] = bar.close
-                    _arr_volume[-1] = bar.volume
-                    _arr_symbol[-1] = bar.symbol
-                    _arr_timestamp[-1] = bar.timestamp
+                _head = (_head + 1) % window_size
             else:
                 _window_data.append(bar.to_dict())
 
@@ -305,19 +314,40 @@ class ReplayEngine:
                     continue
                 warmup_done = True
 
-            # Build window DataFrame from numpy arrays (not list-of-dicts).
-            # pd.DataFrame(dict_of_arrays) is ~10-20x faster than pd.DataFrame(list_of_dicts)
-            # because numpy arrays are already columnar — no per-row dict unpacking needed.
+            # Build window DataFrame from circular buffer.
+            # When buffer is full, reorder from _head to get chronological order.
+            # pd.DataFrame(dict_of_arrays) is ~10-20x faster than pd.DataFrame(list_of_dicts).
+            #
+            # P2-6 NOTE: A new DataFrame is constructed every bar iteration.
+            # This is intentional — the FeaturePipeline expects a fresh DataFrame
+            # and may mutate it. Profiling shows the numpy array slicing is O(1)
+            # and DataFrame construction is O(window_size), which is acceptable
+            # for typical window sizes (20-200). For very large windows (500+),
+            # consider incremental DataFrame updates or a view-based approach.
             if window_size > 0:
-                window_df = pd.DataFrame({
-                    "open": _arr_open[:_filled],
-                    "high": _arr_high[:_filled],
-                    "low": _arr_low[:_filled],
-                    "close": _arr_close[:_filled],
-                    "volume": _arr_volume[:_filled],
-                    "symbol": _arr_symbol[:_filled],
-                    "timestamp": _arr_timestamp[:_filled],
-                })
+                if _filled < window_size:
+                    # Still growing — data is already in chronological order
+                    window_df = pd.DataFrame({
+                        "open": _arr_open[:_filled],
+                        "high": _arr_high[:_filled],
+                        "low": _arr_low[:_filled],
+                        "close": _arr_close[:_filled],
+                        "volume": _arr_volume[:_filled],
+                        "symbol": _arr_symbol[:_filled],
+                        "timestamp": _arr_timestamp[:_filled],
+                    })
+                else:
+                    # Circular buffer full — reorder from oldest to newest
+                    _idx = np.arange(_head - window_size, _head) % window_size
+                    window_df = pd.DataFrame({
+                        "open": _arr_open[_idx],
+                        "high": _arr_high[_idx],
+                        "low": _arr_low[_idx],
+                        "close": _arr_close[_idx],
+                        "volume": _arr_volume[_idx],
+                        "symbol": _arr_symbol[_idx],
+                        "timestamp": _arr_timestamp[_idx],
+                    })
             else:
                 window_df = pd.DataFrame(_window_data)
 
@@ -439,14 +469,93 @@ class ReplayEngine:
         config: ReplayConfig,
         fill_price: float | None = None,
     ) -> None:
-        """Process a signal through OMS for backtest-live parity.
+        """Process a signal for order execution.
 
-        Requires ``trading_context`` (or ``oms_adapter``) passed at construction time.
+        Routes through OMS when available (backtest-live parity).
+        Falls back to direct simulation when no OMS adapter is configured
+        (pure backtest mode).
         """
         if not signal.is_actionable:
             return
 
-        self._process_signal_via_oms(signal, bar, session, config, fill_price=fill_price)
+        if self._oms_adapter is not None:
+            self._process_signal_via_oms(signal, bar, session, config, fill_price=fill_price)
+        else:
+            self._process_signal_simulated(signal, bar, session, config, fill_price=fill_price)
+
+    def _process_signal_simulated(
+        self,
+        signal: Signal,
+        bar: Bar,
+        session: ReplaySession,
+        config: ReplayConfig,
+        fill_price: float | None = None,
+    ) -> None:
+        """Simulate fills directly without OMS routing (pure backtest mode).
+
+        Used when no trading_context or oms_adapter is provided.
+        """
+        base_price = fill_price if fill_price is not None else bar.close
+
+        if signal.is_buy and session.position is None:
+            slippage_pct = self._compute_slippage_pct(bar.volume)
+            price = base_price * (1 + slippage_pct / 100)
+            qty = compute_order_quantity(
+                equity=session.capital,
+                price=price,
+                max_position_pct=config.max_position_pct,
+            )
+            if qty > 0:
+                notional = price * qty
+                commission = self._compute_commission(notional, "BUY")
+                cost = notional + commission
+                session.capital -= cost
+                session.position = SimulatedPosition(
+                    symbol=bar.symbol,
+                    side="BUY",
+                    entry_price=price,
+                    quantity=qty,
+                    entry_time=bar.timestamp,
+                    stop_loss=signal.stop_loss,
+                    target=signal.target,
+                    strategy=signal.strategy,
+                )
+
+        elif signal.is_sell and session.position is not None:
+            pos = session.position
+            slippage_pct = self._compute_slippage_pct(bar.volume)
+            price = base_price * (1 - slippage_pct / 100)
+            notional = price * pos.quantity
+            commission = self._compute_commission(notional, "SELL")
+            proceeds = notional - commission
+            session.capital += proceeds
+
+            entry_price_d = Decimal(str(pos.entry_price))
+            exit_price_d = Decimal(str(price))
+            commission_d = Decimal(str(commission))
+            pnl = (exit_price_d - entry_price_d) * pos.quantity - commission_d
+            pnl_pct = (
+                float(((exit_price_d / entry_price_d) - 1) * 100)
+                if entry_price_d > 0
+                else 0.0
+            )
+
+            session.trades.append(
+                SimulatedTrade(
+                    symbol=pos.symbol,
+                    side=pos.side,
+                    entry_price=pos.entry_price,
+                    exit_price=price,
+                    quantity=pos.quantity,
+                    entry_time=pos.entry_time,
+                    exit_time=bar.timestamp,
+                    pnl=pnl,
+                    pnl_pct=pnl_pct,
+                    strategy=pos.strategy,
+                    reasons=["simulated_signal"],
+                )
+            )
+            session.position = None
 
     def _process_signal_via_oms(
         self,
@@ -526,25 +635,31 @@ class ReplayEngine:
                 self._sync_session_from_tracker(session, bar.timestamp, bar.symbol)
 
     def _close_position(self, session: ReplaySession, bar: Bar, reason: str) -> None:
-        """Close the current position through OMS and record the trade."""
+        """Close the current position and record the trade.
+
+        Routes through OMS when available (backtest-live parity).
+        Simulates directly when no OMS adapter is configured.
+        """
         pos = session.position
         if pos is None:
             return
 
-        # Route through OMS for backtest-live parity (P0-2)
         slippage_pct = self._compute_slippage_pct(bar.volume)
         price = Decimal(str(bar.close * (1 - slippage_pct / 100)))
-        order_id = self._oms_adapter.close_long(
-            symbol=pos.symbol,
-            exchange="NSE",
-            quantity=pos.quantity,
-            price=price,
-            timestamp=bar.timestamp,
-            strategy=pos.strategy,
-            reasons=[reason],
-        )
-        if order_id is None:
-            return  # OMS rejected the close
+
+        # Route through OMS if available
+        if self._oms_adapter is not None:
+            order_id = self._oms_adapter.close_long(
+                symbol=pos.symbol,
+                exchange="NSE",
+                quantity=pos.quantity,
+                price=price,
+                timestamp=bar.timestamp,
+                strategy=pos.strategy,
+                reasons=[reason],
+            )
+            if order_id is None:
+                return  # OMS rejected the close
 
         exit_price = float(price)
         notional = exit_price * pos.quantity
@@ -580,10 +695,11 @@ class ReplayEngine:
         exit_price: float,
         reason: str,
     ) -> None:
-        """Close position at specific price through OMS (for stop-loss/target triggers).
+        """Close position at specific price (for stop-loss/target triggers).
 
         P2-3: This method is called when intra-bar price action hits a position's
-        stop-loss or target level. Routes through OMS for backtest-live parity.
+        stop-loss or target level. Routes through OMS when available for
+        backtest-live parity; simulates directly otherwise.
 
         Parameters
         ----------
@@ -600,19 +716,21 @@ class ReplayEngine:
         if pos is None:
             return
 
-        # Route through OMS for backtest-live parity (P0-2)
         price = Decimal(str(exit_price))
-        order_id = self._oms_adapter.close_long(
-            symbol=pos.symbol,
-            exchange="NSE",
-            quantity=pos.quantity,
-            price=price,
-            timestamp=bar.timestamp,
-            strategy=pos.strategy,
-            reasons=[reason],
-        )
-        if order_id is None:
-            return  # OMS rejected the close
+
+        # Route through OMS if available
+        if self._oms_adapter is not None:
+            order_id = self._oms_adapter.close_long(
+                symbol=pos.symbol,
+                exchange="NSE",
+                quantity=pos.quantity,
+                price=price,
+                timestamp=bar.timestamp,
+                strategy=pos.strategy,
+                reasons=[reason],
+            )
+            if order_id is None:
+                return  # OMS rejected the close
 
         # Update session state
         notional = exit_price * pos.quantity
@@ -686,6 +804,34 @@ class ReplayEngine:
             )
         else:
             session.position = None
+
+    def _publish_scheduled_events(self, bar_ts: pd.Timestamp) -> None:
+        """Publish any scheduled events with timestamp <= current bar timestamp.
+
+        P0-1 fix: Events from the event log are published in time order relative
+        to bar processing, ensuring deterministic replay that matches the original
+        event/bar interleaving. Events scheduled at or before the current bar's
+        timestamp are published before the bar is processed.
+
+        Parameters
+        ----------
+        bar_ts:
+            Timestamp of the current bar being processed.
+        """
+        # Iterate without mutating the schedule (non-destructive .get())
+        # so the engine can be reused for multiple replays.
+        scheduled_ts = sorted(self._event_schedule.keys())
+        for evt_ts in scheduled_ts:
+            if evt_ts > bar_ts:
+                break
+            events = self._event_schedule.get(evt_ts)
+            if events is None:
+                continue
+            for event in events:
+                try:
+                    self._event_bus.publish(event)
+                except Exception as exc:
+                    logger.debug("Failed to publish scheduled event at %s: %s", evt_ts, exc)
 
     def _publish_signal(self, signal: Signal) -> None:
         """Publish a signal to the EventBus.

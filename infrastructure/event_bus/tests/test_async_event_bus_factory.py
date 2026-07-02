@@ -1,6 +1,6 @@
 """Tests for AsyncEventBusFactory — minimal coverage for startup fix."""
 
-from infrastructure.event_bus import DomainEvent
+from domain.events.types import DomainEvent
 from infrastructure.event_bus.event_bus import EventBus
 from infrastructure.event_bus.factory import AsyncEventBusFactory
 

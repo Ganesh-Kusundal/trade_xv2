@@ -125,7 +125,7 @@ async def lifespan(app: FastAPI):
     # Shutdown via resource manager
     await _shutdown_cleanup(market_bridge, lifecycle, lifecycle_started, resource_manager)
 
-    from datalake.duckdb_utils import close_all_connections
+    from datalake.core.duckdb_utils import close_all_connections
 
     close_all_connections()
     logger.info("TradeXV2 API server shutting down...")

@@ -18,7 +18,7 @@ from application.oms.order_manager import OmsOrderCommand, OrderResult
 from domain import Order
 from domain.entities import Trade
 from domain.reconciliation import ReconciliationReport
-from infrastructure.event_bus import DomainEvent
+from domain.events.types import DomainEvent
 
 
 @runtime_checkable

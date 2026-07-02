@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from datalake.quality import DataQualityEngine
+from datalake.quality.engine import DataQualityEngine
 
 logger = logging.getLogger(__name__)
 

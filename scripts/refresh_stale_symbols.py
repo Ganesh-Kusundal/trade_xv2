@@ -13,8 +13,8 @@ import pandas as pd
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from datalake.catalog import DataCatalog
-from datalake.loader import HistoricalDataLoader
+from datalake.storage.catalog import DataCatalog
+from datalake.ingestion.loader import HistoricalDataLoader
 
 logger = logging.getLogger(__name__)
 

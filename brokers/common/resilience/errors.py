@@ -1,4 +1,10 @@
-"""Custom exceptions for the resilience module and TradeXV2 core."""
+"""Custom exceptions for the resilience module and TradeXV2 core.
+
+The root exception (:class:`TradeXV2Error`) and platform-level exceptions
+(:class:`DataError`, :class:`ConfigError`, :class:`ValidationError`) live
+in ``domain.exceptions`` — the canonical location.  This module re-exports
+them for backward compatibility and defines broker-specific subclasses.
+"""
 
 from __future__ import annotations
 
@@ -7,12 +13,22 @@ import logging
 from collections.abc import Callable
 from typing import Any, TypeVar
 
+# ── Canonical re-exports from domain ──────────────────────────────────────
+from domain.exceptions import (
+    ConfigError as ConfigError,
+)
+from domain.exceptions import (
+    DataError as DataError,
+)
+from domain.exceptions import (
+    TradeXV2Error as TradeXV2Error,
+)
+from domain.exceptions import (
+    ValidationError as ValidationError,
+)
+
 logger = logging.getLogger(__name__)
 F = TypeVar("F", bound=Callable[..., Any])
-
-
-class TradeXV2Error(Exception):
-    """Root exception for all TradeXV2 errors."""
 
 
 class BrokerError(TradeXV2Error):
@@ -63,18 +79,6 @@ class NotSupportedError(BrokerError):
 
 class ExitAllError(NotSupportedError):
     """Exit-all (kill switch) operation failed."""
-
-
-class DataError(TradeXV2Error):
-    """Base exception for datalake and data processing errors."""
-
-
-class ConfigError(TradeXV2Error):
-    """Configuration error (missing or invalid settings)."""
-
-
-class ValidationError(TradeXV2Error):
-    """Input validation error."""
 
 
 class BrokerDegradedError(BrokerError):

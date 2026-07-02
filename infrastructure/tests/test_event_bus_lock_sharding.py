@@ -12,7 +12,8 @@ import itertools
 import threading
 import time
 
-from infrastructure.event_bus import DomainEvent, EventBus
+from domain.events.types import DomainEvent
+from infrastructure.event_bus import EventBus
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 

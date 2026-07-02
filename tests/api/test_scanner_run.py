@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from api.config import APIConfig
 from api.deps import reset_container
 from api.main import create_app
-from datalake.catalog import DataCatalog
+from datalake.storage.catalog import DataCatalog
 from datalake.gateway import DataLakeGateway
 
 

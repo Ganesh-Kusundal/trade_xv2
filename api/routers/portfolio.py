@@ -137,7 +137,6 @@ async def get_portfolio_summary(
 
                 invested = quantity * avg_price
                 current = quantity * current_price
-                current - invested
 
                 total_value += current
                 total_invested += invested

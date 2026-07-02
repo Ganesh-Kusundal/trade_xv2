@@ -13,7 +13,7 @@ from api.deps import get_trade_journal, reset_container
 from api.main import create_app
 from application.oms.context import TradingContext
 from application.oms.position_manager import PositionManager
-from datalake.journal import TradeJournal
+from datalake.research.journal import TradeJournal
 from domain import Side, Trade
 from infrastructure.event_bus.event_bus import EventBus
 

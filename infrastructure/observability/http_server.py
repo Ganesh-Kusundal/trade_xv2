@@ -87,7 +87,6 @@ def render_prometheus_metrics(
     event_metrics_snapshot: dict[str, dict[str, int]],
     lifecycle_health: dict[str, dict[str, Any]],
     extra_gauges: dict[str, float] | None = None,
-    collector_snapshot: dict[str, Any] | None = None,
 ) -> str:
     """Render a Prometheus text exposition payload.
 
@@ -99,10 +98,6 @@ def render_prometheus_metrics(
             ``{service_name: {state, detail, metrics, last_check}}``.
         extra_gauges: optional dict of gauge_name -> value. Useful for
             things like ``daily_pnl`` or ``kill_switch_active``.
-        collector_snapshot: optional dict from ``MetricsCollector.get_snapshot()``,
-            shape ``{counters: [...], gauges: [...], histograms: [...]}``.
-            When provided, counters/gauges/histograms are rendered as
-            separate Prometheus metric families.
 
     Returns:
         A string in the Prometheus text exposition format (version 0.0.4).
@@ -156,89 +151,7 @@ def render_prometheus_metrics(
             except (TypeError, ValueError):
                 continue
 
-    # ── MetricsCollector: counters, gauges, histograms ─────────────────
-    if collector_snapshot is not None:
-        lines.extend(_render_collector_counters(collector_snapshot.get("counters", [])))
-        lines.extend(_render_collector_gauges(collector_snapshot.get("gauges", [])))
-        lines.extend(_render_collector_histograms(collector_snapshot.get("histograms", [])))
-
     return "\n".join(lines) + "\n"
-
-
-def _render_collector_counters(counters: list[dict[str, Any]]) -> list[str]:
-    """Render MetricsCollector counters as Prometheus counter metrics."""
-    if not counters:
-        return []
-    lines: list[str] = []
-    lines.append("# HELP tradexv2_counter Application counter metrics.")
-    lines.append("# TYPE tradexv2_counter counter")
-    for c in counters:
-        name = c.get("name", "unknown")
-        value = c.get("value", 0)
-        labels_dict = c.get("labels", {})
-        label_str = ", ".join(
-            f'{k}="{_escape_label_value(v)}"' for k, v in sorted(labels_dict.items())
-        ) if labels_dict else ""
-        metric_name = f"tradexv2_{name.replace('.', '_')}"
-        if label_str:
-            lines.append(f'{metric_name}{{{label_str}}} {value}')
-        else:
-            lines.append(f'{metric_name} {value}')
-    return lines
-
-
-def _render_collector_gauges(gauges: list[dict[str, Any]]) -> list[str]:
-    """Render MetricsCollector gauges as Prometheus gauge metrics."""
-    if not gauges:
-        return []
-    lines: list[str] = []
-    lines.append("# HELP tradexv2_gauge Application gauge metrics.")
-    lines.append("# TYPE tradexv2_gauge gauge")
-    for g in gauges:
-        name = g.get("name", "unknown")
-        value = g.get("value", 0.0)
-        labels_dict = g.get("labels", {})
-        label_str = ", ".join(
-            f'{k}="{_escape_label_value(v)}"' for k, v in sorted(labels_dict.items())
-        ) if labels_dict else ""
-        metric_name = f"tradexv2_{name.replace('.', '_')}"
-        if label_str:
-            lines.append(f'{metric_name}{{{label_str}}} {value}')
-        else:
-            lines.append(f'{metric_name} {value}')
-    return lines
-
-
-def _render_collector_histograms(histograms: list[dict[str, Any]]) -> list[str]:
-    """Render MetricsCollector histograms as Prometheus summary metrics."""
-    if not histograms:
-        return []
-    lines: list[str] = []
-    lines.append("# HELP tradexv2_histogram Application histogram metrics.")
-    lines.append("# TYPE tradexv2_histogram summary")
-    for h in histograms:
-        name = h.get("name", "unknown")
-        labels_dict = h.get("labels", {})
-        label_str = ", ".join(
-            f'{k}="{_escape_label_value(v)}"' for k, v in sorted(labels_dict.items())
-        ) if labels_dict else ""
-        base_labels = f"{label_str}, " if label_str else ""
-        metric_name = f"tradexv2_{name.replace('.', '_')}"
-        count = h.get("count", 0)
-        avg = h.get("avg", 0.0)
-        p50 = h.get("p50", 0.0)
-        p95 = h.get("p95", 0.0)
-        p99 = h.get("p99", 0.0)
-        min_v = h.get("min", 0.0)
-        max_v = h.get("max", 0.0)
-        lines.append(f'{metric_name}{{{base_labels}}} {avg:.4f}')
-        lines.append(f'{metric_name}_count{{{base_labels}}} {count}')
-        lines.append(f'{metric_name}_min{{{base_labels}}} {min_v:.4f}')
-        lines.append(f'{metric_name}_max{{{base_labels}}} {max_v:.4f}')
-        lines.append(f'{metric_name}{{quantile="0.5",{base_labels}}} {p50:.4f}')
-        lines.append(f'{metric_name}{{quantile="0.95",{base_labels}}} {p95:.4f}')
-        lines.append(f'{metric_name}{{quantile="0.99",{base_labels}}} {p99:.4f}')
-    return lines
 
 
 # ── HTTP server (ManagedService) ─────────────────────────────────────────

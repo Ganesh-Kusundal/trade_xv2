@@ -5,20 +5,20 @@ from __future__ import annotations
 import contextlib
 import logging
 import threading
+from collections.abc import Callable
 from datetime import date, timedelta
 from decimal import Decimal
-from typing import Any, Callable
+from typing import Any
 
 import pandas as pd
 
 from brokers.common.batch_mixin import BatchFetchMixin
 from brokers.common.broker_port import CommonBrokerGateway
+from brokers.common.common_broker_access import to_common_broker_gateway
 from brokers.common.dtos import BrokerOrderPayload
 from brokers.common.gateway import BrokerCapabilities, MarketDataGateway, ObservabilityProvider
-from brokers.common.common_broker_access import to_common_broker_gateway
 from brokers.dhan.capabilities import dhan_capabilities
 from brokers.dhan.connection import DhanConnection
-from brokers.dhan.exceptions import OrderError
 from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
 from domain import (
     Balance,
@@ -37,7 +37,6 @@ from domain import (
     Trade,
     Validity,
 )
-from domain.status_mapper import StatusMapperRegistry, UnmappedBrokerStatusError
 from domain.exchange_segments import parse_segment
 from domain.symbols import normalize_symbol
 from infrastructure.observability.tracing import trace_operation
@@ -127,10 +126,10 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         )
 
         try:
-            order = self._conn.orders.place_order(request)
-            return self._normalize_order_response(order)
-        except OrderError as exc:
-            return OrderResponse.fail(str(exc))
+            return self._conn.orders.place_order(request)
+        except Exception as exc:
+            logger.error("dhan_place_order_unexpected_error", extra={"error": str(exc)})
+            return OrderResponse.fail(f"Unexpected error: {exc}")
 
     def _resolve_correlation_id(self, correlation_id: str | None) -> str | None:
         if correlation_id is not None:
@@ -168,29 +167,6 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
             product_type=ProductType(product_type.upper()),
             validity=Validity(validity.upper()),
             correlation_id=correlation_id,
-        )
-
-    def _normalize_order_response(self, order: Any) -> OrderResponse:
-        status_str = getattr(order.status, "value", str(order.status)).upper()
-        try:
-            status = StatusMapperRegistry.normalize_strict(status_str)
-        except (AttributeError, UnmappedBrokerStatusError) as exc:
-            logger.error(
-                "unmapped_order_status",
-                extra={
-                    "order_id": order.order_id,
-                    "raw_status": getattr(order.status, "value", str(order.status)),
-                    "error": str(exc),
-                },
-            )
-            return OrderResponse.fail(
-                message=f"Unmapped order status: {getattr(order.status, 'value', str(order.status))}",
-                error_code="UNMAPPED_STATUS",
-            )
-        return OrderResponse.ok(
-            order_id=order.order_id,
-            message="Order placed",
-            status=status,
         )
 
     @trace_operation("dhan_gateway.cancel_order")
@@ -238,12 +214,10 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
     @trace_operation("dhan_gateway.modify_order")
     def modify_order(self, order_id: str, **changes: Any) -> OrderResponse:
         try:
-            order = self._conn.orders.modify_order(order_id, **changes)
-            return OrderResponse.ok(
-                order_id=order.order_id, message="Order modified", status=order.status
-            )
+            return self._conn.orders.modify_order(order_id, **changes)
         except Exception as exc:
-            return OrderResponse.fail(str(exc))
+            logger.error("dhan_modify_order_unexpected_error", extra={"error": str(exc)})
+            return OrderResponse.fail(f"Unexpected error: {exc}")
 
     def get_orderbook(self) -> list[Order]:
         return self._conn.orders.get_orderbook()
@@ -321,7 +295,7 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         max_subscriptions: int | None = None,
     ) -> Any:
         feed = getattr(self._conn, feed_attr)
-        
+
         # Special handling for depth_200_feed to use connection pool
         if feed_attr == "depth_200_feed":
             pool = getattr(self._conn, "depth_200_pool", None)
@@ -337,7 +311,7 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
             else:
                 # Fallback to old behavior if pool not available
                 pass
-        
+
         if feed is None:
             feed = create_fn(
                 access_token=self._conn.access_token,
@@ -438,10 +412,10 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         IMPORTANT: Dhan allows only **one** instrument per depth-200 connection.
         Calling this method with a different symbol after the feed is already running
         raises :class:`ValueError`.
-        
+
         For multiple instruments, use the connection pool pattern:
             from brokers.dhan.depth_200 import Depth200ConnectionPool
-            
+
             pool = Depth200ConnectionPool(
                 client_id=self._conn.client_id,
                 access_token=self._conn.access_token,
@@ -480,7 +454,7 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         to_str = to_date or str(to_d)
         from_str = from_date or str(from_d)
         timeframe_str = timeframe.upper() if timeframe else "1D"
-        
+
         try:
             return self._conn.historical.get_historical(symbol, exchange, from_str, to_str, timeframe_str)
         except InstrumentNotFoundError:

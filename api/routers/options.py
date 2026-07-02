@@ -17,6 +17,7 @@ from api.schemas import (
     OptionContract,
     PCRResponse,
 )
+from datalake.core.paths import DEFAULT_DATA_ROOT
 from infrastructure.db.duckdb_pool import get_pool
 
 logger = logging.getLogger(__name__)
@@ -54,7 +55,7 @@ async def get_option_chain(
             )
 
         # Route through DataLakeGateway for consistent file path handling
-        options_dir = Path("market_data/options/candles")
+        options_dir = Path(DEFAULT_DATA_ROOT) / "options" / "candles"
         underlying_dir = options_dir / f"underlying={underlying.upper()}"
 
         if not underlying_dir.exists():
@@ -320,7 +321,7 @@ async def get_options_volume_profile(
                 detail="Invalid underlying symbol format. Must be alphanumeric (e.g., NIFTY, BANKNIFTY, RELIANCE)",
             )
 
-        options_dir = Path("market_data/options/candles")
+        options_dir = Path(DEFAULT_DATA_ROOT) / "options" / "candles"
         underlying_dir = options_dir / f"underlying={underlying.upper()}"
 
         if not underlying_dir.exists():

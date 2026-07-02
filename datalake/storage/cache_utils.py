@@ -7,7 +7,7 @@ Provides:
 
 Usage::
 
-    from datalake.cache_utils import generate_cache_key, load_candles_projected
+    from datalake.storage.cache_utils import generate_cache_key, load_candles_projected
 
     # Fast cache key
     key = generate_cache_key("RELIANCE", "1m", "2024-01-01", "2024-12-31")
@@ -166,7 +166,7 @@ def load_candles_projected(
         ...     ["timestamp", "open", "high", "low", "close", "volume"]
         ... )
     """
-    from datalake.paths import get_candle_path
+    from datalake.core.paths import get_candle_path
 
     # Build file path
     path = get_candle_path(symbol, timeframe)
@@ -238,11 +238,11 @@ def get_last_candle_fast(
     timeframe: str,
     root: str | None = None,
 ) -> dict | None:
-    """Get last candle efficiently using DuckDB ORDER BY + LIMIT.
+    """Get last candle efficiently using PyArrow row-group reading.
 
-    Performance: 10-50x faster than loading entire parquet file into
-    memory and taking the last row. Uses DuckDB's query engine to
-    fetch only the single row needed.
+    Performance: Avoids creating a new DuckDB ``:memory:`` connection per
+    call (which costs ~1-5 ms each).  Instead reads the last row group
+    of the Parquet file directly via PyArrow and extracts the final row.
 
     Args:
         symbol: Instrument symbol
@@ -260,32 +260,31 @@ def get_last_candle_fast(
         >>> if last:
         ...     print(f"Last close: {last['close']}")
     """
-    from datalake.paths import get_candle_path
+    from datalake.core.paths import get_candle_path
 
     path = get_candle_path(symbol, timeframe, root=root) if root else get_candle_path(symbol, timeframe)
     if not path.exists():
         return None
 
     try:
-        import duckdb
-        conn = duckdb.connect(":memory:", read_only=False)
-        try:
-            query = """
-                SELECT * FROM read_parquet(?)
-                ORDER BY timestamp DESC
-                LIMIT 1
-            """
-            result_row = conn.execute(query, [str(path)])
-            description = result_row.description
-            if description is None:
-                return None
-            result = result_row.fetchone()
-            if result is None:
-                return None
-            columns = [desc[0] for desc in description]
-            return dict(zip(columns, result, strict=False))
-        finally:
-            conn.close()
+        import pyarrow.parquet as pq
+
+        pf = pq.ParquetFile(str(path))
+        if pf.num_row_groups == 0:
+            return None
+
+        # Read the last row group — contains the most recent rows
+        last_rg = pf.read_row_group(pf.num_row_groups - 1)
+        if last_rg.num_rows == 0:
+            return None
+
+        # Convert to pandas and take the last row (sorted by timestamp)
+        df = last_rg.to_pandas()
+        if "timestamp" in df.columns:
+            df = df.sort_values("timestamp")
+
+        last_row = df.iloc[-1]
+        return last_row.to_dict()
 
     except Exception as exc:
         logger.warning("last_candle_fetch_failed: %s error=%s", path, exc)

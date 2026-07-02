@@ -103,7 +103,7 @@ class TestCacheUtilsSQLInjection:
         """get_last_candle_fast must use parameterized queries, not f-strings."""
         import inspect
 
-        from datalake.cache_utils import get_last_candle_fast
+        from datalake.storage.cache_utils import get_last_candle_fast
 
         source = inspect.getsource(get_last_candle_fast)
 

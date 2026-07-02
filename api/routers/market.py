@@ -100,8 +100,17 @@ async def get_candles(
     gateway = get_datalake_gateway()
 
     try:
-        # Load data from DataLakeGateway
-        df = gateway._load_parquet(symbol, timeframe)
+        # Build timestamp filters
+        from_ts_pd = pd.Timestamp(from_ts, unit="ms") if from_ts is not None else None
+        to_ts_pd = pd.Timestamp(to_ts, unit="ms") if to_ts is not None else None
+
+        # Use DuckDB predicate pushdown instead of loading entire parquet
+        df = gateway.query_candles(
+            symbol, timeframe,
+            from_ts=from_ts_pd,
+            to_ts=to_ts_pd,
+            limit=limit,
+        )
 
         if df is None or df.empty:
             raise HTTPException(
@@ -121,18 +130,6 @@ async def get_candles(
         if "timestamp" not in df.columns:
             df["timestamp"] = df.index
 
-        # Filter by date range if provided
-        if from_ts is not None:
-            from_dt = pd.Timestamp(from_ts, unit="ms")
-            df = df[df["timestamp"] >= from_dt]
-
-        if to_ts is not None:
-            to_dt = pd.Timestamp(to_ts, unit="ms")
-            df = df[df["timestamp"] <= to_dt]
-
-        # Sort by timestamp and limit
-        df = df.sort_values("timestamp").tail(limit)
-
         # Vectorized conversion — use df.to_dict('records') to avoid iterrows overhead
         # P0.8: Replaced df.iterrows() with vectorized list comprehension
         rows = df.to_dict(orient="records")
@@ -148,7 +145,7 @@ async def get_candles(
                 t=ts_ms[i],
                 o=float(r["open"]) if pd.notna(r.get("open")) else 0.0,
                 h=float(r["high"]) if pd.notna(r.get("high")) else 0.0,
-                low=float(r["low"]) if pd.notna(r.get("low")) else 0.0,
+                l=float(r["low"]) if pd.notna(r.get("low")) else 0.0,
                 c=float(r["close"]) if pd.notna(r.get("close")) else 0.0,
                 v=float(r["volume"]) if pd.notna(r.get("volume")) else 0.0,
                 oi=float(r.get("oi", 0)) if pd.notna(r.get("oi", 0)) else 0.0,
@@ -306,40 +303,39 @@ async def get_quote(symbol: str, exchange: str = Query("NSE", description="Excha
     gateway = get_datalake_gateway()
 
     try:
-        # Get latest 1m candle
-        df = gateway._load_parquet(symbol, "1m")
+        # Use the gateway's quote() method which has TTL caching
+        quote = gateway.quote(symbol, exchange=exchange)
 
-        if df is None or df.empty:
+        if quote.ltp == 0 and quote.open == 0 and quote.volume == 0:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"No quote data found for {symbol}",
             )
 
-        # Get latest row
-        if "timestamp" not in df.columns:
-            df["timestamp"] = df.index
+        # Get timestamp and OI from the last candle via efficient path
+        from datalake.storage.cache_utils import get_last_candle_fast
+        last_candle = get_last_candle_fast(symbol, "1m", root=str(gateway._root))
 
-        latest = df.sort_values("timestamp").iloc[-1]
-
-        ts = latest["timestamp"]
-        ts_ms = int(ts.timestamp() * 1000) if isinstance(ts, pd.Timestamp) else int(ts)
-
-        # Use close price as LTP; handle NaN gracefully
-        ltp_value = latest.get("close")
-        if pd.isna(ltp_value):
-            ltp_value = 0.0
+        ts_ms = 0
+        oi_value = 0.0
+        if last_candle and "timestamp" in last_candle:
+            ts = last_candle["timestamp"]
+            ts_pd = pd.Timestamp(ts)
+            ts_ms = int(ts_pd.timestamp() * 1000)
+        if last_candle and "oi" in last_candle:
+            oi_value = float(last_candle["oi"])
 
         response_data = {
             "symbol": symbol,
             "exchange": exchange,
-            "ltp": float(ltp_value),
+            "ltp": float(quote.ltp),
             "timestamp": ts_ms,
-            "open": float(latest.get("open", 0)) if pd.notna(latest.get("open")) else None,
-            "high": float(latest.get("high", 0)) if pd.notna(latest.get("high")) else None,
-            "low": float(latest.get("low", 0)) if pd.notna(latest.get("low")) else None,
-            "close": float(latest.get("close", 0)) if pd.notna(latest.get("close")) else None,
-            "volume": float(latest.get("volume", 0)) if pd.notna(latest.get("volume")) else None,
-            "oi": float(latest.get("oi", 0)) if pd.notna(latest.get("oi")) else None,
+            "open": float(quote.open) if quote.open is not None else None,
+            "high": float(quote.high) if quote.high is not None else None,
+            "low": float(quote.low) if quote.low is not None else None,
+            "close": float(quote.close) if quote.close is not None else None,
+            "volume": float(quote.volume) if quote.volume is not None else 0.0,
+            "oi": oi_value,
         }
 
         response = JSONResponse(content=response_data)

@@ -16,7 +16,7 @@ from application.trading.trading_orchestrator import OrchestratorConfig, Trading
 from brokers.paper.paper_gateway import PaperGateway
 from domain.models.features import FeatureSet
 from domain.models.trading import CandidateDTO, SignalDTO
-from infrastructure.event_bus import DomainEvent, EventType
+from domain.events.types import DomainEvent, EventType
 
 
 class _StaticFeatureFetcher:

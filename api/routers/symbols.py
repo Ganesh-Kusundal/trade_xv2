@@ -14,6 +14,7 @@ from api.schemas import (
     SymbolSearchResponse,
     UniverseResponse,
 )
+from datalake.core.universe import UNIVERSE_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -146,7 +147,7 @@ async def get_universe(name: str):
 
     try:
         # Try to load from universe file
-        universe_file = Path("data/universes") / f"{name.lower()}.txt"
+        universe_file = Path(UNIVERSE_DIR) / f"{name.lower()}.txt"
 
         if not universe_file.exists():
             # Fallback to CSV files in root

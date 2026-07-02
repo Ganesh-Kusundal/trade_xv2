@@ -14,7 +14,7 @@ import pandas as pd
 
 from datalake.core.paths import timeframe_partition_dir
 from datalake.gateway import DataLakeGateway
-from datalake.paths import CURATED_ROOT
+from datalake.core.paths import CURATED_ROOT
 
 logger = logging.getLogger(__name__)
 

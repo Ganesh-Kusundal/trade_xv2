@@ -19,9 +19,20 @@ from analytics.pipeline.features import (
     RSI,
     SMA,
     VWAP,
+    ATRPercent,
+    Beta,
     BollingerBands,
+    Correlation,
+    Gap,
     HistoricalVolatility,
     Momentum,
+    PercentRank,
+    PriceDistance,
+    RelativeVolume,
+    SwingHighLow,
+    Trend,
+    VolumeSMA,
+    ZScore,
 )
 
 # ── Helpers — inlined from deprecated analytics.indicators.technical ────────
@@ -255,3 +266,176 @@ def test_feature_pipeline_composition(ohlcv: pd.DataFrame) -> None:
     assert "roc" in result.columns
     assert "momentum" in result.columns
     assert len(result) == len(ohlcv)
+
+
+# ── Volume features ──────────────────────────────────────────────────────────
+
+
+def test_relative_volume(ohlcv: pd.DataFrame) -> None:
+    result = RelativeVolume(period=20).compute(ohlcv)
+    assert "relative_volume" in result.columns
+    valid = result["relative_volume"].dropna()
+    assert (valid >= 0).all()
+
+
+def test_volume_sma(ohlcv: pd.DataFrame) -> None:
+    result = VolumeSMA(period=20).compute(ohlcv)
+    assert "volume_sma" in result.columns
+    valid = result["volume_sma"].dropna()
+    assert (valid >= 0).all()
+
+
+# ── Market structure features ────────────────────────────────────────────────
+
+
+def test_swing_high_low(ohlcv: pd.DataFrame) -> None:
+    result = SwingHighLow(lookback=5).compute(ohlcv)
+    assert "swing_high" in result.columns
+    assert "swing_low" in result.columns
+    assert result["swing_high"].dtype == bool
+    assert result["swing_low"].dtype == bool
+
+
+def test_price_distance(ohlcv: pd.DataFrame) -> None:
+    df = SMA(source="close", period=20, name="sma").compute(ohlcv.copy())
+    result = PriceDistance(source="sma", period=20).compute(df)
+    assert "price_distance" in result.columns
+
+
+# ── Gap features ─────────────────────────────────────────────────────────────
+
+
+def test_gap(ohlcv: pd.DataFrame) -> None:
+    result = Gap().compute(ohlcv)
+    assert "gap_pct" in result.columns
+    first_valid = result["gap_pct"].dropna()
+    assert len(first_valid) > 0
+
+
+# ── Trend features ───────────────────────────────────────────────────────────
+
+
+def test_trend(ohlcv: pd.DataFrame) -> None:
+    result = Trend(fast_period=10, slow_period=50).compute(ohlcv)
+    assert "trend" in result.columns
+    assert set(result["trend"].unique()).issubset({"up", "down", "neutral"})
+
+
+# ── Volatility features ──────────────────────────────────────────────────────
+
+
+def test_atr_percent(ohlcv: pd.DataFrame) -> None:
+    df = ATR(period=14).compute(ohlcv.copy())
+    result = ATRPercent(atr_name="atr", period=14).compute(df)
+    assert "atr_pct" in result.columns
+    valid = result["atr_pct"].dropna()
+    assert (valid >= 0).all()
+
+
+# ── Statistical features ─────────────────────────────────────────────────────
+
+
+def test_z_score(ohlcv: pd.DataFrame) -> None:
+    result = ZScore(source="close", period=20).compute(ohlcv)
+    assert "z_score" in result.columns
+
+
+def test_correlation(ohlcv: pd.DataFrame) -> None:
+    result = Correlation(source1="close", source2="volume", period=20).compute(ohlcv)
+    assert "correlation" in result.columns
+    valid = result["correlation"].dropna()
+    assert (valid >= -1).all() and (valid <= 1).all()
+
+
+# ── Multi-asset features ─────────────────────────────────────────────────────
+
+
+def test_beta(ohlcv: pd.DataFrame) -> None:
+    df = ohlcv.copy()
+    df["benchmark"] = df["close"] * 1.05
+    result = Beta(asset_col="close", bench_col="benchmark", period=20).compute(df)
+    assert "beta" in result.columns
+
+
+# ── Cross-sectional features ─────────────────────────────────────────────────
+
+
+def test_percent_rank(prices: pd.Series) -> None:
+    df = pd.DataFrame({"close": prices})
+    result = PercentRank(source="close", period=20).compute(df)
+    assert "pct_rank" in result.columns
+    valid = result["pct_rank"].dropna()
+    assert (valid >= 0).all() and (valid <= 100).all()
+
+
+# ── Coverage gate ────────────────────────────────────────────────────────────
+
+
+def test_all_feature_classes_have_tests() -> None:
+    """Gate: every Feature class in analytics.pipeline.features must have a test."""
+    import inspect
+
+    import analytics.pipeline.features as feat_mod
+
+    feature_classes = {
+        name
+        for name, obj in inspect.getmembers(feat_mod, inspect.isclass)
+        if obj.__module__ == feat_mod.__name__
+        and hasattr(obj, "compute")
+        and name != "Feature"
+    }
+
+    import sys
+
+    test_mod = sys.modules[__name__]
+    tested_names: set[str] = set()
+    for func_name, _ in inspect.getmembers(test_mod, inspect.isfunction):
+        if not func_name.startswith("test_"):
+            continue
+        norm_func = func_name.lower().replace("_", "")
+        for cls_name in feature_classes:
+            if cls_name.lower() in norm_func:
+                tested_names.add(cls_name)
+
+    untested = feature_classes - tested_names
+    assert not untested, f"Feature classes without tests: {untested}"
+
+
+# ── Edge case tests ─────────────────────────────────────────────────────────
+
+
+def test_sma_missing_source_column() -> None:
+    df = pd.DataFrame({"volume": [1, 2, 3]})
+    with pytest.raises(ValueError, match="Missing"):
+        SMA(period=2, source="close").compute(df)
+
+
+def test_rsi_period_exceeds_data() -> None:
+    df = pd.DataFrame({"close": [100.0, 101.0, 102.0]})
+    result = RSI(period=10).compute(df)
+    assert result["rsi"].isna().all()
+
+
+def test_bollinger_constant_prices() -> None:
+    df = pd.DataFrame({"close": [100.0] * 20, "high": [100.0] * 20, "low": [100.0] * 20})
+    result = BollingerBands(period=10).compute(df)
+    assert len(result) == 20
+    assert result["bb_middle"].iloc[-1] == pytest.approx(100.0)
+
+
+def test_atr_empty_after_warmup() -> None:
+    df = pd.DataFrame({
+        "open": [100.0],
+        "high": [102.0],
+        "low": [98.0],
+        "close": [101.0],
+    })
+    result = ATR(period=10).compute(df)
+    assert len(result) == 1
+    assert result["atr"].isna().iloc[0]
+
+
+def test_zscore_constant_series() -> None:
+    df = pd.DataFrame({"close": [50.0] * 20})
+    result = ZScore(period=10, source="close").compute(df)
+    assert len(result) == 20

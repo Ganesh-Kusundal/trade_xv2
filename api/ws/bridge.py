@@ -12,7 +12,8 @@ import contextlib
 import logging
 from typing import Any
 
-from infrastructure.event_bus import DomainEvent, EventBus
+from domain.events.types import DomainEvent
+from infrastructure.event_bus import EventBus
 
 logger = logging.getLogger(__name__)
 
@@ -83,11 +84,13 @@ class MarketBridge:
             try:
                 event = await self._queue.get()
 
-                # Broadcast to all subscribed connections
-                for connection_id, symbols in self._manager.subscriptions.items():
-                    if event.symbol in symbols or not symbols:
-                        msg = self._format_message(event)
-                        await self._manager.send_to_client(connection_id, msg)
+                msg = self._format_message(event)
+                symbol = msg.get("symbol")
+
+                targets: set[str] = self._manager.targets_for_symbol(symbol)
+
+                for connection_id in targets:
+                    await self._manager.send_to_client(connection_id, msg)
             except asyncio.CancelledError:
                 break
             except Exception as exc:

@@ -10,7 +10,7 @@ import pandas as pd
 import pyarrow as pa
 import pytest
 
-from datalake.io import atomic_json_write, atomic_parquet_write, atomic_text_write
+from datalake.core.io import atomic_json_write, atomic_parquet_write, atomic_text_write
 
 
 def _make_table(n: int = 5) -> pa.Table:
@@ -56,7 +56,7 @@ class TestAtomicParquetWrite:
         path = tmp_path / "data.parquet"
 
         with (
-            patch("datalake.io.pq.write_table", side_effect=RuntimeError("boom")),
+            patch("datalake.core.io.pq.write_table", side_effect=RuntimeError("boom")),
             pytest.raises(RuntimeError, match="boom"),
         ):
             atomic_parquet_write(path, _make_table())

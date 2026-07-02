@@ -57,12 +57,21 @@ class Cache(ABC):
 
 
 class MemoryCache(Cache):
-    """Thread-safe in-memory cache implementation."""
+    """Thread-safe in-memory cache implementation.
 
-    def __init__(self, default_ttl: int = 300) -> None:
+    P1-4 fix: Added maxsize to prevent unbounded memory growth. When the
+    cache exceeds maxsize entries, the oldest expired entries are evicted.
+    If no expired entries exist, the oldest entries are removed.
+    """
+
+    def __init__(self, default_ttl: int = 300, maxsize: int = 10_000) -> None:
         self._default_ttl = default_ttl
+        self._maxsize = maxsize
         self._store: dict[str, tuple[Any, float]] = {}
         self._lock = threading.RLock()
+        # Track insertion order for correct LRU eviction
+        self._insertion_counter: int = 0
+        self._insertion_order: dict[str, int] = {}
 
     def get(self, key: str) -> Any | None:
         with self._lock:
@@ -84,16 +93,55 @@ class MemoryCache(Cache):
             ttl_seconds = ttl if ttl is not None else self._default_ttl
             expires_at = time.monotonic() + ttl_seconds if ttl_seconds > 0 else 0
             self._store[key] = (value, expires_at)
+            self._insertion_order[key] = self._insertion_counter
+            self._insertion_counter += 1
             _cache_size.set(len(self._store))
+            # P1-4: Evict expired entries when cache exceeds maxsize
+            if len(self._store) > self._maxsize:
+                self._evict_expired()
+            # If still over limit after expired eviction, remove oldest entries
+            if len(self._store) > self._maxsize:
+                self._evict_oldest()
+
+    def _evict_expired(self) -> None:
+        """Remove all expired entries. Must be called with lock held."""
+        now = time.monotonic()
+        expired_keys = [
+            k for k, (_, expires_at) in self._store.items()
+            if expires_at and now > expires_at
+        ]
+        for k in expired_keys:
+            del self._store[k]
+            _cache_evictions.inc()
+        _cache_size.set(len(self._store))
+
+    def _evict_oldest(self) -> None:
+        """Remove oldest entries (by insertion time) to bring cache under maxsize.
+
+        Must be called with lock held.
+        """
+        # Sort by insertion order (oldest first), not by expiration time
+        sorted_keys = sorted(
+            self._store.keys(),
+            key=lambda k: self._insertion_order.get(k, 0),
+        )
+        to_remove = len(self._store) - self._maxsize
+        for k in sorted_keys[:to_remove]:
+            del self._store[k]
+            self._insertion_order.pop(k, None)
+            _cache_evictions.inc()
+        _cache_size.set(len(self._store))
 
     def delete(self, key: str) -> None:
         with self._lock:
             self._store.pop(key, None)
+            self._insertion_order.pop(key, None)
             _cache_size.set(len(self._store))
 
     def clear(self) -> None:
         with self._lock:
             self._store.clear()
+            self._insertion_order.clear()
             _cache_size.set(0)
 
     def has(self, key: str) -> bool:

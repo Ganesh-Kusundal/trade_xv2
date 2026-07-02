@@ -6,7 +6,7 @@ Provides queries for finding stocks with unusual volume:
 - Custom time window relative volume
 
 Usage:
-    from datalake.relative_volume import (
+    from datalake.analytics.relative_volume import (
         rel_volume_14d_by_time,
         rel_volume_20d_daily,
         high_rel_volume_stocks,
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 
 def _get_conn(read_only: bool = True) -> duckdb.DuckDBPyConnection:
-    from datalake.duckdb_utils import DEFAULT_CATALOG_PATH, get_read_pool
+    from datalake.core.duckdb_utils import DEFAULT_CATALOG_PATH, get_read_pool
     return get_read_pool().acquire(str(DEFAULT_CATALOG_PATH))
 
 

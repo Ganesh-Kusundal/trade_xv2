@@ -420,6 +420,14 @@ class BrokerService:
         return self._active_name
 
     @property
+    def active_gateway(self) -> MarketDataGateway | None:
+        """Return the active MarketDataGateway for market data streaming."""
+        self._ensure_initialized()
+        if self._active_name == "upstox":
+            return self._upstox_gateway
+        return self._gateway
+
+    @property
     def oms_proxy(self) -> OMSGatewayProxy | None:
         """B4: The OMS gateway proxy (enforces kill switch on order ops).
 
@@ -507,15 +515,15 @@ class BrokerService:
 
         Risk, idempotency, and audit are enforced by
         :class:`~brokers.common.oms.order_manager.OrderManager` before this
-        method is invoked. Duplicate broker-level risk checks are skipped via
-        ``transport_only=True``.
+        method is invoked. Duplicate broker-level event publishing is suppressed
+        via the ``oms_managed()`` context manager in ``make_gateway_submit_fn``.
         """
         self._ensure_initialized()
         gateway = self.active_broker
         if gateway is None:
             raise RuntimeError("No broker gateway configured")
 
-        fn = make_gateway_submit_fn(gateway, transport_only=True)
+        fn = make_gateway_submit_fn(gateway)
         return fn(command)
 
     def place_order_through_oms(self, command: OmsOrderCommand) -> OrderResult:

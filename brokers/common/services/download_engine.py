@@ -39,7 +39,7 @@ from typing import Any, ClassVar
 import pandas as pd
 import pyarrow as pa
 
-from datalake.io import atomic_parquet_write
+from infrastructure.io.parquet import atomic_parquet_write
 
 logger = logging.getLogger(__name__)
 

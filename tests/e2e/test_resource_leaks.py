@@ -21,7 +21,7 @@ class TestResourceLeaks:
         # Attempt to create multiple stores with lock contention
         from application.oms.persistence.errors import OmsWriterLockError
 
-        from application.oms.persistence.sqlite_order_store import SqliteOrderStore
+        from infrastructure.persistence.sqlite_order_store import SqliteOrderStore
 
         for _i in range(50):
             try:

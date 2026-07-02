@@ -10,9 +10,9 @@ import duckdb
 import pandas as pd
 from cachetools import TTLCache, cached
 
-from datalake.cache_utils import generate_cache_key
-from datalake.paths import CURATED_ROOT, curated_equity_glob, curated_equity_path
-from datalake.symbols import normalize_symbol, symbol_to_path
+from datalake.storage.cache_utils import generate_cache_key
+from datalake.core.paths import CURATED_ROOT, curated_equity_glob, curated_equity_path
+from datalake.core.symbols import normalize_symbol, symbol_to_path
 
 logger = logging.getLogger(__name__)
 
@@ -183,20 +183,23 @@ class ParquetStore:
         return resampled
 
     def list_symbols(self, timeframe: str = "1m") -> list[str]:
-        """List all symbols, trying curated layout first, then legacy."""
-        # Try curated layout via DuckDB
+        """List all symbols, trying curated layout first, then legacy.
+
+        P2-5 fix: Removed expensive filesystem glob check. Tries DuckDB
+        query directly, which is faster and avoids scanning the directory tree.
+        """
+        # Try curated layout via DuckDB (no filesystem glob check)
         try:
             import duckdb
             glob_pattern = curated_equity_glob(root=str(self._curated_root))
-            if list(self._curated_root.glob("year=*/month=*/data_*.parquet")):
-                df = duckdb.execute(
-                    "SELECT DISTINCT symbol FROM read_parquet(?) ORDER BY symbol",
-                    [glob_pattern],
-                ).fetchdf()
-                if not df.empty:
-                    return df["symbol"].tolist()
-        except Exception:
-            pass
+            df = duckdb.execute(
+                "SELECT DISTINCT symbol FROM read_parquet(?) ORDER BY symbol",
+                [glob_pattern],
+            ).fetchdf()
+            if not df.empty:
+                return df["symbol"].tolist()
+        except Exception as exc:
+            logger.debug("Curated list_symbols failed, trying legacy: %s", exc)
 
         # Fallback to legacy layout
         tf_dir = self._candles_dir / f"timeframe={timeframe}"

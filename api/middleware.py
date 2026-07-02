@@ -25,96 +25,118 @@ logger = logging.getLogger(__name__)
 
 
 class HttpRequestMetrics:
-    """Thread-safe in-process HTTP metrics for Prometheus exposition.
+    """Thread-safe HTTP metrics backed by the central MetricsRegistry.
 
-    Counters:
-        request_total{method, path, status} — total requests.
-        request_duration_ms_sum{method, path, status} — cumulative latency.
-        request_duration_ms_count{method, path, status} — count of latencies.
-
-    Paths are normalised by stripping numeric IDs (e.g. ``/orders/123``
-    becomes ``/orders/{id}``) to avoid high-cardinality labels.
+    Uses labelled metrics for dynamic label combinations (method, path, status).
+    Paths are normalised by stripping numeric IDs to avoid high-cardinality labels.
     """
 
     def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._total: dict[tuple[str, str, str], int] = defaultdict(int)
-        self._duration_sum: dict[tuple[str, str, str], float] = defaultdict(float)
-        self._duration_count: dict[tuple[str, str, str], int] = defaultdict(int)
-        self._active_requests = 0
+        from infrastructure.metrics.registry import metrics_registry
+
+        self._request_total = metrics_registry.labelled_counter(
+            "http_requests_total",
+            "Total HTTP requests by method, path, status.",
+            label_names=("method", "path", "status"),
+        )
+        self._request_duration = metrics_registry.labelled_histogram(
+            "http_request_duration_ms",
+            "HTTP request duration in milliseconds.",
+            label_names=("method", "path", "status"),
+            buckets=[1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000],
+        )
+        self._active_requests = metrics_registry.labelled_gauge(
+            "http_active_requests",
+            "Currently active HTTP requests.",
+            label_names=(),
+        )
 
     def record(self, method: str, path: str, status: int, duration_ms: float) -> None:
-        key = (method, path, str(status))
-        with self._lock:
-            self._total[key] += 1
-            self._duration_sum[key] += duration_ms
-            self._duration_count[key] += 1
+        self._request_total.inc(method=method, path=path, status=str(status))
+        self._request_duration.observe(duration_ms, method=method, path=path, status=str(status))
 
     def inc_active(self) -> None:
-        with self._lock:
-            self._active_requests += 1
+        self._active_requests.inc()
 
     def dec_active(self) -> None:
-        with self._lock:
-            self._active_requests = max(0, self._active_requests - 1)
+        self._active_requests.dec()
 
     @property
     def active_requests(self) -> int:
-        with self._lock:
-            return self._active_requests
+        return int(self._active_requests.get())
 
     def snapshot(self) -> dict[str, dict[str, dict[str, float]]]:
         """Return a JSON-serialisable snapshot of all counters."""
-        with self._lock:
-            return {
-                "total": {f"{m}|{p}|{s}": v for (m, p, s), v in sorted(self._total.items())},
-                "duration_ms_sum": {
-                    f"{m}|{p}|{s}": v for (m, p, s), v in sorted(self._duration_sum.items())
-                },
-                "duration_ms_count": {
-                    f"{m}|{p}|{s}": v for (m, p, s), v in sorted(self._duration_count.items())
-                },
-                "active_requests": self._active_requests,
-            }
+        total_series = self._request_total.snapshot()
+        duration_series = self._request_duration.snapshot()
+
+        total: dict[str, dict[str, dict[str, float]]] = {}
+        dur_sum: dict[str, dict[str, dict[str, float]]] = {}
+        dur_count: dict[str, dict[str, dict[str, float]]] = {}
+
+        for (method, path, status), count in total_series.items():
+            total.setdefault(method, {}).setdefault(path, {})[status] = count
+
+        for (method, path, status), values in duration_series.items():
+            dur_sum.setdefault(method, {}).setdefault(path, {})[status] = sum(values)
+            dur_count.setdefault(method, {}).setdefault(path, {})[status] = len(values)
+
+        return {
+            "total": {
+                f"{m}|{p}|{s}": v
+                for m, paths in total.items()
+                for p, statuses in paths.items()
+                for s, v in statuses.items()
+            },
+            "duration_ms_sum": {
+                f"{m}|{p}|{s}": v
+                for m, paths in dur_sum.items()
+                for p, statuses in paths.items()
+                for s, v in statuses.items()
+            },
+            "duration_ms_count": {
+                f"{m}|{p}|{s}": v
+                for m, paths in dur_count.items()
+                for p, statuses in paths.items()
+                for s, v in statuses.items()
+            },
+            "active_requests": int(self._active_requests.get()),
+        }
 
     def render_prometheus(self) -> str:
         """Render Prometheus text exposition format.
 
-        Takes a single snapshot under one lock acquisition to ensure
-        consistent counters across all metrics.
+        Delegates to the central registry's labelled metrics for consistent output.
         """
         lines: list[str] = []
 
-        with self._lock:
-            total_copy = dict(self._total)
-            dur_sum_copy = dict(self._duration_sum)
-            dur_count_copy = dict(self._duration_count)
-            active = self._active_requests
-
+        total_series = self._request_total.snapshot()
         lines.append(
             "# HELP tradexv2_http_requests_total Total HTTP requests by method, path, status."
         )
         lines.append("# TYPE tradexv2_http_requests_total counter")
-        for (method, path, status), count in sorted(total_copy.items()):
+        for (method, path, status), count in sorted(total_series.items()):
             labels = f'method="{method}", path="{path}", status="{status}"'
-            lines.append(f"tradexv2_http_requests_total{{{labels}}} {count}")
+            lines.append(f"tradexv2_http_requests_total{{{labels}}} {int(count)}")
 
+        duration_series = self._request_duration.snapshot()
         lines.append(
             "# HELP tradexv2_http_request_duration_ms_sum Cumulative request duration in ms."
         )
         lines.append("# TYPE tradexv2_http_request_duration_ms_sum counter")
-        for (method, path, status), val in sorted(dur_sum_copy.items()):
+        for (method, path, status), values in sorted(duration_series.items()):
             labels = f'method="{method}", path="{path}", status="{status}"'
-            lines.append(f"tradexv2_http_request_duration_ms_sum{{{labels}}} {val:.1f}")
+            lines.append(f"tradexv2_http_request_duration_ms_sum{{{labels}}} {sum(values):.1f}")
 
         lines.append(
             "# HELP tradexv2_http_request_duration_ms_count Request duration sample count."
         )
         lines.append("# TYPE tradexv2_http_request_duration_ms_count counter")
-        for (method, path, status), val in sorted(dur_count_copy.items()):
+        for (method, path, status), values in sorted(duration_series.items()):
             labels = f'method="{method}", path="{path}", status="{status}"'
-            lines.append(f"tradexv2_http_request_duration_ms_count{{{labels}}} {val}")
+            lines.append(f"tradexv2_http_request_duration_ms_count{{{labels}}} {len(values)}")
 
+        active = int(self._active_requests.get())
         lines.append("# HELP tradexv2_http_active_requests Currently active HTTP requests.")
         lines.append("# TYPE tradexv2_http_active_requests gauge")
         lines.append(f"tradexv2_http_active_requests {active}")
@@ -225,12 +247,19 @@ class _SlidingWindowCounter:
     Uses a simple sliding window: each key tracks the timestamps of
     recent requests within the window. Expired entries are pruned on
     access so memory stays bounded.
+
+    P1-6 fix: Added periodic cleanup of expired buckets and max bucket
+    count to prevent unbounded memory growth from unique IP addresses.
     """
+
+    _CLEANUP_INTERVAL = 1000  # Run cleanup every 1000 requests
+    _MAX_BUCKETS = 50_000  # Maximum number of unique IPs to track
 
     def __init__(self, window_seconds: float) -> None:
         self._window = window_seconds
         self._lock = threading.Lock()
         self._buckets: dict[str, list[float]] = defaultdict(list)
+        self._request_count = 0
 
     def is_allowed(self, key: str, max_requests: int) -> tuple[bool, int]:
         """Check if a request is allowed.
@@ -242,16 +271,44 @@ class _SlidingWindowCounter:
         cutoff = now - self._window
 
         with self._lock:
+            self._request_count += 1
+            # P1-6: Periodic cleanup to prevent unbounded memory growth
+            if self._request_count % self._CLEANUP_INTERVAL == 0:
+                self._cleanup_expired(now)
+
             timestamps = self._buckets[key]
-            # Prune expired entries
+            # Prune expired entries for this key
             self._buckets[key] = timestamps = [
                 t for t in timestamps if t > cutoff
             ]
+            # Remove empty buckets entirely
+            if not timestamps:
+                del self._buckets[key]
+                # Record this request in a new bucket to prevent rate-limit bypass
+                self._buckets[key] = [now]
+                return True, max_requests - 1
+
             remaining = max_requests - len(timestamps)
             if remaining > 0:
                 timestamps.append(now)
                 return True, remaining - 1
             return False, 0
+
+    def _cleanup_expired(self, now: float) -> None:
+        """Remove all expired buckets. Must be called with lock held.
+
+        P1-6: Prevents unbounded memory growth from unique IP addresses.
+        """
+        cutoff = now - self._window
+        expired_keys = [
+            key for key, timestamps in self._buckets.items()
+            if not timestamps or all(t <= cutoff for t in timestamps)
+        ]
+        for key in expired_keys:
+            del self._buckets[key]
+        # Safety valve: if still too many buckets, clear all
+        if len(self._buckets) > self._MAX_BUCKETS:
+            self._buckets.clear()
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):

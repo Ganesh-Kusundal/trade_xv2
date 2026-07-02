@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createMarketWebSocket, getApiKey } from '@/api/client'
+import { sharedMarketClient } from './useMarketStream'
 
 export interface Trade {
   t: number        // timestamp (epoch ms)
@@ -44,6 +45,7 @@ function classifyTrade(size: number): Trade['condition'] {
 
 class TradesStreamClient {
   private ws: WebSocket | null = null
+  private offMarketStream: (() => void) | null = null
   private symbol: string | null = null
   private listeners = new Set<(trades: Trade[]) => void>()
   private reconnectAttempt = 0
@@ -66,7 +68,7 @@ class TradesStreamClient {
   }
 
   isConnected(): boolean {
-    return this.ws?.readyState === WebSocket.OPEN
+    return sharedMarketClient.isConnected()
   }
 
   setEnabled(on: boolean): void {
@@ -84,30 +86,18 @@ class TradesStreamClient {
   }
 
   private connect(): void {
-    if (!this.enabled || !this.symbol || this.ws?.readyState === WebSocket.CONNECTING) return
-    this.disconnect(false)
-    try {
-      this.ws = createMarketWebSocket()
-    } catch {
-      this.scheduleReconnect()
+    const isTest = typeof process !== 'undefined' && process.env.NODE_ENV === 'test'
+    const disableLiveWs = !isTest && import.meta.env.VITE_DISABLE_LIVE_WS !== 'false'
+    if (disableLiveWs) {
       return
     }
-    const ws = this.ws
-    ws.onopen = () => {
-      this.reconnectAttempt = 0
-      this.ws?.send(JSON.stringify({ action: 'subscribe', symbols: [this.symbol] }))
-    }
-    ws.onmessage = (ev) => {
-      try {
-        const msg = JSON.parse(String(ev.data))
-        this.handleMessage(msg)
-      } catch { /* ignore malformed */ }
-    }
-    ws.onclose = () => {
-      this.ws = null
-      if (this.enabled) this.scheduleReconnect()
-    }
-    ws.onerror = () => {}
+    if (!this.enabled || !this.symbol) return
+    this.disconnect()
+
+    sharedMarketClient.subscribe([this.symbol])
+    this.offMarketStream = sharedMarketClient.addListener((msg) => {
+      this.handleMessage(msg as any)
+    })
   }
 
   private handleMessage(msg: { type: string; symbol?: string; [k: string]: unknown }): void {
@@ -137,20 +127,13 @@ class TradesStreamClient {
     this.listeners.forEach((fn) => fn(snapshot))
   }
 
-  private scheduleReconnect(): void {
-    if (this.reconnectTimer != null) return
-    const delay = Math.min(MAX_BACKOFF_MS, BASE_BACKOFF_MS * 2 ** this.reconnectAttempt)
-    this.reconnectAttempt += 1
-    this.reconnectTimer = window.setTimeout(() => {
-      this.reconnectTimer = null
-      this.connect()
-    }, delay)
-  }
-
-  private disconnect(clearTimer = true): void {
-    if (clearTimer && this.reconnectTimer != null) {
-      clearTimeout(this.reconnectTimer)
-      this.reconnectTimer = null
+  private disconnect(): void {
+    if (this.offMarketStream) {
+      this.offMarketStream()
+      this.offMarketStream = null
+    }
+    if (this.symbol) {
+      sharedMarketClient.unsubscribe([this.symbol])
     }
     if (this.ws) {
       try { this.ws.close() } catch { /* ignore */ }

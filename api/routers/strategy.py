@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
@@ -83,7 +84,7 @@ async def get_strategy_signals(
             signals.append(
                 StrategySignal(
                     symbol=row[0] if row else "",
-                    timestamp=0,
+                    timestamp=int(datetime.now(timezone.utc).timestamp() * 1000),
                     signal_type=row[3] or "NEUTRAL",
                     score=float(row[2]) if row[2] else 0.0,
                     stop_loss=float(row[9]) if row[9] else None,
@@ -141,7 +142,7 @@ async def get_strategy_candidates(
             signals.append(
                 StrategySignal(
                     symbol=row[0],
-                    timestamp=0,
+                    timestamp=int(datetime.now(timezone.utc).timestamp() * 1000),
                     signal_type=row[3] or "NEUTRAL",
                     score=float(row[2]) if row[2] else 0.0,
                     metadata={

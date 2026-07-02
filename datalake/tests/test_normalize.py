@@ -8,7 +8,7 @@ import duckdb
 import pandas as pd
 import pyarrow as pa
 
-from datalake.io import atomic_parquet_write
+from datalake.core.io import atomic_parquet_write
 from datalake.normalize import detect_timezone, normalize_timestamps
 
 

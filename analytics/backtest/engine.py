@@ -80,6 +80,7 @@ class BacktestEngine:
             trading_context=trading_context,
             execution_adapter=execution_adapter,
             oms_adapter=oms_adapter,
+            allow_simulate_without_oms=True,  # BacktestEngine works standalone
         )
 
     def run(

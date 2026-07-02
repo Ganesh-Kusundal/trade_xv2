@@ -20,8 +20,8 @@ from pathlib import Path
 import duckdb
 import pytest
 
-from datalake.duckdb_utils import connect_with_retry
-from datalake.journal import TradeJournal
+from datalake.core.duckdb_utils import connect_with_retry
+from datalake.research.journal import TradeJournal
 
 
 @pytest.fixture

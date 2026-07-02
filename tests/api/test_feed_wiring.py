@@ -14,7 +14,7 @@ class TestFeedWiringBrokerSymmetry:
     def test_subscribe_records_symbols_for_later_unsubscribe(self) -> None:
         gateway = MagicMock()
         container = MagicMock()
-        container.broker_service = MagicMock(_gateway=gateway)
+        container.broker_service = MagicMock(active_gateway=gateway)
 
         with patch("api.deps.get_container", return_value=container):
             feed_wiring.subscribe_symbols_to_broker(["RELIANCE", "TCS"], exchange="NSE")
@@ -26,7 +26,7 @@ class TestFeedWiringBrokerSymmetry:
     def test_unsubscribe_calls_gateway_unstream_for_each_symbol(self) -> None:
         gateway = MagicMock()
         container = MagicMock()
-        container.broker_service = MagicMock(_gateway=gateway)
+        container.broker_service = MagicMock(active_gateway=gateway)
         feed_wiring._api_subscriptions["RELIANCE:NSE"] = ("RELIANCE", "NSE")
 
         with patch("api.deps.get_container", return_value=container):

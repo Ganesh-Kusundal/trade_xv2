@@ -118,8 +118,6 @@ export function TopBar() {
             ? 'bg-bull/10 border-bull/30 text-bull'
             : dataSource === 'http'
             ? 'bg-bblue/10 border-bblue/30 text-bblue'
-            : dataSource === 'mock'
-            ? 'bg-byellow/10 border-byellow/30 text-byellow'
             : 'bg-bbg2 border-bline text-bfgd',
         )}
         title={
@@ -127,8 +125,6 @@ export function TopBar() {
             ? 'Live via WebSocket'
             : dataSource === 'http'
             ? 'Live via HTTP polling'
-            : dataSource === 'mock'
-            ? 'Mock data (backend offline)'
             : 'Stale / no data'
         }
       >
@@ -137,8 +133,6 @@ export function TopBar() {
           ? `LIVE · ${latencyMs}ms`
           : dataSource === 'http'
           ? `HTTP · ${latencyMs}ms`
-          : dataSource === 'mock'
-          ? 'MOCK'
           : 'STALE'}
       </div>
 

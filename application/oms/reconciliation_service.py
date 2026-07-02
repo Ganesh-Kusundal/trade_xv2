@@ -180,7 +180,7 @@ class ReconciliationService(ManagedService):
             self._last_run_at = time.monotonic()
             if self._event_bus is not None:
                 try:
-                    from infrastructure.event_bus import DomainEvent
+                    from domain.events.types import DomainEvent
 
                     # Publish the canonical RECONCILIATION_COMPLETED with
                     # a sub-type indicator so operators watching the bus

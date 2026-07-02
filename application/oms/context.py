@@ -10,16 +10,15 @@ from decimal import Decimal
 from typing import Any  # Only for signal handler frame type
 
 from application.oms.order_manager import OrderManager
-from application.oms.persistence.sqlite_order_store import SqliteOrderStore
+from infrastructure.persistence.sqlite_order_store import SqliteOrderStore
 from application.oms.position_manager import PositionManager
 from application.oms.reconciliation_service import ReconciliationService
 from application.oms.risk_manager import RiskConfig, RiskManager
 from domain.constants import PHANTOM_CAPITAL_INR, RECONCILIATION_INTERVAL_SECONDS
+from domain.events.types import DomainEvent, EventType
 from infrastructure.event_bus import (
     DeadLetterQueue,
-    DomainEvent,
     EventBus,
-    EventType,
     ProcessedTradeRepository,
 )
 from infrastructure.event_bus.persistent_dead_letter_queue import (
@@ -464,9 +463,16 @@ class TradingContext:
                     self._order_manager.on_order_update(event)
                 elif event.event_type == EventType.TRADE.value:
                     self._order_manager.on_trade(event)
-                    # During replay, TRADE_APPLIED events are suppressed by
-                    # the event bus. Directly invoke position manager to rebuild
-                    # positions from replayed trades.
+                    # P1-1 SAFETY NOTE: During replay, TRADE_APPLIED events are
+                    # suppressed by the event bus (replay_mode=True). We directly
+                    # invoke position_manager.on_trade_applied() to rebuild positions.
+                    # This is safe because on_trade_applied() has:
+                    #   1. Idempotency guard via trade_id set (prevents double-count)
+                    #   2. Reentrancy guard (prevents recursive invocation)
+                    #   3. ValueError handling (rejects invalid payloads gracefully)
+                    # This dual-path is ONLY used during crash recovery replay.
+                    # During normal operation, PositionManager subscribes to
+                    # TRADE_APPLIED events from the EventBus.
                     self._position_manager.on_trade_applied(event)
                 count += 1
         finally:

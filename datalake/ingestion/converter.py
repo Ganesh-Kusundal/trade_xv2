@@ -25,9 +25,9 @@ from pathlib import Path
 import pandas as pd
 import pyarrow as pa
 
-from datalake.io import atomic_parquet_write
+from datalake.core.io import atomic_parquet_write
 from datalake.schema import CANONICAL_COLUMNS
-from datalake.symbols import normalize_symbol
+from datalake.core.symbols import normalize_symbol
 from datalake.validation import validate_candles
 
 logger = logging.getLogger(__name__)

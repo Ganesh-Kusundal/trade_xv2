@@ -17,8 +17,8 @@ from analytics.views.quality import TRADING_MINUTES_PARTIAL, TRADING_MINUTES_PER
 from analytics.views.scanner import ScannerViews
 from analytics.views.strategy import StrategyViews
 from analytics.views.validator import VALID_VIEWS, PointInTimeValidator
-from datalake.catalog import DataCatalog
-from datalake.duckdb_utils import connect_with_retry, get_pool
+from datalake.storage.catalog import DataCatalog
+from datalake.core.duckdb_utils import connect_with_retry, get_pool
 from datalake.scan_store import (
     compare_scans,
     ensure_scan_table,

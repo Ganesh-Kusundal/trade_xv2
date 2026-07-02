@@ -61,7 +61,6 @@ class ATR:
             ],
             axis=1,
         ).max(axis=1)
-        df = df.copy()
         df[self.name] = tr.rolling(window=self.period, min_periods=self.period).mean()
         return df
 
@@ -77,7 +76,6 @@ class VWAP:
         typical = (df["high"] + df["low"] + df["close"]) / 3
         cum_tp_vol = (typical * df["volume"]).cumsum()
         cum_vol = df["volume"].cumsum().replace(0, math.inf)
-        df = df.copy()
         df[self.name] = cum_tp_vol / cum_vol
         return df
 
@@ -110,7 +108,6 @@ class RSI:
         avg_gain = gain.rolling(window=self.period, min_periods=self.period).mean()
         avg_loss = loss.rolling(window=self.period, min_periods=self.period).mean()
         rs = avg_gain / avg_loss.replace(0, math.inf)
-        df = df.copy()
         df[self.name] = 100 - (100 / (1 + rs))
         return df
 
@@ -125,7 +122,6 @@ class SMA:
 
     def compute(self, df: pd.DataFrame) -> pd.DataFrame:
         _ensure_columns(df, [self.source])
-        df = df.copy()
         df[self.name] = df[self.source].rolling(window=self.period, min_periods=1).mean()
         return df
 
@@ -140,7 +136,6 @@ class EMA:
 
     def compute(self, df: pd.DataFrame) -> pd.DataFrame:
         _ensure_columns(df, [self.source])
-        df = df.copy()
         df[self.name] = df[self.source].ewm(span=self.period, adjust=False).mean()
         return df
 
@@ -161,7 +156,6 @@ class BollingerBands:
         lower = middle - self.num_std * std
         pct_b = (df["close"] - lower) / (upper - lower).replace(0, math.inf)
         bandwidth = (upper - lower) / middle.replace(0, math.inf)
-        df = df.copy()
         df[f"{self.prefix}_upper"] = upper
         df[f"{self.prefix}_middle"] = middle
         df[f"{self.prefix}_lower"] = lower
@@ -186,7 +180,6 @@ class MACD:
         macd_line = ema_fast - ema_slow
         signal_line = macd_line.ewm(span=self.signal, adjust=False).mean()
         histogram = macd_line - signal_line
-        df = df.copy()
         df[f"{self.prefix}_line"] = macd_line
         df[f"{self.prefix}_signal"] = signal_line
         df[f"{self.prefix}_histogram"] = histogram
@@ -208,7 +201,6 @@ class RelativeVolume:
     def compute(self, df: pd.DataFrame) -> pd.DataFrame:
         _ensure_columns(df, ["volume"])
         avg_vol = df["volume"].rolling(window=self.period, min_periods=1).mean()
-        df = df.copy()
         df[self.name] = df["volume"] / avg_vol.replace(0, math.inf)
         return df
 
@@ -222,7 +214,6 @@ class VolumeSMA:
 
     def compute(self, df: pd.DataFrame) -> pd.DataFrame:
         _ensure_columns(df, ["volume"])
-        df = df.copy()
         df[self.name] = df["volume"].rolling(window=self.period, min_periods=1).mean()
         return df
 
@@ -241,7 +232,6 @@ class ROC:
 
     def compute(self, df: pd.DataFrame) -> pd.DataFrame:
         _ensure_columns(df, ["close"])
-        df = df.copy()
         df[self.name] = df["close"].pct_change(periods=self.period).fillna(0) * 100
         return df
 
@@ -255,7 +245,6 @@ class Momentum:
 
     def compute(self, df: pd.DataFrame) -> pd.DataFrame:
         _ensure_columns(df, ["close"])
-        df = df.copy()
         df[self.name] = df["close"].diff(periods=self.period).fillna(0)
         return df
 
@@ -285,7 +274,6 @@ class SwingHighLow:
 
     def compute(self, df: pd.DataFrame) -> pd.DataFrame:
         _ensure_columns(df, ["high", "low"])
-        df = df.copy()
         rolled_high = df["high"].rolling(window=self.lookback, center=True).max()
         rolled_low = df["low"].rolling(window=self.lookback, center=True).min()
         df[self.swing_high] = df["high"] == rolled_high
@@ -304,7 +292,6 @@ class PriceDistance:
     def compute(self, df: pd.DataFrame) -> pd.DataFrame:
         _ensure_columns(df, ["close", self.source])
         ref = df[self.source]
-        df = df.copy()
         df[self.name] = ((df["close"] - ref) / ref.replace(0, math.inf)) * 100
         return df
 
@@ -323,7 +310,6 @@ class Gap:
     def compute(self, df: pd.DataFrame) -> pd.DataFrame:
         _ensure_columns(df, ["open", "close"])
         prev_close = df["close"].shift(1)
-        df = df.copy()
         df[self.name] = ((df["open"] - prev_close) / prev_close.replace(0, math.inf)) * 100
         return df
 
@@ -345,7 +331,6 @@ class Trend:
         _ensure_columns(df, ["close"])
         fast = df["close"].rolling(window=self.fast_period, min_periods=1).mean()
         slow = df["close"].rolling(window=self.slow_period, min_periods=1).mean()
-        df = df.copy()
         df[self.name] = "neutral"
         df.loc[fast > slow, self.name] = "up"
         df.loc[fast < slow, self.name] = "down"
@@ -368,7 +353,6 @@ class HistoricalVolatility:
     def compute(self, df: pd.DataFrame) -> pd.DataFrame:
         _ensure_columns(df, ["close"])
         returns = df["close"].apply(math.log).diff()
-        df = df.copy()
         df[self.name] = (
             returns.rolling(window=self.period, min_periods=self.period).std()
             * math.sqrt(self.annualization)
@@ -391,7 +375,6 @@ class ATRPercent:
             atr_series = ATR(name=self.atr_name, period=self.period).compute(df)[self.atr_name]
         else:
             atr_series = df[self.atr_name]
-        df = df.copy()
         df[self.name] = (atr_series / df["close"].replace(0, math.inf)) * 100
         return df
 
@@ -413,7 +396,6 @@ class ZScore:
         _ensure_columns(df, [self.source])
         mean = df[self.source].rolling(window=self.period, min_periods=1).mean()
         std = df[self.source].rolling(window=self.period, min_periods=1).std()
-        df = df.copy()
         df[self.name] = ((df[self.source] - mean) / std.replace(0, math.inf)).fillna(0)
         return df
 
@@ -429,7 +411,6 @@ class Correlation:
 
     def compute(self, df: pd.DataFrame) -> pd.DataFrame:
         _ensure_columns(df, [self.source1, self.source2])
-        df = df.copy()
         df[self.name] = (
             df[self.source1]
             .rolling(window=self.period, min_periods=self.period)
@@ -454,7 +435,6 @@ class Beta:
 
     def compute(self, df: pd.DataFrame) -> pd.DataFrame:
         _ensure_columns(df, [self.asset_col, self.bench_col])
-        df = df.copy()
 
         # Vectorized calculation using rolling operations
         asset_ret = df[self.asset_col].pct_change()
@@ -483,7 +463,6 @@ class PercentRank:
 
     def compute(self, df: pd.DataFrame) -> pd.DataFrame:
         _ensure_columns(df, [self.source])
-        df = df.copy()
         df[self.name] = (
             df[self.source]
             .rolling(window=self.period, min_periods=1)

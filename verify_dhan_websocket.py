@@ -27,8 +27,9 @@ async def main():
         print(f"❌ Failed to create gateway: {e}")
         return False
 
-    test_symbol = "RELIANCE"
-    test_exchange = "NSE"
+    import sys
+    test_symbol = sys.argv[1] if len(sys.argv) > 1 else "RELIANCE"
+    test_exchange = sys.argv[2] if len(sys.argv) > 2 else "NSE"
     tick_count = 0
     depth_updates = 0
     start_time = None
@@ -77,47 +78,52 @@ async def main():
 
     # Test 2: Subscribe to market depth (order book updates)
     print(f"\n📡 Subscribing to {test_symbol} market depth (D5)...")
-    tick_count = 0
     start_time = None
     try:
-        def on_depth(depth):
-            nonlocal depth_updates, start_time
-            if start_time is None:
-                start_time = time.time()
-            depth_updates += 1
-            elapsed = time.time() - start_time
-            if depth.bids and depth.asks:
-                best_bid = depth.bids[0]
-                best_ask = depth.asks[0]
-                spread = float(best_ask.price - best_bid.price)
-                print(f"   Depth #{depth_updates} @ {elapsed:.1f}s: Bid {best_bid.price}x{best_bid.quantity} | Ask {best_ask.price}x{best_ask.quantity} | Spread: ₹{spread:.2f}")
-            if depth_updates >= 5:  # Stop after 5 updates
-                return False
-
-        # Subscribe to depth stream
-        depth_handle = gateway.stream_depth(
-            test_symbol, test_exchange, depth_type="DEPTH_5", on_depth=on_depth
-        )
-        print(f"✅ Subscribed to {test_symbol} depth stream")
-
-        # Wait for depth updates
-        print(f"   Listening for 10 seconds or 5 updates (whichever comes first)...")
-        wait_start = time.time()
-        while depth_updates < 5 and (time.time() - wait_start) < 10:
-            await asyncio.sleep(0.1)
-
-        if depth_updates > 0:
-            print(f"\n✅ Received {depth_updates} depth updates in {time.time() - start_time:.1f}s")
+        # Check support first to give a clean skip message
+        nse_allowed = ("NSE", "NSE_EQ", "NFO", "NSE_FNO", "IDX_I")
+        if test_exchange not in nse_allowed:
+            print(f"ℹ️ Skipping depth stream test (Dhan only supports WebSocket depth streaming for NSE segments, got: {test_exchange})")
+            depth_handle = None
         else:
-            print(f"⚠️  No depth updates received (WebSocket may not be connected)")
+            def on_depth(depth):
+                nonlocal depth_updates, start_time
+                if start_time is None:
+                    start_time = time.time()
+                depth_updates += 1
+                elapsed = time.time() - start_time
+                if depth.bids and depth.asks:
+                    best_bid = depth.bids[0]
+                    best_ask = depth.asks[0]
+                    spread = float(best_ask.price - best_bid.price)
+                    print(f"   Depth #{depth_updates} @ {elapsed:.1f}s: Bid {best_bid.price}x{best_bid.quantity} | Ask {best_ask.price}x{best_ask.quantity} | Spread: ₹{spread:.2f}")
+                if depth_updates >= 5:  # Stop after 5 updates
+                    return False
 
-        # Try to stop the stream
-        try:
-            if hasattr(depth_handle, "stop"):
-                depth_handle.stop()
-            print(f"✅ Depth stream stopped")
-        except Exception as e:
-            print(f"⚠️  Error stopping depth stream: {e}")
+            # Subscribe to depth stream
+            depth_handle = gateway.stream_depth(
+                test_symbol, test_exchange, depth_type="DEPTH_5", on_depth=on_depth
+            )
+            print(f"✅ Subscribed to {test_symbol} depth stream")
+
+            # Wait for depth updates
+            print(f"   Listening for 10 seconds or 5 updates (whichever comes first)...")
+            wait_start = time.time()
+            while depth_updates < 5 and (time.time() - wait_start) < 10:
+                await asyncio.sleep(0.1)
+
+            if depth_updates > 0:
+                print(f"\n✅ Received {depth_updates} depth updates in {time.time() - start_time:.1f}s")
+            else:
+                print(f"⚠️  No depth updates received (WebSocket may not be connected)")
+
+            # Try to stop the stream
+            try:
+                if hasattr(depth_handle, "stop"):
+                    depth_handle.stop()
+                print(f"✅ Depth stream stopped")
+            except Exception as e:
+                print(f"⚠️  Error stopping depth stream: {e}")
 
     except Exception as e:
         print(f"❌ Depth subscription failed: {e}")

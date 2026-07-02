@@ -19,9 +19,10 @@ The file is organised into two sections:
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from datetime import date
 from decimal import Decimal
-from typing import Any, Callable, Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
 import pandas as pd
 
@@ -217,12 +218,12 @@ class OrderCommand(ABC):
         ...
 
     @abstractmethod
-    def modify_order(self, order_id: str, **changes: Any) -> dict[str, Any]:
+    def modify_order(self, order_id: str, **changes: Any) -> OrderResponse:
         """Modify an existing open order."""
         ...
 
     @abstractmethod
-    def cancel_order(self, order_id: str) -> bool:
+    def cancel_order(self, order_id: str) -> OrderResponse:
         """Cancel an order by ID."""
         ...
 

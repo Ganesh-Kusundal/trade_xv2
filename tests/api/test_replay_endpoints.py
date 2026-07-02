@@ -376,7 +376,6 @@ class TestReplayDeterministicResults:
             _build_sample_ohlcv(50)
             results = []
             for _ in range(2):
-                reset_container()
                 import api.routers.replay as replay_mod
 
                 replay_mod._session_store = replay_mod.ReplaySessionStore()

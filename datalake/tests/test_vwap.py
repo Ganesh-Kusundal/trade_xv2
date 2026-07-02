@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from datalake.vwap import compute_daily_vwap, compute_vwap, vwap_from_candles
+from datalake.analytics.vwap import compute_daily_vwap, compute_vwap, vwap_from_candles
 
 
 @pytest.fixture

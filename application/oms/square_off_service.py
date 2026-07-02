@@ -11,7 +11,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from brokers.common.resilience.errors import TradeXV2Error
+from domain.exceptions import TradeXV2Error
 from domain.events.types import EventType
 from domain.symbols import normalize_symbol
 

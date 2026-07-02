@@ -302,7 +302,7 @@ class TestDataLakeBenchmarks:
         import pandas as pd
         import pyarrow as pa
 
-        from datalake.io import atomic_parquet_write
+        from datalake.core.io import atomic_parquet_write
 
         # Create small test data
         df = pd.DataFrame(

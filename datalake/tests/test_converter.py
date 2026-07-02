@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from datalake.converter import convert_tradej_directory, convert_tradej_parquet
+from datalake.ingestion.converter import convert_tradej_directory, convert_tradej_parquet
 
 
 def _make_tradej_parquet(

@@ -28,7 +28,7 @@ import duckdb
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from datalake.paths import (
+from datalake.core.paths import (
     CURATED_ROOT,
     curated_equity_path,
     symbol_partition_glob,

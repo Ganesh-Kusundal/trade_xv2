@@ -11,12 +11,12 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from api.auth import require_auth
-from api.deps import get_broker_service, get_execution_composer, get_order_repository
+from api.deps import get_broker_service, get_execution_composer, get_order_repository, get_position_manager
 from api.schemas import (
     OrderRequest,
     OrderResponse,
     OrdersResponse,
-    Trade,
+    TradeResponse,
     TradesResponse,
 )
 from domain import OrderStatus, OrderType, ProductType, Side
@@ -115,7 +115,7 @@ async def get_trades(
         for order in orders:
             if order.filled_quantity > 0:
                 trades.append(
-                    Trade(
+                    TradeResponse(
                         trade_id=f"trade-{order.order_id}",
                         order_id=order.order_id,
                         symbol=order.symbol,
@@ -146,6 +146,7 @@ async def get_tradebook(
     from_date: str | None = Query(None, description="Start date"),
     to_date: str | None = Query(None, description="End date"),
     repo=Depends(get_order_repository),
+    position_manager=Depends(get_position_manager),
 ):
     """Get complete tradebook with P&L analysis.
 
@@ -153,10 +154,8 @@ async def get_tradebook(
     Uses real OMS data for comprehensive trade analysis.
     """
     try:
-        # Get all completed orders
         orders = repo.get_orders(status=OrderStatus.FILLED)
 
-        # Apply date filters
         if from_date:
             from_dt = datetime.fromisoformat(from_date)
             orders = [o for o in orders if o.timestamp and o.timestamp >= from_dt]
@@ -164,24 +163,25 @@ async def get_tradebook(
             to_dt = datetime.fromisoformat(to_date)
             orders = [o for o in orders if o.timestamp and o.timestamp <= to_dt]
 
-        # Calculate tradebook metrics
         total_trades = len(orders)
         filled_orders = [o for o in orders if o.filled_quantity > 0]
 
-        # Calculate P&L (simplified - in production would use position manager)
+        pnl_by_symbol: dict[str, float] = {}
+        if position_manager:
+            for pos in position_manager.get_positions():
+                pnl_by_symbol[pos.symbol] = float(getattr(pos, "realized_pnl", 0.0))
+
         total_pnl = 0.0
         winning_trades = 0
         losing_trades = 0
 
         for order in filled_orders:
-            if order.average_price and order.filled_quantity:
-                # Simplified P&L calculation
-                pnl = 0.0  # Would need position context for accurate P&L
-                total_pnl += pnl
-                if pnl > 0:
-                    winning_trades += 1
-                elif pnl < 0:
-                    losing_trades += 1
+            pnl = pnl_by_symbol.get(order.symbol, 0.0)
+            total_pnl += pnl
+            if pnl > 0:
+                winning_trades += 1
+            elif pnl < 0:
+                losing_trades += 1
 
         win_rate = (winning_trades / total_trades * 100) if total_trades > 0 else 0.0
 

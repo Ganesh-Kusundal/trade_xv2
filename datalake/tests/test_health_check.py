@@ -8,8 +8,8 @@ import duckdb
 import pandas as pd
 import pyarrow as pa
 
-from datalake.health_check import run_health_check
-from datalake.io import atomic_parquet_write
+from datalake.quality.health_check import run_health_check
+from datalake.core.io import atomic_parquet_write
 
 
 def _make_valid_data(path: Path) -> None:

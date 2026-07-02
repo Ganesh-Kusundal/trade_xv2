@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from application.oms.order_manager import OrderManager
-from application.oms.persistence.sqlite_order_store import SqliteOrderStore
+from infrastructure.persistence.sqlite_order_store import SqliteOrderStore
 from domain.entities import Order
 from domain.types import OrderStatus, OrderType, ProductType, Side
 

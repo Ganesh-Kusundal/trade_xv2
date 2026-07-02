@@ -12,9 +12,10 @@ from decimal import Decimal
 
 from application.oms._internal.reentrancy_guard import _ReentrancyGuard
 from domain.entities import Position, Trade
+from domain.events.types import DomainEvent, EventType
 from domain.symbols import make_position_key
 from domain.types import POSITION_STATE_TRANSITIONS, PositionState
-from infrastructure.event_bus import DomainEvent, EventBus, EventType, ProcessedTradeRepository
+from infrastructure.event_bus import EventBus, ProcessedTradeRepository
 from infrastructure.logging_config import get_logger
 from infrastructure.observability.event_metrics import EventMetrics
 from infrastructure.state_machine import IllegalTransitionError, StateMachine

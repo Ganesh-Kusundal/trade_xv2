@@ -2,8 +2,6 @@
 
 from decimal import Decimal
 
-import pytest
-
 from brokers.common.dtos import BrokerOrderPayload
 from brokers.dhan.domain import Exchange
 from brokers.dhan.orders import OrdersAdapter
@@ -40,7 +38,7 @@ def test_place_order_payload(fake_client, resolver):
 def test_place_order_returns_order(fake_client, resolver):
     fake_client.set_response("POST", "/orders", {"data": {"orderId": "ORD789012"}})
     adapter = OrdersAdapter(fake_client, resolver, allow_live_orders=True)
-    order = adapter.place_order(
+    response = adapter.place_order(
         BrokerOrderPayload(
             symbol="RELIANCE",
             exchange="NSE",
@@ -48,9 +46,8 @@ def test_place_order_returns_order(fake_client, resolver):
             quantity=5,
         )
     )
-    assert order.order_id == "ORD789012"
-    assert order.symbol == "RELIANCE"
-    assert order.status == OrderStatus.OPEN
+    assert response.success is True
+    assert response.order_id == "ORD789012"
 
 
 def test_cancel_order(fake_client, resolver):
@@ -241,18 +238,18 @@ def test_place_order_risk_check_blocks_order(fake_client, resolver):
     )
     adapter = OrdersAdapter(fake_client, resolver, risk_manager=risk, allow_live_orders=True)
 
-    with pytest.raises(Exception) as exc_info:
-        adapter.place_order(
-            BrokerOrderPayload(
-                symbol="RELIANCE",
-                exchange="NSE",
-                transaction_type="BUY",
-                quantity=1000,
-                price=Decimal("100"),
-                order_type="LIMIT",
-            )
+    response = adapter.place_order(
+        BrokerOrderPayload(
+            symbol="RELIANCE",
+            exchange="NSE",
+            transaction_type="BUY",
+            quantity=1000,
+            price=Decimal("100"),
+            order_type="LIMIT",
         )
-    assert "Risk check failed" in str(exc_info.value)
+    )
+    assert response.success is False
+    assert "Risk check failed" in response.message
     assert len(fake_client.calls_for("POST", "/orders")) == 0
 
 
@@ -273,27 +270,30 @@ def test_place_order_transport_only_does_not_bypass_risk_check(fake_client, reso
     )
     adapter = OrdersAdapter(fake_client, resolver, risk_manager=risk, allow_live_orders=True)
 
-    with pytest.raises(Exception) as exc_info:
-        adapter.place_order(
-            BrokerOrderPayload(
-                symbol="RELIANCE",
-                exchange="NSE",
-                transaction_type="BUY",
-                quantity=1000,
-                price=Decimal("100"),
-                order_type="LIMIT",
-            )
+    response = adapter.place_order(
+        BrokerOrderPayload(
+            symbol="RELIANCE",
+            exchange="NSE",
+            transaction_type="BUY",
+            quantity=1000,
+            price=Decimal("100"),
+            order_type="LIMIT",
         )
-    assert "Risk check failed" in str(exc_info.value)
+    )
+    assert response.success is False
+    assert "Risk check failed" in response.message
     assert len(fake_client.calls_for("POST", "/orders")) == 0
+
+
+def test_place_slice_order_payload(fake_client, resolver):
     """Verify POST /sliceorder payload (same as regular order)."""
     fake_client.set_response("POST", "/sliceorder", {"data": {"orderId": "SLICE123"}})
     adapter = OrdersAdapter(fake_client, resolver, allow_live_orders=True)
-    order = adapter.place_slice_order(
+    response = adapter.place_slice_order(
         symbol="RELIANCE",
         exchange="NSE",
         side="BUY",
-        quantity=1000,  # Large order for slicing
+        quantity=1000,
         order_type="LIMIT",
         price=Decimal("2450.00"),
         product_type="INTRADAY",
@@ -305,7 +305,8 @@ def test_place_order_transport_only_does_not_bypass_risk_check(fake_client, reso
     assert payload["securityId"] == "2885"
     assert payload["exchangeSegment"] == "NSE_EQ"
     assert payload["quantity"] == 1000
-    assert order.order_id == "SLICE123"
+    assert response.success is True
+    assert response.order_id == "SLICE123"
 
 
 def test_get_trade_history_payload(fake_client, resolver):
@@ -383,3 +384,40 @@ def test_get_trade_history_pagination(fake_client, resolver):
     calls = fake_client.calls_for("GET", "/trades/2026-01-01/2026-01-31/2")
     assert calls is not None
     assert len(trades) == 0
+
+
+def test_place_slice_order_live_orders_disabled(fake_client, resolver):
+    """place_slice_order raises OrderError when live orders are disabled."""
+    from brokers.dhan.orders import OrderError
+
+    adapter = OrdersAdapter(fake_client, resolver, allow_live_orders=False)
+    import pytest
+
+    with pytest.raises(OrderError, match="Live orders are disabled"):
+        adapter.place_slice_order(
+            symbol="RELIANCE",
+            exchange="NSE",
+            side="BUY",
+            quantity=100,
+            order_type="MARKET",
+        )
+
+
+def test_place_slice_order_publishes_event(fake_client, resolver):
+    """place_slice_order publishes ORDER_PLACED event."""
+    fake_client.set_response("POST", "/sliceorder", {"data": {"orderId": "SLICE_EVT"}})
+    bus = EventBus()
+    adapter = OrdersAdapter(fake_client, resolver, allow_live_orders=True, event_bus=bus)
+
+    captured = []
+    bus.subscribe("ORDER_PLACED", lambda e: captured.append(e))
+
+    adapter.place_slice_order(
+        symbol="RELIANCE",
+        exchange="NSE",
+        side="BUY",
+        quantity=100,
+        order_type="MARKET",
+    )
+    assert len(captured) == 1
+    assert captured[0].event_type == "ORDER_PLACED"

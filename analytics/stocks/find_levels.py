@@ -29,7 +29,9 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 
-DEFAULT_CATALOG = "market_data/catalog.duckdb"
+from datalake.core.duckdb_utils import DEFAULT_CATALOG_PATH, duckdb_connection
+
+DEFAULT_CATALOG = str(DEFAULT_CATALOG_PATH)
 
 
 @dataclass(frozen=True)
@@ -177,23 +179,33 @@ def find_support_resistance(
     own_conn = conn is None
     if own_conn:
         cat = str(catalog_path) if catalog_path else DEFAULT_CATALOG
-        conn = duckdb.connect(cat, read_only=True)
+        with duckdb_connection(cat, read_only=True) as pool_conn:
+            conn = pool_conn
+            return _find_levels_inner(conn, symbol, days, pivot_window, cluster_tolerance, top_n)
+    else:
+        return _find_levels_inner(conn, symbol, days, pivot_window, cluster_tolerance, top_n)
 
-    try:
-        end_date = datetime.now().date()
-        start_date = end_date - timedelta(days=days)
-        daily = _read_daily_candles(conn, symbol, start_date, end_date)
-        if daily.empty:
-            return {"support": [], "resistance": []}
 
-        supports, resistances = _find_pivots(daily, window=pivot_window)
-        support_levels = _cluster_levels(supports, tolerance=cluster_tolerance)
-        resistance_levels = _cluster_levels(resistances, tolerance=cluster_tolerance)
+def _find_levels_inner(
+    conn: duckdb.DuckDBPyConnection,
+    symbol: str,
+    days: int,
+    pivot_window: int,
+    cluster_tolerance: float,
+    top_n: int,
+) -> dict:
+    """Inner implementation for find_support_resistance."""
+    end_date = datetime.now().date()
+    start_date = end_date - timedelta(days=days)
+    daily = _read_daily_candles(conn, symbol, start_date, end_date)
+    if daily.empty:
+        return {"support": [], "resistance": []}
 
-        return {
-            "support": support_levels[:top_n],
-            "resistance": resistance_levels[:top_n],
-        }
-    finally:
-        if own_conn:
-            conn.close()
+    supports, resistances = _find_pivots(daily, window=pivot_window)
+    support_levels = _cluster_levels(supports, tolerance=cluster_tolerance)
+    resistance_levels = _cluster_levels(resistances, tolerance=cluster_tolerance)
+
+    return {
+        "support": support_levels[:top_n],
+        "resistance": resistance_levels[:top_n],
+    }

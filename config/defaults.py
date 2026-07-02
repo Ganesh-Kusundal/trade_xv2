@@ -18,7 +18,7 @@ DEFAULT_CONFIG: dict[str, object] = {
     "debug": False,
     "redis_url": None,
     "api_host": "127.0.0.1",
-    "api_port": 8000,
+    "api_port": 8080,
     "observability_port": 8765,
     "cors_origins": ["http://localhost:5173"],
     "rate_limit_max_requests": 0,

@@ -40,6 +40,7 @@ export function CandlestickChart({
 }: CandlestickChartProps) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const overlayRef = useRef<HTMLCanvasElement>(null)
   const [w, setW] = useState(800)
   const [hover, setHover] = useState<{ x: number; y: number; idx: number } | null>(null)
 
@@ -69,7 +70,7 @@ export function CandlestickChart({
     }
   }, [data, showMA])
 
-  // Draw
+  // Draw Background Canvas (candles, grids, indicators)
   useEffect(() => {
     const cv = canvasRef.current
     if (!cv) return
@@ -80,11 +81,25 @@ export function CandlestickChart({
     cv.style.height = height + 'px'
     const ctx = cv.getContext('2d')!
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    draw(ctx, w, height, data, mas, hover, liveLtp, showVolume, showMA)
-  }, [w, height, data, mas, hover, liveLtp])
+    drawBackground(ctx, w, height, data, mas, liveLtp, showVolume, showMA)
+  }, [w, height, data, mas, liveLtp, showVolume, showMA])
+
+  // Draw Interactive Overlay (crosshair)
+  useEffect(() => {
+    const cv = overlayRef.current
+    if (!cv) return
+    const dpr = window.devicePixelRatio || 1
+    cv.width = w * dpr
+    cv.height = height * dpr
+    cv.style.width = w + 'px'
+    cv.style.height = height + 'px'
+    const ctx = cv.getContext('2d')!
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    drawOverlay(ctx, w, height, data.length, hover)
+  }, [w, height, data.length, hover])
 
   const onMove = (e: React.MouseEvent) => {
-    const cv = canvasRef.current
+    const cv = overlayRef.current
     if (!cv || data.length === 0) return
     const rect = cv.getBoundingClientRect()
     const x = e.clientX - rect.left
@@ -98,16 +113,21 @@ export function CandlestickChart({
   const lastLive = liveLtp ?? last?.c
 
   return (
-    <div ref={wrapRef} className="relative w-full h-full select-none">
+    <div ref={wrapRef} className="relative w-full select-none" style={{ height }}>
       <canvas
         ref={canvasRef}
+        className="absolute top-0 left-0 block w-full"
+        style={{ height, zIndex: 1 }}
+      />
+      <canvas
+        ref={overlayRef}
         onMouseMove={onMove}
         onMouseLeave={onLeave}
-        className="block w-full"
-        style={{ height }}
+        className="absolute top-0 left-0 block w-full bg-transparent"
+        style={{ height, zIndex: 2 }}
       />
       {/* HUD overlay */}
-      <div className="absolute top-1.5 left-2 text-2xs font-mono num text-bfgm pointer-events-none">
+      <div className="absolute top-1.5 left-2 text-2xs font-mono num text-bfgm pointer-events-none" style={{ zIndex: 3 }}>
         <span className="text-bfg font-semibold">{symbol}</span>
         <span className="ml-2 text-bfgd">{timeframeLabel(timeframe)}</span>
         {last && (
@@ -128,7 +148,7 @@ export function CandlestickChart({
       {hover && data[hover.idx] && (
         <div
           className="absolute top-1.5 right-2 px-2 py-1 b-panel rounded text-2xs font-mono num pointer-events-none"
-          style={{ background: 'rgb(var(--bbg-1) / 0.92)' }}
+          style={{ background: 'rgb(var(--bbg-1) / 0.92)', zIndex: 3 }}
         >
           <div className="text-bfgm">{formatDateShort(data[hover.idx].t)} {formatTime(data[hover.idx].t)}</div>
           <div className="flex gap-3">
@@ -159,6 +179,7 @@ function timeframeLabel(tf: Timeframe): string {
   return tf.toUpperCase()
 }
 
+// Simple exponential moving average helper
 function ema(values: number[], period: number): number[] {
   const out: number[] = []
   if (values.length === 0) return out
@@ -172,13 +193,12 @@ function ema(values: number[], period: number): number[] {
   return out
 }
 
-function draw(
+function drawBackground(
   ctx: CanvasRenderingContext2D,
   w: number,
   h: number,
   data: Candle[],
   mas: { ma9: number[]; ma20: number[]; ma50: number[] },
-  hover: { x: number; y: number; idx: number } | null,
   liveLtp: number | undefined,
   showVolume: boolean,
   showMA: boolean,
@@ -332,22 +352,36 @@ function draw(
     ctx.font = '10px JetBrains Mono, monospace'
     ctx.fillText(formatIN(liveLtp), plotR + 4, y)
   }
+}
 
-  // Crosshair
-  if (hover) {
-    const x = plotL + hover.idx * slot + slot / 2
-    ctx.strokeStyle = 'rgb(102, 115, 140)'
-    ctx.setLineDash([2, 3])
-    ctx.beginPath()
-    ctx.moveTo(x, plotT)
-    ctx.lineTo(x, h - PAD.bottom)
-    ctx.stroke()
-    ctx.beginPath()
-    ctx.moveTo(plotL, hover.y)
-    ctx.lineTo(plotR, hover.y)
-    ctx.stroke()
-    ctx.setLineDash([])
-  }
+function drawOverlay(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  n: number,
+  hover: { x: number; y: number; idx: number } | null,
+) {
+  ctx.clearRect(0, 0, w, h)
+  if (!hover || n === 0) return
+
+  const plotL = PAD.left
+  const plotR = w - PAD.right
+  const plotT = PAD.top
+  const plotW = plotR - plotL
+  const slot = plotW / n
+
+  const x = plotL + hover.idx * slot + slot / 2
+  ctx.strokeStyle = 'rgb(102, 115, 140)'
+  ctx.setLineDash([2, 3])
+  ctx.beginPath()
+  ctx.moveTo(x, plotT)
+  ctx.lineTo(x, h - PAD.bottom)
+  ctx.stroke()
+  ctx.beginPath()
+  ctx.moveTo(plotL, hover.y)
+  ctx.lineTo(plotR, hover.y)
+  ctx.stroke()
+  ctx.setLineDash([])
 }
 
 function drawLine(

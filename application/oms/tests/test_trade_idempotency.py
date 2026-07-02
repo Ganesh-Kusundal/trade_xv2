@@ -21,11 +21,10 @@ from domain import (
     Side,
     Trade,
 )
+from domain.events.types import DomainEvent, EventType
 from infrastructure.event_bus import (
     DeadLetterQueue,
-    DomainEvent,
     EventBus,
-    EventType,
     ProcessedTradeRepository,
 )
 from infrastructure.observability.event_metrics import EventMetrics

@@ -44,10 +44,10 @@ from brokers.common.gateway_interfaces import (
     LifecycleAware,
     MarketDataProvider,
 )
-from datalake.cache_utils import get_last_candle_fast
-from datalake.paths import CURATED_ROOT, curated_equity_glob
-from datalake.store import ParquetStore
-from datalake.symbols import normalize_symbol
+from datalake.storage.cache_utils import get_last_candle_fast
+from datalake.core.paths import CURATED_ROOT, curated_equity_glob
+from datalake.storage.parquet_store import ParquetStore
+from datalake.core.symbols import normalize_symbol
 from domain import MarketDepth, Quote
 from domain.constants import BATCH_MAX_WORKERS
 
@@ -93,6 +93,159 @@ class DataLakeGateway(
 
     def _load_parquet(self, symbol: str, timeframe: str) -> pd.DataFrame | None:
         return self._store.load_candles(symbol, timeframe)
+
+    def query_candles(
+        self,
+        symbol: str,
+        timeframe: str,
+        *,
+        from_ts: pd.Timestamp | None = None,
+        to_ts: pd.Timestamp | None = None,
+        limit: int = 5000,
+    ) -> pd.DataFrame:
+        """Efficiently query candles with predicate pushdown via DuckDB.
+
+        Pushes symbol, timestamp, and LIMIT filters into the Parquet scan
+        instead of loading the entire file into Pandas first.
+
+        P0-3 fix: Removed expensive filesystem glob check that scanned the
+        directory tree on every call. Now tries curated layout via DuckDB
+        first, then falls back to legacy paths — both with full predicate
+        and projection pushdown.
+
+        Falls back to :meth:`_load_parquet` + Pandas filtering when DuckDB
+        is unavailable or the query fails.
+        """
+        symbol = normalize_symbol(symbol)
+        if timeframe != "1m":
+            multiplier = 1
+            if timeframe.endswith("m"):
+                try:
+                    multiplier = int(timeframe[:-1])
+                except ValueError:
+                    pass
+            elif timeframe.endswith("h"):
+                try:
+                    multiplier = int(timeframe[:-1]) * 60
+                except ValueError:
+                    pass
+            elif timeframe == "1D":
+                multiplier = 375
+
+            df_1m = self.query_candles(
+                symbol,
+                "1m",
+                from_ts=from_ts,
+                to_ts=to_ts,
+                limit=limit * multiplier,
+            )
+            if df_1m.empty:
+                return df_1m
+
+            # Inline resampling to completely bypass ParquetStore cache collisions
+            df_1m = df_1m.copy()
+            df_1m["timestamp"] = pd.to_datetime(df_1m["timestamp"])
+            df_1m = df_1m.set_index("timestamp")
+
+            rule_map = {
+                "3m": "3min",
+                "5m": "5min",
+                "15m": "15min",
+                "30m": "30min",
+                "1h": "1h",
+                "4h": "4h",
+                "1D": "1D",
+            }
+            rule = rule_map.get(timeframe, f"{timeframe[:-1]}min" if timeframe.endswith("m") else "5min")
+
+            agg_dict = {
+                "open": "first",
+                "high": "max",
+                "low": "min",
+                "close": "last",
+                "volume": "sum",
+            }
+            if "oi" in df_1m.columns:
+                agg_dict["oi"] = "last"
+
+            df_resampled = (
+                df_1m.resample(rule)
+                .agg(agg_dict)
+                .dropna()
+            )
+            df_resampled = df_resampled.reset_index()
+            return df_resampled.tail(limit).reset_index(drop=True)
+
+        try:
+            # Build parquet path list (curated + legacy)
+            parquet_paths = self._legacy_parquet_paths([symbol], timeframe)
+            curated_glob = curated_equity_glob(root=str(self._curated_root))
+
+            # P0-3 fix: Build WHERE clause with predicate pushdown.
+            # DuckDB pushes these filters into the parquet scan, avoiding
+            # full file reads.
+            conditions = ["symbol = ?"]
+            params: list = [symbol]
+
+            if from_ts is not None:
+                conditions.append("timestamp >= ?")
+                params.append(from_ts)
+            if to_ts is not None:
+                conditions.append("timestamp <= ?")
+                params.append(to_ts)
+
+            where_clause = " AND ".join(conditions)
+
+            # Try curated layout first (uses DuckDB to check, not filesystem glob)
+            try:
+                query = f"""
+                    SELECT timestamp, open, high, low, close, volume, oi
+                    FROM read_parquet(?)
+                    WHERE {where_clause}
+                    ORDER BY timestamp DESC
+                    LIMIT ?
+                """
+                params_with_limit = [curated_glob] + params + [limit]
+                df = duckdb.execute(query, params_with_limit).fetchdf()
+                if not df.empty:
+                    return df.sort_values("timestamp").reset_index(drop=True)
+            except Exception as exc:
+                logger.debug("Curated layout query failed, trying legacy: %s", exc)
+
+            # Fall back to legacy parquet paths
+            if parquet_paths:
+                source = parquet_paths[0] if len(parquet_paths) == 1 else parquet_paths
+                query = f"""
+                    SELECT timestamp, open, high, low, close, volume, oi
+                    FROM read_parquet(?)
+                    WHERE {where_clause}
+                    ORDER BY timestamp DESC
+                    LIMIT ?
+                """
+                params_with_limit = [source] + params + [limit]
+                df = duckdb.execute(query, params_with_limit).fetchdf()
+
+                if df.empty:
+                    return df
+
+                # Return sorted ascending (chronological order)
+                return df.sort_values("timestamp").reset_index(drop=True)
+
+            return pd.DataFrame()
+
+        except Exception as exc:
+            logger.debug("query_candles DuckDB failed, falling back: %s", exc)
+            # Fallback to full load + Pandas filter
+            df = self._load_parquet(symbol, timeframe)
+            if df is None or df.empty:
+                return pd.DataFrame()
+            if "timestamp" not in df.columns:
+                df["timestamp"] = df.index
+            if from_ts is not None:
+                df = df[df["timestamp"] >= from_ts]
+            if to_ts is not None:
+                df = df[df["timestamp"] <= to_ts]
+            return df.sort_values("timestamp").tail(limit).reset_index(drop=True)
 
     def _resample(self, df: pd.DataFrame, timeframe: str) -> pd.DataFrame:
         return self._store.resample(df, timeframe)
@@ -218,28 +371,26 @@ class DataLakeGateway(
     def ltp_batch(self, symbols: list[str], exchange: str = "NSE") -> dict[str, Decimal]:
         """Get LTP for multiple symbols via batch DuckDB query.
 
-        Tries curated layout, then legacy per-symbol files, then sequential fallback.
+        P2-4 fix: Uses DISTINCT ON instead of ROW_NUMBER() for better performance.
+        DISTINCT ON avoids the full sort per symbol that ROW_NUMBER requires.
         """
         if not symbols:
             return {}
 
+        normalized = [normalize_symbol(s) for s in symbols]
+        placeholders = ",".join("?" for _ in normalized)
+
         # Try DuckDB with curated layout first
         try:
             curated_glob = curated_equity_glob(root=str(self._curated_root))
-            if list(self._curated_root.glob("year=*/month=*/data_*.parquet")):
-                normalized = [normalize_symbol(s) for s in symbols]
-                placeholders = ",".join("?" for _ in normalized)
-                query = f"""
-                    SELECT symbol, close
-                    FROM (
-                        SELECT symbol, close,
-                               ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY timestamp DESC) as rn
-                        FROM read_parquet(?)
-                        WHERE symbol IN ({placeholders})
-                    )
-                    WHERE rn = 1
-                """
-                df = duckdb.execute(query, [curated_glob, *normalized]).fetchdf()
+            query = f"""
+                SELECT DISTINCT ON (symbol) symbol, close
+                FROM read_parquet(?)
+                WHERE symbol IN ({placeholders})
+                ORDER BY symbol, timestamp DESC
+            """
+            df = duckdb.execute(query, [curated_glob, *normalized]).fetchdf()
+            if not df.empty:
                 return {
                     symbol: Decimal(str(close))
                     for symbol, close in zip(df["symbol"], df["close"], strict=False)
@@ -252,21 +403,20 @@ class DataLakeGateway(
         try:
             parquet_paths = self._legacy_parquet_paths(symbols, "1m")
             if parquet_paths:
-                query = """
-                    SELECT symbol, close
-                    FROM (
-                        SELECT symbol, close,
-                               ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY timestamp DESC) as rn
-                        FROM read_parquet(?)
-                    )
-                    WHERE rn = 1
+                source = parquet_paths[0] if len(parquet_paths) == 1 else parquet_paths
+                query = f"""
+                    SELECT DISTINCT ON (symbol) symbol, close
+                    FROM read_parquet(?)
+                    WHERE symbol IN ({placeholders})
+                    ORDER BY symbol, timestamp DESC
                 """
-                df = duckdb.execute(query, [parquet_paths]).fetchdf()
-                return {
-                    symbol: Decimal(str(close))
-                    for symbol, close in zip(df["symbol"], df["close"], strict=False)
-                    if pd.notna(symbol) and pd.notna(close)
-                }
+                df = duckdb.execute(query, [source, *normalized]).fetchdf()
+                if not df.empty:
+                    return {
+                        symbol: Decimal(str(close))
+                        for symbol, close in zip(df["symbol"], df["close"], strict=False)
+                        if pd.notna(symbol) and pd.notna(close)
+                    }
         except Exception as exc:
             logger.debug("DuckDB ltp_batch failed, using fallback: %s", exc)
 
@@ -284,9 +434,16 @@ class DataLakeGateway(
         timeframe: str = "1D",
         lookback_days: int = 90,
     ) -> pd.DataFrame:
-        """Return historical data for multiple symbols via DuckDB batch query."""
+        """Return historical data for multiple symbols via DuckDB batch query.
+
+        P0-4 fix: Uses explicit column list instead of SELECT * for
+        projection pushdown into parquet scan.
+        """
         if not symbols:
             return pd.DataFrame()
+
+        # Standard OHLCV columns to project
+        columns = "timestamp, open, high, low, close, volume, oi, symbol"
 
         # Try curated layout first
         try:
@@ -294,7 +451,7 @@ class DataLakeGateway(
             normalized = [normalize_symbol(s) for s in symbols]
             placeholders = ",".join("?" for _ in normalized)
             query = f"""
-                SELECT *
+                SELECT {columns}
                 FROM read_parquet(?)
                 WHERE symbol IN ({placeholders})
             """
@@ -312,12 +469,15 @@ class DataLakeGateway(
             return pd.DataFrame()
 
         try:
-            query = """
-                SELECT *
+            placeholders = ",".join("?" for _ in symbols)
+            normalized = [normalize_symbol(s) for s in symbols]
+            query = f"""
+                SELECT {columns}
                 FROM read_parquet(?)
+                WHERE symbol IN ({placeholders})
             """
 
-            df = duckdb.execute(query, [parquet_paths]).fetchdf()
+            df = duckdb.execute(query, [parquet_paths, *normalized]).fetchdf()
 
             if not df.empty:
                 df = self._filter_by_date(df, lookback_days=lookback_days)

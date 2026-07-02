@@ -27,7 +27,7 @@ def create_api_app():
 
     config = APIConfig(
         host="127.0.0.1",
-        port=8000,
+        port=8080,
         cors_origins=[
             "http://localhost:5173",
             "http://localhost:3000",
@@ -43,4 +43,4 @@ if __name__ == "__main__":
     import uvicorn
 
     app = create_api_app()
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=8080)

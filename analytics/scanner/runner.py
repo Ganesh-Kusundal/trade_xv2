@@ -131,7 +131,7 @@ class ScannerRunner:
         results: list[ScannerTaskResult] = []
 
         with ThreadPoolExecutor(
-            max_workers=self.max_workers or min(4, len(scanners)),
+            max_workers=self.max_workers or min(8, len(scanners)),
             thread_name_prefix="ScannerRunner",
         ) as executor:
             # Submit all scanner tasks
@@ -198,7 +198,7 @@ class ScannerRunner:
             return
 
         with ThreadPoolExecutor(
-            max_workers=self.max_workers or min(4, len(scanners)),
+            max_workers=self.max_workers or min(8, len(scanners)),
             thread_name_prefix="ScannerRunner",
         ) as executor:
             future_to_scanner: dict[Future, Scanner] = {}
@@ -290,9 +290,11 @@ class ScannerRunner:
         start_time = time.perf_counter()
 
         try:
-            # Copy DataFrame to prevent concurrent mutation issues
-            # Scanners may modify the DataFrame internally
-            universe_copy = universe.copy()
+            # P1-3 fix: Deep copy DataFrame to prevent concurrent mutation issues.
+            # Shallow copy (.copy()) only copies the top-level structure — nested
+            # structures (MultiIndex, column metadata) could still be shared
+            # between threads, causing data corruption.
+            universe_copy = universe.copy(deep=True)
 
             logger.debug(
                 "Starting scanner '%s' on %d symbols",

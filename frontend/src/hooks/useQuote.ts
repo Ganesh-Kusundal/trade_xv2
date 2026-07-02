@@ -7,14 +7,12 @@ import { getQuote } from '@/api/client'
 import { useMarketStream } from '@/hooks/useMarketStream'
 import type { Quote } from '@/types'
 
-const REQUIRE_API = import.meta.env.VITE_REQUIRE_API === 'true'
-
 interface UseQuoteOptions {
   intervalMs?: number
   enabled?: boolean
 }
 
-export type DataSource = 'ws' | 'http' | 'mock' | 'stale'
+export type DataSource = 'ws' | 'http' | 'stale'
 
 interface UseQuoteResult {
   quote: Quote | null
@@ -57,11 +55,6 @@ export function useQuote(symbol: string, opts: UseQuoteOptions = {}): UseQuoteRe
   useEffect(() => {
     if (!enabled) return
     if (wsConnected) return
-    if (REQUIRE_API) {
-      // Production: no mock poll when WS down — surface stale/null quote
-      setDataSource('stale')
-      return
-    }
     let alive = true
     const tick = async () => {
       if (!alive || wsConnected) return
@@ -75,7 +68,7 @@ export function useQuote(symbol: string, opts: UseQuoteOptions = {}): UseQuoteRe
         setLastUpdated(Date.now())
         setDataSource('http')
       } catch {
-        setDataSource('mock')
+        setDataSource('stale')
       }
     }
     tick()

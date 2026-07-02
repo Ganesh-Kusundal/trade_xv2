@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Protocol
 from zoneinfo import ZoneInfo
 
-from datalake.io import atomic_parquet_write
+from infrastructure.io.parquet import atomic_parquet_write
 
 logger = logging.getLogger(__name__)
 

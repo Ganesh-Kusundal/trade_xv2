@@ -9,6 +9,7 @@ Production-hardened with:
 from __future__ import annotations
 
 import logging
+import re
 import threading
 import time
 import uuid
@@ -70,7 +71,7 @@ class IdempotencyCache:
     """
 
     def __init__(self, max_size: int = 1000, ttl_seconds: int = 3600):
-        self._cache: dict[str, tuple[float, Order]] = {}
+        self._cache: dict[str, tuple[float, OrderResponse]] = {}
         self._max_size = max_size
         self._ttl = ttl_seconds
         self._lock = threading.RLock()
@@ -81,23 +82,23 @@ class IdempotencyCache:
         with self._lock:
             yield self
 
-    def get(self, key: str) -> Order | None:
+    def get(self, key: str) -> OrderResponse | None:
         with self._lock:
             entry = self._cache.get(key)
             if entry is None:
                 return None
-            ts, order = entry
+            ts, response = entry
             if time.time() - ts > self._ttl:
                 del self._cache[key]
                 return None
-            return order
+            return response
 
-    def put(self, key: str, order: Order) -> None:
+    def put(self, key: str, response: OrderResponse) -> None:
         with self._lock:
             if len(self._cache) >= self._max_size:
                 oldest_key = min(self._cache, key=lambda k: self._cache[k][0])
                 del self._cache[oldest_key]
-            self._cache[key] = (time.time(), order)
+            self._cache[key] = (time.time(), response)
 
 
 class OrdersAdapter:
@@ -209,7 +210,7 @@ class OrdersAdapter:
 
     # ── Order lifecycle ───────────────────────────────────────────────
 
-    def place_order(self, request: BrokerOrderPayload) -> Order:
+    def place_order(self, request: BrokerOrderPayload) -> OrderResponse:
         """Place an order via the Dhan API.
 
         Args:
@@ -218,22 +219,15 @@ class OrdersAdapter:
                      transport_only, etc.).
 
         Returns:
-            The placed :class:`Order` domain object.
-
-        Raises:
-            OrderError: On validation failure or risk check denial.
+            :class:`OrderResponse` with success/failure status.
 
         .. note::
-            **Exception policy divergence** (F-20, P1): this adapter raises
-            ``OrderError`` on validation/risk failures, while
-            :class:`~brokers.upstox.orders.order_command_adapter.UpstoxOrderCommandAdapter`
-            returns :class:`~brokers.common.core.domain.OrderResponse.fail`.
-            The gateway layer (:class:`~brokers.dhan.gateway.DhanGateway`)
-            catches ``OrderError`` and converts it to ``OrderResponse.fail()``,
-            so callers using the gateway see consistent error handling.
+            **Exception policy** (B6 normalized): returns ``OrderResponse.fail()``
+            on validation/risk failures, matching
+            :class:`~brokers.upstox.orders.order_command_adapter.UpstoxOrderCommandAdapter`.
         """
         if not self._allow_live_orders:
-            raise OrderError("Live orders are disabled. Set DHAN_ALLOW_LIVE_ORDERS=1 to enable.")
+            return OrderResponse.fail("Live orders are disabled. Set DHAN_ALLOW_LIVE_ORDERS=1 to enable.")
 
         correlation_id = request.correlation_id
         symbol = request.symbol or ""
@@ -269,7 +263,7 @@ class OrdersAdapter:
                 logger.warning(
                     "order_validation_failed", extra={"symbol": symbol, "errors": errors}
                 )
-                raise OrderError(f"Order validation failed: {msg}")
+                return OrderResponse.fail(f"Order validation failed: {msg}")
 
             warnings = self.validate_order_warnings(quantity, price)
             for w in warnings:
@@ -285,11 +279,15 @@ class OrdersAdapter:
             # for derivatives queries (PR-C.4).
             from brokers.dhan.segments import EXCHANGE_TO_SEGMENT
 
-            ref = self._identity.resolve_ref(
-                symbol,
-                exchange,
-                expected_segment=EXCHANGE_TO_SEGMENT.get(normalize_exchange(exchange)),
-            )
+            try:
+                ref = self._identity.resolve_ref(
+                    symbol,
+                    exchange,
+                    expected_segment=EXCHANGE_TO_SEGMENT.get(normalize_exchange(exchange)),
+                )
+            except Exception as exc:
+                return OrderResponse.fail(f"Instrument resolution failed: {exc}")
+
             segment = ref.exchange_segment
             side_val, ot_val, pt_val, v_val = self._canonicalize_order_enums(
                 side,
@@ -316,7 +314,7 @@ class OrdersAdapter:
                 )
                 risk_result = self._risk_manager.check_order(preview)
                 if not risk_result.allowed:
-                    raise OrderError(f"Risk check failed: {risk_result.reason}")
+                    return OrderResponse.fail(f"Risk check failed: {risk_result.reason}")
 
             payload = self._build_order_payload(
                 ref,
@@ -335,7 +333,10 @@ class OrdersAdapter:
             # payload from non-carrier sources. Re-verify at the boundary.
             assert_dhan_payload(payload, context="orders.place_order")
 
-            data = self._client.post("/orders", json=payload)
+            try:
+                data = self._client.post("/orders", json=payload)
+            except Exception as exc:
+                return OrderResponse.fail(f"Broker API error: {exc}")
 
             order = self._build_placed_order(
                 data,
@@ -365,72 +366,52 @@ class OrdersAdapter:
                 },
             )
 
-            self._idempotency.put(correlation_id, order)
+            response = OrderResponse(
+                success=True,
+                order_id=order.order_id,
+                broker_order_id=order.order_id,
+                status=order.status,
+                message="Order placed successfully",
+            )
+            self._idempotency.put(correlation_id, response)
             self._publish("ORDER_PLACED", order)
-            return order
+            return response
 
-    def modify_order(self, order_id: str, **changes: Any) -> Order:
+    def modify_order(self, order_id: str, **changes: Any) -> OrderResponse:
         """Modify an existing order via PUT /orders/{order_id}.
 
         The Dhan API returns a dict with updated order fields on success,
         or an error dict with ``errorCode``/``errorMessage`` on failure.
 
         Returns:
-            Updated :class:`Order` parsed from the API response.
-
-        Raises:
-            OrderError: If the API returns an error or response cannot be parsed.
+            :class:`OrderResponse` with success/failure status.
         """
         # Safety guard: prevent live order modifications if disabled
         if not self._allow_live_orders:
-            raise OrderError("Live orders are disabled. Set DHAN_ALLOW_LIVE_ORDERS=1 to enable.")
+            return OrderResponse.fail("Live orders are disabled. Set DHAN_ALLOW_LIVE_ORDERS=1 to enable.")
 
         payload = {k: v for k, v in changes.items() if v is not None}
-        result = self._client.put(f"/orders/{order_id}", json=payload)
+        try:
+            result = self._client.put(f"/orders/{order_id}", json=payload)
+        except Exception as exc:
+            return OrderResponse.fail(f"Broker API error: {exc}")
 
         if not isinstance(result, dict):
-            raise OrderError(f"Unexpected modify response: {result}")
+            return OrderResponse.fail(f"Unexpected modify response: {result}")
 
         error_code = result.get("errorCode")
         if error_code:
             error_msg = result.get("errorMessage", "modify_order_failed")
-            raise OrderError(f"Modify order failed [{error_code}]: {error_msg}")
+            return OrderResponse.fail(f"Modify order failed [{error_code}]: {error_msg}")
 
         logger.info("order_modified", extra={"order_id": order_id, "changes": list(changes.keys())})
 
-        # Parse the API response into a canonical Order.
-        # The Dhan modify endpoint returns the updated order details.
-        try:
-            return Order.from_broker_dict(result, field_mapping=_DHAN_MAPPING)
-        except (DhanError, ValueError) as exc:
-            logger.warning(
-                "modify_order_parse_fallback", extra={"order_id": order_id, "error": str(exc)}
-            )
-            # Fallback: if the response doesn't have full order details,
-            # construct from the payload + order_id
-            return Order(
-                order_id=order_id,
-                symbol=str(result.get("tradingSymbol", changes.get("symbol", ""))),
-                exchange=str(result.get("exchangeSegment", changes.get("exchange", "NSE"))),
-                side=OrderSide(
-                    str(result.get("transactionType", changes.get("side", "BUY"))).upper()
-                ),
-                order_type=OrderType(
-                    _DHAN_MAPPING.map_order_type(result)
-                    if result.get("orderType")
-                    else str(changes.get("order_type", "MARKET")).upper()
-                ),
-                quantity=int(result.get("quantity", changes.get("quantity", 0))),
-                price=Decimal(str(result.get("price", changes.get("price", 0)))),
-                trigger_price=Decimal(
-                    str(result.get("triggerPrice", changes.get("trigger_price", 0)))
-                ),
-                status=OrderStatus(
-                    _DHAN_MAPPING.map_status(result)
-                    if result.get("orderStatus")
-                    else str(changes.get("status", "OPEN")).upper()
-                ),
-            )
+        return OrderResponse(
+            success=True,
+            order_id=order_id,
+            broker_order_id=order_id,
+            message="Order modified successfully",
+        )
 
     def cancel_order(self, order_id: str) -> OrderResponse:
         """Cancel an order via DELETE /orders/{order_id}.
@@ -451,7 +432,7 @@ class OrdersAdapter:
 
         # Safety guard: prevent live order cancellations if disabled
         if not self._allow_live_orders:
-            raise OrderError("Live orders are disabled. Set DHAN_ALLOW_LIVE_ORDERS=1 to enable.")
+            return OrderResponse.fail("Live orders are disabled. Set DHAN_ALLOW_LIVE_ORDERS=1 to enable.")
 
         try:
             data = self._client.delete(f"/orders/{order_id}")
@@ -491,7 +472,7 @@ class OrdersAdapter:
     def cancel_all_orders(self) -> list[tuple[str, bool]]:
         # Safety guard: prevent live order cancellations if disabled
         if not self._allow_live_orders:
-            raise OrderError("Live orders are disabled. Set DHAN_ALLOW_LIVE_ORDERS=1 to enable.")
+            return []
 
         data = self._client.delete("/orders")
         items = data.get("data", []) if isinstance(data, dict) else []
@@ -537,6 +518,10 @@ class OrdersAdapter:
 
     def _publish(self, event_type: str, order: Order) -> None:
         if self._event_bus is None:
+            return
+        from domain.ports.execution_context import is_oms_managed_submit
+
+        if is_oms_managed_submit():
             return
         self._event_bus.publish(
             DomainEvent.now(
@@ -647,11 +632,14 @@ class OrdersAdapter:
             raw, field_mapping=_DHAN_MAPPING, exchange_resolver=segment_to_exchange
         )
 
-    def place_slice_order(self, symbol: str, exchange: str, **kwargs) -> Order:
+    def place_slice_order(self, symbol: str, exchange: str, **kwargs) -> OrderResponse:
         """Place a slice order (automatically splits large orders).
 
         Uses POST /orders/slicing endpoint instead of POST /orders.
         Same payload structure as regular place_order.
+
+        Returns:
+            :class:`OrderResponse` with success/failure status.
         """
         # Safety guard: prevent live slice orders if disabled
         if not self._allow_live_orders:
@@ -721,7 +709,13 @@ class OrdersAdapter:
         )
 
         self._publish("ORDER_PLACED", order)
-        return order
+        return OrderResponse(
+            success=True,
+            order_id=order.order_id,
+            broker_order_id=order.order_id,
+            status=order.status,
+            message="Slice order placed successfully",
+        )
 
     def get_trade_history(self, from_date: str, to_date: str, page: int = 0) -> list[Trade]:
         """Get trade history for a date range.
@@ -737,8 +731,6 @@ class OrdersAdapter:
         Raises:
             ValueError: If date format is invalid
         """
-        import re
-
         date_pattern = re.compile(r"^\d{4}-\d{2}-\d{2}$")
         if not date_pattern.match(from_date):
             raise ValueError(f"Invalid from_date format: {from_date}. Expected YYYY-MM-DD")

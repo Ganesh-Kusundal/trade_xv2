@@ -205,7 +205,21 @@ async def play_session(session_id: str):
             session = _session_store.get(session_id) or session
             return _build_response(session)
 
-        engine = ReplayEngine(pipeline, strategy, config)
+        trading_context = getattr(container, "trading_context", None)
+        if trading_context is not None:
+            engine = ReplayEngine(
+                pipeline,
+                strategy,
+                config,
+                trading_context=trading_context,
+            )
+        else:
+            engine = ReplayEngine(
+                pipeline,
+                strategy,
+                config,
+                allow_simulate_without_oms=True,
+            )
         result = engine.run(df, symbol=symbol)
 
         # Store engine reference for lifecycle management

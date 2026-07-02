@@ -12,7 +12,6 @@
 import { useState } from 'react'
 import { Layers, TrendingUp, TrendingDown, ArrowDownUp, Wifi, WifiOff } from 'lucide-react'
 import { useMarketDepth, type DOMSnapshot } from '@/hooks/useMarketDepth'
-import { generateDOM, type DOMSnapshot as MockDOMSnapshot } from '@/data/orderflow'
 import { cn, formatIN, formatNumber, pnlColor } from '@/lib/utils'
 
 interface MarketDepthProps {
@@ -27,7 +26,7 @@ export function MarketDepth({ symbol, levels = 10, height = 400 }: MarketDepthPr
 
   // Use real depth if connected and has data, otherwise null (shows loading state)
   const useReal = connected && realDepth !== null
-  const snap: DOMSnapshot | MockDOMSnapshot | null = useReal ? realDepth : null
+  const snap: DOMSnapshot | null = useReal ? realDepth : null
 
   if (!snap) {
     return (

@@ -29,7 +29,7 @@ def _universe_name_from_filename(filename: str) -> str:
 
 
 def seed_universe_history(catalog_path: str) -> None:
-    from datalake.catalog import DataCatalog
+    from datalake.storage.catalog import DataCatalog
 
     catalog = DataCatalog(root=str(Path(catalog_path).parent))
     logger.info("Connected to catalog at %s", catalog_path)

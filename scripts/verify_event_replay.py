@@ -34,9 +34,9 @@ from application.oms.context import TradingContext
 from application.oms.order_manager import OrderManager
 from application.oms.position_manager import PositionManager
 from brokers.common.observability.event_metrics import EventMetrics
+from domain.events.types import DomainEvent
 from infrastructure.event_bus import (
     DeadLetterQueue,
-    DomainEvent,
     EventBus,
     ProcessedTradeRepository,
     TradeIdKey,
@@ -210,7 +210,7 @@ def main() -> int:
 
     from infrastructure.logging_config import configure_logging
 
-    setup_logging(log_level="DEBUG" if args.verbose else "INFO")
+    configure_logging()
 
     if args.record_snapshot:
         ctx, _ = _build_context(args.events)

@@ -32,7 +32,7 @@ from typing import Any
 
 from cryptography.fernet import Fernet, InvalidToken
 
-from brokers.common.resilience.errors import TradeXV2Error
+from domain.exceptions import TradeXV2Error
 
 logger = logging.getLogger(__name__)
 

@@ -77,8 +77,9 @@ def reset_container() -> None:
     This bypasses the idempotent guard in set_container to allow
     tests to isolate their service state. Never call in production.
     """
-    global _container
+    global _container, _trade_journal_instance
     _container = None
+    _trade_journal_instance = None
     di_container.reset()
 
 
@@ -277,11 +278,17 @@ def get_live_broker_name() -> str:
     return str(getattr(svc, "active_broker_name", "unknown"))
 
 
-def get_trade_journal() -> Any:
-    """Get TradeJournal for historical P&L queries."""
-    from datalake.journal import TradeJournal
+_trade_journal_instance: Any = None
 
-    return TradeJournal(read_only=True)
+
+def get_trade_journal() -> Any:
+    """Get TradeJournal for historical P&L queries (singleton)."""
+    global _trade_journal_instance
+    if _trade_journal_instance is None:
+        from datalake.research.journal import TradeJournal
+
+        _trade_journal_instance = TradeJournal(read_only=True)
+    return _trade_journal_instance
 
 
 # ── Initialization Helper ────────────────────────────────────────────────────

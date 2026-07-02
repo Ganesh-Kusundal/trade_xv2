@@ -81,7 +81,7 @@ class TestResampleCacheNoLookAheadBias:
 
     def test_cache_key_uses_deterministic_hash(self, tmp_path: Path) -> None:
         """Cache key generation must be deterministic for same inputs."""
-        from datalake.cache_utils import generate_cache_key
+        from datalake.storage.cache_utils import generate_cache_key
 
         key1 = generate_cache_key("RELIANCE", "5m")
         key2 = generate_cache_key("RELIANCE", "5m")
@@ -92,7 +92,7 @@ class TestResampleCacheNoLookAheadBias:
 
     def test_cache_key_differs_for_different_timeframes(self) -> None:
         """Different timeframes must produce different cache keys."""
-        from datalake.cache_utils import generate_cache_key
+        from datalake.storage.cache_utils import generate_cache_key
 
         key_5m = generate_cache_key("RELIANCE", "5m")
         key_15m = generate_cache_key("RELIANCE", "15m")
@@ -101,7 +101,7 @@ class TestResampleCacheNoLookAheadBias:
 
     def test_cache_key_differs_for_different_symbols(self) -> None:
         """Different symbols must produce different cache keys."""
-        from datalake.cache_utils import generate_cache_key
+        from datalake.storage.cache_utils import generate_cache_key
 
         key_rel = generate_cache_key("RELIANCE", "5m")
         key_tcs = generate_cache_key("TCS", "5m")
@@ -162,7 +162,7 @@ class TestCacheKeySecurity:
 
     def test_cache_key_does_not_use_f_string_interpolation(self) -> None:
         """Cache key must use hashing, not string concatenation."""
-        from datalake.cache_utils import generate_cache_key
+        from datalake.storage.cache_utils import generate_cache_key
 
         # Test with potentially problematic inputs
         key1 = generate_cache_key("REL'IANCE", "5m")  # SQL injection attempt in symbol
@@ -179,7 +179,7 @@ class TestCacheKeySecurity:
 
     def test_cache_key_deterministic_with_extra_params(self) -> None:
         """Cache key must be deterministic even with extra parameters."""
-        from datalake.cache_utils import generate_cache_key
+        from datalake.storage.cache_utils import generate_cache_key
 
         key1 = generate_cache_key("RELIANCE", "5m", columns=["close", "volume"])
         key2 = generate_cache_key("RELIANCE", "5m", columns=["volume", "close"])  # Different order

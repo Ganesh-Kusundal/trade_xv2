@@ -2,15 +2,34 @@
 
 from __future__ import annotations
 
+import glob as _glob
 import logging
+import os
 
 import duckdb
+
+from datalake.core.paths import DEFAULT_DATA_ROOT
 
 logger = logging.getLogger(__name__)
 
 
 class BaseViews:
-    """Creates base market data views in DuckDB."""
+    """Creates base market data views in DuckDB.
+
+    Parameters
+    ----------
+    root:
+        Root directory of the data lake.  The curated Parquet path is
+        derived as ``<root>/curated/equities/candles/``.
+    """
+
+    def __init__(self, root: str = DEFAULT_DATA_ROOT) -> None:
+        self._root = root
+
+    @property
+    def _curated_glob(self) -> str:
+        return os.path.join(self._root, "curated", "equities", "candles",
+                            "year=*", "month=*", "data_*.parquet")
 
     def create_views(self, conn: duckdb.DuckDBPyConnection) -> None:
         """Create all base market views."""
@@ -19,22 +38,49 @@ class BaseViews:
         self._create_latest_candle(conn)
 
     def _create_candles_1m(self, conn: duckdb.DuckDBPyConnection) -> None:
-        """v_candles_1m — standardized 1-minute candle view."""
-        conn.execute("""
-            CREATE OR REPLACE VIEW v_candles_1m AS
-            SELECT
-                timestamp,
-                symbol,
-                'NSE' as exchange,
-                open,
-                high,
-                low,
-                close,
-                volume,
-                0 as oi
-            FROM read_parquet('market_data/equities/candles/timeframe=1m/symbol=*/data.parquet')
-        """)
-        logger.debug("Created v_candles_1m")
+        """v_candles_1m — standardized 1-minute candle view.
+
+        Reads from the curated Parquet layout (date-partitioned) with
+        hive partitioning enabled.  If no curated files exist yet, an
+        empty view with the correct schema is created so downstream
+        queries do not fail.
+        """
+        pattern = self._curated_glob
+        if _glob.glob(pattern):
+            conn.execute(f"""
+                CREATE OR REPLACE VIEW v_candles_1m AS
+                SELECT
+                    timestamp,
+                    symbol,
+                    'NSE' as exchange,
+                    open,
+                    high,
+                    low,
+                    close,
+                    volume,
+                    0 as oi
+                FROM read_parquet(
+                    '{pattern}',
+                    hive_partitioning=true
+                )
+            """)
+            logger.debug("Created v_candles_1m (curated layout)")
+        else:
+            conn.execute("""
+                CREATE OR REPLACE VIEW v_candles_1m AS
+                SELECT
+                    CAST(NULL AS TIMESTAMP) as timestamp,
+                    CAST(NULL AS VARCHAR) as symbol,
+                    CAST(NULL AS VARCHAR) as exchange,
+                    CAST(NULL AS DOUBLE) as open,
+                    CAST(NULL AS DOUBLE) as high,
+                    CAST(NULL AS DOUBLE) as low,
+                    CAST(NULL AS DOUBLE) as close,
+                    CAST(NULL AS BIGINT) as volume,
+                    CAST(NULL AS BIGINT) as oi
+                WHERE 1 = 0
+            """)
+            logger.debug("Created v_candles_1m (empty — no curated parquet files found)")
 
     def _create_daily_summary(self, conn: duckdb.DuckDBPyConnection) -> None:
         """v_daily_summary — daily OHLCV aggregates from 1m candles."""
@@ -55,23 +101,25 @@ class BaseViews:
         logger.debug("Created v_daily_summary")
 
     def _create_latest_candle(self, conn: duckdb.DuckDBPyConnection) -> None:
-        """v_latest_candle — most recent candle per symbol."""
+        """v_latest_candle — most recent candle per symbol.
+
+        P1-2 fix: Replaced self-join with MAX(timestamp) subquery with
+        DISTINCT ON which is O(n) instead of O(n^2). The self-join scanned
+        the entire table twice; DISTINCT ON uses a single pass with hash
+        aggregation.
+        """
         conn.execute("""
             CREATE OR REPLACE VIEW v_latest_candle AS
-            SELECT
-                c.timestamp,
-                c.symbol,
-                c.open,
-                c.high,
-                c.low,
-                c.close,
-                c.volume,
-                c.oi
-            FROM v_candles_1m c
-            INNER JOIN (
-                SELECT symbol, MAX(timestamp) as max_ts
-                FROM v_candles_1m
-                GROUP BY symbol
-            ) latest ON c.symbol = latest.symbol AND c.timestamp = latest.max_ts
+            SELECT DISTINCT ON (symbol)
+                timestamp,
+                symbol,
+                open,
+                high,
+                low,
+                close,
+                volume,
+                oi
+            FROM v_candles_1m
+            ORDER BY symbol, timestamp DESC
         """)
-        logger.debug("Created v_latest_candle")
+        logger.debug("Created v_latest_candle (DISTINCT ON — O(n) single pass)")

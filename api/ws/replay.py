@@ -19,32 +19,87 @@ _stream_tasks: dict[str, asyncio.Task] = {}
 
 
 class ReplayConnectionManager:
-    """Manage WebSocket connections for replay streams."""
+    """Manage WebSocket connections for replay streams.
+
+    Uses per-connection asyncio.Queue for backpressure (same pattern as
+    MarketConnectionManager) to prevent slow clients from blocking replay.
+    """
+
+    _QUEUE_MAXSIZE = 256
 
     def __init__(self):
         self.active_connections: dict[str, WebSocket] = {}
         self.session_map: dict[str, str] = {}
+        self._send_queues: dict[str, asyncio.Queue] = {}
+        self._send_tasks: dict[str, asyncio.Task] = {}
+        self._seq_counters: dict[str, int] = {}
 
     async def connect(self, websocket: WebSocket, connection_id: str, session_id: str):
         await websocket.accept()
         self.active_connections[connection_id] = websocket
         self.session_map[connection_id] = session_id
+        self._send_queues[connection_id] = asyncio.Queue(maxsize=self._QUEUE_MAXSIZE)
+        self._seq_counters[connection_id] = 0
+        self._send_tasks[connection_id] = asyncio.create_task(
+            self._send_loop(connection_id), name=f"replay-sender-{connection_id}"
+        )
         logger.info("Replay WS connected: %s -> session %s", connection_id, session_id)
 
     async def disconnect(self, connection_id: str):
+        # Cancel stream task
         task = _stream_tasks.pop(connection_id, None)
         if task is not None:
             task.cancel()
+        # Cancel sender task
+        sender = self._send_tasks.pop(connection_id, None)
+        if sender is not None:
+            sender.cancel()
+            try:
+                await sender
+            except asyncio.CancelledError:
+                pass
         self.active_connections.pop(connection_id, None)
         self.session_map.pop(connection_id, None)
+        self._send_queues.pop(connection_id, None)
+        self._seq_counters.pop(connection_id, None)
         logger.info("Replay WS disconnected: %s", connection_id)
 
+    async def _send_loop(self, connection_id: str) -> None:
+        """Background task that drains the message queue to the WebSocket."""
+        queue = self._send_queues.get(connection_id)
+        ws = self.active_connections.get(connection_id)
+        if queue is None or ws is None:
+            return
+        try:
+            while True:
+                message = await queue.get()
+                if message is None:
+                    break
+                try:
+                    await ws.send_json(message)
+                except Exception as exc:
+                    logger.debug("Replay WS send failed for %s: %s", connection_id, exc)
+                    break
+        except asyncio.CancelledError:
+            pass
+
     async def send_to_client(self, connection_id: str, message: dict):
-        if connection_id in self.active_connections:
+        """Enqueue a message for sending with sequence number and backpressure."""
+        queue = self._send_queues.get(connection_id)
+        if queue is None:
+            return
+        seq = self._seq_counters.get(connection_id, 0)
+        message["_seq"] = seq
+        self._seq_counters[connection_id] = seq + 1
+        try:
+            queue.put_nowait(message)
+        except asyncio.QueueFull:
             try:
-                await self.active_connections[connection_id].send_json(message)
-            except Exception as exc:
-                logger.error("Failed to send to %s: %s", connection_id, exc)
+                queue.get_nowait()
+                queue.put_nowait(message)
+                logger.debug("Replay WS queue full for %s — dropped oldest", connection_id)
+            except asyncio.QueueEmpty:
+                pass
 
 
 replay_manager = ReplayConnectionManager()
@@ -63,7 +118,7 @@ async def _stream_replay_candles(
     speed: float = 1.0,
     seek_ts: int | None = None,
 ) -> None:
-    from api.deps import _container
+    from api.deps import get_container
     from api.routers.replay import get_replay_session_store
 
     store = get_replay_session_store()
@@ -84,7 +139,8 @@ async def _stream_replay_candles(
     timeframe = session.get("timeframe") or "1m"
     speed = float(session.get("speed") or speed or 1.0)
 
-    gateway = _container.datalake_gateway if _container else None
+    container = get_container()
+    gateway = getattr(container, "datalake_gateway", None) if container else None
     if gateway is None:
         from datalake.gateway import DataLakeGateway
 

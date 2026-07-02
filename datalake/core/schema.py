@@ -129,7 +129,7 @@ def load_universe(universe: str, catalog=None, as_of_date=None) -> list[str]:
     if catalog is not None:
         try:
             if as_of_date is not None:
-                from datalake.catalog import DataCatalog
+                from datalake.storage.catalog import DataCatalog
 
                 if isinstance(catalog, DataCatalog):
                     rows = catalog.get_universe_as_of(universe, as_of_date)

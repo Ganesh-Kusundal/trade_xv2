@@ -24,6 +24,19 @@ def _format_labels(labels: dict[str, str]) -> str:
     return "{" + ",".join(parts) + "}"
 
 
+def _parse_series_key(key: str, n_labels: int) -> list[str]:
+    """Parse a stringified tuple key like "('a', 'b')" back into label values."""
+    stripped = key.strip("()")
+    if not stripped:
+        return [""] * n_labels
+    parts: list[str] = []
+    for part in stripped.split(","):
+        parts.append(part.strip().strip("'\""))
+    while len(parts) < n_labels:
+        parts.append("")
+    return parts[:n_labels]
+
+
 class PrometheusExporter:
     """Export metrics in Prometheus text format."""
 
@@ -78,5 +91,46 @@ class PrometheusExporter:
             lines.append(f"{metric_name}{label_str} {info.get('avg', 0)}")
             lines.append(f"{metric_name}_sum{label_str} {info.get('sum', 0)}")
             lines.append(f"{metric_name}_count{label_str} {info.get('count', 0)}")
+
+        for name, info in snap.get("labelled_counters", {}).items():
+            metric_name = name.replace(" ", "_").replace("-", "_")
+            desc = info.get("description", "")
+            if desc:
+                lines.append(f"# HELP {metric_name} {desc}")
+            lines.append(f"# TYPE {metric_name} counter")
+            label_names = info.get("label_names", ())
+            for series_key, value in info.get("series", {}).items():
+                label_values = _parse_series_key(series_key, len(label_names))
+                lbl = _format_labels(dict(zip(label_names, label_values, strict=True)))
+                lines.append(f"{metric_name}{lbl} {value}")
+
+        for name, info in snap.get("labelled_gauges", {}).items():
+            metric_name = name.replace(" ", "_").replace("-", "_")
+            desc = info.get("description", "")
+            if desc:
+                lines.append(f"# HELP {metric_name} {desc}")
+            lines.append(f"# TYPE {metric_name} gauge")
+            label_names = info.get("label_names", ())
+            for series_key, value in info.get("series", {}).items():
+                label_values = _parse_series_key(series_key, len(label_names))
+                lbl = _format_labels(dict(zip(label_names, label_values, strict=True)))
+                lines.append(f"{metric_name}{lbl} {value}")
+
+        for name, info in snap.get("labelled_histograms", {}).items():
+            metric_name = name.replace(" ", "_").replace("-", "_")
+            desc = info.get("description", "")
+            if desc:
+                lines.append(f"# HELP {metric_name} {desc}")
+            lines.append(f"# TYPE {metric_name} histogram")
+            label_names = info.get("label_names", ())
+            for series_key, series_info in info.get("series", {}).items():
+                label_values = _parse_series_key(series_key, len(label_names))
+                base_labels = dict(zip(label_names, label_values, strict=True))
+                for bound, cumulative in series_info.get("buckets", []):
+                    le = "+Inf" if bound == float("inf") else str(bound)
+                    lbl = _format_labels({**base_labels, "le": le})
+                    lines.append(f"{metric_name}_bucket{lbl} {cumulative}")
+                lines.append(f"{metric_name}_sum{_format_labels(base_labels)} {series_info.get('sum', 0)}")
+                lines.append(f"{metric_name}_count{_format_labels(base_labels)} {series_info.get('count', 0)}")
 
         return "\n".join(lines) + "\n"

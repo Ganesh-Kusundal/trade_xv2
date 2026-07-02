@@ -1,4 +1,4 @@
-"""Upstox Prometheus metrics — parity with Dhan observability.
+"""Upstox broker metrics — backed by MetricsRegistry (parity with Dhan).
 
 Provides counters, histograms, and gauges for:
 - HTTP API request duration and count
@@ -8,84 +8,72 @@ Provides counters, histograms, and gauges for:
 
 Usage::
 
-    from brokers.upstox.metrics import upstox_request_duration, upstox_request_count
+    from brokers.upstox.metrics import upstox_ws_connected, upstox_ws_reconnects
 
-    # In HTTP client:
-    with upstox_request_duration.labels(endpoint='orders', status=200).time():
-        response = requests.post(url)
-    upstox_request_count.labels(endpoint='orders', status=200).inc()
+    upstox_ws_connected.set(1)
+    upstox_ws_reconnects.inc()
 """
 
-from prometheus_client import Counter, Gauge, Histogram
+from __future__ import annotations
+
+from infrastructure.metrics.registry import metrics_registry
 
 # HTTP API metrics
-upstox_request_duration = Histogram(
+upstox_request_total = metrics_registry.counter(
+    "upstox_request_total",
+    "Total HTTP requests to Upstox API",
+)
+upstox_request_duration_seconds = metrics_registry.histogram(
     "upstox_request_duration_seconds",
-    "Upstox API request duration",
-    ["endpoint", "status"],
+    "Upstox API request latency in seconds",
     buckets=[0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0],
 )
-
-upstox_request_count = Counter(
-    "upstox_request_total",
-    "Upstox API request count",
-    ["endpoint", "status"],
-)
-
-upstox_request_errors = Counter(
+upstox_request_errors_total = metrics_registry.counter(
     "upstox_request_errors_total",
-    "Upstox API error count",
-    ["endpoint", "error_type"],
+    "Total Upstox API errors",
 )
 
 # WebSocket metrics
-upstox_ws_messages = Counter(
+upstox_ws_messages_total = metrics_registry.counter(
     "upstox_websocket_messages_total",
-    "Upstox WebSocket message count",
-    ["type"],  # 'market_data', 'order_update', 'heartbeat'
+    "Total Upstox WebSocket messages",
 )
-
-upstox_ws_connected = Gauge(
+upstox_ws_connected = metrics_registry.gauge(
     "upstox_websocket_connected",
     "Upstox WebSocket connection status (1=connected, 0=disconnected)",
 )
-
-upstox_ws_reconnects = Counter(
+upstox_ws_reconnects = metrics_registry.counter(
     "upstox_websocket_reconnects_total",
-    "Upstox WebSocket reconnection count",
+    "Total Upstox WebSocket reconnection attempts",
 )
 
 # Order metrics
-upstox_order_count = Counter(
+upstox_orders_total = metrics_registry.counter(
     "upstox_orders_total",
-    "Upstox order count",
-    ["status", "type"],  # status: 'placed', 'filled', 'cancelled'; type: 'limit', 'market', etc.
+    "Total Upstox orders",
 )
-
-upstox_order_duration = Histogram(
+upstox_order_duration_seconds = metrics_registry.histogram(
     "upstox_order_duration_seconds",
     "Time from order placement to fill",
     buckets=[0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0],
 )
 
 # Portfolio metrics
-upstox_portfolio_value = Gauge(
+upstox_portfolio_value = metrics_registry.gauge(
     "upstox_portfolio_value",
     "Current portfolio value",
 )
-
-upstox_pnl = Gauge(
+upstox_pnl = metrics_registry.gauge(
     "upstox_pnl",
     "Current realized + unrealized P&L",
 )
 
 # Token refresh metrics
-upstox_token_refresh_count = Counter(
+upstox_token_refresh_total = metrics_registry.counter(
     "upstox_token_refresh_total",
-    "Token refresh attempt count",
+    "Total token refresh attempts",
 )
-
-upstox_token_refresh_errors = Counter(
+upstox_token_refresh_errors_total = metrics_registry.counter(
     "upstox_token_refresh_errors_total",
-    "Token refresh error count",
+    "Total token refresh errors",
 )

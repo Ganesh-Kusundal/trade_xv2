@@ -61,6 +61,7 @@ from typing import Any
 import pandas as pd
 
 from analytics.replay.models import ReplayResult
+from datalake.core.paths import DEFAULT_DATA_ROOT
 from infrastructure.event_bus.event_bus import DomainEvent, EventBus
 from infrastructure.event_log import EventLog
 
@@ -138,7 +139,7 @@ class UnifiedReplayOrchestrator:
         feature_pipeline=None,
         strategy_pipeline=None,
         events_dir: str | Path | None = None,
-        data_root: str = "market_data",
+        data_root: str = DEFAULT_DATA_ROOT,
         timeframe: str = "1m",
         initial_capital: float = 100_000.0,
         warmup_bars: int = 20,
@@ -246,11 +247,11 @@ class UnifiedReplayOrchestrator:
 
     def _load_bars(self, date: str, symbols: list[str]) -> list[ReplayItem]:
         """Load OHLCV bars from the datalake for the target date."""
-        # Use injected data_provider if available, otherwise fall back to ResearchAPI
+        # Use injected data_provider if available, otherwise fall back to DataLakeMarketDataProvider
         if self._data_provider is None:
-            from datalake.research import ResearchAPI
+            from datalake.adapters.analytics_provider import DataLakeMarketDataProvider
 
-            data_provider = ResearchAPI(root=self._data_root)
+            data_provider = DataLakeMarketDataProvider(root=self._data_root)
         else:
             data_provider = self._data_provider
 
@@ -367,8 +368,10 @@ class UnifiedReplayOrchestrator:
     ) -> ReplayResult | None:
         """Execute the replay through the engine.
 
-        This is a simplified implementation. Full integration would
-        use the existing ReplayEngine from analytics.replay.engine.
+        P0-1 fix: Events are now interleaved with bars by timestamp instead of
+        being published all at once before bar processing. The event schedule
+        maps timestamps to lists of DomainEvents that are published before the
+        bar at that timestamp is processed.
 
         Parameters
         ----------
@@ -395,9 +398,24 @@ class UnifiedReplayOrchestrator:
         from analytics.replay.models import ReplayConfig
         from domain.runtime_hooks import create_trading_context
 
+        # P0-1 fix: Build event schedule from merged stream.
+        # Instead of publishing ALL events before ANY bars (which broke
+        # deterministic replay), we map event timestamps to their events
+        # and pass this schedule to the ReplayEngine. The engine publishes
+        # events in time order as it processes each bar.
+        event_schedule: dict[pd.Timestamp, list] = {}
         for item in merged_stream:
             if item.kind == "event" and item.event is not None:
-                event_bus.publish(item.event)
+                evt_ts = pd.Timestamp(item.timestamp)
+                if evt_ts not in event_schedule:
+                    event_schedule[evt_ts] = []
+                event_schedule[evt_ts].append(item.event)
+
+        logger.info(
+            "Built event schedule with %d timestamp entries from %d total events",
+            len(event_schedule),
+            sum(len(evts) for evts in event_schedule.values()),
+        )
 
         tc = self._trading_context or create_trading_context(
             event_bus=event_bus,
@@ -414,6 +432,7 @@ class UnifiedReplayOrchestrator:
             config,
             trading_context=tc,
             event_bus=event_bus,
+            event_schedule=event_schedule,
         )
 
         symbol = str(df["symbol"].iloc[0]) if "symbol" in df.columns and not df.empty else "REPLAY"
@@ -426,8 +445,11 @@ class UnifiedReplayOrchestrator:
     ) -> tuple[bool, dict[str, Any]]:
         """Assert replayed state matches recorded state from events.
 
-        Derives expected state from TRADE/POSITION events in the log
-        and compares against the replayed session state.
+        P0-2 fix: Strengthened state assertion to compare:
+        - Trade count (from TRADE/TRADE_APPLIED events vs replay session)
+        - Final equity (within tolerance for floating-point comparison)
+        - Trade details (symbol, side, quantity match)
+        - Position state (open/closed)
 
         Parameters
         ----------
@@ -441,45 +463,168 @@ class UnifiedReplayOrchestrator:
         tuple[bool, dict[str, Any]]:
             (state_matches, state_diff)
         """
-        expected: dict[str, Any] = {
-            "event_count": len(event_items),
-        }
-        actual: dict[str, Any] = {
-            "event_count": 0,
-        }
+        expected: dict[str, Any] = {"event_count": len(event_items)}
+        actual: dict[str, Any] = {"event_count": len(event_items) if result is not None else 0}
+        diff: dict[str, Any] = {}
 
-        if result is not None:
-            actual["event_count"] = len(event_items)
-            actual["trade_count"] = result.session.total_trades
-            actual["equity_final"] = (
-                float(result.session.equity_curve[-1][1]) if result.session.equity_curve else 0.0
-            )
-            actual["trades"] = [
-                (t.symbol, str(t.side), t.quantity, str(t.entry_price))
-                for t in result.session.trades
-            ]
-            actual["open_positions"] = 1 if result.session.position is not None else 0
+        if result is None:
+            if not event_items:
+                return True, {}
+            return False, {"error": "replay_result is None"}
 
+        # Trade count comparison
         trade_events = [
             i
             for i in event_items
             if i.event is not None and i.event.event_type in ("TRADE", "TRADE_APPLIED")
         ]
         expected["trade_count"] = len(trade_events)
+        actual["trade_count"] = result.session.total_trades
 
-        matches = expected.get("trade_count", 0) == actual.get("trade_count", 0)
-        if result is not None and result.session.trades:
-            matches = matches and actual.get("open_positions", 0) >= 0
+        # Final equity comparison
+        expected_equity = self._derive_expected_equity(event_items)
+        actual_equity = (
+            float(result.session.equity_curve[-1][1]) if result.session.equity_curve else 0.0
+        )
+        expected["equity_final"] = expected_equity
+        actual["equity_final"] = actual_equity
 
-        diff = {}
-        if not matches:
-            diff = {
-                k: {"expected": expected[k], "actual": actual[k]}
-                for k in expected
-                if expected[k] != actual.get(k)
+        # Trade details comparison
+        expected["trades"] = self._derive_expected_trades(event_items)
+        actual["trades"] = [
+            (t.symbol, str(t.side), t.quantity, str(t.entry_price))
+            for t in result.session.trades
+        ]
+
+        # Position state comparison
+        expected["has_open_position"] = self._derive_expected_position_state(event_items)
+        actual["has_open_position"] = result.session.position is not None
+
+        # Validate each field
+        matches = True
+
+        # Trade count must match exactly
+        if expected["trade_count"] != actual["trade_count"]:
+            matches = False
+            diff["trade_count"] = {
+                "expected": expected["trade_count"],
+                "actual": actual["trade_count"],
+            }
+
+        # Equity must match within tolerance (floating-point comparison)
+        equity_tolerance = 0.01  # 1 cent tolerance
+        if expected["equity_final"] is not None:
+            equity_diff = abs(expected["equity_final"] - actual["equity_final"])
+            if equity_diff > equity_tolerance:
+                matches = False
+                diff["equity_final"] = {
+                    "expected": expected["equity_final"],
+                    "actual": actual["equity_final"],
+                    "difference": equity_diff,
+                }
+
+        # Trade details must match (if we have expected trades)
+        if expected["trades"] and expected["trades"] != actual["trades"]:
+            matches = False
+            diff["trades"] = {
+                "expected": expected["trades"],
+                "actual": actual["trades"],
+            }
+
+        # Position state must match
+        if expected["has_open_position"] != actual["has_open_position"]:
+            matches = False
+            diff["has_open_position"] = {
+                "expected": expected["has_open_position"],
+                "actual": actual["has_open_position"],
             }
 
         return matches, diff
+
+    def _derive_expected_equity(
+        self, event_items: list[ReplayItem], initial_capital: float = 100_000.0
+    ) -> float | None:
+        """Derive expected final equity by replaying trade PnL from events.
+
+        Computes equity by starting from initial_capital and applying each
+        BUY (debit) and SELL (credit) from TRADE/TRADE_APPLIED events.
+        Open positions are valued at entry price (best available estimate).
+
+        Returns None if no trade events found (insufficient data).
+        """
+        trade_events = [
+            i for i in event_items
+            if i.event is not None and i.event.event_type in ("TRADE", "TRADE_APPLIED")
+        ]
+        if not trade_events:
+            return None
+
+        capital = initial_capital
+        position: tuple[float, int] | None = None  # (entry_price, quantity)
+        valid_trades = 0
+
+        for item in trade_events:
+            payload = item.event.payload if hasattr(item.event, "payload") else {}
+            side = str(payload.get("side", "")).upper()
+            price = float(payload.get("price", payload.get("entry_price", 0)))
+            qty = int(payload.get("quantity", 0))
+
+            if price <= 0 or qty <= 0:
+                continue
+
+            valid_trades += 1
+            if side == "BUY" and position is None:
+                position = (price, qty)
+                capital -= price * qty
+            elif side == "SELL" and position is not None:
+                capital += price * qty
+                position = None
+
+        # No valid trades found — insufficient data
+        if valid_trades == 0:
+            return None
+
+        # Mark open position at entry price (best available estimate)
+        if position is not None:
+            capital += position[0] * position[1]
+
+        return capital
+
+    def _derive_expected_trades(self, event_items: list[ReplayItem]) -> list[tuple]:
+        """Derive expected trade list from TRADE/TRADE_APPLIED events."""
+        trades = []
+        for item in event_items:
+            if item.event is not None and item.event.event_type in ("TRADE", "TRADE_APPLIED"):
+                payload = item.event.payload if hasattr(item.event, "payload") else {}
+                symbol = item.event.symbol or payload.get("symbol", "UNKNOWN")
+                side = payload.get("side", "UNKNOWN")
+                quantity = payload.get("quantity", 0)
+                price = payload.get("price", payload.get("entry_price", 0))
+                trades.append((symbol, str(side), quantity, str(price)))
+        return trades
+
+    def _derive_expected_position_state(self, event_items: list[ReplayItem]) -> bool:
+        """Derive expected position state (has open position?) from events.
+
+        Tracks TRADE (open) and position-closing events to determine if
+        there should be an open position at the end of replay.
+        """
+        has_open = False
+        for item in event_items:
+            if item.event is None:
+                continue
+            event_type = item.event.event_type
+            if event_type in ("TRADE", "TRADE_APPLIED"):
+                payload = item.event.payload if hasattr(item.event, "payload") else {}
+                side = str(payload.get("side", "")).upper()
+                # BUY opens, SELL closes
+                if side == "BUY":
+                    has_open = True
+                elif side == "SELL":
+                    has_open = False
+            elif event_type == "POSITION_CLOSED":
+                has_open = False
+        return has_open
 
 
 __all__ = [

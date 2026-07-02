@@ -26,7 +26,7 @@ import threading
 from collections.abc import Callable
 from typing import Any
 
-from brokers.common.resilience.errors import TradeXV2Error
+from domain.exceptions import TradeXV2Error
 from infrastructure.di_scopes import ScopeManager
 
 logger = logging.getLogger(__name__)

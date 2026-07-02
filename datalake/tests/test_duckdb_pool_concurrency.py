@@ -8,7 +8,7 @@ from pathlib import Path
 import duckdb
 import pytest
 
-from datalake.duckdb_utils import (
+from datalake.core.duckdb_utils import (
     DuckDBPool,
     DuckDBReadPool,
     close_all_connections,

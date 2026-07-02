@@ -4,13 +4,15 @@ Provides:
 - ``connect_with_retry`` for handling DuckDB's single-writer lock
 - ``DuckDBPool`` for read-write connection reuse (one RW conn per file)
 - ``DuckDBReadPool`` for concurrent read-only connections (fresh conn per acquire)
-- ``get_pool`` / ``get_read_pool`` / ``get_connection`` / ``duckdb_connection``
+- ``InMemoryDuckDBPool`` for reusable in-memory connections (queue-based)
+- ``get_pool`` / ``get_read_pool`` / ``get_memory_pool`` / ``get_connection`` / ``duckdb_connection``
 - ``close_all_connections`` for clean shutdown
 
-Used by DataCatalog, ViewManager, and ScanStore.
+Used by DataCatalog, ViewManager, ScanStore, and API endpoints.
 
 RW and RO pools are separate: catalog writes and materialization use
 ``DuckDBPool``; API read handlers use ``DuckDBReadPool`` for concurrency.
+In-memory analytics use ``InMemoryDuckDBPool`` for connection reuse.
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from queue import Empty, Full, Queue
 
 import duckdb
 
@@ -301,10 +304,105 @@ def duckdb_connection(
 
 
 def close_all_connections() -> None:
-    """Close all pooled DuckDB connections (RW and RO).
+    """Close all pooled DuckDB connections (RW, RO, and in-memory).
 
     Call this during application shutdown to cleanly release all database
     connections and file locks.
     """
     get_read_pool().close_all()
     get_pool().close_all()
+    get_memory_pool().close_all()
+
+
+class InMemoryDuckDBPool:
+    """Queue-based pool for in-memory DuckDB connections.
+
+    DuckDB in-memory connections (:memory:) are lightweight but still have
+    non-trivial startup cost. This pool avoids creating a new connection per
+    request by maintaining a small set of reusable connections.
+
+    Thread-safe for concurrent access from multiple threads.
+    """
+
+    def __init__(self, max_size: int = 4, *, timeout: float = 5.0) -> None:
+        self._max_size = max_size
+        self._timeout = timeout
+        self._queue: Queue[duckdb.DuckDBPyConnection] = Queue(maxsize=max_size)
+        self._lock = threading.Lock()
+        self._total = 0
+
+    def acquire(self) -> duckdb.DuckDBPyConnection:
+        """Acquire a connection from the pool.
+
+        If a connection is available it is returned immediately. Otherwise a
+        new connection is created (up to *max_size*). If the pool is at
+        capacity, the caller blocks up to *timeout* seconds.
+        """
+        try:
+            return self._queue.get_nowait()
+        except Empty:
+            pass
+
+        with self._lock:
+            if self._total < self._max_size:
+                self._total += 1
+                return duckdb.connect(":memory:")
+
+        try:
+            return self._queue.get(timeout=self._timeout)
+        except Empty:
+            raise RuntimeError(
+                f"InMemoryDuckDBPool exhausted: no connection available within {self._timeout}s"
+            )
+
+    def release(self, conn: duckdb.DuckDBPyConnection) -> None:
+        """Return a connection to the pool. If the pool is full, close instead."""
+        try:
+            self._queue.put_nowait(conn)
+        except Full:
+            conn.close()
+            with self._lock:
+                self._total -= 1
+
+    def close_all(self) -> None:
+        """Close every connection in the pool."""
+        while not self._queue.empty():
+            try:
+                conn = self._queue.get_nowait()
+                conn.close()
+            except Empty:
+                break
+        with self._lock:
+            self._total = 0
+
+    @property
+    def size(self) -> int:
+        """Number of connections currently managed by the pool."""
+        return self._total
+
+
+_memory_pool: InMemoryDuckDBPool | None = None
+_memory_pool_lock = threading.Lock()
+
+
+def get_memory_pool() -> InMemoryDuckDBPool:
+    """Return the process-wide InMemoryDuckDBPool singleton (created on first call)."""
+    global _memory_pool
+    if _memory_pool is None:
+        with _memory_pool_lock:
+            if _memory_pool is None:
+                _memory_pool = InMemoryDuckDBPool()
+    return _memory_pool
+
+
+def reset_memory_pool() -> None:
+    """Close and reset the process-wide InMemoryDuckDBPool singleton.
+
+    Thread-safe: acquires the pool lock before mutating the singleton.
+    After this call, the next ``get_memory_pool()`` creates a fresh pool.
+    """
+    global _memory_pool
+    with _memory_pool_lock:
+        if _memory_pool is not None:
+            _memory_pool.close_all()
+            _memory_pool = None

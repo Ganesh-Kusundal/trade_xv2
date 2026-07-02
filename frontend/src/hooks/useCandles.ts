@@ -37,7 +37,10 @@ export function useCandles(
     setLoading(true)
     setError(null)
     setVisibleCount(bars)
-    getCandles(symbol, timeframe, bars)
+
+    const controller = new AbortController()
+
+    getCandles(symbol, timeframe, bars, 'NSE', controller.signal)
       .then((c) => {
         if (!alive || keyRef.current !== key) return
         setCandles(c)
@@ -45,10 +48,15 @@ export function useCandles(
       })
       .catch((e) => {
         if (!alive) return
+        if (e instanceof Error && e.name === 'AbortError') return
         setError(String(e))
       })
       .finally(() => { if (!alive) return; setLoading(false) })
-    return () => { alive = false }
+
+    return () => {
+      alive = false
+      controller.abort()
+    }
   }, [symbol, timeframe, bars])
 
   const push = (c: Candle) => {

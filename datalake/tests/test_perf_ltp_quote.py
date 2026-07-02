@@ -17,7 +17,7 @@ import pandas as pd
 import pyarrow as pa
 
 from datalake.gateway import DataLakeGateway
-from datalake.io import atomic_parquet_write
+from datalake.core.io import atomic_parquet_write
 
 
 def _make_dataframe(symbol: str, n: int = 10_000) -> pd.DataFrame:

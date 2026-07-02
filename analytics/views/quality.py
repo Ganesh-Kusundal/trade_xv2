@@ -12,7 +12,8 @@ import logging
 
 import duckdb
 
-from analytics.views.manager import TRADING_MINUTES_PER_DAY
+# Defined locally to avoid circular import with analytics.views.manager
+TRADING_MINUTES_PER_DAY = 375  # NSE market hours: 9:15-15:30 = 375 minutes
 
 logger = logging.getLogger(__name__)
 

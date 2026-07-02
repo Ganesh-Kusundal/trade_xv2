@@ -32,6 +32,7 @@ Usage:
 from __future__ import annotations
 
 import logging
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -46,11 +47,8 @@ from domain import Order, OrderType, ProductType, Side
 from domain.models.features import FeatureSet
 from domain.models.trading import CandidateDTO, SignalDTO
 from domain.ports.strategy_evaluator import StrategyEvaluator
-from infrastructure.event_bus import (
-    DomainEvent,
-    EventBus,
-    EventType,
-)
+from domain.events.types import DomainEvent, EventType
+from infrastructure.event_bus import EventBus
 
 logger = logging.getLogger(__name__)
 
@@ -147,6 +145,9 @@ class TradingOrchestrator:
         self._executed_count: int = 0
         self._rejected_count: int = 0
         self._error_count: int = 0
+        # P1-7 fix: Lock for thread-safe counter increments.
+        # Plain int += is not atomic in Python (it's LOAD + ADD + STORE).
+        self._counter_lock = threading.Lock()
         self._candidate_subscription_token: str | None = None
         self.name = "trading_orchestrator"
 
@@ -204,7 +205,7 @@ class TradingOrchestrator:
 
             if not symbol:
                 logger.warning("CANDIDATE_GENERATED event missing symbol: %s", event)
-                self._error_count += 1
+                self._inc_error()
                 return
 
             logger.info(
@@ -231,7 +232,7 @@ class TradingOrchestrator:
             features = self._fetch_features(symbol)
             if features is None:
                 logger.warning("Feature fetch failed for %s, skipping execution", symbol)
-                self._error_count += 1
+                self._inc_error()
                 return
 
             # Evaluate through strategy pipeline
@@ -243,7 +244,7 @@ class TradingOrchestrator:
 
         except Exception as exc:
             logger.exception("Orchestrator failed to process candidate event: %s", exc)
-            self._error_count += 1
+            self._inc_error()
 
     def _fetch_features(self, symbol: str) -> FeatureSet | None:
         """Fetch feature data for a symbol.
@@ -305,7 +306,7 @@ class TradingOrchestrator:
                 candidate.symbol,
                 exc,
             )
-            self._error_count += 1
+            self._inc_error()
             return []
 
     def _execute_signal(self, signal: SignalDTO, correlation_id: str) -> None:
@@ -335,13 +336,13 @@ class TradingOrchestrator:
                 signal.confidence,
                 self._config.min_confidence,
             )
-            self._rejected_count += 1
+            self._inc_rejected()
             return
 
         # Check kill switch
         if self._is_kill_switch_active():
             logger.warning("Kill switch active, blocking execution for %s", signal.symbol)
-            self._rejected_count += 1
+            self._inc_rejected()
             return
 
         # Dry-run mode
@@ -353,7 +354,7 @@ class TradingOrchestrator:
                 float(signal.confidence),
                 float(signal.entry_price or 0),
             )
-            self._executed_count += 1
+            self._inc_executed()
             return
 
         # Convert signal to order command
@@ -445,7 +446,7 @@ class TradingOrchestrator:
                 command.symbol,
                 exc,
             )
-            self._error_count += 1
+            self._inc_error()
             return OrderResult(success=False, error=str(exc))
 
     def _publish_execution_events(
@@ -463,7 +464,7 @@ class TradingOrchestrator:
             Original signal that was executed.
         """
         if result.success and result.order:
-            self._executed_count += 1
+            self._inc_executed()
 
             self._event_bus.publish(
                 DomainEvent.now(
@@ -496,7 +497,7 @@ class TradingOrchestrator:
             )
 
         elif not result.success:
-            self._rejected_count += 1
+            self._inc_rejected()
 
             if result.error:
                 order_id = result.order.order_id if result.order else "unknown"
@@ -582,10 +583,28 @@ class TradingOrchestrator:
         )
 
     def reset_stats(self) -> None:
-        """Reset execution statistics."""
-        self._executed_count = 0
-        self._rejected_count = 0
-        self._error_count = 0
+        """Reset execution statistics (thread-safe)."""
+        with self._counter_lock:
+            self._executed_count = 0
+            self._rejected_count = 0
+            self._error_count = 0
+
+    # ── Thread-safe counter helpers (P1-7) ──────────────────────────────
+
+    def _inc_executed(self) -> None:
+        """Thread-safe increment of executed counter."""
+        with self._counter_lock:
+            self._executed_count += 1
+
+    def _inc_rejected(self) -> None:
+        """Thread-safe increment of rejected counter."""
+        with self._counter_lock:
+            self._rejected_count += 1
+
+    def _inc_error(self) -> None:
+        """Thread-safe increment of error counter."""
+        with self._counter_lock:
+            self._error_count += 1
 
 
 __all__ = [

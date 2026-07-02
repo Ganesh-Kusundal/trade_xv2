@@ -234,12 +234,8 @@ type = "forbidden"
 source_modules = ["infrastructure"]
 forbidden_modules = ["brokers", "analytics", "cli", "application", "api"]
 ignore_imports = [
-    "infrastructure.di -> brokers.common.resilience.errors",
-    "infrastructure.di_scopes -> brokers.common.resilience.errors",
     "infrastructure.global_exception_handler -> brokers.common.resilience.errors",
     "infrastructure.retry -> brokers.common.resilience.errors",
-    "infrastructure.security.secret_manager -> brokers.common.resilience.errors",
-    "infrastructure.state_machine -> brokers.common.resilience.errors",
     "infrastructure.tests.test_audit -> application.audit",
     "infrastructure.tests.test_global_exception_handler -> brokers.common.resilience.errors",
 ]
@@ -254,11 +250,16 @@ forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper"]
 name = "Broker common isolation"
 type = "forbidden"
 source_modules = ["brokers.common"]
-forbidden_modules = ["brokers.dhan", "brokers.upstox", "analytics"]
+forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper", "analytics"]
 ignore_imports = [
-    "brokers.common.oms.tests.* -> application.oms",
-    "brokers.common.oms.tests.* -> application.oms.context",
     "brokers.common.bootstrap -> cli.services.broker_registry",
+    "brokers.common.oms.tests.* -> application.oms",
+    "brokers.common.oms.tests.* -> application.oms.*",
+    "brokers.common.tests.* -> brokers.dhan.*",
+    "brokers.common.tests.* -> brokers.upstox.*",
+    "brokers.common.tests.* -> brokers.upstox.*.*",
+    "brokers.common.tests.* -> brokers.paper",
+    "brokers.common.tests.* -> brokers.paper.*",
 ]
 
 [[tool.importlinter.contracts]]
@@ -269,7 +270,56 @@ forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper"]
 ignore_imports = [
     "application.execution.tests.test_execution_service -> brokers.paper.paper_gateway",
     "application.trading.tests.test_trading_orchestrator_e2e -> brokers.paper.paper_gateway",
-    "application.oms.position_manager -> infrastructure.state_machine",
     "application.oms.tests.test_risk_manager_margin -> brokers.common.api",
     "application.oms.tests.test_risk_manager_margin -> brokers.common.oms.margin_provider",
+]
+
+[[tool.importlinter.contracts]]
+name = "Application infrastructure separation"
+type = "forbidden"
+source_modules = ["application"]
+forbidden_modules = ["infrastructure"]
+ignore_imports = [
+    "application.oms.context -> infrastructure.event_bus",
+    "application.oms.context -> infrastructure.event_bus.persistent_dead_letter_queue",
+    "application.oms.context -> infrastructure.event_log",
+    "application.oms.context -> infrastructure.lifecycle",
+    "application.oms.context -> infrastructure.observability.event_metrics",
+    "application.oms.context -> infrastructure.persistence.sqlite_order_store",
+    "application.oms.order_manager -> infrastructure.event_bus",
+    "application.oms.order_manager -> infrastructure.logging_config",
+    "application.oms.order_manager -> infrastructure.metrics",
+    "application.oms.order_manager -> infrastructure.observability.event_metrics",
+    "application.oms.order_manager -> infrastructure.observability.tracing",
+    "application.oms.order_manager -> infrastructure.persistence.sqlite_order_store",
+    "application.trading.trading_orchestrator -> infrastructure.event_bus",
+    "application.trading.feature_fetcher -> infrastructure.market_data_adapter",
+    "application.audit -> infrastructure.correlation",
+    "application.audit -> infrastructure.logging_config",
+    "application.oms._internal.order_state_validator -> infrastructure.state_machine",
+    "application.oms.daily_pnl_reset_scheduler -> infrastructure.lifecycle.*",
+    "application.oms.extended_order_service -> infrastructure.event_bus.*",
+    "application.oms.factory -> infrastructure.event_bus",
+    "application.oms.factory -> infrastructure.event_log",
+    "application.oms.persistence -> infrastructure.persistence.*",
+    "application.oms.persistence.* -> infrastructure.persistence.*",
+    "application.oms.position_manager -> infrastructure.event_bus",
+    "application.oms.position_manager -> infrastructure.logging_config",
+    "application.oms.position_manager -> infrastructure.observability.*",
+    "application.oms.position_manager -> infrastructure.state_machine",
+    "application.oms.reconciliation_service -> infrastructure.event_bus",
+    "application.oms.reconciliation_service -> infrastructure.lifecycle",
+    "application.oms.square_off_service -> infrastructure.event_bus.*",
+    "application.composer.* -> brokers.common.router",
+    "application.composer.* -> brokers.common.stream_orchestrator",
+    "application.composer.* -> brokers.common.provenance",
+    "application.composer.* -> brokers.common.historical_coordinator",
+    "application.composer.* -> brokers.common.infrastructure",
+    "application.oms.tests.* -> infrastructure.event_bus",
+    "application.oms.tests.* -> infrastructure.event_log",
+    "application.oms.tests.* -> infrastructure.lifecycle",
+    "application.oms.tests.* -> infrastructure.lifecycle.*",
+    "application.oms.tests.* -> infrastructure.observability.*",
+    "application.oms.tests.* -> infrastructure.persistence.*",
+    "application.oms.tests.* -> infrastructure.state_machine",
 ]

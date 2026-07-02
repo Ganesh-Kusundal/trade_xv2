@@ -23,8 +23,7 @@ import pytest
 from application.oms.context import TradingContext
 from application.oms.order_manager import OmsOrderCommand
 from domain import Order, OrderStatus, Side, Trade
-from domain.events.types import EventType
-from infrastructure.event_bus import DomainEvent
+from domain.events.types import DomainEvent, EventType
 from infrastructure.event_log import EventLog
 from infrastructure.lifecycle import LifecycleManager
 

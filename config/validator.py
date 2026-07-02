@@ -127,7 +127,7 @@ _OPTIONAL_VARS: list[EnvVarSpec] = [
     EnvVarSpec(
         name="API_PORT",
         required=False,
-        default="8000",
+        default="8080",
         description="API server port",
     ),
     EnvVarSpec(
@@ -342,7 +342,7 @@ class ConfigValidator:
     def _validate_value_constraints(self, result: ValidationResult) -> None:
         """Validate value constraints for known variables."""
         # Validate API_PORT is a valid port number
-        port_str = result.validated_vars.get("API_PORT", "8000")
+        port_str = result.validated_vars.get("API_PORT", "8080")
         try:
             port = int(port_str)
             if not (1 <= port <= 65535):

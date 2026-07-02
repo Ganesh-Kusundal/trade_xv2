@@ -30,15 +30,14 @@ from application.oms._internal.order_audit_logger import OrderAuditLogger
 from application.oms._internal.order_position_updater import OrderPositionUpdater
 from application.oms._internal.order_state_validator import OrderStateValidator
 from application.oms._internal.reentrancy_guard import _ReentrancyGuard
-from application.oms.persistence.sqlite_order_store import SqliteOrderStore
+from infrastructure.persistence.sqlite_order_store import SqliteOrderStore
 from application.oms.risk_manager import RiskManager
 from domain.entities import Order, Trade
+from domain.events.types import DomainEvent, EventType
 from domain.symbols import normalize_exchange, normalize_symbol
 from domain.types import ORDER_STATUS_TRANSITIONS, OrderStatus, OrderType, ProductType, Side
 from infrastructure.event_bus import (
-    DomainEvent,
     EventBus,
-    EventType,
     ProcessedTradeRepository,
     TradeIdKey,
 )

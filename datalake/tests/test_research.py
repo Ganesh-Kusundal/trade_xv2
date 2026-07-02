@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from datalake.research import ResearchAPI
+from datalake.research.api import ResearchAPI
 
 
 def _write_parquet(path: Path, df: pd.DataFrame) -> None:

@@ -1,7 +1,7 @@
 """Data Quality Monitor — automated checks for freshness, completeness, and integrity.
 
 Usage:
-    from datalake.monitor import DataQualityMonitor
+    from datalake.quality.monitor import DataQualityMonitor
 
     monitor = DataQualityMonitor(root="market_data")
     report = monitor.run_checks(timeframe="1m")

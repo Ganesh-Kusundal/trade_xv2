@@ -16,8 +16,8 @@ from pathlib import Path
 import duckdb
 
 from datalake.core.paths import timeframe_partition_dir
-from datalake.duckdb_utils import duckdb_connection, get_pool
-from datalake.symbols import normalize_symbol
+from datalake.core.duckdb_utils import duckdb_connection, get_pool
+from datalake.core.symbols import normalize_symbol
 
 logger = logging.getLogger(__name__)
 

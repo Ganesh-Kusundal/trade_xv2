@@ -5,7 +5,7 @@ from __future__ import annotations
 from unittest import mock
 
 from application.trading.trading_orchestrator import OrchestratorConfig, TradingOrchestrator
-from infrastructure.event_bus import EventType
+from domain.events.types import EventType
 
 
 def test_start_subscribes_and_stop_unsubscribes_from_candidate_events() -> None:

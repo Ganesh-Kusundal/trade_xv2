@@ -7,22 +7,17 @@ import threading
 import pytest
 
 from brokers.dhan.orders import IdempotencyCache, OrdersAdapter
-from domain import Order, OrderStatus, OrderType, ProductType, Side, Validity
+from domain import Order, OrderResponse, OrderStatus, OrderType, ProductType, Side, Validity
 from domain.requests import OrderRequest
 
 
-def _make_order(order_id: str = "ORD1", correlation_id: str | None = None) -> Order:
-    return Order(
+def _make_response(order_id: str = "ORD1", correlation_id: str | None = None) -> OrderResponse:
+    return OrderResponse(
+        success=True,
         order_id=order_id,
-        symbol="RELIANCE",
-        exchange="NSE",
-        side=Side.BUY,
-        order_type=OrderType.MARKET,
-        quantity=10,
+        broker_order_id=order_id,
         status=OrderStatus.OPEN,
-        product_type=ProductType.INTRADAY,
-        validity=Validity.DAY,
-        correlation_id=correlation_id,
+        message="Order placed",
     )
 
 
@@ -35,11 +30,11 @@ def test_idempotency_cache_is_thread_safe():
     def worker(idx: int) -> None:
         try:
             barrier.wait(timeout=2)
-            order = _make_order(order_id=f"ORD{idx}", correlation_id=f"cid-{idx}")
-            cache.put(f"cid-{idx}", order)
+            response = _make_response(order_id=f"ORD{idx}")
+            cache.put(f"cid-{idx}", response)
             found = cache.get(f"cid-{idx}")
             assert found is not None
-            assert found.order_id == order.order_id
+            assert found.order_id == response.order_id
         except Exception as exc:
             errors.append(exc)
 
@@ -58,34 +53,34 @@ def test_idempotency_cache_eviction_is_thread_safe():
     """Eviction of oldest entries under concurrency must remain deterministic."""
     cache = IdempotencyCache(max_size=5, ttl_seconds=3600)
     for i in range(5):
-        cache.put(f"cid-{i}", _make_order(order_id=f"ORD{i}"))
+        cache.put(f"cid-{i}", _make_response(order_id=f"ORD{i}"))
 
     # Let entry 0 expire by manipulating time via a tiny TTL, then exercise eviction.
     cache._ttl = -1
-    cache.put("cid-new", _make_order(order_id="ORD-NEW"))
+    cache.put("cid-new", _make_response(order_id="ORD-NEW"))
     assert cache.get("cid-0") is None
 
 
 def test_lock_context_manager_returns_cache():
     """lock() must be usable as a context manager and expose the cache."""
     cache = IdempotencyCache()
-    order = _make_order()
+    response = _make_response()
     with cache.lock("cid") as locked_cache:
-        locked_cache.put("cid", order)
-        assert locked_cache.get("cid") is order
+        locked_cache.put("cid", response)
+        assert locked_cache.get("cid") is response
 
 
 def test_place_order_generates_correlation_id(fake_client, resolver):
     """If no correlation_id is supplied, one is generated and sent to Dhan."""
     fake_client.set_response("POST", "/orders", {"data": {"orderId": "ORD-GEN"}})
     adapter = OrdersAdapter(fake_client, resolver, allow_live_orders=True)
-    order = adapter.place_order(OrderRequest(symbol="RELIANCE", exchange="NSE", quantity=1))
+    response = adapter.place_order(OrderRequest(symbol="RELIANCE", exchange="NSE", quantity=1))
 
     payloads = fake_client.calls_for("POST", "/orders")
     assert len(payloads) == 1
     assert "correlationId" in payloads[0]
-    assert payloads[0]["correlationId"] == order.correlation_id
-    assert order.correlation_id
+    assert payloads[0]["correlationId"]
+    assert response.success is True
 
 
 def test_place_order_uses_supplied_correlation_id(fake_client, resolver):
@@ -93,11 +88,11 @@ def test_place_order_uses_supplied_correlation_id(fake_client, resolver):
     fake_client.set_response("POST", "/orders", {"data": {"orderId": "ORD-SUP"}})
     adapter = OrdersAdapter(fake_client, resolver, allow_live_orders=True)
     cid = "my-correlation-id"
-    order = adapter.place_order(
+    response = adapter.place_order(
         OrderRequest(symbol="RELIANCE", exchange="NSE", quantity=1, correlation_id=cid)
     )
 
-    assert order.correlation_id == cid
+    assert response.success is True
     payloads = fake_client.calls_for("POST", "/orders")
     assert payloads[0]["correlationId"] == cid
 
@@ -124,7 +119,7 @@ def test_place_order_concurrent_idempotency_posts_once(fake_client, resolver):
     fake_client.set_response("POST", "/orders", {"data": {"orderId": "ORD-RACE"}})
     adapter = OrdersAdapter(fake_client, resolver, allow_live_orders=True)
     cid = "race-cid"
-    results: list[Order] = []
+    results: list[OrderResponse] = []
     errors: list[Exception] = []
     barrier = threading.Barrier(10)
 
@@ -195,15 +190,13 @@ def test_place_order_concurrent_unique_correlation_ids(fake_client, resolver):
 
 def test_place_order_validation_failure_is_not_cached(fake_client, resolver):
     """A validation failure must not be cached as a successful idempotency entry."""
-    from brokers.dhan.exceptions import OrderError
-
     adapter = OrdersAdapter(fake_client, resolver, allow_live_orders=True)
     cid = "bad-order"
 
-    with pytest.raises(OrderError):
-        adapter.place_order(
-            OrderRequest(symbol="RELIANCE", exchange="NSE", quantity=0, correlation_id=cid)
-        )
+    response = adapter.place_order(
+        OrderRequest(symbol="RELIANCE", exchange="NSE", quantity=0, correlation_id=cid)
+    )
 
+    assert response.success is False
     assert fake_client.call_count == 0
     assert adapter._idempotency.get(cid) is None

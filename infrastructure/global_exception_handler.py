@@ -25,14 +25,16 @@ from brokers.common.resilience.errors import (
     BrokerDegradedError,
     BrokerError,
     CircuitBreakerOpenError,
-    ConfigError,
-    DataError,
     InstrumentNotFoundError,
     NonRetryableError,
     NotSupportedError,
     OrderError,
     RateLimitError,
     RetryableError,
+)
+from domain.exceptions import (
+    ConfigError,
+    DataError,
     TradeXV2Error,
     ValidationError,
 )

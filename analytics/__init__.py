@@ -6,6 +6,8 @@ import logging
 
 import pandas as pd
 
+from datalake.core.paths import DEFAULT_DATA_ROOT
+
 from analytics.backtest import (
     BacktestConfig,
     BacktestEngine,
@@ -38,33 +40,122 @@ logger = logging.getLogger(__name__)
 
 
 class Analytics:
-    """Notebook-friendly facade for TradeXV2 analytics."""
+    """Notebook-friendly facade for TradeXV2 analytics.
+
+    Engines are lazily initialized on first access to avoid the overhead
+    of instantiating all 15+ engines when only a subset is needed.
+    """
 
     def __init__(self, provider: MarketDataProvider | None = None) -> None:
         self.provider = provider
-        self.feature_builder = FeatureBuilder()
-        self.stock_engine = StockAnalytics(self.feature_builder)
-        self.future_engine = FuturesAnalytics()
-        self.options_engine = OptionsAnalytics()
-        self.volatility_engine = VolatilityAnalytics(self.feature_builder)
-        self._volume_profile_builder = VolumeProfileBuilder()
-        self._breadth = BreadthAnalytics()
-        self._sectors = SectorAnalytics()
-        self._scanners = {
-            "momentum": MomentumScanner,
-            "volume": VolumeScanner,
-            "rs": RSScanner,
-            "breakout": BreakoutScanner,
-        }
-        self._ranker = RankingEngine()
-        self._probability = ProbabilityEngine()
-        self._orderflow = OrderFlowAnalytics()
-        self._strategy_pipeline = StrategyPipeline()
-        self._sector_analyzer = SectorAnalyzer()
+        self._feature_builder: FeatureBuilder | None = None
+        self._cache: dict[str, object] = {}
+
+    @property
+    def feature_builder(self) -> FeatureBuilder:
+        if self._feature_builder is None:
+            self._feature_builder = FeatureBuilder()
+        return self._feature_builder
+
+    @property
+    def stock_engine(self) -> StockAnalytics:
+        if "stock" not in self._cache:
+            self._cache["stock"] = StockAnalytics(self.feature_builder)
+        return self._cache["stock"]  # type: ignore[return-value]
+
+    @property
+    def future_engine(self) -> FuturesAnalytics:
+        if "future" not in self._cache:
+            self._cache["future"] = FuturesAnalytics()
+        return self._cache["future"]  # type: ignore[return-value]
+
+    @property
+    def options_engine(self) -> OptionsAnalytics:
+        if "options" not in self._cache:
+            self._cache["options"] = OptionsAnalytics()
+        return self._cache["options"]  # type: ignore[return-value]
+
+    @property
+    def volatility_engine(self) -> VolatilityAnalytics:
+        if "volatility" not in self._cache:
+            self._cache["volatility"] = VolatilityAnalytics(self.feature_builder)
+        return self._cache["volatility"]  # type: ignore[return-value]
+
+    @property
+    def _volume_profile_builder(self) -> VolumeProfileBuilder:
+        if "volume_profile" not in self._cache:
+            self._cache["volume_profile"] = VolumeProfileBuilder()
+        return self._cache["volume_profile"]  # type: ignore[return-value]
+
+    @property
+    def _breadth(self) -> BreadthAnalytics:
+        if "breadth" not in self._cache:
+            self._cache["breadth"] = BreadthAnalytics()
+        return self._cache["breadth"]  # type: ignore[return-value]
+
+    @property
+    def _sectors(self) -> SectorAnalytics:
+        if "sectors" not in self._cache:
+            self._cache["sectors"] = SectorAnalytics()
+        return self._cache["sectors"]  # type: ignore[return-value]
+
+    @property
+    def _scanners(self) -> dict[str, type]:
+        if "scanners" not in self._cache:
+            self._cache["scanners"] = {
+                "momentum": MomentumScanner,
+                "volume": VolumeScanner,
+                "rs": RSScanner,
+                "breakout": BreakoutScanner,
+            }
+        return self._cache["scanners"]  # type: ignore[return-value]
+
+    @property
+    def _ranker(self) -> RankingEngine:
+        if "ranker" not in self._cache:
+            self._cache["ranker"] = RankingEngine()
+        return self._cache["ranker"]  # type: ignore[return-value]
+
+    @property
+    def _probability(self) -> ProbabilityEngine:
+        if "probability" not in self._cache:
+            self._cache["probability"] = ProbabilityEngine()
+        return self._cache["probability"]  # type: ignore[return-value]
+
+    @property
+    def _orderflow(self) -> OrderFlowAnalytics:
+        if "orderflow" not in self._cache:
+            self._cache["orderflow"] = OrderFlowAnalytics()
+        return self._cache["orderflow"]  # type: ignore[return-value]
+
+    @property
+    def _strategy_pipeline(self) -> StrategyPipeline:
+        if "strategy_pipeline" not in self._cache:
+            self._cache["strategy_pipeline"] = StrategyPipeline()
+        return self._cache["strategy_pipeline"]  # type: ignore[return-value]
+
+    @property
+    def _sector_analyzer(self) -> SectorAnalyzer:
+        if "sector_analyzer" not in self._cache:
+            self._cache["sector_analyzer"] = SectorAnalyzer()
+        return self._cache["sector_analyzer"]  # type: ignore[return-value]
 
     @classmethod
     def from_provider(cls, provider: MarketDataProvider) -> Analytics:
         return cls(provider=provider)
+
+    @classmethod
+    def from_datalake(cls, root: str = DEFAULT_DATA_ROOT) -> Analytics:
+        """Create an Analytics instance backed by the local data lake.
+
+        This is the recommended entry point for notebook / CLI usage.
+        All historical data flows through
+        :class:`~datalake.adapters.analytics_provider.DataLakeMarketDataProvider`,
+        which implements :class:`~domain.ports.market_data.MarketDataPort`.
+        """
+        from datalake.adapters.analytics_provider import DataLakeMarketDataProvider
+
+        return cls(provider=DataLakeMarketDataProvider(root=root))
 
     def fetch_history(
         self,

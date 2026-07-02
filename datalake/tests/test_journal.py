@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from datalake.journal import TradeJournal
+from datalake.research.journal import TradeJournal
 
 
 @pytest.fixture
