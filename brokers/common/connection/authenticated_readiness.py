@@ -39,17 +39,15 @@ def is_token_rejection(exc: BaseException) -> bool:
     return bool("unauthorized" in msg or "forbidden" in msg)
 
 
+
+
+
 def execute_read_only_probe(gateway: Any, broker: str) -> AuthProbeResult:
     """Perform a single read-only authenticated API call."""
     broker = broker.lower().strip()
-    if broker == "paper":
-        return AuthProbeResult(ok=True, probe_name="paper_skip")
-
-    if broker == "dhan":
-        return _probe_dhan(gateway)
-    if broker == "upstox":
-        return _probe_upstox(gateway)
-
+    handler = _PROBE_DISPATCH.get(broker)
+    if handler is not None:
+        return handler(gateway)
     return AuthProbeResult(ok=False, error=f"unsupported broker: {broker}")
 
 
@@ -60,7 +58,7 @@ def authenticated_readiness_probe(
 ) -> AuthProbeResult:
     """Probe broker API auth; on token rejection force one refresh and retry."""
     broker = broker.lower().strip()
-    if broker == "paper":
+    if broker in _SKIP_AUTH_PROBE:
         return AuthProbeResult(ok=True, probe_name="paper_skip")
 
     first = execute_read_only_probe(gateway, broker)
@@ -171,16 +169,30 @@ def _probe_upstox(gateway: Any) -> AuthProbeResult:
         )
 
 
+_PROBE_DISPATCH: dict[str, Any] = {
+    "paper": lambda gw: AuthProbeResult(ok=True, probe_name="paper_skip"),
+    "dhan": _probe_dhan,
+    "upstox": _probe_upstox,
+}
+
+
+_REFRESH_DISPATCH: dict[str, Any] = {
+    "dhan": lambda gw, ep: _force_dhan_token_refresh(gw, env_path=ep),
+    "upstox": lambda gw, ep: _force_upstox_token_refresh(gw),
+}
+
+_SKIP_AUTH_PROBE: set[str] = {"paper"}
+
+
 def _force_token_refresh(
     gateway: Any,
     broker: str,
     env_path: str | Path | None = None,
 ) -> bool:
     broker = broker.lower().strip()
-    if broker == "dhan":
-        return _force_dhan_token_refresh(gateway, env_path=env_path)
-    if broker == "upstox":
-        return _force_upstox_token_refresh(gateway)
+    handler = _REFRESH_DISPATCH.get(broker)
+    if handler is not None:
+        return handler(gateway, env_path)
     return False
 
 

@@ -54,7 +54,7 @@ def run(args: list[str], broker_service, console: Console) -> None:
     # Upstox resolution
     console.print("\n[cyan]--- Upstox ---[/cyan]")
     try:
-        from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
+        from cli.services.broker_facade import UpstoxDomainMapper
 
         segment = UpstoxDomainMapper.segment_to_wire("NSE")
         defn = gw.upstox.instruments.resolve(symbol=symbol, exchange_segment=segment)

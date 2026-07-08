@@ -17,7 +17,7 @@ from typing import Any
 from brokers.common.async_compat import run_async_compat
 from brokers.common.bootstrap import bootstrap_from_gateways, policy_from_env
 from brokers.common.connection_pool import get_connection_pool
-from brokers.common.gateway import MarketDataGateway
+from domain.ports.broker_transport import BrokerTransport as MarketDataGateway
 from brokers.common.infrastructure import BrokerInfrastructure
 
 logger = logging.getLogger(__name__)
@@ -112,7 +112,7 @@ def close_all_gateways(
             logger.debug("upstox_gateway_close_failed: %s", exc)
     # Close connection pool to release all HTTP connection pools
     try:
-        from brokers.dhan.account_registry import AccountConnectionRegistry
+        from cli.services.broker_facade import AccountConnectionRegistry
 
         AccountConnectionRegistry.release_all()
     except Exception as exc:
@@ -137,6 +137,6 @@ def maybe_create_mock_broker(name: str) -> Any | None:
         Seeded MockBroker instance, or None.
     """
     if name == "dhan":
-        from brokers.paper.mock_broker import create_demo_broker
+        from cli.services.broker_facade import create_demo_broker
         return create_demo_broker("dhan")
     return None

@@ -1,32 +1,57 @@
 """CLI command handler for portfolio (holdings and positions) operations.
 
-Phase 5.2: Standardized to return CommandResult for --json mode.
+Portfolio data is accessed through a domain provider that returns
+domain entities (Holding, Position). No broker gateway is referenced.
 """
 
 from __future__ import annotations
 
 import logging
 from decimal import Decimal
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from rich.console import Console
 from rich.table import Table
 
 from cli.commands.registry import CommandResult
-from cli.services.broker_service import BrokerService
 from domain import Position
+
+if TYPE_CHECKING:
+    pass
 
 logger = logging.getLogger(__name__)
 
 
-def show_holdings(broker_service: BrokerService, console: Console) -> CommandResult:
+@runtime_checkable
+class PortfolioProvider(Protocol):
+    """Domain port for portfolio data — implemented by broker adapters."""
+
+    def get_holdings(self) -> list: ...
+    def get_positions(self) -> list: ...
+    def get_balance(self) -> Any: ...
+
+
+# ── Module-level provider (set once at startup) ─────────────────────
+_provider: PortfolioProvider | None = None
+
+
+def set_portfolio_provider(provider: PortfolioProvider) -> None:
+    global _provider
+    _provider = provider
+
+
+def _get_provider() -> PortfolioProvider:
+    if _provider is None:
+        raise RuntimeError("PortfolioProvider not wired — call set_portfolio_provider() at startup")
+    return _provider
+
+
+def show_holdings(broker_service=None, console: Console | None = None) -> CommandResult:
     """Print the holdings table and return CommandResult."""
-    gw = broker_service.active_broker
+    provider = _get_provider()
     try:
-        holdings = gw.portfolio.get_holdings()
-        table = Table(
-            title=f"{broker_service.active_broker_name.capitalize()} Demat Holdings",
-            header_style="bold green",
-        )
+        holdings = provider.get_holdings()
+        table = Table(title="Demat Holdings", header_style="bold green")
         table.add_column("Symbol", style="bold white")
         table.add_column("Qty", justify="right")
         table.add_column("Avg Price", justify="right")
@@ -75,13 +100,12 @@ def show_holdings(broker_service: BrokerService, console: Console) -> CommandRes
         return CommandResult(success=False, error=str(exc))
 
 
-def show_positions(broker_service: BrokerService, console: Console) -> None:
+def show_positions(broker_service=None, console: Console | None = None) -> None:
     """Print positions categorized by side and product."""
-    gw = broker_service.active_broker
+    provider = _get_provider()
     try:
-        positions = gw.portfolio.get_positions()
+        positions = provider.get_positions()
 
-        # Categorize
         long_pos = [p for p in positions if p.quantity > 0]
         short_pos = [p for p in positions if p.quantity < 0]
         day_pos = [p for p in positions if p.product_type.value == "INTRADAY"]
@@ -117,9 +141,7 @@ def show_positions(broker_service: BrokerService, console: Console) -> None:
             console.print(table)
             console.print()
 
-        console.print(
-            f"Positions Overview for [bold yellow]{broker_service.active_broker_name.upper()}[/bold yellow]:"
-        )
+        console.print("Positions Overview:")
         console.print()
 
         render_position_table("Long Positions", long_pos, "green")
@@ -131,8 +153,6 @@ def show_positions(broker_service: BrokerService, console: Console) -> None:
         console.print(f"[red]Error fetching positions: {exc}[/red]")
 
 
-def run(args: list[str], broker_service: BrokerService, console: Console) -> None:
+def run(args: list[str], broker_service=None, console: Console | None = None) -> None:
     """Entry point for portfolio subcommands."""
-    # We route based on caller context (either 'holdings' or 'positions')
-    # Passed command name will be verified in main.py.
     pass

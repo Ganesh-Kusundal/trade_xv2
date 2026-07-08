@@ -16,7 +16,7 @@ class APIConfig:
     host:
         Bind address. Default "127.0.0.1" (loopback only).
     port:
-        TCP port. Default 8000.
+        TCP port. Default 8080.
     cors_origins:
         Allowed CORS origins. Default includes Vite dev server.
     cors_allow_credentials:

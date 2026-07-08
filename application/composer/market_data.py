@@ -8,12 +8,14 @@ proper routing, quota management, and provenance tracking.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
-from brokers.common.historical_coordinator import HistoricalDataCoordinator, HistoricalQuery
-from brokers.common.provenance import ProvenanceLedger
-from brokers.common.stream_orchestrator import StreamOrchestrator, SubscriptionRequest
-from domain.historical import HistoricalSeries
+if TYPE_CHECKING:
+    from brokers.common.historical_coordinator import HistoricalDataCoordinator, HistoricalQuery
+    from brokers.common.provenance import ProvenanceLedger
+    from brokers.common.stream_orchestrator import StreamOrchestrator, SubscriptionRequest
+
+from domain.candles.historical import HistoricalSeries
 
 logger = logging.getLogger(__name__)
 

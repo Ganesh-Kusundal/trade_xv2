@@ -111,3 +111,27 @@ def test_read_circuit_breaker_does_not_block_write():
 
     with pytest.raises(CircuitBreakerOpenError):
         client.get_json("https://api.upstox.com/v2/market-quote/ltp")
+
+
+def test_default_rate_limiter_is_multi_bucket():
+    from brokers.common.resilience.rate_limiter import MultiBucketRateLimiter
+
+    session = MagicMock()
+    settings = UpstoxConnectionSettings(client_id="CID")
+    client = UpstoxHttpClient(
+        token_provider=lambda: "TOK", settings=settings, session=session
+    )
+    assert isinstance(client.rate_limiter, MultiBucketRateLimiter)
+    assert set(client.rate_limiter.categories()) == {"quotes", "data", "orders", "admin"}
+
+
+def test_rate_limit_bucket_mapping():
+    from brokers.upstox.auth.http import _rate_limit_bucket
+
+    assert _rate_limit_bucket("https://api.upstox.com/v2/market-quote/ltp") == "quotes"
+    assert _rate_limit_bucket("https://api.upstox.com/v2/market-quote/ohlc") == "quotes"
+    assert _rate_limit_bucket("https://api.upstox.com/v2/historical/candle") == "data"
+    assert _rate_limit_bucket("https://api.upstox.com/v2/order/place") == "orders"
+    assert _rate_limit_bucket("https://api.upstox.com/v2/order/book") == "orders"
+    assert _rate_limit_bucket("https://api.upstox.com/v2/portfolio/holdings") == "admin"
+    assert _rate_limit_bucket("https://api.upstox.com/v2/user/profile") == "admin"

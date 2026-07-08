@@ -51,7 +51,7 @@ from domain import (
     Trade,
 )
 from domain.constants import DEFAULT_DERIVATIVES_EXCHANGE, DEFAULT_EXCHANGE
-from domain.historical import InstrumentRef
+from domain.candles.historical import InstrumentRef
 
 logger = logging.getLogger(__name__)
 

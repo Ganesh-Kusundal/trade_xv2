@@ -208,7 +208,7 @@ def slice_order(args: list[str], broker_service: BrokerService, console: Console
         if _broker_name(broker_service) == "dhan":
             result = gw._conn.orders.place_slice_order(**payload)
         else:
-            from domain.requests import SliceOrderRequest
+            from domain.orders.requests import SliceOrderRequest
 
             result = gw._broker.slice.place_slice_order(SliceOrderRequest(**payload))
         return _ok(console, "Slice order placed", result)

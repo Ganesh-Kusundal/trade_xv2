@@ -592,3 +592,69 @@ class TestObservabilityProvider:
         result = gw.get_token_refresh_metrics()
         assert isinstance(result, dict)
         assert "refresh_count" in result
+
+
+# ── Upstox ObservabilityProvider Contract ──────────────────────────────────────
+
+
+class TestUpstoxObservabilityProvider:
+    """Upstox gateway must implement ObservabilityProvider methods."""
+
+    def test_upstox_get_connection_status(self):
+        from brokers.upstox.gateway import UpstoxBrokerGateway
+
+        broker = MagicMock()
+        broker.market_data_websocket = MagicMock()
+        broker.market_data_websocket.is_connected = False
+        broker.order_stream_websocket = MagicMock()
+        broker.order_stream_websocket.is_connected = False
+        gw = UpstoxBrokerGateway(broker)
+
+        result = gw.get_connection_status()
+        assert isinstance(result, dict)
+
+    def test_upstox_get_circuit_breaker_states(self):
+        from brokers.upstox.gateway import UpstoxBrokerGateway
+
+        broker = MagicMock()
+        broker.context.http_client._read_circuit_breaker = None
+        broker.context.http_client._write_circuit_breaker = None
+        broker.context.http_client._admin_circuit_breaker = None
+        gw = UpstoxBrokerGateway(broker)
+
+        result = gw.get_circuit_breaker_states()
+        assert isinstance(result, dict)
+        assert "read" in result
+        assert "write" in result
+        assert "admin" in result
+
+    def test_upstox_get_token_refresh_metrics(self):
+        from brokers.upstox.gateway import UpstoxBrokerGateway
+
+        broker = MagicMock()
+        broker.context.token_manager.refresh_count = 0
+        broker.context.token_manager.error_count = 0
+        gw = UpstoxBrokerGateway(broker)
+
+        result = gw.get_token_refresh_metrics()
+        assert isinstance(result, dict)
+        assert "refresh_count" in result
+
+    def test_upstox_get_rate_limiter_metrics(self):
+        from brokers.common.resilience.rate_limiter import MultiBucketRateLimiter, RateLimitConfig
+        from brokers.upstox.gateway import UpstoxBrokerGateway
+
+        rl = MultiBucketRateLimiter({
+            "quotes": RateLimitConfig(rate_per_second=1, capacity=1),
+            "data": RateLimitConfig(rate_per_second=5, capacity=20),
+            "orders": RateLimitConfig(rate_per_second=10, capacity=10),
+            "admin": RateLimitConfig(rate_per_second=10, capacity=10),
+        })
+        broker = MagicMock()
+        broker.context.rate_limiter = rl
+        gw = UpstoxBrokerGateway(broker)
+
+        result = gw.get_rate_limiter_metrics()
+        assert isinstance(result, dict)
+        assert "tokens_available" in result
+        assert result["tokens_available"] > 0

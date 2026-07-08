@@ -53,10 +53,15 @@ class UpstoxAdapterContext:
         self._token_manager = token_manager or UpstoxTokenManager(
             settings=settings, oauth_client=self._oauth_client
         )
+
+        from brokers.upstox.resilience.rate_limiter import UpstoxRateLimiterFactory
+
+        self._rate_limiter = UpstoxRateLimiterFactory.create()
         self._http_client = UpstoxHttpClient(
             token_provider=token_provider,
             settings=settings,
             session=http_session,
+            rate_limiter=self._rate_limiter,
             on_auth_failure=self._token_manager.try_refresh_on_401,
         )
 
@@ -75,6 +80,10 @@ class UpstoxAdapterContext:
     @property
     def http_client(self) -> UpstoxHttpClient:
         return self._http_client
+
+    @property
+    def rate_limiter(self) -> Any:
+        return self._rate_limiter
 
     @property
     def oauth_client(self) -> UpstoxOAuthClient:

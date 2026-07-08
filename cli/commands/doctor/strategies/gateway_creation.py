@@ -6,7 +6,7 @@ registered broker.
 
 from __future__ import annotations
 
-from brokers.common.connection.bootstrap_result import BootstrapStatus
+from domain.ports.bootstrap import BootstrapStatus
 from cli.commands.doctor.checks import CheckResult, CheckStrategy
 from cli.services.broker_registry import bootstrap_gateway, list_available_brokers
 from cli.services.broker_service import BrokerService

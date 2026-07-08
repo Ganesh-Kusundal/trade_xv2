@@ -15,7 +15,7 @@ from decimal import Decimal
 
 from brokers.dhan.reconnecting_service import ReconnectingServiceMixin
 from brokers.dhan.segments import EXCHANGE_TO_SEGMENT
-from infrastructure.lifecycle.lifecycle import (
+from domain.ports.lifecycle import (
     HealthState,
     HealthStatus,
     ManagedService,

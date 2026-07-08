@@ -7,7 +7,7 @@ from decimal import Decimal
 
 import pandas as pd
 
-from domain.historical import BarLabelConvention, HistoricalBar, InstrumentRef
+from domain.candles.historical import BarLabelConvention, HistoricalBar, InstrumentRef
 from domain.provenance import DataProvenance
 
 

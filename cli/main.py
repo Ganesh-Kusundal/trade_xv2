@@ -15,7 +15,7 @@ from typing import Any
 
 from rich.console import Console
 
-from brokers.common.auth.environment_bootstrap import bootstrap_environment
+from infrastructure.io.environment_bootstrap import bootstrap_environment
 from infrastructure.logging_config import configure_logging
 
 # isort: off

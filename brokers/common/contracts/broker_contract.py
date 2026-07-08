@@ -157,3 +157,19 @@ class BrokerContractSuite:
         assert OrderStatus.normalize("PARTIALLY_EXECUTED") == OrderStatus.PARTIALLY_FILLED
         for status in OrderStatus:
             assert OrderStatus.normalize(status.value) == status
+
+    # ── Observability ────────────────────────────────────────────────────
+
+    def test_connection_status_returns_dict(self, gateway: Any) -> None:
+        result = gateway.get_connection_status()
+        assert isinstance(result, dict)
+
+    def test_token_refresh_metrics_returns_dict(self, gateway: Any) -> None:
+        result = gateway.get_token_refresh_metrics()
+        assert isinstance(result, dict)
+        assert "refresh_count" in result
+
+    def test_rate_limiter_metrics_returns_dict(self, gateway: Any) -> None:
+        result = gateway.get_rate_limiter_metrics()
+        assert isinstance(result, dict)
+        assert "tokens_available" in result

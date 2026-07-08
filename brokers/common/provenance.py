@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
 
-from infrastructure.time_service import time_service
+from domain.ports.time_service import time_service
 
 
 @dataclass(frozen=True)

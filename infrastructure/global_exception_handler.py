@@ -20,7 +20,7 @@ from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from brokers.common.resilience.errors import (
+from domain.errors import (
     AuthenticationError,
     BrokerDegradedError,
     BrokerError,

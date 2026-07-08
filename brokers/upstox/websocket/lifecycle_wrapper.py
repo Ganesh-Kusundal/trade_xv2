@@ -12,11 +12,8 @@ import threading
 from datetime import datetime, timezone
 from typing import Any
 
-from infrastructure.lifecycle.lifecycle import (
-    HealthState,
-    HealthStatus,
-    ManagedService,
-)
+from domain.lifecycle_health import HealthState, HealthStatus
+from domain.ports.lifecycle import ManagedServicePort as ManagedService
 
 logger = logging.getLogger(__name__)
 

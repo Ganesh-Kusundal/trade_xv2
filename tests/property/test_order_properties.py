@@ -15,7 +15,7 @@ from decimal import Decimal
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from domain.requests import OrderRequest
+from domain.orders.requests import OrderRequest
 
 
 class TestOrderProperties:

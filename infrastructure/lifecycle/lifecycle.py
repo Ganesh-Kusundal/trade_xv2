@@ -333,21 +333,7 @@ class LifecycleManager:
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
-
-def build_health(
-    name: str,
-    state: HealthState,
-    detail: str = "",
-    metrics: dict[str, Any] | None = None,
-) -> HealthStatus:
-    """Convenience constructor for subclasses implementing ``health()``."""
-    return HealthStatus(
-        state=state,
-        service=name,
-        last_check=datetime.now(timezone.utc),
-        detail=detail,
-        metrics=dict(metrics or {}),
-    )
+from domain.lifecycle_health import build_health  # noqa: F401 — re-export for backward compat
 
 
 def now_monotonic() -> float:

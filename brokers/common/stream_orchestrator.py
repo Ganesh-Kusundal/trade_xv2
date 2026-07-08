@@ -42,7 +42,7 @@ from brokers.common.broker_port import (
 from brokers.common.models import OperationKind, RouteDecision, RoutingRequest
 from brokers.common.registry import BrokerRegistry
 from brokers.common.router import BrokerRouter
-from domain.historical import InstrumentRef
+from domain.candles.historical import InstrumentRef
 from domain.stream_health import (
     FreshnessState,
     StreamHealth,
@@ -51,7 +51,7 @@ from domain.stream_health import (
     SubscriptionState,
     TransportState,
 )
-from infrastructure.time_service import time_service
+from domain.ports.time_service import time_service
 
 logger = logging.getLogger(__name__)
 

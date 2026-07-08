@@ -13,19 +13,17 @@ Two creation paths:
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from brokers.common.broker_port import CommonBrokerGateway
+    from brokers.common.historical_coordinator import HistoricalDataCoordinator
+    from brokers.common.infrastructure import BrokerInfrastructure
+    from brokers.common.policy import SourceSelectionPolicy
+    from brokers.common.quota_scheduler import QuotaScheduler
 
 from application.composer.execution import ExecutionComposer
 from application.composer.market_data import MarketDataComposer
-from brokers.common.broker_port import CommonBrokerGateway
-from brokers.common.historical_coordinator import HistoricalDataCoordinator
-from brokers.common.infrastructure import BrokerInfrastructure
-from brokers.common.policy import SourceSelectionPolicy
-from brokers.common.policy_defaults import default_source_selection_policy
-from brokers.common.quota_scheduler import QuotaScheduler
-from brokers.common.registry import BrokerRegistry
-from brokers.common.router import BrokerRouter
-from brokers.common.stream_orchestrator import StreamOrchestrator
 
 
 def create_composers_from_infra(
@@ -87,6 +85,13 @@ def create_composers(
     tuple[MarketDataComposer, ExecutionComposer]
         Wired composer instances ready for use.
     """
+    from brokers.common.historical_coordinator import HistoricalDataCoordinator
+    from brokers.common.policy_defaults import default_source_selection_policy
+    from brokers.common.quota_scheduler import QuotaScheduler as QuotaSchedulerCls
+    from brokers.common.registry import BrokerRegistry
+    from brokers.common.router import BrokerRouter
+    from brokers.common.stream_orchestrator import StreamOrchestrator
+
     # 1. Create registry and register gateways
     registry = BrokerRegistry()
     for gw in gateways:
@@ -98,7 +103,7 @@ def create_composers(
 
     # 3. Create quota scheduler
     if quota_scheduler is None:
-        quota_scheduler = QuotaScheduler()
+        quota_scheduler = QuotaSchedulerCls()
         for broker_id in registry.list_brokers():
             caps = registry.get_capabilities(broker_id).capabilities
             for profile in caps.rate_limit_profiles:

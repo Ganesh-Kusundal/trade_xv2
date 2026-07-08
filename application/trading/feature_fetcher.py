@@ -10,7 +10,7 @@ from typing import Any
 import pandas as pd
 
 from analytics.pipeline.pipeline import FeaturePipeline
-from domain.historical import HistoricalSeries
+from domain.candles.historical import HistoricalSeries
 from domain.models.features import FeatureSet
 from infrastructure.market_data_adapter import GatewayMarketDataAdapter
 

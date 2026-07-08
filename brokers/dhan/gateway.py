@@ -39,7 +39,7 @@ from domain import (
 )
 from domain.exchange_segments import parse_segment
 from domain.symbols import normalize_symbol
-from infrastructure.observability.tracing import trace_operation
+from domain.ports.observability import trace_operation
 
 logger = logging.getLogger(__name__)
 
@@ -135,7 +135,7 @@ class BrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
         if correlation_id is not None:
             return correlation_id
         try:
-            from infrastructure.correlation import get_current_correlation_id
+            from domain.correlation import get_current_correlation_id
 
             return get_current_correlation_id()
         except ImportError:

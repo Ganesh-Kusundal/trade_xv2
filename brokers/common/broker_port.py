@@ -37,8 +37,8 @@ from typing import Protocol, runtime_checkable
 from brokers.common.capabilities import CapabilityDescriptor
 from domain.entities import Balance, Order, OrderResponse, Position, Quote, Trade
 from domain.entities.market import MarketDepth
-from domain.historical import HistoricalBar, InstrumentRef
-from domain.requests import ModifyOrderRequest, OrderRequest
+from domain.candles.historical import HistoricalBar, InstrumentRef
+from domain.orders.requests import ModifyOrderRequest, OrderRequest
 
 # ---------------------------------------------------------------------------
 # Supporting transport types (lifecycle owned by StreamOrchestrator)

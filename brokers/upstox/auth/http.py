@@ -15,9 +15,8 @@ from typing import Any
 import requests
 
 from brokers.common.resilience.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
-from brokers.common.resilience.rate_limiter import EndpointRateLimiter
+from brokers.common.resilience.rate_limiter import MultiBucketRateLimiter
 
-from .config import UPSTOX_DEFAULT_RATE_PER_SECOND
 from .exceptions import UpstoxApiError, UpstoxAuthError
 
 logger = logging.getLogger(__name__)
@@ -37,8 +36,16 @@ def _categorize_upstox_url(url: str, method: str) -> str:
     return "admin"
 
 
-# Backward-compat alias — use EndpointRateLimiter from common module
-UpstoxRateLimiter = EndpointRateLimiter
+def _rate_limit_bucket(url: str) -> str:
+    """Return the rate-limiter bucket name for an Upstox REST URL."""
+    lower = url.lower()
+    if "/market-quote" in lower or "/market/" in lower:
+        return "quotes"
+    if "/historical" in lower:
+        return "data"
+    if "/order" in lower:
+        return "orders"
+    return "admin"
 
 
 class UpstoxHttpClient:
@@ -51,7 +58,7 @@ class UpstoxHttpClient:
         *,
         timeout_seconds: int = 15,
         session: requests.Session | None = None,
-        rate_limiter: UpstoxRateLimiter | None = None,
+        rate_limiter: MultiBucketRateLimiter | None = None,
         enable_circuit_breaker: bool = True,
         circuit_breaker: CircuitBreaker | None = None,
         read_circuit_breaker: CircuitBreaker | None = None,
@@ -63,9 +70,12 @@ class UpstoxHttpClient:
         self._settings = settings
         self._on_auth_failure = on_auth_failure
         self._timeout_seconds = timeout_seconds
-        self._rate_limiter = rate_limiter or UpstoxRateLimiter(
-            rate_per_second=UPSTOX_DEFAULT_RATE_PER_SECOND,
-        )
+        if rate_limiter is not None:
+            self._rate_limiter = rate_limiter
+        else:
+            from brokers.upstox.resilience.rate_limiter import UpstoxRateLimiterFactory
+
+            self._rate_limiter = UpstoxRateLimiterFactory.create()
         if session is not None:
             self._session = session
         else:
@@ -128,6 +138,11 @@ class UpstoxHttpClient:
     def settings(self) -> Any:
         """Expose the underlying settings (algo_name, rest_base_url, etc.)."""
         return self._settings
+
+    @property
+    def rate_limiter(self) -> MultiBucketRateLimiter:
+        """Expose the rate limiter for observability metrics."""
+        return self._rate_limiter
 
     def _get_circuit_breaker(self, url: str, method: str) -> CircuitBreaker | None:
         if not self._enable_circuit_breaker:
@@ -240,15 +255,7 @@ class UpstoxHttpClient:
     ) -> dict[str, Any]:
         last_auth_error: UpstoxAuthError | None = None
         for attempt in (1, 2):
-            # Rate limit by endpoint category
-            if "/market-quote" in url or "/market/" in url:
-                self._rate_limiter.acquire("market_data")
-            elif "/order" in url:
-                self._rate_limiter.acquire("order")
-            elif "/portfolio" in url or "/user/" in url:
-                self._rate_limiter.acquire("portfolio")
-            else:
-                self._rate_limiter.acquire("default")
+            self._rate_limiter.acquire(_rate_limit_bucket(url))
 
             resp = self._session.request(
                 method=method,

@@ -39,8 +39,8 @@ from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.resolver import SymbolResolver
 from brokers.dhan.resolver_refresher import ResolverRefresher
 from brokers.dhan.websocket import DhanMarketFeed, DhanOrderStream, PollingMarketFeed
-from infrastructure.event_bus import EventBus
-from infrastructure.lifecycle import LifecycleManager
+from domain.ports.event_publisher import EventBus
+from domain.ports.lifecycle import LifecycleManager
 
 logger = logging.getLogger(__name__)
 

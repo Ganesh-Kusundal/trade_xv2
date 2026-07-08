@@ -19,7 +19,7 @@ class TestResourceLeaks:
         before_fds = resource.getrusage(resource.RUSAGE_SELF).ru_nvcsw
 
         # Attempt to create multiple stores with lock contention
-        from application.oms.persistence.errors import OmsWriterLockError
+        from infrastructure.persistence.errors import OmsWriterLockError
 
         from infrastructure.persistence.sqlite_order_store import SqliteOrderStore
 

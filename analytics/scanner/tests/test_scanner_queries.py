@@ -72,8 +72,6 @@ def conn():
     c.execute("CREATE TABLE intraday_features AS SELECT * FROM df")
     return c
 
-    return c
-
 
 class TestMomentumScanner:
     def test_momentum_scanner_returns_candidates(self, conn: duckdb.DuckDBPyConnection) -> None:

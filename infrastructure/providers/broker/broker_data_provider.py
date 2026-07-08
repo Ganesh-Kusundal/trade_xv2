@@ -17,9 +17,9 @@ import pandas as pd
 
 from domain.entities.options import FutureChain, OptionChain
 from domain.entities.market import MarketDepth, QuoteSnapshot
-from domain.instrument_id import InstrumentId
+from domain.instruments.instrument_id import InstrumentId
 from domain.provenance import DataProvenance, SourceIdentity
-from domain.providers.protocols import Subscription
+from domain.ports.protocols import Subscription
 
 logger = logging.getLogger(__name__)
 

@@ -41,8 +41,12 @@ class CredentialResolver:
         if env_path is not None:
             return Path(env_path)
         key = broker.lower().strip()
-        if key == "upstox":
-            return CredentialResolver.resolve_upstox_env_path()
+        _special: dict[str, callable] = {
+            "upstox": CredentialResolver.resolve_upstox_env_path,
+        }
+        handler = _special.get(key)
+        if handler is not None:
+            return handler()
         default = CANONICAL_ENV_FILES.get(key)
         if default is not None:
             return Path(default)

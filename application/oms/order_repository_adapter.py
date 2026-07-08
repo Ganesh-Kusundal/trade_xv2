@@ -6,7 +6,7 @@ from collections.abc import Callable
 
 from application.oms.order_manager import OmsOrderCommand, OrderManager, OrderResult
 from domain import Order, OrderResponse, OrderStatus, OrderType, ProductType, Side
-from domain.requests import OrderRequest
+from domain.orders.requests import OrderRequest
 
 
 def _request_to_command(request: OrderRequest) -> OmsOrderCommand:

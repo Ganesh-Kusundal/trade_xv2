@@ -22,7 +22,8 @@ from domain.constants import (
     DHAN_TOKEN_REFRESH_BUFFER_SECONDS,
     DHAN_TOKEN_SCHEDULER_INTERVAL_SECONDS,
 )
-from infrastructure.lifecycle import HealthState, ManagedService, build_health
+from domain.lifecycle_health import HealthState, build_health
+from domain.ports.lifecycle import ManagedServicePort as ManagedService
 
 logger = logging.getLogger(__name__)
 

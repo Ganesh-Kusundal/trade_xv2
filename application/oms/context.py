@@ -595,7 +595,6 @@ class TradingContext:
     def cancel_all_open_orders(
         self,
         gateway: IBrokerGateway | None = None,
-        timeout_per_order: float = 5.0,
     ) -> CancellationResult:
         """Cancel all open orders, optionally via a broker gateway.
 
@@ -606,8 +605,6 @@ class TradingContext:
 
         Args:
             gateway: MarketDataGateway with cancel_order() method.
-            timeout_per_order: Max seconds per cancellation (documented
-                              for future async use).
         """
         from domain import OrderStatus
 

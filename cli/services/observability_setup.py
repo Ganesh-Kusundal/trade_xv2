@@ -20,7 +20,7 @@ import os
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from brokers.common.observability.http_server import HttpObservabilityServer
+    from infrastructure.observability.http_server import HttpObservabilityServer
     from cli.services.broker_service import BrokerService
 
 logger = logging.getLogger(__name__)
@@ -141,7 +141,7 @@ def start_http_observability(
     Returns:
         HttpObservabilityServer if started successfully, None otherwise
     """
-    from brokers.common.observability.http_server import HttpObservabilityServer
+    from infrastructure.observability.http_server import HttpObservabilityServer
 
     # Share OMS EventMetrics
     event_metrics = None

@@ -12,7 +12,7 @@ class TestAPIConfigDefaults:
 
     def test_default_port(self):
         cfg = APIConfig()
-        assert cfg.port == 8000
+        assert cfg.port == 8080
 
     def test_default_auth_mode_is_none(self):
         cfg = APIConfig()

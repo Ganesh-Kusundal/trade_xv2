@@ -65,7 +65,6 @@ class TestCreateDataset:
             date_from="2026-01-01",
             date_to="2026-01-02",
             timeframe="1h",
-            catalog_root=str(market_root),
             curated_root=str(market_root / "curated"),
         )
         meta = ds.metadata
@@ -88,7 +87,6 @@ class TestCreateDataset:
             "date_from": "2026-01-01",
             "date_to": "2026-01-02",
             "timeframe": "1h",
-            "catalog_root": str(market_root),
             "curated_root": str(market_root / "curated"),
         }
         ds1 = ResearchDataset.create(**kwargs)
@@ -108,7 +106,6 @@ class TestCreateDataset:
             date_from="2026-01-01",
             date_to="2026-01-02",
             timeframe="1h",
-            catalog_root=str(market_root),
             curated_root=str(market_root / "curated"),
         )
         df1 = ds.load()
@@ -136,7 +133,6 @@ class TestCreateDataset:
             date_from="2026-01-01",
             date_to="2026-01-02",
             timeframe="1h",
-            catalog_root=str(market_root),
             curated_root=str(market_root / "curated"),
         )
         datasets = ResearchDataset.list()

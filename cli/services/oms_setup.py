@@ -82,7 +82,7 @@ def _build_reconciliation_service(gateway: Any) -> Any:
         DhanReconciliationService or None if construction fails
     """
     try:
-        from brokers.dhan.reconciliation import create_reconciliation_service
+        from cli.services.broker_facade import create_reconciliation_service
 
         conn = getattr(gateway, "_conn", None)
         if conn is not None:

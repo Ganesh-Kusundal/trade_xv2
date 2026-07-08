@@ -7,7 +7,7 @@ from collections.abc import Callable
 from application.oms.order_manager import OmsOrderCommand, OrderManager, OrderResult
 from domain import Order, Side
 from domain.ports import EventPublisher
-from domain.requests import OrderRequest
+from domain.orders.requests import OrderRequest
 
 
 class PlaceOrderUseCase:

@@ -1,113 +1,40 @@
-"""Custom exceptions for the resilience module and TradeXV2 core.
+"""Broker error types — re-exported from domain for backward compatibility.
 
-The root exception (:class:`TradeXV2Error`) and platform-level exceptions
-(:class:`DataError`, :class:`ConfigError`, :class:`ValidationError`) live
-in ``domain.exceptions`` — the canonical location.  This module re-exports
-them for backward compatibility and defines broker-specific subclasses.
+The canonical error hierarchy now lives in ``domain.errors``. This module
+re-exports every class so that existing ``from brokers.common.resilience.errors
+import BrokerError`` clauses continue to work without modification. The
+``convert_network_errors`` decorator (infrastructure-level, depends on
+``requests``) remains here since it is broker-specific infrastructure.
 """
 
 from __future__ import annotations
 
 import functools
-import logging
 from collections.abc import Callable
 from typing import Any, TypeVar
 
-# ── Canonical re-exports from domain ──────────────────────────────────────
-from domain.exceptions import (
-    ConfigError as ConfigError,
+# ── Canonical re-exports from domain (reversed import direction) ──────
+from domain.errors import (  # noqa: F401 — re-exports
+    AuthenticationError,
+    BrokerDegradedError,
+    BrokerError,
+    CircuitBreakerOpenError,
+    ExitAllError,
+    InstrumentNotFoundError,
+    NetworkError,
+    NonRetryableError,
+    NotSupportedError,
+    OrderError,
+    RateLimitError,
+    RetryableError,
+    TradeXV2RecoverableError,
 )
-from domain.exceptions import (
-    DataError as DataError,
-)
-from domain.exceptions import (
-    TradeXV2Error as TradeXV2Error,
-)
-from domain.exceptions import (
-    ValidationError as ValidationError,
-)
+from domain.exceptions import ConfigError as ConfigError  # noqa: F401
+from domain.exceptions import DataError as DataError  # noqa: F401
+from domain.exceptions import TradeXV2Error as TradeXV2Error  # noqa: F401
+from domain.exceptions import ValidationError as ValidationError  # noqa: F401
 
-logger = logging.getLogger(__name__)
 F = TypeVar("F", bound=Callable[..., Any])
-
-
-class BrokerError(TradeXV2Error):
-    """Base exception for all broker errors."""
-
-
-class RetryableError(BrokerError):
-    """An error that can be retried (transient failure)."""
-
-
-# Alias used by the centralized retry framework (infrastructure.retry)
-# and the global exception handler to distinguish retryable (transient)
-# errors from fatal ones.
-TradeXV2RecoverableError = RetryableError
-
-
-class NonRetryableError(BrokerError):
-    """An error that should NOT be retried (permanent failure)."""
-
-
-class RateLimitError(BrokerError):
-    """Rate limit exceeded."""
-
-
-class CircuitBreakerOpenError(BrokerError):
-    """The circuit breaker is open — request not allowed."""
-
-    def __init__(self, name: str):
-        self.circuit_name = name
-        super().__init__(f"Circuit breaker '{name}' is open")
-
-
-class AuthenticationError(BrokerError):
-    """Authentication or authorization failure."""
-
-
-class InstrumentNotFoundError(BrokerError):
-    """Requested instrument not found."""
-
-
-class OrderError(BrokerError):
-    """Order placement, modification, or cancellation error."""
-
-
-class NotSupportedError(BrokerError):
-    """Feature not supported by broker (replaces NotImplementedError at boundaries)."""
-
-
-class ExitAllError(NotSupportedError):
-    """Exit-all (kill switch) operation failed."""
-
-
-class BrokerDegradedError(BrokerError):
-    """All brokers are unavailable and the system is in degraded mode.
-
-    Raised when a write operation (e.g. order placement) is attempted
-    while every configured broker is unhealthy. Read operations may
-    return stale cached data instead of raising, depending on the
-    caller's tolerance for stale data.
-    """
-
-    def __init__(
-        self,
-        message: str = "All brokers are unavailable; system is in degraded mode",
-        health_status: dict[str, dict] | None = None,
-    ) -> None:
-        super().__init__(message)
-        self.health_status = health_status or {}
-
-
-class NetworkError(RetryableError):
-    """External network call failed (timeout, DNS, connection refused).
-
-    This is the canonical exception for *transport-level* failures.
-    Broker adapters should raise this (or a subclass) when the
-    underlying HTTP/TCP call fails, so that the retry framework and
-    circuit breakers can distinguish network failures from
-    application-level errors.
-    """
 
 
 def convert_network_errors(
@@ -118,25 +45,6 @@ def convert_network_errors(
     Provides a standard infrastructure-level pattern for broker adapters:
     wrap the raw HTTP call so that callers only see domain exceptions,
     never transport-level ``requests`` exceptions.
-
-    Usage::
-
-        @convert_network_errors()
-        def _send_raw_http(self, method, url, json):
-            return self._session.request(...)
-
-    Or with a custom error factory (e.g. broker-specific subclass)::
-
-        @convert_network_errors(
-            error_factory=lambda exc: DhanNetworkError(f"Dhan HTTP failed: {exc}")
-        )
-        def _send_raw_http(self, method, url, json):
-            return self._session.request(...)
-
-    Args:
-        error_factory: Optional callable that creates a ``NetworkError``
-            (or subclass) from the original ``RequestException``.
-            Defaults to ``NetworkError(str(exc))``.
     """
 
     def decorator(func: F) -> F:
@@ -145,11 +53,8 @@ def convert_network_errors(
             try:
                 return func(*args, **kwargs)
             except ImportError:
-                # requests is optional — if not installed, just pass through
                 raise
             except Exception as exc:
-                # Lazy import to avoid hard dependency on requests at
-                # module-load time (some adapters may use httpx).
                 try:
                     import requests as _requests
                 except ImportError:
@@ -157,9 +62,7 @@ def convert_network_errors(
                 if isinstance(exc, _requests.RequestException):
                     if error_factory is not None:
                         raise error_factory(exc) from exc
-                    raise NetworkError(
-                        f"HTTP request failed: {exc}"
-                    ) from exc
+                    raise NetworkError(str(exc)) from exc
                 raise
 
         return wrapper  # type: ignore[return-value]

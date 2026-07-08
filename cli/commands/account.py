@@ -1,35 +1,55 @@
-"""CLI command handler for account operations."""
+"""CLI command handler for account operations.
+
+Account data is accessed through a domain provider. No broker gateway is referenced.
+"""
 
 from __future__ import annotations
 
+import logging
 from decimal import Decimal
+from typing import Protocol, runtime_checkable
 
 from rich.console import Console
 from rich.table import Table
 
-from cli.services.broker_service import BrokerService
+logger = logging.getLogger(__name__)
 
 
-def show_account(broker_service: BrokerService, console: Console) -> None:
+@runtime_checkable
+class AccountProvider(Protocol):
+    """Domain port for account data — implemented by broker adapters."""
+
+    def get_balance(self) -> any: ...
+    def get_positions(self) -> list: ...
+
+
+# ── Module-level provider (set once at startup) ─────────────────────
+_provider: AccountProvider | None = None
+
+
+def set_account_provider(provider: AccountProvider) -> None:
+    global _provider
+    _provider = provider
+
+
+def _get_provider() -> AccountProvider:
+    if _provider is None:
+        raise RuntimeError("AccountProvider not wired — call set_account_provider() at startup")
+    return _provider
+
+
+def show_account(broker_service=None, console: Console | None = None) -> None:
     """Print active account limits and margin information."""
-    gw = broker_service.active_broker
-    console.print(
-        f"Active Account: [bold yellow]{broker_service.active_broker_name.upper()}[/bold yellow]"
-    )
-
+    provider = _get_provider()
     try:
-        balance = gw.portfolio.get_balance()
-        positions = gw.portfolio.get_positions()
+        balance = provider.get_balance()
+        positions = provider.get_positions()
 
-        # Calculate PnLs
         realized = sum(pos.realized_pnl for pos in positions)
         unrealized = sum(pos.unrealized_pnl for pos in positions)
         total_pnl = realized + unrealized
 
-        table = Table(
-            title=f"{broker_service.active_broker_name.capitalize()} Account Summary",
-            header_style="bold magenta",
-        )
+        table = Table(title="Account Summary", header_style="bold magenta")
         table.add_column("Metric", style="bold white")
         table.add_column("Value", justify="right")
 
@@ -39,7 +59,6 @@ def show_account(broker_service: BrokerService, console: Console) -> None:
         table.add_row("Collateral Amount", f"Rs. {balance.collateral_amount:,.2f}")
         table.add_row("Withdrawable Balance", f"Rs. {balance.withdrawable_balance:,.2f}")
 
-        # Colorize PnLs
         def colorize_val(val: Decimal) -> str:
             if val > 0:
                 return f"[green]Rs. {val:,.2f}[/green]"
@@ -56,6 +75,6 @@ def show_account(broker_service: BrokerService, console: Console) -> None:
         console.print(f"[red]Error fetching account details: {exc}[/red]")
 
 
-def run(args: list[str], broker_service: BrokerService, console: Console) -> None:
+def run(args: list[str], broker_service=None, console: Console | None = None) -> None:
     """Entry point for account subcommand."""
     show_account(broker_service, console)

@@ -151,37 +151,3 @@ class TestDepthFeedNetworkReconnect:
             assert feed._access_token == "TOKEN_B"
         finally:
             feed.stop()
-
-    def test_websocket_auth_coordinator_notifies_connection_depth_feeds(
-        self,
-        flaky_ws_server,
-    ):
-        from brokers.common.connection.websocket_auth_coordinator import (
-            WebSocketAuthCoordinator,
-        )
-        from brokers.dhan.depth_20 import DhanDepth20Feed
-
-        feed = DhanDepth20Feed("TEST_CLIENT", "TOKEN_A")
-        feed.ENDPOINT = flaky_ws_server.base_url
-        feed.connect()
-
-        class _Conn:
-            depth_20_feed = feed
-
-        try:
-            assert _wait_until(
-                lambda: flaky_ws_server.connect_count >= 1,
-                timeout=8.0,
-            )
-
-            before = flaky_ws_server.connect_count
-            WebSocketAuthCoordinator.notify_depth_feeds(_Conn(), "TOKEN_C")
-
-            assert feed._access_token == "TOKEN_C"
-            assert _wait_until(
-                lambda: flaky_ws_server.connect_count > before
-                and "TOKEN_C" in flaky_ws_server.seen_tokens,
-                timeout=10.0,
-            ), "coordinator did not force reconnect with new token"
-        finally:
-            feed.stop()

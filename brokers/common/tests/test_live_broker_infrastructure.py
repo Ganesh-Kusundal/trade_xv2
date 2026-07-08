@@ -8,7 +8,7 @@ import pytest
 from brokers.common.bootstrap import bootstrap_from_broker_registry
 from brokers.common.historical_coordinator import HistoricalQuery
 from brokers.common.policy import auto_dual_broker_policy
-from domain.historical import InstrumentRef
+from domain.candles.historical import InstrumentRef
 
 pytestmark = pytest.mark.skipif(
     os.environ.get("TRADEX_LIVE_TESTS") != "1",

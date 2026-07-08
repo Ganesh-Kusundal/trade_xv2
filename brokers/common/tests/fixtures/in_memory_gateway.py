@@ -20,9 +20,9 @@ from brokers.common.broker_port import (
 from brokers.common.capabilities import BrokerCapabilities, CapabilityDescriptor
 from domain.entities import Balance, Order, OrderResponse, Position, Quote, Trade
 from domain.entities.market import MarketDepth
-from domain.historical import HistoricalBar, InstrumentRef
+from domain.candles.historical import HistoricalBar, InstrumentRef
 from domain.provenance import DataProvenance
-from domain.requests import ModifyOrderRequest, OrderRequest
+from domain.orders.requests import ModifyOrderRequest, OrderRequest
 
 
 def _bar(

@@ -15,8 +15,8 @@ from brokers.common.capabilities import BrokerCapabilities
 from brokers.dhan.capabilities import dhan_capabilities
 from brokers.paper import PaperGateway
 from domain.enums import OrderType, ProductType, Side, Validity
-from domain.historical import InstrumentRef
-from domain.requests import OrderRequest
+from domain.candles.historical import InstrumentRef
+from domain.orders.requests import OrderRequest
 
 
 @pytest.fixture

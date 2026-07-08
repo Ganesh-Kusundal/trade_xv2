@@ -251,8 +251,6 @@ def get_execution_composer() -> Any:
 
 def require_live_broker() -> Any:
     """Return the active broker gateway or raise 503 when unavailable."""
-    from brokers.common.connection.errors import BrokerNotReadyError
-
     svc = get_broker_service()
     if svc is None:
         raise HTTPException(
@@ -262,7 +260,7 @@ def require_live_broker() -> Any:
         )
     try:
         return svc.active_broker
-    except BrokerNotReadyError as exc:
+    except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=str(exc),

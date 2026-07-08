@@ -65,7 +65,7 @@ def resolve_correlation_id(correlation_id: str | None = None) -> str | None:
     if correlation_id is not None:
         return correlation_id
     try:
-        from infrastructure.correlation import get_current_correlation_id
+        from domain.correlation import get_current_correlation_id
 
         return get_current_correlation_id()
     except ImportError:

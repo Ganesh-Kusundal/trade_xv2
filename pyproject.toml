@@ -49,12 +49,13 @@ dev = [
 # paper = "brokers.paper:PaperBroker"
 
 [tool.setuptools.packages.find]
-include = ["brokers*", "cli*", "analytics*", "datalake*", "config*", "domain*", "runtime*", "application*", "infrastructure*", "market_data*", "oms*", "event_bus*", "portfolio*", "risk*", "strategy*", "backtesting*", "replay*"]
+where = ["src", "."]
+include = ["brokers*", "cli*", "analytics*", "datalake*", "config*", "domain*", "runtime*", "application*", "infrastructure*", "market_data*", "oms*", "event_bus*", "portfolio*", "risk*", "strategy*", "backtesting*", "replay*", "plugins*"]
 
 # ─── pytest ────────────────────────────────────────────────
 [tool.pytest.ini_options]
 minversion = "7.0"
-testpaths = ["tests", "brokers", "analytics", "cli", "datalake", "application", "domain", "infrastructure"]
+testpaths = ["tests", "brokers", "analytics", "cli", "datalake", "application", "src", "infrastructure"]
 markers = [
     "unit: module-owned unit tests",
     "contract: broker/module contract tests",
@@ -86,6 +87,11 @@ markers = [
     "memory: Memory profiling and leak detection tests",
     "e2e: End-to-end trading flow tests",
     "slow: tests that take longer than 1 second to execute",
+    "live_orders: guarded real order placement (requires TRADEX_LIVE_ORDERS=1)",
+    "property: property-based tests (hypothesis)",
+    "component: component tests with mocked/doubled collaborators",
+    "contract: broker/module contract tests",
+    "mutation: mutation testing (tests verify behavior, not implementation)",
 ]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
@@ -201,7 +207,7 @@ skip-magic-trailing-comma = false
 
 # ─── Coding Standards ─────────────────────────────────────
 # These rules enforce architectural invariants and team conventions.
-# See docs/IMPORT_DIRECTION_RULES.md for the full guide.
+# See .import-linter.ini for layer boundary contracts.
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
 # Domain types must come from brokers.common, not broker-specific packages
@@ -226,7 +232,7 @@ root_packages = ["domain", "brokers", "analytics", "datalake", "cli", "api", "ap
 name = "Domain independence"
 type = "forbidden"
 source_modules = ["domain"]
-forbidden_modules = ["brokers", "analytics", "datalake", "cli", "application", "api"]
+forbidden_modules = ["infrastructure", "brokers", "analytics", "datalake", "cli", "application", "api"]
 
 [[tool.importlinter.contracts]]
 name = "Infrastructure independence"
@@ -301,8 +307,8 @@ ignore_imports = [
     "application.oms.extended_order_service -> infrastructure.event_bus.*",
     "application.oms.factory -> infrastructure.event_bus",
     "application.oms.factory -> infrastructure.event_log",
-    "application.oms.persistence -> infrastructure.persistence.*",
-    "application.oms.persistence.* -> infrastructure.persistence.*",
+    "application.oms.context -> infrastructure.persistence.*",
+    "application.oms.order_manager -> infrastructure.persistence.*",
     "application.oms.position_manager -> infrastructure.event_bus",
     "application.oms.position_manager -> infrastructure.logging_config",
     "application.oms.position_manager -> infrastructure.observability.*",
@@ -323,3 +329,25 @@ ignore_imports = [
     "application.oms.tests.* -> infrastructure.persistence.*",
     "application.oms.tests.* -> infrastructure.state_machine",
 ]
+
+[[tool.importlinter.contracts]]
+name = "CLI broker-implementation isolation"
+type = "forbidden"
+source_modules = ["cli"]
+forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper"]
+ignore_imports = [
+    "cli.services.broker_facade -> brokers.**",
+    "cli.services.broker_registry -> brokers.dhan.factory",
+    "cli.services.broker_registry -> brokers.upstox.factory",
+    "cli.services.broker_registry -> brokers.paper",
+    # Test-only: integration tests legitimately import broker implementations.
+    "cli.tests.* -> brokers.dhan",
+    "cli.tests.* -> brokers.dhan.**",
+    "cli.tests.* -> brokers.paper.**",
+]
+
+[[tool.importlinter.contracts]]
+name = "API broker-implementation isolation"
+type = "forbidden"
+source_modules = ["api"]
+forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper"]

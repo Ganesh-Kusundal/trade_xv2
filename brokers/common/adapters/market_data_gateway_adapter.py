@@ -21,8 +21,8 @@ from brokers.common.capabilities import BrokerCapabilities, CapabilityDescriptor
 from brokers.common.gateway import MarketDataGateway
 from domain.entities import Balance, Order, OrderResponse, Position, Quote, Trade
 from domain.entities.market import MarketDepth
-from domain.historical import InstrumentRef
-from domain.requests import ModifyOrderRequest, OrderRequest
+from domain.candles.historical import InstrumentRef
+from domain.orders.requests import ModifyOrderRequest, OrderRequest
 
 logger = logging.getLogger(__name__)
 

@@ -18,16 +18,25 @@ from brokers.common.policy import (
 )
 
 
+def _upstox_policy() -> SourceSelectionPolicy:
+    from brokers.common.policy import default_upstox_only_policy
+
+    return default_upstox_only_policy()
+
+
+_POLICY_DISPATCH: dict[str, Any] = {
+    "dhan": lambda ea: default_dhan_only_policy(),
+    "upstox": lambda ea: _upstox_policy(),
+}
+
+
 def policy_from_env(execution_account: str | None = None) -> SourceSelectionPolicy:
     """Select routing policy from environment."""
     mode = os.environ.get("TRADEX_BROKER_POLICY", "auto").lower()
     exec_account = execution_account or os.environ.get("TRADEX_EXECUTION_BROKER", "dhan")
-    if mode == "dhan":
-        return default_dhan_only_policy()
-    if mode == "upstox":
-        from brokers.common.policy import default_upstox_only_policy
-
-        return default_upstox_only_policy()
+    factory = _POLICY_DISPATCH.get(mode)
+    if factory is not None:
+        return factory(exec_account)
     return auto_dual_broker_policy(execution_account=exec_account)
 
 

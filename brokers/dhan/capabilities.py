@@ -10,7 +10,7 @@ from brokers.common.capabilities import (
 
 def dhan_capabilities() -> BrokerCapabilities:
     """Authoritative capability snapshot for the Dhan broker.
-    
+
     NOTE ON DEPTH_200 LIMITATION:
         Dhan's depth-200 WebSocket API only supports 1 instrument per connection.
         To monitor multiple instruments at 200-level depth, you must create multiple
@@ -48,37 +48,44 @@ def dhan_capabilities() -> BrokerCapabilities:
             ),
             RateLimitProfile(
                 endpoint_class="quotes",
-                sustained_rps=6.0,
-                burst_rps=12.0,
-                min_interval_ms=167,
+                sustained_rps=1.0,
+                burst_rps=2.0,
+                min_interval_ms=1000,
                 cooldown_on_429_s=130,
             ),
             RateLimitProfile(
                 endpoint_class="historical",
-                sustained_rps=6.0,
-                burst_rps=12.0,
-                min_interval_ms=167,
+                sustained_rps=10.0,
+                burst_rps=20.0,
+                min_interval_ms=100,
                 cooldown_on_429_s=130,
             ),
             RateLimitProfile(
                 endpoint_class="option_chain",
-                sustained_rps=3.0,
-                burst_rps=6.0,
-                min_interval_ms=350,
+                sustained_rps=5.0,
+                burst_rps=10.0,
+                min_interval_ms=200,
                 cooldown_on_429_s=130,
             ),
             RateLimitProfile(
                 endpoint_class="funds",
-                sustained_rps=10.0,
-                burst_rps=20.0,
-                min_interval_ms=100,
+                sustained_rps=20.0,
+                burst_rps=40.0,
+                min_interval_ms=50,
                 cooldown_on_429_s=60,
             ),
             RateLimitProfile(
                 endpoint_class="positions",
-                sustained_rps=10.0,
-                burst_rps=20.0,
-                min_interval_ms=100,
+                sustained_rps=20.0,
+                burst_rps=40.0,
+                min_interval_ms=50,
+                cooldown_on_429_s=60,
+            ),
+            RateLimitProfile(
+                endpoint_class="holdings",
+                sustained_rps=20.0,
+                burst_rps=40.0,
+                min_interval_ms=50,
                 cooldown_on_429_s=60,
             ),
         ),

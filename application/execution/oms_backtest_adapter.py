@@ -45,7 +45,7 @@ class BacktestFill:
 
 
 class OmsBacktestAdapter:
-    """Routes backtest signals through the OMS via :class:`ReplayOMSAdapter`."""
+    """Routes backtest signals through the OMS via :class:`SimulatedOMSAdapter`."""
 
     def __init__(
         self,

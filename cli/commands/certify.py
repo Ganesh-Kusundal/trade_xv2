@@ -22,7 +22,7 @@ def certify(broker_id: str, live: bool, json_output: bool) -> None:
         tradex certify upstox --live
         tradex certify paper --json
     """
-    from brokers.common.tests.certify_broker import run_certification
+    from brokers.common.tests.certify_broker import run_certification  # sanctioned — broker test harness
 
     report = run_certification(broker_id, live_mode=live)
 

@@ -37,6 +37,8 @@ class TokenBucketRateLimiter:
         self._last_refill_nanos: float = time.monotonic_ns()
         self._capacity: float = float(self.config.capacity)
         self._lock = threading.Lock()
+        self._original_rate: float | None = None
+        self._reduced_at: float | None = None
 
     @property
     def available_tokens(self) -> float:
@@ -54,6 +56,8 @@ class TokenBucketRateLimiter:
     @rate.setter
     def rate(self, value: float) -> None:
         with self._lock:
+            if self._original_rate is None:
+                self._original_rate = self.config.rate_per_second
             self.config.rate_per_second = value
 
     def acquire(self, tokens: int = 1, timeout: float | None = None) -> bool:
@@ -183,11 +187,25 @@ class MultiBucketRateLimiter:
         """Reduce the rate for a category (e.g., after 429 response)."""
         bucket = self.get_bucket(category)
         bucket.rate = bucket.rate * factor
+        bucket._reduced_at = time.monotonic()
 
     def increase_rate(self, category: str, factor: float) -> None:
         """Increase the rate for a category."""
         bucket = self.get_bucket(category)
         bucket.rate = bucket.rate * factor
+
+    def maybe_recover_rate(self, category: str, recovery_seconds: float = 300.0) -> None:
+        """Auto-recover rate after recovery_seconds if no new reductions occurred."""
+        bucket = self.get_bucket(category)
+        if (
+            hasattr(bucket, "_reduced_at")
+            and bucket._reduced_at is not None
+            and bucket._original_rate is not None
+            and (time.monotonic() - bucket._reduced_at) > recovery_seconds
+        ):
+            bucket.rate = bucket._original_rate
+            bucket._reduced_at = None
+            bucket._original_rate = None
 
 
 class EndpointRateLimiter:
@@ -200,7 +218,8 @@ class EndpointRateLimiter:
     Usage::
 
         limiter = EndpointRateLimiter(rate_per_second=10.0)
-        limiter.acquire("/market-quote/RELIANCE")  # blocks until allowed
+        limiter.register("/market-quote/RELIANCE")  # pre-register
+        limiter.acquire("/market-quote/RELIANCE")   # blocks until allowed
     """
 
     def __init__(self, rate_per_second: float = 10.0, capacity: int = 10):
@@ -208,6 +227,17 @@ class EndpointRateLimiter:
         self._multi = MultiBucketRateLimiter({"_default": config})
         self._rate_per_second = rate_per_second
         self._capacity = capacity
+        self._lock = threading.Lock()
+
+    def register(self, endpoint: str) -> None:
+        """Pre-register an endpoint bucket for predictable rate limiting."""
+        with self._lock:
+            if endpoint not in self._multi._buckets:
+                config = RateLimitConfig(
+                    rate_per_second=self._rate_per_second,
+                    capacity=self._capacity,
+                )
+                self._multi._buckets[endpoint] = TokenBucketRateLimiter(config)
 
     def acquire(self, endpoint: str = "default", timeout: float | None = None) -> None:
         """Block until a request to the given endpoint is allowed.
@@ -216,12 +246,13 @@ class EndpointRateLimiter:
             endpoint: Endpoint identifier for per-endpoint tracking.
             timeout: Maximum wait time in seconds. None blocks forever.
         """
-        if endpoint not in self._multi._buckets:
-            config = RateLimitConfig(
-                rate_per_second=self._rate_per_second,
-                capacity=self._capacity,
-            )
-            self._multi._buckets[endpoint] = TokenBucketRateLimiter(config)
+        with self._lock:
+            if endpoint not in self._multi._buckets:
+                config = RateLimitConfig(
+                    rate_per_second=self._rate_per_second,
+                    capacity=self._capacity,
+                )
+                self._multi._buckets[endpoint] = TokenBucketRateLimiter(config)
         self._multi.acquire(endpoint, tokens=1, timeout=timeout)
 
     @property

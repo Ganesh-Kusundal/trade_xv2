@@ -23,7 +23,8 @@ from domain import (
 )
 from domain import Side as OrderSide
 from domain.ports.risk_manager import RiskManagerPort
-from infrastructure.event_bus import DomainEvent, EventBus
+from domain.events import DomainEvent
+from domain.ports.event_publisher import EventBus
 
 logger = logging.getLogger(__name__)
 

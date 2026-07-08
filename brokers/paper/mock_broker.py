@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import random
 from decimal import Decimal
+from typing import Any
 
-from application.oms.context import TradingContext
 from domain import Balance, Holding, OrderResponse, Position
 from domain.constants.defaults import PAPER_INITIAL_CAPITAL
 
@@ -23,7 +23,7 @@ class MockBroker:
         self,
         initial_capital: Decimal = PAPER_INITIAL_CAPITAL,
         name: str = "paper",
-        trading_context: TradingContext | None = None,
+        trading_context: Any | None = None,
     ) -> None:
         self._name = name
         self._id = f"paper-{random.randint(1000, 9999)}"

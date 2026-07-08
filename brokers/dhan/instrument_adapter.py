@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from domain.instrument_id import InstrumentId
+from domain.instruments.instrument_id import InstrumentId
 from domain.symbols import normalize_exchange, normalize_symbol
 
 

@@ -61,7 +61,6 @@ class ResearchDataset:
         date_from: str,
         date_to: str,
         timeframe: str,
-        catalog_root: str | Path = "market_data",
         curated_root: str | Path | None = None,
     ) -> Any:
         """Create a minimal research dataset."""

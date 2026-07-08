@@ -29,7 +29,7 @@ from brokers.upstox.websocket.v3_subscription_manager import (
     UpstoxV3SubscriptionLimits,
     UpstoxV3SubscriptionManager,
 )
-from infrastructure.event_bus import EventBus
+from domain.ports.event_publisher import EventBus
 
 logger = logging.getLogger(__name__)
 

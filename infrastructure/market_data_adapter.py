@@ -11,7 +11,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import Any
 
-from domain.historical import (
+from domain.candles.historical import (
     DateRange,
     HistoricalBar,
     HistoricalSeries,

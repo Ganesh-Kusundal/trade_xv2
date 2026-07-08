@@ -73,6 +73,3 @@ def create_execution_adapter(
     )
 
 
-# Backward-compat aliases — deprecated, use SimulatedOMSAdapter directly
-PaperOMSAdapter = type("PaperOMSAdapter", (ExecutionModeAdapter,), {})
-ReplayOMSAdapter = type("ReplayOMSAdapter", (ExecutionModeAdapter,), {})

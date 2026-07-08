@@ -39,7 +39,7 @@ from enum import Enum
 from types import MappingProxyType
 from typing import Any, TypeVar
 
-from brokers.common.resilience.errors import TradeXV2RecoverableError
+from domain.errors import TradeXV2RecoverableError
 
 logger = logging.getLogger(__name__)
 

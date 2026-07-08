@@ -10,6 +10,10 @@ All audit events are emitted as structured logs with consistent field names
 so they can be queried, aggregated, and alerted on.
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from brokers.common.observability.audit import (
     emit_historical_chunk,
     emit_merge_conflict,
@@ -21,7 +25,10 @@ from brokers.common.observability.health_check import (
     BrokerConnectivityHealthCheck,
     register_broker_health_check,
 )
-from infrastructure.observability import EventMetrics
+from domain.ports.observability import EventMetrics
+
+if TYPE_CHECKING:
+    from domain.ports.observability import EventMetricsPort
 
 __all__ = [
     "BrokerConnectivityHealthCheck",

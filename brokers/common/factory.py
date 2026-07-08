@@ -19,9 +19,9 @@ from typing import TYPE_CHECKING
 from brokers.common.gateway import MarketDataGateway
 
 if TYPE_CHECKING:
-    from application.oms.risk_manager import RiskManager
-    from infrastructure.event_bus import EventBus
-    from infrastructure.lifecycle import LifecycleManager
+    from typing import Any
+
+    from domain.events.bus import DomainEventBus as EventBus
 
 
 class BrokerProviderFactory(ABC):
@@ -34,8 +34,8 @@ class BrokerProviderFactory(ABC):
         env_path: Path | None = None,
         load_instruments: bool = True,
         event_bus: EventBus | None = None,
-        risk_manager: RiskManager | None = None,
-        lifecycle: LifecycleManager | None = None,
+        risk_manager: Any | None = None,
+        lifecycle: Any | None = None,
     ) -> MarketDataGateway:
         """Create a configured MarketDataGateway for this broker.
 

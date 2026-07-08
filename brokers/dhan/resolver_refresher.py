@@ -48,7 +48,8 @@ import threading
 import time
 from datetime import datetime, timezone
 
-from infrastructure.lifecycle import HealthState, ManagedService, build_health
+from domain.lifecycle_health import HealthState, build_health
+from domain.ports.lifecycle import ManagedServicePort as ManagedService
 
 logger = logging.getLogger(__name__)
 

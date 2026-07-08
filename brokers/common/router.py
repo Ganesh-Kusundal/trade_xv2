@@ -24,7 +24,7 @@ from brokers.common.models import (
 )
 from brokers.common.policy import RoutingPolicy, SourceSelectionPolicy
 from brokers.common.registry import BrokerRegistry
-from infrastructure.time_service import time_service
+from domain.ports.time_service import time_service
 
 logger = logging.getLogger(__name__)
 

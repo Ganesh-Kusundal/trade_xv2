@@ -37,8 +37,9 @@ from brokers.dhan.connection_admission import MarketFeedConnectionAdmission
 from brokers.dhan.reconnecting_service import ReconnectingServiceMixin
 from domain import DepthLevel, MarketDepth
 from domain.symbols import normalize_symbol
-from infrastructure.event_bus import DomainEvent, EventBus
-from infrastructure.lifecycle.lifecycle import (
+from domain.events import DomainEvent
+from domain.ports.event_publisher import EventBus
+from domain.ports.lifecycle import (
     HealthState,
     HealthStatus,
     ManagedService,

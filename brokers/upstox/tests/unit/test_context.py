@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from brokers.common.resilience.rate_limiter import MultiBucketRateLimiter
 from brokers.common.resilience.retry import RetryExecutor
 from brokers.upstox.auth.config import UpstoxConnectionSettings
 from brokers.upstox.auth.context import UpstoxAdapterContext
@@ -67,3 +68,14 @@ class TestUpstoxAdapterContext:
         m = UpstoxTokenManager(s)
         ctx = UpstoxAdapterContext(settings=s, token_provider=lambda: "abc", token_manager=m)
         assert ctx.token_manager is m
+
+    def test_rate_limiter_is_multi_bucket(self):
+        s = _settings()
+        ctx = UpstoxAdapterContext(settings=s, token_provider=lambda: "abc")
+        assert isinstance(ctx.rate_limiter, MultiBucketRateLimiter)
+        assert set(ctx.rate_limiter.categories()) == {"quotes", "data", "orders", "admin"}
+
+    def test_http_client_shares_context_rate_limiter(self):
+        s = _settings()
+        ctx = UpstoxAdapterContext(settings=s, token_provider=lambda: "abc")
+        assert ctx.http_client.rate_limiter is ctx.rate_limiter

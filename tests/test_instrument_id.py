@@ -1,4 +1,4 @@
-"""Tests for domain.instrument_id — canonical instrument identity."""
+"""Tests for domain.instruments.instrument_id — canonical instrument identity."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from decimal import Decimal
 
 import pytest
 
-from domain.instrument_id import InstrumentId
+from domain.instruments.instrument_id import InstrumentId
 
 
 class TestFactoryMethods:

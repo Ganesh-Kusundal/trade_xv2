@@ -4,7 +4,7 @@ Per-endpoint rate limits from Dhan API documentation:
   - Non-Trading APIs: 20 requests/second
   - Order APIs: 25 requests/second
   - Data APIs: 10 requests/second
-  - Quote APIs: 1 request/second (using 0.15s safety interval → ~6.67/s capacity)
+  - Quote APIs: 1 request/second
 
 Features:
   - Token bucket rate limiting via MultiBucketRateLimiter
@@ -33,23 +33,23 @@ logger = logging.getLogger(__name__)
 
 #: Order APIs: Up to 25 requests per second
 ORDERS_RATE_PER_SECOND = 25.0
-ORDERS_CAPACITY = 25
+ORDERS_CAPACITY = 35  # Small burst buffer for safety
 
 #: Data APIs: Up to 10 requests per second
 MARKET_DATA_RATE_PER_SECOND = 10.0
-MARKET_DATA_CAPACITY = 10
+MARKET_DATA_CAPACITY = 15  # Small burst buffer for safety
 
-#: Quote APIs: 1 request per second (conservative: use 6.67 for bucket math)
-QUOTE_RATE_PER_SECOND = 6.67
-QUOTE_CAPACITY = 7
+#: Quote APIs: 1 request per second (Dhan documentation limit)
+QUOTE_RATE_PER_SECOND = 1.0
+QUOTE_CAPACITY = 2  # Small burst buffer for safety
 
 #: Non-Trading APIs: Up to 20 requests per second
 PORTFOLIO_RATE_PER_SECOND = 20.0
-PORTFOLIO_CAPACITY = 20
+PORTFOLIO_CAPACITY = 30  # Small burst buffer for safety
 
-#: Admin APIs: Moderate rate (token refresh is infrequent)
-ADMIN_RATE_PER_SECOND = 10.0
-ADMIN_CAPACITY = 10
+#: Admin APIs: Non-Trading APIs rate (token refresh is infrequent)
+ADMIN_RATE_PER_SECOND = 20.0
+ADMIN_CAPACITY = 30  # Small burst buffer for safety
 
 
 @dataclass

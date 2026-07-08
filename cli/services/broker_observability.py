@@ -14,8 +14,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from brokers.common.connection.bootstrap_result import BootstrapStatus
-from brokers.common.connection.errors import BrokerNotReadyError
+from domain.errors import BrokerNotReadyError
+from domain.ports.bootstrap import BootstrapStatus
 
 logger = logging.getLogger(__name__)
 

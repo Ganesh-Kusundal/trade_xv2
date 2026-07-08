@@ -126,30 +126,3 @@ class TestFactoryWebSocketWiring:
 
         assert market_feed_health.state == HealthState.STOPPED
         assert order_stream_health.state == HealthState.STOPPED
-
-    def test_websocket_wiring_does_not_replace_factory_order_stream(self, tmp_path):
-        """cli websocket_wiring must not create a second order stream."""
-        from cli.services.websocket_wiring import start_websocket_services
-
-        env_file = tmp_path / ".env.local"
-        env_file.write_text(
-            "DHAN_CLIENT_ID=TEST_CLIENT\n"
-            "DHAN_ACCESS_TOKEN=test_token\n"
-            "DHAN_PIN=1234\n"
-            "DHAN_TOTP_SECRET=TESTTOTPSECRET\n"
-        )
-
-        lifecycle = LifecycleManager()
-        event_bus = EventBus()
-        gateway = BrokerFactory().create(
-            env_path=env_file,
-            load_instruments=False,
-            event_bus=event_bus,
-            lifecycle=lifecycle,
-        )
-        factory_stream = gateway._conn.order_stream
-        assert factory_stream is not None
-
-        start_websocket_services(gateway, lifecycle)
-
-        assert gateway._conn.order_stream is factory_stream

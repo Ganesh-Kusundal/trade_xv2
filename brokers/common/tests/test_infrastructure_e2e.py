@@ -8,7 +8,7 @@ from brokers.common.bootstrap import bootstrap_from_gateways, policy_from_env
 from brokers.common.historical_coordinator import HistoricalQuery
 from brokers.common.policy import RoutingPolicy, SourceSelectionPolicy
 from brokers.paper import PaperGateway
-from domain.historical import InstrumentRef
+from domain.candles.historical import InstrumentRef
 
 
 def _paper_only_policy() -> SourceSelectionPolicy:

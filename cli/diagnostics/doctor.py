@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from brokers.common.gateway import MarketDataGateway
+from domain.ports.broker_transport import BrokerTransport as MarketDataGateway
 from cli.services.broker_service import BrokerService
 
 

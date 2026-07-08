@@ -9,7 +9,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical
 from textual.widgets import Button, DataTable, Input, Label, Static
 
-from brokers.common.connection.errors import BrokerNotReadyError
+from domain.errors import BrokerNotReadyError
 from cli.commands.market import resolve_exchange
 from cli.services.broker_service import BrokerService
 from domain.symbols import normalize_symbol

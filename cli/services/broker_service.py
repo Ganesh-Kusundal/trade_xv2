@@ -20,7 +20,7 @@ from application.execution.gateway_submit import make_gateway_submit_fn
 from application.oms.context import TradingContext
 from application.oms.oms_gateway_proxy import OMSGatewayProxy
 from application.oms.order_manager import OmsOrderCommand, OrderResult
-from brokers.common.gateway import MarketDataGateway
+from brokers.common.gateway import MarketDataGateway  # sanctioned — broker wiring layer (type annotation)
 from cli.services.broker_lifecycle import (
     build_broker_infrastructure,
     close_all_gateways,
@@ -248,7 +248,7 @@ class BrokerService:
 
         # P-1.5: Run production readiness check BEFORE starting other services.
         try:
-            from brokers.common.services.production_readiness import (
+            from brokers.common.services.production_readiness import (  # sanctioned — broker wiring layer
                 ProductionReadinessChecker,
                 ProductionReadinessError,
             )
@@ -263,7 +263,6 @@ class BrokerService:
             return False
 
         # P-1.5: ONLY NOW start remaining services — readiness check passed.
-        self._start_websocket_services()
         self._lifecycle.start_all()
         return True
 
@@ -328,16 +327,6 @@ class BrokerService:
         if self._broker_infra is None:
             self._ensure_broker_infrastructure()
         return self._broker_infra
-
-    def _start_websocket_services(self) -> None:
-        """B-4: WebSocket services are wired by the broker factory.
-
-        Dhan's BrokerFactory._wire_websocket_services and Upstox's
-        UpstoxBrokerFactory both create and register WebSocket services
-        with the lifecycle during factory.create(). This method is a
-        no-op kept for backward compatibility.
-        """
-        pass
 
     def _start_http_observability_server(self, risk_manager: Any) -> None:
         """B8+B9 followup: spin up the HTTP observability server.

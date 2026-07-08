@@ -43,7 +43,7 @@ from domain.exceptions import TradeXV2Error
 
 if TYPE_CHECKING:
     from application.oms.risk_manager import RiskManager
-    from brokers.common.gateway import MarketDataGateway
+    from domain.ports.broker_transport import BrokerTransport as MarketDataGateway
 
 logger = logging.getLogger(__name__)
 

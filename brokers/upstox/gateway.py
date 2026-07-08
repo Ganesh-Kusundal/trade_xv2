@@ -29,7 +29,7 @@ from typing import Any
 import pandas as pd
 
 from brokers.common.batch_mixin import BatchFetchMixin
-from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
+from brokers.common.gateway import BrokerCapabilities, MarketDataGateway, ObservabilityProvider
 from brokers.upstox.adapters import (
     HistoricalAdapter,
     PortfolioAdapter,
@@ -65,7 +65,7 @@ from domain import (
 logger = logging.getLogger(__name__)
 
 
-class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
+class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
     """Unified Upstox broker API. All calls delegate to UpstoxBroker adapters.
 
     This facade provides a clean public API while internally delegating to
@@ -661,7 +661,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
 
         if correlation_id is None:
             try:
-                from infrastructure.correlation import get_current_correlation_id
+                from domain.correlation import get_current_correlation_id
 
                 correlation_id = get_current_correlation_id()
             except ImportError:
@@ -911,6 +911,51 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway):
         if parsed is None:
             raise ValueError(f"Unknown exchange segment: {exchange!r}")
         return parsed
+
+    # ── ObservabilityProvider ───────────────────────────────────────────
+
+    def get_connection_status(self) -> dict[str, bool]:
+        """Return connection status for all streams."""
+        status: dict[str, bool] = {}
+        for name in ("market_data_websocket", "order_stream_websocket"):
+            ws = getattr(self._broker, name, None)
+            status[name] = bool(getattr(ws, "is_connected", False))
+        return status
+
+    def get_circuit_breaker_states(self) -> dict[str, int]:
+        """Return circuit breaker states from the HTTP client.
+
+        State values: 0=CLOSED, 1=OPEN, 2=HALF_OPEN.
+        """
+        from brokers.common.resilience.circuit_breaker import CircuitState
+
+        http = self._broker.context.http_client
+        mapping = {
+            "read": http._read_circuit_breaker,
+            "write": http._write_circuit_breaker,
+            "admin": http._admin_circuit_breaker,
+        }
+        return {
+            name: cb.state.value if cb is not None else CircuitState.CLOSED.value
+            for name, cb in mapping.items()
+        }
+
+    def get_token_refresh_metrics(self) -> dict[str, int]:
+        """Return token refresh metrics from the token manager."""
+        tm = self._broker.context.token_manager
+        return {
+            "refresh_count": getattr(tm, "refresh_count", 0),
+            "error_count": getattr(tm, "error_count", 0),
+        }
+
+    def get_rate_limiter_metrics(self) -> dict[str, int]:
+        """Return rate limiter metrics from the HTTP client."""
+        rl = self._broker.context.rate_limiter
+        total_available = 0
+        for category in rl.categories():
+            bucket = rl.get_bucket(category)
+            total_available += int(bucket.available_tokens)
+        return {"tokens_available": total_available, "requests_throttled": 0}
 
 
 def _upstox_normalize_exchange(symbol: str, exchange: str) -> str:

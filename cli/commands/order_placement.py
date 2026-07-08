@@ -21,13 +21,13 @@ from typing import TYPE_CHECKING
 from rich.console import Console
 from rich.table import Table
 
-from brokers.common.async_compat import run_async_compat
+from infrastructure.io.async_compat import run_async_compat
 from cli.commands.argparse_helpers import parse_flag
 from cli.commands.registry import CommandResult
 from cli.composer_helpers import get_execution_composer
 from cli.services.broker_service import BrokerService
 from domain import OrderType, ProductType, Side
-from domain.requests import ModifyOrderRequest, OrderRequest
+from domain.orders.requests import ModifyOrderRequest, OrderRequest
 
 if TYPE_CHECKING:
     from application.composer.execution import ExecutionComposer

@@ -200,8 +200,8 @@ class TestImportRules:
                         "domain.events", "domain.types", "domain.enums",
                         "domain.constants", "domain.lifecycle_health", "domain.ports",
                         "domain.correlation", "domain.exceptions", "domain.entities",
-                        "domain.provenance", "domain.symbols", "domain.instrument_id",
-                        "domain.providers.protocols", "domain.historical",
+                        "domain.provenance", "domain.symbols", "domain.instruments.instrument_id",
+                        "domain.ports.protocols", "domain.candles.historical",
                     ))
                     and "/tests/" not in filepath
                 ):

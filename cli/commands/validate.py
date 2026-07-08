@@ -199,7 +199,7 @@ def _run_broker_validation(args: list[str], broker_service, console: Console) ->
     try:
         from pathlib import Path
 
-        from brokers.common.env_loader import load_env_file
+        from infrastructure.io.environment_bootstrap import load_env_file
         from cli.services.broker_registry import create_gateway
 
         env_path = Path(".env.local")
@@ -312,7 +312,7 @@ def _run_data_validation(args: list[str], broker_service, console: Console) -> N
 
     import pandas as pd
 
-    from brokers.common.services.data_validator import DataQualityValidator
+    from brokers.common.services.data_validator import DataQualityValidator  # sanctioned — broker wiring layer
 
     if not args:
         console.print(
@@ -410,7 +410,7 @@ def _run_symbol_validation(args: list[str], broker_service, console: Console) ->
             i += 1
 
     try:
-        from brokers.dhan.symbol_validator import DhanSymbolValidator
+        from cli.services.broker_facade import DhanSymbolValidator
 
         validator = DhanSymbolValidator()
         result = validator.validate(symbol_str, exchange=exchange, segment=segment)

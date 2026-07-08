@@ -48,7 +48,6 @@ from brokers.dhan.metrics import (
     dhan_request_total,
 )
 from brokers.dhan.http_client import (
-    _BACKOFF_DELAY,
     _MAX_DELAY_MS,
     _MAX_RETRIES,
     _RATE_LIMIT_BACKOFF_SECONDS,

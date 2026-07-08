@@ -10,12 +10,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from brokers.common.broker_port import QuotaToken
-from brokers.common.models import OperationKind, RoutingRequest
-from brokers.common.registry import BrokerRegistry
-from brokers.common.router import BrokerRouter
 from domain.entities import Order, OrderResponse, Position, Trade
-from domain.requests import ModifyOrderRequest, OrderRequest
+from domain.orders.requests import ModifyOrderRequest, OrderRequest
 
 logger = logging.getLogger(__name__)
 
@@ -41,9 +37,9 @@ class ExecutionComposer:
 
     def __init__(
         self,
-        registry: BrokerRegistry,
-        router: BrokerRouter,
-        quota_scheduler: object,  # QuotaScheduler (circular import)
+        registry: Any,  # BrokerRegistry — injected at composition root
+        router: Any,  # BrokerRouter — injected at composition root
+        quota_scheduler: Any,  # QuotaScheduler — injected at composition root
         risk_manager: Any | None = None,  # Optional kill-switch guard
     ) -> None:
         self._registry = registry
@@ -288,6 +284,8 @@ class ExecutionComposer:
 
     def _route_order(self) -> str:
         """Route order operation to broker via policy."""
+        from brokers.common.models import OperationKind, RoutingRequest
+
         request = RoutingRequest(
             operation=OperationKind.PLACE_ORDER,
             trace_id="",  # Will be set by router
@@ -297,6 +295,8 @@ class ExecutionComposer:
 
     def _route_portfolio(self) -> str:
         """Route portfolio read operation to broker via policy."""
+        from brokers.common.models import OperationKind, RoutingRequest
+
         request = RoutingRequest(
             operation=OperationKind.GET_POSITIONS,
             trace_id="",
@@ -309,6 +309,6 @@ class ExecutionComposer:
         broker_id: str,
         endpoint_class: str,
         priority_class: str,
-    ) -> QuotaToken:
+    ) -> Any:
         """Acquire quota token for the operation."""
         return await self._quota_scheduler.acquire_async(broker_id, endpoint_class, priority_class)

@@ -17,7 +17,6 @@ from typing import Any
 
 from config.endpoints import Dhan
 
-
 # ── Default base URL ─────────────────────────────────────────────────────────
 DEFAULT_BASE_URL = Dhan.REST_BASE
 
@@ -29,12 +28,15 @@ DEFAULT_BASE_URL = Dhan.REST_BASE
 # Quote APIs: 1 request per second
 
 DEFAULT_RATE_LIMITS: dict[str, float] = {
-    "/marketfeed/quote": 1.0,
-    "/marketfeed/ltp": 0.15,  # Data APIs: up to 10 req/s
-    "/marketfeed/ohlc": 0.15,  # 10 req/s documented
-    "/optionchain": 0.35,  # 10 req/s documented
-    "/charts/": 0.15,  # 10 req/s documented
-    "/orders": 0.04,  # 25 req/s documented
+    "/marketfeed/quote": 1.0,  # Quote APIs: 1 req/s
+    "/marketfeed/ltp": 0.1,  # Data APIs: 10 req/s (0.1s interval)
+    "/marketfeed/ohlc": 0.1,  # Data APIs: 10 req/s (0.1s interval)
+    "/optionchain": 0.1,  # Data APIs: 10 req/s (0.1s interval)
+    "/charts/": 0.1,  # Data APIs: 10 req/s (0.1s interval)
+    "/orders": 0.04,  # Order APIs: 25 req/s (0.04s interval)
+    "/positions": 0.05,  # Non-Trading APIs: 20 req/s (0.05s interval)
+    "/holdings": 0.05,  # Non-Trading APIs: 20 req/s (0.05s interval)
+    "/fundlimit": 0.05,  # Non-Trading APIs: 20 req/s (0.05s interval)
 }
 
 
@@ -224,7 +226,9 @@ class DhanResilienceConfig:
             rate_limit=DhanRateLimitConfig(
                 limits=rate_limit_data.get("limits", DEFAULT_RATE_LIMITS.copy()),
                 read_prefixes=tuple(rate_limit_data.get("read_prefixes", DEFAULT_READ_CB_PREFIXES)),
-                write_prefixes=tuple(rate_limit_data.get("write_prefixes", DEFAULT_WRITE_CB_PREFIXES)),
+                write_prefixes=tuple(
+                    rate_limit_data.get("write_prefixes", DEFAULT_WRITE_CB_PREFIXES)
+                ),
                 bucket_map=rate_limit_data.get("bucket_map", DEFAULT_RL_BUCKET_MAP.copy()),
             ),
             retry=DhanRetryConfig(
@@ -233,16 +237,24 @@ class DhanResilienceConfig:
                 max_delay_ms=retry_data.get("max_delay_ms", DEFAULT_MAX_DELAY_MS),
             ),
             circuit_breaker=DhanCircuitBreakerConfig(
-                read_prefixes=tuple(circuit_breaker_data.get("read_prefixes", DEFAULT_READ_CB_PREFIXES)),
-                write_prefixes=tuple(circuit_breaker_data.get("write_prefixes", DEFAULT_WRITE_CB_PREFIXES)),
+                read_prefixes=tuple(
+                    circuit_breaker_data.get("read_prefixes", DEFAULT_READ_CB_PREFIXES)
+                ),
+                write_prefixes=tuple(
+                    circuit_breaker_data.get("write_prefixes", DEFAULT_WRITE_CB_PREFIXES)
+                ),
                 orders_failure_threshold=circuit_breaker_data.get("orders_failure_threshold", 3),
                 default_failure_threshold=circuit_breaker_data.get("default_failure_threshold", 5),
                 recovery_timeout_ms=circuit_breaker_data.get("recovery_timeout_ms", 30_000),
                 success_threshold=circuit_breaker_data.get("success_threshold", 3),
             ),
             token=DhanTokenConfig(
-                refresh_cooldown_seconds=token_data.get("refresh_cooldown_seconds", DEFAULT_REFRESH_COOLDOWN_SECONDS),
-                rate_limit_backoff_seconds=token_data.get("rate_limit_backoff_seconds", DEFAULT_RATE_LIMIT_BACKOFF_SECONDS),
+                refresh_cooldown_seconds=token_data.get(
+                    "refresh_cooldown_seconds", DEFAULT_REFRESH_COOLDOWN_SECONDS
+                ),
+                rate_limit_backoff_seconds=token_data.get(
+                    "rate_limit_backoff_seconds", DEFAULT_RATE_LIMIT_BACKOFF_SECONDS
+                ),
             ),
             base_url=data.get("base_url", DEFAULT_BASE_URL),
         )

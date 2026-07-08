@@ -1,4 +1,8 @@
-"""CLI command handler for market data operations."""
+"""CLI command handler for market data operations.
+
+All market data access goes through domain objects (Session → Universe → Instrument).
+No broker gateway is referenced directly.
+"""
 
 from __future__ import annotations
 
@@ -6,18 +10,35 @@ import logging
 import re
 import time
 from datetime import date, datetime, timedelta
+from typing import TYPE_CHECKING
 
 from rich.console import Console
 from rich.live import Live
 from rich.table import Table
 
-from cli.services.broker_service import BrokerService
 from domain.symbols import normalize_symbol
+
+if TYPE_CHECKING:
+    from domain.universe import Session
 
 logger = logging.getLogger(__name__)
 
 # Indices whose underlying segment uses INDEX exchange — canonical set from indices module
 from config.indices import INDEX_SYMBOLS as _INDEX_UNDERLYINGS
+
+# ── Module-level Session (set once at startup) ───────────────────────
+_session: Session | None = None
+
+
+def set_session(session: Session) -> None:
+    global _session
+    _session = session
+
+
+def get_session() -> Session:
+    if _session is None:
+        raise RuntimeError("Session not wired — call set_session() at startup")
+    return _session
 
 
 def resolve_exchange(symbol: str) -> str:
@@ -31,34 +52,41 @@ def resolve_exchange(symbol: str) -> str:
     return "NSE"
 
 
+def _resolve_instrument(symbol: str):
+    """Build a domain Instrument from a symbol string."""
+    session = get_session()
+    sym = normalize_symbol(symbol)
+    exchange = resolve_exchange(sym)
+    return session.universe.equity(sym, exchange), exchange
+
+
 def show_quote(
-    broker_service: BrokerService, symbol: str, console: Console, live_mode: bool = False
+    broker_service, symbol: str, console: Console, live_mode: bool = False
 ) -> None:
-    """Display real-time quote for a symbol."""
-    gw = broker_service.active_broker
-    exchange = resolve_exchange(symbol)
+    """Display real-time quote for a symbol via domain objects."""
+    instrument, exchange = _resolve_instrument(symbol)
 
     def generate_table() -> Table:
-        quote = gw.quote(symbol, exchange)
+        q = instrument.refresh()
         table = Table(
             title=f"Quote Terminal: {normalize_symbol(symbol)} ({exchange})", header_style="bold green"
         )
         table.add_column("Metric", style="bold white")
         table.add_column("Value", justify="right")
 
-        if quote is not None:
+        if q is not None:
             ts_str = (
-                quote.timestamp.strftime("%H:%M:%S")
-                if isinstance(quote.timestamp, datetime)
-                else str(quote.timestamp)
+                q.event_time.strftime("%H:%M:%S")
+                if isinstance(q.event_time, datetime)
+                else str(q.event_time)
             )
-            table.add_row("Last Traded Price (LTP)", f"Rs. {quote.ltp:,.2f}")
-            table.add_row("Open", f"Rs. {quote.open:,.2f}")
-            table.add_row("High", f"Rs. {quote.high:,.2f}")
-            table.add_row("Low", f"Rs. {quote.low:,.2f}")
-            table.add_row("Prev Close", f"Rs. {quote.close:,.2f}")
-            table.add_row("Change", f"Rs. {quote.change:,.2f}")
-            table.add_row("Volume", f"{quote.volume:,}")
+            table.add_row("Last Traded Price (LTP)", f"Rs. {q.ltp:,.2f}")
+            table.add_row("Open", f"Rs. {q.open:,.2f}")
+            table.add_row("High", f"Rs. {q.high:,.2f}")
+            table.add_row("Low", f"Rs. {q.low:,.2f}")
+            table.add_row("Prev Close", f"Rs. {q.close:,.2f}")
+            table.add_row("Change", f"Rs. {q.change_pct:,.2f}")
+            table.add_row("Volume", f"{q.volume:,}")
             table.add_row("Last Updated", ts_str)
         else:
             table.add_row("Status", "[red]No quote data received[/red]")
@@ -78,14 +106,13 @@ def show_quote(
 
 
 def show_depth(
-    broker_service: BrokerService, symbol: str, console: Console, live_mode: bool = False
+    broker_service, symbol: str, console: Console, live_mode: bool = False
 ) -> None:
-    """Display L2 market depth (bids/asks)."""
-    gw = broker_service.active_broker
-    exchange = resolve_exchange(symbol)
+    """Display L2 market depth (bids/asks) via domain objects."""
+    instrument, exchange = _resolve_instrument(symbol)
 
     def generate_table() -> Table:
-        depth = gw.depth(symbol, exchange)
+        depth = instrument.depth()
         table = Table(title=f"Market Depth L2: {normalize_symbol(symbol)}", header_style="bold magenta")
         table.add_column("Bid Qty", style="green", justify="right")
         table.add_column("Bid Price", style="bold green", justify="right")
@@ -93,7 +120,6 @@ def show_depth(
         table.add_column("Ask Qty", style="red", justify="right")
 
         if depth is not None and (depth.bids or depth.asks):
-            # Show up to 5 levels for CLI readability
             max_levels = max(len(depth.bids), len(depth.asks))
             for i in range(min(max_levels, 5)):
                 bid = depth.bids[i] if i < len(depth.bids) else None
@@ -121,58 +147,81 @@ def show_depth(
                 console.print("\n[yellow]Depth Terminal closed.[/yellow]")
 
 
+def _fmt_dec(val):
+    if val is None:
+        return "[dim]-[/dim]"
+    try:
+        return f"{float(val):,.2f}"
+    except (ValueError, TypeError):
+        return "[dim]-[/dim]"
+
+
+def _fmt_int(val):
+    if val is None:
+        return "[dim]-[/dim]"
+    try:
+        return f"{int(val):,}"
+    except (ValueError, TypeError):
+        return "[dim]-[/dim]"
+
+
+def _fmt_iv(val):
+    if val is None:
+        return "[dim]-[/dim]"
+    try:
+        return f"{float(val):.1f}%"
+    except (ValueError, TypeError):
+        return "[dim]-[/dim]"
+
+
+def _get_leg_greeks(leg, name: str):
+    """Extract a greek value from an OptionLeg's greeks dict."""
+    greeks = getattr(leg, "greeks", None)
+    if greeks and isinstance(greeks, dict):
+        return greeks.get(name)
+    return None
+
+
 def show_option_chain(
-    broker_service: BrokerService,
+    broker_service,
     symbol: str,
     console: Console,
     expiry: str | None = None,
 ) -> None:
-    """Display option chain for an underlying asset."""
-    gw = broker_service.active_broker
+    """Display option chain for an underlying asset via domain objects."""
+    session = get_session()
     sym = normalize_symbol(symbol)
     exchange = "INDEX" if sym in _INDEX_UNDERLYINGS else "NFO"
+    instrument = session.universe.equity(sym, exchange)
 
-    # Auto-resolve expiry if not provided
-    if not expiry:
+    # Parse expiry to date for domain API
+    expiry_date = None
+    if expiry:
         try:
-            raw_expiries = gw.options.get_expiries(sym, exchange)
-            today_str = date.today().isoformat()
-            future_expiries = sorted([e for e in raw_expiries if e >= today_str])
-            expiry = future_expiries[0] if future_expiries else None
-        except Exception as exc:
-            logger.debug("expiry_fetch_failed: %s: %s", sym, exc)
-
-    if not expiry:
-        # Hard fallback: next Thursday
-        today = date.today()
-        days_to_thu = (3 - today.weekday()) % 7 or 7
-        expiry = (date.today() + timedelta(days=days_to_thu)).isoformat()
+            expiry_date = date.fromisoformat(expiry)
+        except ValueError:
+            pass
 
     console.print(
-        f"[dim]Fetching option chain for [bold]{sym}[/bold] | Expiry: [bold cyan]{expiry}[/bold cyan]...[/dim]"
+        f"[dim]Fetching option chain for [bold]{sym}[/bold] | Expiry: [bold cyan]{expiry or 'auto'}[/bold cyan]...[/dim]"
     )
 
     try:
-        chain = gw.options.get_option_chain(sym, exchange, expiry)
-        if hasattr(chain, "to_dict"):
-            chain = chain.to_dict()
+        chain = instrument.option_chain(expiry_date)
 
         table = Table(
-            title=f"Option Chain -- {sym}  |  Expiry: {expiry}",
+            title=f"Option Chain -- {sym}  |  Expiry: {chain.expiry}",
             header_style="bold cyan",
             show_lines=True,
             border_style="dim blue",
         )
-        # CE side
         table.add_column("CE OI", style="cyan", justify="right")
         table.add_column("CE Vol", justify="right")
         table.add_column("CE IV%", style="dim cyan", justify="right")
         table.add_column("CE LTP", style="bold green", justify="right")
         table.add_column("CE Delta", style="green", justify="right")
         table.add_column("CE Theta", style="green", justify="right")
-        # Strike
         table.add_column("Strike", style="bold yellow", justify="center", min_width=10)
-        # PE side
         table.add_column("PE Theta", style="red", justify="right")
         table.add_column("PE Delta", style="red", justify="right")
         table.add_column("PE LTP", style="bold red", justify="right")
@@ -180,13 +229,11 @@ def show_option_chain(
         table.add_column("PE Vol", justify="right")
         table.add_column("PE OI", style="cyan", justify="right")
 
-        strikes = chain.get("strikes", [])
-        spot = chain.get("spot", 0)
+        strikes = list(chain.strikes) if chain.strikes else []
+        spot = chain.spot or 0
 
         if strikes:
-            all_strike_vals = [s["strike"] for s in strikes]
-
-            # Show 14 strikes centred on ATM (7 ITM + 7 OTM)
+            all_strike_vals = [float(s.strike) for s in strikes]
             idx = len(all_strike_vals) // 2
             visible_strikes = strikes[max(0, idx - 7) : min(len(strikes), idx + 7)]
 
@@ -194,58 +241,33 @@ def show_option_chain(
                 f"  [dim]Spot: [bold]{spot:,.2f}[/bold] | Total strikes: [bold]{len(all_strike_vals)}[/bold] | Showing {len(visible_strikes)} centred on ATM[/dim]\n"
             )
 
-            def _fmt_dec(val):
-                if val is None:
-                    return "[dim]-[/dim]"
-                try:
-                    return f"{float(val):,.2f}"
-                except (ValueError, TypeError):
-                    return "[dim]-[/dim]"
-
-            def _fmt_int(val):
-                if val is None:
-                    return "[dim]-[/dim]"
-                try:
-                    return f"{int(val):,}"
-                except (ValueError, TypeError):
-                    return "[dim]-[/dim]"
-
-            def _fmt_iv(val):
-                if val is None:
-                    return "[dim]-[/dim]"
-                try:
-                    return f"{float(val):.1f}%"
-                except (ValueError, TypeError):
-                    return "[dim]-[/dim]"
-
             for entry in visible_strikes:
-                strike_val = entry["strike"]
-                ce = entry.get("call", {}) or {}
-                pe = entry.get("put", {}) or {}
+                strike_val = float(entry.strike)
+                ce = entry.call
+                pe = entry.put
 
-                # Determine ATM highlight
-                atm_dist = min((abs(float(s["strike"]) - float(spot)) for s in strikes), default=0)
-                is_atm = abs(float(strike_val) - float(spot)) == atm_dist
+                atm_dist = min((abs(s - float(spot)) for s in all_strike_vals), default=0)
+                is_atm = abs(strike_val - float(spot)) == atm_dist
                 strike_label = (
-                    f"[bold yellow on blue] {float(strike_val):>10,.0f} [/bold yellow on blue]"
+                    f"[bold yellow on blue] {strike_val:>10,.0f} [/bold yellow on blue]"
                     if is_atm
-                    else f"{float(strike_val):,.0f}"
+                    else f"{strike_val:,.0f}"
                 )
 
                 table.add_row(
-                    _fmt_int(ce.get("oi")),
-                    _fmt_int(ce.get("volume")),
-                    _fmt_iv(ce.get("iv")),
-                    _fmt_dec(ce.get("ltp")),
-                    _fmt_dec(ce.get("delta")),
-                    _fmt_dec(ce.get("theta")),
+                    _fmt_int(ce.oi),
+                    _fmt_int(ce.volume),
+                    _fmt_iv(ce.iv),
+                    _fmt_dec(ce.ltp),
+                    _fmt_dec(_get_leg_greeks(ce, "delta")),
+                    _fmt_dec(_get_leg_greeks(ce, "theta")),
                     strike_label,
-                    _fmt_dec(pe.get("theta")),
-                    _fmt_dec(pe.get("delta")),
-                    _fmt_dec(pe.get("ltp")),
-                    _fmt_iv(pe.get("iv")),
-                    _fmt_int(pe.get("volume")),
-                    _fmt_int(pe.get("oi")),
+                    _fmt_dec(_get_leg_greeks(pe, "theta")),
+                    _fmt_dec(_get_leg_greeks(pe, "delta")),
+                    _fmt_dec(pe.ltp),
+                    _fmt_iv(pe.iv),
+                    _fmt_int(pe.volume),
+                    _fmt_int(pe.oi),
                 )
         else:
             table.add_row(
@@ -260,17 +282,17 @@ def show_option_chain(
         console.print(f"[dim]{traceback.format_exc()}[/dim]")
 
 
-def show_futures(broker_service: BrokerService, symbol: str, console: Console) -> None:
-    """Display futures contract details."""
-    gw = broker_service.active_broker
+def show_futures(broker_service, symbol: str, console: Console) -> None:
+    """Display futures contract details via domain objects."""
+    session = get_session()
     sym = normalize_symbol(symbol)
     exchange = "NFO"
-    # Commodities route to MCX
     if any(c in sym for c in ("GOLD", "SILVER", "CRUDE", "NATURAL", "COPPER", "ZINC")):
         exchange = "MCX"
 
+    instrument = session.universe.equity(sym, exchange)
     try:
-        chain = gw.future_chain(sym, exchange)
+        chain = instrument.future_chain()
         contracts = chain.contracts if hasattr(chain, 'contracts') else []
 
         table = Table(title=f"Futures Contracts for {sym}", header_style="bold yellow")
@@ -281,17 +303,11 @@ def show_futures(broker_service: BrokerService, symbol: str, console: Console) -
 
         if contracts:
             for c in contracts:
-                expiry = c.expiry if hasattr(c, 'expiry') else (c.get("expiry", "N/A") if hasattr(c, 'get') else "N/A")
-                # P-2.3: Fixed - use c_symbol instead of shadowing function parameter
-                c_symbol = c.symbol if hasattr(c, 'symbol') else (c.get("symbol", "N/A") if hasattr(c, 'get') else "N/A")
-                security_id = c.security_id if hasattr(c, 'security_id') else (c.get("security_id", "N/A") if hasattr(c, 'get') else "N/A")
-                lot_size = c.lot_size if hasattr(c, 'lot_size') else (c.get("lot_size", "N/A") if hasattr(c, 'get') else "N/A")
-                table.add_row(
-                    str(expiry),
-                    str(c_symbol),
-                    str(security_id),
-                    str(lot_size),
-                )
+                expiry = getattr(c, "expiry", "N/A")
+                c_symbol = getattr(c, "symbol", "N/A")
+                security_id = getattr(c, "instrument_id", "N/A")
+                lot_size = getattr(c, "lot_size", "N/A")
+                table.add_row(str(expiry), str(c_symbol), str(security_id), str(lot_size))
         else:
             table.add_row("No contracts found", "-", "-", "-")
 
@@ -300,41 +316,23 @@ def show_futures(broker_service: BrokerService, symbol: str, console: Console) -
         console.print(f"[red]Error fetching futures details: {exc}[/red]")
 
 
-def show_historical(broker_service: BrokerService, symbol: str, console: Console) -> None:
-    """Display historical candles summary and preview via MarketDataComposer."""
-    from brokers.common.async_compat import run_async_compat
-    from brokers.common.historical_coordinator import HistoricalQuery
-    from cli.composer_helpers import get_market_data_composer
-    from domain.historical import InstrumentRef
+def show_historical(broker_service, symbol: str, console: Console) -> None:
+    """Display historical candles summary and preview via domain objects."""
+    from datetime import timedelta
 
-    # Get MarketDataComposer (lazy-loaded, cached)
-    try:
-        composer = get_market_data_composer()
-    except Exception as exc:
-        console.print(f"[red]Failed to initialize MarketDataComposer: {exc}[/red]")
-        return
+    session = get_session()
+    sym = normalize_symbol(symbol)
+    exchange = resolve_exchange(sym)
+    instrument = session.universe.equity(sym, exchange)
 
-    exchange = resolve_exchange(symbol)
     to_date = date.today()
     from_date = to_date - timedelta(days=10)
 
     try:
-        # Build HistoricalQuery for composer
-        query = HistoricalQuery(
-            instrument=InstrumentRef(symbol=symbol, exchange=exchange),
-            timeframe="1D",
-            from_date=from_date,
-            to_date=to_date,
-        )
-
-        # Execute via composer (async -> sync bridge)
-        series, ledger = run_async_compat(
-            composer.fetch_historical(query),
-            fire_and_forget=False,
-        )
+        df = instrument.history(timeframe="1D", start=from_date.isoformat(), end=to_date.isoformat())
 
         table = Table(
-            title=f"Historical Data Preview: {normalize_symbol(symbol)}", header_style="bold magenta"
+            title=f"Historical Data Preview: {sym}", header_style="bold magenta"
         )
         table.add_column("Timestamp", style="bold white")
         table.add_column("Open", justify="right")
@@ -343,43 +341,24 @@ def show_historical(broker_service: BrokerService, symbol: str, console: Console
         table.add_column("Close", justify="right")
         table.add_column("Volume", justify="right")
 
-        if series and series.bars:
-            # Show last 5 bars
-            for bar in series.bars[-5:]:
+        if not df.empty:
+            for _, row in df.tail(5).iterrows():
                 ts_str = (
-                    bar.timestamp.strftime("%Y-%m-%d")
-                    if hasattr(bar.timestamp, "strftime")
-                    else str(bar.timestamp)
+                    row["timestamp"].strftime("%Y-%m-%d")
+                    if hasattr(row["timestamp"], "strftime")
+                    else str(row["timestamp"])
                 )
                 table.add_row(
                     ts_str,
-                    f"{bar.open:,.2f}",
-                    f"{bar.high:,.2f}",
-                    f"{bar.low:,.2f}",
-                    f"{bar.close:,.2f}",
-                    f"{int(bar.volume):,}",
+                    f"{row['open']:,.2f}",
+                    f"{row['high']:,.2f}",
+                    f"{row['low']:,.2f}",
+                    f"{row['close']:,.2f}",
+                    f"{int(row['volume']):,}",
                 )
             console.print(table)
             console.print()
-
-            first_ts = series.bars[0].timestamp
-            last_ts = series.bars[-1].timestamp
-            first_str = (
-                first_ts.strftime("%Y-%m-%d")
-                if hasattr(first_ts, "strftime")
-                else str(first_ts)
-            )
-            last_str = (
-                last_ts.strftime("%Y-%m-%d")
-                if hasattr(last_ts, "strftime")
-                else str(last_ts)
-            )
-            degraded_note = " [yellow](degraded)[/yellow]" if series.is_degraded else ""
-            console.print(
-                f"Total Rows: [bold cyan]{series.bar_count}[/bold cyan]{degraded_note} candles | First: {first_str} | Last: {last_str}"
-            )
-            if ledger.conflicts:
-                console.print(f"[dim]Data conflicts resolved: {len(ledger.conflicts)}[/dim]")
+            console.print(f"Total Rows: [bold cyan]{len(df)}[/bold cyan] candles")
         else:
             table.add_row("No historical data found", "-", "-", "-", "-", "-")
             console.print(table)
@@ -402,24 +381,14 @@ def _build_stream_table(symbol: str, rows: list[list[str]]) -> Table:
     return tbl
 
 
-def show_stream(broker_service: BrokerService, symbol: str, console: Console) -> None:
-    """Stream live ticks via the broker WebSocket and display as a rolling table.
-
-    Uses ``gateway.stream()`` which subscribes to the broker WebSocket and
-    fires ``on_tick(quote: Quote)`` for every incoming tick.  The canonical
-    ``Quote`` object is broker-agnostic — no security IDs or instrument keys
-    are exposed here.
-
-    Falls back to polling REST quotes if the gateway does not support
-    ``stream()`` (e.g. MockBroker).
-    """
+def show_stream(broker_service, symbol: str, console: Console) -> None:
+    """Stream live ticks via domain instrument subscription."""
     import threading
 
-    gw = broker_service.active_broker
-    exchange = resolve_exchange(symbol)
+    instrument, exchange = _resolve_instrument(symbol)
 
     console.print(
-        f"[yellow]Connecting WebSocket for [bold]{symbol}[/bold] ({exchange})…  "
+        f"[yellow]Connecting for [bold]{symbol}[/bold] ({exchange})…  "
         f"Press [bold]Ctrl+C[/bold] to exit.[/yellow]"
     )
 
@@ -427,21 +396,19 @@ def show_stream(broker_service: BrokerService, symbol: str, console: Console) ->
     lock = threading.Lock()
     tick_count = 0
 
-    def on_tick(quote: object) -> None:
+    def on_tick(_iid, payload) -> None:
         nonlocal tick_count
-        # Accept canonical Quote OR raw dict (fallback path)
         try:
-            if hasattr(quote, "ltp"):
-                ltp = quote.ltp  # type: ignore[attr-defined]
-                open_ = quote.open  # type: ignore[attr-defined]
-                high = quote.high  # type: ignore[attr-defined]
-                low = quote.low  # type: ignore[attr-defined]
-                vol = quote.volume  # type: ignore[attr-defined]
-                chg = quote.change  # type: ignore[attr-defined]
-                ts = quote.timestamp  # type: ignore[attr-defined]
-            elif isinstance(quote, dict):
-                payload = quote.get("payload", quote)
-                ltp = payload.get("last_price", 0) if isinstance(payload, dict) else 0
+            if hasattr(payload, "ltp"):
+                ltp = payload.ltp
+                open_ = getattr(payload, "open", 0)
+                high = getattr(payload, "high", 0)
+                low = getattr(payload, "low", 0)
+                vol = getattr(payload, "volume", 0)
+                chg = getattr(payload, "change_pct", getattr(payload, "change", 0))
+                ts = getattr(payload, "event_time", getattr(payload, "timestamp", None))
+            elif isinstance(payload, dict):
+                ltp = payload.get("last_price", 0)
                 open_ = high = low = chg = 0
                 vol = 0
                 ts = None
@@ -476,54 +443,49 @@ def show_stream(broker_service: BrokerService, symbol: str, console: Console) ->
         except Exception as exc:
             logger.debug("tick_processing_failed: %s", exc)
 
-    # Subscribe via the canonical gateway.stream() interface
-    ws_handle = None
-    use_ws = hasattr(gw, "stream")
-    if use_ws:
-        try:
-            ws_handle = gw.stream(symbol, exchange=exchange, mode="LTP", on_tick=on_tick)
-        except Exception as exc:
-            console.print(
-                f"[yellow]WebSocket unavailable ({exc}), falling back to REST polling.[/yellow]"
-            )
-            use_ws = False
+    # Subscribe via domain instrument
+    subscription = None
+    use_ws = True
+    try:
+        subscription = instrument.subscribe(on_tick)
+    except Exception as exc:
+        console.print(
+            f"[yellow]Subscription unavailable ({exc}), falling back to REST polling.[/yellow]"
+        )
+        use_ws = False
 
     with Live(_build_stream_table(symbol, rows), console=console, refresh_per_second=2) as live:
         try:
             while True:
                 time.sleep(0.5)
 
-                # Fallback: REST polling when WS is not available
                 if not use_ws:
                     try:
-                        quote = gw.quote(symbol, exchange)
-                        if quote is not None:
-                            on_tick(quote)
+                        q = instrument.refresh()
+                        if q is not None:
+                            on_tick(None, q)
                     except Exception as exc:
                         logger.debug("rest_polling_failed: %s", exc)
 
                 with lock:
                     current_rows = list(rows)
                 tbl = _build_stream_table(symbol, current_rows)
-                # Append a footer showing tick count + connection type
                 conn_label = "[green]WS[/green]" if use_ws else "[yellow]REST[/yellow]"
                 tbl.caption = f"{conn_label} | Ticks received: [bold]{tick_count}[/bold]"
                 live.update(tbl)
         except KeyboardInterrupt:
             pass
 
-    # P0 Fix: Clean up via gateway.unstream() instead of direct SDK unsubscribe
-    # This ensures _stream_registry, _last_tick_time, and callbacks are properly cleaned
-    if ws_handle is not None:
+    if subscription is not None:
         try:
-            gw.unstream(symbol, exchange=exchange, on_tick=on_tick)
+            subscription.unsubscribe()
         except Exception as exc:
-            logger.debug("unstream_cleanup_failed: %s", exc)
+            logger.debug("unsubscribe_cleanup_failed: %s", exc)
 
     console.print("[yellow]Tick Stream Monitor stopped.[/yellow]")
 
 
-def run(args: list[str], broker_service: BrokerService, console: Console) -> None:
+def run(args: list[str], broker_service, console: Console) -> None:
     """Entry point for market data operations."""
     if not args:
         console.print(

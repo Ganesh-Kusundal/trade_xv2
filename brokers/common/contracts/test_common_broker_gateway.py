@@ -21,7 +21,7 @@ from brokers.common.broker_port import (
 from brokers.common.capabilities import CapabilityDescriptor
 from domain.entities import Balance, Order, OrderResponse, Position, Quote, Trade
 from domain.entities.market import MarketDepth
-from domain.historical import HistoricalBar, InstrumentRef
+from domain.candles.historical import HistoricalBar, InstrumentRef
 
 
 class CommonBrokerGatewayContractSuite:
@@ -65,7 +65,7 @@ class CommonBrokerGatewayContractSuite:
     # ── Order execution ──────────────────────────────────────────────────
 
     def test_place_order_returns_order_response(self, gateway: Any, quota_token: QuotaToken) -> None:
-        from domain.requests import OrderRequest
+        from domain.orders.requests import OrderRequest
         from domain.types import Side
 
         request = OrderRequest(
@@ -83,7 +83,7 @@ class CommonBrokerGatewayContractSuite:
         assert isinstance(result, OrderResponse)
 
     def test_modify_order_returns_order_response(self, gateway: Any, quota_token: QuotaToken) -> None:
-        from domain.requests import ModifyOrderRequest
+        from domain.orders.requests import ModifyOrderRequest
 
         request = ModifyOrderRequest(order_id="ORD-123", quantity=2)
         result = gateway.modify_order(request, quota=quota_token)

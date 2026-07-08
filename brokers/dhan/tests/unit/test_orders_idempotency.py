@@ -8,7 +8,7 @@ import pytest
 
 from brokers.dhan.orders import IdempotencyCache, OrdersAdapter
 from domain import Order, OrderResponse, OrderStatus, OrderType, ProductType, Side, Validity
-from domain.requests import OrderRequest
+from domain.orders.requests import OrderRequest
 
 
 def _make_response(order_id: str = "ORD1", correlation_id: str | None = None) -> OrderResponse:

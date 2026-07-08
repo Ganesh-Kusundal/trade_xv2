@@ -18,12 +18,29 @@ from api.auth import require_auth
 from api.deps import get_datalake_gateway, get_market_data_composer
 from api.freshness import check_data_freshness
 from api.schemas import Candle, CandlesResponse, QuoteResponse
-from brokers.common.historical_coordinator import HistoricalQuery
-from domain.historical import InstrumentRef
+from domain.candles.historical import InstrumentRef
+from domain.universe import Session
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(dependencies=[Depends(require_auth)])
+
+# ── Session DI (set once at startup) ────────────────────────────────
+_session: Session | None = None
+
+
+def set_session(session: Session) -> None:
+    global _session
+    _session = session
+
+
+def _get_session() -> Session:
+    if _session is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Session not wired — call set_session() at startup",
+        )
+    return _session
 
 
 # Cache TTL configuration by timeframe category
@@ -218,6 +235,8 @@ async def get_live_candles(
     from fastapi.responses import JSONResponse
 
     try:
+        from brokers.common.historical_coordinator import HistoricalQuery
+
         query = HistoricalQuery(
             instrument=InstrumentRef(symbol=symbol, exchange=exchange),
             timeframe=timeframe,
@@ -291,65 +310,49 @@ async def get_live_candles(
 
 @router.get("/quote/{symbol}", response_model=QuoteResponse)
 async def get_quote(symbol: str, exchange: str = Query("NSE", description="Exchange")):
-    """Get latest quote/LTP snapshot for a symbol.
-
-    Returns the most recent candle's close price as LTP,
-    along with OHLCV data from the last available bar.
+    """Get latest quote/LTP snapshot for a symbol via domain objects.
 
     Cache-Control: max-age=10 (10 seconds) - quotes change frequently.
     """
     from fastapi.responses import JSONResponse
 
-    gateway = get_datalake_gateway()
+    session = _get_session()
+    instrument = session.universe.equity(symbol, exchange)
 
     try:
-        # Use the gateway's quote() method which has TTL caching
-        quote = gateway.quote(symbol, exchange=exchange)
+        q = instrument.refresh()
 
-        if quote.ltp == 0 and quote.open == 0 and quote.volume == 0:
+        if q is None or (q.ltp == 0 and q.open == 0 and q.volume == 0):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"No quote data found for {symbol}",
             )
 
-        # Get timestamp and OI from the last candle via efficient path
-        from datalake.storage.cache_utils import get_last_candle_fast
-        last_candle = get_last_candle_fast(symbol, "1m", root=str(gateway._root))
-
-        ts_ms = 0
-        oi_value = 0.0
-        if last_candle and "timestamp" in last_candle:
-            ts = last_candle["timestamp"]
-            ts_pd = pd.Timestamp(ts)
-            ts_ms = int(ts_pd.timestamp() * 1000)
-        if last_candle and "oi" in last_candle:
-            oi_value = float(last_candle["oi"])
+        ts_ms = int(q.event_time.timestamp() * 1000) if q.event_time else 0
 
         response_data = {
             "symbol": symbol,
             "exchange": exchange,
-            "ltp": float(quote.ltp),
+            "ltp": float(q.ltp),
             "timestamp": ts_ms,
-            "open": float(quote.open) if quote.open is not None else None,
-            "high": float(quote.high) if quote.high is not None else None,
-            "low": float(quote.low) if quote.low is not None else None,
-            "close": float(quote.close) if quote.close is not None else None,
-            "volume": float(quote.volume) if quote.volume is not None else 0.0,
-            "oi": oi_value,
+            "open": float(q.open) if q.open else None,
+            "high": float(q.high) if q.high else None,
+            "low": float(q.low) if q.low else None,
+            "close": float(q.close) if q.close else None,
+            "volume": float(q.volume) if q.volume else 0.0,
+            "oi": 0.0,
         }
 
         response = JSONResponse(content=response_data)
 
-        # P0.7: Add Cache-Control headers for quote endpoint
         max_age = QUOTE_CACHE_TTL
-        stale_while_revalidate = max_age * 6  # SWR = 60 seconds
+        stale_while_revalidate = max_age * 6
         response.headers["Cache-Control"] = build_cache_control_header(
             max_age=max_age, stale_while_revalidate=stale_while_revalidate
         )
         response.headers["X-Cache-TTL"] = str(max_age)
         response.headers["X-Data-Type"] = "quote"
 
-        # Add freshness timestamp
         freshness_ts = pd.Timestamp(ts_ms, unit="ms").isoformat()
         response.headers["X-Data-Freshness"] = freshness_ts
 

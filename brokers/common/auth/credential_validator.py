@@ -30,7 +30,7 @@ class CredentialValidator:
         issues: list[CredentialIssue] = []
 
         path = CredentialResolver.resolve_env_path(broker, env_path)
-        if broker == "paper":
+        if broker in _SKIP_VALIDATION:
             return True, issues
 
         if path is None:
@@ -51,10 +51,9 @@ class CredentialValidator:
         # Load into os.environ for field checks (idempotent).
         CredentialResolver.load_broker_env(broker, path)
 
-        if broker == "dhan":
-            issues.extend(CredentialValidator._validate_dhan())
-        elif broker == "upstox":
-            issues.extend(CredentialValidator._validate_upstox())
+        validator = _BROKER_VALIDATORS.get(broker)
+        if validator is not None:
+            issues.extend(validator())
 
         has_errors = any(i.severity == "error" for i in issues)
         return not has_errors, issues
@@ -163,3 +162,11 @@ class CredentialValidator:
         """``True`` when credential validation passes (no errors)."""
         ok, _ = CredentialValidator.validate_broker(broker, env_path)
         return ok
+
+
+_SKIP_VALIDATION: set[str] = {"paper"}
+
+_BROKER_VALIDATORS: dict[str, callable] = {
+    "dhan": CredentialValidator._validate_dhan,
+    "upstox": CredentialValidator._validate_upstox,
+}

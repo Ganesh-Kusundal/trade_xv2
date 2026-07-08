@@ -19,7 +19,7 @@ from pathlib import Path
 from rich.console import Console
 from rich.table import Table
 
-from brokers.dhan.loader import InstrumentLoader
+from cli.services.broker_facade import InstrumentLoader
 from cli.commands.registry import CommandResult
 from cli.services.broker_service import BrokerService
 

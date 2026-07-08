@@ -111,7 +111,7 @@ class TradingExecutor(ABC):
     """Narrow interface for order placement, cancellation, and trade/order book.
 
     The ``place_order`` signature matches the concrete gateway implementations.
-    For typed order requests, use :class:`~domain.requests.OrderRequest`
+    For typed order requests, use :class:`~domain.orders.requests.OrderRequest`
     as an alternative construction pattern.
     """
 

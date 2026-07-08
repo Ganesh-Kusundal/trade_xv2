@@ -6,7 +6,7 @@ from datetime import date
 
 import pytest
 
-from domain.instrument_id import InstrumentId
+from domain.instruments.instrument_id import InstrumentId
 from domain.instrument_resolver import parse_selector, resolve_selector
 
 

@@ -321,7 +321,7 @@ class ExtendedOrderService:
                     resp = conn.orders.place_slice_order(**payload)
             else:
                 broker = self._get_broker(gw)
-                from domain.requests import SliceOrderRequest
+                from domain.orders.requests import SliceOrderRequest
 
                 req = SliceOrderRequest(**payload)
                 with oms_managed():

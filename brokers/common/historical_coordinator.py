@@ -64,7 +64,7 @@ from brokers.common.provenance import (
 )
 from brokers.common.registry import BrokerRegistry
 from brokers.common.router import BrokerRouter
-from domain.historical import (
+from domain.candles.historical import (
     DateRange,
     Gap,
     HistoricalBar,

@@ -9,7 +9,7 @@ from typing import Any
 from application.execution.execution_service import ExecutionService
 from application.oms.context import TradingContext
 from application.oms.order_manager import OmsOrderCommand
-from brokers.common.gateway import MarketDataGateway
+from domain.ports.broker_transport import BrokerTransport as MarketDataGateway
 from domain import Order, OrderStatus, Side, Trade
 
 

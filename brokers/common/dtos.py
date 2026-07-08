@@ -30,7 +30,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any
 
-from domain.requests import OrderRequest
+from domain.orders.requests import OrderRequest
 from domain.types import ExchangeSegment
 
 
