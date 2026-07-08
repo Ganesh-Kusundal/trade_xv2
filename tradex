@@ -1,4 +1,0 @@
-#!/bin/bash
-# Get the directory of this script
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-exec "$DIR/venv/bin/python" -m cli.main "$@"

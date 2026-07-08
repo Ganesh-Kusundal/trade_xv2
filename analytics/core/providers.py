@@ -1,9 +1,20 @@
-"""Broker-neutral market-data provider contracts for analytics."""
+"""Broker-neutral market-data provider contracts for analytics.
+
+V2: The ``MarketDataProvider`` protocol now bridges to the V2
+``DataProvider`` protocol (which uses ``InstrumentId``).  Analytics
+code that previously called ``provider.history("RELIANCE")`` continues
+to work — the bridge translates ``str`` → ``InstrumentId`` internally.
+
+New code should use ``InstrumentAggregate`` as the entry point:
+
+    instrument = registry.get_instrument(InstrumentId.equity("NSE", "RELIANCE"))
+    df = instrument.get_history(timeframe="1D", lookback_days=120)
+"""
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 import pandas as pd
 
@@ -11,8 +22,14 @@ from domain.entities import FutureChain, OptionChain
 from domain.symbols import normalize_symbol
 
 
+@runtime_checkable
 class MarketDataProvider(Protocol):
-    """Minimal interface required by analytics engines."""
+    """Minimal interface required by analytics engines.
+
+    Accepts both ``str`` symbols (backward compat) and ``InstrumentId``
+    objects (V2).  Implementations should accept ``InstrumentId``
+    internally and translate as needed.
+    """
 
     def history(
         self,

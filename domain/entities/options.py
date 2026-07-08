@@ -54,32 +54,9 @@ class OptionLeg:
 
     @classmethod
     def from_dict(cls, data: dict | None) -> OptionLeg:
-        if not isinstance(data, dict):
-            return cls()
-        # Greeks may arrive nested under "greeks" or as flat top-level keys
-        # (the Dhan adapter outputs delta/theta/gamma/vega inline).
-        nested_greeks = data.get("greeks")
-        if isinstance(nested_greeks, dict) and nested_greeks:
-            greeks = dict(nested_greeks)
-        else:
-            flat = {}
-            for key in ("delta", "theta", "gamma", "vega", "rho"):
-                val = data.get(key)
-                if val is not None:
-                    flat[key] = val
-            greeks = flat or None
-        return cls(
-            ltp=_decimal_or_none(data.get("ltp")),
-            oi=_parse_int_or_none(data.get("oi")),
-            volume=_parse_int_or_none(data.get("volume")),
-            iv=_decimal_or_none(data.get("iv")),
-            bid=_decimal_or_none(data.get("bid")),
-            ask=_decimal_or_none(data.get("ask")),
-            symbol=data.get("symbol"),
-            instrument_key=data.get("instrument_key") or data.get("security_id"),
-            trading_symbol=data.get("trading_symbol") or data.get("tradingSymbol"),
-            greeks=greeks,
-        )
+        from domain.serialization import option_leg_from_dict
+
+        return option_leg_from_dict(data)
 
     def to_dict(self) -> dict[str, Any]:
         out: dict[str, Any] = {
@@ -108,15 +85,9 @@ class OptionStrike:
 
     @classmethod
     def from_dict(cls, data: dict) -> OptionStrike:
-        strike_val = data.get("strike") or data.get("strikePrice")
-        strike = _decimal_or_none(strike_val) or Decimal("0")
-        call_raw = data.get("call") or data.get("CE") or {}
-        put_raw = data.get("put") or data.get("PE") or {}
-        return cls(
-            strike=strike,
-            call=OptionLeg.from_dict(call_raw if isinstance(call_raw, dict) else {}),
-            put=OptionLeg.from_dict(put_raw if isinstance(put_raw, dict) else {}),
-        )
+        from domain.serialization import option_strike_from_dict
+
+        return option_strike_from_dict(data)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -138,18 +109,9 @@ class OptionChain:
 
     @classmethod
     def from_dict(cls, data: dict | None) -> OptionChain:
-        if not data:
-            return cls(underlying="", exchange="", expiry="")
-        strikes = tuple(
-            OptionStrike.from_dict(row) for row in data.get("strikes", []) if isinstance(row, dict)
-        )
-        return cls(
-            underlying=str(data.get("underlying", "")),
-            exchange=str(data.get("exchange", "")),
-            expiry=str(data.get("expiry", "")),
-            strikes=strikes,
-            spot=_decimal_or_none(data.get("spot")),
-        )
+        from domain.serialization import option_chain_from_dict
+
+        return option_chain_from_dict(data)
 
     def to_dict(self) -> dict[str, Any]:
         return {

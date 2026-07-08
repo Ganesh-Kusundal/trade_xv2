@@ -15,7 +15,7 @@ MODULES = [
     "infrastructure.metrics",
     "infrastructure.cache",
     "infrastructure.health",
-    "infrastructure.tracing",
+    "infrastructure.observability.tracing",
     "infrastructure.correlation",
     "infrastructure.global_exception_handler",
     "api.main",

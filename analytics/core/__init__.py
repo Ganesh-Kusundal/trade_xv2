@@ -1,6 +1,7 @@
 """Core analytics contracts and feature construction."""
 
 from analytics.core.feature_builder import FeatureBuilder
+from analytics.core.instrument_analyzer import InstrumentAnalyzer
 from analytics.core.models import AnalysisResult, FeatureSet, normalize_ohlcv
 from analytics.core.providers import (
     CsvMarketDataProvider,
@@ -16,6 +17,7 @@ __all__ = [
     "FeatureBuilder",
     "FeatureSet",
     "GatewayMarketDataProvider",
+    "InstrumentAnalyzer",
     "MarketDataProvider",
     "normalize_ohlcv",
 ]

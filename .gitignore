@@ -77,3 +77,7 @@ analytics_cache/
 
 # Data lake quarantine — corrupted / unparseable files
 market_data/_quarantine/
+
+# Archives and backups
+archive/
+

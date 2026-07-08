@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from domain.exceptions import TradeXV2Error
 
-class IdempotencyError(Exception):
+
+class IdempotencyError(TradeXV2Error):
     """Base exception for idempotency-related errors."""
     
     def __init__(self, message: str, key: str | None = None, operation: str = "unknown"):

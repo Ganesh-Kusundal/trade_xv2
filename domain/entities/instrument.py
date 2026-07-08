@@ -1,4 +1,14 @@
-"""Instrument domain entity."""
+"""Instrument domain entity.
+
+Renamed from ``Instrument`` to ``InstrumentRecord`` to clarify that this
+is a broker-adapter-level data record (instrument master data), NOT the
+application-layer aggregate root.  The new ``InstrumentAggregate`` in
+``domain.aggregates`` is the canonical entry point for application code.
+
+Broker adapters continue to use ``InstrumentRecord`` internally for
+instrument resolution and loading.  Application code should use
+``InstrumentAggregate`` (accessed via ``ProviderRegistry``).
+"""
 
 from __future__ import annotations
 
@@ -9,19 +19,15 @@ from domain.constants import DEFAULT_TICK_SIZE
 
 
 @dataclass(slots=True, frozen=True)
-class Instrument:
-    """Canonical instrument master record — returned by broker adapters.
+class InstrumentRecord:
+    """Instrument master record — broker-adapter-level data record.
 
     This is the broker-adapter-level instrument, populated by Dhan/Upstox
-    instrument loaders. Distinct from:
+    instrument loaders.  It carries static metadata about an instrument
+    (symbol, exchange, security_id, lot_size, etc.) and is used internally
+    by broker adapters for instrument resolution.
 
-    * ``brokers.common.core.instruments.Instrument`` — the trading-engine
-      instrument used by the strategy layer (has ``asset_class``,
-      ``broker_identifier``).
-    * ``brokers.dhan.domain.Instrument`` — Dhan-specific instrument with
-      typed ``Exchange`` and ``InstrumentType`` enums.
-
-    Frozen for immutability — all fields are value types.
+    Application code should use ``InstrumentAggregate`` instead.
     """
 
     symbol: str
@@ -36,3 +42,8 @@ class Instrument:
     expiry: str | None = None
     underlying: str | None = None
     canonical_symbol: str | None = None
+
+
+# Backward-compat alias — existing broker code imports Instrument, not InstrumentRecord.
+# This alias will be removed once all broker adapters are migrated.
+Instrument = InstrumentRecord

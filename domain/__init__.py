@@ -8,6 +8,16 @@ warnings for one release cycle.
 from __future__ import annotations
 
 from domain.capabilities import Capability, ConnectionStatus
+from domain.aggregates import InstrumentAggregate
+from domain.extensions import Extension, ExtensionRegistry
+from domain.providers import DataProvider, ExecutionProvider, ProviderRegistry, Subscription
+from domain.value_objects import (
+    ExtensionInfo,
+    InstrumentState,
+    Money,
+    SubscriptionState,
+    TickSize,
+)
 from domain.entities import (
     Balance,
     ConditionalAlert,
@@ -18,6 +28,7 @@ from domain.entities import (
     FutureContract,
     Holding,
     Instrument,
+    InstrumentRecord,
     MarketDepth,
     MarketIntelligenceSnapshot,
     OptionChain,
@@ -48,8 +59,21 @@ from domain.requests import (
 from domain.result import GatewayResult, ResultMetadata
 
 __all__ = [
+    # ── V2: Instrument-Centric Architecture ──────────────────────
+    "DataProvider",
+    "ExecutionProvider",
+    "Extension",
+    "ExtensionInfo",
+    "ExtensionRegistry",
+    "InstrumentAggregate",
+    "InstrumentState",
+    "Money",
+    "ProviderRegistry",
+    "Subscription",
+    "SubscriptionState",
+    "TickSize",
+    # ── Legacy (kept for backward compat during migration) ──────
     "Balance",
-    "Capability",
     "ConditionalAlert",
     "ConditionalAlertRequest",
     "ConnectionStatus",
@@ -63,6 +87,7 @@ __all__ = [
     "HistoricalCandle",
     "Holding",
     "Instrument",
+    "InstrumentRecord",
     "InstrumentType",
     "MarketDepth",
     "MarketIntelligenceSnapshot",

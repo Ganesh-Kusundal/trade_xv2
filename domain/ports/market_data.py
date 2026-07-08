@@ -39,6 +39,17 @@ class MarketDataPort(Protocol):
     - ``DataFrameMarketDataProvider`` (in-memory DataFrames, for tests)
     - ``CsvMarketDataProvider`` (CSV files, for notebooks)
     - ``CachedMarketDataProvider`` (decorator adding caching)
+
+    Relationship to other provider interfaces (convergence note):
+        * This port is the **canonical historical-data contract** for the
+          analytics/replay/backtest bounded context. Prefer it over the
+          legacy ``analytics.core.providers.MarketDataProvider`` protocol,
+          which duplicates this surface for str-symbol backward compat and
+          is scheduled for deprecation.
+        * ``domain.providers.protocols.DataProvider`` is a *separate*
+          bounded context: it is the V2 unified **live** broker data/feed
+          protocol (quote/depth/subscribe), not historical data. The two
+          are intentionally distinct and must not be merged.
     """
 
     # ── Single-symbol access ────────────────────────────────────────

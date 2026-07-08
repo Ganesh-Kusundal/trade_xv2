@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/datalake/__init__.py
-# hypothesis_version: 6.155.7
-
-[365, '1m', 'DataCatalog', 'DataLake', 'DataQualityEngine', 'HistoricalDataLoader', 'IncrementalUpdater', 'NIFTY500', 'ResearchAPI', 'market_data']

@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/cli/widgets/market_console.py
-# hypothesis_version: 6.155.7
-
-[0.1, '#depth-panel', '#depth-table', '#opt-chain-table', '#q-ask', '#q-bid', '#q-ltp', '#q-oi', '#q-sym', '#q-vol', '#quote-panel', '#sym-search-panel', '#tui-market-symbol', '-', '2026-06-16', '40%', '60%', 'Ask Price', 'Ask Price: Rs. 0.00', 'Ask Qty', 'Bid Price', 'Bid Price: Rs. 0.00', 'Bid Qty', 'CE', 'CE LTP', 'CE OI', 'CE Vol', 'LTP: Rs. 0.00', 'NFO', 'NIFTY', 'Open Interest: 0', 'Option Chain Grid', 'PE', 'PE LTP', 'PE OI', 'PE Vol', 'Query Symbol', 'Strike', 'Symbol: NIFTY', 'Volume: 0', 'bold white', 'bold yellow', 'btn-query-market', 'depth-panel', 'depth-table', 'dim green', 'dim red', 'green', 'opt-chain-table', 'option_type', 'panel', 'primary', 'q-ask', 'q-bid', 'q-ltp', 'q-oi', 'q-sym', 'q-vol', 'quote-metrics-vert', 'quote-panel', 'red', 'scroll-container', 'strike', 'sym-search-panel', 'title', 'tui-market-symbol']

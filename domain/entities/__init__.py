@@ -34,8 +34,8 @@ from domain.entities.alerts import (
     PnlExitResult,
 )
 
-# Instrument (frozen)
-from domain.entities.instrument import Instrument
+# Instrument (frozen) — renamed to InstrumentRecord for clarity
+from domain.entities.instrument import Instrument, InstrumentRecord
 
 # Market data
 from domain.entities.market import (

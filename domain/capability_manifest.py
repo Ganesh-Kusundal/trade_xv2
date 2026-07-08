@@ -2,6 +2,20 @@
 
 Each :class:`CapabilitySurface` records how a feature is implemented at the
 broker layer and whether it is exposed on CLI and REST surfaces.
+
+.. note::
+    Architecture debt (tracked, not yet remediated): ARCHITECTURE_V2.md
+    proposes runtime-discoverable capabilities via the
+    :class:`domain.extensions.registry.ExtensionRegistry` and deprecates the
+    hardcoded ``Capability`` enum in :mod:`domain.capabilities`. This module
+    remains the *declarative coverage SSOT* (it drives the capability-test
+    suite under ``tests/capability/`` and ``scripts/capability_report.py``)
+    and intentionally references the ``Capability`` enum for stable IDs.
+
+    It is **not** a behavioral broker-coupling point — it holds no broker
+    imports and performs no I/O. Migration to the extension registry is a
+    later-phase effort; until then this manifest is the canonical coverage
+    reference and must stay in ``domain`` so the capability tests resolve it.
 """
 
 from __future__ import annotations
@@ -197,6 +211,21 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
             RestExposure("WS", "/ws/market", "api/ws/market.py", "live_broker"),
             RestExposure("WS", "/ws/market/{symbol}", "api/ws/market.py", "live_broker"),
         ),
+        severity_if_gap="P2",
+    ),
+    CapabilitySurface(
+        id="streaming.depth_stream",
+        capability=Capability.DEPTH,
+        gateway_method="stream_depth",
+        abc_required=True,
+        broker=BrokerMethodRef(dhan="gateway.stream_depth", upstox="market_data.subscribe_depth"),
+        cli=(CliExposure("depth", "cli/commands/market_handlers.py"),),
+        rest=(
+            RestExposure(
+                "WS", "/ws/market/depth/{symbol}", "api/ws/market.py", "live_broker"
+            ),
+        ),
+        cli_data_source="live_broker",
         severity_if_gap="P2",
     ),
     CapabilitySurface(
@@ -748,7 +777,7 @@ CAPABILITY_SURFACES: tuple[CapabilitySurface, ...] = (
     CapabilitySurface(
         id="capability.order_stream",
         capability=Capability.ORDER_STREAM,
-        gateway_method=None,
+        gateway_method="stream_order",
         broker=BrokerMethodRef(dhan="order_stream.connect", upstox=None),
         cli=(CliExposure("websocket", "cli/commands/websocket.py"),),
         rest=(),
@@ -1151,7 +1180,15 @@ def surfaces_for_capability(cap: Capability) -> list[CapabilitySurface]:
 
 
 def abc_gateway_methods() -> frozenset[str]:
-    """Abstract methods required by MarketDataGateway ABC."""
+    """Abstract methods required by MarketDataGateway ABC.
+
+    Kept in sync with the ``@abstractmethod`` definitions on
+    :class:`brokers.common.gateway.MarketDataGateway`. The streaming
+    surface is split into three abstract methods: ``stream`` (market
+    feed), ``stream_depth`` (depth feed) and ``stream_order`` (order
+    feed); each has a corresponding manifest surface so the coverage
+    contract test passes.
+    """
     return frozenset(
         {
             "history",
@@ -1161,6 +1198,8 @@ def abc_gateway_methods() -> frozenset[str]:
             "option_chain",
             "future_chain",
             "stream",
+            "stream_depth",
+            "stream_order",
             "ltp_batch",
             "quote_batch",
             "history_batch",

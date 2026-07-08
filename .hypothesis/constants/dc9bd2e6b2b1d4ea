@@ -1,4 +1,0 @@
-# file: /Users/apple/Downloads/Trade_XV2/domain/enums.py
-# hypothesis_version: 6.155.7
-
-['BUY', 'CANCELLED', 'CNC', 'DAY', 'EXPIRED', 'FILLED', 'INTRADAY', 'IOC', 'LIMIT', 'MARGIN', 'MARKET', 'MTF', 'OPEN', 'PARTIALLY_FILLED', 'REJECTED', 'SELL', 'STOP_LOSS', 'STOP_LOSS_MARKET', 'UNKNOWN']

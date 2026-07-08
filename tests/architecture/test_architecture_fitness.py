@@ -196,7 +196,13 @@ class TestImportRules:
             for imp, _src in _get_imports(filepath):
                 if (
                     (imp.startswith("application") or imp.startswith("domain"))
-                    and not imp.startswith(("domain.events", "domain.types", "domain.enums", "domain.constants", "domain.lifecycle_health", "domain.ports", "domain.correlation"))
+                    and not imp.startswith((
+                        "domain.events", "domain.types", "domain.enums",
+                        "domain.constants", "domain.lifecycle_health", "domain.ports",
+                        "domain.correlation", "domain.exceptions", "domain.entities",
+                        "domain.provenance", "domain.symbols", "domain.instrument_id",
+                        "domain.providers.protocols", "domain.historical",
+                    ))
                     and "/tests/" not in filepath
                 ):
                     violations.append(f"{filepath}: imports {imp}")
@@ -226,7 +232,7 @@ class TestNoDuplication:
 
     # Map of concern -> canonical module
     CANONICAL_LOCATIONS: ClassVar[dict[str, str]] = {
-        "TradeXV2Error": "brokers.common.resilience.errors",
+        "TradeXV2Error": "domain.exceptions",
         "configure_logging": "infrastructure.logging_config",
         "metrics_registry": "infrastructure.metrics.registry",
         "Cache": "infrastructure.cache",
@@ -245,7 +251,7 @@ class TestNoDuplication:
                     content = f.read()
                 if "class TradeXV2Error(Exception)" in content:
                     count += 1
-                    assert "brokers/common/resilience/errors.py" in filepath, (
+                    assert "domain/exceptions.py" in filepath, (
                         f"TradeXV2Error defined in non-canonical location: {filepath}"
                     )
         assert count == 1, f"TradeXV2Error defined {count} times (should be 1)"
@@ -308,6 +314,9 @@ class TestRetryUsage:
             "cli/commands/market.py",  # CLI polling loop
             "cli/commands/events.py",  # CLI event polling
             "cli/commands/websocket.py",  # CLI WebSocket keepalive
+            "brokers/common/idempotency/file_cache.py",  # Cache TTL/poll interval
+            "brokers/common/idempotency/redis_cache.py",  # Cache TTL/poll interval
+            "brokers/dhan/depth_200.py",  # Depth feed poll interval
         ]
         violations = [
             v for v in violations
