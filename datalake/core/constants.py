@@ -6,6 +6,8 @@ defined here to prevent duplication and ensure consistency across the codebase.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 # Filesystem paths
 DEFAULT_DATA_ROOT: str = "market_data"
 """Default root directory for market data storage."""
@@ -43,12 +45,16 @@ DEFAULT_COMPRESSION: str = "snappy"
 """Default compression algorithm for Parquet files."""
 
 # DuckDB configuration
-DEFAULT_CATALOG_PATH: str = ".datalake/catalog.duckdb"
-"""Default path for DuckDB catalog database."""
+DEFAULT_CATALOG_PATH: Path = Path("market_data/catalog.duckdb")
+"""Default path for DuckDB catalog database (matches the path used by all readers)."""
 
 # Data quality
 EXPECTED_CANDLES_PER_DAY: int = 375
 """Expected number of 1-minute candles in a full trading day."""
+
+# NSE trading session length (9:15–15:30 IST)
+TRADING_MINUTES_PER_DAY: int = EXPECTED_CANDLES_PER_DAY
+"""Total traded minute-marks in a full session; alias of EXPECTED_CANDLES_PER_DAY."""
 
 # NSE trading hours
 MARKET_OPEN_HOUR: int = 9
@@ -73,6 +79,7 @@ __all__ = [
     "DEFAULT_COMPRESSION",
     "DEFAULT_CATALOG_PATH",
     "EXPECTED_CANDLES_PER_DAY",
+    "TRADING_MINUTES_PER_DAY",
     "MARKET_OPEN_HOUR",
     "MARKET_OPEN_MINUTE",
     "MARKET_CLOSE_HOUR",

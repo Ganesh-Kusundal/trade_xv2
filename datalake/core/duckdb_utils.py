@@ -29,7 +29,7 @@ import duckdb
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_CATALOG_PATH = Path("market_data/catalog.duckdb")
+from datalake.core.constants import DEFAULT_CATALOG_PATH
 
 
 def connect_with_retry(

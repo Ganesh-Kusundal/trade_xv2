@@ -20,7 +20,8 @@ import pyarrow as pa
 from brokers.common.batch_executor import batch_execute
 from datalake.core.paths import symbol_partition_path
 from datalake.core.io import atomic_parquet_write
-from datalake.schema import (
+from datalake.core.constants import (
+    EXPECTED_CANDLES_PER_DAY,
     MARKET_CLOSE_HOUR,
     MARKET_CLOSE_MINUTE,
     MARKET_OPEN_HOUR,
@@ -34,7 +35,6 @@ logger = logging.getLogger(__name__)
 # NSE trading hours
 NSE_MARKET_OPEN = dt_time(MARKET_OPEN_HOUR, MARKET_OPEN_MINUTE)  # 09:15
 NSE_MARKET_CLOSE = dt_time(MARKET_CLOSE_HOUR, MARKET_CLOSE_MINUTE)  # 15:30
-EXPECTED_CANDLES_PER_DAY = 375  # 1-minute candles for full trading day
 
 
 class HistoricalDataLoader:

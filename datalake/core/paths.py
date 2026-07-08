@@ -36,17 +36,20 @@ from __future__ import annotations
 
 from pathlib import Path
 
-# Default root directory for the datalake on disk.
-DEFAULT_DATA_ROOT: str = "market_data"
+from datalake.core.constants import (
+    CURATED_ROOT,
+    DEFAULT_DATA_ROOT,
+    DEFAULT_TIMEFRAME,
+    SUPPORTED_TIMEFRAMES,
+)
 
-# Supported timeframes. Adding a new one requires also adding it to
-# the historical loader's ``_TIMEFRAME_MAP`` in
+# Supported timeframes (defined in :mod:`datalake.core.constants`). Adding a new
+# one requires also adding it to the historical loader's ``_TIMEFRAME_MAP`` in
 # :mod:`brokers.dhan.historical` and the corresponding CLI
 # ``options sync`` and ``backtest`` commands.
-SUPPORTED_TIMEFRAMES: frozenset[str] = frozenset({"1m", "5m", "15m", "1h", "1d"})
 
-# Default timeframe for ``DataLake.history`` and CLI smoke tests.
-DEFAULT_TIMEFRAME: str = "1m"
+# Default timeframe for ``DataLake.history`` and CLI smoke tests (see
+# :data:`datalake.core.constants.DEFAULT_TIMEFRAME`).
 
 # Partition scheme constants. These are the keys used in the path.
 PARTITION_TIMEFRAME: str = "timeframe"
@@ -126,7 +129,6 @@ def timeframe_partition_dir(
 # Curated (date-partitioned) layout — preferred for new readers/writers
 # ---------------------------------------------------------------------------
 
-CURATED_ROOT: str = "market_data/curated"
 CURATED_EQUITY_CANDLES: str = "equities/candles"
 
 

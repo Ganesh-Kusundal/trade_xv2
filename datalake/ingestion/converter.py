@@ -27,15 +27,16 @@ import pyarrow as pa
 
 from datalake.core.io import atomic_parquet_write
 from datalake.schema import CANONICAL_COLUMNS
+from datalake.core.constants import (
+    MARKET_CLOSE_HOUR,
+    MARKET_CLOSE_MINUTE,
+    MARKET_OPEN_HOUR,
+    MARKET_OPEN_MINUTE,
+)
 from datalake.core.symbols import normalize_symbol
 from datalake.validation import validate_candles
 
 logger = logging.getLogger(__name__)
-
-MARKET_OPEN_HOUR = 9
-MARKET_OPEN_MINUTE = 15
-MARKET_CLOSE_HOUR = 15
-MARKET_CLOSE_MINUTE = 30
 
 
 def _detect_source_timezone(bar_time_ms: pd.Series) -> str:

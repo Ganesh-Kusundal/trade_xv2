@@ -9,6 +9,14 @@ from __future__ import annotations
 
 from datetime import date
 
+from datalake.core.constants import (
+    MARKET_CLOSE_HOUR,
+    MARKET_CLOSE_MINUTE,
+    MARKET_OPEN_HOUR,
+    MARKET_OPEN_MINUTE,
+    TRADING_MINUTES_PER_DAY,
+)
+
 import pyarrow as pa
 
 # Canonical column names
@@ -38,14 +46,7 @@ OPTIONAL_COLUMNS = [
     "trade_count",  # Number of trades
 ]
 
-# NSE market hours in IST
-MARKET_OPEN_HOUR = 9  # 9:15 IST
-MARKET_OPEN_MINUTE = 15
-MARKET_CLOSE_HOUR = 15  # 15:30 IST
-MARKET_CLOSE_MINUTE = 30
-TRADING_MINUTES_PER_DAY = (
-    375  # (15*60 + 30) - (9*60 + 15) + 1 = 376... actually 375 unique minute marks
-)
+# NSE market hours in IST (defined in :mod:`datalake.core.constants`).
 
 # PyArrow schema for Parquet files
 ARROW_SCHEMA = pa.schema(
