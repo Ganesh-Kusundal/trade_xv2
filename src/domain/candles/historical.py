@@ -10,11 +10,11 @@ Every bar carries ``DataProvenance`` so provenance survives federation and merge
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from enum import Enum
 
-from domain.provenance import DataProvenance
+from domain.provenance import DataProvenance, ProvenanceConfidence, SourceIdentity
 
 
 class BarLabelConvention(str, Enum):
@@ -188,3 +188,319 @@ class HistoricalSeries:
             "exchange",
             "timeframe",
         ])
+
+    # ------------------------------------------------------------------
+    # Convenience accessors (DataFrame becomes an *export* format only).
+    # ------------------------------------------------------------------
+    @property
+    def df(self) -> "pd.DataFrame":
+        """Alias for :meth:`to_dataframe` — the canonical export view."""
+        return self.to_dataframe()
+
+    @property
+    def candles(self) -> list[HistoricalBar]:
+        """Alias for :attr:`bars`."""
+        return self.bars
+
+    @property
+    def last(self) -> HistoricalBar | None:
+        """The most recent bar, or ``None`` if the series is empty."""
+        return self.bars[-1] if self.bars else None
+
+    @property
+    def first(self) -> HistoricalBar | None:
+        """The earliest bar, or ``None`` if the series is empty."""
+        return self.bars[0] if self.bars else None
+
+    # ------------------------------------------------------------------
+    # Immutability-preserving transformations.
+    # ------------------------------------------------------------------
+    def between(self, start, end) -> HistoricalSeries:
+        """Return a new series containing only bars within ``[start, end]``.
+
+        ``start`` / ``end`` may be a ``datetime``, ``date`` (inclusive, expanded
+        to the full day in UTC), or an ISO-8601 ``str``.
+        """
+        lo = self._coerce_boundary(start, floor=True)
+        hi = self._coerce_boundary(end, floor=False)
+        kept = [b for b in self.bars if lo <= b.event_time <= hi]
+        return HistoricalSeries(
+            bars=kept,
+            coverage=self.coverage,
+            instrument=self.instrument,
+            timeframe=self.timeframe,
+            gaps=self.gaps,
+            merge_manifest=self.merge_manifest,
+        )
+
+    def append(self, bar: HistoricalBar) -> HistoricalSeries:
+        """Return a new series with ``bar`` appended (input is unchanged)."""
+        return HistoricalSeries(
+            bars=self.bars + [bar],
+            coverage=self.coverage,
+            instrument=self.instrument,
+            timeframe=self.timeframe,
+            gaps=self.gaps,
+            merge_manifest=self.merge_manifest,
+        )
+
+    def merge(self, other: HistoricalSeries) -> HistoricalSeries:
+        """Return a new series combining bars from both series.
+
+        Bars are de-duplicated by ``event_time``; on collision the bar from
+        ``other`` wins (newer-wins). Provenance/coverage come from ``self``.
+        """
+        by_time: dict[datetime, HistoricalBar] = {b.event_time: b for b in self.bars}
+        for b in other.bars:
+            by_time[b.event_time] = b
+        merged = sorted(by_time.values(), key=lambda b: b.event_time)
+        return HistoricalSeries(
+            bars=merged,
+            coverage=self.coverage,
+            instrument=self.instrument,
+            timeframe=self.timeframe,
+            gaps=self.gaps + other.gaps,
+            merge_manifest=self.merge_manifest,
+        )
+
+    # ------------------------------------------------------------------
+    # Analytics.
+    # ------------------------------------------------------------------
+    def statistics(self) -> dict:
+        """Return a small summary dict: count, high, low, avg_volume, return_pct."""
+        if not self.bars:
+            return {
+                "count": 0,
+                "high": None,
+                "low": None,
+                "avg_volume": 0.0,
+                "return_pct": None,
+            }
+        highs = [float(b.high) for b in self.bars]
+        lows = [float(b.low) for b in self.bars]
+        volumes = [int(b.volume) for b in self.bars]
+        first_close = float(self.bars[0].close)
+        last_close = float(self.bars[-1].close)
+        return_pct = (
+            ((last_close - first_close) / first_close) * 100.0 if first_close else None
+        )
+        return {
+            "count": len(self.bars),
+            "high": max(highs),
+            "low": min(lows),
+            "avg_volume": sum(volumes) / len(volumes),
+            "return_pct": return_pct,
+        }
+
+    def resample(self, target_timeframe: str) -> HistoricalSeries:
+        """Resample to ``target_timeframe`` (e.g. ``"1D"``, ``"5m"``).
+
+        Aggregation follows standard OHLCV rules: open=first, high=max,
+        low=min, close=last, volume=sum. Produced bars are marked DERIVED.
+        """
+        import pandas as pd
+
+        if not self.bars:
+            return HistoricalSeries(
+                bars=[],
+                coverage=self.coverage,
+                instrument=self.instrument,
+                timeframe=target_timeframe,
+                gaps=self.gaps,
+                merge_manifest=self.merge_manifest,
+            )
+
+        df = self.to_dataframe().set_index("timestamp")
+        df = df.sort_index()
+        rule = self._pandas_rule(target_timeframe)
+        agg = df.resample(rule).agg({
+            "open": "first",
+            "high": "max",
+            "low": "min",
+            "close": "last",
+            "volume": "sum",
+            "oi": "last",
+        }).dropna(subset=["close"])
+
+        base_prov = self.bars[0].provenance.with_transformation(
+            f"resample.{target_timeframe}"
+        )
+        derived = DataProvenance(
+            source=base_prov.source,
+            fetched_at=base_prov.fetched_at,
+            request_id=base_prov.request_id,
+            confidence=ProvenanceConfidence.DERIVED,
+            provider_timestamp=base_prov.provider_timestamp,
+            transformation_chain=base_prov.transformation_chain,
+        )
+
+        new_bars: list[HistoricalBar] = []
+        for ts, row in agg.iterrows():
+            new_bars.append(HistoricalBar(
+                instrument=self.instrument,
+                timeframe=target_timeframe,
+                event_time=pd.Timestamp(ts).to_pydatetime().replace(tzinfo=timezone.utc),
+                open=Decimal(str(row["open"])),
+                high=Decimal(str(row["high"])),
+                low=Decimal(str(row["low"])),
+                close=Decimal(str(row["close"])),
+                volume=int(row["volume"]),
+                provenance=derived,
+                open_interest=int(row.get("oi", 0) or 0),
+            ))
+        return HistoricalSeries(
+            bars=new_bars,
+            coverage=self.coverage,
+            instrument=self.instrument,
+            timeframe=target_timeframe,
+            gaps=self.gaps,
+            merge_manifest=self.merge_manifest,
+        )
+
+    def export(self, format: str = "csv") -> str:
+        """Export the series to a ``str`` in the given ``format``.
+
+        Supported: ``"csv"`` (default) and ``"json"``.
+        """
+        df = self.to_dataframe()
+        fmt = format.lower()
+        if fmt == "csv":
+            return df.to_csv(index=False)
+        if fmt == "json":
+            return df.to_json(orient="records", date_format="iso")
+        raise ValueError(f"Unsupported export format: {format!r} (use 'csv' or 'json')")
+
+    def indicators(self) -> SeriesIndicators:
+        """Return a lightweight technical-indicator accessor for this series."""
+        return SeriesIndicators(self)
+
+    # ------------------------------------------------------------------
+    # Constructors.
+    # ------------------------------------------------------------------
+    @classmethod
+    def from_dataframe(
+        cls,
+        df: "pd.DataFrame",
+        instrument: InstrumentRef,
+        timeframe: str,
+    ) -> HistoricalSeries:
+        """Build a ``HistoricalSeries`` from a DataFrame in the canonical shape.
+
+        Required columns: ``timestamp``, ``open``, ``high``, ``low``, ``close``,
+        ``volume``. Optional: ``oi``. For each row a DERIVED provenance is
+        attached (use this for replay / backtest / cached sources).
+        """
+        import pandas as pd
+
+        required = ["timestamp", "open", "high", "low", "close", "volume"]
+        missing = [c for c in required if c not in df.columns]
+        if missing:
+            raise ValueError(f"DataFrame missing required columns: {missing}")
+
+        derived = DataProvenance(
+            source=SourceIdentity(broker_id="replay"),
+            fetched_at=datetime.now(tz=timezone.utc),
+            request_id="from_dataframe",
+            confidence=ProvenanceConfidence.DERIVED,
+        )
+
+        bars: list[HistoricalBar] = []
+        for _, row in df.iterrows():
+            ts = row["timestamp"]
+            if not isinstance(ts, datetime):
+                ts = pd.Timestamp(ts).to_pydatetime()
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=timezone.utc)
+            bars.append(HistoricalBar(
+                instrument=instrument,
+                timeframe=timeframe,
+                event_time=ts,
+                open=Decimal(str(row["open"])),
+                high=Decimal(str(row["high"])),
+                low=Decimal(str(row["low"])),
+                close=Decimal(str(row["close"])),
+                volume=int(row["volume"]),
+                provenance=derived,
+                open_interest=int(row["oi"]) if "oi" in df.columns else 0,
+            ))
+        bars.sort(key=lambda b: b.event_time)
+
+        if bars:
+            start = bars[0].event_time.date()
+            end = bars[-1].event_time.date()
+        else:
+            start = end = date.today()
+        return cls(
+            bars=bars,
+            coverage=DateRange(start, end),
+            instrument=instrument,
+            timeframe=timeframe,
+        )
+
+    # ------------------------------------------------------------------
+    # Internal helpers.
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _coerce_boundary(value, *, floor: bool) -> datetime:
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, date):
+            dt = datetime(value.year, value.month, value.day, tzinfo=timezone.utc)
+            return dt if floor else dt.replace(hour=23, minute=59, second=59)
+        if isinstance(value, str):
+            parsed = datetime.fromisoformat(value)
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return parsed
+        raise TypeError(f"Cannot coerce {type(value).__name__} to a boundary")
+
+    @staticmethod
+    def _pandas_rule(timeframe: str) -> str:
+        """Map our timeframe strings to pandas resample offset aliases."""
+        tf = timeframe.strip().lower()
+        if tf.endswith("m") and not tf.endswith("min"):
+            return tf[:-1] + "min"
+        return tf
+
+
+class SeriesIndicators:
+    """Lightweight technical-indicator accessor over a :class:`HistoricalSeries`.
+
+    All methods return a pandas ``Series`` indexed by the series' ``event_time``,
+    suitable for plotting or further arithmetic. Pure-function: no state is
+    mutated on the underlying series.
+    """
+
+    def __init__(self, series: HistoricalSeries) -> None:
+        self._series = series
+
+    def _close_series(self):
+        import pandas as pd
+
+        idx = [b.event_time for b in self._series.bars]
+        vals = [float(b.close) for b in self._series.bars]
+        return pd.Series(vals, index=pd.DatetimeIndex(idx, tz="UTC"), name="close")
+
+    def sma(self, period: int) -> "pd.Series":
+        """Simple moving average of close over ``period`` bars."""
+        s = self._close_series()
+        return s.rolling(window=period, min_periods=period).mean().rename(f"sma_{period}")
+
+    def ema(self, period: int) -> "pd.Series":
+        """Exponential moving average of close over ``period`` bars."""
+        s = self._close_series()
+        return s.ewm(span=period, adjust=False).mean().rename(f"ema_{period}")
+
+    def rsi(self, period: int = 14) -> "pd.Series":
+        """Relative Strength Index of close (Wilder-style smoothing)."""
+        import pandas as pd
+
+        s = self._close_series()
+        delta = s.diff()
+        gain = delta.clip(lower=0)
+        loss = -delta.clip(upper=0)
+        avg_gain = gain.ewm(alpha=1 / period, adjust=False, min_periods=period).mean()
+        avg_loss = loss.ewm(alpha=1 / period, adjust=False, min_periods=period).mean()
+        rs = avg_gain / avg_loss.replace(0, pd.NA)
+        rsi = 100 - (100 / (1 + rs))
+        return rsi.rename(f"rsi_{period}")

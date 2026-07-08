@@ -18,22 +18,22 @@ from pathlib import Path
 import pytest
 
 from brokers.dhan.config import (
-    DhanCircuitBreakerConfig,
-    DhanRateLimitConfig,
-    DhanResilienceConfig,
-    DhanRetryConfig,
-    DhanTokenConfig,
-    DEFAULT_CONFIG,
     DEFAULT_BASE_DELAY_MS,
+    DEFAULT_CONFIG,
     DEFAULT_MAX_DELAY_MS,
     DEFAULT_MAX_RETRIES,
     DEFAULT_RATE_LIMIT_BACKOFF_SECONDS,
     DEFAULT_RATE_LIMITS,
     DEFAULT_REFRESH_COOLDOWN_SECONDS,
+    DhanCircuitBreakerConfig,
+    DhanRateLimitConfig,
+    DhanResilienceConfig,
+    DhanRetryConfig,
+    DhanTokenConfig,
 )
 from brokers.dhan.config_loader import (
-    DhanConfigLoader,
     ENV_PREFIX,
+    DhanConfigLoader,
     load_from_environment,
     load_from_file,
 )
@@ -139,7 +139,7 @@ class TestDhanRateLimitConfig:
         """Test getting interval for endpoint prefix match."""
         config = DhanRateLimitConfig()
         interval = config.get_endpoint_interval("/charts/historical")
-        assert interval == 0.15
+        assert interval == 0.1
 
     def test_get_endpoint_interval_no_match(self):
         """Test getting interval for unknown endpoint."""

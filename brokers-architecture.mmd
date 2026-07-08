@@ -1,0 +1,123 @@
+graph TB
+    subgraph "User Layer"
+        U1[User Code / CLI / API]
+    end
+
+    subgraph "Domain Layer"
+        subgraph "Instruments"
+            I1[Instrument<br/>base class]
+            I2[Equity]
+            I3[Index]
+            I4[Future]
+            I5[Option]
+        end
+        
+        subgraph "Ports (Protocols)"
+            P1[DataProvider]
+            P2[ExecutionProvider]
+            P3[SubscriptionHandle]
+        end
+        
+        subgraph "Options"
+            O1[OptionChain<br/>rich queries]
+            O2[OptionChainVO<br/>value object]
+        end
+        
+        subgraph "Entities"
+            E1[InstrumentRecord<br/>broker master data]
+            E2[QuoteSnapshot]
+            E3[MarketDepth]
+        end
+    end
+
+    subgraph "Provider Layer"
+        subgraph "Adapter Base"
+            A1[BaseDataAdapter<br/>shared normalization]
+        end
+        
+        subgraph "Broker Adapters"
+            A2[DhanDataAdapter]
+            A3[UpstoxDataAdapter]
+        end
+        
+        subgraph "Execution Providers"
+            A4[DhanExecutionProvider]
+            A5[UpstoxExecutionProvider]
+        end
+    end
+
+    subgraph "Broker Infrastructure"
+        subgraph "Dhan"
+            B1[DhanGateway<br/>raw API]
+            B2[WebSocket]
+            B3[Auth/Resilience]
+        end
+        
+        subgraph "Upstox"
+            B4[UpstoxGateway<br/>raw API]
+            B5[WebSocket]
+            B6[Auth/Resilience]
+        end
+    end
+
+    subgraph "Composition Root"
+        C1[BrokerSession<br/>factory + injection]
+    end
+
+    %% User Layer connections
+    U1 -->|creates| C1
+    C1 -->|creates| I2
+    C1 -->|creates| I3
+    C1 -->|creates| I4
+    C1 -->|creates| I5
+
+    %% Instrument hierarchy
+    I1 --> I2
+    I1 --> I3
+    I1 --> I4
+    I1 --> I5
+
+    %% Instrument dependencies
+    I1 -->|depends on| P1
+    I1 -->|depends on| P2
+    I1 -->|uses| P3
+    I1 -->|creates| O1
+
+    %% OptionChain composition
+    O1 -->|wraps| O2
+    O1 -->|uses| P1
+
+    %% Provider implementations
+    P1 -.->|implemented by| A2
+    P1 -.->|implemented by| A3
+    P2 -.->|implemented by| A4
+    P2 -.->|implemented by| A5
+
+    %% Adapter inheritance
+    A2 -->|extends| A1
+    A3 -->|extends| A1
+
+    %% Adapter dependencies
+    A2 -->|wraps| B1
+    A3 -->|wraps| B4
+    A4 -->|wraps| B1
+    A5 -->|wraps| B4
+
+    %% Gateway internals
+    B1 --> B2
+    B1 --> B3
+    B4 --> B5
+    B4 --> B6
+
+    %% Styling
+    classDef domain fill:#e1f5ff,stroke:#0288d1
+    classDef port fill:#fff4e1,stroke:#f57c00
+    classDef provider fill:#e8f5e9,stroke:#388e3c
+    classDef broker fill:#fce4ec,stroke:#c2185b
+    classDef composition fill:#f3e5f5,stroke:#7b1fa2
+
+    class I1,I2,I3,I4,I5,O1,O2,E1,E2,E3 domain
+    class P1,P2,P3 port
+    class A1,A2,A3,A4,A5 provider
+    class B1,B2,B3,B4,B5,B6 broker
+    class C1 composition

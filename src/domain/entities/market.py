@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from enum import Enum
 
@@ -53,6 +53,124 @@ class MarketDepth:
         if self.asks is None:
             self.asks = []
 
+    # ── Accessors ──────────────────────────────────────────────────
+
+    @property
+    def best_bid(self) -> DepthLevel | None:
+        """Highest bid price level, or None if no bids."""
+        return self.bids[0] if self.bids else None
+
+    @property
+    def best_ask(self) -> DepthLevel | None:
+        """Lowest ask price level, or None if no asks."""
+        return self.asks[0] if self.asks else None
+
+    @property
+    def bid_volume(self) -> int:
+        """Total bid quantity across all visible levels."""
+        return sum(level.quantity for level in self.bids)
+
+    @property
+    def ask_volume(self) -> int:
+        """Total ask quantity across all visible levels."""
+        return sum(level.quantity for level in self.asks)
+
+    # ── Derived computations ───────────────────────────────────────
+
+    def spread(self) -> Decimal | None:
+        """Bid-ask spread. None if either side is empty."""
+        bb = self.best_bid
+        ba = self.best_ask
+        if bb is not None and ba is not None:
+            return ba.price - bb.price
+        return None
+
+    def mid_price(self) -> Decimal | None:
+        """Midpoint between best bid and best ask."""
+        bb = self.best_bid
+        ba = self.best_ask
+        if bb is not None and ba is not None:
+            return (bb.price + ba.price) / 2
+        return None
+
+    def micro_price(self) -> Decimal | None:
+        """Volume-weighted midpoint — more accurate when sizes are imbalanced."""
+        bb = self.best_bid
+        ba = self.best_ask
+        if bb is None or ba is None:
+            return None
+        bv = bb.quantity
+        av = ba.quantity
+        total = bv + av
+        if total == 0:
+            return self.mid_price()
+        return (ba.price * bv + bb.price * av) / Decimal(total)
+
+    def imbalance(self) -> Decimal | None:
+        """Order-book imbalance: (bid_vol - ask_vol) / (bid_vol + ask_vol).
+        Returns value in [-1, 1]. Positive = buying pressure."""
+        bv = Decimal(self.bid_volume)
+        av = Decimal(self.ask_volume)
+        total = bv + av
+        if total == 0:
+            return None
+        return (bv - av) / total
+
+    def weighted_bid(self, levels: int | None = None) -> Decimal | None:
+        """Volume-weighted average bid price across visible levels."""
+        subset = self.bids[:levels] if levels else self.bids
+        total_qty = sum(l.quantity for l in subset)
+        if total_qty == 0:
+            return None
+        return sum(l.price * l.quantity for l in subset) / Decimal(total_qty)
+
+    def weighted_ask(self, levels: int | None = None) -> Decimal | None:
+        """Volume-weighted average ask price across visible levels."""
+        subset = self.asks[:levels] if levels else self.asks
+        total_qty = sum(l.quantity for l in subset)
+        if total_qty == 0:
+            return None
+        return sum(l.price * l.quantity for l in subset) / Decimal(total_qty)
+
+    def cumulative_depth(self) -> dict[str, list[tuple[Decimal, int]]]:
+        """Cumulative bid/ask depth as sorted lists of (price, cumulative_qty)."""
+        cum_bids: list[tuple[Decimal, int]] = []
+        running = 0
+        for level in self.bids:
+            running += level.quantity
+            cum_bids.append((level.price, running))
+        cum_asks: list[tuple[Decimal, int]] = []
+        running = 0
+        for level in self.asks:
+            running += level.quantity
+            cum_asks.append((level.price, running))
+        return {"bids": cum_bids, "asks": cum_asks}
+
+    def level(self, n: int) -> tuple[DepthLevel | None, DepthLevel | None]:
+        """Return the n-th level (0-based) as (bid_level, ask_level)."""
+        bid = self.bids[n] if n < len(self.bids) else None
+        ask = self.asks[n] if n < len(self.asks) else None
+        return (bid, ask)
+
+    def snapshot(self) -> dict:
+        """JSON-serializable snapshot of current depth state."""
+        return {
+            "symbol": self.symbol,
+            "best_bid": str(self.best_bid.price) if self.best_bid else None,
+            "best_ask": str(self.best_ask.price) if self.best_ask else None,
+            "spread": str(self.spread()) if self.spread() else None,
+            "mid_price": str(self.mid_price()) if self.mid_price() else None,
+            "bid_volume": self.bid_volume,
+            "ask_volume": self.ask_volume,
+            "levels": len(self.bids),
+            "depth_type": self.depth_type,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+        }
+
+    def supports_levels(self, n: int) -> bool:
+        """True if both sides have at least n levels."""
+        return len(self.bids) >= n and len(self.asks) >= n
+
 
 @dataclass(slots=True, frozen=True)
 class Quote:
@@ -69,6 +187,90 @@ class Quote:
     bid: Decimal | None = None
     ask: Decimal | None = None
     timestamp: datetime | None = None
+
+    # ── Derived computations ───────────────────────────────────────
+
+    def spread(self) -> Decimal | None:
+        """Bid-ask spread."""
+        if self.bid is not None and self.ask is not None:
+            return self.ask - self.bid
+        return None
+
+    def mid(self) -> Decimal | None:
+        """Midpoint price."""
+        if self.bid is not None and self.ask is not None:
+            return (self.bid + self.ask) / 2
+        return None
+
+    def change_pct(self) -> Decimal | None:
+        """Percentage change from previous close."""
+        if self.close and self.close != 0:
+            return (self.change / self.close) * Decimal("100")
+        return None
+
+    def is_valid(self) -> bool:
+        """True if the quote has meaningful data (non-zero LTP)."""
+        return self.ltp != Decimal("0")
+
+    def is_stale(self, max_age_seconds: float = 60.0) -> bool:
+        """True if the quote is older than max_age_seconds."""
+        if self.timestamp is None:
+            return True
+        now = datetime.now(timezone.utc)
+        ts = self.timestamp if self.timestamp.tzinfo else self.timestamp.replace(tzinfo=timezone.utc)
+        return (now - ts).total_seconds() > max_age_seconds
+
+    def age(self) -> float | None:
+        """Age in seconds since timestamp. None if no timestamp."""
+        if self.timestamp is None:
+            return None
+        now = datetime.now(timezone.utc)
+        ts = self.timestamp if self.timestamp.tzinfo else self.timestamp.replace(tzinfo=timezone.utc)
+        return (now - ts).total_seconds()
+
+    def snapshot(self) -> dict:
+        """JSON-serializable dict."""
+        return {
+            "symbol": self.symbol,
+            "ltp": str(self.ltp),
+            "open": str(self.open),
+            "high": str(self.high),
+            "low": str(self.low),
+            "close": str(self.close),
+            "volume": self.volume,
+            "change": str(self.change),
+            "bid": str(self.bid) if self.bid else None,
+            "ask": str(self.ask) if self.ask else None,
+            "spread": str(self.spread()) if self.spread() else None,
+            "mid": str(self.mid()) if self.mid() else None,
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
+        }
+
+    @property
+    def market_status(self) -> str:
+        """Infer market status from quote characteristics."""
+        if self.volume == 0 and self.change == Decimal("0"):
+            return "CLOSED"
+        if self.timestamp is None:
+            return "UNKNOWN"
+        return "OPEN"
+
+    def to_snapshot(self, provenance: DataProvenance | None = None) -> QuoteSnapshot:
+        """Bridge: convert Quote to QuoteSnapshot."""
+        prov = provenance or DataProvenance.now("bridge", "quote-to-snapshot")
+        return QuoteSnapshot(
+            instrument=InstrumentRef(symbol=self.symbol, exchange=""),
+            ltp=self.ltp,
+            event_time=self.timestamp or datetime.now(timezone.utc),
+            provenance=prov,
+            open=self.open,
+            high=self.high,
+            low=self.low,
+            close=self.close,
+            volume=self.volume,
+            bid=self.bid,
+            ask=self.ask,
+        )
 
 
 @dataclass(slots=True, frozen=True)
@@ -111,3 +313,75 @@ class QuoteSnapshot:
     change_pct: Decimal = Decimal("0")
     bid: Decimal | None = None
     ask: Decimal | None = None
+
+    # ── Derived computations ───────────────────────────────────────
+
+    def spread(self) -> Decimal | None:
+        """Bid-ask spread."""
+        if self.bid is not None and self.ask is not None:
+            return self.ask - self.bid
+        return None
+
+    def mid(self) -> Decimal | None:
+        """Midpoint price."""
+        if self.bid is not None and self.ask is not None:
+            return (self.bid + self.ask) / 2
+        return None
+
+    def is_valid(self) -> bool:
+        """True if the quote has meaningful data."""
+        return self.ltp != Decimal("0")
+
+    def is_stale(self, max_age_seconds: float = 60.0) -> bool:
+        """True if the event_time is older than max_age_seconds."""
+        now = datetime.now(timezone.utc)
+        et = self.event_time if self.event_time.tzinfo else self.event_time.replace(tzinfo=timezone.utc)
+        return (now - et).total_seconds() > max_age_seconds
+
+    def age(self) -> float:
+        """Age in seconds since event_time."""
+        now = datetime.now(timezone.utc)
+        et = self.event_time if self.event_time.tzinfo else self.event_time.replace(tzinfo=timezone.utc)
+        return (now - et).total_seconds()
+
+    def snapshot(self) -> dict:
+        """JSON-serializable dict."""
+        return {
+            "instrument": str(self.instrument),
+            "ltp": str(self.ltp),
+            "open": str(self.open),
+            "high": str(self.high),
+            "low": str(self.low),
+            "close": str(self.close),
+            "volume": self.volume,
+            "change_pct": str(self.change_pct),
+            "bid": str(self.bid) if self.bid else None,
+            "ask": str(self.ask) if self.ask else None,
+            "spread": str(self.spread()) if self.spread() else None,
+            "mid": str(self.mid()) if self.mid() else None,
+            "event_time": self.event_time.isoformat(),
+            "source": str(self.provenance.source),
+        }
+
+    @property
+    def market_status(self) -> str:
+        """Infer market status from quote characteristics."""
+        if self.volume == 0 and self.change_pct == Decimal("0"):
+            return "CLOSED"
+        return "OPEN"
+
+    def to_quote(self) -> Quote:
+        """Bridge: convert QuoteSnapshot back to Quote (loses provenance)."""
+        return Quote(
+            symbol=self.instrument.symbol if self.instrument else "",
+            ltp=self.ltp,
+            open=self.open,
+            high=self.high,
+            low=self.low,
+            close=self.close,
+            volume=self.volume,
+            change=Decimal("0"),
+            bid=self.bid,
+            ask=self.ask,
+            timestamp=self.event_time,
+        )

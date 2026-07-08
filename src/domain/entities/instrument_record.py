@@ -2,12 +2,11 @@
 
 Renamed from ``Instrument`` to ``InstrumentRecord`` to clarify that this
 is a broker-adapter-level data record (instrument master data), NOT the
-application-layer aggregate root.  The new ``InstrumentAggregate`` in
-``domain.aggregates`` is the canonical entry point for application code.
+rich domain object. Application code should use ``Instrument`` from
+``domain.instruments.instrument`` as the canonical entry point.
 
 Broker adapters continue to use ``InstrumentRecord`` internally for
-instrument resolution and loading.  Application code should use
-``InstrumentAggregate`` (accessed via ``ProviderRegistry``).
+instrument resolution and loading.
 """
 
 from __future__ import annotations
@@ -27,7 +26,7 @@ class InstrumentRecord:
     (symbol, exchange, security_id, lot_size, etc.) and is used internally
     by broker adapters for instrument resolution.
 
-    Application code should use ``InstrumentAggregate`` instead.
+    Application code should use ``Instrument`` from ``domain.instruments.instrument``.
     """
 
     symbol: str

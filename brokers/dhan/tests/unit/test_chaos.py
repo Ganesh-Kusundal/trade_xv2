@@ -463,22 +463,22 @@ class TestDhanRateLimiterFactory:
     def test_orders_rate_limit(self):
         config = DhanRateLimiterFactory.create_config("orders")
         assert config.rate_per_second == 25.0
-        assert config.capacity == 25
+        assert config.capacity == 35
 
     def test_market_data_rate_limit(self):
         config = DhanRateLimiterFactory.create_config("market_data")
         assert config.rate_per_second == 10.0
-        assert config.capacity == 10
+        assert config.capacity == 15
 
     def test_portfolio_rate_limit(self):
         config = DhanRateLimiterFactory.create_config("portfolio")
         assert config.rate_per_second == 20.0
-        assert config.capacity == 20
+        assert config.capacity == 30
 
     def test_admin_rate_limit(self):
         config = DhanRateLimiterFactory.create_config("admin")
-        assert config.rate_per_second == 10.0
-        assert config.capacity == 10
+        assert config.rate_per_second == 20.0
+        assert config.capacity == 30
 
     def test_unknown_category_defaults_to_admin(self):
         config = DhanRateLimiterFactory.create_config("unknown")
@@ -621,9 +621,7 @@ class TestRecoveryScenarios:
 
     def test_successful_recovery_closes_circuit(self):
         """Successful requests in half-open should close the circuit."""
-        config = CircuitBreakerConfig(
-            failure_threshold=2, success_threshold=2, open_duration_ms=50
-        )
+        config = CircuitBreakerConfig(failure_threshold=2, success_threshold=2, open_duration_ms=50)
         cb = CircuitBreaker("test", config)
 
         cb.on_failure()

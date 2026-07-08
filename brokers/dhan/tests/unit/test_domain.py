@@ -12,7 +12,7 @@ from brokers.dhan.domain import (
     OptionType,
 )
 from domain import Balance, Quote, Side
-from domain.entities.instrument import Instrument as DomainInstrument
+from domain.entities.instrument_record import Instrument as DomainInstrument
 
 
 def test_exchange_enum_values():

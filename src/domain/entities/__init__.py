@@ -35,7 +35,7 @@ from domain.entities.alerts import (
 )
 
 # Instrument (frozen) — renamed to InstrumentRecord for clarity
-from domain.entities.instrument import Instrument, InstrumentRecord
+from domain.entities.instrument_record import Instrument, InstrumentRecord
 
 # Market data
 from domain.entities.market import (
@@ -90,6 +90,7 @@ __all__ = [
     "FutureContract",
     "Holding",
     "Instrument",
+    "InstrumentRecord",
     "MarketDepth",
     "MarketIntelligenceSnapshot",
     "MarketTick",

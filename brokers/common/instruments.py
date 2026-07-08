@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 
 from domain import ExchangeSegment, InstrumentType
-from domain.entities.instrument import Instrument as DomainInstrument
+from domain.entities.instrument_record import Instrument as DomainInstrument
 from domain.exchange_segments import canonical_exchange_short, parse_segment
 from domain.symbols import normalize_exchange, normalize_symbol
 

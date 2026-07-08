@@ -21,7 +21,7 @@ from brokers.dhan.exceptions import DhanIdentityError, InstrumentNotFoundError
 from brokers.dhan.identity import DhanIdentityProvider, DhanInstrumentRef
 from brokers.dhan.resolver import SymbolResolver
 from brokers.dhan.segments import EXCHANGE_TO_SEGMENT
-from domain.entities.instrument import Instrument as DomainInstrument
+from domain.entities.instrument_record import Instrument as DomainInstrument
 
 # ── DhanInstrumentRef Tests ────────────────────────────────────────────────
 

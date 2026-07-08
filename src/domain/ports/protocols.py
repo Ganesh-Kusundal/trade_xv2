@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from domain.entities.market import MarketDepth, QuoteSnapshot
     from domain.entities.position import Position
     from domain.instruments.instrument_id import InstrumentId
+    from domain.candles.historical import HistoricalSeries
     from domain.orders.requests import ModifyOrderRequest, OrderRequest
 
 
@@ -43,7 +44,7 @@ class OrderResult:
 
 
 @runtime_checkable
-class Subscription(Protocol):
+class SubscriptionHandle(Protocol):
     """Handle for an active market-data subscription.
 
     Returned by ``DataProvider.subscribe()``.  Used to unsubscribe
@@ -58,6 +59,10 @@ class Subscription(Protocol):
     def unsubscribe(self) -> None:
         """Cancel the subscription."""
         ...
+
+
+# Backward-compatible alias — old code imports ``Subscription``.
+Subscription = SubscriptionHandle
 
 
 @runtime_checkable
@@ -97,7 +102,29 @@ class DataProvider(Protocol):
         from_date: str | None = None,
         to_date: str | None = None,
     ) -> pd.DataFrame:
-        """Get historical OHLCV bars."""
+        """Get historical OHLCV bars.
+
+        .. deprecated::
+            Prefer :meth:`get_history_series`, which returns the normalized
+            ``HistoricalSeries`` domain object. This DataFrame variant is kept
+            for backward compatibility and will eventually be removed.
+        """
+        ...
+
+    def get_history_series(
+        self,
+        instrument_id: "InstrumentId",
+        *,
+        timeframe: str = "1D",
+        lookback_days: int = 120,
+        from_date: str | None = None,
+        to_date: str | None = None,
+    ) -> "HistoricalSeries":
+        """Get historical OHLCV bars as a normalized ``HistoricalSeries``.
+
+        This is the first-class history object; the DataFrame returned by
+        :meth:`get_history` is now just an export view of a ``HistoricalSeries``.
+        """
         ...
 
     def get_depth(self, instrument_id: InstrumentId) -> MarketDepth | None:
@@ -123,11 +150,11 @@ class DataProvider(Protocol):
         callback: Callable[[InstrumentId, QuoteSnapshot], None],
         *,
         depth: bool = False,
-    ) -> Subscription:
+    ) -> SubscriptionHandle:
         """Subscribe to live market data."""
         ...
 
-    def unsubscribe(self, subscription: Subscription) -> None:
+    def unsubscribe(self, subscription: SubscriptionHandle) -> None:
         """Cancel a subscription."""
         ...
 
@@ -143,6 +170,14 @@ class DataProvider(Protocol):
 
     def list_instruments(self, exchange: str | None = None) -> list[InstrumentId]:
         """List all known instruments, optionally filtered by exchange."""
+        ...
+
+    def get_quotes_batch(self, instrument_ids: list[InstrumentId]) -> list[QuoteSnapshot | None]:
+        """Get latest quotes for multiple instruments in one call.
+        
+        Returns a list of quotes in the same order as instrument_ids.
+        None for instruments where quote is unavailable.
+        """
         ...
 
 

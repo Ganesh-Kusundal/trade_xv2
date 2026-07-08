@@ -182,7 +182,7 @@ class TestDhanGatewaySegmentMapping:
 
         resolver = SymbolResolver()
         from brokers.dhan.domain import Exchange, Instrument, InstrumentType
-        from domain.entities.instrument import Instrument as DomainInstrument
+        from domain.entities.instrument_record import Instrument as DomainInstrument
 
         resolver._by_security_id = {
             "2885": Instrument(

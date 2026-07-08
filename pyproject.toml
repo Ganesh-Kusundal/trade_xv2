@@ -50,7 +50,7 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src", "."]
-include = ["brokers*", "cli*", "analytics*", "datalake*", "config*", "domain*", "runtime*", "application*", "infrastructure*", "market_data*", "oms*", "event_bus*", "portfolio*", "risk*", "strategy*", "backtesting*", "replay*", "plugins*"]
+include = ["brokers*", "cli*", "analytics*", "datalake*", "config*", "domain*", "runtime*", "application*", "infrastructure*", "market_data*", "oms*", "event_bus*", "portfolio*", "risk*", "strategy*", "backtesting*", "replay*", "plugins*", "providers*"]
 
 # ─── pytest ────────────────────────────────────────────────
 [tool.pytest.ini_options]

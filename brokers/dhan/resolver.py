@@ -14,7 +14,7 @@ from collections.abc import Iterable
 from brokers.dhan.domain import Exchange, Instrument, InstrumentType, OptionType
 from brokers.dhan.exceptions import InstrumentNotFoundError
 from brokers.dhan.segments import SEGMENT_TO_EXCHANGE
-from domain.entities.instrument import Instrument as DomainInstrument
+from domain.entities.instrument_record import Instrument as DomainInstrument
 from domain.symbols import normalize_exchange, normalize_symbol
 from config.indices import get_index_entry, is_index
 

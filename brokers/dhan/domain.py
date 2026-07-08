@@ -10,7 +10,7 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any
 
-import domain.entities.instrument
+import domain.entities.instrument_record
 
 _CANONICAL = frozenset(
     {
@@ -131,7 +131,7 @@ class Instrument:
     Uses composition to hold a reference to the canonical domain.Instrument.
     """
 
-    domain_instrument: 'domain.entities.instrument.Instrument'
+    domain_instrument: 'domain.entities.instrument_record.InstrumentRecord'
     exchange: Exchange
     instrument_type: DhanInstrumentType
     option_type: OptionType | None = None
