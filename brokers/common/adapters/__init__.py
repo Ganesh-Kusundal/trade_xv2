@@ -1,5 +1,3 @@
-"""Adapter layer for CommonBrokerGateway."""
-
-from brokers.common.adapters.extensions import build_extension_bundle
-
-__all__ = ["build_extension_bundle"]
+"""Backward-compat re-export — moved to ``tradex.runtime.adapters``."""
+from __future__ import annotations
+from tradex.runtime.adapters import *  # noqa: F401, F403
