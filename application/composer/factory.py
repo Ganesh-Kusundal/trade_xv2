@@ -138,6 +138,7 @@ def _fetch_gap_bars(
 
 def _build_default_backfill_callback(
     historical_coordinator: Any,
+    gap_reconciler: Any | None = None,
 ) -> Callable[[Any, datetime, datetime], list[dict]] | None:
     """Build a default reconnect-gap backfill callback from the historical coordinator.
 
@@ -145,6 +146,12 @@ def _build_default_backfill_callback(
     no-op gracefully (log + skip rather than crash). The returned callback is
     broker-agnostic: it accepts either a single symbol string (Dhan) or a
     list of instrument keys (Upstox) as its first argument.
+
+    When ``gap_reconciler`` (a :class:`GapReconciler`) is supplied, the
+    callback also triggers a session-gap reconcile *after* the reconnect
+    backfill completes, passing the just-backfilled range as
+    ``already_covered_to`` so the reconciler does not re-fetch what the
+    reconnect backfill already covered (requirement b).
     """
     if historical_coordinator is None:
         logger.debug("default_backfill.skipped_no_coordinator")
@@ -171,7 +178,114 @@ def _build_default_backfill_callback(
                 )
         return out
 
-    return _backfill
+    if gap_reconciler is None:
+        return _backfill
+
+    def _backfill_with_reconcile(
+        symbols: Any, from_dt: datetime, to_dt: datetime
+    ) -> list[dict]:
+        out = _backfill(symbols, from_dt, to_dt)
+        try:
+            keys = (
+                [str(k) for k in symbols]
+                if isinstance(symbols, (list, tuple, set))
+                else [str(symbols)]
+            )
+            # Subtract the range the reconnect backfill just filled.
+            covered = {k: to_dt for k in keys}
+            gap_reconciler.reconcile(keys, already_covered_to=covered)
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.debug(
+                "default_backfill.reconcile_failed",
+                extra={"error": str(exc)},
+            )
+        return out
+
+    return _backfill_with_reconcile
+
+
+def _default_gap_fill_callback(stream_orchestrator: Any | None) -> Callable[[str, list[dict]], None]:
+    """Best-effort publish sink for reconciled gap bars.
+
+    Tries to push bars through the orchestrator's normal delivery path if it
+    exposes an injection hook (forward-compatible); otherwise records a debug
+    log. Never raises — reconciliation is strictly best-effort.
+    """
+
+    def _fill(key: str, bars: list[dict]) -> None:
+        target = stream_orchestrator
+        if target is not None and hasattr(target, "inject_reconciled_bars"):
+            try:
+                target.inject_reconciled_bars(key, bars)  # type: ignore[attr-defined]
+                return
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.debug(
+                    "gap_reconcile.fill_inject_failed",
+                    extra={"key": key, "error": str(exc)},
+                )
+        logger.debug(
+            "gap_reconcile.filled",
+            extra={"key": key, "bar_count": len(bars)},
+        )
+
+    return _fill
+
+
+def _build_gap_reconciler(
+    historical_coordinator: Any | None,
+    *,
+    stream_orchestrator: Any | None = None,
+    fill_callback: Callable[[str, list[dict]], None] | None = None,
+) -> Any | None:
+    """Build a session-gap reconciler (or ``None`` when unavailable / unconfigured).
+
+    Lazy-imports :class:`GapReconciler` so a missing module degrades to a
+    no-op rather than a hard import error. Returns ``None`` when no historical
+    coordinator is configured, preserving the existing M5 no-op behavior.
+    """
+    if historical_coordinator is None:
+        return None
+    try:
+        from application.composer.gap_reconciler import GapReconciler
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.debug("gap_reconcile.unavailable", extra={"error": str(exc)})
+        return None
+    if fill_callback is None:
+        fill_callback = _default_gap_fill_callback(stream_orchestrator)
+    return GapReconciler(historical_coordinator, fill_callback=fill_callback)
+
+
+def _attach_initial_gap_reconcile(market_data: Any | None, gap_reconciler: Any | None) -> None:
+    """Wire the reconciler to run once shortly after initial connect/subscribe.
+
+    Wraps ``MarketDataComposer.subscribe_market_stream`` so the first real
+    subscribe triggers a single session-gap reconcile for the subscribed
+    instruments (requirement a). The flag is cleared after the first run so it
+    never re-fires. No-op when the reconciler is ``None``.
+    """
+    if gap_reconciler is None or market_data is None:
+        return
+    market_data._session_gap_reconciler = gap_reconciler  # type: ignore[attr-defined]
+    market_data._gap_reconcile_pending = True  # type: ignore[attr-defined]
+
+    original = market_data.subscribe_market_stream  # type: ignore[attr-defined]
+
+    async def _subscribe_and_reconcile(request: Any) -> str:
+        sub_id = await original(request)
+        md = market_data
+        if getattr(md, "_gap_reconcile_pending", False):
+            md._gap_reconcile_pending = False  # type: ignore[attr-defined]
+            try:
+                instruments = getattr(request, "instruments", None) or set()
+                gap_reconciler.reconcile([str(i) for i in instruments])
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.debug(
+                    "gap_reconcile.initial_failed",
+                    extra={"error": str(exc)},
+                )
+        return sub_id
+
+    market_data.subscribe_market_stream = _subscribe_and_reconcile  # type: ignore[attr-defined]
 
 
 def _apply_default_backfill(
@@ -263,10 +377,16 @@ def create_composers_from_infra(
     # Wire a default reconnect-gap backfill so silent data loss on
     # reconnect is reconciled by default (best-effort; no crash if the
     # historical source is unconfigured).
+    gap_reconciler = _build_gap_reconciler(
+        infra.historical,
+        stream_orchestrator=infra.streams,
+    )
     _apply_default_backfill(
         [infra.registry.get_gateway(bid) for bid in infra.registry.list_brokers()],
-        _build_default_backfill_callback(infra.historical),
+        _build_default_backfill_callback(infra.historical, gap_reconciler=gap_reconciler),
     )
+    # Also reconcile session gaps once shortly after initial connect/subscribe.
+    _attach_initial_gap_reconcile(market_data, gap_reconciler)
 
     return market_data, execution
 
@@ -366,10 +486,16 @@ def create_composers(
     # Wire a default reconnect-gap backfill so silent data loss on
     # reconnect is reconciled by default (best-effort; no crash if the
     # historical source is unconfigured).
+    gap_reconciler = _build_gap_reconciler(
+        historical_coordinator,
+        stream_orchestrator=stream_orchestrator,
+    )
     _apply_default_backfill(
         gateways,
-        _build_default_backfill_callback(historical_coordinator),
+        _build_default_backfill_callback(historical_coordinator, gap_reconciler=gap_reconciler),
     )
+    # Also reconcile session gaps once shortly after initial connect/subscribe.
+    _attach_initial_gap_reconcile(market_data_composer, gap_reconciler)
 
     return market_data_composer, execution_composer
 

@@ -117,6 +117,10 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
         # Admission gate: injectable for testability.
         self._admission = admission if admission is not None else MarketFeedConnectionAdmission(client_id)
         self._admission_blocked = False
+        # Dhan carries no sequence from the source, so we synthesize a bounded
+        # per-instrument monotonic counter in the publish path. Keyed by symbol,
+        # so the dict is bounded by the active instrument set (<= MAX_INSTRUMENTS).
+        self._sequence_counters: dict[str, int] = {}
 
     def update_token(self, access_token: str) -> None:
         """Push a fresh token to the context (called by scheduler)."""
@@ -802,6 +806,10 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
             "close": Decimal(str(data["close"])) if data.get("close") else None,
             "volume": int(data.get("volume", 0)),
             "change": Decimal("0"),
+            # Dhan quotes carry NO exchange timestamp; stamp the arrival time so
+            # downstream dedup/ordering and the candle aggregator have a real
+            # time. The orchestrator's _parse_exchange_time prefers this value.
+            "timestamp": datetime.now(timezone.utc),
         }
 
     @staticmethod
@@ -907,6 +915,15 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
             # All critical fields present — build the Quote and publish.
             # Task 2.4: values from _transform_quote are already Decimal;
             # _to_decimal is a no-op for Decimal, converting only for backfill raw data.
+            #
+            # Dhan carries no source sequence, so synthesize a bounded
+            # per-instrument monotonic counter here in the publish path and
+            # attach it to the quote dict (the orchestrator reads it as
+            # frame["sequence"]). The arrival timestamp from _transform_quote
+            # is forwarded to the Quote so it survives into downstream consumers.
+            seq = self._sequence_counters.get(symbol, 0) + 1
+            self._sequence_counters[symbol] = seq
+            quote["sequence"] = seq
             q = Quote(
                 symbol=symbol,
                 ltp=ltp,
@@ -916,6 +933,7 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
                 close=_to_decimal(quote.get("close")),
                 volume=quote.get("volume", 0),
                 change=_to_decimal(quote.get("change")),
+                timestamp=quote.get("timestamp"),
             )
             self._event_bus.publish(
                 DomainEvent.now(
