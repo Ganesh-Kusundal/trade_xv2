@@ -28,14 +28,15 @@ from typing import Any
 
 import pandas as pd
 
-from brokers.common.batch_mixin import BatchFetchMixin
-from brokers.common.gateway import BrokerCapabilities
+from tradex.runtime.batch_mixin import BatchFetchMixin
+from tradex.runtime.capabilities import BrokerCapabilities
 from brokers.upstox.adapters import (
     HistoricalAdapter,
     PortfolioAdapter,
     StreamManagerAdapter,
 )
 from brokers.upstox.broker import UpstoxBroker
+from brokers.common.capabilities_validator import validate_gateway_capabilities
 from brokers.upstox.capabilities import upstox_capabilities
 from brokers.upstox.extended import UpstoxExtendedCapabilities
 from brokers.upstox.mappers.domain_mapper import PROVIDER_IS_AMO
@@ -102,7 +103,7 @@ class UpstoxBrokerGateway(BatchFetchMixin):
         self._order_command = broker.order_command
 
         # Broker-agnostic options facade for CLI / tests.
-        from brokers.common.options.gateway_facade import GatewayOptionsFacade
+        from tradex.runtime.options.gateway_facade import GatewayOptionsFacade
 
         # The facade adapter is only constructed when the broker exposes an
         # ``options`` attribute — tests that build a MagicMock with
@@ -113,6 +114,11 @@ class UpstoxBrokerGateway(BatchFetchMixin):
             self.options = GatewayOptionsFacade(
                 options_attr, exchange_normalize=_upstox_normalize_exchange
             )
+
+        # Capability self-check (symmetry with DhanBrokerGateway): verify the
+        # declared capability matrix matches the methods actually present on
+        # this gateway. Only logs WARNINGs for mismatches, so it is safe.
+        validate_gateway_capabilities(self)
 
     # ── Backward compatibility properties (for tests accessing internals) ──
 
@@ -273,8 +279,19 @@ class UpstoxBrokerGateway(BatchFetchMixin):
 
         try:
             return self._fetch_history(symbol, exchange, from_str, to_str, unit, interval)
-        except Exception:
-            return pd.DataFrame()
+        except Exception as e:
+            logger.warning(
+                "history_fetch_failed",
+                extra={
+                    "symbol": symbol,
+                    "exchange": exchange,
+                    "interval": timeframe_str,
+                    "from": from_str,
+                    "to": to_str,
+                    "error": str(e),
+                },
+            )
+            raise
 
     def _fetch_history(
         self,
@@ -306,10 +323,10 @@ class UpstoxBrokerGateway(BatchFetchMixin):
             )
         except UpstoxApiError as e:
             logger.warning("Upstox history API error for symbol %s: %s", symbol, e)
-            return pd.DataFrame()
+            raise
         except Exception as e:
             logger.warning("Failed to fetch history for symbol %s: %s", symbol, e)
-            return pd.DataFrame()
+            raise
 
     def option_chain(
         self,
@@ -323,7 +340,7 @@ class UpstoxBrokerGateway(BatchFetchMixin):
             if not expiries:
                 return OptionChain(underlying=underlying, exchange=exchange, expiry="")
             expiry = expiries[0]
-        from brokers.common.options.chain_normalizer import upstox_chain_to_canonical
+        from tradex.runtime.options.chain_normalizer import upstox_chain_to_canonical
 
         if hasattr(self._broker.options, "get_option_chain_with_meta"):
             result = self._broker.options.get_option_chain_with_meta(underlying, exchange, expiry)
@@ -519,7 +536,7 @@ class UpstoxBrokerGateway(BatchFetchMixin):
 
         stream = self._broker.portfolio_stream
 
-        from brokers.common.async_compat import connect_async_then
+        from tradex.runtime.async_compat import connect_async_then
         if not stream.is_connected:
             def _on_connected() -> None:
                 stream.add_listener(portfolio_listener)
@@ -561,7 +578,7 @@ class UpstoxBrokerGateway(BatchFetchMixin):
         ws = self._broker.market_data_websocket
         ws.add_listener(raw_depth_listener)
 
-        from brokers.common.async_compat import connect_async_then
+        from tradex.runtime.async_compat import connect_async_then
         if not ws.is_connected:
             def _on_connected() -> None:
                 ws.subscribe([inst_key], mode)
@@ -668,7 +685,7 @@ class UpstoxBrokerGateway(BatchFetchMixin):
                 pass
 
         exchange_segment = self._resolve_exchange_segment(exchange, symbol)
-        from brokers.common.dtos import BrokerOrderPayload
+        from tradex.runtime.dtos import BrokerOrderPayload
         request = BrokerOrderPayload(
             symbol=symbol,
             exchange=exchange,
@@ -799,7 +816,14 @@ class UpstoxBrokerGateway(BatchFetchMixin):
 
         try:
             result = self._order_command.modify_order(order_id, **changes)
-            if isinstance(result, dict) and result.get("status") == "success":
+            # ENG-002: order_command.modify_order returns OrderResponse (adapter
+            # contract). Legacy dict payloads still accepted for older mocks.
+            if isinstance(result, OrderResponse):
+                return result
+            if isinstance(result, dict) and str(result.get("status", "")).lower() in {
+                "success",
+                "ok",
+            }:
                 return OrderResponse.ok(order_id=order_id, message="Order modified")
             message = (
                 result.get("message", "modify failed")
@@ -926,7 +950,7 @@ class UpstoxBrokerGateway(BatchFetchMixin):
 
         State values: 0=CLOSED, 1=OPEN, 2=HALF_OPEN.
         """
-        from brokers.common.resilience.circuit_breaker import CircuitState
+        from tradex.runtime.resilience.circuit_breaker import CircuitState
 
         http = self._broker.context.http_client
         mapping = {
