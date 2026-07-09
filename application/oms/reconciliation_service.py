@@ -24,12 +24,13 @@ from domain.constants import (
 )
 from domain.reconciliation import ReconciliationReport
 from domain.ports import EventBusPort
-from infrastructure.lifecycle import HealthState, ManagedService, build_health
+from domain.lifecycle_health import HealthState, build_health
+from domain.ports.lifecycle import ManagedServicePort
 
 logger = logging.getLogger(__name__)
 
 
-class ReconciliationService(ManagedService):
+class ReconciliationService(ManagedServicePort):
     """Periodically reconciles OMS state with the broker.
 
     The service is a :class:`ManagedService` so it can be registered

@@ -22,7 +22,7 @@ from domain.ports import (
     EventLogPort,
     ProcessedTradeRepositoryPort,
 )
-from infrastructure.lifecycle import LifecycleManager
+from domain.ports.lifecycle import LifecycleManagerPort
 from infrastructure.observability.event_metrics import EventMetrics
 
 # Optional import to avoid circular dependency
@@ -87,7 +87,7 @@ class DlqMonitorService:
             logger.debug("dlq_shutdown_drain_failed: %s", exc)
 
     def health(self):
-        from infrastructure.lifecycle import HealthState, build_health
+        from domain.lifecycle_health import HealthState, build_health
 
         return build_health(
             self.name,
@@ -123,7 +123,7 @@ class ProcessedTradeCleanupService:
         self._repo.stop_auto_cleanup(timeout_seconds=timeout_seconds)
 
     def health(self):
-        from infrastructure.lifecycle import HealthState, build_health
+        from domain.lifecycle_health import HealthState, build_health
 
         return build_health(
             self.name,
@@ -297,7 +297,7 @@ class TradingContext:
         self._shutdown_lock = threading.Lock()
         self._shutdown_in_progress = False
 
-    def attach_lifecycle(self, lifecycle: LifecycleManager) -> None:
+    def attach_lifecycle(self, lifecycle: LifecycleManagerPort) -> None:
         """Register the context's managed services with a lifecycle.
 
         Callers that own a :class:`LifecycleManager` (the CLI, the TUI,
@@ -411,7 +411,7 @@ class TradingContext:
             return
         self._reconciliation_service.stop()
 
-    def _register_daily_pnl_reset(self, lifecycle: LifecycleManager) -> None:
+    def _register_daily_pnl_reset(self, lifecycle: LifecycleManagerPort) -> None:
         """Auto-wire a DailyPnlResetScheduler so daily PnL is always reset.
 
         This is the SINGLE registration point for the scheduler.
@@ -422,11 +422,11 @@ class TradingContext:
         scheduler = DailyPnlResetScheduler(risk_manager=self._risk_manager)
         lifecycle.register(scheduler)
 
-    def _register_dlq_monitor(self, lifecycle: LifecycleManager) -> None:
+    def _register_dlq_monitor(self, lifecycle: LifecycleManagerPort) -> None:
         """Register a lightweight DLQ depth monitor with the lifecycle."""
         lifecycle.register(DlqMonitorService(self._dead_letter_queue))
 
-    def _register_processed_trade_cleanup(self, lifecycle: LifecycleManager) -> None:
+    def _register_processed_trade_cleanup(self, lifecycle: LifecycleManagerPort) -> None:
         """Stop ProcessedTradeRepository auto-cleanup on lifecycle shutdown."""
         lifecycle.register(ProcessedTradeCleanupService(self._processed_trades))
 

@@ -284,7 +284,6 @@ type = "forbidden"
 source_modules = ["application"]
 forbidden_modules = ["infrastructure"]
 ignore_imports = [
-    "application.oms.context -> infrastructure.lifecycle",
     "application.oms.context -> infrastructure.observability.event_metrics",
     "application.oms.context -> infrastructure.persistence.sqlite_order_store",
     "application.oms.order_manager -> infrastructure.logging_config",
@@ -296,13 +295,11 @@ ignore_imports = [
     "application.audit -> infrastructure.correlation",
     "application.audit -> infrastructure.logging_config",
     "application.oms._internal.order_state_validator -> infrastructure.state_machine",
-    "application.oms.daily_pnl_reset_scheduler -> infrastructure.lifecycle.*",
     "application.oms.context -> infrastructure.persistence.*",
     "application.oms.order_manager -> infrastructure.persistence.*",
     "application.oms.position_manager -> infrastructure.logging_config",
     "application.oms.position_manager -> infrastructure.observability.*",
     "application.oms.position_manager -> infrastructure.state_machine",
-    "application.oms.reconciliation_service -> infrastructure.lifecycle",
     "application.composer.* -> brokers.common.router",
     "application.composer.* -> brokers.common.stream_orchestrator",
     "application.composer.* -> brokers.common.provenance",

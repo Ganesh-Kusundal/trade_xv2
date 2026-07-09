@@ -9,7 +9,7 @@ from domain.ports.event_log import (
     ProcessedTradeRepositoryPort,
 )
 from domain.ports.event_publisher import EventBusPort, EventPublisher
-from domain.ports.lifecycle import ManagedServicePort
+from domain.ports.lifecycle import LifecycleManagerPort, ManagedServicePort
 from domain.ports.margin_provider import MarginProviderPort
 from domain.ports.market_data import MarketDataPort
 from domain.ports.metrics import MetricsRegistryPort
@@ -33,6 +33,7 @@ __all__ = [
     "EventPublisher",
     "DeadLetterQueuePort",
     "ProcessedTradeRepositoryPort",
+    "LifecycleManagerPort",
     "ManagedServicePort",
     "MarginProviderPort",
     "MarketDataPort",

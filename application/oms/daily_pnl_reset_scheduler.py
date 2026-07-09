@@ -41,12 +41,8 @@ from domain.constants import (
     DEFAULT_STOP_TIMEOUT_SECONDS,
     IST_OFFSET,
 )
-from infrastructure.lifecycle.lifecycle import (
-    HealthState,
-    HealthStatus,
-    ManagedService,
-    now_monotonic,
-)
+from domain.lifecycle_health import HealthState, HealthStatus
+from domain.ports.lifecycle import ManagedServicePort
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +54,7 @@ _DEFAULT_POLL_INTERVAL_SECONDS = DAILY_PNL_POLL_INTERVAL_SECONDS
 _DEFAULT_ROLLOVER_HOUR_IST = DAILY_PNL_ROLLOVER_HOUR_IST
 
 
-class DailyPnlResetScheduler(ManagedService):
+class DailyPnlResetScheduler(ManagedServicePort):
     """Periodically reset the daily PnL on :class:`RiskManager`.
 
     Parameters
@@ -111,7 +107,7 @@ class DailyPnlResetScheduler(ManagedService):
             logger.debug("daily_pnl_reset_scheduler_already_running")
             return
         self._stop_event.clear()
-        self._start_time_monotonic = now_monotonic()
+        self._start_time_monotonic = _time.monotonic()
         # Initialise _last_reset_unix to the last rollover moment so
         # the first reset fires the first time we cross the boundary
         # after start.
@@ -171,7 +167,7 @@ class DailyPnlResetScheduler(ManagedService):
             "rollover_hour_ist": self._rollover_hour,
             "poll_interval_seconds": self._poll_interval,
             "seconds_since_start": (
-                now_monotonic() - self._start_time_monotonic
+                _time.monotonic() - self._start_time_monotonic
                 if self._start_time_monotonic > 0
                 else 0.0
             ),

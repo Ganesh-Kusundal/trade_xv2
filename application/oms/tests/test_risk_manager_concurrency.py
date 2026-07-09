@@ -335,10 +335,10 @@ def test_scheduler_validates_poll_interval(risk_manager: RiskManager) -> None:
 def test_scheduler_is_managed_service(risk_manager: RiskManager) -> None:
     """The scheduler must implement the ManagedService Protocol so
     it can be registered with a LifecycleManager (A4 / A5 contract)."""
-    from infrastructure.lifecycle.lifecycle import ManagedService
+    from domain.ports.lifecycle import ManagedServicePort
 
     s = DailyPnlResetScheduler(risk_manager)
-    assert isinstance(s, ManagedService)
+    assert isinstance(s, ManagedServicePort)
     assert s.name == "daily-pnl-reset"
 
 
