@@ -51,6 +51,14 @@ def build_trading_context(
         processed_trade_repository = build_processed_trade_repository()
     if "durable_order_store" not in kwargs:
         kwargs["durable_order_store"] = build_order_store()
+    if "metrics" not in kwargs:
+        from infrastructure.observability.event_metrics import EventMetrics
+
+        kwargs["metrics"] = EventMetrics()
+    if "metrics_registry" not in kwargs:
+        from infrastructure.metrics import metrics_registry
+
+        kwargs["metrics_registry"] = metrics_registry
 
     from application.oms.factory import create_trading_context
 

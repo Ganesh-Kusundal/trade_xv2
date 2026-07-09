@@ -15,9 +15,8 @@ from domain.entities import Position, Trade
 from domain.events.types import DomainEvent, EventType
 from domain.symbols import make_position_key
 from domain.types import POSITION_STATE_TRANSITIONS, PositionState
-from domain.ports import EventBusPort, ProcessedTradeRepositoryPort
+from domain.ports import EventBusPort, EventMetricsPort, ProcessedTradeRepositoryPort
 from infrastructure.logging_config import get_logger
-from infrastructure.observability.event_metrics import EventMetrics
 from domain.state_machine import IllegalTransitionError, StateMachine
 
 logger = get_logger(__name__)
@@ -38,7 +37,7 @@ class PositionManager:
         self,
         event_bus: EventBusPort | None = None,
         processed_trade_repository: ProcessedTradeRepositoryPort | None = None,
-        metrics: EventMetrics | None = None,
+        metrics: EventMetricsPort | None = None,
         enforce_state_transitions: bool = True,
     ) -> None:
         self._lock = threading.RLock()

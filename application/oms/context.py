@@ -19,11 +19,12 @@ from domain.ports import (
     DeadLetterQueuePort,
     EventBusPort,
     EventLogPort,
+    EventMetricsPort,
+    MetricsRegistryPort,
     OrderStorePort,
     ProcessedTradeRepositoryPort,
 )
 from domain.ports.lifecycle import LifecycleManagerPort
-from infrastructure.observability.event_metrics import EventMetrics
 
 # Optional import to avoid circular dependency
 try:
@@ -197,14 +198,16 @@ class TradingContext:
         reconciliation_service: IReconciliationService | None = None,
         reconciliation_interval_seconds: float = RECONCILIATION_INTERVAL_SECONDS,
         processed_trade_repository: ProcessedTradeRepositoryPort | None = None,
-        metrics: EventMetrics | None = None,
+        metrics: EventMetricsPort | None = None,
+        metrics_registry: MetricsRegistryPort | None = None,
         dead_letter_queue: DeadLetterQueuePort | None = None,
         orchestrator: ITradingOrchestrator | None = None,
         durable_order_store: OrderStorePort | None = None,
         enable_durable_orders: bool | None = None,
     ) -> None:
         self._event_log = event_log
-        self._metrics = metrics or EventMetrics()
+        self._metrics = metrics
+        self._metrics_registry = metrics_registry
         self._dead_letter_queue = dead_letter_queue
 
         # If the caller supplied an event bus, attach observability to it
@@ -241,6 +244,7 @@ class TradingContext:
             risk_manager=self._risk_manager,
             processed_trade_repository=self._processed_trades,
             metrics=self._metrics,
+            metrics_registry=self._metrics_registry,
             order_store=durable_order_store,
         )
 
@@ -342,7 +346,7 @@ class TradingContext:
         return self._risk_manager
 
     @property
-    def metrics(self) -> EventMetrics:
+    def metrics(self) -> EventMetricsPort | None:
         return self._metrics
 
     @property
@@ -362,7 +366,7 @@ class TradingContext:
         """Snapshot of observability state for the SRE / alerting layer."""
         order_store = getattr(self._order_manager, "_order_store", None)
         return {
-            "metrics": self._metrics.snapshot(),
+            "metrics": self._metrics.snapshot() if self._metrics is not None else {},
             "dead_letter": self._dead_letter_queue.stats(),
             "trades": self._processed_trades.stats(),
             "event_log_errors": self._event_log.errors if self._event_log else 0,

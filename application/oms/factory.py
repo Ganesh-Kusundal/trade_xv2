@@ -16,6 +16,8 @@ from domain.ports import (
     DeadLetterQueuePort,
     EventBusPort,
     EventLogPort,
+    EventMetricsPort,
+    MetricsRegistryPort,
     OrderStorePort,
     ProcessedTradeRepositoryPort,
 )
@@ -38,6 +40,8 @@ def create_trading_context(
     dead_letter_queue: DeadLetterQueuePort | None = None,
     durable_order_store: OrderStorePort | None = None,
     enable_durable_orders: bool | None = None,
+    metrics: EventMetricsPort | None = None,
+    metrics_registry: MetricsRegistryPort | None = None,
 ) -> TradingContext:
     """Create a TradingContext with optional reconciliation.
 
@@ -74,6 +78,8 @@ def create_trading_context(
         dead_letter_queue=dead_letter_queue,
         durable_order_store=durable_order_store,
         enable_durable_orders=enable_durable_orders,
+        metrics=metrics,
+        metrics_registry=metrics_registry,
     )
     logger.info(
         "TradingContext created (reconciliation=%s, interval=%ss)",

@@ -434,18 +434,49 @@ living in `infrastructure.state_machine`; moved to `src/domain/state_machine.py`
 **Removed `ignore_imports`:** `application.trading.feature_fetcher →
 infrastructure.market_data_adapter`.
 
-### Cross-cutting observability (metrics / event-metrics / tracing / logging) — DEFERRED (exempt)
-`metrics_registry` (module-level singleton + module-level counter creation),
-`EventMetrics` (constructed in `TradingContext`), `trace_operation`
-(definition-time decorator), and `get_logger`/`correlation` are **process-wide
-cross-cutting infrastructure**, not per-instance OMS collaborators. Forcing them
-through per-instance ports is high-risk churn (module-level singletons,
-decorator-at-definition, construction defaults) with no architectural gain — the
-same rationale the plan already applies to `get_logger`. The ports already exist
-(`MetricsRegistryPort`, `EventMetricsPort`, `TracerPort`, `trace_operation` in
-`domain.ports`); it is the *usage patterns* that make extraction invasive. They
-stay as `ignore_imports` (exempt). **D4 collaborator de-coupling is complete;
-only cross-cutting observability remains, by design.**
+### Phase D — slice 3 (D4 sub-slice b, cont.: metrics + event-metrics) — EXECUTED
+`metrics_registry` (module-level singleton) and `EventMetrics` (constructed in
+`TradingContext`) are now proper collaborators:
+- `OrderManager` depends on `MetricsRegistryPort`; the three OMS counters
+  (`oms_orders_total`, `oms_order_placement_latency_seconds`,
+  `oms_active_orders`) are created **lazily in `__init__`** from the injected
+  registry. `MetricsRegistry.counter/gauge/histogram` are idempotent by name,
+  so multiple `OrderManager`s sharing the process-wide registry observe the
+  same objects. Counter inc/dec/observe sites are `None`-guarded.
+- `EventMetrics` is replaced by `EventMetricsPort` in `context.py` /
+  `order_manager.py` / `position_manager.py`; the concrete `EventMetrics` is
+  injected by the composition roots (`cli/oms_setup`, `api/lifecycle`) and the
+  test harness (`build_test_trading_context`); `TradingContext` no longer
+  constructs it. `TradingContext` gains a `metrics_registry` param threaded
+  into `OrderManager`.
+- **Removed `ignore_imports`:** `application.oms.context →
+  infrastructure.observability.event_metrics`,
+  `application.oms.order_manager → infrastructure.metrics`,
+  `application.oms.order_manager → infrastructure.observability.event_metrics`,
+  `application.oms.position_manager → infrastructure.observability.*`.
+
+### Cross-cutting observability — PARTIALLY exempt (final state)
+Of the four originally-deferred cross-cutting concerns, two are now ported
+(`metrics_registry` → `MetricsRegistryPort`, `EventMetrics` →
+`EventMetricsPort`). The remaining two are genuinely definition/import-time
+cross-cutting and **stay exempt**:
+- **`get_logger`** (`infrastructure.logging_config`) — process-wide logger
+  factory; forcing a per-instance logger port is high-churn with no gain.
+- **`trace_operation`** (`infrastructure.observability.tracing`) — a
+  **definition-time decorator**; it cannot consume an injected `TracerPort`
+  (decorators apply at class-definition, before any instance injection).
+  Routing it through `domain.ports` was attempted and **reverted**: a lazy
+  `infrastructure` import inside `domain.ports.observability` violates the
+  `Domain independence` contract directly and transitively re-breaks
+  `Application infrastructure separation`. So `trace_operation` is kept as an
+  exempt `ignore_imports` entry alongside `get_logger`.
+
+**D4 collaborator de-coupling is complete.** Every per-instance OMS
+collaborator (event bus, event log, dead-letter queue, processed-trade repo,
+lifecycle manager, order store, state machine, market data, metrics registry,
+EventMetrics) is now behind a `domain` port; only the two cross-cutting
+import-time concerns (`get_logger`, `trace_operation`) remain exempt, by
+design.
 
 ### Known pre-existing gate status (working tree, not from D4)
 The working tree currently shows `CLI broker-implementation isolation` BROKEN

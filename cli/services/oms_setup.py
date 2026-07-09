@@ -170,6 +170,8 @@ def register_oms_services(
         risk_manager: RiskManager instance
     """
     from application.oms import create_trading_context
+    from infrastructure.metrics import metrics_registry
+    from infrastructure.observability.event_metrics import EventMetrics
 
     # B-1: Build reconciliation service
     dhan_reconciliation = _build_reconciliation_service(service._gateway)
@@ -192,6 +194,8 @@ def register_oms_services(
             processed_trade_repository=processed_trades,
             dead_letter_queue=dead_letter_queue,
             durable_order_store=order_store,
+            metrics=EventMetrics(),
+            metrics_registry=metrics_registry,
         )
 
         # Attach lifecycle (registers reconciliation service, etc.)

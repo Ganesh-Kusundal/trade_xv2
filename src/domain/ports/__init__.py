@@ -48,5 +48,4 @@ __all__ = [
     "SubscriptionHandle",
     "TimeServicePort",
     "TracerPort",
-    "trace_operation",
 ]

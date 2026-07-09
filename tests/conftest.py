@@ -208,4 +208,12 @@ def build_test_trading_context(**kwargs: Any) -> "TradingContext":
         kwargs["processed_trade_repository"] = ProcessedTradeRepository()
     if "event_log" not in kwargs:
         kwargs["event_log"] = BufferedEventLog(events_dir=Path("runtime/event-log"))
+    if "metrics" not in kwargs:
+        from infrastructure.observability.event_metrics import EventMetrics
+
+        kwargs["metrics"] = EventMetrics()
+    if "metrics_registry" not in kwargs:
+        from infrastructure.metrics import metrics_registry
+
+        kwargs["metrics_registry"] = metrics_registry
     return create_trading_context(**kwargs)

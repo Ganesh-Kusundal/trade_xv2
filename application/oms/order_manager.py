@@ -36,10 +36,14 @@ from domain.events.types import DomainEvent, EventType
 from domain.symbols import normalize_exchange, normalize_symbol
 from domain.types import ORDER_STATUS_TRANSITIONS, OrderStatus, OrderType, ProductType, Side
 from domain.events.types import TradeIdKey
-from domain.ports import EventBusPort, OrderStorePort, ProcessedTradeRepositoryPort
+from domain.ports import (
+    EventBusPort,
+    EventMetricsPort,
+    MetricsRegistryPort,
+    OrderStorePort,
+    ProcessedTradeRepositoryPort,
+)
 from infrastructure.logging_config import get_logger
-from infrastructure.metrics import metrics_registry
-from infrastructure.observability.event_metrics import EventMetrics
 from infrastructure.observability.tracing import trace_operation
 
 if TYPE_CHECKING:
@@ -47,23 +51,12 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-# ── Centralized metrics (infrastructure.metrics) ──────────────────────
-# Counters, histograms, and gauges for OMS observability.
-# Registered via the shared metrics_registry so PrometheusExporter can
-# scrape them alongside any other module-level metrics.
-_orders_total = metrics_registry.counter(
-    "oms_orders_total",
-    "Total orders placed through the OMS",
-)
-_order_latency = metrics_registry.histogram(
-    "oms_order_placement_latency_seconds",
-    "End-to-end order placement latency in seconds",
-    buckets=[0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0],
-)
-_active_orders = metrics_registry.gauge(
-    "oms_active_orders",
-    "Currently open (non-terminal) orders in the OMS",
-)
+# ── Centralized metrics ───────────────────────────────────────────────
+# Counters, histograms, and gauges are created lazily in ``__init__``
+# from an injected ``MetricsRegistryPort`` (idempotent by name, so
+# multiple OrderManagers sharing the process-wide registry observe the
+# same objects). ``application`` depends only on the port, not on
+# ``infrastructure.metrics``.
 
 
 @dataclass(frozen=True)
@@ -150,7 +143,8 @@ class OrderManager:
         event_bus: EventBusPort | None = None,
         risk_manager: RiskManager | None = None,
         processed_trade_repository: ProcessedTradeRepositoryPort | None = None,
-        metrics: EventMetrics | None = None,
+        metrics: EventMetricsPort | None = None,
+        metrics_registry: MetricsRegistryPort | None = None,
         enforce_state_transitions: bool = True,
         state_validator: OrderStateValidator | None = None,
         audit_logger: OrderAuditLogger | None = None,
@@ -166,6 +160,26 @@ class OrderManager:
         self._metrics = metrics
         self._trades_processed = 0
         self._trades_duplicated = 0
+        # Metrics created from the injected registry (idempotent by name).
+        self._orders_total = (
+            metrics_registry.counter("oms_orders_total", "Total orders placed through the OMS")
+            if metrics_registry is not None
+            else None
+        )
+        self._order_latency = (
+            metrics_registry.histogram(
+                "oms_order_placement_latency_seconds",
+                "End-to-end order placement latency in seconds",
+                buckets=[0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0],
+            )
+            if metrics_registry is not None
+            else None
+        )
+        self._active_orders = (
+            metrics_registry.gauge("oms_active_orders", "Currently open (non-terminal) orders in the OMS")
+            if metrics_registry is not None
+            else None
+        )
         # Pending-order set prevents TOCTOU races when the lock
         # is released between idempotency check and order book insertion.
         self._pending_correlation: set[str] = set()
@@ -261,10 +275,12 @@ class OrderManager:
 
             # Phase 4: Record result (under lock)
             self._record_and_publish(order, request)
-            _orders_total.inc()
+            if self._orders_total is not None:
+                self._orders_total.inc()
             return OrderResult(success=True, order=order)
         finally:
-            _order_latency.observe(time.monotonic() - _start)
+            if self._order_latency is not None:
+                self._order_latency.observe(time.monotonic() - _start)
 
     # ── place_order phase helpers ─────────────────────────────────────────
 
@@ -407,7 +423,8 @@ class OrderManager:
             },
         )
         self._publish(EventType.ORDER_PLACED.value, order)
-        _active_orders.inc()
+        if self._active_orders is not None:
+            self._active_orders.inc()
 
     def _release_pending(self, request: OmsOrderCommand) -> None:
         """Remove the correlation ID from the pending set (under lock)."""
@@ -439,8 +456,8 @@ class OrderManager:
                     order.status,
                 )
                 # Decrement active orders gauge when order reaches terminal state
-                if order.status.is_terminal:
-                    _active_orders.dec()
+                if order.status.is_terminal and self._active_orders is not None:
+                    self._active_orders.dec()
 
             self._publish(EventType.ORDER_UPDATED.value, order)
 
@@ -608,7 +625,8 @@ class OrderManager:
                 OrderStatus.CANCELLED,
                 details={"reason": "User requested"},
             )
-            _active_orders.dec()
+            if self._active_orders is not None:
+                self._active_orders.dec()
 
             self._publish(EventType.ORDER_CANCELLED.value, updated)
             return OrderResult(success=True, order=updated)
