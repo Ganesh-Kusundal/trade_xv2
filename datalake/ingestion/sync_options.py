@@ -40,13 +40,13 @@ import pandas as pd
 import pyarrow as pa
 
 from datalake.core.io import atomic_parquet_write
-from datalake.option_format import (
+from datalake.core.option_format import (
     CANONICAL_COLUMNS,
     convert_format,
     map_expiry_code_to_date,
 )
 from datalake.core.symbols import normalize_symbol
-from datalake.validation import validate_candles
+from datalake.quality.validation import validate_candles
 
 # Initialize logging if not already configured
 if not logging.getLogger().handlers:

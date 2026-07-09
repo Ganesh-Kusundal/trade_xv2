@@ -126,7 +126,7 @@ class ResearchAPI:
         """Load symbol list — DuckDB first, CSV fallback (I-17)."""
         from datetime import date
 
-        from datalake.schema import load_universe
+        from datalake.core.schema import load_universe
 
         parsed: date | None = None
         if as_of_date is not None:

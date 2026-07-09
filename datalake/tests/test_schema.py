@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datalake.schema import (
+from datalake.core.schema import (
     ARROW_SCHEMA,
     CANONICAL_COLUMNS,
     HIVE_PARTITION_TEMPLATE,

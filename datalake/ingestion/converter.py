@@ -26,7 +26,7 @@ import pandas as pd
 import pyarrow as pa
 
 from datalake.core.io import atomic_parquet_write
-from datalake.schema import CANONICAL_COLUMNS
+from datalake.core.schema import CANONICAL_COLUMNS
 from datalake.core.constants import (
     MARKET_CLOSE_HOUR,
     MARKET_CLOSE_MINUTE,
@@ -34,7 +34,7 @@ from datalake.core.constants import (
     MARKET_OPEN_MINUTE,
 )
 from datalake.core.symbols import normalize_symbol
-from datalake.validation import validate_candles
+from datalake.quality.validation import validate_candles
 
 logger = logging.getLogger(__name__)
 

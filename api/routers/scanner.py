@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from api.auth import require_auth
 from api.deps import get_data_catalog, get_datalake_gateway, get_trading_context, get_view_manager
 from api.schemas import ScannerCandidatesResponse, ScannerSnapshot
-from datalake.scan_store import get_recent_scans, save_scan_result
+from datalake.research.scan_store import get_recent_scans, save_scan_result
 
 logger = logging.getLogger(__name__)
 
@@ -211,7 +211,7 @@ async def run_scan(
 
         scanners = [scanner_map[scanner_name.lower()]()]
 
-        from datalake.scanner_universe import load_scanner_universe
+        from datalake.research.scanner_universe import load_scanner_universe
 
         universe_df, load_stats = load_scanner_universe(
             gateway,

@@ -76,7 +76,7 @@ class UniverseQualityEngine:
         """
         report = UniverseQualityReport(universe=universe)
         if symbols is None:
-            from datalake.schema import load_universe
+            from datalake.core.schema import load_universe
             symbols = load_universe(universe, catalog=self._catalog)
         report.symbol_count = len(symbols)
 

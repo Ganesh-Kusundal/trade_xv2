@@ -19,7 +19,7 @@ from analytics.views.strategy import StrategyViews
 from analytics.views.validator import VALID_VIEWS, PointInTimeValidator
 from datalake.storage.catalog import DataCatalog
 from datalake.core.duckdb_utils import connect_with_retry, get_pool
-from datalake.scan_store import (
+from datalake.research.scan_store import (
     compare_scans,
     ensure_scan_table,
     get_recent_scans,

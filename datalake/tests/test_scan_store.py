@@ -8,7 +8,7 @@ from pathlib import Path
 import duckdb
 import pytest
 
-from datalake.scan_store import (
+from datalake.research.scan_store import (
     compare_scans,
     ensure_scan_table,
     get_recent_scans,

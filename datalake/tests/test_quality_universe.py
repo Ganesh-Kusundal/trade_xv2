@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from datalake.quality_universe import UniverseQualityEngine, UniverseQualityReport
+from datalake.quality.universe import UniverseQualityEngine, UniverseQualityReport
 
 
 def _create_symbol_data(root, symbols, n=500, recent_n=None):

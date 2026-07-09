@@ -7,8 +7,8 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from datalake.schema import CANONICAL_COLUMNS
-from datalake.validation import validate_candles, validate_parquet_file
+from datalake.core.schema import CANONICAL_COLUMNS
+from datalake.quality.validation import validate_candles, validate_parquet_file
 
 
 def _valid_df(n: int = 10) -> pd.DataFrame:

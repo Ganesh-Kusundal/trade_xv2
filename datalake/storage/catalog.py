@@ -78,7 +78,7 @@ class DataCatalog:
         self._create_symbol_metadata_history_table(conn)
         self._create_data_versions_table(conn)
 
-        from datalake.migrations import apply_migrations
+        from datalake.core.migrations import apply_migrations
 
         apply_migrations(conn)
 

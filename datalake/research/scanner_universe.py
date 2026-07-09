@@ -6,7 +6,7 @@ import logging
 
 import pandas as pd
 
-from datalake.schema import load_universe
+from datalake.core.schema import load_universe
 
 logger = logging.getLogger(__name__)
 

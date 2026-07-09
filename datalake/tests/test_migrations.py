@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import duckdb
 
-from datalake.migrations import CURRENT_SCHEMA_VERSION, apply_migrations, get_schema_version
+from datalake.core.migrations import CURRENT_SCHEMA_VERSION, apply_migrations, get_schema_version
 
 
 def test_apply_migrations_creates_version_table(tmp_path):

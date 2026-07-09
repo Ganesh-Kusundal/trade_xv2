@@ -8,10 +8,10 @@ import pandas as pd
 import pytest
 
 from datalake.core.io import file_lock
-from datalake.nse_calendar import count_trading_days, expected_candles, is_trading_day
-from datalake.pit_joins import PitQueryConfig
+from datalake.core.nse_calendar import count_trading_days, expected_candles, is_trading_day
+from datalake.core.pit_joins import PitQueryConfig
 from datalake.core.symbols import normalize_symbol, sanitize_path_param
-from datalake.validation import validate_candles
+from datalake.quality.validation import validate_candles
 
 # ── F1: Validation causality invariant + audit trail ──────────────────────
 
@@ -101,7 +101,7 @@ class TestNSECalendar:
         assert is_trading_day(date(2024, 1, 29))
 
     def test_early_close(self):
-        from datalake.nse_calendar import is_early_close
+        from datalake.core.nse_calendar import is_early_close
         assert not is_early_close(date(2024, 1, 15))
 
     def test_expected_candles(self):

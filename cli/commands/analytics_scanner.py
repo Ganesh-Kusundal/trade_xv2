@@ -147,7 +147,7 @@ def run_scanner_command(
 
     # Persist scan results to DuckDB
     try:
-        from datalake.scan_store import save_scan_result
+        from datalake.research.scan_store import save_scan_result
 
         scan_id = save_scan_result(
             scanner=scanner_name,

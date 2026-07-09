@@ -27,7 +27,7 @@ def register_resources(mcp) -> None:
     @mcp.resource("datalake://rules")
     def get_rules() -> str:
         """List all available scanner rules."""
-        from datalake.scanner.engine import RuleEngine
+        from analytics.scanner.rules.engine import RuleEngine
 
         engine = RuleEngine()
         rules = engine.list_rules()

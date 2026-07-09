@@ -28,7 +28,7 @@ from datalake.core.constants import (
     MARKET_OPEN_MINUTE,
 )
 from datalake.core.symbols import normalize_symbol
-from datalake.validation import validate_candles
+from datalake.quality.validation import validate_candles
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +124,7 @@ class HistoricalDataLoader:
         """Download data for all symbols in a universe."""
         import csv
 
-        from datalake.schema import UNIVERSE_FILES
+        from datalake.core.schema import UNIVERSE_FILES
 
         path = UNIVERSE_FILES.get(universe)
         if not path:

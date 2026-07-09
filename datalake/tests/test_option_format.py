@@ -7,13 +7,13 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 
-from datalake.option_format import (
+from datalake.core.option_format import (
     CANONICAL_COLUMNS,
     convert_format,
     make_option_symbol,
     map_expiry_code_to_date,
 )
-from datalake.sync_options import _get_watermark, sync_options
+from datalake.ingestion.sync_options import _get_watermark, sync_options
 
 # ============================================================
 # Tests for option_format module

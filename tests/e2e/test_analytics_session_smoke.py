@@ -79,4 +79,4 @@ def test_analytics_scanner_import_path_not_datalake() -> None:
     assert hasattr(live_scanner, "MomentumScanner")
     assert hasattr(live_scanners, "MomentumScanner")
     # Research SQL path stays separate (importable, not wired here)
-    import datalake.scanner  # noqa: F401
+    import analytics.scanner.rules  # noqa: F401

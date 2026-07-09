@@ -132,7 +132,7 @@ class DataQualityEngine:
         # Completeness (uses NSE calendar when available)
         if report.gap_days > 0 and report.min_date and report.max_date:
             try:
-                from datalake.nse_calendar import count_trading_days
+                from datalake.core.nse_calendar import count_trading_days
                 expected_trading_days = count_trading_days(report.min_date, report.max_date)
             except ImportError:
                 total_days = (report.max_date - report.min_date).days
@@ -163,7 +163,7 @@ class DataQualityEngine:
         self, universe: str = "NIFTY500", timeframe: str = "1m"
     ) -> list[QualityReport]:
         """Check quality for all symbols in a universe (I-17: DuckDB first)."""
-        from datalake.schema import load_universe
+        from datalake.core.schema import load_universe
 
         symbols = load_universe(universe, catalog=self._catalog)
         if not symbols:
@@ -211,7 +211,7 @@ class DataQualityEngine:
         dates_sorted = sorted(dates)
 
         try:
-            from datalake.nse_calendar import is_trading_day, trading_days_between
+            from datalake.core.nse_calendar import is_trading_day, trading_days_between
 
             gaps = 0
             expected = trading_days_between(dates_sorted[0], dates_sorted[-1])

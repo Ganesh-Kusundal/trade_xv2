@@ -99,7 +99,7 @@ class TestInstrumentIdIntegration:
 
     def test_scanner_output_includes_instrument_id(self):
         """Scanner should be able to add instrument_id to results."""
-        from datalake.scanner.engine import RuleEngine
+        from analytics.scanner.rules.engine import RuleEngine
 
         engine = RuleEngine()
         df = engine.execute("volume_spike", params={"as_of_date": "2026-06-10"})

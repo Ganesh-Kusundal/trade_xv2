@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from datalake.research_dataset import ResearchDataset
+from datalake.research.dataset import ResearchDataset
 
 
 @pytest.fixture

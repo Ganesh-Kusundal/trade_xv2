@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from datalake.pit_joins import (
+from datalake.core.pit_joins import (
     as_of_join,
     pit_query,
     validate_no_lookahead,
@@ -129,7 +129,7 @@ class TestAsOfJoin:
                      TIMESTAMP '2025-12-01 09:15:00', TIMESTAMP '2025-12-01 09:15:01')
                 ) AS t(event_time, symbol, atr_14, event_time_2, published_at)
             """)
-            from datalake.pit_joins import PitQueryConfig
+            from datalake.core.pit_joins import PitQueryConfig
 
             config = PitQueryConfig(max_lookback_window="INTERVAL 30 DAYS")
             df = as_of_join(
@@ -170,7 +170,7 @@ class TestPitQuery:
         conn = duckdb.connect()
         try:
             conn.execute("CREATE OR REPLACE TABLE t AS SELECT 1 AS x")
-            from datalake.pit_joins import PitQueryConfig
+            from datalake.core.pit_joins import PitQueryConfig
 
             config = PitQueryConfig(strict=True)
             with pytest.raises(ValueError, match="Look-ahead"):

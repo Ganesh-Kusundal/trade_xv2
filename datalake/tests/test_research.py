@@ -100,7 +100,7 @@ class TestUniverse:
         pd.DataFrame({"symbol": ["RELIANCE", "TCS", "HDFCBANK"]}).to_csv(csv_path, index=False)
 
         # Patch UNIVERSE_FILES
-        from datalake.schema import UNIVERSE_FILES
+        from datalake.core.schema import UNIVERSE_FILES
 
         UNIVERSE_FILES["TEST"] = str(csv_path)
 
@@ -118,7 +118,7 @@ class TestUniverse:
         csv_path = universe_dir / "TEST.csv"
         pd.DataFrame({"symbol": ["RELIANCE", "NONEXISTENT"]}).to_csv(csv_path, index=False)
 
-        from datalake.schema import UNIVERSE_FILES
+        from datalake.core.schema import UNIVERSE_FILES
 
         UNIVERSE_FILES["TEST"] = str(csv_path)
 
@@ -137,7 +137,7 @@ class TestScan:
         csv_path = universe_dir / "TEST.csv"
         pd.DataFrame({"symbol": ["RELIANCE", "TCS", "HDFCBANK"]}).to_csv(csv_path, index=False)
 
-        from datalake.schema import UNIVERSE_FILES
+        from datalake.core.schema import UNIVERSE_FILES
 
         UNIVERSE_FILES["TEST"] = str(csv_path)
 

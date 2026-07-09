@@ -37,7 +37,7 @@ class IncrementalUpdater:
         """
         import csv
 
-        from datalake.schema import UNIVERSE_FILES
+        from datalake.core.schema import UNIVERSE_FILES
 
         path = UNIVERSE_FILES.get(universe)
         if not path:

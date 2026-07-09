@@ -6,7 +6,7 @@ import logging
 
 from rich.console import Console
 
-from datalake.sync_options import sync_options
+from datalake.ingestion.sync_options import sync_options
 
 # Initialize logging if not already configured
 if not logging.getLogger().handlers:
