@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from brokers.common.gateway_interfaces import MarginProvider
+from brokers.common.api import MarginProvider
 from brokers.upstox.market_data.margin import UpstoxMarginClient
 
 

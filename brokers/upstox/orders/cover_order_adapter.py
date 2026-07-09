@@ -12,12 +12,11 @@ from __future__ import annotations
 from decimal import Decimal
 
 from brokers.common.dtos import BrokerOrderPayload
-from brokers.common.gateway_interfaces import CoverOrderProvider
 from brokers.upstox.orders.order_client import UpstoxRestOrderClient
 from domain import Order
 
 
-class UpstoxCoverOrderAdapter(CoverOrderProvider):
+class UpstoxCoverOrderAdapter:
     def __init__(self, order_client: UpstoxRestOrderClient) -> None:
         self._order_client = order_client
 

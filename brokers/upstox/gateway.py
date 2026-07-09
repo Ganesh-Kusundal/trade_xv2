@@ -29,7 +29,7 @@ from typing import Any
 import pandas as pd
 
 from brokers.common.batch_mixin import BatchFetchMixin
-from brokers.common.gateway import BrokerCapabilities, MarketDataGateway, ObservabilityProvider
+from brokers.common.gateway import BrokerCapabilities
 from brokers.upstox.adapters import (
     HistoricalAdapter,
     PortfolioAdapter,
@@ -65,7 +65,7 @@ from domain import (
 logger = logging.getLogger(__name__)
 
 
-class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
+class UpstoxBrokerGateway(BatchFetchMixin):
     """Unified Upstox broker API. All calls delegate to UpstoxBroker adapters.
 
     This facade provides a clean public API while internally delegating to
@@ -788,7 +788,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvi
 
     def modify_order(self, order_id: str, **changes: Any) -> OrderResponse:
         """Modify an order via Upstox V3 API."""
-        from brokers.common import OrderResponse
+        from domain import OrderResponse
         # Safety guard: prevent live order modifications if disabled
         if self._broker.settings.analytics_only:
             return OrderResponse.fail("Analytics-only mode: live orders are blocked.")

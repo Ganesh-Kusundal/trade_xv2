@@ -14,7 +14,6 @@ import time
 from typing import Any
 
 from brokers.common.dtos import BrokerOrderPayload
-from brokers.common.gateway_interfaces import SliceOrderCommand
 from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from brokers.upstox.orders.order_client import UpstoxRestOrderClient
@@ -26,7 +25,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_SLICE_SPACING_MS = 100
 
 
-class UpstoxSliceAdapter(SliceOrderCommand):
+class UpstoxSliceAdapter:
     def __init__(
         self,
         order_client: UpstoxRestOrderClient,

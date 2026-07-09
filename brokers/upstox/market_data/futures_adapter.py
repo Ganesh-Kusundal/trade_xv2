@@ -4,11 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from brokers.common.gateway_interfaces import FuturesProvider
 from brokers.upstox.market_data.futures import UpstoxFuturesClient
 
 
-class UpstoxFuturesAdapter(FuturesProvider):
+class UpstoxFuturesAdapter:
     def __init__(self, client: UpstoxFuturesClient) -> None:
         self._client = client
 

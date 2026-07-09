@@ -350,23 +350,11 @@ def main():
         print()
 
         # Create intelligent gateway in both modes
-        print("Creating Intelligent Gateway (Smart Mode)...")
-        from brokers.common.bootstrap import create_intelligent_gateway
-
-        smart_gw = asyncio.run(create_intelligent_gateway(
-            [("dhan", dhan_gw)],
-            smart=True,
-            primary_broker="dhan"
-        ))
-        print(f"✓ Smart mode enabled: Uses BrokerRouter + QuotaScheduler")
-
-        print("\nCreating Intelligent Gateway (Simple Mode)...")
-        simple_gw = asyncio.run(create_intelligent_gateway(
-            [("dhan", dhan_gw)],
-            smart=False,
-            primary_broker="dhan"
-        ))
-        print(f"✓ Simple mode enabled: Direct broker calls")
+        # NOTE: create_intelligent_gateway removed during refactoring;
+        # using raw gateway directly as placeholder.
+        smart_gw = dhan_gw
+        simple_gw = dhan_gw
+        print("Intelligent gateway creation skipped during broker refactoring")
         print()
 
         # Run benchmarks for both modes

@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from brokers.common import OrderResponse
+from domain import OrderResponse
 from domain.symbols import normalize_exchange, normalize_symbol
 
 if TYPE_CHECKING:

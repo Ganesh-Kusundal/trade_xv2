@@ -20,7 +20,7 @@ from brokers.dhan.gateway import BrokerGateway as DhanBrokerGateway
 from brokers.dhan.loader import InstrumentLoader
 from brokers.dhan.reconciliation import create_reconciliation_service
 from brokers.dhan.symbol_validator import DhanSymbolValidator
-from brokers.paper.mock_broker import create_demo_broker
+from cli.services.broker_registry import create_seeded_mock_broker as create_demo_broker
 from brokers.paper.paper_gateway import PaperGateway as PaperBrokerGateway
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 
@@ -48,11 +48,8 @@ def get_market_provider(broker: str = "dhan") -> "DataProvider | None":
     )
     if not result.ok or result.gateway is None:
         return None
-    if broker == "dhan":
-        from brokers.dhan.adapter import DhanDataAdapter
-
-        return DhanDataAdapter(result.gateway)
-    return result.gateway  # type: ignore[return-value]
+    # BrokerAdapter satisfies DataProvider structurally
+    return result.gateway
 
 
 def get_broker_extensions(broker: str, gateway: object) -> "list[Extension]":
@@ -95,13 +92,8 @@ def create_instrument(
     if not result.ok or result.gateway is None:
         return None
 
-    # Build the DataProvider adapter
-    if broker == "dhan":
-        from brokers.dhan.adapter import DhanDataAdapter
-
-        provider = DhanDataAdapter(result.gateway)
-    else:
-        provider = result.gateway  # type: ignore[assignment]
+    # Build the DataProvider adapter — BrokerAdapter satisfies DataProvider structurally
+    provider = result.gateway
 
     # Build the broker extensions
     extensions = get_broker_extensions(broker, result.gateway)

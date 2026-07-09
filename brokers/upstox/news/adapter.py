@@ -4,11 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from brokers.common.gateway_interfaces import NewsProvider
 from brokers.upstox.news.client import UpstoxNewsClient
 
 
-class UpstoxNewsAdapter(NewsProvider):
+class UpstoxNewsAdapter:
     def __init__(self, client: UpstoxNewsClient) -> None:
         self._client = client
 

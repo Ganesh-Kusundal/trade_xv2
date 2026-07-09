@@ -62,13 +62,13 @@ def get_broker_extension_classes(broker_id: str) -> list[type]:
 def create_data_adapter(gateway: Any, *, broker_id: str) -> Any:
     """Return a ``DataProvider`` adapter for ``broker_id``.
 
-    Falls back to the generic ``BaseDataAdapter`` when no broker-specific
-    adapter is registered (it normalizes via the generic gateway interface).
+    Falls back to passing the gateway directly when no broker-specific
+    adapter is registered.
     """
-    from brokers.common.adapter_base import BaseDataAdapter
-
-    cls = _DATA_ADAPTERS.get(broker_id, BaseDataAdapter)
-    return cls(gateway, broker_id=broker_id)
+    cls = _DATA_ADAPTERS.get(broker_id)
+    if cls is not None:
+        return cls(gateway, broker_id=broker_id)
+    return gateway
 
 
 def create_execution_provider(gateway: Any, *, broker_id: str) -> Any | None:

@@ -16,7 +16,7 @@ import pytest
 
 from application.oms.order_state_validator import OrderStateValidator
 from domain.types import OrderStatus
-from infrastructure.state_machine import IllegalTransitionError
+from domain.state_machine import IllegalTransitionError
 
 
 @pytest.fixture

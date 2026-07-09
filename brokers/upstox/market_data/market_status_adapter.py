@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from brokers.common.gateway_interfaces import MarketStatusProvider
+from brokers.common.api import MarketStatusProvider
 from brokers.upstox.market_data.market_status import UpstoxMarketStatusClient
 
 

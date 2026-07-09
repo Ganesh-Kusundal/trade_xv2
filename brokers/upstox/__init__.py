@@ -38,19 +38,9 @@ __all__ = [
     "UpstoxSettingsLoader",
 ]
 
-# ── Adapter self-registration (ADR-007) ──────────────────────────────────
-# Upstox registers its adapter classes into the broker-common registry so that
-# ``brokers.common`` never imports a concrete broker package. Registration
-# runs on package import and is idempotent.
-from brokers.common.adapter_factory import (
-    register_broker_adapter,
-    register_broker_extensions,
-    register_data_adapter,
-)
-from brokers.upstox.adapter import UpstoxDataAdapter
-from brokers.upstox.broker_adapter import UpstoxBrokerAdapter
+# ── Extension self-registration (ADR-007) ────────────────────────────────
+# Upstox registers its extension classes into the broker-common registry.
+from brokers.common.adapter_factory import register_broker_extensions
 from brokers.upstox.extensions.depth import UpstoxDepth30Extension
 
-register_data_adapter("upstox", UpstoxDataAdapter)
-register_broker_adapter("upstox", UpstoxBrokerAdapter)
 register_broker_extensions("upstox", [UpstoxDepth30Extension])

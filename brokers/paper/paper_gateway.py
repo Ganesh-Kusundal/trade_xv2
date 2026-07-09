@@ -7,8 +7,7 @@ from typing import Any, Callable
 
 import pandas as pd
 
-from brokers.common.batch_mixin import BatchFetchMixin
-from brokers.common.gateway import MarketDataGateway, ObservabilityProvider
+
 from domain import (
     Balance,
     FutureChain,
@@ -33,8 +32,8 @@ from .paper_orders import PaperOrders
 from .paper_portfolio import PaperPortfolio
 
 
-class PaperGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvider):
-    """Unified paper-trading API implementing MarketDataGateway v1.0.
+class PaperGateway:
+    """Unified paper-trading API for testing and development.
 
     All market-data, order, and portfolio calls delegate to the
     corresponding adapter objects (``market_data``, ``orders``, ``portfolio``).

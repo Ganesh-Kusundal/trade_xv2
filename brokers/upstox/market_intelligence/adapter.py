@@ -4,11 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from brokers.common.gateway_interfaces import MarketIntelligencePort
 from brokers.upstox.market_intelligence.client import UpstoxMarketIntelligenceClient
 
 
-class UpstoxMarketIntelligenceAdapter(MarketIntelligencePort):
+class UpstoxMarketIntelligenceAdapter:
     def __init__(self, client: UpstoxMarketIntelligenceClient) -> None:
         self._client = client
 

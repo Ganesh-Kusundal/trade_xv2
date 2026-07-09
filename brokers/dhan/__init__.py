@@ -89,23 +89,10 @@ __all__ = [
     "is_dhan_segment",
 ]
 
-# ── Adapter self-registration (ADR-007) ──────────────────────────────────
-# Dhan registers its adapter classes into the broker-common registry so that
-# ``brokers.common`` never imports a concrete broker package. Registration
-# runs on package import and is idempotent.
-from brokers.common.adapter_factory import (
-    register_broker_adapter,
-    register_broker_extensions,
-    register_data_adapter,
-    register_execution_provider,
-)
-from brokers.dhan.adapter import DhanDataAdapter
-from brokers.dhan.broker_adapter import DhanBrokerAdapter
+# ── Extension self-registration (ADR-007) ────────────────────────────────
+# Dhan registers its extension classes into the broker-common registry.
+from brokers.common.adapter_factory import register_broker_extensions
 from brokers.dhan.extensions.depth20 import DhanDepth20Extension
 from brokers.dhan.extensions.depth200 import DhanDepth200Extension
-from providers.dhan.execution_provider import DhanExecutionProvider
 
-register_data_adapter("dhan", DhanDataAdapter)
-register_execution_provider("dhan", DhanExecutionProvider)
-register_broker_adapter("dhan", DhanBrokerAdapter)
 register_broker_extensions("dhan", [DhanDepth20Extension, DhanDepth200Extension])

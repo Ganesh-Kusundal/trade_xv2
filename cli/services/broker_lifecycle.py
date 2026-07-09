@@ -15,10 +15,12 @@ import logging
 from typing import Any
 
 from brokers.common.async_compat import run_async_compat
-from brokers.common.bootstrap import bootstrap_from_gateways, policy_from_env
 from brokers.common.connection_pool import get_connection_pool
-from domain.ports.broker_transport import BrokerTransport as MarketDataGateway
+from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 from brokers.common.infrastructure import BrokerInfrastructure
+
+# TODO: restore bootstrap import when bootstrap module is recreated
+# from brokers.common.bootstrap import bootstrap_from_gateways, policy_from_env
 
 logger = logging.getLogger(__name__)
 
@@ -51,21 +53,13 @@ def build_broker_infrastructure(
         gateways.append(("paper", paper))
     if not gateways:
         return None
-    try:
-        exec_broker = "dhan" if gateway is not None else gateways[0][0]
-        policy = policy_from_env(execution_account=exec_broker)
-        broker_infra = run_async_compat(
-            bootstrap_from_gateways(gateways, policy=policy),
-            fire_and_forget=False,
-        )
-        logger.info(
-            "BrokerInfrastructure ready with brokers: %s",
-            [bid for bid, _ in gateways],
-        )
-        return broker_infra
-    except Exception as exc:
-        logger.warning("BrokerInfrastructure bootstrap failed: %s", exc)
-        return None
+    # TODO: restore bootstrap logic when bootstrap module is recreated.
+    # For now this returns None to avoid import errors on the deleted module.
+    logger.warning(
+        "BrokerInfrastructure bootstrap skipped — bootstrap module removed",
+        extra={"brokers": [bid for bid, _ in gateways]},
+    )
+    return None
 
 
 def close_all_gateways(

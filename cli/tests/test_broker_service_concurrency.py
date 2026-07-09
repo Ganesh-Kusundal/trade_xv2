@@ -2,12 +2,12 @@
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from brokers.paper.mock_broker import MockBroker
+from brokers.paper.paper_gateway import PaperGateway
 
 
 class TestMockBrokerConcurrency:
     def test_concurrent_place_order_generates_unique_ids(self):
-        broker = MockBroker()
+        broker = PaperGateway()
 
         def place():
             return broker.place_order("RELIANCE", "NSE", "BUY", 1)

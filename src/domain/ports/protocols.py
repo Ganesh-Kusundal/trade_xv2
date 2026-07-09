@@ -14,16 +14,15 @@ from collections.abc import Callable
 from datetime import date
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
-import pandas as pd
-
 if TYPE_CHECKING:
+    import pandas as pd
     from domain.entities.options import FutureChain, OptionChain
     from domain.entities.account import Balance, Holding
     from domain.entities.order import Order, OrderResponse
     from domain.entities.market import MarketDepth, QuoteSnapshot
     from domain.entities.position import Position
     from domain.instruments.instrument_id import InstrumentId
-    from domain.candles.historical import HistoricalSeries
+    from domain.candles.historical import HistoricalBar, HistoricalSeries
     from domain.orders.requests import ModifyOrderRequest, OrderRequest
 
 
@@ -95,19 +94,17 @@ class DataProvider(Protocol):
 
     def get_history(
         self,
-        instrument_id: InstrumentId,
+        instrument_id: "InstrumentId",
         *,
         timeframe: str = "1D",
         lookback_days: int = 120,
         from_date: str | None = None,
         to_date: str | None = None,
-    ) -> pd.DataFrame:
-        """Get historical OHLCV bars.
+    ) -> list["HistoricalBar"]:
+        """Get historical OHLCV bars as a list of domain objects.
 
-        .. deprecated::
-            Prefer :meth:`get_history_series`, which returns the normalized
-            ``HistoricalSeries`` domain object. This DataFrame variant is kept
-            for backward compatibility and will eventually be removed.
+        Use :meth:`get_history_series` when you need the full
+        ``HistoricalSeries`` with metadata.
         """
         ...
 

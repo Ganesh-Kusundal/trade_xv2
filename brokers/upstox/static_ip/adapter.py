@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from brokers.common.gateway_interfaces import StaticIPPort
 from brokers.upstox.static_ip.client import UpstoxStaticIpClient
 
 
-class UpstoxStaticIpAdapter(StaticIPPort):
+class UpstoxStaticIpAdapter:
     def __init__(self, client: UpstoxStaticIpClient) -> None:
         self._client = client
 

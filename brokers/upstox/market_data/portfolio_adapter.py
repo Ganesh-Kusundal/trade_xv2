@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-from brokers.common.gateway_interfaces import PortfolioProvider
+from brokers.common.api import PortfolioProvider
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from brokers.upstox.market_data.portfolio_client import UpstoxPortfolioClient
 from domain import FundLimits, Holding, Position

@@ -1,35 +1,36 @@
+from __future__ import annotations
+
 """Broker API contracts and SPI definitions.
 
-Note: Brokers should import ports directly from
-:mod:`brokers.common.gateway_interfaces` rather than from this package.
-This module re-exports a subset for backward compatibility.
+Note: This module defines the canonical MarginProvider protocol. Brokers
+should implement this protocol structurally (no explicit base class required).
 """
-
-from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal
+from typing import Any, Protocol
 
-from brokers.common.api.spi import (
-    BrokerSource,
-)
-from brokers.common.gateway_interfaces import (
-    ConditionalAlertProvider,
-    CoverOrderProvider,
-    FuturesProvider,
-    GttOrderProvider,
-    IdempotencyCachePort,
-    MarginProvider,
-    MarketDataProvider,
-    MarketStatusProvider,
-    NewsProvider,
-    OptionsProvider,
-    OrderCommand,
-    OrderQuery,
-    PortfolioProvider,
-    SliceOrderCommand,
-)
+import pandas as pd
+
+from brokers.common.api.spi import BrokerSource
 from brokers.common.resilience.errors import TradeXV2Error
+from datetime import date
+
+from domain import (
+    FundLimits,
+    Holding,
+    MarketDepth,
+    OptionContract,
+    Position,
+    Quote,
+)
+
+
+class MarginProvider(Protocol):
+    """Protocol for margin calculation."""
+
+    def calculate_margin(self, payload: dict[str, Any]) -> dict[str, Any]:
+        ...
 
 
 class MarginCalculationError(TradeXV2Error):
@@ -51,22 +52,83 @@ class MarginResult:
         return self.available_margin >= self.required_margin
 
 
+class MarketDataProvider(Protocol):
+    """Protocol for market data operations."""
+
+    def quote(self, symbol: str, exchange: str = "NSE") -> Quote:
+        ...
+
+    def ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:
+        ...
+
+    def depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
+        ...
+
+    def history(
+        self,
+        symbol: str | list[str],
+        exchange: str = "NSE",
+        timeframe: str = "1D",
+        lookback_days: int = 90,
+        from_date: str | None = None,
+        to_date: str | None = None,
+    ) -> pd.DataFrame:
+        ...
+
+
+class MarketStatusProvider(Protocol):
+    """Protocol for market status operations."""
+
+    def get_market_status(self) -> dict[str, Any]:
+        ...
+
+
+class OptionsProvider(Protocol):
+    """Protocol for options chain operations."""
+
+    def get_expiries(self, underlying: str, exchange_segment: str) -> list[str]:
+        ...
+
+    def get_option_chain(
+        self, underlying: str, exchange_segment: str, expiry: str
+    ) -> list[OptionContract]:
+        ...
+
+    def get_option_chain_with_meta(
+        self, underlying: str, exchange_segment: str, expiry: str
+    ) -> tuple[list[OptionContract], list[dict], dict]:
+        ...
+
+
+class PortfolioProvider(Protocol):
+    """Protocol for portfolio operations."""
+
+    def get_balance(self) -> Any:
+        ...
+
+    def get_positions(self) -> list[Position]:
+        ...
+
+    def get_holdings(self) -> list[Holding]:
+        ...
+
+    def get_fund_limits(self) -> FundLimits:
+        ...
+
+    def get_profile(self) -> dict[str, Any]:
+        ...
+
+    def get_ledger(self, from_date: date, to_date: date) -> list[dict[str, Any]]:
+        ...
+
+
 __all__ = [
     "BrokerSource",
-    "ConditionalAlertProvider",
-    "CoverOrderProvider",
-    "FuturesProvider",
-    "GttOrderProvider",
-    "IdempotencyCachePort",
     "MarginCalculationError",
     "MarginProvider",
     "MarginResult",
     "MarketDataProvider",
     "MarketStatusProvider",
-    "NewsProvider",
     "OptionsProvider",
-    "OrderCommand",
-    "OrderQuery",
     "PortfolioProvider",
-    "SliceOrderCommand",
 ]

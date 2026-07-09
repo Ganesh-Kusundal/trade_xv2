@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from brokers.common.gateway_interfaces import ConditionalAlertProvider
 from brokers.upstox.orders.gtt_adapter import UpstoxGttAdapter
 from domain import ConditionalAlert, ConditionalAlertRequest
 
 
-class UpstoxAlertAdapter(ConditionalAlertProvider):
+class UpstoxAlertAdapter:
     def __init__(self, gtt_adapter: UpstoxGttAdapter) -> None:
         self._gtt = gtt_adapter
 

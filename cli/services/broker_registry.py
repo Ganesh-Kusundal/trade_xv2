@@ -255,17 +255,17 @@ def get_paper_gateway_class() -> type:
 
 
 def get_mock_broker_class() -> type:
-    """Return the :class:`MockBroker` class (no direct cli→brokers.paper import)."""
-    from brokers.paper.mock_broker import MockBroker
+    """Return the :class:`PaperGateway` class (mock broker replacement)."""
+    from brokers.paper import PaperGateway
 
-    return MockBroker
+    return PaperGateway
 
 
 def create_seeded_mock_broker(name: str = "dhan") -> Any:
-    """Delegate to ``brokers.paper.mock_broker.create_seeded_mock_broker``."""
-    from brokers.paper.mock_broker import create_seeded_mock_broker as _create
+    """Return a PaperGateway instance with default capital."""
+    from brokers.paper import PaperGateway
 
-    return _create(name)
+    return PaperGateway()
 
 
 def get_dhan_websocket_classes() -> tuple[type, type]:

@@ -21,12 +21,10 @@ from cli.services.broker_service import BrokerServiceTestBuilder
 
 @pytest.fixture()
 def broker_service():
-    """Return a BrokerService backed by seeded MockBroker (no .env.local needed)."""
-    from brokers.paper.mock_broker import create_demo_broker
-
+    """Return a BrokerService backed by seeded PaperGateway (no .env.local needed)."""
     return (
         BrokerServiceTestBuilder()
-        .with_mock(create_demo_broker("dhan"))
+        .with_mock(PaperGateway())
         .build()
     )
 

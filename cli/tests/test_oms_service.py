@@ -10,7 +10,7 @@ from tests.conftest import build_test_trading_context
 
 from decimal import Decimal
 
-from brokers.paper.mock_broker import MockBroker
+from brokers.paper.paper_gateway import PaperGateway as MockBroker
 from cli.services.broker_service import BrokerService
 
 

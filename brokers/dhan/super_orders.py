@@ -10,7 +10,7 @@ from brokers.dhan.exceptions import SuperOrderError
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 from brokers.dhan.invariants import assert_dhan_payload
-from brokers.common import OrderResponse
+from domain import OrderResponse
 from domain.utils.price import to_wire_float
 
 logger = logging.getLogger(__name__)

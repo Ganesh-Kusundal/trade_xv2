@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from brokers.common import Order
+from domain import Order
 class TestDhanExchangeResolver:
     """The optional ``exchange_resolver`` lets adapters map segments to Dhan enums."""
 

@@ -102,10 +102,8 @@ class DhanTransport(BrokerTransport):
     """Concrete Dhan broker plugin behind the domain BrokerTransport port."""
 
     def __init__(self, gateway: Any) -> None:
-        from brokers.dhan.adapter import DhanDataAdapter
-
         self._gateway = gateway
-        self._market = DhanDataAdapter(gateway)
+        self._market = gateway  # BrokerAdapter satisfies DataProvider structurally
         self._execution = DhanOrderTransport(gateway)
 
     @property

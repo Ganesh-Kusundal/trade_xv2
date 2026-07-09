@@ -10,7 +10,6 @@ from decimal import Decimal
 from typing import Any
 
 from brokers.common.dtos import BrokerOrderPayload
-from brokers.common.gateway_interfaces import IdempotencyCachePort, OrderCommand
 from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from brokers.upstox.orders.idempotency import InMemoryIdempotencyCache
@@ -29,7 +28,7 @@ from infrastructure.event_bus.event_bus import EventBus
 logger = logging.getLogger(__name__)
 
 
-class UpstoxOrderCommandAdapter(OrderCommand):
+class UpstoxOrderCommandAdapter:
     def __init__(
         self,
         order_client: UpstoxRestOrderClient,
@@ -137,7 +136,7 @@ class UpstoxOrderCommandAdapter(OrderCommand):
             :class:`OrderResponse` indicating success or carrying the
             broker's error code/message on failure.
         """
-        from brokers.common import OrderResponse
+        from domain import OrderResponse
         try:
             result = self._order_client.cancel_order_v3(order_id)
         except (RuntimeError, OSError) as exc:

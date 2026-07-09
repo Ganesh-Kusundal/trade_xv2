@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from brokers.common.gateway_interfaces import OrderQuery
 from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from brokers.upstox.orders.order_client import UpstoxRestOrderClient
 from domain import Order, Trade
 
 
-class UpstoxOrderQueryAdapter(OrderQuery):
+class UpstoxOrderQueryAdapter:
     def __init__(
         self,
         order_client: UpstoxRestOrderClient,

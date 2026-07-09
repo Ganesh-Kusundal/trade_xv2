@@ -8,7 +8,6 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any
 
-from brokers.common.gateway_interfaces import GttOrderProvider
 from brokers.upstox.orders.gtt_client import UpstoxGttClient
 from domain import (
     ConditionalAlert,
@@ -18,7 +17,7 @@ from domain import (
 from domain.utils.price import to_wire_float
 
 
-class UpstoxGttAdapter(GttOrderProvider):
+class UpstoxGttAdapter:
     def __init__(self, client: UpstoxGttClient) -> None:
         self._client = client
 
