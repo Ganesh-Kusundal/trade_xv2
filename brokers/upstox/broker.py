@@ -14,8 +14,8 @@ from typing import Any
 
 from domain import Capability, ConnectionStatus
 from infrastructure.event_bus import EventBus
-from application.oms.risk_manager import RiskManager
-from brokers.common.services.historical_data import HistoricalDataService
+from domain.ports.risk_manager import RiskManagerPort
+from tradex.runtime.services.historical_data import HistoricalDataService
 from brokers.upstox.auth.config import UpstoxConnectionSettings
 from brokers.upstox.auth.context import UpstoxAdapterContext
 from brokers.upstox.auth.token_manager import UpstoxTokenManager
@@ -68,6 +68,7 @@ from brokers.upstox.static_ip.adapter import UpstoxStaticIpAdapter
 from brokers.upstox.static_ip.client import UpstoxStaticIpClient
 from brokers.upstox.websocket.feed_authorizer import UpstoxFeedAuthorizer
 from brokers.upstox.websocket.market_data_v3 import UpstoxMarketDataV3Multiplexer
+from brokers.upstox.websocket.portfolio_stream import UpstoxPortfolioStream
 from brokers.upstox.websocket.v3_auto_reconnect import UpstoxAutoReconnect
 from brokers.upstox.websocket.v3_decoder import UpstoxV3Decoder
 from brokers.upstox.websocket.v3_subscription_manager import UpstoxV3SubscriptionLimits
@@ -83,7 +84,7 @@ class UpstoxBroker:
         token_manager: UpstoxTokenManager | None = None,
         oms: Any = None,
         event_bus: EventBus | None = None,
-        risk_manager: RiskManager | None = None,
+        risk_manager: RiskManagerPort | None = None,
         backfill_callback: Any | None = None,
         reconciliation_service: Any | None = None,
     ) -> None:
@@ -94,6 +95,10 @@ class UpstoxBroker:
         self._capabilities: set[Capability] = set()
         self._capability_map: dict[Capability, Any] = {}
         self._status: ConnectionStatus = ConnectionStatus.DISCONNECTED
+        # Extended (Upstox-specific) adapters are built lazily so the core
+        # bootstrap path neither imports those modules nor requires their
+        # downstream dependencies. See ``_ensure_extended``.
+        self._extended_ready: bool = False
         self.settings = settings
         self._token_manager = token_manager or UpstoxTokenManager(settings=settings)
         self.context = UpstoxAdapterContext(
@@ -207,16 +212,15 @@ class UpstoxBroker:
         self.market_status = UpstoxMarketStatusAdapter(self.market_status_client)
         self.futures = UpstoxFuturesAdapter(self.futures_client)
         self.news = UpstoxNewsAdapter(self.news_client)
-        self.intelligence = UpstoxMarketIntelligenceAdapter(self.intelligence_client)
         self.intelligence_snapshot = UpstoxMarketIntelligenceSnapshotBuilder(
             self.intelligence_client
         )
         self.kill_switch = UpstoxKillSwitchAdapter(self.kill_switch_client)
-        self.static_ip = UpstoxStaticIpAdapter(self.static_ip_client)
-        self.ipo = UpstoxIpoAdapter(self.ipo_client)
-        self.payments = UpstoxPaymentsAdapter(self.payments_client)
-        self.mutual_funds = UpstoxMutualFundsAdapter(self.mutual_funds_client)
-        self.fundamentals = UpstoxFundamentalsAdapter(self.fundamentals_client)
+        # ``static_ip``, ``ipo``, ``payments``, ``mutual_funds``,
+        # ``fundamentals`` and ``intelligence`` are Upstox-specific "extended"
+        # adapters — they are NOT built here. They are wired lazily by
+        # ``_ensure_extended`` so the hot constructor path stays lean and
+        # ``gateway.extended`` is the only entry point that needs them.
 
     def _build_order_path(self, settings: Any) -> None:
         """Construct the order-path objects (commands, queries, GTT, ws)."""
@@ -260,6 +264,54 @@ class UpstoxBroker:
             backfill_callback=self._backfill_callback,
         )
 
+        # Order-update / portfolio stream. Wired the same way as the market
+        # data feed: it shares the ``feed_authorizer`` (token/connection) and
+        # reuses the same auto-reconnect profile. ``gateway.stream_order`` and
+        # the factory's ``UpstoxPortfolioStreamService`` depend on this.
+        self.portfolio_stream = UpstoxPortfolioStream(
+            self.feed_authorizer,
+            event_bus=self._event_bus,
+            auto_reconnect=UpstoxAutoReconnect(
+                enabled=settings.ws_auto_reconnect,
+                interval_seconds=settings.ws_reconnect_interval_s,
+                max_retries=settings.ws_reconnect_max_retries,
+            ),
+        )
+
+    # ── Extended (Upstox-specific) lazy surface ──
+
+    def _ensure_extended(self) -> None:
+        """Lazily construct the Upstox-specific ("extended") adapters.
+
+        These adapters back :class:`UpstoxExtendedCapabilities` (exposed via
+        ``gateway.extended``) and the IPO / payments / mutual-funds /
+        fundamentals / market-intelligence / static-IP capabilities. They are
+        intentionally *not* built in the hot constructor path so that core
+        bootstrap neither imports those modules nor requires their downstream
+        dependencies to be present.
+
+        Idempotent — safe to call any number of times.
+        """
+        if self._extended_ready:
+            return
+
+        self.intelligence = UpstoxMarketIntelligenceAdapter(self.intelligence_client)
+        self.static_ip = UpstoxStaticIpAdapter(self.static_ip_client)
+        self.ipo = UpstoxIpoAdapter(self.ipo_client)
+        self.payments = UpstoxPaymentsAdapter(self.payments_client)
+        self.mutual_funds = UpstoxMutualFundsAdapter(self.mutual_funds_client)
+        self.fundamentals = UpstoxFundamentalsAdapter(self.fundamentals_client)
+
+        self._register_capability(Capability.MARKET_INTELLIGENCE, self.intelligence)
+        self._register_capability(Capability.OPTION_GREEKS, self.intelligence)
+        self._register_capability(Capability.STATIC_IP, self.static_ip)
+        self._register_capability(Capability.IPO, self.ipo)
+        self._register_capability(Capability.PAYMENTS, self.payments)
+        self._register_capability(Capability.MUTUAL_FUNDS, self.mutual_funds)
+        self._register_capability(Capability.FUNDAMENTALS, self.fundamentals)
+
+        self._extended_ready = True
+
     def _register_all_capabilities(self) -> None:
         self._register_capability(Capability.MARKET_DATA, self.market_data)
         self._register_capability(Capability.DEPTH, self.market_data)
@@ -280,16 +332,14 @@ class UpstoxBroker:
         self._register_capability(Capability.WEBSOCKET, self.market_data_websocket)
         self._register_capability(Capability.IDEMPOTENCY, self.idempotency_cache)
         self._register_capability(Capability.NEWS, self.news)
-        self._register_capability(Capability.MARKET_INTELLIGENCE, self.intelligence)
         self._register_capability(Capability.KILL_SWITCH, self.kill_switch)
-        self._register_capability(Capability.STATIC_IP, self.static_ip)
-        self._register_capability(Capability.IPO, self.ipo)
-        self._register_capability(Capability.PAYMENTS, self.payments)
-        self._register_capability(Capability.MUTUAL_FUNDS, self.mutual_funds)
-        self._register_capability(Capability.FUNDAMENTALS, self.fundamentals)
+        # ``STATIC_IP``, ``IPO``, ``PAYMENTS``, ``MUTUAL_FUNDS``,
+        # ``FUNDAMENTALS`` and ``MARKET_INTELLIGENCE`` (``OPTION_GREEKS``) are
+        # registered lazily in ``_ensure_extended`` — they are part of the
+        # Upstox-specific "extended" surface and must not be available until
+        # ``gateway.extended`` is first accessed.
         self._register_capability(Capability.PORTFOLIO_STREAM, self.market_data_websocket)
         self._register_capability(Capability.WEBHOOKS, self.feed_authorizer)
-        self._register_capability(Capability.OPTION_GREEKS, self.intelligence)
 
     # ── Connection lifecycle ──
 

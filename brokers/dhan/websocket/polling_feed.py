@@ -15,7 +15,11 @@ from decimal import Decimal
 
 from brokers.dhan.reconnecting_service import ReconnectingServiceMixin
 from brokers.dhan.segments import EXCHANGE_TO_SEGMENT
+from brokers.dhan.websocket._helpers import _to_decimal
+from domain import Quote
+from domain.events import DomainEvent
 from domain.lifecycle_health import HealthStatus
+from infrastructure.event_bus.event_bus import EventBus
 from infrastructure.lifecycle.lifecycle import HealthState, ManagedService
 
 logger = logging.getLogger(__name__)
@@ -43,6 +47,7 @@ class PollingMarketFeed(ReconnectingServiceMixin, ManagedService):
         resolver,
         instruments: list[tuple],
         interval_seconds: float = 2.0,
+        event_bus: EventBus | None = None,
     ):
         """
         Args:
@@ -50,11 +55,14 @@ class PollingMarketFeed(ReconnectingServiceMixin, ManagedService):
             resolver: SymbolResolver for security_id → symbol lookup
             instruments: List of (exchange_str, security_id_str, mode_str) tuples
             interval_seconds: Polling interval (default 2s)
+            event_bus: Optional EventBus to publish TICK events to so polled
+                quotes are persisted even when the live WebSocket is down.
         """
         self._client = http_client
         self._resolver = resolver
         self._instruments = instruments
         self._interval = interval_seconds
+        self._event_bus = event_bus
         self._quote_callbacks: list[Callable[[dict], None]] = []
         self._thread: threading.Thread | None = None
         # Plan §7.2: shared reconnect / message-tracking state.
@@ -203,19 +211,66 @@ class PollingMarketFeed(ReconnectingServiceMixin, ManagedService):
                         symbol = inst.symbol
                 except Exception as exc:
                     logger.warning("Polling resolver error for %s: %s", sec_id, exc)
+            # Populate OHLC/volume from the polled quote fields when present;
+            # only fall back to zero when the field is genuinely absent.
             quote = {
                 "symbol": symbol,
                 "security_id": sec_id,
                 "ltp": Decimal(str(ltp)),
-                "open": Decimal("0"),
-                "high": Decimal("0"),
-                "low": Decimal("0"),
-                "close": Decimal("0"),
-                "volume": 0,
-                "change": Decimal("0"),
+                "open": Decimal(str(raw["open"])) if raw.get("open") else Decimal("0"),
+                "high": Decimal(str(raw["high"])) if raw.get("high") else Decimal("0"),
+                "low": Decimal(str(raw["low"])) if raw.get("low") else Decimal("0"),
+                "close": Decimal(str(raw["close"])) if raw.get("close") else Decimal("0"),
+                "volume": int(raw.get("volume", 0) or 0),
+                "change": Decimal(str(raw["change"])) if raw.get("change") else Decimal("0"),
             }
             for cb in callbacks:
                 try:
                     cb(quote)
                 except Exception as exc:
                     logger.error("Polling callback error: %s", exc)
+            # Publish TICK so polled quotes are persisted during a WS outage.
+            self._publish_tick(quote)
+
+    def _publish_tick(self, quote: dict, correlation_id: str | None = None) -> None:
+        """Publish a TICK event to the event bus (mirrors DhanMarketFeed §7.7).
+
+        A zero/missing LTP is dropped (it is a dangerous false signal for
+        downstream strategies) so it is never persisted as a real tick.
+        OHLC/volume may be zero for freshly-listed symbols — that is allowed.
+        """
+        if self._event_bus is None:
+            return
+        try:
+            ltp_raw = quote.get("ltp")
+            symbol = quote.get("symbol", "")
+            ltp = _to_decimal(ltp_raw)
+            if ltp_raw is None or ltp == 0:
+                logger.warning(
+                    "tick_dropped_missing_or_zero_ltp: symbol=%s", symbol or "<unknown>"
+                )
+                return
+            if not symbol:
+                logger.warning("tick_dropped_missing_symbol")
+                return
+            q = Quote(
+                symbol=symbol,
+                ltp=ltp,
+                open=_to_decimal(quote.get("open")),
+                high=_to_decimal(quote.get("high")),
+                low=_to_decimal(quote.get("low")),
+                close=_to_decimal(quote.get("close")),
+                volume=quote.get("volume", 0),
+                change=_to_decimal(quote.get("change")),
+            )
+            self._event_bus.publish(
+                DomainEvent.now(
+                    "TICK",
+                    {"quote": q},
+                    symbol=q.symbol,
+                    source="PollingMarketFeed",
+                    correlation_id=correlation_id,
+                )
+            )
+        except Exception as exc:
+            logger.error("EventBus TICK publish error: %s", exc)

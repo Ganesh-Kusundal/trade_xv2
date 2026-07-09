@@ -25,6 +25,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import struct
 import threading
 import time
@@ -182,6 +183,26 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
         with self._callback_lock:
             self._depth_callbacks.append(callback)
 
+    def off_depth(self, callback: Callable[[MarketDepth], None]) -> None:
+        """Remove a previously registered depth callback.
+
+        Symmetric to :meth:`on_depth` (mirrors ``DhanMarketFeed.off_depth``).
+        Without it, consumers that unsubscribe leak their callback for the
+        entire lifetime of the feed.
+        """
+        self._unregister_callback(self._depth_callbacks, callback)
+
+    def off_quote(self, callback: Callable[[MarketDepth], None]) -> None:
+        """Remove a depth-feed callback via the ``off_quote`` alias.
+
+        The binary depth feed keeps every subscriber in the single
+        ``_depth_callbacks`` list that :meth:`on_depth` appends to, so this
+        is a symmetric alias for :meth:`off_depth` — it exists so callers
+        that use the ``DhanMarketFeed``-style ``off_quote`` API cannot leak
+        callbacks.
+        """
+        self._unregister_callback(self._depth_callbacks, callback)
+
     def register_symbol(self, security_id: int, symbol: str) -> None:
         """Map a Dhan security_id to a canonical symbol for event routing."""
         self._sec_id_to_symbol[int(security_id)] = normalize_symbol(symbol)
@@ -294,8 +315,29 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
 
         logger.info("%s_stopped", self.DEPTH_TYPE.lower())
 
+    def close(self, timeout_seconds: float = 5.0) -> None:
+        """ManagedService-style alias for :meth:`stop`.
+
+        The depth-200 connection pool eviction path and ``close_all`` call
+        ``feed.close()``; without this alias those paths would raise
+        ``AttributeError`` at runtime (see Depth200ConnectionPool.get_feed).
+        """
+        self.stop(timeout_seconds)
+
+    @staticmethod
+    def _staleness_threshold_seconds() -> float:
+        """Application-level freshness threshold for the depth socket.
+
+        Mirrors ``DhanMarketFeed._staleness_threshold_seconds`` so the two
+        feeds honour the same ``DHAN_STALENESS_THRESHOLD_SECONDS`` knob.
+        A connected-but-silent socket older than this is treated as dead
+        and force-reconnected (see :meth:`_websocket_handler`).
+        """
+        return float(os.getenv("DHAN_STALENESS_THRESHOLD_SECONDS", "60.0"))
+
     def health(self) -> HealthStatus:
         """ManagedService protocol: return a point-in-time health snapshot."""
+        threshold = self._staleness_threshold_seconds()
         with self._lock:
             thread_alive = bool(self._thread and self._thread.is_alive())
             is_connected = self._is_connected
@@ -306,9 +348,18 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
                 else None
             )
 
-        if thread_alive and is_connected:
+        is_stale = (
+            is_connected
+            and last_message_age is not None
+            and last_message_age > threshold
+        )
+
+        if thread_alive and is_connected and not is_stale:
             state = HealthState.HEALTHY
             detail = "running and connected"
+        elif thread_alive and is_connected and is_stale:
+            state = HealthState.DEGRADED
+            detail = "connected but stale (no messages received recently)"
         elif thread_alive and not is_connected:
             state = HealthState.DEGRADED
             detail = "thread running but not connected (reconnecting?)"
@@ -331,6 +382,8 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
                 "last_message_age_seconds": last_message_age
                 if last_message_age is not None
                 else -1,
+                "is_stale": is_stale,
+                "staleness_threshold_seconds": threshold,
             },
         )
 
@@ -404,6 +457,10 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
 
                     logger.info("%s_connected", self.DEPTH_TYPE.lower())
                     self._admission.clear_cooldown()
+                    # Freshness baseline: until the first real packet
+                    # arrives, staleness is measured from connection time so
+                    # a connected-but-silent socket still triggers healing.
+                    self._last_message_at = datetime.now(timezone.utc)
 
                     if self._subscriptions:
                         self._send_subscription(self._subscriptions)
@@ -418,6 +475,32 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
                             backoff = 1.0
 
                         except asyncio.TimeoutError:
+                            # Self-healing staleness: ``ws.recv()`` blocks
+                            # forever on a half-open (silent-but-connected)
+                            # socket and never raises, so a dead connection
+                            # would persist for the lifetime of the feed.
+                            # If no message has arrived within the staleness
+                            # threshold, tear the socket down and force the
+                            # outer loop to reconnect.
+                            threshold = self._staleness_threshold_seconds()
+                            last_msg = self._last_message_at
+                            age = (
+                                (datetime.now(timezone.utc) - last_msg).total_seconds()
+                                if last_msg is not None
+                                else None
+                            )
+                            if age is not None and age > threshold:
+                                logger.warning(
+                                    "%s_stale_reconnect_forced",
+                                    self.DEPTH_TYPE.lower(),
+                                    extra={
+                                        "age_seconds": round(age, 2),
+                                        "threshold_seconds": threshold,
+                                    },
+                                )
+                                with self._lock:
+                                    self._is_connected = False
+                                break
                             continue
 
                         except websockets.ConnectionClosed:

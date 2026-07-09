@@ -213,27 +213,19 @@ class Depth200ConnectionPool:
             # Check if feed already exists
             if instrument in self._feeds:
                 return self._feeds[instrument]
-            
-            # Check WebSocket rate limiting for new connections
-            try:
-                from brokers.dhan.resilience.websocket_rate_limiter_simple import get_dhan_ws_rate_limiter
-                ws_rate_limiter = get_dhan_ws_rate_limiter()
-                
-                # Check if we can create a new connection
-                if not ws_rate_limiter.can_create_depth_200_connection():
-                    logger.warning(
-                        "depth_200_pool_connection_rate_limited",
-                        extra={"instrument": instrument},
-                    )
-                    # Wait for connection to become available
-                    import time
-                    while not ws_rate_limiter.can_create_depth_200_connection():
-                        time.sleep(0.1)  # Wait 100ms and retry
-                
-            except ImportError:
-                # WebSocket rate limiter not available, use local limit
-                pass
-            
+
+            # NOTE: Connection-cap enforcement lives entirely in the
+            # ``max_connections`` eviction-by-oldest block below. The former
+            # spin-wait against brokers.dhan.resilience.websocket_rate_limiter_simple
+            # was removed because that limiter never actually incremented its
+            # counter (so can_create_depth_200_connection() was a no-op) and the
+            # unbounded ``while not ...: time.sleep(0.1)`` could spin forever
+            # holding this RLock while the pool was full. The single-connection
+            # host-wide admission gate (MarketFeedConnectionAdmission) is
+            # intentionally NOT used here: the pool's whole purpose is multiple
+            # depth-200 connections (one per instrument), so a per-host single
+            # connection lock would defeat it.
+
             # Enforce max connections limit
             if self._max_connections and len(self._feeds) >= self._max_connections:
                 # Close the oldest connection to make room

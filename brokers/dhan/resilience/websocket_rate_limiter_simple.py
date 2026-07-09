@@ -1,11 +1,22 @@
 """Simple WebSocket rate limiting for Dhan broker.
 
-This is a simplified version focused on the immediate needs:
-1. Connection rate limiting (preventing too many WebSocket connections)
-2. Connection pool management for depth-200 feeds
+.. deprecated::
+    This module is effectively DEAD and retained only for backwards
+    compatibility. Its :meth:`SimpleWebSocketRateLimiter.can_create_depth_200_connection`
+    counter (``_depth_200_connections``) is never incremented/decremented by any
+    caller, so the gate always returns ``True``. The unbounded spin-wait that
+    previously relied on it (in ``brokers.dhan.depth_200.Depth200ConnectionPool.get_feed``)
+    could loop forever holding a lock and was removed.
 
-The complex token bucket rate limiting will be addressed in a future iteration.
+    Connection-cap enforcement for depth-200 now lives in
+    :class:`~brokers.dhan.depth_200.Depth200ConnectionPool` (``max_connections``
+    eviction-by-oldest). Host-wide per-connection-type admission (including
+    the 429 cooldown) is handled by
+    :class:`~brokers.dhan.connection_admission.MarketFeedConnectionAdmission`.
+    Do not introduce new callers of this module.
 """
+
+
 
 from __future__ import annotations
 

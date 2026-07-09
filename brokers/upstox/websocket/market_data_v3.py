@@ -25,10 +25,13 @@ from brokers.upstox.websocket.feed_authorizer import (
 )
 from brokers.upstox.websocket.v3_auto_reconnect import UpstoxAutoReconnect
 from brokers.upstox.websocket.v3_decoder import UpstoxV3Decoder
+from brokers.common.tick_validation import is_valid_quote
+from brokers.upstox.adapters.tick_translator import TickTranslatorAdapter
 from brokers.upstox.websocket.v3_subscription_manager import (
     UpstoxV3SubscriptionLimits,
     UpstoxV3SubscriptionManager,
 )
+from domain import Quote
 from infrastructure.event_bus.event_bus import EventBus
 
 logger = logging.getLogger(__name__)
@@ -344,11 +347,71 @@ class UpstoxMarketDataV3Multiplexer:
             for frame in frames:
                 # Track tick times for backfill
                 self._track_tick_from_frame(frame)
+                # Drop invalid quotes (zero/negative/non-finite/missing LTP or
+                # symbol) before forwarding — mirrors Dhan strict mode. The raw
+                # frame (with its decoded exchange_timestamp) is forwarded
+                # unchanged when validation passes.
+                if not self._tick_quote_is_valid(frame):
+                    continue
                 with self._listener_lock:
                     listeners = list(self._listeners)
                 for listener in listeners:
                     with contextlib.suppress(Exception):
                         listener("tick", {"frame_type": frame.type, "payload": frame.payload})
+
+    @staticmethod
+    def _extract_raw_ltp(payload: Any) -> Any:
+        """Best-effort LTP extraction from a raw (untranslated) payload dict."""
+        if not isinstance(payload, dict):
+            return None
+        for key in ("ltp", "LTP", "last_price", "lastPrice", "lastPr"):
+            if key in payload and payload[key] is not None:
+                return payload[key]
+        return None
+
+    @staticmethod
+    def _extract_raw_symbol(payload: Any) -> Any:
+        """Best-effort symbol extraction from a raw (untranslated) payload dict."""
+        if not isinstance(payload, dict):
+            return None
+        for key in ("symbol", "instrument_key", "instrumentKey", "tradingSymbol"):
+            if key in payload and payload[key] is not None:
+                return payload[key]
+        return None
+
+    def _tick_quote_is_valid(self, frame: Any) -> bool:
+        """Validate a decoded frame's quote before forwarding to listeners.
+
+        Translates the frame payload to a canonical :class:`Quote` and applies
+        the shared ``is_valid_quote`` drop rules (zero/negative/non-finite/
+        missing LTP, missing symbol). When translation fails, a best-effort
+        extraction of the raw LTP still validates the tick so obviously-bad
+        quotes (zero/negative/NaN) are dropped rather than forwarded. Only
+        genuinely opaque payloads with no extractable LTP fall through to
+        forward-as-is.
+
+        Returns:
+            ``True`` if the frame may be forwarded, ``False`` to drop it.
+        """
+        payload = getattr(frame, "payload", None)
+        if payload is None:
+            return False
+        quote = TickTranslatorAdapter.translate(payload)
+        if isinstance(quote, Quote):
+            return is_valid_quote(
+                {"ltp": quote.ltp, "symbol": quote.symbol},
+                log=logger.warning,
+            )
+        # Translation failed / unresolved — try to validate the raw LTP directly
+        # so a malformed tick (e.g. a raw dict with ltp=0) is still dropped.
+        ltp = self._extract_raw_ltp(payload)
+        if ltp is not None:
+            return is_valid_quote(
+                {"ltp": ltp, "symbol": self._extract_raw_symbol(payload)},
+                log=logger.warning,
+            )
+        # No extractable LTP — cannot judge; forward as-is (prior behavior).
+        return True
 
     def _track_tick_from_frame(self, frame: Any) -> None:
         """Record latest tick time per instrument for gap detection."""

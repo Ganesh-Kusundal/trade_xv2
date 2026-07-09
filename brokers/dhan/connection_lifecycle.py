@@ -121,25 +121,62 @@ class ConnectionLifecycle:
         self,
         access_token: str | None = None,
         access_token_fn: Callable[[], str] | None = None,
+        token_refresh_fn: Callable[[], str | None] | None = None,
     ) -> DhanOrderStream:
         """Create and return a DhanOrderStream.
 
         If an existing stream exists, returns it (singleton per connection).
         Registers with lifecycle manager and token receiver on creation.
+
+        ``token_refresh_fn`` lets the stream proactively rotate the access
+        token on an auth/token-expiry reconnect failure (see order_stream
+        auth-handling). When omitted, the connection owner's token scheduler
+        is used if one has been installed.
         """
         if self._order_stream is not None:
             return self._order_stream
+
+        if token_refresh_fn is None:
+            token_refresh_fn = self._make_token_refresh_fn()
 
         stream = DhanOrderStream(
             client_id=self._client.client_id,
             access_token=access_token,
             access_token_fn=access_token_fn,
             event_bus=self._event_bus,
+            token_refresh_fn=token_refresh_fn,
         )
         self._order_stream = stream
         self._register_token_receiver(stream.update_token)
         self._register_with_lifecycle(stream, stream.name)
         return stream
+
+    def _make_token_refresh_fn(
+        self,
+    ) -> Callable[[], str | None] | None:
+        """Build a token-refresh hook for the order stream, if possible.
+
+        Reads the connection owner's token scheduler lazily (it may be
+        installed *after* the stream is created) and triggers a synchronous
+        refresh, returning the rotated token. Returns ``None`` when no
+        scheduler is available so the stream simply skips proactive refresh.
+        """
+        connection_owner = self._connection_owner
+
+        def _refresh() -> str | None:
+            scheduler = getattr(connection_owner, "token_scheduler", None)
+            if scheduler is None:
+                return None
+            try:
+                if not scheduler.refresh_now():
+                    return None
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("order_stream_token_refresh_error: %s", exc)
+                return None
+            client = getattr(connection_owner, "client", None)
+            return client.access_token if client is not None else None
+
+        return _refresh
 
     def create_depth_20_feed(
         self,
@@ -254,6 +291,7 @@ class ConnectionLifecycle:
             resolver=self._instruments,
             instruments=instruments,
             interval_seconds=interval_seconds,
+            event_bus=self._event_bus,
         )
         self._polling_feed = feed
         self._register_with_lifecycle(feed, feed.name)

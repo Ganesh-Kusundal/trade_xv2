@@ -18,7 +18,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from brokers.common.dtos import BrokerOrderPayload
+from tradex.runtime.dtos import BrokerOrderPayload
 from brokers.dhan.exceptions import DhanError, OrderError
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, DhanInstrumentRef, coerce_identity_provider
@@ -76,6 +76,10 @@ class IdempotencyCache:
         self._max_size = max_size
         self._ttl = ttl_seconds
         self._lock = threading.RLock()
+        # Per-key reservation events. A live event means a thread is currently
+        # performing the blocking HTTP post for that correlation id; concurrent
+        # callers with the same id wait on it instead of re-submitting.
+        self._reservations: dict[str, threading.Event] = {}
 
     @contextmanager
     def lock(self, _key: str):
@@ -100,6 +104,51 @@ class IdempotencyCache:
                 oldest_key = min(self._cache, key=lambda k: self._cache[k][0])
                 del self._cache[oldest_key]
             self._cache[key] = (time.time(), response)
+
+    def reserve(self, key: str) -> tuple[str, OrderResponse | None, threading.Event | None]:
+        """Atomically check-and-reserve a correlation id under the lock.
+
+        Returns one of:
+
+        * ``("hit", response, None)`` — the id was already successfully
+          posted; the caller should return ``response`` without posting.
+        * ``("in_progress", None, event)`` — another thread is currently
+          posting for this id; the caller should wait on ``event`` and then
+          re-check (it will eventually observe a ``"hit"``).
+        * ``("reserved", None, event)`` — this thread now owns the post; the
+          caller may release the lock and perform the blocking HTTP call,
+          then call :meth:`commit` (or :meth:`clear_reservation` on failure).
+        """
+        with self._lock:
+            cached = self.get(key)
+            if cached is not None:
+                return ("hit", cached, None)
+            event = self._reservations.get(key)
+            if event is not None:
+                return ("in_progress", None, event)
+            event = threading.Event()
+            self._reservations[key] = event
+            return ("reserved", None, event)
+
+    def commit(self, key: str, response: OrderResponse) -> None:
+        """Record a successful outcome and wake any waiters for this id."""
+        with self._lock:
+            self.put(key, response)
+            event = self._reservations.pop(key, None)
+            if event is not None:
+                event.set()
+
+    def clear_reservation(self, key: str) -> None:
+        """Release a reservation without recording an outcome.
+
+        Used when the post fails (or pre-flight validation fails) so that a
+        later retry with the same correlation id is allowed to submit.
+        Any waiter is woken so it can re-check and retry.
+        """
+        with self._lock:
+            event = self._reservations.pop(key, None)
+            if event is not None:
+                event.set()
 
 
 class OrdersAdapter:
@@ -245,138 +294,164 @@ class OrdersAdapter:
         if not correlation_id:
             correlation_id = str(uuid.uuid4())
 
-        # Atomic check-then-act: one and only one thread posts for this id.
-        with self._idempotency.lock(correlation_id):
-            cached = self._idempotency.get(correlation_id)
-            if cached is not None:
+        # Check-reserve / commit idempotency protocol.
+        #
+        # The idempotency lock is held ONLY for the cache check-and-reserve and
+        # for the final result commit. The blocking HTTP post to /orders happens
+        # WITHOUT the lock held, so concurrent placements with *different*
+        # correlation ids are no longer serialized behind one another (previously
+        # a single hung broker call stalled every placement on the adapter).
+        #
+        # Same-correlation-id callers that arrive while a post is in flight wait
+        # on a per-id reservation event instead of re-submitting, preserving the
+        # "no double submit" guarantee.
+        while True:
+            status, cached, in_flight = self._idempotency.reserve(correlation_id)
+            if status == "hit":
                 logger.info(
                     "idempotency_hit",
                     extra={"correlation_id": correlation_id, "order_id": cached.order_id},
                 )
                 return cached
+            if status == "in_progress":
+                # Another thread owns the in-flight post for this id; wait for it.
+                in_flight.wait(timeout=30)
+                continue
+            # status == "reserved": this thread owns the post. Proceed.
+            break
 
-            # Validation
-            errors = self.validate_order(
-                symbol, exchange, quantity, order_type, product_type, price
+        # ── Pre-flight (OUTSIDE the idempotency lock) ──────────────────
+
+        # Validation
+        errors = self.validate_order(
+            symbol, exchange, quantity, order_type, product_type, price
+        )
+        if errors:
+            msg = "; ".join(errors)
+            logger.warning(
+                "order_validation_failed", extra={"symbol": symbol, "errors": errors}
             )
-            if errors:
-                msg = "; ".join(errors)
-                logger.warning(
-                    "order_validation_failed", extra={"symbol": symbol, "errors": errors}
-                )
-                return OrderResponse.fail(f"Order validation failed: {msg}")
+            self._idempotency.clear_reservation(correlation_id)
+            return OrderResponse.fail(f"Order validation failed: {msg}")
 
-            warnings = self.validate_order_warnings(quantity, price)
-            for w in warnings:
-                logger.warning("order_warning", extra={"symbol": symbol, "warning": w})
+        warnings = self.validate_order_warnings(quantity, price)
+        for w in warnings:
+            logger.warning("order_warning", extra={"symbol": symbol, "warning": w})
 
-            # Resolve instrument via the identity provider so the carrier
-            # (DhanInstrumentRef) is the only thing that can flow into
-            # the payload builder. The provider enforces the Dhan-only
-            # contract; any non-Dhan segment or non-digit security_id
-            # raises DhanIdentityError before we ever call _client.post.
-            # The expected_segment hint maps the user-supplied exchange
-            # string to a Dhan segment so the index-fallback is rejected
-            # for derivatives queries (PR-C.4).
-            from brokers.dhan.segments import EXCHANGE_TO_SEGMENT
+        # Resolve instrument via the identity provider so the carrier
+        # (DhanInstrumentRef) is the only thing that can flow into
+        # the payload builder. The provider enforces the Dhan-only
+        # contract; any non-Dhan segment or non-digit security_id
+        # raises DhanIdentityError before we ever call _client.post.
+        # The expected_segment hint maps the user-supplied exchange
+        # string to a Dhan segment so the index-fallback is rejected
+        # for derivatives queries (PR-C.4).
+        from brokers.dhan.segments import EXCHANGE_TO_SEGMENT
 
-            try:
-                ref = self._identity.resolve_ref(
-                    symbol,
-                    exchange,
-                    expected_segment=EXCHANGE_TO_SEGMENT.get(normalize_exchange(exchange)),
-                )
-            except Exception as exc:
-                return OrderResponse.fail(f"Instrument resolution failed: {exc}")
-
-            segment = ref.exchange_segment
-            side_val, ot_val, pt_val, v_val = self._canonicalize_order_enums(
-                side,
-                order_type,
-                product_type,
-                validity,
-            )
-
-            # Pre-trade risk check is always enforced at the broker boundary.
-            if self._risk_manager is not None:
-                preview = Order(
-                    order_id="",
-                    symbol=symbol,
-                    exchange=ref.exchange.value,
-                    side=OrderSide(side_val),
-                    order_type=OrderType(ot_val),
-                    quantity=quantity,
-                    price=price if price and price > 0 else Decimal("0"),
-                    trigger_price=trigger_price
-                    if trigger_price and trigger_price > 0
-                    else Decimal("0"),
-                    product_type=ProductType(pt_val),
-                    validity=Validity(v_val),
-                )
-                risk_result = self._risk_manager.check_order(preview)
-                if not risk_result.allowed:
-                    return OrderResponse.fail(f"Risk check failed: {risk_result.reason}")
-
-            payload = self._build_order_payload(
-                ref,
-                segment,
-                side_val,
-                ot_val,
-                pt_val,
-                v_val,
-                quantity,
-                price,
-                trigger_price,
-                correlation_id,
-            )
-            # PR-B: defence-in-depth. The carrier already enforced the
-            # Dhan-internal contract, but a future change could build a
-            # payload from non-carrier sources. Re-verify at the boundary.
-            assert_dhan_payload(payload, context="orders.place_order")
-
-            try:
-                data = self._client.post("/orders", json=payload)
-            except Exception as exc:
-                return OrderResponse.fail(f"Broker API error: {exc}")
-
-            order = self._build_placed_order(
-                data,
+        try:
+            ref = self._identity.resolve_ref(
                 symbol,
-                ref.exchange,
-                side_val,
-                ot_val,
-                pt_val,
-                v_val,
-                quantity,
-                price,
-                trigger_price,
-                correlation_id,
+                exchange,
+                expected_segment=EXCHANGE_TO_SEGMENT.get(normalize_exchange(exchange)),
             )
+        except Exception as exc:
+            self._idempotency.clear_reservation(correlation_id)
+            return OrderResponse.fail(f"Instrument resolution failed: {exc}")
 
-            logger.info(
-                "order_placed",
-                extra={
-                    "order_id": order.order_id,
-                    "symbol": symbol,
-                    "side": side_val,
-                    "quantity": quantity,
-                    "order_type": ot_val,
-                    "price": str(price or 0),
-                    "product_type": pt_val,
-                    "exchange": ref.exchange.value,
-                },
-            )
+        segment = ref.exchange_segment
+        side_val, ot_val, pt_val, v_val = self._canonicalize_order_enums(
+            side,
+            order_type,
+            product_type,
+            validity,
+        )
 
-            response = OrderResponse(
-                success=True,
-                order_id=order.order_id,
-                broker_order_id=order.order_id,
-                status=order.status,
-                message="Order placed successfully",
+        # Pre-trade risk check is always enforced at the broker boundary.
+        if self._risk_manager is not None:
+            preview = Order(
+                order_id="",
+                symbol=symbol,
+                exchange=ref.exchange.value,
+                side=OrderSide(side_val),
+                order_type=OrderType(ot_val),
+                quantity=quantity,
+                price=price if price and price > 0 else Decimal("0"),
+                trigger_price=trigger_price
+                if trigger_price and trigger_price > 0
+                else Decimal("0"),
+                product_type=ProductType(pt_val),
+                validity=Validity(v_val),
             )
-            self._idempotency.put(correlation_id, response)
-            self._publish("ORDER_PLACED", order)
-            return response
+            risk_result = self._risk_manager.check_order(preview)
+            if not risk_result.allowed:
+                self._idempotency.clear_reservation(correlation_id)
+                return OrderResponse.fail(f"Risk check failed: {risk_result.reason}")
+
+        payload = self._build_order_payload(
+            ref,
+            segment,
+            side_val,
+            ot_val,
+            pt_val,
+            v_val,
+            quantity,
+            price,
+            trigger_price,
+            correlation_id,
+        )
+        # PR-B: defence-in-depth. The carrier already enforced the
+        # Dhan-internal contract, but a future change could build a
+        # payload from non-carrier sources. Re-verify at the boundary.
+        assert_dhan_payload(payload, context="orders.place_order")
+
+        # ── Blocking broker call (NO idempotency lock held) ────────────
+        try:
+            data = self._client.post("/orders", json=payload)
+        except Exception as exc:
+            # Release the reservation so a later retry with the same id is
+            # allowed to submit.
+            self._idempotency.clear_reservation(correlation_id)
+            return OrderResponse.fail(f"Broker API error: {exc}")
+
+        order = self._build_placed_order(
+            data,
+            symbol,
+            ref.exchange,
+            side_val,
+            ot_val,
+            pt_val,
+            v_val,
+            quantity,
+            price,
+            trigger_price,
+            correlation_id,
+        )
+
+        logger.info(
+            "order_placed",
+            extra={
+                "order_id": order.order_id,
+                "symbol": symbol,
+                "side": side_val,
+                "quantity": quantity,
+                "order_type": ot_val,
+                "price": str(price or 0),
+                "product_type": pt_val,
+                "exchange": ref.exchange.value,
+            },
+        )
+
+        response = OrderResponse(
+            success=True,
+            order_id=order.order_id,
+            broker_order_id=order.order_id,
+            status=order.status,
+            message="Order placed successfully",
+        )
+        # Commit under the lock: record the outcome and wake any waiters.
+        self._idempotency.commit(correlation_id, response)
+        self._publish("ORDER_PLACED", order)
+        return response
 
     def modify_order(self, order_id: str, **changes: Any) -> OrderResponse:
         """Modify an existing order via PUT /orders/{order_id}.
@@ -475,10 +550,20 @@ class OrdersAdapter:
             return []
 
         data = self._client.delete("/orders")
-        items = data.get("data", []) if isinstance(data, dict) else []
-        result = [
-            (str(i.get("orderId", i)), True) for i in (items if isinstance(items, list) else [])
-        ]
+        # Defensive: the broker may return a list/None instead of a dict on
+        # certain error paths. Treat any non-dict as an empty payload rather
+        # than raising AttributeError. A genuine error response (a dict with
+        # error fields and no cancellable items) is surfaced via the warning
+        # below instead of being silently treated as a successful empty result.
+        data = data if isinstance(data, dict) else {}
+        items = data.get("data", [])
+        items = items if isinstance(items, list) else []
+        if data and not items:
+            logger.warning(
+                "cancel_all_orders_unexpected_response",
+                extra={"raw": repr(data)[:500]},
+            )
+        result = [(str(i.get("orderId", i)), True) for i in items]
         logger.info("all_orders_cancelled", extra={"count": len(result)})
         return result
 

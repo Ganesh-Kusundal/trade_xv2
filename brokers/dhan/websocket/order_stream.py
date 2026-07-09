@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 from collections.abc import Callable
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -56,12 +57,22 @@ class DhanOrderStream(ReconnectingServiceMixin, ManagedService):
 
     name = "dhan.order_stream"
 
+    # ── Auth-failure handling ──────────────────────────────────────────────
+    # When a reconnect fails due to an expired/rejected token, we proactively
+    # request a token refresh/rotation BEFORE backing off so the next attempt
+    # uses a fresh credential. The refresh itself is throttled so a broker that
+    # keeps returning the same (still-stale) token cannot be hammered, and the
+    # reconnect sleep is floored so we never storm the auth endpoint.
+    _AUTH_REFRESH_THROTTLE_SECONDS = 30.0
+    _AUTH_MIN_BACKOFF_SECONDS = 2.0
+
     def __init__(
         self,
         client_id: str,
         access_token: str | None = None,
         access_token_fn: Callable[[], str] | None = None,
         event_bus: EventBus | None = None,
+        token_refresh_fn: Callable[[], str | None] | None = None,
     ):
         self._context = _DhanContext(
             client_id,
@@ -73,6 +84,13 @@ class DhanOrderStream(ReconnectingServiceMixin, ManagedService):
         self._lock = threading.RLock()
         self._order_callbacks: list[Callable[[dict], None]] = []
         self._event_bus = event_bus
+        # Optional hook to proactively rotate the access token (e.g. the
+        # connection's token scheduler refresh_now()). Returns the new token
+        # on success, or None if no refresh could be performed.
+        self._token_refresh_fn = token_refresh_fn
+        # Monotonic timestamp of the last proactive token-refresh attempt,
+        # guarding against tight reconnect storms on a stuck token.
+        self._last_auth_refresh_at = 0.0
         # Cumulative filledQty per order — OMS expects incremental TRADE qty.
         self._last_cumulative_filled: TTLCache = TTLCache(maxsize=10000, ttl=3600)  # 1-hour TTL, bounds memory
         # Initialise the shared reconnect / message-tracking state
@@ -88,6 +106,78 @@ class DhanOrderStream(ReconnectingServiceMixin, ManagedService):
         with self._lock:
             if self._order_update:
                 self._order_update.access_token = access_token
+
+    # ── Auth-failure detection + proactive token refresh ───────────────────
+
+    @staticmethod
+    def _is_auth_error(exc: Exception) -> bool:
+        """Return True if *exc* looks like an auth/token-expiry failure.
+
+        Matches the specific :class:`AuthenticationError` raised by the Dhan
+        broker layer and, as a fallback, common auth-failure substrings in
+        raw SDK/transport error text (401 / 403 / expired / unauthorized).
+        """
+        from brokers.dhan.exceptions import AuthenticationError
+
+        if isinstance(exc, AuthenticationError):
+            return True
+        text = str(exc).lower()
+        return any(
+            marker in text
+            for marker in (
+                "401",
+                "403",
+                "unauthorized",
+                "forbidden",
+                "expired",
+                "invalid token",
+                "authentication",
+                "auth failed",
+                "not authorized",
+            )
+        )
+
+    def _maybe_refresh_token_on_auth_error(self, exc: Exception) -> bool:
+        """Proactively refresh the token if *exc* is an auth/token failure.
+
+        Returns True when a fresh token was successfully obtained and pushed
+        to the context. The refresh is throttled (one attempt per
+        ``_AUTH_REFRESH_THROTTLE_SECONDS``) so a broker that keeps handing
+        back the same stale/again-rejected token cannot be hammered in a
+        tight reconnect loop.
+
+        The refresh hook (``_token_refresh_fn``) is expected to request a
+        rotation via the connection's token manager and return the new
+        token; on success we push it through :meth:`update_token` as well
+        for immediacy (the broadcast receiver does the same, idempotently).
+        """
+        if not self._is_auth_error(exc):
+            return False
+        refresh = self._token_refresh_fn
+        if refresh is None:
+            # No refresh hook wired — nothing we can do proactively.
+            return False
+        now = time.monotonic()
+        if now - self._last_auth_refresh_at < self._AUTH_REFRESH_THROTTLE_SECONDS:
+            logger.info(
+                "order_stream_auth_refresh_throttled",
+                extra={
+                    "since_refresh_seconds": round(now - self._last_auth_refresh_at, 1),
+                },
+            )
+            return False
+        self._last_auth_refresh_at = now
+        try:
+            new_token = refresh()
+        except Exception as refresh_exc:
+            logger.error("order_stream_token_refresh_failed: %s", refresh_exc)
+            return False
+        if new_token:
+            self.update_token(new_token)
+            logger.info("order_stream_token_refreshed_after_auth_failure")
+            return True
+        logger.warning("order_stream_token_refresh_returned_empty")
+        return False
 
     def connect(self) -> None:
         """Deprecated alias for :meth:`start`."""
@@ -157,7 +247,15 @@ class DhanOrderStream(ReconnectingServiceMixin, ManagedService):
                 logger.error("Order stream error: %s", exc)
                 with self._lock:
                     self._is_connected = False
+                # Proactively refresh/rotate the token on an auth/token-expiry
+                # failure BEFORE backing off, so the next attempt is not doomed
+                # to repeat-fail on a stale credential.
+                refreshed = self._maybe_refresh_token_on_auth_error(exc)
                 backoff = self._on_reconnect_failure(backoff)
+                if refreshed:
+                    # We just obtained a fresh token; retry soon but never
+                    # tighter than the auth floor (avoid storming the broker).
+                    backoff = max(backoff, self._AUTH_MIN_BACKOFF_SECONDS)
             if self._stop_event.is_set():
                 break
             backoff = self._backoff_sleep(backoff)

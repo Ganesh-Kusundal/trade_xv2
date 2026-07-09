@@ -7,14 +7,16 @@ to rebuild order/position state up to the point of the crash.
 
 from __future__ import annotations
 
+import collections
 import contextlib
 import dataclasses
+import enum
 import json
 import logging
 import os
 import threading
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -25,6 +27,11 @@ from infrastructure.event_bus import DomainEvent
 logger = logging.getLogger(__name__)
 
 DEFAULT_EVENTS_DIR = Path("market_data/events")
+
+# Cap on the in-memory idempotency guard (_seen_ids). Beyond this many
+# recently-seen event_ids, the oldest are evicted (LRU). This bounds memory
+# under sustained high tick volume instead of growing for the process lifetime.
+MAX_SEEN_IDS = 200_000
 
 
 # Domain types that may appear in event payloads and can be round-tripped.
@@ -43,6 +50,8 @@ def _serialize_value(value: Any) -> Any:
         return None
     if isinstance(value, str | int | float | bool):
         return value
+    if isinstance(value, enum.Enum):
+        return value.value
     if isinstance(value, Decimal):
         return {"__type__": "decimal", "value": str(value)}
     if isinstance(value, datetime):
@@ -59,7 +68,7 @@ def _serialize_value(value: Any) -> Any:
         return result
     if isinstance(value, list | tuple):
         return [_serialize_value(v) for v in value]
-    if isinstance(value, dict):
+    if isinstance(value, Mapping):
         return {k: _serialize_value(v) for k, v in value.items()}
     return str(value)
 
@@ -106,8 +115,14 @@ def _deserialize_value(value: Any, expected_type: type | None = None) -> Any:
     return value
 
 
-def _deserialize_payload(payload: dict[str, Any]) -> dict[str, Any]:
+def _deserialize_payload(payload: Any) -> dict[str, Any]:
     """Deserialize a payload dict, reconstructing any embedded domain objects."""
+    if isinstance(payload, str):
+        # Legacy records: MappingProxyType payloads were str()'d before fix.
+        logger.warning("EventLog: skipping non-dict payload (legacy str record)")
+        return {}
+    if not isinstance(payload, Mapping):
+        return {}
     return {k: _deserialize_value(v) for k, v in payload.items()}
 
 
@@ -135,7 +150,10 @@ class EventLog:
         self._current_file: Path | None = None
         self._current_handle: Any = None
         self.append_errors: int = 0  # public counter, never reset mid-run
-        self._seen_ids: set[str] = set()  # idempotency guard
+        # Idempotency guard: bounded LRU of recently-seen event_ids. Implemented
+        # as an OrderedDict (key -> None); values are evicted when the size
+        # exceeds MAX_SEEN_IDS so memory stays bounded over the process lifetime.
+        self._seen_ids: collections.OrderedDict[str, None] = collections.OrderedDict()
 
     @property
     def errors(self) -> int:
@@ -170,10 +188,15 @@ class EventLog:
             production) must do so explicitly.
         """
         # Idempotency guard: skip duplicate event_ids within this session.
-        if event.event_id and event.event_id in self._seen_ids:
-            return
         if event.event_id:
-            self._seen_ids.add(event.event_id)
+            if event.event_id in self._seen_ids:
+                # Refresh recency so a recently-seen id stays detectable as a dup.
+                self._seen_ids.move_to_end(event.event_id)
+                return
+            self._seen_ids[event.event_id] = None
+            # Evict the oldest entries once the cap is exceeded (LRU eviction).
+            while len(self._seen_ids) > MAX_SEEN_IDS:
+                self._seen_ids.popitem(last=False)
 
         record = {
             "event_type": event.event_type,
@@ -353,7 +376,7 @@ class BufferedEventLog(EventLog):
             record = {
                 "event_type": event.event_type,
                 "timestamp": event.timestamp.isoformat(),
-                "payload": _serialize_value(event.payload),
+                "payload": self._serialize_payload(dict(event.payload)),
                 "symbol": event.symbol,
                 "source": event.source,
                 "correlation_id": event.correlation_id,

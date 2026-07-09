@@ -9,13 +9,15 @@ Now includes circuit breaker and retry patterns for resilience (RES-03, RES-04).
 from __future__ import annotations
 
 import logging
+import time
 from collections.abc import Callable
 from typing import Any
 
 import requests
 
-from brokers.common.resilience.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
-from brokers.common.resilience.rate_limiter import MultiBucketRateLimiter
+from tradex.runtime.resilience.backoff import ExponentialBackoff
+from tradex.runtime.resilience.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
+from tradex.runtime.resilience.rate_limiter import MultiBucketRateLimiter
 
 from .exceptions import UpstoxApiError, UpstoxAuthError
 
@@ -65,15 +67,23 @@ class UpstoxHttpClient:
         write_circuit_breaker: CircuitBreaker | None = None,
         admin_circuit_breaker: CircuitBreaker | None = None,
         on_auth_failure: Callable[[], bool] | None = None,
+        rate_limit_timeout_seconds: float = 30.0,
+        max_retries: int = 3,
+        max_backoff_seconds: float = 10.0,
     ) -> None:
         self._token_provider = token_provider
         self._settings = settings
         self._on_auth_failure = on_auth_failure
         self._timeout_seconds = timeout_seconds
+        self._rate_limit_timeout = rate_limit_timeout_seconds
+        self._max_retries = max_retries
+        self._backoff_strategy = ExponentialBackoff(
+            base_delay_ms=500, max_delay_ms=int(max_backoff_seconds * 1000)
+        )
         if rate_limiter is not None:
             self._rate_limiter = rate_limiter
         else:
-            from brokers.common.resilience.rate_limiter import create_rate_limiter
+            from tradex.runtime.resilience.rate_limiter import create_rate_limiter
             from brokers.upstox.capabilities.snapshot import upstox_capabilities
 
             self._rate_limiter = create_rate_limiter("upstox", caps=upstox_capabilities())
@@ -218,8 +228,8 @@ class UpstoxHttpClient:
         # Circuit breaker: fail fast if circuit is open (category-specific)
         cb = self._get_circuit_breaker(url, method)
         if cb is not None:
-            from brokers.common.resilience.circuit_breaker import CircuitState
-            from brokers.common.resilience.errors import CircuitBreakerOpenError
+            from tradex.runtime.resilience.circuit_breaker import CircuitState
+            from tradex.runtime.resilience.errors import CircuitBreakerOpenError
 
             if cb.state == CircuitState.OPEN:
                 logger.warning(
@@ -254,18 +264,48 @@ class UpstoxHttpClient:
         params: dict[str, Any] | None = None,
         algo_name: str | None = None,
     ) -> dict[str, Any]:
+        bucket = _rate_limit_bucket(url)
         last_auth_error: UpstoxAuthError | None = None
-        for attempt in (1, 2):
-            self._rate_limiter.acquire(_rate_limit_bucket(url))
+        last_exc: UpstoxApiError | None = None
+        auth_refreshed = False
 
-            resp = self._session.request(
-                method=method,
-                url=url,
-                json=json,
-                params=params,
-                timeout=self._timeout_seconds,
-                headers=self._headers(algo_name=algo_name),
-            )
+        # One slot for the token-refresh path plus `max_retries` transient slots.
+        total_attempts = self._max_retries + 2
+
+        for attempt in range(total_attempts):
+            if not self._rate_limiter.acquire(bucket, timeout=self._rate_limit_timeout):
+                raise UpstoxApiError(
+                    f"Rate limiter acquire timed out after "
+                    f"{self._rate_limit_timeout}s for bucket '{bucket}' (url={url})",
+                    status_code=None,
+                )
+
+            try:
+                resp = self._session.request(
+                    method=method,
+                    url=url,
+                    json=json,
+                    params=params,
+                    timeout=self._timeout_seconds,
+                    headers=self._headers(algo_name=algo_name),
+                )
+            except requests.exceptions.RequestException as exc:
+                # Transient network/transport failure — backoff and retry.
+                last_exc = UpstoxApiError(
+                    f"Upstox API {method} {url} request failed: {exc}",
+                    status_code=None,
+                )
+                if attempt < total_attempts - 1:
+                    logger.warning(
+                        "Upstox HTTP transient error, retrying (%s %s): %s",
+                        method,
+                        url,
+                        exc,
+                    )
+                    self._backoff(attempt)
+                    continue
+                raise last_exc from exc
+
             if resp.status_code >= 400:
                 if resp.status_code in (401, 403):
                     last_auth_error = UpstoxAuthError(
@@ -273,7 +313,12 @@ class UpstoxHttpClient:
                         resp.status_code,
                         resp.text,
                     )
-                    if attempt == 1 and self._on_auth_failure is not None and self._on_auth_failure():
+                    if (
+                        not auth_refreshed
+                        and self._on_auth_failure is not None
+                        and self._on_auth_failure()
+                    ):
+                        auth_refreshed = True
                         logger.info(
                             "Upstox HTTP retry after token refresh: %s %s",
                             method,
@@ -281,11 +326,32 @@ class UpstoxHttpClient:
                         )
                         continue
                     raise last_auth_error
+
+                # Transient server-side failures: 429 (rate limited) or 5xx.
+                is_transient = resp.status_code == 429 or resp.status_code >= 500
+                if is_transient and attempt < total_attempts - 1:
+                    retry_after = self._parse_retry_after(resp)
+                    last_exc = UpstoxApiError(
+                        f"Upstox API {method} {url} failed: HTTP {resp.status_code}",
+                        resp.status_code,
+                        resp.text,
+                    )
+                    logger.warning(
+                        "Upstox HTTP %s, retrying (%s %s) retry_after=%s",
+                        resp.status_code,
+                        method,
+                        url,
+                        retry_after,
+                    )
+                    self._backoff(attempt, retry_after=retry_after)
+                    continue
+
                 raise UpstoxApiError(
                     f"Upstox API {method} {url} failed: HTTP {resp.status_code}",
                     resp.status_code,
                     resp.text,
                 )
+
             body = resp.json() if resp.text else {}
             if isinstance(body, dict) and str(body.get("status", "")).lower() in {
                 "failure",
@@ -301,6 +367,29 @@ class UpstoxHttpClient:
                     )
                 raise UpstoxApiError(str(message), resp.status_code, body)
             return body
+
         if last_auth_error is not None:
             raise last_auth_error
-        raise UpstoxAuthError(f"Upstox API {method} {url} failed after auth retry")
+        if last_exc is not None:
+            raise last_exc
+        raise UpstoxAuthError(f"Upstox API {method} {url} failed after transient retries")
+
+    def _parse_retry_after(self, resp: Any) -> float | None:
+        """Parse ``Retry-After`` header (seconds only); return None if absent/invalid."""
+        retry_after = resp.headers.get("Retry-After") if hasattr(resp, "headers") else None
+        if not retry_after:
+            return None
+        try:
+            return float(retry_after)
+        except (TypeError, ValueError):
+            # ``Retry-After`` as HTTP-date falls back to exponential backoff.
+            return None
+
+    def _backoff(self, attempt: int, retry_after: float | None = None) -> None:
+        """Sleep before retrying: honor ``Retry-After`` for 429, else backoff."""
+        if retry_after is not None:
+            delay = min(max(retry_after, 0.0), 30.0)
+        else:
+            delay = self._backoff_strategy.delay(attempt)
+        if delay > 0:
+            time.sleep(delay)

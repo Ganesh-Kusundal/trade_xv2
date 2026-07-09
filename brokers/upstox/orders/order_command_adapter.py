@@ -9,7 +9,7 @@ import logging
 from decimal import Decimal
 from typing import Any
 
-from brokers.common.dtos import BrokerOrderPayload
+from tradex.runtime.dtos import BrokerOrderPayload
 from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from brokers.upstox.orders.idempotency import InMemoryIdempotencyCache
@@ -117,11 +117,12 @@ class UpstoxOrderCommandAdapter:
                     "Failed to look up order %s for instrument_key", order_id, exc_info=True
                 )
         if not instrument_key:
-            logger.warning(
-                "modify_order_missing_instrument_key",
-                extra={"order_id": order_id},
+            raise ValueError(
+                f"Cannot modify order {order_id!r}: instrument_key is required but could "
+                f"not be resolved (caller did not supply instrument_key and the order "
+                f"lookup either failed or returned no instrument_token). Provide "
+                f"instrument_key explicitly to modify_order."
             )
-            instrument_key = order_id
         payload = UpstoxDomainMapper.to_modify_payload(order_id, instrument_key, **changes)
         try:
             result = self._order_client.modify_order_v3(payload)
