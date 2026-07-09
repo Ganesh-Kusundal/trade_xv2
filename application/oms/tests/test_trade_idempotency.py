@@ -141,6 +141,11 @@ def test_trade_for_unknown_order_does_not_mark_ledger(
 def test_metrics_record_trade_outcomes(
     order_manager: OrderManager,
 ) -> None:
+    # EventMetrics counters are backed by the process-global metrics_registry,
+    # so reset it to isolate this test from counters left by other tests.
+    from infrastructure.metrics import metrics_registry
+
+    metrics_registry.reset_all()
     metrics = order_manager._metrics
     order_manager.upsert_order(_make_order())
     order_manager.record_trade(_make_trade("T-OK"))

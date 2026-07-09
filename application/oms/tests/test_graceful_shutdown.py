@@ -229,7 +229,7 @@ class TestShutdownEventLogFlush:
 
     def test_shutdown_no_event_log(self) -> None:
         """shutdown() with no event log should report False."""
-        ctx = build_test_trading_context()
+        ctx = build_test_trading_context(event_log=None)
         result = _run_shutdown(ctx, cancel_orders=False)
 
         assert result["event_log_flushed"] is False
