@@ -29,12 +29,9 @@ from domain import (
     Validity,
 )
 from domain.events import DomainEvent
-from domain.ports.event_publisher import EventBus
-from domain.ports.lifecycle import (
-    HealthState,
-    HealthStatus,
-    ManagedService,
-)
+from infrastructure.event_bus.event_bus import EventBus
+from domain.lifecycle_health import HealthStatus
+from infrastructure.lifecycle.lifecycle import HealthState, ManagedService
 
 logger = logging.getLogger(__name__)
 

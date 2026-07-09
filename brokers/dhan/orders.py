@@ -41,7 +41,7 @@ from domain.field_mapping import DefaultFieldMapping
 from domain.ports.risk_manager import RiskManagerPort
 from domain.symbols import normalize_exchange
 from domain.events import DomainEvent
-from domain.ports.event_publisher import EventBus
+from infrastructure.event_bus.event_bus import EventBus
 
 logger = logging.getLogger(__name__)
 

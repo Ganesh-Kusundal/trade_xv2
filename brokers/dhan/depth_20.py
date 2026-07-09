@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from brokers.dhan.depth_feed_base import BinaryDepthFeed
 from domain import MarketDepth
-from domain.ports.event_publisher import EventBus
+from infrastructure.event_bus.event_bus import EventBus
 
 __all__ = ["DhanDepth20Feed"]
 

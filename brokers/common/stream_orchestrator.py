@@ -51,7 +51,7 @@ from domain.stream_health import (
     SubscriptionState,
     TransportState,
 )
-from domain.ports.time_service import time_service
+from infrastructure.time_service import time_service
 
 logger = logging.getLogger(__name__)
 

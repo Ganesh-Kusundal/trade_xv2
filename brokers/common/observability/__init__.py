@@ -25,7 +25,7 @@ from brokers.common.observability.health_check import (
     BrokerConnectivityHealthCheck,
     register_broker_health_check,
 )
-from domain.ports.observability import EventMetrics
+from infrastructure.observability import EventMetrics
 
 if TYPE_CHECKING:
     from domain.ports.observability import EventMetricsPort

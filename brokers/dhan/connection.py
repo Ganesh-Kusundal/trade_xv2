@@ -35,8 +35,8 @@ from brokers.dhan.super_orders import SuperOrdersAdapter
 from brokers.dhan.user_profile import UserProfileAdapter
 from brokers.dhan.websocket import DhanMarketFeed, DhanOrderStream, PollingMarketFeed
 from domain.ports.risk_manager import RiskManagerPort
-from domain.ports.event_publisher import EventBus
-from domain.ports.lifecycle import LifecycleManager
+from infrastructure.event_bus.event_bus import EventBus
+from infrastructure.lifecycle.lifecycle import LifecycleManager
 
 logger = logging.getLogger(__name__)
 

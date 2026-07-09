@@ -4,10 +4,6 @@ from __future__ import annotations
 
 from typing import Any, Protocol, runtime_checkable
 
-# Re-export infrastructure concretes so broker code can import from domain.
-from infrastructure.observability import EventMetrics  # noqa: E402
-from infrastructure.observability.tracing import trace_operation  # noqa: E402
-
 
 @runtime_checkable
 class EventMetricsPort(Protocol):

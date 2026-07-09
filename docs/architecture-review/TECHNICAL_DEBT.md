@@ -4,12 +4,26 @@ Ranked by risk-to-evolution. Each item: location, symptom, impact, recommended f
 (cross-referenced to `REFACTORING_ROADMAP.md` phase). Debt IDs match ADR/roadmap.
 
 ## Critical (blocks clean evolution)
-- **D1 — Hidden layer violation `brokers.common → brokers.dhan/upstox`**
-  `brokers/common/adapter_factory.py:35-36`, `brokers/common/oms/margin_provider.py:39`,
-  `brokers/common/infrastructure.py:13-14`. Lazy imports inside functions; invisible to
-  `lint-imports` (top-level only) but caught by `tests/test_architecture.py` (currently
-  **FAILING**). Impact: broker-agnosticism is a lie; adding a broker touches `common`.
-  Fix: registry/plugin lookup by capability (ADR-001, Roadmap P1).
+- **D1 — Hidden layer violation `brokers.common → brokers.dhan/upstox`** — **RESOLVED (Phase D, slice 1)**
+  Was: `brokers/common/adapter_factory.py` lazily imported `brokers.dhan`/`brokers.upstox`
+  inside its `_seed_*` functions (the `oms/margin_provider.py:39` and `infrastructure.py:13-14`
+  references in the original debt entry were docstring examples, not real imports). Impact:
+  broker-agnosticism was a lie; adding a broker touched `common`.
+  Fix (ADR-007, Implemented): `brokers.common.adapter_factory` no longer imports any concrete
+  broker. Brokers **self-register** their adapter classes (`DataAdapter`, `ExecutionProvider`,
+  `BrokerAdapter`, depth extensions) into the registry on package import
+  (`brokers/dhan/__init__.py`, `brokers/upstox/__init__.py`). The `lint-imports`
+  `brokers-common-independence` contract is now **GREEN** and the D1 fitness tests in
+  `tests/test_architecture.py` pass. No behaviour change — the registry is populated exactly as
+  before, just by the brokers themselves instead of by `brokers.common`.
+- **`domain.ports.*` re-exported infrastructure concretes** — **RESOLVED (Phase D, slice 2)**
+  `domain/ports/{metrics,lifecycle,observability,time_service,event_publisher}.py` re-exported
+  infrastructure singletons/classes (`metrics_registry`, `time_service`, `EventMetrics`,
+  `trace_operation`, `LifecycleManager`/`HealthState`/`ManagedService`, `EventBus`), breaking the
+  `Domain independence` and `Application infrastructure separation` lint contracts. Fix: keep the
+  `Protocol` ports, drop the re-exports; redirect ~20 consumers to import the concretes from
+  `infrastructure.*` directly. Both contracts are now GREEN — the full `lint-imports` gate passes
+  (exit 0). (The "infrastructure must not leak into domain" principle; see ADR-009.)
 - **D2 — `brokers/` god-package (86k LOC / 531 files)**
   `common` has 39 top-level modules spanning orchestration, routing, historical,
   provenance, intelligent-gateway. Impact: every change risks the whole broker surface;

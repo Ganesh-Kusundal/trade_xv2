@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from domain.ports.metrics import metrics_registry
+from infrastructure.metrics.registry import metrics_registry
 
 if TYPE_CHECKING:
     from domain.ports.metrics import MetricsRegistryPort

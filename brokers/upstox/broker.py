@@ -64,7 +64,7 @@ from brokers.upstox.websocket.v3_decoder import UpstoxV3Decoder
 from brokers.upstox.websocket.v3_subscription_manager import UpstoxV3SubscriptionLimits
 from domain import Capability, ConnectionStatus
 from domain.ports.risk_manager import RiskManagerPort
-from domain.ports.event_publisher import EventBus
+from infrastructure.event_bus.event_bus import EventBus
 
 logger = logging.getLogger(__name__)
 

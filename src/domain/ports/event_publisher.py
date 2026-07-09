@@ -45,6 +45,4 @@ class EventPublisher(Protocol):
         ...
 
 
-from infrastructure.event_bus import EventBus  # re-export for broker code  # noqa: E402
-
-__all__ = ["EventBus", "EventPublisher"]
+__all__ = ["EventPublisher"]

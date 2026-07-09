@@ -20,7 +20,7 @@ from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from brokers.upstox.websocket.feed_authorizer import UpstoxFeedAuthorizer
 from brokers.upstox.websocket.v3_auto_reconnect import UpstoxAutoReconnect
 from domain.events import DomainEvent
-from domain.ports.event_publisher import EventBus
+from infrastructure.event_bus.event_bus import EventBus
 
 logger = logging.getLogger(__name__)
 

@@ -39,7 +39,7 @@ from domain import (
 )
 from domain.exchange_segments import parse_segment
 from domain.symbols import normalize_symbol
-from domain.ports.observability import trace_operation
+from infrastructure.observability.tracing import trace_operation
 
 logger = logging.getLogger(__name__)
 

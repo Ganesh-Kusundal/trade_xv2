@@ -13,7 +13,3 @@ class TimeServicePort(Protocol):
     def now(self) -> datetime: ...
 
     def timestamp(self) -> float: ...
-
-
-# Re-export the singleton so broker code can import from domain.
-from infrastructure.time_service import time_service  # noqa: E402

@@ -4,9 +4,6 @@ from __future__ import annotations
 
 from typing import Any, Protocol, runtime_checkable
 
-# Re-export the singleton so broker code can import from domain.
-from infrastructure.metrics.registry import metrics_registry  # noqa: E402
-
 
 @runtime_checkable
 class MetricsRegistryPort(Protocol):
