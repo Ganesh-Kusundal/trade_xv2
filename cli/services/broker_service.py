@@ -501,7 +501,8 @@ class BrokerService:
         """
         from decimal import Decimal
 
-        from brokers.common.oms import PositionManager, RiskConfig, RiskManager
+        from application.oms._internal.risk_manager import RiskConfig, RiskManager
+        from application.oms.position_manager import PositionManager
 
         # The gateway is set after the factory returns. Use a mutable
         # holder so the closure can read the live reference.
@@ -606,10 +607,8 @@ class BrokerService:
         raised between the two steps.
         """
         from brokers.common.event_log import EventLog
-        from brokers.common.oms import (
-            DailyPnlResetScheduler,
-            create_trading_context,
-        )
+        from application.oms.daily_pnl_reset_scheduler import DailyPnlResetScheduler
+        from application.oms.factory import create_trading_context
 
         # DailyPnlResetScheduler — clears _daily_pnl at IST 00:00.
         # Register with the lifecycle so it is drained on close().

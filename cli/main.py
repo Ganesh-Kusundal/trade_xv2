@@ -31,12 +31,17 @@ from cli.commands import (
     doctor as cmd_doctor,
     events as cmd_events,
     instrument_info as cmd_instrument_info,
+    instrument as cmd_instrument,
     instruments as cmd_instruments,
     journal as cmd_journal,
     load_test as cmd_load_test,
     market as cmd_market,
     news as cmd_news,
     oms as cmd_oms,
+    order_placement as cmd_order_placement,
+    order_composition as cmd_order_composition,
+    risk_controls as cmd_risk_controls,
+    cache_management as cmd_cache_management,
     portfolio as cmd_portfolio,
     quality_report as cmd_quality_report,
     search as cmd_search,
@@ -47,46 +52,65 @@ from cli.commands import (
     views as cmd_views,
     websocket as cmd_websocket,
 )
-from cli.commands.registry import register as _register_cmd
+from cli.commands.registry import lookup_handler, register_handler
 from cli.services.broker_registry import create_gateway
 from cli.services.broker_service import BrokerService
 from cli.services.event_bus_service import EventBusService
 
-# ── Command registry (populated at import time for discoverability) ───────
-_register_cmd("broker", "cli.commands.broker")
-_register_cmd("dashboard", "cli.commands.dashboard")
-_register_cmd("validate", "cli.commands.validate")
-_register_cmd("validate-history", "cli.commands.validate_history")
-_register_cmd("validate-option-chain", "cli.commands.validate_option_chain")
-_register_cmd("options-sync", "cli.commands.options_sync")
-_register_cmd("benchmark", "cli.commands.benchmark")
-_register_cmd("compare", "cli.commands.compare")
-_register_cmd("quality-report", "cli.commands.quality_report")
-_register_cmd("instrument-info", "cli.commands.instrument_info")
-_register_cmd("account", "cli.commands.account")
-_register_cmd("holdings", "cli.commands.portfolio")
-_register_cmd("positions", "cli.commands.portfolio")
-_register_cmd("orders", "cli.commands.oms")
-_register_cmd("trades", "cli.commands.oms")
-_register_cmd("oms", "cli.commands.oms")
-_register_cmd("quote", "cli.commands.market")
-_register_cmd("depth", "cli.commands.market")
-_register_cmd("option-chain", "cli.commands.market")
-_register_cmd("futures", "cli.commands.market")
-_register_cmd("historical", "cli.commands.market")
-_register_cmd("history", "cli.commands.market")
-_register_cmd("stream", "cli.commands.market")
-_register_cmd("websocket", "cli.commands.websocket")
-_register_cmd("journal", "cli.commands.journal")
-_register_cmd("events", "cli.commands.events")
-_register_cmd("search", "cli.commands.search")
-_register_cmd("instrument", "cli.commands.instrument")
-_register_cmd("instruments", "cli.commands.instruments")
-_register_cmd("doctor", "cli.commands.doctor")
-_register_cmd("load-test", "cli.commands.load_test")
-_register_cmd("news", "cli.commands.news")
-_register_cmd("analytics", "cli.commands.analytics")
-_register_cmd("views", "cli.commands.views")
+# ── Command registry (single source of truth for CLI dispatch) ───────────
+# Every top-level command in cli/tests/endpoint_manifest.TOP_LEVEL_COMMANDS
+# is registered here via register_handler(name, fn). The explicit branches in
+# main() route the common commands; this table is the canonical registry
+# (consumed by test_command_registry.py and the fallback dispatch below) and
+# backs any command not covered by an explicit branch.
+COMMAND_HANDLERS = {
+    "broker": cmd_broker.run,
+    "dashboard": cmd_dashboard.run,
+    "validate": cmd_validate.run,
+    "validate-history": cmd_validate_history.run,
+    "validate-option-chain": cmd_validate_option_chain.run,
+    "options-sync": cmd_options_sync.run_options_sync,
+    "benchmark": cmd_benchmark.run,
+    "compare": cmd_compare.run,
+    "quality-report": cmd_quality_report.run,
+    "instrument-info": cmd_instrument_info.run,
+    "account": cmd_account.run,
+    "funds": cmd_account.run,
+    "holdings": cmd_portfolio.show_holdings,
+    "positions": cmd_portfolio.show_positions,
+    "orders": cmd_oms.show_orders,
+    "trades": cmd_oms.show_trades,
+    "oms": cmd_oms.show_oms_summary,
+    "quote": cmd_market.run,
+    "depth": cmd_market.run,
+    "option-chain": cmd_market.run,
+    "futures": cmd_market.run,
+    "historical": cmd_market.run,
+    "history": cmd_market.run,
+    "stream": cmd_market.run,
+    "websocket": cmd_websocket.run,
+    "journal": cmd_journal.run_journal,
+    "events": cmd_events.run,
+    "search": cmd_search.run,
+    "instrument": cmd_instrument.run,
+    "instruments": cmd_instruments.run,
+    "doctor": cmd_doctor.run,
+    "load-test": cmd_load_test.run,
+    "news": cmd_news.run,
+    "analytics": cmd_analytics.run,
+    "views": cmd_views.run_views,
+    "place-order": cmd_order_placement.place_order,
+    "cancel-order": cmd_order_placement.cancel_order,
+    "modify-order": cmd_order_placement.modify_order,
+    "place-orders": cmd_order_placement.place_orders_batch,
+    "bracket-order": cmd_order_composition.place_bracket_order,
+    "oco-order": cmd_order_composition.place_oco_order,
+    "basket-order": cmd_order_composition.place_basket_order,
+    "risk": cmd_risk_controls.run,
+    "cache": cmd_cache_management.run,
+}
+for _name, _fn in COMMAND_HANDLERS.items():
+    register_handler(_name, _fn)
 
 
 def _try_create_gateway(
@@ -457,10 +481,25 @@ def main() -> None:
             cmd_news.run(cmd_args, broker_service, console)
 
         else:
-            console.print(f"[red]Error: Unknown command '{subcommand}'[/red]")
-            console.print(
-                "[yellow]Available commands: broker, analytics, account/funds, holdings, positions, orders, trades, oms, quote, depth, option-chain, futures, historical/history, stream, websocket, events, search, instrument, instruments, doctor, load-test, news[/yellow]"
-            )
+            # Fallback: route any command present in the canonical registry
+            # but not covered by an explicit branch above (order/risk/cache,
+            # validate-* aliases, instrument-info, ...).
+            try:
+                handler = lookup_handler(subcommand)
+            except KeyError:
+                handler = None
+            if handler is not None:
+                try:
+                    handler(cmd_args, broker_service, console)
+                except TypeError:
+                    console.print(
+                        f"[red]Error: command '{subcommand}' is misconfigured[/red]"
+                    )
+            else:
+                console.print(f"[red]Error: Unknown command '{subcommand}'[/red]")
+                console.print(
+                    "[yellow]Available commands: broker, analytics, account/funds, holdings, positions, orders, trades, oms, quote, depth, option-chain, futures, historical/history, stream, websocket, events, search, instrument, instruments, doctor, load-test, news[/yellow]"
+                )
     finally:
         broker_service.close()
         if gateway is not None:
