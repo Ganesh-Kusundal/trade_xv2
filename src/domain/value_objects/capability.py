@@ -1,8 +1,8 @@
-"""Capability and ExtensionInfo value objects.
+"""Value objects — capability and extension info types.
 
-Runtime-discoverable capability model that replaces the hardcoded
-``Capability`` enum in ``domain.capabilities``.  Extensions register
-their capabilities at startup; domain code queries by name.
+Re-exports rich broker capability model from ``brokers.common`` AND
+provides the lightweight ``Capability`` enum and ``ExtensionInfo``
+descriptor used throughout domain and application code.
 """
 
 from __future__ import annotations
@@ -10,47 +10,48 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-
-@dataclass(frozen=True, slots=True)
-class Capability:
-    """A single capability that an instrument or provider supports.
-
-    Replaces the hardcoded ``Capability`` enum with a runtime-discoverable
-    model.  Each Capability is a simple name + supported flag + metadata bag.
-
-    Examples::
-
-        Capability(name="depth_200", supported=True)
-        Capability(name="forever_orders", supported=True, metadata={"max_orders": 200})
-    """
-
-    name: str
-    supported: bool = True
-    metadata: dict[str, Any] = field(default_factory=dict)
-
-    def __bool__(self) -> bool:
-        """Capability is truthy when supported."""
-        return self.supported
+from brokers.common.broker_capabilities import (  # noqa: F401
+    BrokerCapabilities,
+    CapabilityDescriptor,
+    HistoricalWindowConstraint,
+    RateLimitProfile,
+    StreamLimitProfile,
+)
+from domain.capabilities import Capability  # noqa: F401
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True)
 class ExtensionInfo:
-    """Lightweight descriptor for a registered extension — Value Object.
+    """Lightweight descriptor for a broker extension.
 
-    Carries identity and metadata about an extension without the
-    extension's actual implementation.  Useful for listing available
-    capabilities without importing broker-specific code.
+    Returned by ``ExtensionRegistry.info_for()`` so callers can
+    discover what extensions are available without importing
+    broker-specific code.
+
+    Attributes
+    ----------
+    name:
+        Unique extension identifier (e.g. ``"depth200"``).
+    broker:
+        Broker this extension belongs to (e.g. ``"dhan"``).
+    version:
+        Semantic version of the extension.
+    capabilities:
+        Tuple of capabilities this extension provides.
     """
 
     name: str
     broker: str
-    version: str = "1.0"
-    capabilities: tuple[Capability, ...] = ()
+    version: str
+    capabilities: tuple[Capability, ...] = field(default_factory=tuple)
 
-    def has_capability(self, cap_name: str) -> bool:
-        """Check if this extension provides a named capability."""
-        return any(c.name == cap_name for c in self.capabilities)
 
-    def capability_names(self) -> tuple[str, ...]:
-        """Return just the capability names."""
-        return tuple(c.name for c in self.capabilities)
+__all__ = [
+    "BrokerCapabilities",
+    "Capability",
+    "CapabilityDescriptor",
+    "ExtensionInfo",
+    "HistoricalWindowConstraint",
+    "RateLimitProfile",
+    "StreamLimitProfile",
+]

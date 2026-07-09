@@ -1,6 +1,6 @@
 """HTTP observability server — /healthz, /readyz, /metrics.
 
-The system previously had no way for an operator
+Phase B / B8 + B9: the system previously had no way for an operator
 to see if a process was alive, ready to serve traffic, or what its
 internal state looked like. This module:
 
@@ -16,7 +16,7 @@ LifecycleManager added in Wave 2. The CLI's ``BrokerService`` can
 optionally register an instance; production deployments wire it up
 in their own entry points.
 
-Excluded from the initial observability surface:
+Excluded from B8/B9:
 
 * TLS / mTLS — left to a reverse proxy or service mesh. The server
   binds plain HTTP. An operator who needs TLS terminates it at the
@@ -31,7 +31,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
-from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Any
 
@@ -42,37 +41,14 @@ from domain.constants import (
     OBSERVABILITY_DEFAULT_HOST,
     OBSERVABILITY_DEFAULT_PORT,
 )
+from tradex.runtime.build_info import build_info_dict
 from infrastructure.lifecycle.lifecycle import (
     HealthState,
     LifecycleManager,
     ManagedService,
 )
-from infrastructure.metrics.registry import metrics_registry
 
 logger = logging.getLogger(__name__)
-
-
-def _extract_event_metrics_from_registry() -> dict[str, dict[str, int]]:
-    """Extract EventMetrics-style counters from MetricsRegistry.
-
-    EventMetrics registers counters with names starting with
-    ``event_metrics__`` and labels ``{event_type, outcome}``.
-    This function reconstructs the nested dict format expected by
-    ``render_prometheus_metrics``.
-    """
-    from infrastructure.observability.event_metrics import _COUNTER_PREFIX
-
-    snap = metrics_registry.snapshot_detailed()
-    event_counters = snap.get("counters", {})
-    out: dict[str, dict[str, int]] = defaultdict(dict)
-    for name, info in event_counters.items():
-        if name.startswith(_COUNTER_PREFIX):
-            labels = info.get("labels", {})
-            event_type = labels.get("event_type", "")
-            outcome = labels.get("outcome", "")
-            if event_type and outcome:
-                out[event_type][outcome] = int(info.get("value", 0))
-    return dict(out)
 
 
 # ── Prometheus text format helpers ────────────────────────────────────────
@@ -116,9 +92,7 @@ def render_prometheus_metrics(
             lines.append(f"tradexv2_events_total{{{labels}}} {count}")
 
     # ── Gauges for each ManagedService ─────────────────────────────────
-    lines.append(
-        "# HELP tradexv2_service_health Managed service health state (0=STOPPED, 1=STARTING, 2=HEALTHY, 3=DEGRADED, 4=UNHEALTHY, 5=STOPPING, 6=FAILED)."
-    )
+    lines.append("# HELP tradexv2_service_health Managed service health state (0=STOPPED, 1=STARTING, 2=HEALTHY, 3=DEGRADED, 4=UNHEALTHY, 5=STOPPING, 6=FAILED).")
     lines.append("# TYPE tradexv2_service_health gauge")
     state_to_int = {
         HealthState.STOPPED: 0,
@@ -197,22 +171,11 @@ class HttpObservabilityServer(ManagedService):
         self._extra_gauges_fn = extra_gauges_fn
         self._runner: web.AppRunner | None = None
         self._site: web.TCPSite | None = None
-        self._loop: asyncio.AbstractEventLoop | None = None
-        self._serve_thread: threading.Thread | None = None
+        self._runner_thread: asyncio.AbstractEventLoop | None = None
         # Metrics
         self._request_count = 0
         self._started_at: datetime | None = None
         self._last_error: str | None = None
-
-    @property
-    def port(self) -> int:
-        """Public accessor for the server port."""
-        return self._port
-
-    @property
-    def host(self) -> str:
-        """Public accessor for the server host."""
-        return self._host
 
     # ── aiohttp request handlers ───────────────────────────────────────
 
@@ -236,52 +199,39 @@ class HttpObservabilityServer(ManagedService):
     async def _handle_readyz(self, request: web.Request) -> web.Response:
         """Readiness: every registered ManagedService is HEALTHY (or
         DEGRADED, which is still serving). 503 if any service is
-        FAILED, STOPPED (after start_all), or UNHEALTHY.
-        Also checks the FastAPI HealthRegistry for consistency."""
+        FAILED, STOPPED (after start_all), or UNHEALTHY."""
         self._request_count += 1
-
-        # Check LifecycleManager services
-        lifecycle_not_ready: list[tuple[str, str]] = []
-        lifecycle_services: dict[str, str] = {}
-        if self._lifecycle is not None:
-            snap = self._lifecycle.health_snapshot()
-            registered = bool(snap)
-            ready_states = {HealthState.HEALTHY, HealthState.DEGRADED}
-            for name, info in snap.items():
-                try:
-                    state = HealthState(info["state"])
-                except (ValueError, KeyError):
-                    state = HealthState.FAILED
-                lifecycle_services[name] = info.get("state", "UNKNOWN")
-                if state in ready_states:
-                    continue
-                if state == HealthState.STOPPED and not registered:
-                    continue
-                lifecycle_not_ready.append((name, state.value))
-
-        # Check HealthRegistry (FastAPI /health checks)
-        registry_not_ready: list[tuple[str, str]] = {}
-        try:
-
-            from infrastructure.health import health_registry
-
-            results = await health_registry.run_all()
-            for name, result in results.items():
-                status_val = result.status.value
-                registry_not_ready[name] = status_val
-                if status_val not in ("healthy", "degraded"):
-                    lifecycle_not_ready.append((f"health_registry.{name}", status_val))
-        except Exception:
-            pass
-
-        body: dict[str, Any] = {
-            "status": "ready" if not lifecycle_not_ready else "not_ready",
-            "services": lifecycle_services,
+        if self._lifecycle is None:
+            return web.json_response(
+                {"status": "ready", "services": {}},
+                status=200,
+            )
+        snap = self._lifecycle.health_snapshot()
+        # A service is "ready" if its state is HEALTHY, DEGRADED, or
+        # STOPPED (only if no services are registered yet). Once any
+        # service is HEALTHY, STOPPED is treated as a regression.
+        registered = bool(snap)
+        ready_states = {HealthState.HEALTHY, HealthState.DEGRADED}
+        not_ready: list[tuple[str, str]] = []
+        for name, info in snap.items():
+            try:
+                state = HealthState(info["state"])
+            except (ValueError, KeyError):
+                state = HealthState.FAILED
+            if state in ready_states:
+                continue
+            # STOPPED is OK if no service has ever been started
+            if state == HealthState.STOPPED and not registered:
+                continue
+            not_ready.append((name, state.value))
+        body = {
+            "status": "ready" if not not_ready else "not_ready",
+            "services": {
+                name: info.get("state", "UNKNOWN") for name, info in snap.items()
+            },
         }
-        if registry_not_ready:
-            body["health_registry"] = registry_not_ready
-        if lifecycle_not_ready:
-            body["not_ready"] = lifecycle_not_ready
+        if not_ready:
+            body["not_ready"] = not_ready
             return web.json_response(body, status=503)
         return web.json_response(body, status=200)
 
@@ -289,19 +239,16 @@ class HttpObservabilityServer(ManagedService):
         """Prometheus text exposition format."""
         self._request_count += 1
         event_snap: dict[str, dict[str, int]] = {}
-        try:
-            event_snap = _extract_event_metrics_from_registry()
-        except Exception as exc:
-            logger.warning("event_metrics_registry_extract_failed: %s", exc)
-            if self._event_metrics is not None and hasattr(self._event_metrics, "snapshot"):
-                try:
-                    event_snap = self._event_metrics.snapshot()
-                except Exception as inner_exc:
-                    logger.warning("event_metrics_snapshot_failed: %s", inner_exc)
+        if self._event_metrics is not None and hasattr(self._event_metrics, "snapshot"):
+            try:
+                event_snap = self._event_metrics.snapshot()
+            except Exception as exc:
+                logger.warning("event_metrics_snapshot_failed: %s", exc)
         lifecycle_snap: dict[str, dict[str, Any]] = {}
         if self._lifecycle is not None:
             try:
                 lifecycle_snap = self._lifecycle.health_snapshot()
+                # Convert each HealthStatus to its dict form.
                 for name, info in lifecycle_snap.items():
                     if hasattr(info, "to_dict"):
                         lifecycle_snap[name] = info.to_dict()
@@ -326,11 +273,54 @@ class HttpObservabilityServer(ManagedService):
         return web.json_response(
             {
                 "service": self.name,
+                "build": build_info_dict(),
                 "endpoints": {
                     "/healthz": "liveness probe (always 200 if process is up)",
                     "/readyz": "readiness probe (503 if any ManagedService is FAILED/UNHEALTHY)",
                     "/metrics": "Prometheus text exposition",
+                    "/version": "build version, commit SHA, build time",
+                    "/info": "process + observability endpoint catalog",
                 },
+            }
+        )
+
+    async def _handle_version(self, request: web.Request) -> web.Response:
+        """Return the build metadata as JSON.
+
+        Operators use this to confirm which commit is running in a
+        given environment — a critical signal during incident
+        response when a stale binary may be the root cause.
+        """
+        self._request_count += 1
+        return web.json_response(build_info_dict())
+
+    async def _handle_info(self, request: web.Request) -> web.Response:
+        """Structured info endpoint (REF-30).
+
+        Returns the observability server's own runtime state plus
+        the build metadata. Designed for tooling that wants a
+        single endpoint to identify a running instance — no
+        secrets, no internal addresses.
+        """
+        self._request_count += 1
+        uptime = (
+            (datetime.now(timezone.utc) - self._started_at).total_seconds()
+            if self._started_at
+            else 0.0
+        )
+        return web.json_response(
+            {
+                "service": self.name,
+                "build": build_info_dict(),
+                "uptime_seconds": uptime,
+                "requests_served": self._request_count,
+                "endpoints": [
+                    "/healthz",
+                    "/readyz",
+                    "/metrics",
+                    "/version",
+                    "/info",
+                ],
             }
         )
 
@@ -359,6 +349,8 @@ class HttpObservabilityServer(ManagedService):
         app.router.add_get("/healthz", self._handle_healthz)
         app.router.add_get("/readyz", self._handle_readyz)
         app.router.add_get("/metrics", self._handle_metrics)
+        app.router.add_get("/version", self._handle_version)
+        app.router.add_get("/info", self._handle_info)
 
         runner = web.AppRunner(app)
         self._runner = runner
@@ -371,7 +363,6 @@ class HttpObservabilityServer(ManagedService):
         def _serve() -> None:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            self._loop = loop  # stored for stop() to call loop.stop()
             try:
                 loop.run_until_complete(runner.setup())
                 # Construct the TCPSite AFTER setup — aiohttp 3.14+
@@ -402,7 +393,6 @@ class HttpObservabilityServer(ManagedService):
             name="http.observability",
             daemon=True,
         )
-        self._serve_thread = t
         t.start()
         # Wait for the server to be ready (or fail). Bounded wait so
         # a failing bind (port in use) surfaces immediately.
@@ -423,33 +413,26 @@ class HttpObservabilityServer(ManagedService):
     def stop(self, timeout_seconds: float = DEFAULT_STOP_TIMEOUT_SECONDS) -> None:
         """Stop the HTTP server. Bounded by ``timeout_seconds``.
 
-        Schedules ``loop.stop()`` on the event-loop thread, then waits
-        for the thread to finish. The daemon thread will otherwise be
-        reaped at GC, but we explicitly stop it for clean lifecycle
-        management and to avoid stale port bindings on restart.
+        The aiohttp event loop is daemon-bound; the thread will be
+        reaped at GC. We tear down the site reference and the runner
+        so the next ``start()`` is a clean run.
         """
         runner = self._runner
-        loop = self._loop
-        thread = self._serve_thread
         self._site = None
         self._runner = None
-        self._loop = None
-        self._serve_thread = None
-        if runner is None or loop is None:
+        if runner is None:
             return
         try:
-            # Close the underlying server socket first so no new
-            # connections are accepted.
+            # Schedule a clean shutdown on the runner's loop. We don't
+            # have a handle to the loop, but the next time the OS
+            # reclaims the daemon thread, the runner's finally block
+            # will run. For a synchronous best-effort, we explicitly
+            # call cleanup() if accessible.
             if hasattr(runner, "_server") and runner._server is not None:
                 try:
                     runner._server.close()
                 except Exception as exc:
                     logger.debug("http_server_close_failed: %s", exc)
-            # Stop the event loop from the calling thread.
-            loop.call_soon_threadsafe(loop.stop)
-            # Wait for the serve thread to finish (bounded).
-            if thread is not None and thread.is_alive():
-                thread.join(timeout=timeout_seconds)
         except Exception as exc:
             logger.warning("http_observability_stop: %s", exc)
         logger.info("http_observability_stopped")

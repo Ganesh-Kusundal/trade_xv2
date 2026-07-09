@@ -202,6 +202,7 @@ class TestImportRules:
                         "domain.correlation", "domain.exceptions", "domain.entities",
                         "domain.provenance", "domain.symbols", "domain.instruments.instrument_id",
                         "domain.ports.protocols", "domain.candles.historical",
+                        "domain.errors",
                     ))
                     and "/tests/" not in filepath
                 ):
