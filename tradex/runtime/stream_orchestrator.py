@@ -64,9 +64,17 @@ logger = logging.getLogger(__name__)
 # bounded, time-windowed cache. Keyed on (instrument, exchange_time, sequence),
 # so a broker re-delivering the same exchange timestamp after a reconnect is
 # collapsed. Quotes without an exchange time (e.g. Dhan) fall back to arrival
-# time and are therefore not de-duplicated — that information is absent upstream.
+# time. Dhan also carries no source sequence, so a coarse (instrument, ltp,
+# time-bucket) fallback is added within the window to still catch exact
+# re-deliveries. NOTE: cross-reconnect exact-duplicate detection for Dhan
+# remains limited — the source provides no exchange timestamp or sequence, so a
+# tick replayed after a reconnect at the same price in a different bucket is not
+# detected.
 _STREAM_DEDUP_WINDOW_S = 2.0
 _STREAM_DEDUP_MAX_ENTRIES = 4096
+# Coarse bucket (seconds) for the Dhan ltp-fallback dedup key. Kept <= the dedup
+# window so a re-delivered tick lands in the same bucket and is collapsed.
+_STREAM_DEDUP_COARSE_BUCKET_S = 1.0
 
 
 def _parse_exchange_time(ts_raw: Any, now: datetime) -> datetime:
@@ -79,6 +87,11 @@ def _parse_exchange_time(ts_raw: Any, now: datetime) -> datetime:
     """
     if ts_raw is None:
         return now
+    # Dhan quotes carry no exchange timestamp; the feed stamps an arrival
+    # datetime (timezone-aware). Preserve it verbatim so downstream ordering
+    # and the candle aggregator use the real arrival time.
+    if isinstance(ts_raw, datetime):
+        return ts_raw if ts_raw.tzinfo else ts_raw.replace(tzinfo=timezone.utc)
     try:
         if isinstance(ts_raw, (int, float)):
             if ts_raw <= 0:
@@ -435,6 +448,8 @@ class StreamOrchestrator:
         instrument_key: str,
         event_time: datetime,
         sequence: int | None,
+        ltp: float | None = None,
+        trusted_time: bool = False,
     ) -> bool:
         """Drop market ticks that repeat within the dedup window.
 
@@ -442,22 +457,50 @@ class StreamOrchestrator:
         backfill overlap the broker re-delivers the same exchange timestamp /
         sequence, which collides and is dropped here before normalization —
         preventing duplicate ticks from reaching every consumer and defeating the
-        bus idempotency layer. Quotes without an exchange time (e.g. Dhan) use
-        the arrival time, so they are not de-duplicated (that signal is absent
-        upstream). The cache is bounded and windowed to keep the check cheap.
+        bus idempotency layer.
+
+        For brokers with a real exchange timestamp (``trusted_time=True``, e.g.
+        Upstox) the primary key is sufficient. Dhan carries no exchange time and
+        no source sequence, so ``trusted_time=False`` adds a coarse fallback key
+        ``(instrument, ltp, coarse_bucket)`` within the dedup window: a tick
+        re-delivered at the same price inside the same coarse bucket is still
+        collapsed. The cache is bounded and windowed to keep the check cheap.
+
+        NOTE: cross-reconnect exact-duplicate detection for Dhan remains limited
+        because the source provides no exchange timestamp or sequence — a tick
+        replayed after a reconnect at the same price in a different coarse bucket
+        is not detected.
         """
-        key = (instrument_key, event_time, sequence)
-        if key in self._dedup_seen:
+        now_ts = time_service.now().timestamp()
+        primary_key = (instrument_key, event_time, sequence)
+        if primary_key in self._dedup_seen:
             logger.debug(
                 "stream.tick.dedup",
                 extra={"instrument": instrument_key, "event_time": event_time.isoformat()},
             )
             return True
-        now_ts = time_service.now().timestamp()
+
+        # Dhan (untrusted exchange time) fallback: the SAME PRICE inside the
+        # same coarse time bucket is treated as a re-delivery. Only apply it
+        # when a real ltp is present — without a price the key degenerates to
+        # (instrument, None, bucket) and would wrongly collapse unrelated ticks.
+        fallback_key = None
+        if not trusted_time and ltp is not None:
+            bucket = int(now_ts // _STREAM_DEDUP_COARSE_BUCKET_S)
+            fallback_key = (instrument_key, ltp, bucket)
+            if fallback_key in self._dedup_seen:
+                logger.debug(
+                    "stream.tick.dedup.dhan_fallback",
+                    extra={"instrument": instrument_key, "ltp": ltp, "bucket": bucket},
+                )
+                return True
+
         if len(self._dedup_seen) >= _STREAM_DEDUP_MAX_ENTRIES:
             cutoff = now_ts - _STREAM_DEDUP_WINDOW_S
             self._dedup_seen = {k: t for k, t in self._dedup_seen.items() if t > cutoff}
-        self._dedup_seen[key] = now_ts
+        self._dedup_seen[primary_key] = now_ts
+        if fallback_key is not None:
+            self._dedup_seen[fallback_key] = now_ts
         return False
 
     # ------------------------------------------------------------------
@@ -646,7 +689,18 @@ class StreamOrchestrator:
                         frame.get("timestamp") or frame.get("exchange_timestamp"), now
                     )
                     sequence = frame.get("sequence")
-                    if self._dedup_drop(f"{symbol}:{exchange}", event_time, sequence):
+                    # A genuine broker-provided exchange timestamp exists
+                    # (Upstox). Dhan only carries a local arrival stamp, so its
+                    # dedup relies on the coarse ltp-bucket fallback.
+                    trusted_time = frame.get("exchange_timestamp") is not None
+                    ltp = frame.get("ltp") or frame.get("last_price") or 0
+                    if self._dedup_drop(
+                        f"{symbol}:{exchange}",
+                        event_time,
+                        sequence,
+                        ltp=ltp,
+                        trusted_time=trusted_time,
+                    ):
                         return
             tick = self._normalize_tick(frame, session_id, session.broker_id, now)
             if tick is not None:
