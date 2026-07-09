@@ -6,6 +6,7 @@ objects. Live mode is tested separately via OrderManager directly.
 """
 
 from __future__ import annotations
+from tests.conftest import build_test_trading_context
 
 from decimal import Decimal
 
@@ -28,7 +29,7 @@ from domain import OrderType, ProductType, Side
 @pytest.fixture
 def trading_context() -> TradingContext:
     """Minimal TradingContext with permissive risk for parity testing."""
-    return TradingContext(
+    return build_test_trading_context(
         capital_fn=lambda: Decimal("1000000"),
         risk_config=RiskConfig(
             max_position_pct=Decimal("100"),

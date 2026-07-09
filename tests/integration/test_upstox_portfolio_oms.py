@@ -1,6 +1,7 @@
 """Upstox portfolio stream integration with OMS handlers."""
 
 from __future__ import annotations
+from tests.conftest import build_test_trading_context
 
 import asyncio
 from datetime import datetime, timezone
@@ -17,7 +18,7 @@ from domain import Order, OrderStatus, OrderType, ProductType, Side
 @pytest.mark.asyncio
 async def test_upstox_portfolio_stream_updates_oms_position():
     """ORDER_UPDATED + TRADE from Upstox WS must flow through OMS to positions."""
-    ctx = create_trading_context(replay_events=False)
+    ctx = build_test_trading_context(replay_events=False)
     seed = Order(
         order_id="O1",
         symbol="INFY",

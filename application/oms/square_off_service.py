@@ -173,7 +173,7 @@ class SquareOffService:
         if self._events is None:
             return
         try:
-            from infrastructure.event_bus.event_bus import DomainEvent
+            from domain.events.types import DomainEvent
 
             event = DomainEvent.now(event_type=event_type, payload=payload)
             self._events.publish(event)

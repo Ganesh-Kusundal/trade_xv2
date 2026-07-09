@@ -1,6 +1,7 @@
 """Tests for the central OMS (OrderManager + PositionManager + RiskManager)."""
 
 from __future__ import annotations
+from tests.conftest import build_test_trading_context
 
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
@@ -270,7 +271,7 @@ def test_trading_context_replays_event_log(tmp_path) -> None:
     log.close()
 
     # New context replays the log.
-    ctx = TradingContext(event_log=log, replay_events=True)
+    ctx = build_test_trading_context(event_log=log, replay_events=True)
     assert len(ctx.order_manager.get_orders()) == 1
     assert ctx.order_manager.get_orders()[0].order_id == "O1"
     assert ctx.position_manager.get_position("RELIANCE", "NSE").quantity == 10

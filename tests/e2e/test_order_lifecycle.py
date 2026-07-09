@@ -8,6 +8,7 @@ RiskManager, and ProcessedTradeRepository.
 """
 
 from __future__ import annotations
+from tests.conftest import build_test_trading_context
 
 import threading
 from decimal import Decimal
@@ -52,7 +53,7 @@ def risk_manager():
 
 @pytest.fixture
 def trading_context(event_bus, risk_manager, tmp_path):
-    return create_trading_context(
+    return build_test_trading_context(
         risk_manager=risk_manager,
         event_bus=event_bus,
         event_log=EventLog(events_dir=tmp_path / "events"),

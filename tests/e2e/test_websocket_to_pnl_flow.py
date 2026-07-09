@@ -10,6 +10,7 @@ No MagicMock for internal components.
 """
 
 from __future__ import annotations
+from tests.conftest import build_test_trading_context
 
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -331,7 +332,7 @@ class TestDlqCapturesFailedHandler:
             capital_fn=lambda: Decimal("1000000"),
         )
 
-        test_ctx = TradingContext(
+        test_ctx = build_test_trading_context(
             event_bus=event_bus,
             risk_manager=risk_manager,
             position_manager=position_manager,

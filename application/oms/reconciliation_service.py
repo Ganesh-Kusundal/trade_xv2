@@ -23,7 +23,7 @@ from domain.constants import (
     RECONCILIATION_INTERVAL_SECONDS,
 )
 from domain.reconciliation import ReconciliationReport
-from infrastructure.event_bus import EventBus
+from domain.ports import EventBusPort
 from infrastructure.lifecycle import HealthState, ManagedService, build_health
 
 logger = logging.getLogger(__name__)
@@ -60,7 +60,7 @@ class ReconciliationService(ManagedService):
         position_manager: PositionManager,
         reconciliation_service: IReconciliationService,
         interval_seconds: float = RECONCILIATION_INTERVAL_SECONDS,
-        event_bus: EventBus | None = None,
+        event_bus: EventBusPort | None = None,
         on_first_success: Callable[[], None] | None = None,
     ) -> None:
         self._order_manager = order_manager

@@ -5,6 +5,7 @@ CANDIDATE_GENERATED → strategy → OMS → paper fill path.
 """
 
 from __future__ import annotations
+from tests.conftest import build_test_trading_context
 
 from decimal import Decimal
 
@@ -54,7 +55,7 @@ class _AlwaysBuyEvaluator:
 
 @pytest.fixture
 def fresh_trading_context():
-    return TradingContext(replay_events=False, enable_durable_orders=False)
+    return build_test_trading_context(replay_events=False, enable_durable_orders=False)
 
 
 def test_orchestrator_places_order_via_paper_gateway(fresh_trading_context) -> None:

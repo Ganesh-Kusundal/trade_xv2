@@ -31,6 +31,7 @@ B7 fixes this:
 """
 
 from __future__ import annotations
+from tests.conftest import build_test_trading_context
 
 from decimal import Decimal
 from unittest.mock import MagicMock
@@ -370,7 +371,7 @@ def test_production_readiness_checker_fails_when_reconciliation_unwired() -> Non
 
     # Build a TradingContext with reconciliation_service=None — the
     # pre-B-1 configuration the live CLI used to ship with.
-    ctx = TradingContext(reconciliation_interval_seconds=0)
+    ctx = build_test_trading_context(reconciliation_interval_seconds=0)
     svc = MagicMock()
     svc._trading_context = ctx
     svc.lifecycle = MagicMock()

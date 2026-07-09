@@ -1,6 +1,7 @@
 """Tests for post-restart reconciliation order placement gate."""
 
 from __future__ import annotations
+from tests.conftest import build_test_trading_context
 
 from application.oms.context import TradingContext
 
@@ -12,7 +13,7 @@ class _FakeReconciler:
 
 def test_trading_context_reconciliation_ready_without_service() -> None:
     """Without a reconciliation service, reconciliation is immediately ready."""
-    tc = TradingContext(
+    tc = build_test_trading_context(
         replay_events=False,
         enable_durable_orders=False,
     )
@@ -21,7 +22,7 @@ def test_trading_context_reconciliation_ready_without_service() -> None:
 
 def test_tracking_context_default_reconciliation_state() -> None:
     """TradingContext exposes reconciliation_ready in health check."""
-    tc = TradingContext(
+    tc = build_test_trading_context(
         replay_events=False,
         enable_durable_orders=False,
     )

@@ -17,6 +17,7 @@ tests do not depend on wall-clock progression.
 """
 
 from __future__ import annotations
+from tests.conftest import build_test_trading_context
 
 import json
 import threading
@@ -100,7 +101,7 @@ def _build_context(events_dir: Path) -> tuple[TradingContext, FakeBrokerAdapter,
     # The factory builds its own OM/PM/RM and wires the bus. We do
     # NOT pass our own — let the canonical wiring be the test.
     rm = RiskManager(PositionManager(), RiskConfig(), capital_fn=lambda: Decimal("1000000"))
-    ctx = create_trading_context(
+    ctx = build_test_trading_context(
         event_log=log,
         event_bus=bus,
         risk_manager=rm,

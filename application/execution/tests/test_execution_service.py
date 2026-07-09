@@ -1,6 +1,7 @@
 """Integration tests for ExecutionService."""
 
 from __future__ import annotations
+from tests.conftest import build_test_trading_context
 
 from decimal import Decimal
 
@@ -15,7 +16,7 @@ from domain import Order, OrderType, ProductType, Side
 
 @pytest.fixture
 def trading_context():
-    return create_trading_context(replay_events=False)
+    return build_test_trading_context(replay_events=False)
 
 
 @pytest.fixture

@@ -323,3 +323,86 @@ Test-only carve-outs (`application.oms.tests.* → infrastructure.*`) kept or re
 **Risk:** HIGH — ~12 production modules across event/persistence/state-machine subsystems; will be
 incremented sub-slice by sub-slice, never big-bang. **Awaiting Board sign-off on the port set and
 sub-slice order before implementation.**
+
+### Phase D — slice 3 (D4 sub-slice a: events + log ports wired) — EXECUTED
+Board approved "start events+log" (2026-07-09). Implementation closed the
+`Application infrastructure separation` violations for the event subsystem.
+
+**Ports added (`domain.ports`):**
+- `EventBusPort` (in `event_publisher.py`) — `EventPublisher` + replay-mode /
+  logging-enabled controls OMS toggles during replay.
+- `EventLogPort`, `DeadLetterQueuePort`, `ProcessedTradeRepositoryPort` (new
+  `event_log.py`).
+- `TradeIdKey` relocated from `infrastructure.event_bus` to
+  `domain.events.types` (infrastructure re-exports for backward-compat). The
+  OMS now builds idempotency keys without importing `infrastructure`.
+
+**Modules redirected to ports (no `application → infrastructure.event_bus` /
+`infrastructure.event_log` import — event subsystem only):**
+`application/oms/{context,order_manager,position_manager,reconciliation_service,
+factory}`, `application/trading/trading_orchestrator`, and the lazy `DomainEvent`
+imports in `square_off_service` / `extended_order_service` (now
+`domain.events.types`). `context.py` / `order_manager.py` no longer *construct*
+infra objects — `TradingContext`/`OrderManager` require injected collaborators.
+
+> **Scope note:** de-coupling here is *event-subsystem only*. The same modules
+> still import other infrastructure (lifecycle, observability/event_metrics,
+> metrics, tracing, persistence, state_machine); those are deferred to sub-slices
+> (b)–(d) below, not removed in (a).
+
+**Composition roots now inject the event defaults:**
+- `cli/services/oms_setup.py` builds + passes `dead_letter_queue` (alongside the
+  `event_bus`/`event_log`/`processed_trades` it already built).
+- `api/lifecycle.py` builds missing `event_bus`/`dead_letter_queue`/
+  `processed_trade_repository` via `brokers.common.oms.defaults`.
+- `brokers/common/oms/defaults.py` is the single builder of event infra
+  concretes (allowed: `brokers.common → infrastructure`). `application` never
+  reaches `infrastructure` — import-linter is **transitive**, so this could not
+  live in `application`.
+
+**Test harness:** `tests/conftest.build_test_trading_context` fills the event
+defaults for tests that previously relied on `TradingContext()` auto-building
+them. 30 test files updated to use it.
+
+**Removed `ignore_imports`:** 11 event-related carve-outs from the
+`Application infrastructure separation` contract in **`pyproject.toml`** (the
+authoritative `tool.importlinter` block) — confirmed via `git diff`
+(context/order_manager/position_manager/reconciliation/trading_orchestrator/
+square_off/extended_order/factory → `infrastructure.event_bus`/`event_log`).
+
+> **Config-hygiene correction (post-execution):** the contracts lived in *two*
+> places — `pyproject.toml` (8 contracts, all KEPT) **and** a stale
+> `.import-linter.ini` (only 5 contracts, still carrying the 11 event carve-outs
+> *plus* a D-1 `infrastructure.retry -> brokers.common.resilience.errors` entry
+> that was never actually deleted). CI's `lint` job ran `lint-imports
+> --config .import-linter.ini` and was therefore **RED** (exit 1) despite the
+> report claiming "GREEN 8/8" (that only held for the default `pyproject.toml`
+> run). Resolved by **deleting `.import-linter.ini`** and pointing CI at
+> `pyproject.toml` (single source of truth). The redundant `lint-imports` step
+> in the `unit-and-contract` job already used the default `pyproject.toml`.
+
+**Verification:** `lint-imports --config pyproject.toml` fully GREEN (8/8).
+Remaining `infrastructure` `ignore_imports` are lifecycle/metrics/tracing/
+persistence/state-machine/market-data — the next D4 sub-slices (b)–(d).
+
+### Phase D — slice 3 (D4 sub-slices b–d): remaining `application → infrastructure` ports — PLANNED
+Board (user) signed off "complete all" (2026-07-09). Sub-slices execute one at
+a time, each gate-green (`lint-imports` + targeted tests) and committed before
+the next. Each redirects the remaining `Application infrastructure separation`
+`ignore_imports` to ports and injects concretes via the existing composition
+roots (`brokers/common/oms/defaults.py`, `cli/services/oms_setup.py`,
+`api/lifecycle.py`) + `tests/conftest.build_test_trading_context`.
+
+| Sub-slice | Ports to add/use | Modules redirected | ignore_imports closed |
+|---|---|---|---|
+| **(b) lifecycle + metrics + tracing** | `LifecyclePort` (extend `domain.ports.lifecycle`: `LifecycleManager`/`HealthState`/`build_health` + existing `ManagedServicePort`); `MetricsPort` (= `MetricsRegistryPort` + `EventMetrics`); `TracingPort` (`trace_operation`, `get_current_correlation_id`) | `context`, `order_manager`, `position_manager`, `reconciliation_service`, `daily_pnl_reset_scheduler` (lifecycle/metrics/tracing only; `logging_config`/`correlation` left as cross-cutting exempt unless Board says otherwise) | `context→lifecycle/observability.event_metrics`, `order_manager→metrics/observability.event_metrics/observability.tracing`, `position_manager→observability.*`, `reconciliation_service→lifecycle`, `daily_pnl_reset_scheduler→lifecycle.*` |
+| **(c) persistence + state-machine** | `OrderStorePort` (`SqliteOrderStore`); `OrderStateMachinePort` (`StateMachine`, `IllegalTransitionError`) | `context`, `order_manager`, `position_manager`, `_internal/order_state_validator` | `context→persistence.*`, `order_manager→persistence.*`, `position_manager→state_machine`, `_internal/order_state_validator→state_machine` |
+| **(d) market-data adapter** | `MarketDataAdapterPort` (reuse `domain.ports.market_data` if present, else add) | `trading/feature_fetcher` | `trading.feature_fetcher→infrastructure.market_data_adapter` |
+
+**Logging decision (deferred):** `get_logger` / `correlation` are cross-cutting;
+treated as exempt for now (kept in `ignore_imports`); a `LoggingPort` can be added
+later if the Board wants full isolation. `application.audit` logging/correlation
+and `application.composer.* → brokers.common.*` are out of D4 scope.
+
+**Risk:** HIGH (compounds sub-slice a). Mitigation: one sub-slice per commit,
+gate-green before merge, characterization tests first (Feathers).

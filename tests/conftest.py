@@ -175,3 +175,37 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "split_env: test uses split read/write routing (reads live, writes sandbox)"
     )
+
+
+def build_test_trading_context(**kwargs: Any) -> "TradingContext":
+    """Build a TradingContext with default event infrastructure for tests.
+
+    The OMS no longer constructs infrastructure objects itself (see D4 port
+    extraction), so event collaborators must be injected.  This helper fills
+    ``event_bus`` / ``event_log`` / ``processed_trade_repository`` /
+    ``dead_letter_queue`` defaults — importing the concrete classes from
+    ``infrastructure`` (allowed inside the test tree) — and forwards every other
+    keyword argument to :func:`create_trading_context`.  Use it anywhere a test
+    previously relied on ``TradingContext(...)`` / ``create_trading_context(...)``
+    building its own defaults.
+    """
+    from application.oms.factory import create_trading_context
+    from infrastructure.event_bus import (
+        EventBus,
+        ProcessedTradeRepository,
+        create_default_dead_letter_queue,
+    )
+    from infrastructure.event_log import BufferedEventLog
+
+    if "event_bus" not in kwargs:
+        if "dead_letter_queue" not in kwargs:
+            kwargs["dead_letter_queue"] = create_default_dead_letter_queue()
+        kwargs["event_bus"] = EventBus(
+            event_log=kwargs.get("event_log"),
+            dead_letter_queue=kwargs["dead_letter_queue"],
+        )
+    if "processed_trade_repository" not in kwargs:
+        kwargs["processed_trade_repository"] = ProcessedTradeRepository()
+    if "event_log" not in kwargs:
+        kwargs["event_log"] = BufferedEventLog(events_dir=Path("runtime/event-log"))
+    return create_trading_context(**kwargs)

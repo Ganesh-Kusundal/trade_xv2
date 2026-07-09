@@ -1,6 +1,7 @@
 """Integration tests for portfolio PnL and square-off endpoints."""
 
 from __future__ import annotations
+from tests.conftest import build_test_trading_context
 
 from datetime import datetime
 from decimal import Decimal
@@ -36,7 +37,7 @@ def portfolio_app(tmp_path):
     )
 
     event_bus = EventBus()
-    trading_context = TradingContext(event_bus=event_bus)
+    trading_context = build_test_trading_context(event_bus=event_bus)
     config = APIConfig(host="127.0.0.1", port=8000, cors_origins=[])
     app = create_app(
         config=config,

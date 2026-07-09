@@ -12,6 +12,7 @@ Covers:
 """
 
 from __future__ import annotations
+from tests.conftest import build_test_trading_context
 
 import asyncio
 from decimal import Decimal
@@ -64,7 +65,7 @@ class TestShutdownCancelsOpenOrders:
 
     def test_shutdown_cancels_all_open_orders(self) -> None:
         """shutdown(cancel_orders=True) should cancel every OPEN order."""
-        ctx = TradingContext()
+        ctx = build_test_trading_context()
         cmd1 = OmsOrderCommand("RELIANCE", "NSE", Side.BUY, 10, correlation_id="sh-1")
         cmd2 = OmsOrderCommand("TCS", "NSE", Side.BUY, 5, correlation_id="sh-2")
         ctx.order_manager.place_order(cmd1, submit_fn=_make_submit_fn())
@@ -87,7 +88,7 @@ class TestShutdownCancelsOpenOrders:
 
     def test_shutdown_skips_cancellation_when_flag_false(self) -> None:
         """shutdown(cancel_orders=False) should not call cancel_order."""
-        ctx = TradingContext()
+        ctx = build_test_trading_context()
         cmd = OmsOrderCommand("RELIANCE", "NSE", Side.BUY, 10, correlation_id="sh-3")
         ctx.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
 
@@ -99,7 +100,7 @@ class TestShutdownCancelsOpenOrders:
 
     def test_shutdown_skips_cancellation_when_no_gateway(self) -> None:
         """shutdown() with no gateway should skip cancellation gracefully."""
-        ctx = TradingContext()
+        ctx = build_test_trading_context()
         cmd = OmsOrderCommand("RELIANCE", "NSE", Side.BUY, 10, correlation_id="sh-4")
         ctx.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
 
@@ -111,7 +112,7 @@ class TestShutdownCancelsOpenOrders:
 
     def test_shutdown_only_cancels_open_orders(self) -> None:
         """shutdown() should not attempt to cancel FILLED/CANCELLED orders."""
-        ctx = TradingContext()
+        ctx = build_test_trading_context()
 
         cmd1 = OmsOrderCommand("RELIANCE", "NSE", Side.BUY, 10, correlation_id="sh-5")
         result1 = ctx.order_manager.place_order(cmd1, submit_fn=_make_submit_fn())
@@ -150,7 +151,7 @@ class TestShutdownCancellationFailures:
 
     def test_shutdown_partial_success(self) -> None:
         """Some cancellations succeed, some fail -- shutdown continues."""
-        ctx = TradingContext()
+        ctx = build_test_trading_context()
         cmd1 = OmsOrderCommand("RELIANCE", "NSE", Side.BUY, 10, correlation_id="sh-f1")
         cmd2 = OmsOrderCommand("TCS", "NSE", Side.BUY, 5, correlation_id="sh-f2")
         cmd3 = OmsOrderCommand("INFY", "NSE", Side.BUY, 8, correlation_id="sh-f3")
@@ -178,7 +179,7 @@ class TestShutdownCancellationFailures:
 
     def test_shutdown_all_cancellations_fail(self) -> None:
         """All cancellations fail -- shutdown returns all as failed."""
-        ctx = TradingContext()
+        ctx = build_test_trading_context()
         cmd1 = OmsOrderCommand("RELIANCE", "NSE", Side.BUY, 10, correlation_id="sh-f4")
         cmd2 = OmsOrderCommand("TCS", "NSE", Side.BUY, 5, correlation_id="sh-f5")
         ctx.order_manager.place_order(cmd1, submit_fn=_make_submit_fn())
@@ -194,7 +195,7 @@ class TestShutdownCancellationFailures:
 
     def test_shutdown_cancellation_raises_exception(self) -> None:
         """Gateway.cancel_order raises -- shutdown logs and continues."""
-        ctx = TradingContext()
+        ctx = build_test_trading_context()
         cmd = OmsOrderCommand("RELIANCE", "NSE", Side.BUY, 10, correlation_id="sh-f6")
         ctx.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
 
@@ -216,7 +217,7 @@ class TestShutdownEventLogFlush:
     def test_shutdown_flushes_event_log(self, tmp_path) -> None:
         """shutdown() should flush and close the event log."""
         log = EventLog(events_dir=tmp_path / "events")
-        ctx = TradingContext(event_log=log)
+        ctx = build_test_trading_context(event_log=log)
 
         ctx.event_bus.publish(
             DomainEvent.now(EventType.TICK.value, {"price": 100}, symbol="RELIANCE")
@@ -228,7 +229,7 @@ class TestShutdownEventLogFlush:
 
     def test_shutdown_no_event_log(self) -> None:
         """shutdown() with no event log should report False."""
-        ctx = TradingContext()
+        ctx = build_test_trading_context()
         result = _run_shutdown(ctx, cancel_orders=False)
 
         assert result["event_log_flushed"] is False
@@ -242,7 +243,7 @@ class TestShutdownIdempotency:
 
     def test_shutdown_idempotent(self) -> None:
         """Calling shutdown() twice should not crash or double-cancel."""
-        ctx = TradingContext()
+        ctx = build_test_trading_context()
         cmd = OmsOrderCommand("RELIANCE", "NSE", Side.BUY, 10, correlation_id="sh-idem")
         ctx.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
 
@@ -261,7 +262,7 @@ class TestShutdownIdempotency:
 
     def test_shutdown_idempotent_no_open_orders(self) -> None:
         """shutdown() with no open orders should be safe."""
-        ctx = TradingContext()
+        ctx = build_test_trading_context()
 
         result1 = _run_shutdown(ctx, cancel_orders=True)
         result2 = _run_shutdown(ctx, cancel_orders=True)
@@ -278,7 +279,7 @@ class TestShutdownEventEmission:
 
     def test_shutdown_emits_system_shutdown_event(self) -> None:
         """shutdown() should publish a SYSTEM_SHUTDOWN event."""
-        ctx = TradingContext()
+        ctx = build_test_trading_context()
         received_events = []
 
         def _capture(event: DomainEvent) -> None:
@@ -303,19 +304,19 @@ class TestManagedServiceProtocol:
 
     def test_trading_context_has_name(self) -> None:
         """TradingContext should have a .name attribute."""
-        ctx = TradingContext()
+        ctx = build_test_trading_context()
         assert hasattr(ctx, "name")
         assert ctx.name == "oms.trading_context"
 
     def test_trading_context_start_is_idempotent(self) -> None:
         """start() should be idempotent and return promptly."""
-        ctx = TradingContext()
+        ctx = build_test_trading_context()
         ctx.start()
         ctx.start()  # Should not raise
 
     def test_trading_context_stop_calls_shutdown(self) -> None:
         """stop() should delegate to shutdown()."""
-        ctx = TradingContext()
+        ctx = build_test_trading_context()
         cmd = OmsOrderCommand("RELIANCE", "NSE", Side.BUY, 10, correlation_id="ms-1")
         ctx.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
 
@@ -330,7 +331,7 @@ class TestManagedServiceProtocol:
     def test_trading_context_health(self) -> None:
         """health() should return a HealthStatus."""
 
-        ctx = TradingContext()
+        ctx = build_test_trading_context()
         status = ctx.health()
 
         # Returns the existing health dict (or HealthStatus if wrapped)
@@ -338,7 +339,7 @@ class TestManagedServiceProtocol:
 
     def test_trading_context_registers_with_lifecycle(self) -> None:
         """attach_lifecycle() should register TradingContext as ManagedService."""
-        ctx = TradingContext()
+        ctx = build_test_trading_context()
         lifecycle = LifecycleManager()
         ctx.attach_lifecycle(lifecycle)
 
@@ -354,7 +355,7 @@ class TestCancelAllOpenOrders:
 
     def test_cancel_all_no_gateway(self) -> None:
         """Without gateway, orders are cancelled locally only."""
-        ctx = TradingContext()
+        ctx = build_test_trading_context()
         cmd1 = OmsOrderCommand("RELIANCE", "NSE", Side.BUY, 10, correlation_id="ca-1")
         cmd2 = OmsOrderCommand("TCS", "NSE", Side.BUY, 5, correlation_id="ca-2")
         ctx.order_manager.place_order(cmd1, submit_fn=_make_submit_fn())
@@ -367,7 +368,7 @@ class TestCancelAllOpenOrders:
 
     def test_cancel_all_with_gateway(self) -> None:
         """With gateway, orders are cancelled at broker first."""
-        ctx = TradingContext()
+        ctx = build_test_trading_context()
         cmd = OmsOrderCommand("RELIANCE", "NSE", Side.BUY, 10, correlation_id="ca-3")
         ctx.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
 
@@ -381,7 +382,7 @@ class TestCancelAllOpenOrders:
 
     def test_cancel_all_empty(self) -> None:
         """No open orders -- cancel_all returns empty results."""
-        ctx = TradingContext()
+        ctx = build_test_trading_context()
         result = ctx.cancel_all_open_orders()
 
         assert result["orders_cancelled"] == 0
@@ -398,7 +399,7 @@ class TestSignalHandler:
         """register_signal_handlers() should register SIGTERM and SIGINT."""
         import signal
 
-        ctx = TradingContext()
+        ctx = build_test_trading_context()
         try:
             ctx.register_signal_handlers()
             handler_term = signal.getsignal(signal.SIGTERM)

@@ -4,6 +4,7 @@ REF: Task 6.3 — Converted from MagicMock to FakeReconciliationService
 """
 
 from __future__ import annotations
+from tests.conftest import build_test_trading_context
 
 import time
 
@@ -19,7 +20,7 @@ from tests.fakes import FakeReconciliationService
 def _build_ctx() -> tuple[TradingContext, EventBus, EventMetrics]:
     metrics = EventMetrics()
     bus = EventBus(metrics=metrics)
-    ctx = TradingContext(event_bus=bus, replay_events=False)
+    ctx = build_test_trading_context(event_bus=bus, replay_events=False)
     return ctx, bus, metrics
 
 

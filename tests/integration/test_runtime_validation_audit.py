@@ -1,4 +1,5 @@
 from __future__ import annotations
+from tests.conftest import build_test_trading_context
 
 from unittest.mock import MagicMock
 
@@ -34,7 +35,7 @@ class _AlwaysBuyStrategy:
 
 @pytest.fixture
 def mock_broker_service():
-    tc = create_trading_context(replay_events=False)
+    tc = build_test_trading_context(replay_events=False)
     bs = MagicMock()
     bs.active_broker = MagicMock()
     bs.trading_context = tc

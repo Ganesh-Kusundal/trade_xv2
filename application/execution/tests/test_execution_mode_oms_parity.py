@@ -1,6 +1,7 @@
 """Integration tests: OMS state transitions must match across execution modes."""
 
 from __future__ import annotations
+from tests.conftest import build_test_trading_context
 
 from decimal import Decimal
 from unittest.mock import MagicMock
@@ -99,4 +100,4 @@ def test_all_modes_publish_same_initial_order_status(trading_context) -> None:
 
 @pytest.fixture
 def trading_context():
-    return create_trading_context(replay_events=False)
+    return build_test_trading_context(replay_events=False)

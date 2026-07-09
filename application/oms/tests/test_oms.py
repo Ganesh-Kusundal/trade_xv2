@@ -1,6 +1,7 @@
 """Tests for the central OMS (OrderManager + PositionManager + RiskManager)."""
 
 from __future__ import annotations
+from tests.conftest import build_test_trading_context
 
 import contextlib
 from concurrent.futures import ThreadPoolExecutor
@@ -272,7 +273,7 @@ def test_trading_context_replays_event_log(tmp_path) -> None:
     log.close()
 
     # New context replays the log.
-    ctx = TradingContext(event_log=log, replay_events=True)
+    ctx = build_test_trading_context(event_log=log, replay_events=True)
     assert len(ctx.order_manager.get_orders()) == 1
     assert ctx.order_manager.get_orders()[0].order_id == "O1"
     assert ctx.position_manager.get_position("RELIANCE", "NSE").quantity == 10
@@ -404,7 +405,7 @@ def test_replay_mode_restored_after_exception(tmp_path) -> None:
 
     # Replay should raise an exception due to missing trade fields
     with contextlib.suppress(Exception):
-        TradingContext(
+        build_test_trading_context(
             event_log=log, replay_events=True
         )  # Expected to fail due to malformed trade event
 
@@ -449,7 +450,7 @@ def test_replay_does_not_double_count_positions(tmp_path) -> None:
     log.close()
 
     # New context replays the log
-    ctx = TradingContext(event_log=log, replay_events=True)
+    ctx = build_test_trading_context(event_log=log, replay_events=True)
 
     # Position should be exactly 10, not 20 (double-counted)
     position = ctx.position_manager.get_position("RELIANCE", "NSE")

@@ -9,6 +9,7 @@ Verifies that:
 """
 
 from __future__ import annotations
+from tests.conftest import build_test_trading_context
 
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -92,7 +93,7 @@ class TestServiceContainerInitialization:
     def test_initialize_all_services_extracts_oms_components(self):
         """OMS components should be extracted from TradingContext."""
         event_bus = EventBus()
-        ctx = TradingContext(event_bus=event_bus)
+        ctx = build_test_trading_context(event_bus=event_bus)
 
         initialize_all_services(
             event_bus=event_bus,
@@ -313,7 +314,7 @@ class TestDIFallbackBehavior:
     def test_order_manager_falls_back_to_trading_context(self):
         """get_order_manager should fall back to TradingContext.order_manager."""
         event_bus = EventBus()
-        ctx = TradingContext(event_bus=event_bus)
+        ctx = build_test_trading_context(event_bus=event_bus)
 
         # Initialize with trading_context but NOT direct order_manager
         initialize_all_services(
@@ -327,7 +328,7 @@ class TestDIFallbackBehavior:
     def test_position_manager_falls_back_to_trading_context(self):
         """get_position_manager should fall back to TradingContext.position_manager."""
         event_bus = EventBus()
-        ctx = TradingContext(event_bus=event_bus)
+        ctx = build_test_trading_context(event_bus=event_bus)
 
         initialize_all_services(
             event_bus=event_bus,
@@ -340,7 +341,7 @@ class TestDIFallbackBehavior:
     def test_risk_manager_falls_back_to_trading_context(self):
         """get_risk_manager should fall back to TradingContext.risk_manager."""
         event_bus = EventBus()
-        ctx = TradingContext(event_bus=event_bus)
+        ctx = build_test_trading_context(event_bus=event_bus)
 
         initialize_all_services(
             event_bus=event_bus,
@@ -353,7 +354,7 @@ class TestDIFallbackBehavior:
     def test_direct_registration_takes_precedence(self):
         """Directly registered manager should take precedence over TradingContext."""
         event_bus = EventBus()
-        ctx = TradingContext(event_bus=event_bus)
+        ctx = build_test_trading_context(event_bus=event_bus)
         mock_order_manager = MagicMock()
 
         initialize_all_services(
@@ -417,7 +418,7 @@ class TestThreadSafety:
         import threading
 
         event_bus = EventBus()
-        ctx = TradingContext(event_bus=event_bus)
+        ctx = build_test_trading_context(event_bus=event_bus)
         initialize_all_services(event_bus=event_bus, trading_context=ctx)
 
         errors = []

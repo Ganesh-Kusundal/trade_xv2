@@ -36,11 +36,8 @@ from domain.entities import Order, Trade
 from domain.events.types import DomainEvent, EventType
 from domain.symbols import normalize_exchange, normalize_symbol
 from domain.types import ORDER_STATUS_TRANSITIONS, OrderStatus, OrderType, ProductType, Side
-from infrastructure.event_bus import (
-    EventBus,
-    ProcessedTradeRepository,
-    TradeIdKey,
-)
+from domain.events.types import TradeIdKey
+from domain.ports import EventBusPort, ProcessedTradeRepositoryPort
 from infrastructure.logging_config import get_logger
 from infrastructure.metrics import metrics_registry
 from infrastructure.observability.event_metrics import EventMetrics
@@ -151,9 +148,9 @@ class OrderManager:
 
     def __init__(
         self,
-        event_bus: EventBus | None = None,
+        event_bus: EventBusPort | None = None,
         risk_manager: RiskManager | None = None,
-        processed_trade_repository: ProcessedTradeRepository | None = None,
+        processed_trade_repository: ProcessedTradeRepositoryPort | None = None,
         metrics: EventMetrics | None = None,
         enforce_state_transitions: bool = True,
         state_validator: OrderStateValidator | None = None,
@@ -166,7 +163,7 @@ class OrderManager:
         self._orders_by_correlation: dict[str, Order] = {}
         self._event_bus = event_bus
         self._risk_manager = risk_manager
-        self._processed_trades = processed_trade_repository or ProcessedTradeRepository()
+        self._processed_trades = processed_trade_repository
         self._metrics = metrics
         self._trades_processed = 0
         self._trades_duplicated = 0
@@ -193,7 +190,7 @@ class OrderManager:
         return self._risk_manager
 
     @property
-    def processed_trade_repository(self) -> ProcessedTradeRepository:
+    def processed_trade_repository(self) -> ProcessedTradeRepositoryPort:
         return self._processed_trades
 
     def check_order(self, order: Order) -> bool:

@@ -1,6 +1,7 @@
 """Restart replay must not duplicate trades when ledger is persisted."""
 
 from __future__ import annotations
+from tests.conftest import build_test_trading_context
 
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -48,7 +49,7 @@ def test_persisted_ledger_survives_restart_and_rejects_duplicate_trade(tmp_path)
         product_type=ProductType.INTRADAY,
     )
 
-    ctx1 = create_trading_context(
+    ctx1 = build_test_trading_context(
         replay_events=False,
         processed_trade_repository=repo1,
     )
@@ -60,7 +61,7 @@ def test_persisted_ledger_survives_restart_and_rejects_duplicate_trade(tmp_path)
     key = TradeIdKey.from_trade(trade)
     assert repo2.is_processed(key)
 
-    ctx2 = create_trading_context(
+    ctx2 = build_test_trading_context(
         replay_events=False,
         processed_trade_repository=repo2,
     )

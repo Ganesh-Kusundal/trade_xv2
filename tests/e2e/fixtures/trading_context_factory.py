@@ -5,6 +5,7 @@ and test-friendly configuration.
 """
 
 from __future__ import annotations
+from tests.conftest import build_test_trading_context
 
 from decimal import Decimal
 from pathlib import Path
@@ -67,7 +68,7 @@ def create_test_trading_context(
             capital_fn=lambda: capital,
         )
 
-    ctx = TradingContext(
+    ctx = build_test_trading_context(
         event_bus=event_bus,
         event_log=event_log,
         risk_manager=risk_manager,

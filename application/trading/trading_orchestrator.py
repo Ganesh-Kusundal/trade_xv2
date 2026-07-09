@@ -48,7 +48,7 @@ from domain.models.features import FeatureSet
 from domain.models.trading import CandidateDTO, SignalDTO
 from domain.ports.strategy_evaluator import StrategyEvaluator
 from domain.events.types import DomainEvent, EventType
-from infrastructure.event_bus import EventBus
+from domain.ports import EventBusPort
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +126,7 @@ class TradingOrchestrator:
 
     def __init__(
         self,
-        event_bus: EventBus,
+        event_bus: EventBusPort,
         order_manager: OrderManager,
         strategy_evaluator: StrategyEvaluator,
         feature_fetcher: FeatureFetcher,

@@ -1,3 +1,4 @@
+from tests.conftest import build_test_trading_context
 """Tests for PaperGateway and MockBroker."""
 
 from decimal import Decimal
@@ -197,7 +198,7 @@ class TestMockBroker:
     def test_trading_context_populates_oms(self):
         from application.oms.context import TradingContext
 
-        ctx = TradingContext()
+        ctx = build_test_trading_context()
         broker = MockBroker(trading_context=ctx)
         broker.place_order("RELIANCE", "NSE", "BUY", 10, price=Decimal("2500"))
         orders = ctx.order_manager.get_orders()
@@ -210,7 +211,7 @@ class TestMockBroker:
     def test_paper_gateway_shares_context(self):
         from application.oms.context import TradingContext
 
-        ctx = TradingContext()
+        ctx = build_test_trading_context()
         gw = PaperGateway(trading_context=ctx)
         gw.place_order("RELIANCE", "NSE", "BUY", 5)
         assert len(ctx.order_manager.get_orders()) == 1
@@ -221,7 +222,7 @@ class TestMockBroker:
         from application.oms.context import TradingContext
         from application.oms.risk_manager import RiskConfig
 
-        ctx = TradingContext(
+        ctx = build_test_trading_context(
             risk_config=RiskConfig(max_position_pct=Decimal("1")),
             capital_fn=lambda: Decimal("100000"),
         )

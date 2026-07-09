@@ -12,6 +12,7 @@ REF: Task 6.3 — Reduced MagicMock usage, using real components where possible
 """
 
 from __future__ import annotations
+from tests.conftest import build_test_trading_context
 
 import asyncio
 import logging
@@ -76,7 +77,7 @@ class TestTradingContextLifecycle:
     def test_trading_context_reused_when_provided(self):
         """Provided TradingContext should be used instead of creating new one."""
         event_bus = EventBus()
-        custom_ctx = TradingContext(event_bus=event_bus)
+        custom_ctx = build_test_trading_context(event_bus=event_bus)
 
         create_app(
             config=APIConfig(auth_mode="none"),
@@ -244,7 +245,7 @@ class TestDIIntegration:
     def test_get_trading_context_returns_context_when_initialized(self):
         """get_trading_context should return context when initialized."""
         event_bus = EventBus()
-        ctx = TradingContext(event_bus=event_bus)
+        ctx = build_test_trading_context(event_bus=event_bus)
         initialize_all_services(event_bus=event_bus, trading_context=ctx)
 
         result = get_trading_context()
@@ -253,7 +254,7 @@ class TestDIIntegration:
     def test_get_order_manager_returns_manager_when_initialized(self):
         """get_order_manager should return OrderManager when initialized."""
         event_bus = EventBus()
-        ctx = TradingContext(event_bus=event_bus)
+        ctx = build_test_trading_context(event_bus=event_bus)
         initialize_all_services(event_bus=event_bus, trading_context=ctx)
 
         result = get_order_manager()
@@ -262,7 +263,7 @@ class TestDIIntegration:
     def test_get_position_manager_returns_manager_when_initialized(self):
         """get_position_manager should return PositionManager when initialized."""
         event_bus = EventBus()
-        ctx = TradingContext(event_bus=event_bus)
+        ctx = build_test_trading_context(event_bus=event_bus)
         initialize_all_services(event_bus=event_bus, trading_context=ctx)
 
         result = get_position_manager()
@@ -271,7 +272,7 @@ class TestDIIntegration:
     def test_get_risk_manager_returns_manager_when_initialized(self):
         """get_risk_manager should return RiskManager when initialized."""
         event_bus = EventBus()
-        ctx = TradingContext(event_bus=event_bus)
+        ctx = build_test_trading_context(event_bus=event_bus)
         initialize_all_services(event_bus=event_bus, trading_context=ctx)
 
         result = get_risk_manager()

@@ -5,6 +5,7 @@ trades, runs the verifier, and asserts it classifies the state correctly.
 """
 
 from __future__ import annotations
+from tests.conftest import build_test_trading_context
 
 import subprocess
 import sys
@@ -51,7 +52,7 @@ def _bootstrap_context(
     )
     om = OrderManager(event_bus=bus, processed_trade_repository=repo, metrics=metrics)
     pm = PositionManager(event_bus=bus)
-    ctx = TradingContext(
+    ctx = build_test_trading_context(
         event_bus=bus,
         order_manager=om,
         position_manager=pm,
@@ -158,7 +159,7 @@ def test_synthetic_session_replays_deterministically(tmp_path: Path) -> None:
     repo2 = ProcessedTradeRepository()
     om2 = OrderManager(event_bus=bus2, processed_trade_repository=repo2, metrics=metrics2)
     pm2 = PositionManager(event_bus=bus2)
-    ctx2 = TradingContext(
+    ctx2 = build_test_trading_context(
         event_bus=bus2,
         order_manager=om2,
         position_manager=pm2,
@@ -241,7 +242,7 @@ def test_duplicate_trade_does_not_double_position(tmp_path: Path) -> None:
     repo2 = ProcessedTradeRepository()
     om2 = OrderManager(event_bus=bus2, processed_trade_repository=repo2, metrics=metrics2)
     pm2 = PositionManager(event_bus=bus2)
-    ctx2 = TradingContext(
+    ctx2 = build_test_trading_context(
         event_bus=bus2,
         order_manager=om2,
         position_manager=pm2,

@@ -1,6 +1,7 @@
 """Tests for OmsService integration with TradingContext."""
 
 from __future__ import annotations
+from tests.conftest import build_test_trading_context
 
 from decimal import Decimal
 
@@ -10,7 +11,7 @@ from cli.services.oms_service import OmsService
 
 
 def test_oms_service_reads_from_trading_context() -> None:
-    ctx = TradingContext()
+    ctx = build_test_trading_context()
     broker = MockBroker(trading_context=ctx)
     service = OmsService(gateway=broker.gateway, trading_context=ctx)
 
@@ -25,7 +26,7 @@ def test_oms_service_reads_from_trading_context() -> None:
 
 
 def test_oms_service_cancel_order_via_context() -> None:
-    ctx = TradingContext()
+    ctx = build_test_trading_context()
     broker = MockBroker(trading_context=ctx)
     service = OmsService(gateway=broker.gateway, trading_context=ctx)
 

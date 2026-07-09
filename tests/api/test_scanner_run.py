@@ -1,6 +1,7 @@
 """Scanner run endpoint integration tests."""
 
 from __future__ import annotations
+from tests.conftest import build_test_trading_context
 
 import pandas as pd
 import pytest
@@ -62,7 +63,7 @@ class TestScannerRunIntegration:
             config=APIConfig(host="127.0.0.1", port=8000, cors_origins=[]),
             datalake_gateway=DataLakeGateway(root=str(tmp_path / "market_data")),
             data_catalog=DataCatalog(root=str(tmp_path / "market_data"), read_only=True),
-            trading_context=TradingContext(event_bus=EventBus()),
+            trading_context=build_test_trading_context(event_bus=EventBus()),
         )
         monkeypatch.chdir(tmp_path)
         client = TestClient(app)

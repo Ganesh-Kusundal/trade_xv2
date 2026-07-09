@@ -3,7 +3,12 @@
 from domain.ports.bootstrap import BootstrapResult, BootstrapStatus
 from domain.ports.broker_gateway import OrderTransportPort
 from domain.ports.correlation import CorrelationProviderPort
-from domain.ports.event_publisher import EventPublisher
+from domain.ports.event_log import (
+    DeadLetterQueuePort,
+    EventLogPort,
+    ProcessedTradeRepositoryPort,
+)
+from domain.ports.event_publisher import EventBusPort, EventPublisher
 from domain.ports.lifecycle import ManagedServicePort
 from domain.ports.margin_provider import MarginProviderPort
 from domain.ports.market_data import MarketDataPort
@@ -23,7 +28,11 @@ __all__ = [
     "DataProvider",
     "ExecutionProvider",
     "EventMetricsPort",
+    "EventBusPort",
+    "EventLogPort",
     "EventPublisher",
+    "DeadLetterQueuePort",
+    "ProcessedTradeRepositoryPort",
     "ManagedServicePort",
     "MarginProviderPort",
     "MarketDataPort",

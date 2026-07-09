@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any
 
 from application.oms import PositionManager, RiskConfig, RiskManager
 from application.oms.capital_provider import GatewayCapitalProvider
+from brokers.common.oms.defaults import build_dead_letter_queue
 from cli.services.capital_provider import TrackedCapitalProvider
 from domain.constants import RECONCILIATION_INTERVAL_SECONDS
 from domain.constants.defaults import RISK_FALLBACK_CAPITAL
@@ -112,6 +113,15 @@ def _build_processed_trade_repository() -> Any:
         return None
 
 
+def _build_dead_letter_queue() -> Any:
+    """Build the default dead-letter queue for failed event dispatches."""
+    try:
+        return build_dead_letter_queue()
+    except Exception as exc:
+        logger.error("dead_letter_queue_build_failed: %s", exc)
+        return None
+
+
 def _build_event_log() -> Any:
     """Build BufferedEventLog for crash recovery and OMS replay.
 
@@ -158,6 +168,7 @@ def register_oms_services(
     # B-2: Build EventLog for crash recovery
     event_log = _build_event_log()
     processed_trades = _build_processed_trade_repository()
+    dead_letter_queue = _build_dead_letter_queue()
 
     # Build TradingContext with shared risk_manager, reconciliation, and event_log
     try:
@@ -169,6 +180,7 @@ def register_oms_services(
             event_bus=service._event_bus,
             replay_events=event_log is not None,
             processed_trade_repository=processed_trades,
+            dead_letter_queue=dead_letter_queue,
         )
 
         # Attach lifecycle (registers reconciliation service, etc.)

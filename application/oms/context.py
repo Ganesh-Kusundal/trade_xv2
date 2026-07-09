@@ -16,15 +16,12 @@ from application.oms.reconciliation_service import ReconciliationService
 from application.oms.risk_manager import RiskConfig, RiskManager
 from domain.constants import PHANTOM_CAPITAL_INR, RECONCILIATION_INTERVAL_SECONDS
 from domain.events.types import DomainEvent, EventType
-from infrastructure.event_bus import (
-    DeadLetterQueue,
-    EventBus,
-    ProcessedTradeRepository,
+from domain.ports import (
+    DeadLetterQueuePort,
+    EventBusPort,
+    EventLogPort,
+    ProcessedTradeRepositoryPort,
 )
-from infrastructure.event_bus.persistent_dead_letter_queue import (
-    create_default_dead_letter_queue,
-)
-from infrastructure.event_log import BufferedEventLog, EventLog
 from infrastructure.lifecycle import LifecycleManager
 from infrastructure.observability.event_metrics import EventMetrics
 
@@ -58,7 +55,7 @@ class DlqMonitorService:
 
     name = "oms.dlq_monitor"
 
-    def __init__(self, queue: DeadLetterQueue) -> None:
+    def __init__(self, queue: DeadLetterQueuePort) -> None:
         self._queue = queue
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
@@ -116,7 +113,7 @@ class ProcessedTradeCleanupService:
 
     name = "oms.processed_trade_cleanup"
 
-    def __init__(self, repo: ProcessedTradeRepository) -> None:
+    def __init__(self, repo: ProcessedTradeRepositoryPort) -> None:
         self._repo = repo
 
     def start(self) -> None:
@@ -189,8 +186,8 @@ class TradingContext:
 
     def __init__(
         self,
-        event_bus: EventBus | None = None,
-        event_log: BufferedEventLog | EventLog | None = None,
+        event_bus: EventBusPort | None = None,
+        event_log: EventLogPort | None = None,
         order_manager: OrderManager | None = None,
         position_manager: PositionManager | None = None,
         risk_manager: RiskManager | None = None,
@@ -199,30 +196,31 @@ class TradingContext:
         replay_events: bool = True,
         reconciliation_service: IReconciliationService | None = None,
         reconciliation_interval_seconds: float = RECONCILIATION_INTERVAL_SECONDS,
-        processed_trade_repository: ProcessedTradeRepository | None = None,
+        processed_trade_repository: ProcessedTradeRepositoryPort | None = None,
         metrics: EventMetrics | None = None,
-        dead_letter_queue: DeadLetterQueue | None = None,
+        dead_letter_queue: DeadLetterQueuePort | None = None,
         orchestrator: ITradingOrchestrator | None = None,
         durable_order_store: SqliteOrderStore | None = None,
         enable_durable_orders: bool | None = None,
     ) -> None:
         self._event_log = event_log
         self._metrics = metrics or EventMetrics()
-        self._dead_letter_queue = dead_letter_queue or create_default_dead_letter_queue()
+        self._dead_letter_queue = dead_letter_queue
 
         # If the caller supplied an event bus, attach observability to it
         # silently; otherwise build a bus that has both observability hooks
         # attached.
         if event_bus is None:
-            self._event_bus = EventBus(
-                event_log=event_log,
-                metrics=self._metrics,
-                dead_letter_queue=self._dead_letter_queue,
+            # The event bus is a required collaborator.  It is injected by the
+            # composition root (cli / api / runtime) or by the test harness —
+            # ``application`` must not construct infrastructure objects.
+            raise ValueError(
+                "TradingContext requires an event_bus; inject a concrete "
+                "EventBus via the composition root or test harness."
             )
-        else:
-            self._event_bus = event_bus
+        self._event_bus = event_bus
 
-        self._processed_trades = processed_trade_repository or ProcessedTradeRepository()
+        self._processed_trades = processed_trade_repository
         # Enable the self-cleaning thread. It runs as a daemon
         # so it does not block process exit; callers that own a
         # LifecycleManager can stop it deterministically via
@@ -333,11 +331,11 @@ class TradingContext:
             logger.info("TradingOrchestrator registered with lifecycle")
 
     @property
-    def event_bus(self) -> EventBus:
+    def event_bus(self) -> EventBusPort:
         return self._event_bus
 
     @property
-    def event_log(self) -> BufferedEventLog | EventLog | None:
+    def event_log(self) -> EventLogPort | None:
         return self._event_log
 
     @property
@@ -357,11 +355,11 @@ class TradingContext:
         return self._metrics
 
     @property
-    def dead_letter_queue(self) -> DeadLetterQueue:
+    def dead_letter_queue(self) -> DeadLetterQueuePort:
         return self._dead_letter_queue
 
     @property
-    def processed_trade_repository(self) -> ProcessedTradeRepository:
+    def processed_trade_repository(self) -> ProcessedTradeRepositoryPort:
         return self._processed_trades
 
     @property

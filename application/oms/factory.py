@@ -12,24 +12,29 @@ from application.oms.position_manager import PositionManager
 from application.oms.protocols import IReconciliationService
 from application.oms.risk_manager import RiskConfig, RiskManager
 from domain.constants import RECONCILIATION_INTERVAL_SECONDS
-from infrastructure.event_bus import EventBus, ProcessedTradeRepository
-from infrastructure.event_log import BufferedEventLog, EventLog
+from domain.ports import (
+    DeadLetterQueuePort,
+    EventBusPort,
+    EventLogPort,
+    ProcessedTradeRepositoryPort,
+)
 
 logger = logging.getLogger(__name__)
 
 
 def create_trading_context(
-    event_log: BufferedEventLog | EventLog | None = None,
+    event_log: EventLogPort | None = None,
     reconciliation_service: IReconciliationService | None = None,
     reconciliation_interval_seconds: float = RECONCILIATION_INTERVAL_SECONDS,
     risk_config: RiskConfig | None = None,
     capital_fn: Callable[[], Decimal] | None = None,
-    event_bus: EventBus | None = None,
+    event_bus: EventBusPort | None = None,
     order_manager: OrderManager | None = None,
     position_manager: PositionManager | None = None,
     risk_manager: RiskManager | None = None,
     replay_events: bool = True,
-    processed_trade_repository: ProcessedTradeRepository | None = None,
+    processed_trade_repository: ProcessedTradeRepositoryPort | None = None,
+    dead_letter_queue: DeadLetterQueuePort | None = None,
 ) -> TradingContext:
     """Create a TradingContext with optional reconciliation.
 
@@ -63,6 +68,7 @@ def create_trading_context(
         reconciliation_service=reconciliation_service,
         reconciliation_interval_seconds=reconciliation_interval_seconds,
         processed_trade_repository=processed_trade_repository,
+        dead_letter_queue=dead_letter_queue,
     )
     logger.info(
         "TradingContext created (reconciliation=%s, interval=%ss)",

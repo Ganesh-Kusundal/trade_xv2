@@ -69,7 +69,7 @@ class ExtendedOrderService:
         if self._events is None:
             return
         try:
-            from infrastructure.event_bus.event_bus import DomainEvent
+            from domain.events.types import DomainEvent
 
             event = DomainEvent.now(
                 event_type=event_type,

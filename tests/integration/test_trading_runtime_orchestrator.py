@@ -4,6 +4,7 @@ REF: Task 6.3 — Converted from MagicMock to FakeTradingOrchestrator and protoc
 """
 
 from __future__ import annotations
+from tests.conftest import build_test_trading_context
 
 import pytest
 
@@ -38,7 +39,7 @@ class _AlwaysBuyStrategy:
 @pytest.fixture
 def mock_broker_service():
     # REF: Using real TradingContext instead of MagicMock for critical parts
-    tc = create_trading_context(replay_events=False)
+    tc = build_test_trading_context(replay_events=False)
 
     # Use a minimal mock only for non-critical broker-specific attributes
     from unittest.mock import MagicMock

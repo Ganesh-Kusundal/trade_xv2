@@ -1,6 +1,7 @@
 """Paper vs replay execution parity (REF-9)."""
 
 from __future__ import annotations
+from tests.conftest import build_test_trading_context
 
 import pandas as pd
 import pytest
@@ -48,7 +49,7 @@ class AlwaysBuyStrategy:
 
 @pytest.fixture
 def trading_context():
-    return create_trading_context(replay_events=False)
+    return build_test_trading_context(replay_events=False)
 
 
 def test_paper_replay_parity_same_trades(trading_context) -> None:
@@ -75,7 +76,7 @@ def test_paper_replay_parity_same_trades(trading_context) -> None:
         pipeline,
         strategy,
         paper_cfg,
-        trading_context=create_trading_context(replay_events=False),
+        trading_context=build_test_trading_context(replay_events=False),
     )
 
     replay_result = replay.run(df, symbol=symbol)

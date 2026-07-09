@@ -45,4 +45,34 @@ class EventPublisher(Protocol):
         ...
 
 
-__all__ = ["EventPublisher"]
+class EventBusPort(EventPublisher):
+    """Event-bus port with the replay / observability controls the OMS uses.
+
+    :class:`~domain.ports.event_publisher.EventPublisher` covers publish /
+    subscribe.  The OMS additionally toggles replay mode and logging during
+    crash-recovery replay (see ``TradingContext._replay_log_into_oms``), so
+    this port adds those controls.  The concrete
+    :class:`~infrastructure.event_bus.EventBus` implements it; ``application``
+    depends on the port, never the concrete class.
+    """
+
+    @property
+    def replay_mode(self) -> bool:
+        """Whether the bus is in replay mode (handler dispatch suppressed)."""
+        ...
+
+    def set_replay_mode(self, enabled: bool) -> None:
+        """Enable / disable replay mode."""
+        ...
+
+    @property
+    def logging_enabled(self) -> bool:
+        """Whether events are persisted to the event log on publish."""
+        ...
+
+    def set_logging_enabled(self, enabled: bool) -> None:
+        """Enable / disable event-log persistence on publish."""
+        ...
+
+
+__all__ = ["EventPublisher", "EventBusPort"]

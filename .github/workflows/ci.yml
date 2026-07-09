@@ -32,7 +32,7 @@ jobs:
       - name: Constants placement check
         run: python scripts/check_constants_placement.py
       - name: Import linter
-        run: lint-imports --config .import-linter.ini
+        run: lint-imports --config pyproject.toml
       - name: Ruff check
         run: ruff check .
       - name: Ruff format check

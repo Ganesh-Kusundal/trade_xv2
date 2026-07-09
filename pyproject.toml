@@ -207,7 +207,7 @@ skip-magic-trailing-comma = false
 
 # ─── Coding Standards ─────────────────────────────────────
 # These rules enforce architectural invariants and team conventions.
-# See .import-linter.ini for layer boundary contracts.
+# Layer boundary contracts live inline in [tool.importlinter] below.
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
 # Domain types must come from brokers.common, not broker-specific packages
@@ -284,36 +284,25 @@ type = "forbidden"
 source_modules = ["application"]
 forbidden_modules = ["infrastructure"]
 ignore_imports = [
-    "application.oms.context -> infrastructure.event_bus",
-    "application.oms.context -> infrastructure.event_bus.persistent_dead_letter_queue",
-    "application.oms.context -> infrastructure.event_log",
     "application.oms.context -> infrastructure.lifecycle",
     "application.oms.context -> infrastructure.observability.event_metrics",
     "application.oms.context -> infrastructure.persistence.sqlite_order_store",
-    "application.oms.order_manager -> infrastructure.event_bus",
     "application.oms.order_manager -> infrastructure.logging_config",
     "application.oms.order_manager -> infrastructure.metrics",
     "application.oms.order_manager -> infrastructure.observability.event_metrics",
     "application.oms.order_manager -> infrastructure.observability.tracing",
     "application.oms.order_manager -> infrastructure.persistence.sqlite_order_store",
-    "application.trading.trading_orchestrator -> infrastructure.event_bus",
     "application.trading.feature_fetcher -> infrastructure.market_data_adapter",
     "application.audit -> infrastructure.correlation",
     "application.audit -> infrastructure.logging_config",
     "application.oms._internal.order_state_validator -> infrastructure.state_machine",
     "application.oms.daily_pnl_reset_scheduler -> infrastructure.lifecycle.*",
-    "application.oms.extended_order_service -> infrastructure.event_bus.*",
-    "application.oms.factory -> infrastructure.event_bus",
-    "application.oms.factory -> infrastructure.event_log",
     "application.oms.context -> infrastructure.persistence.*",
     "application.oms.order_manager -> infrastructure.persistence.*",
-    "application.oms.position_manager -> infrastructure.event_bus",
     "application.oms.position_manager -> infrastructure.logging_config",
     "application.oms.position_manager -> infrastructure.observability.*",
     "application.oms.position_manager -> infrastructure.state_machine",
-    "application.oms.reconciliation_service -> infrastructure.event_bus",
     "application.oms.reconciliation_service -> infrastructure.lifecycle",
-    "application.oms.square_off_service -> infrastructure.event_bus.*",
     "application.composer.* -> brokers.common.router",
     "application.composer.* -> brokers.common.stream_orchestrator",
     "application.composer.* -> brokers.common.provenance",

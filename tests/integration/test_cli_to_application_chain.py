@@ -5,6 +5,7 @@ application/ layer without bypassing the service translation layer.
 """
 
 from __future__ import annotations
+from tests.conftest import build_test_trading_context
 
 from decimal import Decimal
 
@@ -22,7 +23,7 @@ class TestCLItoApplicationChain:
 
     @pytest.fixture
     def trading_context(self):
-        return create_trading_context(replay_events=False)
+        return build_test_trading_context(replay_events=False)
 
     @pytest.fixture
     def fake_gateway(self):
