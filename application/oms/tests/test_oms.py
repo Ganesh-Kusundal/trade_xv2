@@ -18,7 +18,7 @@ from application.oms import (
 )
 from domain import Order, OrderStatus, OrderType, ProductType, Side, Trade
 from domain.events.types import DomainEvent, EventType
-from infrastructure.event_bus import EventBus
+from infrastructure.event_bus import EventBus, ProcessedTradeRepository
 
 
 @pytest.fixture
@@ -28,7 +28,7 @@ def bus() -> EventBus:
 
 @pytest.fixture
 def order_manager(bus: EventBus) -> OrderManager:
-    return OrderManager(event_bus=bus)
+    return OrderManager(event_bus=bus, processed_trade_repository=ProcessedTradeRepository())
 
 
 @pytest.fixture
@@ -220,7 +220,7 @@ def test_order_manager_risk_gate_blocks_order(
     risk = RiskManager(
         position_manager, RiskConfig(max_position_pct=Decimal("1")), lambda: Decimal("100000")
     )
-    om = OrderManager(event_bus=bus, risk_manager=risk)
+    om = OrderManager(event_bus=bus, risk_manager=risk, processed_trade_repository=ProcessedTradeRepository())
     req = OrderRequest("RELIANCE", "NSE", Side.BUY, 1000, Decimal("100"))
     result = om.place_order(req)
     assert not result.success
@@ -228,7 +228,7 @@ def test_order_manager_risk_gate_blocks_order(
 
 
 def test_order_manager_risk_gate_allows_order(bus: EventBus) -> None:
-    om = OrderManager(event_bus=bus)
+    om = OrderManager(event_bus=bus, processed_trade_repository=ProcessedTradeRepository())
     req = OrderRequest("RELIANCE", "NSE", Side.BUY, 1, Decimal("100"))
     result = om.place_order(req)
     assert result.success

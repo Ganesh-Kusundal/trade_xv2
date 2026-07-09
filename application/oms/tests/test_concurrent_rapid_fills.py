@@ -11,6 +11,7 @@ import threading
 from decimal import Decimal
 
 from application.oms.order_manager import OrderManager
+from infrastructure.event_bus import ProcessedTradeRepository
 from domain import Order, OrderStatus, Side, Trade
 from tests.fixtures.domain_helpers import make_order as _make_order_shared
 
@@ -21,7 +22,7 @@ def _make_order(quantity: int = 100, order_id: str = "ORD-001") -> Order:
 
 class TestConcurrentRapidFills:
     def test_concurrent_identical_fills_counted_once(self):
-        om = OrderManager()
+        om = OrderManager(processed_trade_repository=ProcessedTradeRepository())
         order = _make_order(quantity=100)
         om._orders[order.order_id] = order
 
@@ -54,7 +55,7 @@ class TestConcurrentRapidFills:
         assert updated.filled_quantity == 50
 
     def test_concurrent_distinct_fills_all_applied(self):
-        om = OrderManager()
+        om = OrderManager(processed_trade_repository=ProcessedTradeRepository())
         order = _make_order(quantity=100)
         om._orders[order.order_id] = order
 
@@ -91,7 +92,7 @@ class TestConcurrentRapidFills:
         assert updated.status in (OrderStatus.PARTIALLY_FILLED, OrderStatus.FILLED)
 
     def test_rapid_duplicate_then_unique_fill(self):
-        om = OrderManager()
+        om = OrderManager(processed_trade_repository=ProcessedTradeRepository())
         order = _make_order(quantity=100)
         om._orders[order.order_id] = order
 
@@ -124,7 +125,7 @@ class TestConcurrentRapidFills:
         assert final.status == OrderStatus.FILLED
 
     def test_burst_fills_reach_filled_status(self):
-        om = OrderManager()
+        om = OrderManager(processed_trade_repository=ProcessedTradeRepository())
         order = _make_order(quantity=50)
         om._orders[order.order_id] = order
 
