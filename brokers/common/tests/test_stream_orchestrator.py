@@ -7,11 +7,11 @@ from unittest import mock
 
 import pytest
 
-from brokers.common.broker_port import BrokerStreamPlan
-from brokers.common.policy import auto_dual_broker_policy
-from brokers.common.registry import BrokerRegistry
-from brokers.common.router import BrokerRouter
-from brokers.common.stream_orchestrator import (
+from tradex.runtime.broker_port import BrokerStreamPlan
+from tradex.runtime.policy import auto_dual_broker_policy
+from tradex.runtime.registry import BrokerRegistry
+from tradex.runtime.router import BrokerRouter
+from tradex.runtime.stream_orchestrator import (
     MarketTick,
     StreamOrchestrator,
     SubscriptionRequest,
@@ -114,6 +114,86 @@ class TestStreamOrchestrator:
         await orchestrator.unsubscribe(sub_id)
 
     @pytest.mark.asyncio
+    async def test_normalize_tick_preserves_exchange_time(self, orchestrator):
+        """Upstox exchange_timestamp must override local arrival time."""
+        from datetime import datetime, timezone
+
+        session = orchestrator.all_sessions()
+        # Build a session manually is not needed; use normalize directly.
+        now = datetime.now(timezone.utc)
+        exchange_ts_ms = 1_700_000_000_000  # 2023-11-14T22:13:20Z
+        tick = orchestrator._normalize_tick(
+            {
+                "symbol": "RELIANCE",
+                "exchange": "NSE",
+                "ltp": 2500.0,
+                "volume": 100,
+                "exchange_timestamp": exchange_ts_ms,
+                "sequence": 7,
+            },
+            "sess-1",
+            "upstox",
+            now,
+        )
+        assert tick is not None
+        assert tick.event_time == datetime.fromtimestamp(exchange_ts_ms / 1000, tz=timezone.utc)
+        assert tick.event_time != now
+        assert tick.sequence == 7
+
+    @pytest.mark.asyncio
+    async def test_normalize_tick_falls_back_to_now_without_timestamp(self, orchestrator):
+        from datetime import datetime, timezone
+
+        now = datetime.now(timezone.utc)
+        tick = orchestrator._normalize_tick(
+            {"symbol": "RELIANCE", "exchange": "NSE", "ltp": 2500.0, "volume": 100},
+            "sess-1",
+            "dhan",  # Dhan quotes carry no timestamp
+            now,
+        )
+        assert tick is not None
+        assert tick.event_time == now
+
+    @pytest.mark.asyncio
+    async def test_dedup_drops_reconnect_overlap(self, orchestrator):
+        """Same exchange_time re-delivered after reconnect must be dropped."""
+        from datetime import datetime, timezone
+
+        now = datetime.now(timezone.utc)
+        exchange_ts_ms = 1_700_000_000_000
+        frame = {
+            "symbol": "RELIANCE",
+            "exchange": "NSE",
+            "ltp": 2500.0,
+            "volume": 100,
+            "exchange_timestamp": exchange_ts_ms,
+            "sequence": 7,
+        }
+        # First delivery is accepted, second is a duplicate → dropped.
+        assert orchestrator._dedup_drop("RELIANCE:NSE", orchestrator._normalize_tick(frame, "s", "upstox", now).event_time, 7) is False
+        assert orchestrator._dedup_drop("RELIANCE:NSE", orchestrator._normalize_tick(frame, "s", "upstox", now).event_time, 7) is True
+        # Different sequence on same instrument/time is NOT a duplicate.
+        assert orchestrator._dedup_drop("RELIANCE:NSE", orchestrator._normalize_tick(frame, "s", "upstox", now).event_time, 8) is False
+
+    @pytest.mark.asyncio
+    async def test_dedup_not_applied_to_timestamp_less_quotes(self, orchestrator):
+        """Dhan-style quotes (no exchange time) are never de-duplicated.
+
+        Because the dedup key falls back to arrival time and each delivery has
+        a distinct arrival time, two separate Dhan ticks do not collide.
+        """
+        from datetime import datetime, timezone, timedelta
+
+        base = datetime.now(timezone.utc)
+        frame = {"symbol": "RELIANCE", "exchange": "NSE", "ltp": 2500.0, "volume": 100}
+        et_a = orchestrator._normalize_tick(frame, "s", "dhan", base).event_time
+        et_b = orchestrator._normalize_tick(
+            frame, "s", "dhan", base + timedelta(milliseconds=1)
+        ).event_time
+        assert orchestrator._dedup_drop("RELIANCE:NSE", et_a, None) is False
+        assert orchestrator._dedup_drop("RELIANCE:NSE", et_b, None) is False
+
+    @pytest.mark.asyncio
     async def test_unsubscribe_removes_session_when_last_consumer(self, orchestrator):
         consumer = _RecordingConsumer()
         sub_id = await orchestrator.subscribe(
@@ -171,7 +251,7 @@ class _TransportLossGateway:
         return "dhan"
 
     def list_capabilities(self):
-        from brokers.common.capabilities import CapabilityDescriptor
+        from tradex.runtime.capabilities import CapabilityDescriptor
 
         return CapabilityDescriptor.build(dhan_capabilities(), frozenset())
 
@@ -201,7 +281,7 @@ class _TransportLossGateway:
             )
 
     async def health(self):
-        from brokers.common.broker_port import BrokerHealthSnapshot
+        from tradex.runtime.broker_port import BrokerHealthSnapshot
 
         return BrokerHealthSnapshot(broker_id="dhan", alive=True, auth_valid=True)
 
