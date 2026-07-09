@@ -61,5 +61,49 @@ Status legend: **Proposed** (awaiting approval) · Accepted · Deprecated.
 - **Consequences:** Single wiring story; better developer discovery.
 
 ---
-*All ADRs are pending approval of the Phase 0 review. Implementation follows
-`REFACTORING_ROADMAP.md` only after sign-off.*
+
+## ADR-007 — Broker self-registration / capability registry (fixes D1)
+- **Status:** Implemented (Phase D, slice 1)
+- **Context:** `brokers.common.adapter_factory` hard-coded lazy imports of
+  `brokers.dhan`/`brokers.upstox` to seed the data/execution/broker-adapter registries
+  (the D1 hidden layer violation). `brokers.common` must stay broker-agnostic.
+- **Decision:** Brokers register their own adapter classes into `brokers.common.adapter_factory`
+  on package import (`brokers/dhan/__init__.py`, `brokers/upstox/__init__.py` call the
+  `register_*` functions). `adapter_factory` keeps only the registry + `create_*` resolvers and
+  never imports a concrete broker. The app/CLI/tests trigger registration simply by importing the
+  broker packages (already required to build gateways); `tests/conftest.py` imports them for the
+  session. This realises the registry/plugin lookup-by-capability from the original ADR-007 without
+  touching any consumer.
+- **Consequences:** `brokers-common-independence` lint contract is GREEN; adding a broker no
+  longer requires editing `brokers.common`. Behaviour unchanged (registry populated identically).
+
+---
+
+## ADR-008 — `DomainEventBus` is the event port; infrastructure implements it
+- **Status:** Implemented (Phase C, slice 1)
+- **Context:** `domain.ports.event_publisher` re-exported the concrete `EventBus`, creating a
+  `domain → infrastructure` violation; the `DomainEventBus` ABC had a stale, unused signature.
+- **Decision:** `DomainEventBus` (`domain.events.bus`) is the port with signature
+  `publish(event)`, `subscribe(event_type, handler) -> token`, `unsubscribe(token) -> bool`.
+  `infrastructure.event_bus.event_bus.EventBus` and `...async_event_bus.AsyncEventBus` subclass it.
+  `domain` never imports `infrastructure`.
+- **Consequences:** Domain is event-port-agnostic; infra is swappable. (See Phase C slice 1 log.)
+
+---
+
+## ADR-009 — Domain ports are abstract only; no infrastructure re-exports
+- **Status:** Implemented (Phase D, slice 2)
+- **Context:** `domain/ports/*` defined proper `Protocol` ports but also re-exported infrastructure
+  concretes (`metrics_registry`, `time_service`, `EventMetrics`, `trace_operation`,
+  `LifecycleManager`/`HealthState`/`ManagedService`, `EventBus`), violating `Domain independence`
+  and `Application infrastructure separation`.
+- **Decision:** `domain.ports.*` modules contain only `Protocol` definitions and domain types; they
+  never import `infrastructure`. Consumers that need a concrete import it from `infrastructure.*`
+  directly. The re-export convenience is removed.
+- **Consequences:** `lint-imports` is fully green (all contracts pass). Upper layers depend on ports,
+  not on infrastructure concretes.
+
+---
+*ADR-001..006 are Accepted pending Phase 0 sign-off. ADR-007, ADR-008 and ADR-009 are **Implemented**
+during the incremental evolution (Phases C–D) — the architecture-review loop runs as living
+docs, not a big-bang rewrite.*

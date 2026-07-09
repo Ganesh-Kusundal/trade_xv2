@@ -34,6 +34,12 @@ def _register_domain_runtime_hooks() -> None:
     register_domain_event_factory(create_domain_event)
     register_trading_context_factory(create_trading_context)
 
+    # Ensure broker adapter classes are registered into brokers.common.adapter_factory.
+    # Brokers self-register on package import; importing them here guarantees the
+    # registry is populated for every test (idempotent).
+    import brokers.dhan  # noqa: F401
+    import brokers.upstox  # noqa: F401
+
 
 def is_token_expired(token: str) -> bool:
     """Check if a JWT token is expired.

@@ -240,8 +240,6 @@ type = "forbidden"
 source_modules = ["infrastructure"]
 forbidden_modules = ["brokers", "analytics", "cli", "application", "api"]
 ignore_imports = [
-    "infrastructure.global_exception_handler -> brokers.common.resilience.errors",
-    "infrastructure.retry -> brokers.common.resilience.errors",
     "infrastructure.tests.test_audit -> application.audit",
     "infrastructure.tests.test_global_exception_handler -> brokers.common.resilience.errors",
 ]
