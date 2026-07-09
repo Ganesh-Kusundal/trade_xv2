@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from brokers.common.gateway import MarketDataGateway
+from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 
 GATEWAY_DIR = Path(__file__).resolve().parents[2]
 
@@ -156,7 +156,7 @@ class TestMarketDataGatewayContract:
         return set(MarketDataGateway.__abstractmethods__)
 
     def test_dhan_gateway_implements_all_abstract(self, abstract_methods):
-        from brokers.dhan.gateway import BrokerGateway as DhanGateway
+        from brokers.dhan.gateway import DhanBrokerGateway as DhanGateway
 
         dhan_methods = set(dir(DhanGateway))
         missing = abstract_methods - dhan_methods
@@ -177,15 +177,15 @@ class TestDhanGatewaySegmentMapping:
     def dhan_gateway(self):
         from unittest.mock import MagicMock
 
-        from brokers.dhan.gateway import BrokerGateway as DhanGateway
+        from brokers.dhan.gateway import DhanBrokerGateway as DhanGateway
         from brokers.dhan.resolver import SymbolResolver
 
         resolver = SymbolResolver()
-        from brokers.dhan.domain import Exchange, Instrument, InstrumentType
-        from domain.entities.instrument_record import Instrument as DomainInstrument
+        from brokers.dhan.domain import Exchange, DhanInstrument, InstrumentType
+        from domain.entities.instrument_record import InstrumentRecord as DomainInstrument
 
         resolver._by_security_id = {
-            "2885": Instrument(
+            "2885": DhanInstrument(
                 domain_instrument=DomainInstrument(
                     symbol="RELIANCE",
                     exchange="NSE",
@@ -228,19 +228,19 @@ class TestGatewayTypeSafety:
         return None
 
     def test_dhan_quote_returns_quote_type(self):
-        from brokers.dhan.gateway import BrokerGateway as DhanGateway
+        from brokers.dhan.gateway import DhanBrokerGateway as DhanGateway
 
         ret = self._get_method_return_annotation(DhanGateway, "quote")
         assert ret == "Quote", f"Expected 'Quote', got {ret!r}"
 
     def test_dhan_positions_returns_list_position(self):
-        from brokers.dhan.gateway import BrokerGateway as DhanGateway
+        from brokers.dhan.gateway import DhanBrokerGateway as DhanGateway
 
         ret = self._get_method_return_annotation(DhanGateway, "positions")
         assert ret == "list[Position]", f"Expected 'list[Position]', got {ret!r}"
 
     def test_dhan_funds_returns_balance(self):
-        from brokers.dhan.gateway import BrokerGateway as DhanGateway
+        from brokers.dhan.gateway import DhanBrokerGateway as DhanGateway
 
         ret = self._get_method_return_annotation(DhanGateway, "funds")
         assert ret == "Balance", f"Expected 'Balance', got {ret!r}"

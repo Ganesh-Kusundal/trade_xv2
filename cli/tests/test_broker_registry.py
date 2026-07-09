@@ -16,14 +16,12 @@ import pytest
 @pytest.fixture(autouse=True)
 def _skip_credential_gate(monkeypatch):
     """Registry unit tests mock factories; skip live credential validation."""
-    from brokers.common.connection.authenticated_readiness import AuthProbeResult
+    from tradex.runtime.connection.authenticated_readiness import AuthProbeResult
 
+    # create_gateway is transport-only; bootstrap tests patch the probe at its
+    # import site inside gateway_factory / authenticated_readiness.
     monkeypatch.setattr(
-        "cli.services.broker_registry.CredentialValidator.validate_broker",
-        lambda broker, env_path=None: (True, []),
-    )
-    monkeypatch.setattr(
-        "cli.services.broker_registry.authenticated_readiness_probe",
+        "tradex.runtime.connection.authenticated_readiness.authenticated_readiness_probe",
         lambda gw, broker, env_path=None: AuthProbeResult(ok=True, probe_name="mock"),
     )
 
@@ -291,7 +289,8 @@ class TestCreateGatewayEnvPathConversion:
         create_gateway("dhan", env_path=None, load_instruments=False)
 
         assert "env_path" in captured
-        assert captured["env_path"] is None
+        # None resolves to the broker default env file (.env.local for dhan)
+        assert captured["env_path"] == Path(".env.local")
 
 
 class TestCreateGatewayErrorHandling:

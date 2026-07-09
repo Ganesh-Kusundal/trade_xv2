@@ -118,47 +118,53 @@ class TestImportDirection:
         assert not violations, "analytics must not import from cli:\n" + "\n".join(violations)
 
     def test_no_shim_imports_in_production_code(self):
-        """Production code must not import from deprecated shim paths.
+        """Deleted brokers.common re-export shims must not be imported.
 
-        All imports from brokers.common.core.{domain,types,field_mapping,requests,
-        result,reconciliation,exchange_segments,parsing} must migrate to the
-        canonical domain/ imports. Only the shim files themselves are exempt.
+        Canonical homes: ``domain.*``, ``tradex.runtime.*``,
+        ``infrastructure.*``. Residual ``brokers.common`` modules are only
+        capabilities / api / oms margin / contracts / tests.
 
-        REF: Architecture Audit Phase 11 — Hidden Dependencies & Coupling Audit
+        REF: Architecture Audit Phase 11 + ENG-014 shim purge
         """
         shim_patterns = [
-            "brokers.common.core.domain",
-            "brokers.common.core.types",
-            "brokers.common.core.field_mapping",
-            "brokers.common.core.requests",
-            "brokers.common.core.result",
-            "brokers.common.core.reconciliation",
-            "brokers.common.core.exchange_segments",
-            "brokers.common.core.parsing",
+            "brokers.common.core",
+            "brokers.common.factory",
+            "brokers.common.gateway",
+            "brokers.common.settings",
+            "brokers.common.errors",
+            "brokers.common.auth",
+            "brokers.common.resilience",
+            "brokers.common.services",
+            "brokers.common.adapters",
+            "brokers.common.connection",
+            "brokers.common.extensions",
+            "brokers.common.idempotency",
+            "brokers.common.mappers",
+            "brokers.common.observability",
+            "brokers.common.options",
+            "brokers.common.reconciliation",
+            "brokers.common.objects",
+            "brokers.common.lifecycle",
         ]
 
-        # Files that ARE the shims — they MUST import from themselves
-        shim_file_paths = {
-            str(ROOT / "brokers/common/core/types.py"),
-            str(ROOT / "brokers/common/core/field_mapping.py"),
-            str(ROOT / "brokers/common/core/requests.py"),
-            str(ROOT / "brokers/common/core/result.py"),
-            str(ROOT / "brokers/common/core/reconciliation.py"),
-            str(ROOT / "brokers/common/core/exchange_segments.py"),
-            str(ROOT / "brokers/common/core/parsing.py"),
-            str(ROOT / "brokers/common/core/__init__.py"),
-        }
-
         violations = []
-        for directory in ["brokers", "datalake", "analytics", "cli", "domain", "tests"]:
+        for directory in [
+            "brokers",
+            "datalake",
+            "analytics",
+            "cli",
+            "src/domain",
+            "tests",
+            "tradex",
+            "application",
+            "api",
+            "infrastructure",
+        ]:
             dir_path = ROOT / directory
             if not dir_path.exists():
                 continue
             for py_file in dir_path.rglob("*.py"):
-                # Skip __pycache__ and the shim files themselves
                 if "__pycache__" in str(py_file):
-                    continue
-                if str(py_file) in shim_file_paths:
                     continue
                 imports = _get_imports(py_file)
                 for imp in imports:
@@ -168,9 +174,7 @@ class TestImportDirection:
                             break
 
         assert not violations, (
-            f"{len(violations)} shim imports found in non-shim files. "
-            f"Migrate to canonical domain/ imports.\n"
-            f"Run: python scripts/migrate_shim_imports.py --apply\n"
+            f"{len(violations)} deleted-shim imports found.\n"
             + "\n".join(violations[:20])
             + ("\n..." if len(violations) > 20 else "")
         )

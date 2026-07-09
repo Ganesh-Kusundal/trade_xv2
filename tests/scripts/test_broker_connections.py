@@ -33,7 +33,7 @@ def test_dhan_connection() -> dict:
     console.print("[bold cyan]═" * 60)
 
     try:
-        from brokers.common.env_loader import load_env_file
+        from tradex.runtime.env_loader import load_env_file
         from cli.services.broker_registry import bootstrap_gateway
 
         # Load .env.local
@@ -223,7 +223,7 @@ def test_upstox_connection() -> dict:
     console.print("[bold cyan]═" * 60)
 
     try:
-        from brokers.common.env_loader import load_env_file
+        from tradex.runtime.env_loader import load_env_file
         from cli.services.broker_registry import bootstrap_gateway
 
         # Load .env.upstox

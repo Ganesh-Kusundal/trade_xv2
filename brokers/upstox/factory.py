@@ -11,8 +11,8 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from brokers.common.factory import BrokerProviderFactory
-from brokers.common.gateway import MarketDataGateway
+from tradex.runtime.factory import BrokerProviderFactory
+from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 from brokers.upstox.auth.config import UpstoxSettingsLoader
 from brokers.upstox.auth.exceptions import UpstoxAuthError
 from brokers.upstox.broker import UpstoxBroker
@@ -118,7 +118,7 @@ class UpstoxBrokerFactory(BrokerProviderFactory):
                 )
 
         # ── Health check registration ──────────────────────────────
-        from brokers.common.observability.health_check import register_broker_health_check
+        from tradex.runtime.observability.health_check import register_broker_health_check
 
         register_broker_health_check("upstox", gateway)
 

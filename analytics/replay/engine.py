@@ -392,6 +392,10 @@ class ReplayEngine:
                     if config.publish_events and self._event_bus is not None:
                         self._publish_signal(signal)
 
+            # Mark open position to market before recording equity
+            if session.position is not None:
+                session.position.mark_price = float(bar.close)
+
             # Update equity
             equity = session.current_equity
             session.equity_curve.append((bar_ts, equity))
@@ -571,10 +575,9 @@ class ReplayEngine:
         the same risk gates, idempotency ledger, and event bus as live trading.
         """
         if signal.is_buy and session.position is None:
-            # Open long via OMS
+            # Open long via OMS (slippage applied once inside OmsBacktestAdapter)
             base_price = fill_price if fill_price is not None else bar.close
-            slippage_pct = self._compute_slippage_pct(bar.volume)
-            price = Decimal(str(base_price * (1 + slippage_pct / 100)))
+            price = Decimal(str(base_price))
             qty = compute_order_quantity(
                 equity=session.capital,
                 price=float(price),
@@ -611,10 +614,9 @@ class ReplayEngine:
                     self._sync_session_from_tracker(session, bar.timestamp, bar.symbol)
 
         elif signal.is_sell and session.position is not None:
-            # Close long via OMS
+            # Close long via OMS (slippage applied once inside OmsBacktestAdapter)
             base_price = fill_price if fill_price is not None else bar.close
-            slippage_pct = self._compute_slippage_pct(bar.volume)
-            price = Decimal(str(base_price * (1 - slippage_pct / 100)))
+            price = Decimal(str(base_price))
             order_id = self._oms_adapter.close_long(
                 symbol=bar.symbol,
                 exchange="NSE",

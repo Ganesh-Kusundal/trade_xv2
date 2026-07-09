@@ -44,7 +44,7 @@ class TestFillModelEnum:
 
     def test_default_in_config(self):
         config = ReplayConfig()
-        assert config.fill_model == FillModel.CURRENT_CLOSE
+        assert config.fill_model == FillModel.NEXT_OPEN
 
 
 class TestFillModelConfig:
@@ -59,8 +59,8 @@ class TestFillModelConfig:
         assert config.fill_model == FillModel.CURRENT_CLOSE
 
     def test_backward_compatible_default(self):
-        """Default config should behave exactly as before."""
+        """Default config uses next-bar-open fills (no look-ahead)."""
         config = ReplayConfig()
-        assert config.fill_model == FillModel.CURRENT_CLOSE
+        assert config.fill_model == FillModel.NEXT_OPEN
         assert config.slippage_pct == 0.0
         assert config.commission_flat == 0.0

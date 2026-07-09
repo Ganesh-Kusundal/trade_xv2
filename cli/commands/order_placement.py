@@ -110,56 +110,66 @@ def place_order(
             console.print(f"[red]Invalid product type: {product_val}[/red]")
             return CommandResult(success=False, error=f"Invalid product type: {product_val}")
 
-    try:
-        composer = _get_execution_composer(broker_service)
-    except Exception as exc:
-        logger.exception("Failed to initialize ExecutionComposer")
-        return CommandResult(success=False, error=f"Composer initialization failed: {exc}")
+    import os
+
+    import tradex
+
+    broker = (parse_flag(args, "--broker") or os.getenv("TRADEX_BROKER") or "paper").lower()
 
     try:
         console.print(
-            f"[cyan]Placing order: {side.value} {quantity} {symbol} @ {order_type.value}[/cyan]"
+            f"[cyan]Placing order via OMS spine [{broker}]: "
+            f"{side.value} {quantity} {symbol} @ {order_type.value}[/cyan]"
         )
 
-        # Build OrderRequest for ExecutionComposer
-        request = OrderRequest(
-            symbol=symbol,
-            exchange=exchange,
-            transaction_type=side,
-            quantity=quantity,
-            price=price if order_type != OrderType.MARKET else Decimal("0"),
-            order_type=order_type,
-            product_type=product_type,
+        session = tradex.connect(broker)
+        try:
+            instrument = session.universe.equity(symbol, exchange=exchange)
+            px = price if order_type != OrderType.MARKET else None
+            if side == Side.BUY:
+                result = session.buy(
+                    instrument, quantity, price=px, order_type=order_type, product_type=product_type
+                )
+            else:
+                result = session.sell(
+                    instrument, quantity, price=px, order_type=order_type, product_type=product_type
+                )
+        finally:
+            session.close()
+
+        if not result.success:
+            console.print(f"[red]❌ Order Failed: {result.error}[/red]")
+            return CommandResult(success=False, error=result.error or "rejected")
+
+        order = result.order
+        order_id = getattr(order, "order_id", None) or "N/A"
+        status_val = getattr(getattr(order, "status", None), "value", None) or str(
+            getattr(order, "status", "UNKNOWN")
         )
 
-        # Execute via composer (async -> sync bridge)
-        response = _await_in_sync_context(composer.place_order(request))
-
-        # Display success with Rich table
-        table = Table(title="✅ Order Placed Successfully", header_style="bold green")
+        table = Table(title="✅ Order Placed (OMS)", header_style="bold green")
         table.add_column("Field", style="bold white")
         table.add_column("Value", style="green")
-        table.add_row("Order ID", response.order_id or "N/A")
-        table.add_row("Symbol", response.symbol or symbol)
+        table.add_row("Order ID", str(order_id))
+        table.add_row("Symbol", symbol)
         table.add_row("Exchange", exchange)
         table.add_row("Side", f"[green]{side.value}[/green]")
         table.add_row("Type", order_type.value)
         table.add_row("Quantity", str(quantity))
-        table.add_row(
-            "Price",
-            f"₹{price:,.2f}" if price > 0 else "MARKET",
-        )
-        table.add_row("Status", f"[yellow]{response.status}[/yellow]")
+        table.add_row("Price", f"₹{price:,.2f}" if price > 0 else "MARKET")
+        table.add_row("Status", f"[yellow]{status_val}[/yellow]")
+        table.add_row("Correlation", str(getattr(order, "correlation_id", "") or ""))
         console.print(table)
 
         return CommandResult(
             success=True,
             data={
-                "order_id": response.order_id,
-                "symbol": response.symbol or symbol,
+                "order_id": order_id,
+                "symbol": symbol,
                 "side": side.value,
                 "quantity": quantity,
-                "status": response.status,
+                "status": status_val,
+                "broker": broker,
             },
         )
 

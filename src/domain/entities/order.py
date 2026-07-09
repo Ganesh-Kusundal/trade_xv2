@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import datetime
 from decimal import Decimal
 from typing import Any, Protocol
 
-from domain.parsing import parse_decimal as _parse_optional_decimal
-from domain.status_mapper import StatusMapperRegistry
 from domain.types import (
     OrderStatus,
     OrderType,
@@ -19,28 +16,12 @@ from domain.types import (
 )
 
 
-def _normalize_side(raw: str) -> Side:
-    return Side.BUY if raw == "BUY" else Side.SELL
-
-
-def _normalize_order_type(raw: str) -> OrderType:
-    try:
-        return OrderType(raw)
-    except ValueError:
-        return OrderType.MARKET
-
-
 class FieldMapping(Protocol):
     """Broker-specific field name mapping for Order parsing.
 
-    Implement this protocol to define how broker-specific API responses
-    map to canonical Order fields. Each broker adapter should provide
-    its own implementation.
-
-    Example::
-
-        from domain.field_mapping import DefaultFieldMapping
-        mapping = DefaultFieldMapping()
+    Implemented by :class:`domain.field_mapping.DefaultFieldMapping` and
+    broker-specific adapters. Kept as a domain protocol so transport layers
+    can normalize without depending on each other.
     """
 
     def map_order_id(self, data: dict) -> str: ...
@@ -99,55 +80,38 @@ class Order:
         """Return a new Order with updated fill quantity and average fill price."""
         return replace(self, filled_quantity=filled_quantity, avg_price=avg_price)
 
-    @classmethod
-    def from_broker_dict(
-        cls,
-        d: dict,
-        field_mapping: FieldMapping | None = None,
-        exchange_resolver: Callable[[str], Any] | None = None,
-    ) -> Order:
-        """Construct a canonical Order from a broker-specific dict.
+    def with_price(self, price: Decimal) -> Order:
+        """Return a new Order with the given price."""
+        return replace(self, price=Decimal(str(price)))
 
-        Args:
-            d: Broker-specific order dict
-            field_mapping: Broker-specific field name mapping (optional)
-            exchange_resolver: Optional function to convert exchange string to Exchange enum
+    def with_quantity(self, quantity: int) -> Order:
+        """Return a new Order with the given quantity."""
+        return replace(self, quantity=quantity)
 
-        If field_mapping is None, uses default Dhan-compatible mapping for backward compatibility.
-        """
-        from domain.field_mapping import DefaultFieldMapping
+    def with_order_type(self, order_type: OrderType) -> Order:
+        """Return a new Order with the given order type."""
+        return replace(self, order_type=order_type)
 
-        mapping = field_mapping or DefaultFieldMapping()
 
-        return cls(
-            order_id=mapping.map_order_id(d),
-            symbol=mapping.map_symbol(d),
-            exchange=exchange_resolver(mapping.map_exchange(d)) if exchange_resolver else mapping.map_exchange(d),
-            side=_normalize_side(mapping.map_side(d)),
-            order_type=_normalize_order_type(mapping.map_order_type(d)),
-            status=StatusMapperRegistry.normalize(mapping.map_status(d)),
-            quantity=mapping.map_quantity(d),
-            filled_quantity=mapping.map_filled_quantity(d),
-            price=_parse_optional_decimal(mapping.map_price(d)) or Decimal("0"),
-            avg_price=_parse_optional_decimal(mapping.map_avg_price(d)) or Decimal("0"),
-            reject_reason=mapping.map_reject_reason(d),
-        )
+@dataclass(slots=True, frozen=True)
+class OrderAck:
+    """Domain acknowledgement of an order write — no transport fields."""
+
+    success: bool
+    order_id: str = ""
+    message: str = ""
+    status: OrderStatus = OrderStatus.OPEN
+    broker_order_id: str = ""
+    error_code: str = ""
+    latency_ms: float = 0.0
 
 
 @dataclass(slots=True, frozen=True)
 class OrderResponse:
-    """Canonical response from any order write operation.
+    """Adapter-facing order write result.
 
-    Used for ``place_order``, ``modify_order``, ``cancel_order``,
-    ``place_slice_order`` and the corresponding delete operations.
-
-    Invariants
-    ----------
-    * ``success`` MUST be ``True`` when the broker confirmed the action.
-    * ``order_id`` is the **broker's** id when the broker returned one.
-    * ``error_code`` is the canonical error code (string).
-    * ``raw_payload`` is the broker's raw response body, kept verbatim
-      for forensic / audit / reconciliation.
+    Domain consumers should use :meth:`to_ack` to drop transport forensics
+    (``http_status`` / ``raw_payload``).
     """
 
     success: bool
@@ -206,3 +170,15 @@ class OrderResponse:
     def with_broker_id(self, broker_id: str) -> OrderResponse:
         """Return a copy with ``broker_order_id`` populated."""
         return replace(self, broker_order_id=broker_id)
+
+    def to_ack(self) -> OrderAck:
+        """Strip transport forensics for domain consumers."""
+        return OrderAck(
+            success=self.success,
+            order_id=self.order_id,
+            message=self.message,
+            status=self.status,
+            broker_order_id=self.broker_order_id,
+            error_code=self.error_code,
+            latency_ms=self.latency_ms,
+        )

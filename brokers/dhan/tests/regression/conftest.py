@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 
 from brokers.dhan.factory import BrokerFactory
-from brokers.dhan.gateway import BrokerGateway
+from brokers.dhan.gateway import DhanBrokerGateway
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[4]
 ENV_PATH = _PROJECT_ROOT / ".env.local"
@@ -35,8 +35,8 @@ if ENV_PATH.exists() and ENV_PATH.stat().st_size > 0:
 
 
 @pytest.fixture(scope="session")
-def live_gateway() -> BrokerGateway:
-    """Session-scoped live BrokerGateway for regression tests.
+def live_gateway() -> DhanBrokerGateway:
+    """Session-scoped live DhanBrokerGateway for regression tests.
 
     Skipped automatically when .env.local is absent or has no DHAN_CLIENT_ID.
     """

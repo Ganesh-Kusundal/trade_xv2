@@ -15,9 +15,8 @@ Usage (FastAPI DI)::
 
     # Composition root (once, at startup):
     from domain.universe import Session
-    from brokers.dhan.transport import DhanTransport
-    transport = DhanTransport(gateway)
-    session = Session(transport.market_data, event_bus=event_bus)
+    from domain.ports.protocols import DataProvider
+    session = Session(data_provider, event_bus=event_bus)
 """
 
 from __future__ import annotations
@@ -82,10 +81,34 @@ async def history(
     exchange: str = Query("NSE"),
     session: Session = Depends(get_session),
 ) -> list[dict]:
-    """Historical OHLCV via domain objects."""
+    """Historical OHLCV via domain objects.
+
+    ``Instrument.history`` returns a :class:`~domain.candles.historical.HistoricalSeries`
+    (not a DataFrame). Serialize via ``to_dataframe()`` for JSON.
+    """
     instrument = session.universe.equity(symbol, exchange)
-    df = instrument.history(timeframe=timeframe, days=days)
-    return df.to_dict(orient="records") if not df.empty else []
+    series = instrument.history(timeframe=timeframe, days=days)
+    # HistoricalSeries (canonical) — never assume bare DataFrame
+    if hasattr(series, "to_dataframe"):
+        bar_count = getattr(series, "bar_count", None)
+        if bar_count == 0:
+            return []
+        try:
+            df = series.to_dataframe()
+        except Exception:
+            return []
+        if df is None or getattr(df, "empty", False):
+            return []
+        records = df.to_dict(orient="records")
+        for row in records:
+            ts = row.get("timestamp")
+            if hasattr(ts, "isoformat"):
+                row["timestamp"] = ts.isoformat()
+        return records
+    # Legacy DataFrame path
+    if hasattr(series, "to_dict") and hasattr(series, "empty"):
+        return [] if series.empty else series.to_dict(orient="records")
+    return []
 
 
 @router.get("/v2/option-chain/{underlying}")
@@ -135,17 +158,33 @@ async def place_order(
     exchange: str = Query("NSE"),
     session: Session = Depends(get_session),
 ) -> dict:
-    """Place order via domain objects (requires ExecutionProvider wired in Session)."""
-    from domain.orders.requests import OrderRequest
-    from domain.types import OrderType, ProductType, Side
+    """Place order via domain Session (OrderIntent → Risk → OMS → Execution)."""
+    from domain.types import OrderType, Side
 
     instrument = session.universe.equity(symbol, exchange)
-    # In a real setup, Session would also expose an ExecutionProvider.
-    # Here we demonstrate the pattern; the actual execution wiring
-    # requires Transport.execution to be exposed through Session.
+    side_e = Side(side.upper())
+    type_e = OrderType(order_type.upper())
+    px = price if type_e.name != "MARKET" and price > 0 else None
+    if side_e == Side.BUY:
+        result = session.buy(instrument, quantity, price=px, order_type=type_e)
+    else:
+        result = session.sell(instrument, quantity, price=px, order_type=type_e)
+    if not result.success:
+        return {
+            "symbol": symbol,
+            "side": side,
+            "quantity": quantity,
+            "success": False,
+            "error": result.error,
+        }
+    order = result.order
     return {
         "symbol": symbol,
         "side": side,
         "quantity": quantity,
-        "status": "demo — execution wiring in progress",
+        "success": True,
+        "order_id": getattr(order, "order_id", None),
+        "status": getattr(getattr(order, "status", None), "value", None)
+        or str(getattr(order, "status", "")),
+        "correlation_id": getattr(order, "correlation_id", None),
     }

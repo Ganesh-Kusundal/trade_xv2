@@ -1,0 +1,167 @@
+{
+  "method": "sector_rotation_scanner",
+  "results": [
+    {
+      "test_year": 2023,
+      "dates": 245,
+      "naive_momentum_prec3": 0.07210884353741495,
+      "meta_momentum_prec3": 0.07513661202185792,
+      "random_prec3": 0.030054644808743168,
+      "sector_top3_prec3": 0.02857142857142857,
+      "sector_diversify_prec3": 0.029931972789115645,
+      "sector_combo_prec3": 0.029931972789115645,
+      "ml_prec3": 0.06420765027322403,
+      "ml_ap": 0.05326751805312425,
+      "ml_top_features": [
+        {
+          "feature": "vol_20d",
+          "gain": 11442.81654545851
+        },
+        {
+          "feature": "rel_strength_30m",
+          "gain": 9260.88705439819
+        },
+        {
+          "feature": "vol_trend",
+          "gain": 6459.270777498372
+        },
+        {
+          "feature": "mom_20d",
+          "gain": 6414.961607914418
+        },
+        {
+          "feature": "mom_5d",
+          "gain": 6105.59520214051
+        },
+        {
+          "feature": "rsi_14",
+          "gain": 5364.943279266357
+        },
+        {
+          "feature": "gap_up_pct",
+          "gain": 5275.809008056764
+        },
+        {
+          "feature": "rvol",
+          "gain": 3869.5362869501114
+        },
+        {
+          "feature": "mom_10d",
+          "gain": 3635.3619079589844
+        },
+        {
+          "feature": "ret_deviation_from_sector",
+          "gain": 3571.407012939453
+        }
+      ]
+    },
+    {
+      "test_year": 2024,
+      "dates": 246,
+      "naive_momentum_prec3": 0.05284552845528455,
+      "meta_momentum_prec3": 0.05714285714285714,
+      "random_prec3": 0.01768707482993197,
+      "sector_top3_prec3": 0.008130081300813009,
+      "sector_diversify_prec3": 0.013550135501355013,
+      "sector_combo_prec3": 0.014905149051490513,
+      "ml_prec3": 0.06394557823129252,
+      "ml_ap": 0.04655410180813958,
+      "ml_top_features": [
+        {
+          "feature": "vol_20d",
+          "gain": 20891.361830389127
+        },
+        {
+          "feature": "ret_30m",
+          "gain": 18931.07902887487
+        },
+        {
+          "feature": "vol_trend",
+          "gain": 7834.631901178625
+        },
+        {
+          "feature": "avg_range_10d",
+          "gain": 6884.31749621639
+        },
+        {
+          "feature": "rank_range",
+          "gain": 6694.777350583114
+        },
+        {
+          "feature": "atr_ratio",
+          "gain": 6092.434818267822
+        },
+        {
+          "feature": "rvol",
+          "gain": 6040.162462234497
+        },
+        {
+          "feature": "vol_10d",
+          "gain": 5406.667886232026
+        },
+        {
+          "feature": "rsi_14",
+          "gain": 4885.951439600787
+        },
+        {
+          "feature": "vol_surge",
+          "gain": 4563.41089789907
+        }
+      ]
+    },
+    {
+      "test_year": 2025,
+      "dates": 248,
+      "naive_momentum_prec3": 0.05510752688172043,
+      "meta_momentum_prec3": 0.05376344086021505,
+      "random_prec3": 0.020161290322580645,
+      "sector_top3_prec3": 0.005376344086021505,
+      "sector_diversify_prec3": 0.008064516129032258,
+      "sector_combo_prec3": 0.008064516129032258,
+      "ml_prec3": 0.0510752688172043,
+      "ml_ap": 0.05722289050875616,
+      "ml_top_features": [
+        {
+          "feature": "ret_30m",
+          "gain": 20549.753870796412
+        },
+        {
+          "feature": "vol_20d",
+          "gain": 11126.477126135127
+        },
+        {
+          "feature": "rank_ret_30m",
+          "gain": 9850.109853272443
+        },
+        {
+          "feature": "rank_range",
+          "gain": 9781.584106973372
+        },
+        {
+          "feature": "sector_rvol",
+          "gain": 9037.034997292387
+        },
+        {
+          "feature": "vol_surge",
+          "gain": 7848.770111500518
+        },
+        {
+          "feature": "rsi_14",
+          "gain": 6750.505889437976
+        },
+        {
+          "feature": "rel_strength_5d",
+          "gain": 5928.4500236436725
+        },
+        {
+          "feature": "mom_20d",
+          "gain": 5336.37529698899
+        },
+        {
+          "feature": "rank_gap_up",
+          "gain": 3675.9623885885812
+        }
+      ]
+    }
+  ]
+}

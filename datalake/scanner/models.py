@@ -1,4 +1,10 @@
-"""Pydantic models for JSON-based scanner rules."""
+"""Pydantic models for JSON-based scanner rules (datalake-local).
+
+These models back the SQL rule engine under ``datalake.scanner``.
+Analytics package scanners live under ``analytics.scanner`` and may keep
+their own rule models; this module must not import the top-level analytics
+package.
+"""
 
 from __future__ import annotations
 
@@ -9,6 +15,7 @@ from pydantic import BaseModel, Field
 
 class SelectColumn(BaseModel):
     """A column in the SELECT clause."""
+
     column: str | None = None
     expr: str | None = None
     alias: str | None = None
@@ -16,6 +23,7 @@ class SelectColumn(BaseModel):
 
 class WhereCondition(BaseModel):
     """A WHERE clause condition."""
+
     field: str
     op: str = "="
     value: Any = None
@@ -23,6 +31,7 @@ class WhereCondition(BaseModel):
 
 class WindowFeature(BaseModel):
     """A window function feature (CTE)."""
+
     name: str
     type: str = "window"
     function: str
@@ -33,12 +42,14 @@ class WindowFeature(BaseModel):
 
 class ScoreConfig(BaseModel):
     """Scoring configuration."""
+
     expr: str
     normalize: dict | None = None
 
 
 class FilterCondition(BaseModel):
     """Post-score filter."""
+
     field: str
     op: str = ">="
     value: Any = None
@@ -46,18 +57,21 @@ class FilterCondition(BaseModel):
 
 class ReasonRule(BaseModel):
     """Reason text generation rule."""
+
     condition: str
     text: str
 
 
 class OrderByClause(BaseModel):
     """ORDER BY clause."""
+
     field: str
     direction: str = "DESC"
 
 
 class ScannerRule(BaseModel):
     """Complete scanner rule definition."""
+
     name: str
     version: str = "1.0"
     description: str = ""
@@ -76,3 +90,15 @@ class ScannerRule(BaseModel):
     limit: int = 20
 
     model_config = {"populate_by_name": True}
+
+
+__all__ = [
+    "FilterCondition",
+    "OrderByClause",
+    "ReasonRule",
+    "ScannerRule",
+    "ScoreConfig",
+    "SelectColumn",
+    "WhereCondition",
+    "WindowFeature",
+]

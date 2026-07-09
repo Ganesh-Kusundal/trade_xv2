@@ -222,6 +222,14 @@ class TradingContext:
                 "EventBus via the composition root or test harness."
             )
         self._event_bus = event_bus
+        # ENG-010: attach durable log to bus when composition root built them
+        # separately (CLI/API often create the bus first, then the EventLog).
+        if (
+            event_log is not None
+            and hasattr(self._event_bus, "set_event_log")
+            and getattr(self._event_bus, "_event_log", None) is None
+        ):
+            self._event_bus.set_event_log(event_log)
 
         self._processed_trades = processed_trade_repository
         # Enable the self-cleaning thread. It runs as a daemon
@@ -455,18 +463,14 @@ class TradingContext:
                 if event.event_type == EventType.ORDER_UPDATED.value:
                     self._order_manager.on_order_update(event)
                 elif event.event_type == EventType.TRADE.value:
-                    self._order_manager.on_trade(event)
-                    # P1-1 SAFETY NOTE: During replay, TRADE_APPLIED events are
-                    # suppressed by the event bus (replay_mode=True). We directly
-                    # invoke position_manager.on_trade_applied() to rebuild positions.
-                    # This is safe because on_trade_applied() has:
-                    #   1. Idempotency guard via trade_id set (prevents double-count)
-                    #   2. Reentrancy guard (prevents recursive invocation)
-                    #   3. ValueError handling (rejects invalid payloads gracefully)
-                    # This dual-path is ONLY used during crash recovery replay.
-                    # During normal operation, PositionManager subscribes to
-                    # TRADE_APPLIED events from the EventBus.
-                    self._position_manager.on_trade_applied(event)
+                    # ENG-006: only rebuild positions for trades OMS accepted.
+                    # Rejected/duplicate/unknown-order trades must not mutate
+                    # the position book during crash recovery.
+                    accepted = self._order_manager.on_trade(event)
+                    if accepted:
+                        # During replay, TRADE_APPLIED bus dispatch is suppressed
+                        # (replay_mode=True), so invoke PositionManager directly.
+                        self._position_manager.on_trade_applied(event)
                 count += 1
         finally:
             self._event_bus.set_logging_enabled(logging_was_enabled)

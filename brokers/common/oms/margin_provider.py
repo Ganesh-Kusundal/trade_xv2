@@ -1,16 +1,16 @@
 """Broker-agnostic margin provider adapter.
 
-Bridges broker-specific margin calculation adapters to the RiskManager's
-MarginProvider port. This keeps the RiskManager broker-agnostic while
-allowing each broker adapter to provide its own margin calculation logic.
+**Not the OMS** — the canonical OMS is :mod:`application.oms`. This module
+is a broker-side adapter only: it bridges broker margin APIs to the
+:class:`~brokers.common.api.MarginProvider` / domain margin port used by
+:class:`~application.oms.risk_manager.RiskManager`.
 
 Design rules
 ------------
-* The RiskManager depends on the MarginProvider port, NOT on broker-specific
-  margin adapters. This adapter bridges the two.
-* Fail-closed: if the underlying broker margin API fails, the error
-  propagates as MarginCalculationError so the RiskManager can reject
-  the order.
+* RiskManager depends on the margin port, NOT on broker-specific adapters.
+  This class is the bridge.
+* Fail-closed: broker margin API failures become MarginCalculationError so
+  RiskManager can reject the order.
 * All monetary values use Decimal — never float.
 """
 
@@ -36,11 +36,12 @@ class BrokerMarginProvider(MarginProvider):
 
     Example usage::
 
-        from brokers.dhan.margin import MarginAdapter
         from brokers.common.oms.margin_provider import BrokerMarginProvider
+        from brokers.dhan.margin import MarginAdapter
 
         dhan_margin = MarginAdapter(client, identity)
         provider = BrokerMarginProvider(dhan_margin)
+        # Pass into application.oms.RiskManager — not a ghost OMS.
         risk_manager = RiskManager(
             position_manager=pm,
             config=config,

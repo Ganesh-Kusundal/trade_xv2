@@ -28,7 +28,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from infrastructure.logging_config import get_logger
+from application.observability import get_logger
 
 logger = get_logger(__name__)
 
@@ -256,7 +256,7 @@ class AuditLogger:
 
         Returns the created AuditEvent for inspection or forwarding.
         """
-        from infrastructure.correlation import get_current_correlation_id
+        from domain.correlation import get_current_correlation_id
 
         event = AuditEvent(
             event_id=str(uuid.uuid4()),

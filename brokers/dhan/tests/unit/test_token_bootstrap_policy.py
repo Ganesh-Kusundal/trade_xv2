@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 import pytest
 
-from brokers.common.auth import JsonTokenStateStore, TokenSource, TokenState
+from tradex.runtime.auth import JsonTokenStateStore, TokenSource, TokenState
 from brokers.dhan.factory import BrokerFactory
 
 
@@ -102,3 +102,39 @@ def test_bootstrap_generates_once_when_token_expired(env_file, tmp_path):
     assert totp_calls["count"] == 1
     assert token == fresh_token
     assert auth.state.access_token == fresh_token
+
+
+def test_bootstrap_with_valid_env_token_never_mints(env_file, tmp_path):
+    """Env JWT still valid → zero TOTP calls (probe-before-mint)."""
+    valid_token = _make_jwt({"exp": int(time.time()) + 7200})
+    env_file.write_text(
+        env_file.read_text().replace("DHAN_ACCESS_TOKEN=\n", f"DHAN_ACCESS_TOKEN={valid_token}\n")
+    )
+    totp_calls = {"count": 0}
+
+    def fake_generate(_settings=None):
+        totp_calls["count"] += 1
+        return "should-not-be-called"
+
+    with patch("brokers.dhan.factory._generate_totp_token", fake_generate):
+        factory = BrokerFactory()
+        settings = __import__(
+            "brokers.dhan.settings", fromlist=["DhanSettingsLoader"]
+        ).DhanSettingsLoader.from_env(env_path=env_file)
+        auth, token = factory._create_auth(settings, env_file)
+
+    assert totp_calls["count"] == 0
+    assert token == valid_token
+    assert auth.state is not None
+    assert auth.state.access_token == valid_token
+
+
+def test_generate_totp_delegates_to_client():
+    """Factory mint path must use DhanTotpClient (TotpCooldownGuard), not raw HTTP."""
+    from brokers.dhan.factory import _generate_totp_token
+
+    with patch("brokers.dhan.totp_client.DhanTotpClient") as mock_cls:
+        mock_cls.return_value.generate.return_value = "fresh-token"
+        out = _generate_totp_token(None)
+    assert out == "fresh-token"
+    mock_cls.return_value.generate.assert_called_once()

@@ -1,14 +1,9 @@
 """Domain-level error types — clean-architecture root for error handling.
 
 The root ``TradeXV2Error`` lives in :mod:`domain.exceptions`. This module
-defines the full error hierarchy that was previously scattered across
-``brokers.common.resilience.errors``. Infrastructure and application code
-classify errors through these types — never by importing broker modules.
-
-The broker module (``brokers.common.resilience.errors``) re-exports these
-classes for backward compatibility, so existing ``except BrokerError`` clauses
-continue to work. The import direction is now correct: domain defines,
-infrastructure imports.
+defines the platform error hierarchy. Infrastructure and application code
+classify errors through these types — never by importing broker packages.
+Runtime helpers re-export selected types from ``tradex.runtime.resilience.errors``.
 """
 
 from __future__ import annotations
@@ -105,3 +100,7 @@ class BrokerNotReadyError(TradeXV2Error):
             status=result.status,
             bootstrap=result,
         )
+
+
+class NotConfiguredError(TradeXV2Error):
+    """Raised when a domain object is used without required composition-root wiring."""

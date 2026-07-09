@@ -126,6 +126,12 @@ class PaperPosition:
     strategy: str = ""
 
     @property
+    def market_value(self) -> float:
+        """Mark-to-market position value (qty × latest price)."""
+        px = self.current_price if self.current_price > 0 else self.entry_price
+        return px * self.quantity
+
+    @property
     def unrealized_pnl(self) -> float:
         if self.side == PositionSide.LONG:
             return (self.current_price - self.entry_price) * self.quantity
@@ -244,7 +250,7 @@ class PaperSession:
 
     @property
     def total_equity(self) -> float:
-        pos_value = sum(p.unrealized_pnl for p in self.positions.values())
+        pos_value = sum(p.market_value for p in self.positions.values())
         return self.capital + pos_value
 
     @property

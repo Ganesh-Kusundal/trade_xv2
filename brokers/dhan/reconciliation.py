@@ -11,7 +11,7 @@ import logging
 import time
 from typing import Any
 
-from brokers.common.reconciliation.engine import ReconciliationEngine
+from tradex.runtime.reconciliation.engine import ReconciliationEngine
 from brokers.dhan.orders import OrdersAdapter
 from brokers.dhan.portfolio import PortfolioAdapter
 from domain import DriftItem, ReconciliationReport
@@ -127,11 +127,25 @@ class DhanReconciliationService:
         if local_positions is not None:
             drift += engine.compare_positions(local_positions, broker_positions)
 
+        # 2b. Funds mismatch when both local cache and broker balance are known.
+        # Local available may be provided by callers via portfolio adapter later;
+        # today we only attach funds drift when an explicit local value is set on
+        # the service (composition roots can set ``_local_available_balance_fn``).
+        local_fn = getattr(self, "_local_available_balance_fn", None)
+        local_funds = local_fn() if callable(local_fn) else None
+        broker_funds = self._fetch_broker_available_balance()
+        if broker_funds is not None and local_funds is not None:
+            drift += engine.compare_funds(local_funds, broker_funds)
+
         report.drift_items = drift
 
-        # 3. Repair local OMS if auto_repair is enabled
+        # 3. Correct-then-heal (policy-gated): broker is authoritative for local OMS
         if self._auto_repair and self._oms is not None:
-            self._repair_local_oms(broker_orders, broker_positions, drift)
+            repaired_o, repaired_p = self._repair_local_oms(
+                broker_orders, broker_positions, drift
+            )
+            report.orders_repaired = repaired_o
+            report.positions_repaired = repaired_p
 
         logger.info(
             "reconciliation_complete",
@@ -140,18 +154,49 @@ class DhanReconciliationService:
                 "high_severity": report.high_severity_count,
                 "broker_orders": report.broker_orders,
                 "broker_positions": report.broker_positions,
+                "auto_repair": self._auto_repair,
+                "orders_repaired": report.orders_repaired,
+                "positions_repaired": report.positions_repaired,
             },
         )
         return report
+
+    def _fetch_broker_available_balance(self) -> Any | None:
+        """Best-effort funds snapshot for funds_mismatch drift."""
+        portfolio = self._portfolio
+        for name in ("get_balance", "funds", "get_funds"):
+            fn = getattr(portfolio, name, None)
+            if not callable(fn):
+                continue
+            try:
+                bal = fn()
+            except Exception as exc:
+                logger.debug("reconciliation_funds_fetch_failed via %s: %s", name, exc)
+                continue
+            if bal is None:
+                continue
+            for attr in ("available_balance", "available", "withdrawable_balance"):
+                if hasattr(bal, attr):
+                    return getattr(bal, attr)
+            if isinstance(bal, (int, float, str)):
+                return bal
+        return None
 
     def _repair_local_oms(
         self,
         broker_orders: list[Any],
         broker_positions: list[Any],
         drift: list[DriftItem],
-    ) -> None:
-        """Repair local OMS state from broker state."""
-        # Upsert missing orders
+    ) -> tuple[int, int]:
+        """Repair local OMS from broker (correct-then-heal). Returns repair counts.
+
+        Broker is authoritative. Only mutates local OMS (upsert); never places
+        or cancels on the exchange.
+        """
+        del drift  # reserved for selective heal; full broker snapshot applied
+        orders_repaired = 0
+        positions_repaired = 0
+
         upsert_order = getattr(self._oms, "upsert_order", None)
         if upsert_order is not None:
             for broker_order in broker_orders:
@@ -161,12 +206,20 @@ class DhanReconciliationService:
                 if local_order is None:
                     try:
                         upsert_order(broker_order)
+                        orders_repaired += 1
                         logger.info("Repaired missing order %s", broker_order.order_id)
                     except Exception as exc:
-                        logger.warning("Failed to repair order %s: %s", broker_order.order_id, exc)
+                        logger.warning(
+                            "Failed to repair order %s: %s", broker_order.order_id, exc
+                        )
 
-        # Upsert positions from broker
         upsert_position = getattr(self._oms, "upsert_position", None)
+        if upsert_position is None:
+            pm = getattr(self._oms, "position_manager", None) or getattr(
+                self._oms, "_position_manager", None
+            )
+            upsert_position = getattr(pm, "upsert_position", None) if pm else None
+
         if upsert_position is not None:
             for broker_pos in broker_positions:
                 try:
@@ -179,6 +232,11 @@ class DhanReconciliationService:
                             "ltp": str(getattr(broker_pos, "ltp", "0")),
                         }
                     )
+                    positions_repaired += 1
                     logger.info("Repaired position %s", broker_pos.symbol)
                 except Exception as exc:
-                    logger.warning("Failed to repair position %s: %s", broker_pos.symbol, exc)
+                    logger.warning(
+                        "Failed to repair position %s: %s", broker_pos.symbol, exc
+                    )
+
+        return orders_repaired, positions_repaired

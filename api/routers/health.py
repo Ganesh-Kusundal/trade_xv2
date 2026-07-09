@@ -58,7 +58,7 @@ async def readiness_check():
         broker_service = getattr(container, "broker_service", None)
         live_intent = broker_service is not None and getattr(broker_service, "_live_intent", False)
         if live_intent and broker_service is not None:
-            from brokers.common.services.production_readiness import (
+            from tradex.runtime.services.production_readiness import (
                 ProductionReadinessChecker,
             )
 

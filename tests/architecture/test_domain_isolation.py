@@ -1,6 +1,11 @@
 """Architecture tests: enforce domain layer isolation.
 
-Verifies that the domain layer never imports from application, brokers, analytics, api, or cli.
+Verifies that the domain layer never imports from application, brokers,
+analytics, api, cli, infrastructure, datalake, plugins, or tradex.
+
+Critical: scan ``src/domain`` (src-layout). A previous version scanned
+``ROOT/domain`` which does not exist, so the AST walker parsed zero files
+and the suite silently passed.
 """
 from __future__ import annotations
 
@@ -10,9 +15,20 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
+DOMAIN_DIR = ROOT / "src" / "domain"
 
-
-
+FORBIDDEN_LAYERS = (
+    "application",
+    "brokers",
+    "analytics",
+    "api",
+    "cli",
+    "config",
+    "infrastructure",
+    "datalake",
+    "plugins",
+    "tradex",
+)
 
 
 def _extract_import_root(stmt: ast.stmt) -> str | None:
@@ -25,23 +41,35 @@ def _extract_import_root(stmt: ast.stmt) -> str | None:
     return None
 
 
-class TestDomainIsolation:
-    """Domain layer must not import from application/brokers/analytics/api/cli."""
-
-    @pytest.mark.parametrize(
-        "forbidden",
-        ["application", "brokers", "analytics", "api", "cli", "config", "infrastructure", "datalake"],
+def _iter_domain_prod_files() -> list[Path]:
+    files = [
+        f
+        for f in DOMAIN_DIR.rglob("*.py")
+        if "__pycache__" not in f.parts and "tests" not in f.parts
+    ]
+    # ponytail: fail loudly if path drifts again (empty scan == false green)
+    assert files, (
+        f"Domain isolation scanner found zero Python files under {DOMAIN_DIR}. "
+        f"Expected src-layout package at src/domain."
     )
+    return files
+
+
+class TestDomainIsolation:
+    """Domain layer must not import outer layers or plugins."""
+
+    def test_domain_scan_is_non_empty(self) -> None:
+        files = _iter_domain_prod_files()
+        assert len(files) >= 20
+
+    @pytest.mark.parametrize("forbidden", list(FORBIDDEN_LAYERS))
     def test_domain_does_not_import_from(self, forbidden: str) -> None:
         """Domain files must not import from forbidden layers."""
-        domain_dir = ROOT / "domain"
         violations: list[str] = []
 
-        for f in domain_dir.rglob("*.py"):
-            if f.name == "__pycache__" or ".tests." in str(f):
-                continue
+        for f in _iter_domain_prod_files():
             try:
-                tree = ast.parse(f.read_text())
+                tree = ast.parse(f.read_text(encoding="utf-8"))
             except SyntaxError:
                 continue
             for node in ast.walk(tree):
@@ -52,5 +80,21 @@ class TestDomainIsolation:
 
         assert not violations, (
             f"Domain imports from '{forbidden}' at: {violations}. "
-            f"Domain layer must be independent of application/brokers/analytics."
+            f"Domain layer must be independent of outer packages."
         )
+
+
+class TestDomainResolvesInRepo:
+    """import domain must resolve to *this* repository (not a shadowed install)."""
+
+    def test_domain_module_file_is_under_repo_root(self) -> None:
+        import domain
+
+        domain_file = Path(domain.__file__).resolve()
+        assert str(domain_file).startswith(str(ROOT.resolve())), (
+            f"import domain resolved outside this repo: {domain_file} "
+            f"(repo root {ROOT}). Pin PYTHONPATH=src:. when running lint-imports."
+        )
+        assert (ROOT / "src" / "domain").resolve() in domain_file.parents or domain_file.parent == (
+            ROOT / "src" / "domain"
+        ).resolve()

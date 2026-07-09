@@ -6,9 +6,9 @@ from unittest.mock import patch
 
 import pytest
 
-from brokers.common.connection.bootstrap_result import BootstrapResult, BootstrapStatus
-from brokers.common.connection.errors import BrokerNotReadyError
-from cli.services.broker_registry import create_gateway, require_gateway
+from tradex.runtime.connection.bootstrap_result import BootstrapResult, BootstrapStatus
+from tradex.runtime.connection.errors import BrokerNotReadyError
+from cli.services.broker_registry import require_gateway
 
 
 def test_broker_not_ready_from_bootstrap():
@@ -23,22 +23,26 @@ def test_broker_not_ready_from_bootstrap():
     assert "token rejected" in str(err)
 
 
-def test_create_gateway_raises_when_configured():
-    with patch("cli.services.broker_registry.bootstrap_gateway") as mock_boot:
+def test_require_gateway_raises_when_bootstrap_fails():
+    with patch("tradex.runtime.gateway_factory.bootstrap_gateway") as mock_boot:
         mock_boot.return_value = BootstrapResult(
             status=BootstrapStatus.FAILED,
             broker="dhan",
             error="factory failed",
         )
         with pytest.raises(BrokerNotReadyError) as exc_info:
-            create_gateway("dhan", raise_on_failure=True)
+            require_gateway("dhan")
         assert exc_info.value.broker == "dhan"
 
 
-def test_require_gateway_delegates_to_create_gateway():
-    with patch("cli.services.broker_registry.create_gateway") as mock_create:
-        mock_create.return_value = object()
-        gw = require_gateway("paper")
-        assert gw is mock_create.return_value
-        mock_create.assert_called_once()
-        assert mock_create.call_args.kwargs["raise_on_failure"] is True
+def test_require_gateway_returns_gateway_when_ready():
+    gw = object()
+    with patch("tradex.runtime.gateway_factory.bootstrap_gateway") as mock_boot:
+        mock_boot.return_value = BootstrapResult(
+            status=BootstrapStatus.READY,
+            broker="paper",
+            gateway=gw,
+            authenticated=True,
+            probe_passed=True,
+        )
+        assert require_gateway("paper") is gw

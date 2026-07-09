@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.common.services.instrument_registry import (
+from tradex.runtime.services.instrument_registry import (
     CanonicalInstrument,
     CanonicalInstrumentRegistry,
 )

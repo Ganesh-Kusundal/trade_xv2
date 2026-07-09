@@ -99,7 +99,7 @@ class OptionStrike:
 
 @dataclass(slots=True, frozen=True)
 class OptionChain:
-    """Canonical option chain returned by :class:`~brokers.common.gateway.MarketDataGateway`."""
+    """Canonical option chain returned by a broker adapter / data provider."""
 
     underlying: str
     exchange: str
@@ -159,7 +159,7 @@ class FutureContract:
 
 @dataclass(slots=True, frozen=True)
 class FutureChain:
-    """Canonical futures chain returned by :class:`~brokers.common.gateway.MarketDataGateway`."""
+    """Canonical futures chain returned by a broker adapter / data provider."""
 
     underlying: str
     exchange: str

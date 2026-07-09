@@ -17,7 +17,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from brokers.dhan.depth_20 import DhanDepth20Feed
-from brokers.dhan.gateway import BrokerGateway
+from brokers.dhan.gateway import DhanBrokerGateway
 from brokers.dhan.websocket import DhanMarketFeed
 
 # ── Fix 1: Dual feed path prevention ────────────────────────────────────────
@@ -93,7 +93,7 @@ class TestStreamCallbackDedup:
         conn.instruments.resolve.return_value = inst
         conn.subscription_engine = SubscriptionEngine(conn)
 
-        gw = BrokerGateway(conn)
+        gw = DhanBrokerGateway(conn)
         return gw
 
     def test_same_callback_not_registered_twice(self):
@@ -189,7 +189,7 @@ class TestUnstream:
         conn.instruments.resolve.return_value = inst
         conn.subscription_engine = SubscriptionEngine(conn)
 
-        return BrokerGateway(conn)
+        return DhanBrokerGateway(conn)
 
     def test_unstream_removes_specific_callback(self):
         """unstream() with on_tick should remove only that callback."""
@@ -288,7 +288,7 @@ class TestCacheEviction:
 
         conn.subscription_engine = SubscriptionEngine(conn)
 
-        gw = BrokerGateway(conn)
+        gw = DhanBrokerGateway(conn)
         gw.stream("RELIANCE", "NSE", on_tick=lambda q: None)
         return gw
 
@@ -318,7 +318,7 @@ class TestThreadSafeStreamCreation:
 
         conn.subscription_engine = SubscriptionEngine(conn)
 
-        gw = BrokerGateway(conn)
+        gw = DhanBrokerGateway(conn)
 
         errors: list[Exception] = []
         results: list = []
@@ -341,20 +341,20 @@ class TestThreadSafeStreamCreation:
         assert len({id(r) for r in results}) == 1
 
     def test_stream_lock_exists(self):
-        """BrokerGateway must have a _stream_lock attribute."""
+        """DhanBrokerGateway must have a _stream_lock attribute."""
         conn = MagicMock()
-        gw = BrokerGateway(conn)
+        gw = DhanBrokerGateway(conn)
         assert hasattr(gw, "_stream_lock")
         assert isinstance(gw._stream_lock, type(threading.Lock()))
 
     def test_stream_registry_exists(self):
-        """BrokerGateway connection must own a SubscriptionEngine."""
+        """DhanBrokerGateway connection must own a SubscriptionEngine."""
         conn = MagicMock()
         from brokers.dhan.subscription_engine import SubscriptionEngine
 
         conn.create_market_feed = MagicMock(return_value=MagicMock(is_connected=False))
         conn.instruments = MagicMock()
         conn.subscription_engine = SubscriptionEngine(conn)
-        gw = BrokerGateway(conn)
+        gw = DhanBrokerGateway(conn)
         assert hasattr(gw._conn, "subscription_engine")
         assert gw._conn.subscription_engine is not None

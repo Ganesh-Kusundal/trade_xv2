@@ -8,9 +8,9 @@ from decimal import Decimal
 from pathlib import Path
 
 from domain import Order, Side
-from brokers.common.gateway import MarketDataGateway
-from brokers.common.lifecycle import LifecycleManager
-from brokers.common.oms.context import TradingContext
+from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
+from infrastructure.lifecycle.lifecycle import LifecycleManager
+from application.oms.context import TradingContext
 from cli.services.broker_registry import (
     create_seeded_mock_broker,
     get_dhan_reconciliation_service_factory,
@@ -25,7 +25,13 @@ from cli.services.broker_registry import (
 PaperGateway = get_paper_gateway_class()
 MockBroker = get_mock_broker_class()
 
-from cli.services.broker_registry import create_gateway
+from cli.services.broker_registry import bootstrap_gateway, create_gateway, resolve_env_path
+from domain.errors import BrokerNotReadyError
+from domain.ports.bootstrap import BootstrapResult, BootstrapStatus
+from cli.services.broker_observability import (
+    compute_live_actionable,
+    resolve_active_broker,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +87,8 @@ class BrokerService:
         self._active_name: str = "dhan"
         self._dhan_load_error: str | None = None
         self._upstox_load_error: str | None = None
+        self._dhan_bootstrap: BootstrapResult | None = None
+        self._upstox_bootstrap: BootstrapResult | None = None
         self._initialized = False
         self._trading_context: TradingContext | None = None
         self._http_observability = None  # B8+B9 followup
@@ -160,7 +168,7 @@ class BrokerService:
         is left as None and a warning is logged. Production
         observability must not block init.
         """
-        from brokers.common.observability.http_server import (
+        from tradex.runtime.observability.http_server import (
             HttpObservabilityServer,
         )
 
@@ -310,96 +318,122 @@ class BrokerService:
             self._http_observability = None
             self._live_actionable = False
 
+    def initialize(self) -> None:
+        """Eagerly run automatic gateway bootstrap (auth probe included).
+
+        Equivalent to the first property access that needs a live gateway.
+        Safe to call multiple times.
+        """
+        self._ensure_initialized()
+
     def _ensure_initialized(self) -> None:
         if self._initialized:
             return
         self._initialized = True
+        # Paper always available for diagnostics / sim
+        try:
+            self._paper = PaperGateway()
+        except Exception:
+            self._paper = None
+
         if _ENV_PATH.exists():
             try:
-                # B7: construct the OMS first so we can pass its
-                # risk_manager to the OrdersAdapter. The OMS is the
-                # canonical owner of risk checks; this is the first
-                # step in putting the central OMS on the live CLI
-                # path.
+                # B7: OMS risk_manager first (capital gate for live orders).
                 oms_risk_manager = self._build_oms_risk_manager()
-                # A5: pass the lifecycle so the factory registers
-                # TokenRefreshScheduler with it (instead of starting
-                # a bare daemon thread). The factory's backward-compat
-                # path is intentionally bypassed here.
-                self._gateway = create_gateway(
+                # Production path: bootstrap = create + automatic auth probe
+                # (and at most one TOTP remint if token rejected).
+                result = bootstrap_gateway(
                     "dhan",
                     env_path=_ENV_PATH,
                     load_instruments=True,
                     lifecycle=self._lifecycle,
-                    # B7: OMS risk_manager → OrdersAdapter risk gate.
                     risk_manager=oms_risk_manager,
                 )
-                # C.1: now that the gateway exists, point the OMS
-                # capital_fn closure at it. From this point on, the
-                # risk check uses the real account balance, not the
-                # placeholder.
-                if hasattr(self, "_oms_gateway_holder"):
-                    self._oms_gateway_holder["gw"] = self._gateway
-                # Register the OMS services with the lifecycle so
-                # they are drained on close().
-                self._build_and_register_oms_services(oms_risk_manager)
-                # B-4: start the WebSocket services through the
-                # lifecycle so they participate in deterministic
-                # start/stop and the reconnect backoff never escapes
-                # the process.
-                self._start_websocket_services()
-                # Start every registered service in registration order.
-                # TokenRefreshScheduler will now run as a ManagedService
-                # and join() cleanly on stop_all().
-                self._lifecycle.start_all()
-                # B8+B9 followup: spin up the HTTP observability server
-                # so /healthz, /readyz, and /metrics are live in production.
-                # Registered with the lifecycle so close() drains it.
-                self._start_http_observability_server(oms_risk_manager)
-                # M-7: production readiness gate. REF-17: this gate
-                # now FAILS CLOSED — a failed check raises
-                # ProductionReadinessError. The error is caught at the
-                # outer try/except below (gateway build scope) and the
-                # runtime is marked as ``_live_actionable = False``.
-                # The CLI may still run read-only diagnostic commands
-                # (broker list, quote, depth, historical) but
-                # ``BrokerService.place_order`` refuses to dispatch when
-                # ``live_actionable`` is False.
-                from brokers.common.services.production_readiness import (
-                    ProductionReadinessChecker,
-                )
-                self._readiness_report = ProductionReadinessChecker(self).run_or_raise()
-                self._live_actionable = bool(self._readiness_report.passed)
-                logger.info(
-                    "Dhan BrokerGateway created with lifecycle + OMS + HTTP /metrics; "
-                    "live_actionable=%s",
-                    self._live_actionable,
-                )
+                self._dhan_bootstrap = result
+                if not result.live_ready:
+                    self._dhan_load_error = result.error or result.status.value
+                    self._gateway = None
+                    self._live_actionable = False
+                    logger.warning(
+                        "Dhan bootstrap not live-ready: %s (%s)",
+                        result.status.value,
+                        result.error,
+                    )
+                else:
+                    self._gateway = result.gateway
+                    if hasattr(self, "_oms_gateway_holder"):
+                        self._oms_gateway_holder["gw"] = self._gateway
+                    self._build_and_register_oms_services(oms_risk_manager)
+                    self._start_websocket_services()
+                    # Only start lifecycle when auth probe passed
+                    self._lifecycle.start_all()
+                    self._start_http_observability_server(oms_risk_manager)
+                    from tradex.runtime.services.production_readiness import (
+                        ProductionReadinessChecker,
+                    )
+                    self._readiness_report = ProductionReadinessChecker(self).run_or_raise()
+                    self._live_actionable = compute_live_actionable(
+                        live_intent=True,
+                        gateway=self._gateway,
+                        dhan_load_error=self._dhan_load_error,
+                        dhan_bootstrap=self._dhan_bootstrap,
+                        readiness_report=self._readiness_report,
+                    )
+                    logger.info(
+                        "Dhan bootstrap READY (probe=%s refreshed=%s live_actionable=%s)",
+                        result.probe_name,
+                        result.refreshed_token,
+                        self._live_actionable,
+                    )
             except Exception as exc:
                 self._dhan_load_error = str(exc)
-                logger.warning("Failed to create Dhan gateway: %s", exc)
+                self._dhan_bootstrap = BootstrapResult(
+                    status=BootstrapStatus.FAILED,
+                    broker="dhan",
+                    error=str(exc),
+                )
+                self._gateway = None
+                self._live_actionable = False
+                logger.warning("Failed to bootstrap Dhan gateway: %s", exc)
 
         if self._gateway is None:
             self._mock = create_seeded_mock_broker("dhan")
 
-        # Try to create Upstox gateway using the unified registry.
-        upstox_env_path = Path(".env.upstox")
-        if upstox_env_path.exists():
+        # Upstox — same automatic auth bootstrap
+        upstox_env_path = resolve_env_path("upstox")
+        if upstox_env_path is not None and upstox_env_path.exists():
             try:
-                self._upstox_gateway = create_gateway(
+                result = bootstrap_gateway(
                     "upstox",
                     env_path=upstox_env_path,
                     load_instruments=True,
                     lifecycle=self._lifecycle,
                 )
-                if self._upstox_gateway is not None:
-                    logger.info("Upstox BrokerGateway created")
+                self._upstox_bootstrap = result
+                if result.live_ready:
+                    self._upstox_gateway = result.gateway
+                    logger.info(
+                        "Upstox bootstrap READY (probe=%s refreshed=%s)",
+                        result.probe_name,
+                        result.refreshed_token,
+                    )
                 else:
-                    self._upstox_load_error = "create_gateway returned None"
-                    logger.warning("Failed to create Upstox gateway")
+                    self._upstox_gateway = None
+                    self._upstox_load_error = result.error or result.status.value
+                    logger.warning(
+                        "Upstox bootstrap not live-ready: %s (%s)",
+                        result.status.value,
+                        result.error,
+                    )
             except Exception as exc:
                 self._upstox_load_error = str(exc)
-                logger.warning("Failed to create Upstox gateway: %s", exc)
+                self._upstox_bootstrap = BootstrapResult(
+                    status=BootstrapStatus.FAILED,
+                    broker="upstox",
+                    error=str(exc),
+                )
+                self._upstox_gateway = None
+                logger.warning("Failed to bootstrap Upstox gateway: %s", exc)
 
     def _start_websocket_services(self) -> None:
         """B-4 / Phase 1.5: register both the market feed and order
@@ -601,7 +635,7 @@ class BrokerService:
         drift detection silently disabled if the TradingContext build
         raised between the two steps.
         """
-        from brokers.common.event_log import EventLog
+        from infrastructure.event_log import EventLog
         from application.oms.daily_pnl_reset_scheduler import DailyPnlResetScheduler
         from application.oms.factory import create_trading_context
 
@@ -655,11 +689,17 @@ class BrokerService:
             create_reconciliation_service = get_dhan_reconciliation_service_factory()
             conn = getattr(self._gateway, "_conn", None)
             if conn is not None:
+                from application.oms.recon_heal_policy import should_auto_repair
+
                 dhan_reconciliation = create_reconciliation_service(
                     orders_adapter=conn.orders,
                     portfolio_adapter=conn.portfolio,
                     oms=self._trading_context.order_manager,
-                    auto_repair=False,
+                    auto_repair=should_auto_repair(),
+                )
+                # Allow heal path to upsert positions via PositionManager
+                self._trading_context.order_manager.position_manager = (
+                    self._trading_context.position_manager
                 )
                 self._trading_context.attach_reconciliation_service(
                     dhan_reconciliation,
@@ -678,18 +718,44 @@ class BrokerService:
 
     @property
     def active_broker(self) -> MarketDataGateway | PaperGateway | MockBroker:
-        """Return the active broker: live Dhan, live Upstox, paper, or mock."""
+        """Return the active broker: live Dhan, live Upstox, paper, or mock.
+
+        Raises BrokerNotReadyError when the selected live broker failed
+        authenticated bootstrap and no paper/mock fallback is appropriate.
+        """
         self._ensure_initialized()
-        if self._active_name == "paper" and self._paper is not None:
-            return self._paper
-        if self._active_name == "upstox" and self._upstox_gateway is not None:
-            return self._upstox_gateway
-        if self._gateway is not None:
-            return self._gateway
-        if self._paper is not None:
-            return self._paper
-        assert self._mock is not None
-        return self._mock
+        # Live selection that failed auth must not silently fall back to mock
+        # when operator explicitly selected dhan/upstox after a failed bootstrap.
+        if (
+            self._active_name == "dhan"
+            and self._gateway is None
+            and self._dhan_bootstrap is not None
+            and self._dhan_bootstrap.status
+            in {BootstrapStatus.REAUTH_REQUIRED, BootstrapStatus.FAILED}
+        ):
+            raise BrokerNotReadyError.from_bootstrap(self._dhan_bootstrap)
+        if (
+            self._active_name == "upstox"
+            and self._upstox_gateway is None
+            and self._upstox_bootstrap is not None
+            and self._upstox_bootstrap.status
+            in {BootstrapStatus.REAUTH_REQUIRED, BootstrapStatus.FAILED}
+        ):
+            raise BrokerNotReadyError.from_bootstrap(self._upstox_bootstrap)
+
+        return resolve_active_broker(
+            self._active_name,
+            paper=self._paper,
+            oms_proxy=None,
+            gateway=self._gateway,
+            upstox_oms_proxy=None,
+            upstox_gateway=self._upstox_gateway,
+            mock=self._mock,
+            dhan_load_error=self._dhan_load_error,
+            upstox_load_error=self._upstox_load_error,
+            dhan_bootstrap=self._dhan_bootstrap,
+            upstox_bootstrap=self._upstox_bootstrap,
+        )
 
     @property
     def active_broker_name(self) -> str:
@@ -851,7 +917,7 @@ class BrokerService:
             from domain import (
                 ProductType as Pt,
             )
-            from brokers.common.oms.order_manager import OrderRequest
+            from application.oms.order_manager import OrderRequest
 
             try:
                 ot = Ot(order_type)
@@ -887,14 +953,10 @@ class BrokerService:
             if not result.success:
                 raise RuntimeError(f"OMS rejected order: {result.error}")
             return result.order
-        gw = self._ensure_oms_gateway()
-        return gw.place_order(
-            symbol=symbol,
-            exchange=exchange,
-            side=side,
-            quantity=quantity,
-            price=price,
-            order_type=order_type,
+        # Safe-to-trade: never bypass OMS (no bare gateway place_order)
+        raise RuntimeError(
+            "OMS refused: TradingContext / OrderManager not wired. "
+            "Cannot place orders without the institutional order spine."
         )
 
     def cancel_order(self, order_id: str) -> bool:
@@ -903,8 +965,10 @@ class BrokerService:
         if self._trading_context is not None:
             result = self._trading_context.order_manager.cancel_order(order_id)
             return result.success
-        gw = self._ensure_oms_gateway()
-        return gw.cancel_order(order_id)
+        raise RuntimeError(
+            "OMS refused: TradingContext / OrderManager not wired. "
+            "Cannot cancel orders without the institutional order spine."
+        )
 
     # -- broker management --------------------------------------------------
 

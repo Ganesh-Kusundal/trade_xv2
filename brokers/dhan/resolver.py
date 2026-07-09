@@ -1,4 +1,4 @@
-"""O(1) symbol → Instrument resolver backed by dictionaries.
+"""O(1) symbol → DhanInstrument resolver backed by dictionaries.
 
 Index symbols (NIFTY, BANKNIFTY, etc.) are resolved via a hardcoded
 fallback in :mod:`config.indices` when they are not present in the
@@ -11,10 +11,10 @@ import logging
 import threading
 from collections.abc import Iterable
 
-from brokers.dhan.domain import Exchange, Instrument, InstrumentType, OptionType
+from brokers.dhan.domain import Exchange, DhanInstrument, InstrumentType, OptionType
 from brokers.dhan.exceptions import InstrumentNotFoundError
 from brokers.dhan.segments import SEGMENT_TO_EXCHANGE
-from domain.entities.instrument_record import Instrument as DomainInstrument
+from domain.entities.instrument_record import InstrumentRecord as DomainInstrument
 from domain.symbols import normalize_exchange, normalize_symbol
 from config.indices import get_index_entry, is_index
 
@@ -43,19 +43,19 @@ _DHAN_OPTION_TYPE: dict[str, OptionType] = {
 
 
 class SymbolResolver:
-    """Thread-safe O(1) symbol → Instrument resolver."""
+    """Thread-safe O(1) symbol → DhanInstrument resolver."""
 
     def __init__(self) -> None:
-        self._by_symbol: dict[tuple[str, Exchange], Instrument] = {}
-        self._by_security_id: dict[str, Instrument] = {}
-        self._by_underlying: dict[tuple[str, Exchange], list[Instrument]] = {}
+        self._by_symbol: dict[tuple[str, Exchange], DhanInstrument] = {}
+        self._by_security_id: dict[str, DhanInstrument] = {}
+        self._by_underlying: dict[tuple[str, Exchange], list[DhanInstrument]] = {}
         self._loaded = False
         self._lock = threading.RLock()
 
     def resolve(
         self, symbol: str, exchange: str, *, expected_segment: str | None = None
-    ) -> Instrument:
-        """Resolve symbol to Instrument.
+    ) -> DhanInstrument:
+        """Resolve symbol to DhanInstrument.
 
         Args:
             symbol: Trading symbol
@@ -70,16 +70,16 @@ class SymbolResolver:
             )
         return inst
 
-    def get_by_symbol(self, symbol: str, exchange: str) -> Instrument | None:
+    def get_by_symbol(self, symbol: str, exchange: str) -> DhanInstrument | None:
         try:
             return self._find(symbol, self._normalise_exchange(exchange))
         except Exception:
             return None
 
-    def get_by_security_id(self, security_id: str) -> Instrument | None:
+    def get_by_security_id(self, security_id: str) -> DhanInstrument | None:
         return self._by_security_id.get(str(security_id))
 
-    def get_futures(self, underlying: str, exchange: str) -> list[Instrument]:
+    def get_futures(self, underlying: str, exchange: str) -> list[DhanInstrument]:
         exch = self._normalise_exchange(exchange)
         key = (normalize_symbol(underlying), exch)
         contracts = self._by_underlying.get(key, [])
@@ -100,7 +100,7 @@ class SymbolResolver:
     def stats(self) -> dict:
         return {"loaded": self._loaded, "total": len(self._by_security_id)}
 
-    def all_instruments(self) -> list[Instrument]:
+    def all_instruments(self) -> list[DhanInstrument]:
         return list(self._by_security_id.values())
 
     def load_from_rows(self, rows: Iterable[dict]) -> dict[str, int | float]:
@@ -109,9 +109,9 @@ class SymbolResolver:
         Returns:
             Dict with keys: total, skipped, skip_rate
         """
-        new_by_symbol: dict[tuple[str, Exchange], Instrument] = {}
-        new_by_sid: dict[str, Instrument] = {}
-        new_by_underlying: dict[tuple[str, Exchange], list[Instrument]] = {}
+        new_by_symbol: dict[tuple[str, Exchange], DhanInstrument] = {}
+        new_by_sid: dict[str, DhanInstrument] = {}
+        new_by_underlying: dict[tuple[str, Exchange], list[DhanInstrument]] = {}
         skipped = 0
 
         for row in rows:
@@ -202,7 +202,7 @@ class SymbolResolver:
 
     def _find(
         self, symbol: str, exch: Exchange, *, expected_segment: str | None = None
-    ) -> Instrument | None:
+    ) -> DhanInstrument | None:
         """Find instrument with progressive lookup.
 
         Args:
@@ -255,7 +255,7 @@ class SymbolResolver:
                     return idx_inst
 
         # 6. Hardcoded index fallback: if symbol is a known index with a
-        #    hardcoded Dhan security_id, create a synthetic Instrument.
+        #    hardcoded Dhan security_id, create a synthetic DhanInstrument.
         #    This works even when instruments are NOT loaded (load_instruments=False)
         #    or the index isn't present in the CSV.
         if is_index(clean):
@@ -297,7 +297,7 @@ class SymbolResolver:
                     name="INDEX",
                     canonical_symbol=entry.canonical_name,
                 )
-                return Instrument(
+                return DhanInstrument(
                     domain_instrument=domain_inst,
                     exchange=Exchange("INDEX"),
                     instrument_type=InstrumentType.EQUITY,
@@ -317,7 +317,7 @@ class SymbolResolver:
             return Exchange(mapped)
 
     @staticmethod
-    def _row_to_instrument(row: dict) -> Instrument | None:
+    def _row_to_instrument(row: dict) -> DhanInstrument | None:
         symbol = (row.get("SEM_TRADING_SYMBOL") or "").strip()
         security_id = str(row.get("SEM_SMST_SECURITY_ID") or "").strip()
         if not symbol or not security_id:
@@ -391,7 +391,7 @@ class SymbolResolver:
             canonical_symbol=canonical,
         )
 
-        return Instrument(
+        return DhanInstrument(
             domain_instrument=domain_inst,
             exchange=exchange,
             instrument_type=itype,

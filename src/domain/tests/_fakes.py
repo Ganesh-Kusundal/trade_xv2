@@ -97,8 +97,60 @@ class FakeProvider:
 
     def get_history(self, instrument_id, *, timeframe="1D", lookback_days=120,
                     from_date=None, to_date=None):
-        return pd.DataFrame(
-            {"open": [1, 2], "high": [1, 2], "low": [1, 2], "close": [1, 2], "volume": [10, 20]}
+        # Prefer domain bars (list); export to DataFrame only at boundary.
+        return self.get_history_series(
+            instrument_id,
+            timeframe=timeframe,
+            lookback_days=lookback_days,
+            from_date=from_date,
+            to_date=to_date,
+        ).bars
+
+    def get_history_series(
+        self,
+        instrument_id,
+        *,
+        timeframe="1D",
+        lookback_days=120,
+        from_date=None,
+        to_date=None,
+    ):
+        from domain.candles.historical import HistoricalBar, HistoricalSeries
+        from domain.provenance import DataProvenance
+
+        ref = InstrumentRef(
+            symbol=instrument_id.underlying, exchange=instrument_id.exchange
+        )
+        now = datetime.now(timezone.utc)
+        bars = [
+            HistoricalBar(
+                instrument=ref,
+                timeframe=timeframe,
+                event_time=now,
+                open=Decimal("1"),
+                high=Decimal("2"),
+                low=Decimal("1"),
+                close=Decimal("1.5"),
+                volume=10,
+                provenance=DataProvenance.now("fake", "hist-1"),
+            ),
+            HistoricalBar(
+                instrument=ref,
+                timeframe=timeframe,
+                event_time=now,
+                open=Decimal("1.5"),
+                high=Decimal("2"),
+                low=Decimal("1"),
+                close=Decimal("2"),
+                volume=20,
+                provenance=DataProvenance.now("fake", "hist-2"),
+            ),
+        ]
+        return HistoricalSeries(
+            bars=bars,
+            coverage=None,
+            instrument=ref,
+            timeframe=timeframe,
         )
 
     def get_depth(self, instrument_id):

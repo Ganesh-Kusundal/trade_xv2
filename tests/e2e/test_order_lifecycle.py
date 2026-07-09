@@ -23,7 +23,7 @@ from application.oms import (
     RiskManager,
     create_trading_context,
 )
-from brokers.common.observability.event_metrics import EventMetrics
+from infrastructure.observability.event_metrics import EventMetrics
 from domain import (
     Order,
     OrderStatus,

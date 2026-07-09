@@ -1,22 +1,17 @@
-"""Broker-agnostic core types and interfaces.
+"""Broker-agnostic residual modules (not a re-export layer).
 
-This subpackage contains the canonical domain types, abstract interfaces,
-and shared utilities used by all broker adapters (Dhan, Upstox, Paper).
+Canonical homes
+---------------
+- Ports / protocols: ``domain.ports`` (``BrokerAdapter``, ``DataProvider``, …)
+- Platform kernel: ``tradex.runtime`` (factory, resilience, auth, services, …)
+- Domain types: ``domain``
 
-Import Direction Rule
----------------------
-brokers.common → broker-agnostic core (NEVER imports broker-specific code)
-brokers.dhan → Dhan-specific adapter (imports from brokers.common)
-brokers.upstox → Upstox-specific adapter (imports from brokers.common)
-brokers.paper → Paper/mock trading adapter (imports from brokers.common)
+What remains here
+-----------------
+- ``broker_capabilities`` — capability SSOT (also re-exported via ``tradex.runtime.capabilities``)
+- ``api`` — broker SPI / margin contracts
+- ``oms.margin_provider`` — margin adapter (OMS itself is ``application.oms``)
+- ``contracts`` / ``tests`` — cross-broker contract and certification suites
+
+Do not add new re-export shims. Prefer importing from the canonical modules above.
 """
-
-from __future__ import annotations
-
-from brokers.common.factory import BrokerProviderFactory
-from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
-
-__all__ = [
-    "BrokerProviderFactory",
-    "MarketDataGateway",
-]

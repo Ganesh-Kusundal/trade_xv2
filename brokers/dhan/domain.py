@@ -125,10 +125,11 @@ class Alert:
 
 
 @dataclass(frozen=True)
-class Instrument:
-    """Full instrument definition as resolved by the Dhan symbol resolver.
+class DhanInstrument:
+    """Full Dhan instrument definition as resolved by the symbol resolver.
 
-    Uses composition to hold a reference to the canonical domain.Instrument.
+    Broker-local DTO named DhanInstrument so domain.instruments.Instrument stays unique.
+    Uses composition to hold domain.entities.instrument_record.InstrumentRecord.
     """
 
     domain_instrument: 'domain.entities.instrument_record.InstrumentRecord'
@@ -356,3 +357,28 @@ class ExitAllResponse:
     orders_cancelled: int
     success: bool
     message: str
+
+
+# ── P&L Based Exit (Trader's Control) ────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class PnlExitStatus:
+    """Short status returned by configure / stop P&L exit."""
+
+    status: str  # ACTIVE | DISABLED | INACTIVE | …
+    message: str = ""
+    profit_value: Decimal | None = None
+    loss_value: Decimal | None = None
+
+
+@dataclass(frozen=True)
+class PnlExitConfig:
+    """Full day-session P&L exit configuration from GET /pnlExit."""
+
+    status: str
+    profit_value: Decimal | None = None
+    loss_value: Decimal | None = None
+    product_types: tuple[str, ...] = ()
+    enable_kill_switch: bool = False
+    message: str = ""

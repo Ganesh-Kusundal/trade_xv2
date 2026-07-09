@@ -12,6 +12,8 @@ class TestDhanCapabilities:
         assert caps.supports("expired_options_history")
         assert not caps.supports("news")
         assert not caps.supports("fundamentals")
+        assert not caps.supports("portfolio_stream")
+        assert caps.supports("native_slice_order")
 
     def test_intraday_lookback_ten_years(self):
         caps = dhan_capabilities()
@@ -33,6 +35,13 @@ class TestUpstoxCapabilities:
         assert caps.supports("fundamentals")
         assert not caps.supports("super_order")
         assert not caps.supports("depth_20_ws")
+        assert caps.supports("expired_options_history")
+        assert caps.supports("native_slice_order")
+        assert caps.supports("forever_order")
+        assert caps.max_batch_size == 500
+        q = caps.limit_for("quotes")
+        assert q is not None
+        assert q.sustained_rps == 25.0
 
     def test_intraday_lookback_thirty_days(self):
         caps = upstox_capabilities()

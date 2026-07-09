@@ -11,7 +11,7 @@ sys.path.insert(0, str(project_root))
 
 from api.config import APIConfig
 from api.main import create_app
-from brokers.common.auth.environment_bootstrap import bootstrap_environment
+from tradex.runtime.auth.environment_bootstrap import bootstrap_environment
 from infrastructure.logging_config import configure_logging
 from runtime.api_bootstrap import initialize_api_services
 

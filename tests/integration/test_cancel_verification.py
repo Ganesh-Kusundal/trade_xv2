@@ -107,13 +107,13 @@ class TestDhanGatewayCancelVerification:
     def mock_dhan_gateway(self):
         """Create Dhan gateway with mocked connection."""
         from brokers.dhan.connection import DhanConnection
-        from brokers.dhan.gateway import BrokerGateway
+        from brokers.dhan.gateway import DhanBrokerGateway
 
         mock_conn = MagicMock(spec=DhanConnection)
         mock_conn.orders = MagicMock()
         mock_conn.market_data = MagicMock()
 
-        gw = BrokerGateway(mock_conn)
+        gw = DhanBrokerGateway(mock_conn)
         return gw, mock_conn
 
     def test_cancel_open_order_with_verification(self, mock_dhan_gateway):

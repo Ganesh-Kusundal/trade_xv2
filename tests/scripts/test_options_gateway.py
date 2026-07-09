@@ -31,7 +31,7 @@ def test_dhan_options_via_gateway():
     try:
         import time
 
-        from brokers.common.env_loader import load_env_file
+        from tradex.runtime.env_loader import load_env_file
         from cli.services.broker_registry import create_gateway
 
         env_path = Path(".env.local")
@@ -158,7 +158,7 @@ def test_upstox_options_via_gateway():
     try:
         import time
 
-        from brokers.common.env_loader import load_env_file
+        from tradex.runtime.env_loader import load_env_file
         from cli.services.broker_registry import create_gateway
 
         env_path = Path(".env.upstox")

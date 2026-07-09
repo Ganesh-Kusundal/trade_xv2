@@ -43,8 +43,7 @@ from domain.ports import (
     OrderStorePort,
     ProcessedTradeRepositoryPort,
 )
-from infrastructure.logging_config import get_logger
-from infrastructure.observability.tracing import trace_operation
+from application.observability import get_logger, trace_operation
 
 if TYPE_CHECKING:
     pass
@@ -183,6 +182,9 @@ class OrderManager:
         # Pending-order set prevents TOCTOU races when the lock
         # is released between idempotency check and order book insertion.
         self._pending_correlation: set[str] = set()
+        # Trades that arrived before ORDER_UPDATED (bounded buffer per order_id).
+        self._pending_trades_by_order: dict[str, list[Trade]] = {}
+        self._pending_trades_max_per_order: int = 32
         # Re-entrancy guard: when a handler is currently being invoked, an
         # ORDER_UPDATED that the OMS publishes internally (e.g. via
         # upsert_order) MUST NOT re-enter the OMS handler, otherwise we
@@ -393,6 +395,11 @@ class OrderManager:
         """
         if submit_fn is None:
             return order, None
+        # Record-then-submit: persist stub before broker I/O so a crash after
+        # broker accept still leaves a reconcilable order in the book.
+        with self._lock:
+            self._orders[order.order_id] = order
+            self._orders_by_correlation[request.correlation_id] = order
         try:
             order = submit_fn(request)
             return order, None
@@ -410,6 +417,9 @@ class OrderManager:
         """Phase 4: Record order in book and publish event (under lock)."""
         with self._lock:
             self._pending_correlation.discard(request.correlation_id)
+            prior = self._orders_by_correlation.get(request.correlation_id)
+            if prior is not None and prior.order_id != order.order_id:
+                self._orders.pop(prior.order_id, None)
             self._orders[order.order_id] = order
             self._orders_by_correlation[request.correlation_id] = order
 
@@ -460,6 +470,32 @@ class OrderManager:
                     self._active_orders.dec()
 
             self._publish(EventType.ORDER_UPDATED.value, order)
+            self._flush_pending_trades_locked(order.order_id)
+
+    def _flush_pending_trades_locked(self, order_id: str) -> None:
+        """Apply trades buffered before the parent order existed (caller holds lock)."""
+        pending = self._pending_trades_by_order.pop(order_id, None)
+        if not pending:
+            return
+        for trade in pending:
+            if self._processed_trades is not None:
+                key = TradeIdKey.from_trade(trade)
+                if self._processed_trades.is_processed(key):
+                    continue
+            order = self._orders.get(trade.order_id)
+            if order is None:
+                continue
+            if self._processed_trades is not None:
+                key = TradeIdKey.from_trade(trade)
+                if not self._processed_trades.mark_processed(key):
+                    continue
+            updated = self._position_updater.apply_trade(order, trade)
+            self._orders[order.order_id] = updated
+            if order.correlation_id:
+                self._orders_by_correlation[order.correlation_id] = updated
+            self._trades_processed += 1
+            self._publish(EventType.ORDER_UPDATED.value, updated)
+            self._publish_trade_applied(trade)
 
     def record_trade(self, trade: Trade) -> bool:
         """Record a trade and update the parent order.
@@ -477,13 +513,13 @@ class OrderManager:
         bool
             True if the trade was accepted and applied.
             False if the trade was a duplicate (already processed) or
-            referenced an unknown order.
+            referenced an unknown order (buffered for later).
         """
         if trade.trade_id is None or not str(trade.trade_id).strip():
             raise ValueError("OrderManager.record_trade requires a non-empty trade.trade_id")
         key = TradeIdKey.from_trade(trade)
         with self._lock:
-            if self._processed_trades.is_processed(key):
+            if self._processed_trades is not None and self._processed_trades.is_processed(key):
                 self._trades_duplicated += 1
                 if self._metrics is not None:
                     self._metrics.inc(EventType.TRADE.value, "trade_duplicated")
@@ -496,15 +532,20 @@ class OrderManager:
 
             order = self._orders.get(trade.order_id)
             if order is None:
+                buf = self._pending_trades_by_order.setdefault(trade.order_id, [])
+                if len(buf) < self._pending_trades_max_per_order:
+                    buf.append(trade)
                 logger.warning(
                     "OrderManager: trade %s references unknown order %s; "
-                    "ledger will not be marked, retry on order delivery",
+                    "buffered (%d pending) until order delivery",
                     trade.trade_id,
                     trade.order_id,
+                    len(buf),
                 )
                 return False
 
-            self._processed_trades.mark_processed(key)
+            if self._processed_trades is not None:
+                self._processed_trades.mark_processed(key)
 
             updated = self._position_updater.apply_trade(order, trade)
 
@@ -631,6 +672,72 @@ class OrderManager:
             self._publish(EventType.ORDER_CANCELLED.value, updated)
             return OrderResult(success=True, order=updated)
 
+    def modify_order(
+        self,
+        request: Any,
+        modify_fn: Callable[["ModifyOrderRequest"], Any] | None = None,
+    ) -> OrderResult:
+        """Modify a pending order locally and optionally at the broker.
+
+        Routes through the OMS (single owner of order state + idempotency)
+        instead of an ExecutionComposer bypass. ``modify_fn`` is the broker
+        transport call; if it fails, local state is NOT mutated.
+
+        Phase 2: fold the modify/cancel path into the OMS singleton so the
+        kill-switch (owned by the shared RiskManager) guards every mutation.
+        """
+        from domain.orders.requests import ModifyOrderRequest
+
+        req = request if isinstance(request, ModifyOrderRequest) else ModifyOrderRequest(
+            order_id=getattr(request, "order_id", ""),
+            quantity=getattr(request, "quantity", None),
+            price=getattr(request, "price", None),
+            order_type=getattr(request, "order_type", None),
+            product_type=getattr(request, "product_type", None),
+        )
+        with self._lock:
+            order = self._orders.get(req.order_id)
+            if order is None:
+                return OrderResult(success=False, error="Order not found")
+            if order.status.is_terminal:
+                return OrderResult(success=False, error="Order already final")
+
+        # Kill-switch / risk guard (shared RiskManager owns the switch).
+        if self._risk_manager is not None and self._risk_manager.is_kill_switch_active():
+            from application.oms.errors import OrderBlockedError
+
+            return OrderResult(
+                success=False,
+                error=f"Order blocked: kill switch active (modify_order {req.order_id})",
+            )
+
+        if modify_fn is not None:
+            try:
+                response = modify_fn(req)
+                if response is not None and not getattr(response, "success", True):
+                    return OrderResult(
+                        success=False,
+                        error=getattr(response, "message", None)
+                        or getattr(response, "error", "broker modify failed"),
+                    )
+            except Exception as exc:
+                return OrderResult(success=False, error=str(exc))
+
+        # Reflect the requested change in local state (authoritative book).
+        updated = order
+        if req.price is not None:
+            updated = updated.with_price(req.price)
+        if req.quantity is not None:
+            updated = updated.with_quantity(req.quantity)
+        if req.order_type is not None:
+            updated = updated.with_order_type(req.order_type)
+        with self._lock:
+            self._orders[req.order_id] = updated
+            if updated.correlation_id:
+                self._orders_by_correlation[updated.correlation_id] = updated
+        self._publish(EventType.ORDER_UPDATED.value, updated)
+        return OrderResult(success=True, order=updated)
+
     # ── Event handlers ──────────────────────────────────────────────────────
 
     def on_order_update(self, event: DomainEvent) -> None:
@@ -657,7 +764,7 @@ class OrderManager:
                     exc,
                 )
 
-    def on_trade(self, event: DomainEvent) -> None:
+    def on_trade(self, event: DomainEvent) -> bool:
         """Handle broker trade events from the bus.
 
         P5 Stability Engineering: Uses TradeFilledEvent typed wrapper
@@ -665,21 +772,29 @@ class OrderManager:
 
         Uses :func:`_reentrancy_guard` to prevent recursive handler
         invocation.
+
+        Returns
+        -------
+        bool
+            True if the trade was accepted by :meth:`record_trade`.
+            False if reentered, invalid, duplicate, or unknown order.
+            Callers (e.g. crash-replay) must not apply positions when False.
         """
         with self._reentrancy_guard() as guard:
             if guard.reentered:
-                return
+                return False
             try:
                 from domain.events.types import TradeFilledEvent
 
                 typed_event = TradeFilledEvent.from_domain_event(event)
-                self.record_trade(typed_event.trade)
+                return self.record_trade(typed_event.trade)
             except ValueError as exc:
                 # Invalid payload - log and skip (don't crash)
                 logger.warning(
                     "OrderManager.on_trade: invalid event payload: %s",
                     exc,
                 )
+                return False
 
     # ── Re-entrancy guard ───────────────────────────────────────────────────
 

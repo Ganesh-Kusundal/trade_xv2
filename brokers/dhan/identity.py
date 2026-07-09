@@ -57,7 +57,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-from brokers.dhan.domain import Exchange, Instrument, InstrumentType
+from brokers.dhan.domain import Exchange, DhanInstrument, InstrumentType
 from brokers.dhan.exceptions import DhanIdentityError, InstrumentNotFoundError
 from brokers.dhan.resolver import SymbolResolver
 from brokers.dhan.segments import EXCHANGE_TO_SEGMENT
@@ -258,7 +258,7 @@ class DhanIdentityProvider:
 
     1. Calls ``self._resolver.resolve(symbol, exchange)`` which may raise
        :class:`InstrumentNotFoundError`.
-    2. Wraps the resulting :class:`Instrument` in a
+    2. Wraps the resulting :class:`DhanInstrument` in a
        :class:`DhanInstrumentRef` (enforcing the Dhan-internal contract
        via ``__post_init__``).
     3. Emits a structured ``security_id_issued`` audit log with the
@@ -395,7 +395,7 @@ class DhanIdentityProvider:
 
     def _wrap(
         self,
-        inst: Instrument,
+        inst: DhanInstrument,
         *,
         expected_segment: str | None,
     ) -> DhanInstrumentRef:
@@ -429,7 +429,7 @@ class DhanIdentityProvider:
         is_synthetic = inst.name == "INDEX" and inst.sm_symbol_name is None
         source = DhanIdentitySource.HARDCODED_INDEX if is_synthetic else DhanIdentitySource.CSV
         # Normalise security_id to a string. Some callers (and the
-        # ``Instrument`` dataclass itself) carry the id as an int; the
+        # ``DhanInstrument`` dataclass itself) carry the id as an int; the
         # carrier requires a string of digits for invariant checks and
         # for direct use in HTTP payloads.
         raw_sid = inst.security_id

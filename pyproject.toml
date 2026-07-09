@@ -50,11 +50,12 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src", "."]
-include = ["brokers*", "cli*", "analytics*", "datalake*", "config*", "domain*", "runtime*", "application*", "infrastructure*", "market_data*", "oms*", "event_bus*", "portfolio*", "risk*", "strategy*", "backtesting*", "replay*", "plugins*", "providers*"]
+include = ["brokers*", "cli*", "analytics*", "datalake*", "config*", "domain*", "runtime*", "application*", "infrastructure*", "market_data*", "oms*", "event_bus*", "portfolio*", "risk*", "strategy*", "backtesting*", "replay*", "plugins*", "providers*", "interfaces*", "shared*", "tradex*"]
 
 # ─── pytest ────────────────────────────────────────────────
 [tool.pytest.ini_options]
 minversion = "7.0"
+pythonpath = ["src", "."]
 testpaths = ["tests", "brokers", "analytics", "cli", "datalake", "application", "src", "infrastructure"]
 markers = [
     "unit: module-owned unit tests",
@@ -210,11 +211,11 @@ skip-magic-trailing-comma = false
 # Layer boundary contracts live inline in [tool.importlinter] below.
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
-# Domain types must come from brokers.common, not broker-specific packages
-"brokers.dhan.domain.Quote" = {msg = "Import Quote from brokers.common.core.domain, not from brokers.dhan.domain"}
-"brokers.dhan.domain.Balance" = {msg = "Import Balance from brokers.common.core.domain, not from brokers.dhan.domain"}
-"brokers.dhan.domain.DepthLevel" = {msg = "Import DepthLevel from brokers.common.core.domain, not from brokers.dhan.domain"}
-"brokers.dhan.domain.MarketDepth" = {msg = "Import MarketDepth from brokers.common.core.domain, not from brokers.dhan.domain"}
+# Domain types must come from domain, not broker-specific packages
+"brokers.dhan.domain.Quote" = {msg = "Import Quote from domain, not from brokers.dhan.domain"}
+"brokers.dhan.domain.Balance" = {msg = "Import Balance from domain, not from brokers.dhan.domain"}
+"brokers.dhan.domain.DepthLevel" = {msg = "Import DepthLevel from domain, not from brokers.dhan.domain"}
+"brokers.dhan.domain.MarketDepth" = {msg = "Import MarketDepth from domain, not from brokers.dhan.domain"}
 # Lower layers cannot import from CLI
 "cli" = {msg = "Lower layers (datalake, analytics, brokers) cannot import from cli. Use entry points or events instead."}
 # Cross-broker imports are forbidden
@@ -223,16 +224,18 @@ skip-magic-trailing-comma = false
 
 # ─── Import Linter Contracts ──────────────────────────────
 # Enforce architectural layer boundaries (REF-012).
-# Run: lint-imports --config pyproject.toml
+# ALWAYS run with this repo first on PYTHONPATH so `domain` is not shadowed:
+#   PYTHONPATH="$(pwd)/src:$(pwd)" lint-imports --config pyproject.toml
+# CI pins PYTHONPATH the same way (.github/workflows/ci.yml).
 
 [tool.importlinter]
-root_packages = ["src/domain", "brokers", "analytics", "datalake", "cli", "api", "application", "infrastructure"]
+root_packages = ["domain", "brokers", "analytics", "datalake", "cli", "api", "application", "infrastructure", "tradex", "shared"]
 
 [[tool.importlinter.contracts]]
 name = "Domain independence"
 type = "forbidden"
 source_modules = ["domain"]
-forbidden_modules = ["infrastructure", "brokers", "analytics", "datalake", "cli", "application", "api"]
+forbidden_modules = ["infrastructure", "brokers", "analytics", "datalake", "cli", "application", "api", "tradex"]
 
 [[tool.importlinter.contracts]]
 name = "Infrastructure independence"
@@ -241,7 +244,7 @@ source_modules = ["infrastructure"]
 forbidden_modules = ["brokers", "analytics", "cli", "application", "api"]
 ignore_imports = [
     "infrastructure.tests.test_audit -> application.audit",
-    "infrastructure.tests.test_global_exception_handler -> brokers.common.resilience.errors",
+    "infrastructure.tests.test_global_exception_handler -> tradex.runtime.resilience.errors",
 ]
 
 [[tool.importlinter.contracts]]
@@ -256,9 +259,6 @@ type = "forbidden"
 source_modules = ["brokers.common"]
 forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper", "analytics"]
 ignore_imports = [
-    "brokers.common.bootstrap -> cli.services.broker_registry",
-    "brokers.common.oms.tests.* -> application.oms",
-    "brokers.common.oms.tests.* -> application.oms.*",
     "brokers.common.tests.* -> brokers.dhan.*",
     "brokers.common.tests.* -> brokers.upstox.*",
     "brokers.common.tests.* -> brokers.upstox.*.*",
@@ -272,10 +272,7 @@ type = "forbidden"
 source_modules = ["application"]
 forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper"]
 ignore_imports = [
-    "application.execution.tests.test_execution_service -> brokers.paper.paper_gateway",
-    "application.trading.tests.test_trading_orchestrator_e2e -> brokers.paper.paper_gateway",
     "application.oms.tests.test_risk_manager_margin -> brokers.common.api",
-    "application.oms.tests.test_risk_manager_margin -> brokers.common.oms.margin_provider",
 ]
 
 [[tool.importlinter.contracts]]
@@ -284,23 +281,17 @@ type = "forbidden"
 source_modules = ["application"]
 forbidden_modules = ["infrastructure"]
 ignore_imports = [
-    "application.oms.order_manager -> infrastructure.logging_config",
-    "application.oms.order_manager -> infrastructure.observability.tracing",
-    "application.audit -> infrastructure.correlation",
-    "application.audit -> infrastructure.logging_config",
-    "application.oms.position_manager -> infrastructure.logging_config",
-    "application.composer.* -> brokers.common.router",
-    "application.composer.* -> brokers.common.stream_orchestrator",
-    "application.composer.* -> brokers.common.provenance",
-    "application.composer.* -> brokers.common.historical_coordinator",
-    "application.composer.* -> brokers.common.infrastructure",
+    "application.composer.* -> tradex.runtime.router",
+    "application.composer.* -> tradex.runtime.stream_orchestrator",
+    "application.composer.* -> tradex.runtime.provenance",
+    "application.composer.* -> tradex.runtime.infrastructure",
     "application.oms.tests.* -> infrastructure.event_bus",
     "application.oms.tests.* -> infrastructure.event_log",
     "application.oms.tests.* -> infrastructure.lifecycle",
     "application.oms.tests.* -> infrastructure.lifecycle.*",
     "application.oms.tests.* -> infrastructure.observability.*",
     "application.oms.tests.* -> infrastructure.persistence.*",
-    "application.oms.tests.* -> infrastructure.state_machine",
+    "application.oms.tests.* -> infrastructure.metrics",
 ]
 
 [[tool.importlinter.contracts]]
@@ -313,7 +304,6 @@ ignore_imports = [
     "cli.services.broker_registry -> brokers.dhan.factory",
     "cli.services.broker_registry -> brokers.upstox.factory",
     "cli.services.broker_registry -> brokers.paper",
-    "cli.services.broker_registry -> brokers.paper.mock_broker",
     "cli.services.broker_registry -> brokers.dhan.websocket",
     "cli.services.broker_registry -> brokers.dhan.reconciliation",
     # Test-only: integration tests legitimately import broker implementations.
@@ -327,3 +317,14 @@ name = "API broker-implementation isolation"
 type = "forbidden"
 source_modules = ["api"]
 forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper"]
+
+[[tool.importlinter.contracts]]
+name = "Tradex public API broker isolation"
+type = "forbidden"
+source_modules = ["tradex"]
+forbidden_modules = ["brokers.dhan", "brokers.upstox"]
+ignore_imports = [
+    # Session factory may construct paper gateway for the public SDK.
+    "tradex.session -> brokers.paper",
+    "tradex.session -> brokers.paper.data_provider",
+]

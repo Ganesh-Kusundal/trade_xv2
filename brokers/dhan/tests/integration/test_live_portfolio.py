@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "..
 from brokers.dhan.factory import BrokerFactory
 
 pytestmark = [pytest.mark.dhan, pytest.mark.off_market_safe, pytest.mark.regression]
-from brokers.dhan.gateway import BrokerGateway
+from brokers.dhan.gateway import DhanBrokerGateway
 
 # ---------------------------------------------------------------------------
 # Skip guard — only run when .env.local has valid credentials
@@ -39,21 +39,21 @@ if ENV_PATH.exists() and ENV_PATH.stat().st_size > 0:
 class TestLivePortfolio:
     """End-to-end portfolio and account endpoint tests against live Dhan API."""
 
-    def test_funds_returns_balance(self, gateway: BrokerGateway):
+    def test_funds_returns_balance(self, gateway: DhanBrokerGateway):
         """funds() should return a Balance object with available_balance > 0."""
         balance = gateway.funds()
         assert balance is not None
         assert hasattr(balance, "available_balance")
         assert balance.available_balance > 0
 
-    def test_funds_balance_schema(self, gateway: BrokerGateway):
+    def test_funds_balance_schema(self, gateway: DhanBrokerGateway):
         """Balance should have required fields: available_balance, used_margin, total_margin."""
         balance = gateway.funds()
         assert hasattr(balance, "available_balance")
         assert hasattr(balance, "used_margin")
         assert hasattr(balance, "total_margin")
 
-    def test_positions_returns_list(self, gateway: BrokerGateway):
+    def test_positions_returns_list(self, gateway: DhanBrokerGateway):
         """positions() should return a list (can be empty) of Position objects."""
         positions = gateway.positions()
         assert isinstance(positions, list)
@@ -65,7 +65,7 @@ class TestLivePortfolio:
             assert hasattr(pos, "quantity")
             assert hasattr(pos, "average_price")
 
-    def test_holdings_returns_list(self, gateway: BrokerGateway):
+    def test_holdings_returns_list(self, gateway: DhanBrokerGateway):
         """holdings() should return a list (can be empty) of Holding objects."""
         holdings = gateway.holdings()
         assert isinstance(holdings, list)
@@ -76,7 +76,7 @@ class TestLivePortfolio:
             assert hasattr(holding, "exchange")
             assert hasattr(holding, "quantity")
 
-    def test_trades_returns_list(self, gateway: BrokerGateway):
+    def test_trades_returns_list(self, gateway: DhanBrokerGateway):
         """trades() should return a list (can be empty) of Trade objects."""
         trades = gateway.trades()
         assert isinstance(trades, list)
@@ -88,12 +88,12 @@ class TestLivePortfolio:
             assert hasattr(trade, "quantity")
             assert hasattr(trade, "price")
 
-    def test_get_trade_book_returns_list(self, gateway: BrokerGateway):
+    def test_get_trade_book_returns_list(self, gateway: DhanBrokerGateway):
         """get_trade_book() should return same result as trades()."""
         trade_book = gateway.get_trade_book()
         assert isinstance(trade_book, list)
 
-    def test_describe_returns_metadata(self, gateway: BrokerGateway):
+    def test_describe_returns_metadata(self, gateway: DhanBrokerGateway):
         """describe() should return dict with broker metadata."""
         desc = gateway.describe()
         assert isinstance(desc, dict)
@@ -101,13 +101,13 @@ class TestLivePortfolio:
         assert "instruments_loaded" in desc
         assert "instrument_count" in desc
 
-    def test_describe_instrument_count(self, gateway: BrokerGateway):
+    def test_describe_instrument_count(self, gateway: DhanBrokerGateway):
         """describe() should show instruments loaded with count > 0."""
         desc = gateway.describe()
         assert desc["instruments_loaded"] is True
         assert desc["instrument_count"] > 0
 
-    def test_capabilities_returns_matrix(self, gateway: BrokerGateway):
+    def test_capabilities_returns_matrix(self, gateway: DhanBrokerGateway):
         """capabilities() should return BrokerCapabilities object."""
         caps = gateway.capabilities()
         assert caps is not None

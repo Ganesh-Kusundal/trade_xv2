@@ -1,25 +1,18 @@
 """API authentication — API key validation and dependency injection.
 
 Authentication modes:
-- "none": No authentication (default for CLI/local dev)
-- "api_key": Require X-API-Key header on all protected endpoints
+- ``api_key``: Require X-API-Key header on all protected endpoints (default).
 
-Public endpoints (never require auth):
+Any other ``AUTH_MODE`` value is rejected at startup and on every request
+(fail-closed — no silent unauthenticated trading surface).
+
+Public endpoints (never require auth in development):
 - /healthz, /readyz (health probes)
-- /docs, /redoc, /openapi.json (API documentation)
 
-Protected endpoints (require auth when AUTH_MODE=api_key):
-- /api/v1/orders, /api/v1/portfolio, /api/v1/risk (trading)
-- /api/v1/market, /api/v1/analytics, /api/v1/scanner (data)
-- /api/v1/replay, /api/v1/backtest, /api/v1/strategy (analytics)
-- WebSocket streams (/ws/*) when AUTH_MODE=api_key
+In production/staging (``TRADEX_ENV``), /docs, /redoc, /openapi.json also require auth.
 
-Usage:
-    from api.auth import require_auth, validate_ws_api_key
-
-    @router.post("/orders", dependencies=[Depends(require_auth)])
-    async def create_order(...):
-        ...
+Control-plane routes (kill-switch) require ``ADMIN_API_KEY`` (or ``API_KEY`` in dev
+when ``ADMIN_API_KEY`` is unset).
 """
 
 from __future__ import annotations
@@ -33,10 +26,37 @@ from fastapi.security import APIKeyHeader
 
 logger = logging.getLogger(__name__)
 
+_VALID_AUTH_MODES = frozenset({"api_key"})
+
+
+def _auth_none_allowed() -> bool:
+    """``none`` auth is test-only — never in production."""
+    if os.getenv("PYTEST_CURRENT_TEST"):
+        return True
+    env = (os.getenv("TRADEX_ENV") or "development").strip().lower()
+    return env not in ("production", "staging") and os.getenv("TRADEX_ALLOW_AUTH_NONE") == "1"
+
+
+def _normalize_auth_mode(mode: str) -> str:
+    m = mode.lower().strip()
+    if m == "none":
+        if not _auth_none_allowed():
+            raise RuntimeError(
+                "AUTH_MODE='none' is forbidden outside tests/local dev "
+                "(set TRADEX_ALLOW_AUTH_NONE=1 for explicit local opt-in)"
+            )
+        return m
+    if m not in _VALID_AUTH_MODES:
+        raise RuntimeError(
+            f"Invalid AUTH_MODE={m!r}. Only 'api_key' is permitted (fail-closed)."
+        )
+    return m
+
 # ── Configuration ─────────────────────────────────────────────────────────────
 
-AUTH_MODE: str = os.getenv("AUTH_MODE", "api_key").lower()
+AUTH_MODE: str = _normalize_auth_mode(os.getenv("AUTH_MODE", "api_key"))
 API_KEY: str = os.getenv("API_KEY", "")
+ADMIN_API_KEY: str = os.getenv("ADMIN_API_KEY", "")
 
 if AUTH_MODE == "api_key" and not API_KEY:
     API_KEY = secrets.token_urlsafe(32)
@@ -49,27 +69,38 @@ if AUTH_MODE == "api_key" and not API_KEY:
 def configure(*, auth_mode: str, api_key: str = "") -> None:
     """Override auth settings from APIConfig (called by ``create_app``)."""
     global AUTH_MODE, API_KEY
-    AUTH_MODE = auth_mode.lower()
+    AUTH_MODE = _normalize_auth_mode(auth_mode)
     if api_key:
         API_KEY = api_key
     elif AUTH_MODE == "api_key" and not API_KEY:
         API_KEY = secrets.token_urlsafe(32)
 
+
+def _is_production_docs_gated() -> bool:
+    """Gate OpenAPI/docs behind auth in production/staging."""
+    env = (os.getenv("TRADEX_ENV") or "development").strip().lower()
+    return env in ("production", "staging")
+
+
 # ── Security Scheme ───────────────────────────────────────────────────────────
 
 api_key_header = APIKeyHeader(
     name="X-API-Key",
-    auto_error=False,  # Don't auto-reject; we handle it manually
+    auto_error=False,
     scheme_name="API Key",
 )
 
 # ── Public Paths ──────────────────────────────────────────────────────────────
 
-PUBLIC_PATHS = frozenset(
+_BASE_PUBLIC_PATHS = frozenset(
     {
         "/healthz",
         "/readyz",
-        "/metrics",
+    }
+)
+
+_DEV_PUBLIC_PATHS = frozenset(
+    {
         "/docs",
         "/redoc",
         "/openapi.json",
@@ -79,13 +110,23 @@ PUBLIC_PATHS = frozenset(
 
 def is_public_path(path: str) -> bool:
     """Check if a path should bypass authentication."""
-    return path in PUBLIC_PATHS
+    if path in _BASE_PUBLIC_PATHS:
+        return True
+    if not _is_production_docs_gated() and path in _DEV_PUBLIC_PATHS:
+        return True
+    return False
 
 
 def _validate_api_key_value(api_key: str | None) -> None:
-    """Raise HTTPException if the API key is missing or invalid."""
-    if AUTH_MODE != "api_key":
+    """Raise HTTPException if the API key is missing or invalid (fail-closed)."""
+    if AUTH_MODE == "none":
         return
+
+    if AUTH_MODE not in _VALID_AUTH_MODES:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="API authentication misconfigured (invalid AUTH_MODE)",
+        )
 
     if not api_key:
         raise HTTPException(
@@ -103,14 +144,37 @@ def _validate_api_key_value(api_key: str | None) -> None:
         )
 
 
+def _validate_admin_api_key(api_key: str | None) -> None:
+    """Require admin credentials for control-plane routes."""
+    _validate_api_key_value(api_key)
+    admin_key = (ADMIN_API_KEY or os.getenv("ADMIN_API_KEY", "")).strip()
+    if admin_key:
+        if not api_key or not secrets.compare_digest(api_key, admin_key):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Admin API key required for this operation",
+            )
+        return
+    # Dev fallback: primary API_KEY is admin when ADMIN_API_KEY unset
+    env = (os.getenv("TRADEX_ENV") or "development").strip().lower()
+    if env in ("production", "staging"):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="ADMIN_API_KEY must be set in production for control-plane routes",
+        )
+
+
 async def reject_ws_if_unauthorized(websocket: WebSocket) -> bool:
-    """Validate WebSocket API key. Returns True if connection should proceed."""
-    if AUTH_MODE != "api_key":
+    """Validate WebSocket API key via header only (never query string)."""
+    if AUTH_MODE == "none":
         return True
 
-    api_key = websocket.query_params.get("api_key")
-    if not api_key:
-        api_key = websocket.headers.get("x-api-key")
+    if AUTH_MODE not in _VALID_AUTH_MODES:
+        await websocket.accept()
+        await websocket.close(code=1008, reason="Auth misconfigured")
+        return False
+
+    api_key = websocket.headers.get("x-api-key")
 
     if api_key and secrets.compare_digest(api_key, API_KEY):
         return True
@@ -121,26 +185,18 @@ async def reject_ws_if_unauthorized(websocket: WebSocket) -> bool:
     return False
 
 
-# ── Authentication Dependency ─────────────────────────────────────────────────
-
-
 async def require_auth(
     x_api_key: str | None = Header(None, alias="X-API-Key"),
 ) -> None:
-    """FastAPI dependency that validates API key.
-
-    Raises HTTPException(401) if:
-    - AUTH_MODE is "api_key" AND
-    - X-API-Key header is missing OR invalid
-
-    Does nothing if:
-    - AUTH_MODE is "none" (or unrecognized)
-    - Path is public (health, docs)
-    """
+    """FastAPI dependency that validates API key."""
     _validate_api_key_value(x_api_key)
 
 
-# ── Utility Functions ─────────────────────────────────────────────────────────
+async def require_admin(
+    x_api_key: str | None = Header(None, alias="X-API-Key"),
+) -> None:
+    """FastAPI dependency for control-plane routes (kill-switch, etc.)."""
+    _validate_admin_api_key(x_api_key)
 
 
 def get_api_key() -> str:

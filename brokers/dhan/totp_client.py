@@ -6,7 +6,7 @@ import logging
 import os
 from typing import TYPE_CHECKING
 
-from brokers.common.auth.totp_cooldown import TotpCooldownGuard, TotpRateLimitError
+from tradex.runtime.auth.totp_cooldown import TotpCooldownGuard, TotpRateLimitError
 
 if TYPE_CHECKING:
     from brokers.dhan.settings import DhanConnectionSettings

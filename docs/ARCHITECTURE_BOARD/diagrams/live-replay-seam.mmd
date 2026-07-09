@@ -1,0 +1,30 @@
+flowchart LR
+    subgraph live [Live Path]
+        LiveFeed[Broker WebSocket]
+        LiveNorm[Adapter Normalizer]
+        LiveBus[EventBus]
+        LiveOMS[OrderManager PositionManager]
+    end
+
+    subgraph seam [MarketDataSource Port]
+        MDS[subscribe emit Quote TICK]
+    end
+
+    subgraph replay [Replay Path]
+        Parquet[Parquet bars ticks]
+        ReplayNorm[Same Normalizer]
+        ReplayBus[Same EventBus]
+        ReplayOMS[Same PositionManager]
+    end
+
+    LiveFeed --> LiveNorm
+    LiveNorm --> MDS
+    MDS --> LiveBus
+    LiveBus --> LiveOMS
+
+    Parquet --> ReplayNorm
+    ReplayNorm --> MDS
+    MDS --> ReplayBus
+    ReplayBus --> ReplayOMS
+
+    Note[Zero parity rule same objects same subscribers]

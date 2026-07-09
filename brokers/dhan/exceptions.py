@@ -1,7 +1,7 @@
 """Dhan broker exceptions.
 
 All Dhan-specific exceptions extend from the canonical ``BrokerError``
-hierarchy in ``brokers.common.resilience.errors``.  Where a Dhan exception
+hierarchy in ``tradex.runtime.resilience.errors``.  Where a Dhan exception
 shadows a common exception by name (e.g. ``AuthenticationError``), it uses
 **multiple inheritance** to also extend the common counterpart — ensuring
 that ``isinstance`` checks in the global exception handler and retry
@@ -14,30 +14,30 @@ silent-bug risk of catching the wrong class.
 Usage::
 
     from brokers.dhan.exceptions import OrderError, InstrumentNotFoundError
-    from brokers.common.resilience.errors import RateLimitError  # canonical
+    from tradex.runtime.resilience.errors import RateLimitError  # canonical
 """
 
 from __future__ import annotations
 
-from brokers.common.resilience.errors import (
+from tradex.runtime.resilience.errors import (
     AuthenticationError as _CommonAuthenticationError,
 )
-from brokers.common.resilience.errors import (
+from tradex.runtime.resilience.errors import (
     BrokerError,
     RateLimitError,
 )
-from brokers.common.resilience.errors import (
+from tradex.runtime.resilience.errors import (
     ExitAllError as _CommonExitAllError,
 )
-from brokers.common.resilience.errors import (
+from tradex.runtime.resilience.errors import (
     InstrumentNotFoundError as _CommonInstrumentNotFoundError,
 )
-from brokers.common.resilience.errors import (
+from tradex.runtime.resilience.errors import (
     OrderError as _CommonOrderError,
 )
 
 # Re-export canonical RateLimitError so existing imports still work.
-# New code should import directly from brokers.common.resilience.errors.
+# New code should import directly from tradex.runtime.resilience.errors.
 __all__ = [
     "AuthenticationError",
     "ConditionalTriggerError",
@@ -52,6 +52,7 @@ __all__ = [
     "LedgerError",
     "MarketDataError",
     "OrderError",
+    "PnlExitError",
     "RateLimitError",  # alias to canonical
     "SuperOrderError",
     "UserProfileError",
@@ -141,3 +142,7 @@ class ExitAllError(DhanError, _CommonExitAllError):
 
 class EDISError(DhanError):
     """eDIS/TPIN operation failure."""
+
+
+class PnlExitError(DhanError):
+    """P&L based exit configure/stop/get failure."""

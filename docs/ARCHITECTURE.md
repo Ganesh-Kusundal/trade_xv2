@@ -1,7 +1,10 @@
 # TradeXV2 — Architecture Document
 
-> **Version:** 0.1.0 · **Last Updated:** 2026-07-08  
-> **Scope:** Full-stack architecture of the TradeXV2 quantitative trading platform for Indian markets (NSE/BSE/MCX).
+> **Version:** 0.2.0 · **Last Updated:** 2026-07-09  
+> **Scope:** Full-stack architecture of the TradeXV2 quantitative trading platform for Indian markets (NSE/BSE/MCX).  
+> **Operating model (SSOT):** [`docs/OPERATING_MODEL.md`](./OPERATING_MODEL.md)  
+> **Delivery backlog:** [`reports/ENGINEERING_BACKLOG.md`](../reports/ENGINEERING_BACKLOG.md)  
+> **SDK entry:** `tradex.connect` → domain `Session` / `Instrument` → ports; adapters under `brokers/{dhan,upstox,paper}`; platform kernel under `tradex.runtime` (not new code in `brokers.common` shims).
 
 ---
 

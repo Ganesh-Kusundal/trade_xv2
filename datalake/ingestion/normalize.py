@@ -37,9 +37,11 @@ def rename_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def ensure_timestamp_dtype(df: pd.DataFrame) -> pd.DataFrame:
-    """Ensure timestamp column is datetime64."""
-    if "timestamp" in df.columns and not pd.api.types.is_datetime64_any_dtype(df["timestamp"]):
-        df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+    """Ensure timestamp column is timezone-aware UTC (zero-parity with live path)."""
+    if "timestamp" not in df.columns:
+        return df
+    ts = pd.to_datetime(df["timestamp"], errors="coerce", utc=True)
+    df["timestamp"] = ts
     return df
 
 

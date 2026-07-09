@@ -135,43 +135,88 @@ class UpstoxBrokerGateway(BatchFetchMixin):
     # ── Market Data (ABC-aligned) ─────────────────────────────────────
 
     def ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:
-        """Fetch last traded price for a symbol.
-
-        Args:
-            symbol: Canonical trading symbol
-            exchange: Exchange segment
-
-        Returns:
-            Last traded price as Decimal
-        """
+        """Fetch last traded price for a symbol (V3 LTP with v2 fallback)."""
         key = self._resolve_instrument_key(symbol, exchange)
         return self._market_data.ltp(key, exchange)
 
     def quote(self, symbol: str, exchange: str = "NSE") -> Quote:
-        """Fetch full quote with OHLCV for a symbol.
-
-        Args:
-            symbol: Canonical trading symbol
-            exchange: Exchange segment
-
-        Returns:
-            Quote dataclass with OHLCV data
-        """
+        """Fetch full quote with OHLCV for a symbol."""
         key = self._resolve_instrument_key(symbol, exchange)
         return self._market_data.quote(key, exchange)
 
     def depth(self, symbol: str, exchange: str = "NSE") -> MarketDepth:
-        """Fetch order book depth for a symbol.
-
-        Args:
-            symbol: Canonical trading symbol
-            exchange: Exchange segment
-
-        Returns:
-            MarketDepth with bid/ask levels
-        """
+        """Fetch order book depth for a symbol."""
         key = self._resolve_instrument_key(symbol, exchange)
         return self._market_data.depth(key, exchange)
+
+    def ltp_batch(self, symbols: list[str], exchange: str = "NSE") -> dict[str, Decimal]:
+        """Native multi-key LTP (≤500 keys / HTTP). Overrides BatchFetchMixin N×1 path."""
+        if not symbols:
+            return {}
+        key_to_sym, keys = self._resolve_keys(symbols, exchange)
+        raw = self._market_data.ltps_batch(keys)
+        return self._map_batch_to_symbols(symbols, key_to_sym, raw, default=Decimal("0"))
+
+    def quote_batch(self, symbols: list[str], exchange: str = "NSE") -> dict[str, Quote]:
+        """Native multi-key full quotes (≤500 keys / HTTP). Overrides BatchFetchMixin."""
+        if not symbols:
+            return {}
+        key_to_sym, keys = self._resolve_keys(symbols, exchange)
+        raw = self._market_data.quotes_batch(keys)
+        return self._map_batch_to_symbols(symbols, key_to_sym, raw, default=None)
+
+    def _resolve_keys(
+        self, symbols: list[str], exchange: str
+    ) -> tuple[dict[str, str], list[str]]:
+        """Return (instrument_key → symbol, ordered keys)."""
+        key_to_sym: dict[str, str] = {}
+        keys: list[str] = []
+        for sym in symbols:
+            try:
+                key = self._resolve_instrument_key(sym, exchange)
+            except Exception:
+                continue
+            keys.append(key)
+            key_to_sym[key] = sym
+            # response keys sometimes use colon
+            key_to_sym[key.replace("|", ":")] = sym
+        return key_to_sym, keys
+
+    def _map_batch_to_symbols(
+        self,
+        symbols: list[str],
+        key_to_sym: dict[str, str],
+        raw: dict[str, Any],
+        *,
+        default: Any,
+    ) -> dict[str, Any]:
+        """Map multi-key response aliases back to original symbols."""
+        symbol_set = set(symbols)
+        out: dict[str, Any] = {}
+
+        for key, value in raw.items():
+            sym = key_to_sym.get(key)
+            if sym is None and key in symbol_set:
+                sym = key
+            if sym is None:
+                cand = getattr(value, "symbol", None)
+                if cand and str(cand) in symbol_set:
+                    sym = str(cand)
+            if sym is None:
+                tail = (
+                    str(key).split(":")[-1]
+                    if ":" in str(key)
+                    else str(key).split("|")[-1]
+                )
+                if tail in symbol_set:
+                    sym = tail
+            if sym is not None:
+                out[sym] = value
+
+        if default is not None:
+            for sym in symbols:
+                out.setdefault(sym, default)
+        return out
 
     def get_orderbook(self) -> list[Order]:
         """Fetch current order book.

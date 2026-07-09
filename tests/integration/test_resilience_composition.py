@@ -16,7 +16,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.common.resilience import (
+from tradex.runtime.resilience import (
     CircuitBreaker,
     CircuitBreakerConfig,
     CircuitBreakerOpenError,
@@ -28,7 +28,7 @@ from brokers.common.resilience import (
     RetryConfig,
     RetryExecutor,
 )
-from brokers.common.resilience.backoff import NoBackoff
+from tradex.runtime.resilience.backoff import NoBackoff
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.resilience import (
     create_circuit_breakers,

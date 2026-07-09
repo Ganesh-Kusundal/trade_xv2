@@ -142,7 +142,7 @@ def test_lifecycle_registers_token_scheduler_and_reconciliation(monkeypatch, tmp
     # directly via the dotted path.
     # Note: initialize may call create_gateway for both Dhan
     # AND Upstox; only capture the first (Dhan) call.
-    from brokers.common.connection.bootstrap_result import BootstrapResult, BootstrapStatus
+    from tradex.runtime.connection.bootstrap_result import BootstrapResult, BootstrapStatus
 
     def patched_bootstrap(broker, **kwargs):
         if "factory_kwargs" not in captured:
@@ -161,33 +161,39 @@ def test_lifecycle_registers_token_scheduler_and_reconciliation(monkeypatch, tmp
 
     monkeypatch.setattr("cli.services.broker_service.bootstrap_gateway", patched_bootstrap)
     monkeypatch.setattr(
-        "brokers.common.services.production_readiness.ProductionReadinessChecker.run_or_raise",
+        "tradex.runtime.services.production_readiness.ProductionReadinessChecker.run_or_raise",
         lambda self: MagicMock(passed=True, summary=lambda: "ok"),
     )
     monkeypatch.setattr(
-        "cli.services.broker_service.start_http_observability", lambda *a, **k: None
+        "cli.services.broker_service.BrokerService._start_http_observability_server",
+        lambda self, rm: None,
     )
     monkeypatch.setattr("cli.services.broker_service._ENV_PATH", env)
 
-    # Mock register_oms_services to avoid source-code issues:
-    #   - OrderManager missing set_placement_gate attribute
-    #   - FakeGateway missing extended attribute for BrokerInfrastructure
+    # Mock OMS registration to avoid full TradingContext wire-up on a FakeGateway
     fake_daily_pnl = _make_recorder_service("daily-pnl-reset")
 
-    def patched_register_oms(svc, risk_mgr):
-        svc.lifecycle.register(fake_daily_pnl)
+    def patched_register_oms(self, risk_mgr):
+        self.lifecycle.register(fake_daily_pnl)
         fake_daily_pnl.start()
 
-    monkeypatch.setattr("cli.services.broker_service.register_oms_services", patched_register_oms)
     monkeypatch.setattr(
-        "cli.services.broker_service.build_risk_manager",
-        lambda svc: (MagicMock(), MagicMock()),
+        "cli.services.broker_service.BrokerService._build_and_register_oms_services",
+        patched_register_oms,
+    )
+    monkeypatch.setattr(
+        "cli.services.broker_service.BrokerService._build_oms_risk_manager",
+        lambda self: MagicMock(name="oms_risk"),
+    )
+    monkeypatch.setattr(
+        "cli.services.broker_service.BrokerService._start_websocket_services",
+        lambda self: None,
     )
 
     from cli.services.broker_service import BrokerService
 
     bs = BrokerService()
-    # Force init
+    # Force init (automatic bootstrap + auth path)
     bs.initialize()
 
     # The factory MUST have received a lifecycle argument
@@ -234,7 +240,7 @@ def test_close_drains_lifecycle(monkeypatch, tmp_path) -> None:
             kwargs["lifecycle"].register(fake_scheduler)
             return FakeGateway(**kwargs)
 
-    from brokers.common.connection.bootstrap_result import BootstrapResult, BootstrapStatus
+    from tradex.runtime.connection.bootstrap_result import BootstrapResult, BootstrapStatus
 
     def patched_bootstrap(broker, **kwargs):
         kwargs["lifecycle"].register(fake_scheduler)
@@ -250,11 +256,12 @@ def test_close_drains_lifecycle(monkeypatch, tmp_path) -> None:
 
     monkeypatch.setattr("cli.services.broker_service.bootstrap_gateway", patched_bootstrap)
     monkeypatch.setattr(
-        "brokers.common.services.production_readiness.ProductionReadinessChecker.run_or_raise",
+        "tradex.runtime.services.production_readiness.ProductionReadinessChecker.run_or_raise",
         lambda self: MagicMock(passed=True, summary=lambda: "ok"),
     )
     monkeypatch.setattr(
-        "cli.services.broker_service.start_http_observability", lambda *a, **k: None
+        "cli.services.broker_service.BrokerService._start_http_observability_server",
+        lambda self, rm: None,
     )
     monkeypatch.setattr("cli.services.broker_service._ENV_PATH", env)
 

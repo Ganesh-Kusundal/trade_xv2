@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-from brokers.common.broker_port import (
+from tradex.runtime.broker_port import (
     BrokerHealthSnapshot,
     BrokerStreamHandle,
     BrokerStreamPlan,
@@ -18,7 +18,7 @@ from brokers.common.broker_port import (
     HistoricalBarRequest,
     QuotaToken,
 )
-from brokers.common.capabilities import CapabilityDescriptor
+from tradex.runtime.capabilities import CapabilityDescriptor
 from domain.entities import Balance, Order, OrderResponse, Position, Quote, Trade
 from domain.entities.market import MarketDepth
 from domain.candles.historical import HistoricalBar, InstrumentRef
@@ -172,7 +172,7 @@ class _MockCommonBrokerGateway:
     broker_id = "mock"
 
     def list_capabilities(self) -> CapabilityDescriptor:
-        from brokers.common.capabilities import BrokerCapabilities
+        from tradex.runtime.capabilities import BrokerCapabilities
 
         return CapabilityDescriptor(
             broker_id="mock",

@@ -304,7 +304,7 @@ def test_daily_pnl_reset_scheduler_under_clock_skew() -> None:
     The scheduler computes "last rollover" from the current ``time.time()``
     and compares it to its own ``_last_reset_unix``. We patch
     ``time.time`` (via ``unittest.mock.patch`` on
-    ``brokers.common.oms.daily_pnl_reset_scheduler._time.time``) to
+    ``application.oms.daily_pnl_reset_scheduler._time.time``) to
     return a sequence of timestamps that cross the boundary.
     """
     pm = PositionManager()

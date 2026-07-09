@@ -11,8 +11,7 @@ import inspect
 
 import pytest
 
-from brokers.common.factory import BrokerProviderFactory
-from brokers.common.gateway import MarketDataGateway
+from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 
 
 class TestGatewayABCCompliance:
@@ -77,9 +76,9 @@ class TestGatewayABCCompliance:
 
         This test will FAIL until Phase 1.2 is complete.
         """
-        from brokers.dhan.gateway import BrokerGateway
+        from brokers.dhan.gateway import DhanBrokerGateway
 
-        place_order_sig = inspect.signature(BrokerGateway.place_order)
+        place_order_sig = inspect.signature(DhanBrokerGateway.place_order)
         params = list(place_order_sig.parameters.keys())
 
         # ABC requires explicit parameters, not *args/**kwargs
@@ -106,6 +105,7 @@ class TestGatewayABCCompliance:
         This test will FAIL until Phase 2.3 is complete.
         """
         from brokers.upstox.factory import UpstoxBrokerFactory
+        from tradex.runtime.factory import BrokerProviderFactory
 
         assert issubclass(UpstoxBrokerFactory, BrokerProviderFactory), (
             "UpstoxBrokerFactory does not implement BrokerProviderFactory"
@@ -117,6 +117,7 @@ class TestGatewayABCCompliance:
     def test_dhan_factory_implements_broker_provider_factory(self):
         """BrokerFactory must implement BrokerProviderFactory ABC."""
         from brokers.dhan.factory import BrokerFactory
+        from tradex.runtime.factory import BrokerProviderFactory
 
         assert issubclass(BrokerFactory, BrokerProviderFactory), (
             "BrokerFactory does not implement BrokerProviderFactory"
@@ -157,7 +158,7 @@ class TestExceptionHierarchy:
 
         This test will FAIL until Phase 3.5 is complete.
         """
-        from brokers.common.resilience.errors import BrokerError
+        from tradex.runtime.resilience.errors import BrokerError
         from brokers.upstox.auth.exceptions import UpstoxApiError
 
         if not issubclass(UpstoxApiError, BrokerError):
@@ -167,7 +168,7 @@ class TestExceptionHierarchy:
 
     def test_dhan_exceptions_extend_broker_error(self):
         """Dhan exceptions must extend BrokerError."""
-        from brokers.common.resilience.errors import BrokerError
+        from tradex.runtime.resilience.errors import BrokerError
         from brokers.dhan.exceptions import DhanError
 
         assert issubclass(DhanError, BrokerError)

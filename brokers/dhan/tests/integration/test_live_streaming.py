@@ -19,7 +19,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 
 from brokers.dhan.factory import BrokerFactory
-from brokers.dhan.gateway import BrokerGateway
+from brokers.dhan.gateway import DhanBrokerGateway
 from tests.market_hours import skip_off_market
 
 pytestmark = [pytest.mark.dhan, pytest.mark.market_hours, pytest.mark.regression]
@@ -42,7 +42,7 @@ if ENV_PATH.exists() and ENV_PATH.stat().st_size > 0:
 class TestLiveStreaming:
     """WebSocket streaming endpoint tests against live Dhan API."""
 
-    def test_stream_ltp_mode_receives_ticks(self, gateway: BrokerGateway):
+    def test_stream_ltp_mode_receives_ticks(self, gateway: DhanBrokerGateway):
         """stream() with LTP mode should receive ticks within deadline."""
         received = threading.Event()
         ticks = []
@@ -60,7 +60,7 @@ class TestLiveStreaming:
         finally:
             feed.disconnect()
 
-    def test_stream_quote_mode_receives_ohlcv(self, gateway: BrokerGateway):
+    def test_stream_quote_mode_receives_ohlcv(self, gateway: DhanBrokerGateway):
         """stream() with QUOTE mode should receive OHLCV ticks."""
         received = threading.Event()
         ticks = []
@@ -81,7 +81,7 @@ class TestLiveStreaming:
             feed.disconnect()
             time.sleep(1)
 
-    def test_stream_full_mode(self, gateway: BrokerGateway):
+    def test_stream_full_mode(self, gateway: DhanBrokerGateway):
         """stream() with FULL mode should receive full tick data."""
         received = threading.Event()
         ticks = []
@@ -98,7 +98,7 @@ class TestLiveStreaming:
             feed.disconnect()
             time.sleep(1)
 
-    def test_unstream_removes_callback(self, gateway: BrokerGateway):
+    def test_unstream_removes_callback(self, gateway: DhanBrokerGateway):
         """unstream() should remove callback and stop receiving ticks."""
         received = threading.Event()
         ticks = []
@@ -125,7 +125,7 @@ class TestLiveStreaming:
         finally:
             feed.disconnect()
 
-    def test_stream_multiple_symbols(self, gateway: BrokerGateway):
+    def test_stream_multiple_symbols(self, gateway: DhanBrokerGateway):
         """stream() should support multiple concurrent streams."""
         received_reliance = threading.Event()
         received_tcs = threading.Event()

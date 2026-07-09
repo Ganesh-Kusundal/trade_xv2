@@ -5,11 +5,11 @@ from decimal import Decimal
 
 import pytest
 
-from brokers.common.historical_coordinator import HistoricalDataCoordinator, HistoricalQuery
-from brokers.common.policy import auto_dual_broker_policy
-from brokers.common.quota_scheduler import PriorityClass, QuotaScheduler
-from brokers.common.registry import BrokerRegistry
-from brokers.common.router import BrokerRouter
+from tradex.runtime.historical_coordinator import HistoricalDataCoordinator, HistoricalQuery
+from tradex.runtime.policy import auto_dual_broker_policy
+from tradex.runtime.quota_scheduler import PriorityClass, QuotaScheduler
+from tradex.runtime.registry import BrokerRegistry
+from tradex.runtime.router import BrokerRouter
 from brokers.common.tests.fixtures.in_memory_gateway import InMemoryBrokerGateway, _bar
 from brokers.dhan.capabilities import dhan_capabilities
 from brokers.upstox.capabilities import upstox_capabilities

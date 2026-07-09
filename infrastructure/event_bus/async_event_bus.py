@@ -39,6 +39,7 @@ import threading
 from collections import deque
 from typing import Any
 
+from domain.events.types import EventType
 from infrastructure.event_bus.event_bus import DomainEvent, EventBus, EventHandler
 
 logger = logging.getLogger(__name__)
@@ -46,9 +47,9 @@ logger = logging.getLogger(__name__)
 # Critical event types are never dropped — they overflow the queue rather
 # than being silently discarded. Normal events are dropped when full.
 CRITICAL_EVENT_TYPES: frozenset[str] = frozenset({
-    "TRADE_APPLIED",
-    "TRADE_FILLED",
-    "ORDER_PLACED",
+    EventType.TRADE_APPLIED.value,
+    EventType.TRADE_FILLED.value,
+    EventType.ORDER_PLACED.value,
 })
 
 

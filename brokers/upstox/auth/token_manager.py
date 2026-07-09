@@ -13,7 +13,7 @@ import time
 from collections.abc import Callable
 from urllib.parse import urlencode
 
-from brokers.common.auth.jwt_expiry import JwtExpiry
+from tradex.runtime.auth.jwt_expiry import JwtExpiry
 
 from .exceptions import UpstoxAuthError
 from .holders import (
@@ -69,6 +69,8 @@ class UpstoxTokenManager:
         self._refresh_done.set()
         self._state: TokenSnapshot | None = None
         self._holder: ThreadSafeTokenHolder = ThreadSafeTokenHolder(self._build_initial_holder())
+        # Tracks last access_token that already saw a 401 (soft-retry once, then mint).
+        self._last_401_token: str | None = None
 
     def _build_initial_holder(self) -> UpstoxTokenHolder:
         s = self._settings
@@ -140,12 +142,36 @@ class UpstoxTokenManager:
         self._run_exclusive_refresh(self._do_oauth_refresh)
 
     def try_refresh_on_401(self) -> bool:
-        """Refresh token after HTTP 401/403. Returns True if a new token is available."""
+        """Refresh token after HTTP 401/403. Returns True if a new token is available.
+
+        TOTP policy (avoids burning login quota):
+        1. First 401 for a still-valid JWT → soft-retry once with same token
+           (covers transient gateway glitches without TOTP).
+        2. Second 401 for the **same** token (or expired JWT) → clear state and
+           force **one** mint under TotpCooldownGuard.
+        """
         if getattr(self._settings, "analytics_only", False):
             return False
         try:
             if self._settings.is_totp:
-                self._run_exclusive_refresh(self._do_totp_refresh)
+                with self._lock:
+                    current = self._state
+                    tok = current.access_token if current else None
+                    if (
+                        current
+                        and tok
+                        and self._valid_snapshot(current)
+                        and self._last_401_token != tok
+                    ):
+                        self._last_401_token = tok
+                        logger.info(
+                            "Upstox 401 soft-retry: reusing in-memory JWT once (no TOTP)"
+                        )
+                        return True
+                    # Hard path: clear so we cannot reload the rejected JWT
+                    self._state = None
+                    self._last_401_token = None
+                self._run_exclusive_refresh(self._do_totp_force_refresh)
             elif self._state and self._state.refresh_token:
                 self._run_exclusive_refresh(self._do_oauth_refresh)
             else:
@@ -257,7 +283,11 @@ class UpstoxTokenManager:
         return state
 
     def _bootstrap_totp_if_needed(self) -> TokenSnapshot:
-        """Load persisted token first; generate TOTP only when missing or expired."""
+        """Load persisted/env JWT first; generate TOTP only when missing or expired.
+
+        Probe-before-mint: never call upstox-totp when a locally valid JWT exists
+        (in-memory, state file, or UPSTOX_ACCESS_TOKEN with valid exp).
+        """
         with self._lock:
             if self._state and self._valid_snapshot(self._state):
                 logger.debug("Upstox TOTP refresh: reusing in-memory valid token")
@@ -275,6 +305,32 @@ class UpstoxTokenManager:
                 )
                 logger.debug("Upstox TOTP bootstrap: reusing persisted token")
                 return self._state
+
+        # Reuse env access token when JWT still valid — avoids burning TOTP.
+        env_tok = (getattr(self._settings, "access_token", None) or "").strip()
+        if env_tok:
+            exp = JwtExpiry.parse_expiry_epoch_ms(env_tok)
+            now_ms = int(time.time() * 1000)
+            if exp > now_ms:
+                state = TokenSnapshot(
+                    access_token=env_tok,
+                    refresh_token=None,
+                    expires_at_ms=exp,
+                    issued_at_ms=now_ms,
+                    source="TOTP",
+                )
+                with self._lock:
+                    self._state = state
+                    self._holder.replace(
+                        UpstoxStaticTokenHolder(
+                            env_tok,
+                            analytics_only=False,
+                            label="Upstox token (env JWT still valid)",
+                        )
+                    )
+                    self._persist(state)
+                logger.info("Upstox TOTP bootstrap: reusing valid env JWT (no mint)")
+                return state
 
         return self._bootstrap_totp()
 

@@ -119,7 +119,7 @@ class StreamManagerAdapter:
                 def _on_connected() -> None:
                     ws.subscribe([inst_key], mode.lower())
 
-                from brokers.common.async_compat import connect_async_then
+                from tradex.runtime.async_compat import connect_async_then
 
                 connect_async_then(ws.connect(), _on_connected)
             else:

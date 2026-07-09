@@ -2,7 +2,7 @@
 
 from datetime import date, datetime, timezone
 
-from brokers.common.provenance import BarRangeRecord, ChunkRecord, ConflictRecord, ProvenanceLedger
+from tradex.runtime.provenance import BarRangeRecord, ChunkRecord, ConflictRecord, ProvenanceLedger
 
 
 class TestProvenanceLedger:

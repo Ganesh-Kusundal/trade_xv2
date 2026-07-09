@@ -33,7 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from application.oms.context import TradingContext
 from application.oms.order_manager import OrderManager
 from application.oms.position_manager import PositionManager
-from brokers.common.observability.event_metrics import EventMetrics
+from infrastructure.observability.event_metrics import EventMetrics
 from domain.events.types import DomainEvent
 from infrastructure.event_bus import (
     DeadLetterQueue,

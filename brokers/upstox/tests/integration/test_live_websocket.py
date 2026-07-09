@@ -35,7 +35,7 @@ class TestLiveWebSocket:
 
     def test_portfolio_connect_smoke(self, gateway, ws_teardown):
         """Portfolio stream should connect without crashing."""
-        from brokers.common.async_compat import run_async_compat
+        from tradex.runtime.async_compat import run_async_compat
 
         stream = gateway._broker.portfolio_stream
         run_async_compat(stream.connect(), fire_and_forget=False)

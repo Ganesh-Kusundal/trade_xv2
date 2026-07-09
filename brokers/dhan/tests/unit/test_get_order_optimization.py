@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from brokers.dhan.gateway import BrokerGateway
+from brokers.dhan.gateway import DhanBrokerGateway
 from domain import Order, OrderStatus, OrderType, Side
 
 
@@ -34,7 +34,7 @@ class TestGetOrderDirectLookup:
         expected_order = _make_order("ORD-123")
         conn.orders.get_order.return_value = expected_order
 
-        gw = BrokerGateway(conn)
+        gw = DhanBrokerGateway(conn)
         result = gw.get_order("ORD-123")
 
         conn.orders.get_order.assert_called_once_with("ORD-123")
@@ -46,7 +46,7 @@ class TestGetOrderDirectLookup:
         conn = MagicMock()
         conn.orders.get_order.side_effect = Exception("Order not found")
 
-        gw = BrokerGateway(conn)
+        gw = DhanBrokerGateway(conn)
         result = gw.get_order("NONEXISTENT")
 
         assert result is None
@@ -59,7 +59,7 @@ class TestGetOrderDirectLookup:
         conn = MagicMock()
         conn.orders.get_order.side_effect = RuntimeError("broker timeout")
 
-        gw = BrokerGateway(conn)
+        gw = DhanBrokerGateway(conn)
         with caplog.at_level(logging.WARNING):
             result = gw.get_order("ORD-999")
 
@@ -72,7 +72,7 @@ class TestGetOrderDirectLookup:
         filled_order = _make_order("ORD-456", OrderStatus.FILLED)
         conn.orders.get_order.return_value = filled_order
 
-        gw = BrokerGateway(conn)
+        gw = DhanBrokerGateway(conn)
         result = gw.get_order("ORD-456")
 
         assert result is filled_order
@@ -84,7 +84,7 @@ class TestGetOrderDirectLookup:
         conn = MagicMock()
         conn.orders.get_order.return_value = _make_order()
 
-        gw = BrokerGateway(conn)
+        gw = DhanBrokerGateway(conn)
         gw.get_order("ORD-123")
 
         # This is the key assertion — the optimization
@@ -106,7 +106,7 @@ class TestCancelOrderPostVerification:
         # Simulate direct lookup returning cancelled order
         conn.orders.get_order.return_value = _make_order("ORD-123", OrderStatus.CANCELLED)
 
-        gw = BrokerGateway(conn)
+        gw = DhanBrokerGateway(conn)
         result = gw.cancel_order("ORD-123")
 
         assert result.success is True
@@ -124,7 +124,7 @@ class TestCancelOrderPostVerification:
         # But direct lookup reveals the order was actually FILLED
         conn.orders.get_order.return_value = _make_order("ORD-123", OrderStatus.FILLED)
 
-        gw = BrokerGateway(conn)
+        gw = DhanBrokerGateway(conn)
         result = gw.cancel_order("ORD-123")
 
         assert result.success is False
@@ -141,7 +141,7 @@ class TestCancelOrderPostVerification:
         # get_order raises (e.g., order already purged from system)
         conn.orders.get_order.side_effect = Exception("Not found")
 
-        gw = BrokerGateway(conn)
+        gw = DhanBrokerGateway(conn)
         result = gw.cancel_order("ORD-123")
 
         # Should still return success since cancel itself succeeded

@@ -65,9 +65,15 @@ class ProcessedTradeRepository:
         for emitting a metric without coupling this class to a metrics
         implementation.
     max_age_seconds:
-        Maximum age in seconds for in-memory entries. Entries older than
-        this are evicted during cleanup. Default: 86400 (24 hours).
-        Set to 0 to disable eviction.
+        Maximum age in seconds for **hot** in-memory entries. Entries older
+        than this may be evicted from the hot set during cleanup to bound
+        RAM. Default follows ``PROCESSED_TRADE_RETENTION_SECONDS`` (0 =
+        never evict hot set).
+
+        **Durability invariant (safe-to-trade P0-H):** once a key is marked
+        processed it is recorded in ``_durable_keys`` (and JSONL when
+        configured). ``is_processed`` always consults the durable set, so
+        redelivery after hot-set eviction cannot double-apply a trade.
     """
 
     # P0.6: Singleton registry - one instance per persistence path
@@ -182,7 +188,8 @@ class ProcessedTradeRepository:
         max_age_seconds: int = PROCESSED_TRADE_RETENTION_SECONDS,
     ) -> None:
         self._lock = threading.RLock()
-        self._seen: set[TradeIdKey] = set()
+        self._seen: set[TradeIdKey] = set()  # hot set (may be age-evicted)
+        self._durable_keys: set[TradeIdKey] = set()  # never age-evicted
         self._key_timestamps: dict[TradeIdKey, float] = {}
         self._max_age_seconds = max_age_seconds
         self._path = Path(persistence_path) if persistence_path else None
@@ -281,8 +288,9 @@ class ProcessedTradeRepository:
     # ── Public API ────────────────────────────────────────────────────────
 
     def is_processed(self, key: TradeIdKey) -> bool:
+        """True if key was ever marked processed (hot set **or** durable set)."""
         with self._lock:
-            return key in self._seen
+            return key in self._seen or key in self._durable_keys
 
     def mark_processed(self, key: TradeIdKey) -> bool:
         """Record ``key`` as processed.
@@ -297,7 +305,7 @@ class ProcessedTradeRepository:
         import time
 
         with self._lock:
-            if key in self._seen:
+            if key in self._seen or key in self._durable_keys:
                 self._duplicates_observed += 1
                 if self._on_duplicate is not None:
                     try:
@@ -310,6 +318,7 @@ class ProcessedTradeRepository:
                 )
                 return False
             self._seen.add(key)
+            self._durable_keys.add(key)
             self._key_timestamps[key] = time.time()
             self._total_processed += 1
             if self._path is not None:
@@ -340,14 +349,18 @@ class ProcessedTradeRepository:
         """Wipe in-memory state. Persistence file is left untouched."""
         with self._lock:
             self._seen.clear()
+            self._durable_keys.clear()
             self._key_timestamps.clear()
             self._duplicates_observed = 0
             self._total_processed = 0
 
     def cleanup(self) -> int:
-        """Evict entries older than max_age_seconds.
+        """Evict **hot** entries older than max_age_seconds.
 
-        Returns the number of entries evicted.
+        Durable keys (and JSONL) are retained so ``is_processed`` remains
+        true after eviction (P0-H: no double-position on redelivery).
+
+        Returns the number of hot entries evicted.
         """
         if self._max_age_seconds <= 0:
             return 0
@@ -361,11 +374,13 @@ class ProcessedTradeRepository:
             for key in expired:
                 self._seen.discard(key)
                 del self._key_timestamps[key]
+                # intentionally keep key in _durable_keys
                 evicted += 1
             self._evicted += evicted
         if evicted > 0:
             logger.info(
-                "ProcessedTradeRepository: evicted %d expired entries (age>%ds)",
+                "ProcessedTradeRepository: evicted %d hot entries (age>%ds); "
+                "durable set still blocks redelivery",
                 evicted,
                 self._max_age_seconds,
             )
@@ -412,6 +427,7 @@ class ProcessedTradeRepository:
                 except ValueError:
                     continue
                 self._seen.add(key)
+                self._durable_keys.add(key)
                 loaded += 1
         self._total_processed = loaded
         logger.info(

@@ -7,12 +7,12 @@ import pytest
 
 from brokers.dhan.domain import (
     Exchange,
-    Instrument,
+    DhanInstrument,
     InstrumentType,
     OptionType,
 )
 from domain import Balance, Quote, Side
-from domain.entities.instrument_record import Instrument as DomainInstrument
+from domain.entities.instrument_record import InstrumentRecord as DomainInstrument
 
 
 def test_exchange_enum_values():
@@ -28,7 +28,7 @@ def test_instrument_frozen():
         security_id="1",
         instrument_type="EQUITY",
     )
-    inst = Instrument(
+    inst = DhanInstrument(
         domain_instrument=domain_inst,
         exchange=Exchange.NSE,
         instrument_type=InstrumentType.EQUITY,
@@ -74,7 +74,7 @@ def test_instrument_is_option_property():
         option_type="CALL",
         strike_price=Decimal("25000"),
     )
-    inst = Instrument(
+    inst = DhanInstrument(
         domain_instrument=domain_inst,
         exchange=Exchange.NFO,
         instrument_type=InstrumentType.OPTION,
@@ -91,7 +91,7 @@ def test_instrument_is_future_property():
         security_id="55100",
         instrument_type="FUTURE",
     )
-    inst = Instrument(
+    inst = DhanInstrument(
         domain_instrument=domain_inst,
         exchange=Exchange.NFO,
         instrument_type=InstrumentType.FUTURE,

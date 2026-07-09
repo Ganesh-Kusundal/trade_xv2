@@ -38,7 +38,7 @@ class TestResourceLeaks:
         """Verify no thread leak when initialization fails (P-1.5 fix)."""
         from unittest.mock import patch
 
-        from brokers.common.services.production_readiness import ProductionReadinessError
+        from tradex.runtime.services.production_readiness import ProductionReadinessError
         from cli.services.broker_service import BrokerService
 
         before_threads = threading.active_count()
@@ -46,7 +46,7 @@ class TestResourceLeaks:
         broker_service = BrokerService(load_instruments=True)
 
         # Simulate readiness failure
-        with patch("brokers.common.services.production_readiness.ProductionReadinessChecker.run_or_raise") as mock:
+        with patch("tradex.runtime.services.production_readiness.ProductionReadinessChecker.run_or_raise") as mock:
             mock.side_effect = ProductionReadinessError("Test")
             broker_service._ensure_dhan_initialized()
 

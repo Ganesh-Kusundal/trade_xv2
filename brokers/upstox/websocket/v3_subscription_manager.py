@@ -14,7 +14,7 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass
 
-from brokers.common.resilience.errors import TradeXV2Error
+from tradex.runtime.resilience.errors import TradeXV2Error
 
 
 class SubscriptionLimitExceededError(TradeXV2Error):

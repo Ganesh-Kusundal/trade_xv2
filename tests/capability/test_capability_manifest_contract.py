@@ -9,7 +9,7 @@ from typing import ClassVar
 
 import pytest
 
-from brokers.common.gateway import MarketDataGateway
+from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 from cli.tests.endpoint_manifest import (
     LIVE_READONLY_ENDPOINTS,
     SANDBOX_ENDPOINTS,

@@ -20,7 +20,7 @@ from pathlib import Path
 import pytest
 
 from brokers.dhan.factory import BrokerFactory
-from brokers.dhan.gateway import BrokerGateway
+from brokers.dhan.gateway import DhanBrokerGateway
 
 _INTEGRATION_DIR = Path(__file__).resolve().parent
 
@@ -53,8 +53,8 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(scope="session")
-def live_gateway() -> BrokerGateway:
-    """Session-scoped live BrokerGateway.
+def live_gateway() -> DhanBrokerGateway:
+    """Session-scoped live DhanBrokerGateway.
 
     Skipped automatically when .env.local is absent or has no DHAN_CLIENT_ID.
     Creating the gateway once per session loads the instrument CSV exactly
@@ -75,7 +75,7 @@ def live_gateway() -> BrokerGateway:
 # ---------------------------------------------------------------------------
 
 @pytest.fixture(scope="module")
-def gateway(live_gateway: BrokerGateway) -> BrokerGateway:
+def gateway(live_gateway: DhanBrokerGateway) -> DhanBrokerGateway:
     """Module-scoped alias for live_gateway (backward-compatible)."""
     return live_gateway
 

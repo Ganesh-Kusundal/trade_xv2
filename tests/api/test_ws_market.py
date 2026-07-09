@@ -16,7 +16,7 @@ from infrastructure.event_bus.event_bus import EventBus
 @pytest.fixture
 def ws_app():
     reset_container()
-    config = APIConfig(host="127.0.0.1", port=8000, cors_origins=[])
+    config = APIConfig(host="127.0.0.1", port=8000, cors_origins=[], auth_mode="none")
     app = create_app(config=config, event_bus=EventBus())
     yield app
     reset_container()

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from brokers.common.resilience.errors import BrokerError
+from tradex.runtime.resilience.errors import BrokerError
 from brokers.upstox.auth.exceptions import UpstoxApiError, UpstoxAuthError
 
 

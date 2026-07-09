@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from brokers.common.dtos import BrokerOrderPayload
+from tradex.runtime.dtos import BrokerOrderPayload
 from brokers.upstox.orders.order_client import UpstoxRestOrderClient
 from domain import Order
 

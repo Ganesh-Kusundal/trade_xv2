@@ -1,0 +1,28 @@
+graph TD
+    subgraph violations [LayeringViolations]
+        BC[brokers.common]
+        TR[tradex.runtime]
+        APP[application.composer]
+        CLI[cli.services]
+        BC -->|"INVERTED was"| TR
+        APP --> TR
+        APP --> CLI
+    end
+
+    subgraph stacks [ThreeOMSStacks]
+        API[api.routers.orders]
+        SB[session_bridge ephemeral OMS]
+        TC[TradingContext DI singleton]
+        EC[ExecutionComposer bypass]
+        API --> SB
+        API -->|"reads"| TC
+        API --> EC
+    end
+
+    subgraph domain [domain]
+        INST[Instrument]
+        PORTS[ports]
+    end
+
+    SB -.->|"discarded per request"| X[Lost fills]
+    TC -->|"get_order reads here"| API

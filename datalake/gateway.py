@@ -4,15 +4,15 @@ Provides the same interface as Dhan/Upstox/Paper gateways, but reads
 historical data from the local Parquet lake instead of a live broker.
 Used for backtesting, research, and offline analysis.
 
+This gateway is **storage/read-only**: it does not place orders, run
+strategies, or own backtest engines. Wire it into analytics consumers
+(e.g. analytics.backtest.BacktestEngine) from the analytics/CLI layer.
+
 Usage:
     from datalake.gateway import DataLakeGateway
-    from analytics.backtest import BacktestEngine, BacktestConfig
-    from analytics.strategy import StrategyPipeline, MomentumStrategy
 
     gw = DataLakeGateway(root="market_data")
-    strategy = StrategyPipeline(strategies=[MomentumStrategy()])
-    engine = BacktestEngine(strategy, gw)
-    result = engine.run("RELIANCE", years=5, timeframe="1D")
+    df = gw.history("RELIANCE", timeframe="1D", lookback_days=365)
 """
 
 from __future__ import annotations
@@ -25,7 +25,8 @@ from typing import Any
 import pandas as pd
 
 from domain import MarketDepth, Quote
-from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
+from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
+from tradex.runtime.capabilities import BrokerCapabilities
 from datalake.core.symbols import normalize_symbol, symbol_to_path
 
 logger = logging.getLogger(__name__)

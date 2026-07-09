@@ -19,7 +19,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 
 from brokers.dhan.factory import BrokerFactory
-from brokers.dhan.gateway import BrokerGateway
+from brokers.dhan.gateway import DhanBrokerGateway
 
 pytestmark = [pytest.mark.dhan, pytest.mark.off_market_safe, pytest.mark.regression]
 
@@ -41,7 +41,7 @@ if ENV_PATH.exists() and ENV_PATH.stat().st_size > 0:
 class TestEndpointLatency:
     """Endpoint latency benchmarks against live Dhan API."""
 
-    def test_quote_latency(self, gateway: BrokerGateway):
+    def test_quote_latency(self, gateway: DhanBrokerGateway):
         """quote() should complete within 500ms (p95)."""
         start = time.perf_counter()
         gateway.quote("RELIANCE", "NSE")
@@ -49,49 +49,49 @@ class TestEndpointLatency:
         # Should be fast, but allow up to 2000ms for network variability
         assert elapsed_ms < 2000, f"quote() took {elapsed_ms:.0f}ms (expected <2000ms)"
 
-    def test_ltp_latency(self, gateway: BrokerGateway):
+    def test_ltp_latency(self, gateway: DhanBrokerGateway):
         """ltp() should complete within 300ms (p95)."""
         start = time.perf_counter()
         gateway.ltp("RELIANCE", "NSE")
         elapsed_ms = (time.perf_counter() - start) * 1000
         assert elapsed_ms < 1500, f"ltp() took {elapsed_ms:.0f}ms (expected <1500ms)"
 
-    def test_depth_latency(self, gateway: BrokerGateway):
+    def test_depth_latency(self, gateway: DhanBrokerGateway):
         """depth() should complete within 500ms (p95)."""
         start = time.perf_counter()
         gateway.depth("RELIANCE", "NSE")
         elapsed_ms = (time.perf_counter() - start) * 1000
         assert elapsed_ms < 2000, f"depth() took {elapsed_ms:.0f}ms (expected <2000ms)"
 
-    def test_history_latency(self, gateway: BrokerGateway):
+    def test_history_latency(self, gateway: DhanBrokerGateway):
         """history() should complete within 2000ms (p95)."""
         start = time.perf_counter()
         gateway.history("RELIANCE", "NSE", timeframe="1D", lookback_days=5)
         elapsed_ms = (time.perf_counter() - start) * 1000
         assert elapsed_ms < 5000, f"history() took {elapsed_ms:.0f}ms (expected <5000ms)"
 
-    def test_option_chain_latency(self, gateway: BrokerGateway):
+    def test_option_chain_latency(self, gateway: DhanBrokerGateway):
         """option_chain() should complete within 3000ms (p95)."""
         start = time.perf_counter()
         gateway.option_chain("NIFTY", "NFO")
         elapsed_ms = (time.perf_counter() - start) * 1000
         assert elapsed_ms < 8000, f"option_chain() took {elapsed_ms:.0f}ms (expected <8000ms)"
 
-    def test_funds_latency(self, gateway: BrokerGateway):
+    def test_funds_latency(self, gateway: DhanBrokerGateway):
         """funds() should complete within 500ms (p95)."""
         start = time.perf_counter()
         gateway.funds()
         elapsed_ms = (time.perf_counter() - start) * 1000
         assert elapsed_ms < 2000, f"funds() took {elapsed_ms:.0f}ms (expected <2000ms)"
 
-    def test_positions_latency(self, gateway: BrokerGateway):
+    def test_positions_latency(self, gateway: DhanBrokerGateway):
         """positions() should complete within 500ms (p95)."""
         start = time.perf_counter()
         gateway.positions()
         elapsed_ms = (time.perf_counter() - start) * 1000
         assert elapsed_ms < 2000, f"positions() took {elapsed_ms:.0f}ms (expected <2000ms)"
 
-    def test_search_latency(self, gateway: BrokerGateway):
+    def test_search_latency(self, gateway: DhanBrokerGateway):
         """search() should complete within 200ms (local operation)."""
         start = time.perf_counter()
         gateway.search("RELIANCE")

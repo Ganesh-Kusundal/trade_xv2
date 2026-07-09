@@ -150,8 +150,8 @@ async def get_tradebook(
 ):
     """Get complete tradebook with P&L analysis.
 
-    Returns all trades with realized/unrealized P&L, win rate, etc.
-    Uses real OMS data for comprehensive trade analysis.
+    P&L is sourced from the single PositionManager (the authoritative book
+    that fills update), NOT recomputed per-request from a divergent source.
     """
     try:
         orders = repo.get_orders(status=OrderStatus.FILLED)
@@ -166,18 +166,23 @@ async def get_tradebook(
         total_trades = len(orders)
         filled_orders = [o for o in orders if o.filled_quantity > 0]
 
+        # Single source of truth: positions held by the shared PositionManager.
         pnl_by_symbol: dict[str, float] = {}
-        if position_manager:
-            for pos in position_manager.get_positions():
+        realized_total = 0.0
+        unrealized_total = 0.0
+        if position_manager is not None:
+            positions = position_manager.get_positions()
+            for pos in positions:
                 pnl_by_symbol[pos.symbol] = float(getattr(pos, "realized_pnl", 0.0))
+                realized_total += float(getattr(pos, "realized_pnl", 0.0))
+                unrealized_total += float(getattr(pos, "unrealized_pnl", 0.0))
 
-        total_pnl = 0.0
+        total_pnl = realized_total
         winning_trades = 0
         losing_trades = 0
 
         for order in filled_orders:
             pnl = pnl_by_symbol.get(order.symbol, 0.0)
-            total_pnl += pnl
             if pnl > 0:
                 winning_trades += 1
             elif pnl < 0:
@@ -205,6 +210,8 @@ async def get_tradebook(
                 "losing_trades": losing_trades,
                 "win_rate": win_rate,
                 "total_pnl": total_pnl,
+                "realized_pnl": realized_total,
+                "unrealized_pnl": unrealized_total,
             },
             "count": len(filled_orders),
         }
@@ -245,26 +252,34 @@ async def get_order(
     )
 
 
+def _resolve_api_broker() -> str:
+    """Server-side broker selection — clients cannot override via query param."""
+    from config.schema import load_trading_config
+
+    return load_trading_config().primary_broker
+
+
 @router.post("", response_model=OrderResponse)
 @trace_operation("api.orders.place_order")
 async def place_order(
     req: OrderRequest,
-    composer: Any = Depends(get_execution_composer),
 ):
-    """Place a new order through the multi-broker ExecutionComposer.
+    """Place a new order via institutional OMS spine (tradex.connect).
 
-    Supports market, limit, SL, SL-M order types.
-    Returns order ID for tracking.
+    Path: OrderIntent → Risk → OMS → ExecutionProvider.
+    Broker is resolved from server ``TRADEX_PRIMARY_BROKER`` / trading config
+    (not from client input).
 
-    Multi-broker features:
-    - Automatic broker routing via BrokerRouter
-    - Quota management to prevent rate limit violations
-    - Full provenance tracking for audit compliance
-    - Kill-switch enforcement via risk_manager
+    The order is admitted through the process-wide OMS singleton (registered
+    by the composition root), so fills land in the SAME book that
+    ``GET /orders`` and ``GET /tradebook`` later query. ``correlation_id``
+    from the request is forwarded for idempotency (prevents duplicate orders
+    on client retry).
     """
+    import tradex
 
+    broker = _resolve_api_broker()
 
-    # Convert HTTP request to domain request
     try:
         side = Side(req.transaction_type.upper())
         order_type = OrderType(req.order_type.upper())
@@ -277,35 +292,49 @@ async def place_order(
             detail=f"Invalid order parameter: {exc}",
         ) from exc
 
-    # ExecutionComposer (multi-broker, async, with kill-switch)
-    domain_req = DomainOrderRequest(
-        symbol=req.symbol,
-        exchange=req.exchange,
-        transaction_type=side,
-        order_type=order_type,
-        quantity=req.quantity,
-        price=Decimal(str(req.price)) if req.price else Decimal("0"),
-        product_type=product_type,
-        correlation_id=req.correlation_id or f"http-{uuid.uuid4().hex}",
-    )
-
-    result = await composer.place_order(domain_req)
+    session = tradex.connect(broker)
+    try:
+        instrument = session.universe.equity(req.symbol, exchange=req.exchange or "NSE")
+        px = Decimal(str(req.price)) if req.price else None
+        trigger_px = Decimal(str(req.trigger_price)) if req.trigger_price else None
+        if order_type == OrderType.MARKET:
+            px = None
+        intent = session.intent(
+            instrument,
+            side,
+            req.quantity,
+            price=px,
+            trigger_price=trigger_px,
+            order_type=order_type,
+            product_type=product_type,
+            correlation_id=req.correlation_id or f"api:{uuid.uuid4().hex[:12]}",
+        )
+        result = session.place(intent)
+    finally:
+        # Do NOT discard the OMS on close: tradex.connect now resolves the
+        # process-wide singleton. session.close() only clears the per-session
+        # default provider registration.
+        session.close()
 
     if not result.success:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=result.error_code or result.message or "Order rejected by broker",
+            detail=result.error or "Order rejected by OMS/risk/broker",
         )
 
+    order = result.order
+    status_val = getattr(getattr(order, "status", None), "value", None) or str(
+        getattr(order, "status", "OPEN")
+    )
     return OrderResponse(
-        order_id=result.order_id,
+        order_id=getattr(order, "order_id", "") or "",
         symbol=req.symbol,
         exchange=req.exchange,
         transaction_type=req.transaction_type,
         order_type=req.order_type,
         quantity=req.quantity,
         price=req.price,
-        status=result.status.value if hasattr(result.status, "value") else str(result.status),
+        status=status_val,
     )
 
 
@@ -317,11 +346,12 @@ async def modify_order(
     composer: Any = Depends(get_execution_composer),
     repo=Depends(get_order_repository),
 ):
-    """Modify an existing order via the ExecutionComposer.
+    """Modify an existing order through the OMS singleton.
 
-    Updates price, quantity, or order type for pending orders.
+    Phase 2: routes modify through the shared OrderManager (single owner of
+    order state + idempotency) but uses the ExecutionComposer only as the
+    transport (broker routing/quota). The OMS kill-switch guards the mutation.
     """
-
 
     try:
         Side(req.transaction_type.upper())
@@ -357,23 +387,42 @@ async def modify_order(
         product_type=product_type,
     )
 
-    result = await composer.modify_order(modify_req)
+    order_manager = repo._oms if hasattr(repo, "_oms") else None
+    if order_manager is None:
+        # repo may be an adapter; fall back to the process-wide OMS singleton.
+        from application.oms import get_oms_context
+
+        ctx = get_oms_context()
+        order_manager = ctx.order_manager if ctx is not None else None
+
+    if order_manager is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="OMS not initialized; cannot modify order.",
+        )
+
+    # Composer is transport-only: build the broker modify call.
+    async def modify_fn(r: ModifyOrderRequest) -> Any:
+        return await composer.modify_order(r)
+
+    result = order_manager.modify_order(modify_req, modify_fn=modify_fn)
 
     if not result.success:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=result.error_code or result.message or "Order modification rejected",
+            detail=result.error or "Order modification rejected",
         )
 
+    order = result.order or existing
     return OrderResponse(
-        order_id=result.order_id,
-        symbol=existing.symbol,
-        exchange=existing.exchange,
-        transaction_type=existing.side.value,
-        order_type=req.order_type,
-        quantity=req.quantity or existing.quantity,
-        price=req.price,
-        status=result.status.value if hasattr(result.status, "value") else str(result.status),
+        order_id=order.order_id,
+        symbol=order.symbol,
+        exchange=order.exchange,
+        transaction_type=order.side.value,
+        order_type=order.order_type.value,
+        quantity=order.quantity,
+        price=float(order.price) if order.price else None,
+        status=order.status.value,
     )
 
 
@@ -384,30 +433,52 @@ async def cancel_order(
     composer: Any = Depends(get_execution_composer),
     repo=Depends(get_order_repository),
 ):
-    """Cancel a pending order via the ExecutionComposer.
+    """Cancel a pending order through the OMS singleton.
 
-    Only works for orders in PENDING or TRIGGER_PENDING status.
+    Only works for orders in PENDING or TRIGGER_PENDING status. Routes through
+    the shared OrderManager (kill-switch guarded) using the composer as transport.
     """
 
-
-    # Pre-fetch order from repo for symbol/exchange metadata
     existing = repo.get_order(order_id) if repo else None
+    if existing is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Order '{order_id}' not found",
+        )
 
-    result = await composer.cancel_order(order_id)
+    order_manager = repo._oms if hasattr(repo, "_oms") else None
+    if order_manager is None:
+        from application.oms import get_oms_context
+
+        ctx = get_oms_context()
+        order_manager = ctx.order_manager if ctx is not None else None
+
+    if order_manager is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="OMS not initialized; cannot cancel order.",
+        )
+
+    async def cancel_fn(oid: str) -> bool:
+        response = await composer.cancel_order(oid)
+        return bool(getattr(response, "success", False))
+
+    result = order_manager.cancel_order(order_id, cancel_fn=cancel_fn)
 
     if not result.success:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=result.error_code or result.message or "Order cancellation rejected",
+            detail=result.error or "Order cancellation rejected",
         )
 
+    order = result.order or existing
     return OrderResponse(
-        order_id=result.order_id,
-        symbol=existing.symbol if existing else "",
-        exchange=existing.exchange if existing else "",
-        transaction_type=existing.side.value if existing else "",
-        order_type=existing.order_type.value if existing else "",
-        quantity=existing.quantity if existing else 0,
-        price=float(existing.price) if existing and existing.price else None,
-        status=result.status.value if hasattr(result.status, "value") else str(result.status),
+        order_id=order.order_id,
+        symbol=order.symbol,
+        exchange=order.exchange,
+        transaction_type=order.side.value,
+        order_type=order.order_type.value,
+        quantity=order.quantity,
+        price=float(order.price) if order.price else None,
+        status=order.status.value,
     )

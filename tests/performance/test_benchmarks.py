@@ -144,7 +144,7 @@ class TestEventBusBenchmarks:
     @pytest.fixture
     def event_bus(self):
         """Create a fresh EventBus for testing."""
-        from brokers.common.observability.event_metrics import EventMetrics
+        from infrastructure.observability.event_metrics import EventMetrics
         from infrastructure.event_bus import DeadLetterQueue, EventBus
 
         metrics = EventMetrics()
@@ -206,7 +206,7 @@ class TestOrderManagerBenchmarks:
     def order_manager(self):
         """Create a fresh OrderManager for testing."""
         from application.oms.order_manager import OrderManager
-        from brokers.common.observability.event_metrics import EventMetrics
+        from infrastructure.observability.event_metrics import EventMetrics
         from infrastructure.event_bus import DeadLetterQueue, EventBus
 
         metrics = EventMetrics()

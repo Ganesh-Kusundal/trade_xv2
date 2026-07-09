@@ -21,6 +21,17 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - name: Secret scan (tracked env files)
+        run: |
+          if git ls-files --error-unmatch .env.local .env.upstox 2>/dev/null; then
+            echo "::error::Credential env file is git-tracked — remove and rotate keys"
+            exit 1
+          fi
+          if git grep -E 'DHAN_ACCESS_TOKEN|DHAN_PIN' -- ':!*.md' ':!.github/*' 2>/dev/null; then
+            echo "::error::Possible credential leak in tracked source"
+            exit 1
+          fi
+          echo "secret scan OK"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -32,7 +43,18 @@ jobs:
       - name: Constants placement check
         run: python scripts/check_constants_placement.py
       - name: Import linter
-        run: lint-imports --config pyproject.toml
+        # Pin PYTHONPATH so `domain` resolves to this repo's src/domain
+        # (avoids silent shadow from other editable installs / .pth files).
+        run: PYTHONPATH="${{ github.workspace }}/src:${{ github.workspace }}" lint-imports --config pyproject.toml
+      - name: Domain resolves in-repo
+        run: |
+          PYTHONPATH="${{ github.workspace }}/src:${{ github.workspace }}" python -c "
+          import domain, pathlib, os
+          root = pathlib.Path(os.environ['GITHUB_WORKSPACE']).resolve()
+          path = pathlib.Path(domain.__file__).resolve()
+          assert str(path).startswith(str(root)), path
+          print('domain OK', path)
+          "
       - name: Ruff check
         run: ruff check .
       - name: Ruff format check
@@ -127,8 +149,7 @@ jobs:
           coverage report --include="brokers/*" --show-missing | tail -1 | awk '{print $NF}' | sed 's/%//' | awk '{if ($1 < 85) exit 1}'
       - name: Coverage gate - oms core
         run: |
-          # OMS core must have >= 90% (canonical application/oms + shim brokers/common/oms)
-          coverage report --include="application/oms/*","brokers/common/oms/*" --show-missing | tail -1 | awk '{print $NF}' | sed 's/%//' | awk '{if ($1 < 90) exit 1}'
+          coverage report --include="application/oms/*" --show-missing | tail -1 | awk '{print $NF}' | sed 's/%//' | awk '{if ($1 < 90) exit 1}'
       - name: Coverage gate - application layer
         run: |
           # Application layer must have >= 80% coverage

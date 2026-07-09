@@ -101,6 +101,9 @@ class UpstoxApiUrlResolver:
     def market_quote_ltp_v3_url(self) -> str:
         return self._delegate.market_quote_ltp_v3_url()
 
+    def market_quote_ohlc_v3_url(self) -> str:
+        return self._delegate.market_quote_ohlc_v3_url()
+
     def historical_candle_v3_url(
         self,
         instrument_key: str,

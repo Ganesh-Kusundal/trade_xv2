@@ -20,22 +20,22 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pytest
 
-from brokers.common.resilience.circuit_breaker import (
+from tradex.runtime.resilience.circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerConfig,
     CircuitState,
 )
-from brokers.common.resilience.errors import (
+from tradex.runtime.resilience.errors import (
     CircuitBreakerOpenError,
     NonRetryableError,
     RetryableError,
 )
-from brokers.common.resilience.rate_limiter import (
+from tradex.runtime.resilience.rate_limiter import (
     MultiBucketRateLimiter,
     RateLimitConfig,
 )
 from brokers.dhan.connection import DhanConnection
-from brokers.dhan.gateway import BrokerGateway
+from brokers.dhan.gateway import DhanBrokerGateway
 from brokers.dhan.resilience.circuit_breaker import (
     DhanCircuitBreakerFactory,
     create_circuit_breakers,
@@ -113,12 +113,12 @@ class FakeHttpClient:
 
 
 @pytest.fixture()
-def chaos_gateway() -> BrokerGateway:
+def chaos_gateway() -> DhanBrokerGateway:
     """Create a gateway with a fake HTTP client for chaos testing."""
     client = FakeHttpClient()
     conn = DhanConnection(client=client)
     conn.instruments.load_from_rows(SAMPLE_ROWS)
-    gw = BrokerGateway(conn)
+    gw = DhanBrokerGateway(conn)
     gw._test_client = client
     return gw
 

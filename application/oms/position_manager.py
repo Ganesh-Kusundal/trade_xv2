@@ -16,7 +16,7 @@ from domain.events.types import DomainEvent, EventType
 from domain.symbols import make_position_key
 from domain.types import POSITION_STATE_TRANSITIONS, PositionState
 from domain.ports import EventBusPort, EventMetricsPort, ProcessedTradeRepositoryPort
-from infrastructure.logging_config import get_logger
+from application.observability import get_logger
 from domain.state_machine import IllegalTransitionError, StateMachine
 
 logger = get_logger(__name__)

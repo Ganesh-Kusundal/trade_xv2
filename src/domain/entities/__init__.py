@@ -6,7 +6,7 @@ This package re-exports all entities for backward compatibility::
 
 The individual sub-modules are::
 
-    domain.entities.order      — Order, OrderResponse, FieldMapping
+    domain.entities.order      — Order, OrderAck, OrderResponse
     domain.entities.order_lifecycle — ORDER_STATUS_TRANSITIONS
     domain.entities.trade      — Trade
     domain.entities.position   — Position, Holding, PositionState, POSITION_STATE_TRANSITIONS
@@ -61,6 +61,7 @@ from domain.entities.options import (
 from domain.entities.order import (
     FieldMapping,
     Order,
+    OrderAck,
     OrderResponse,
 )
 from domain.entities.order_lifecycle import ORDER_STATUS_TRANSITIONS
@@ -84,7 +85,6 @@ __all__ = [
     "ConditionalAlertRequest",
     "DepthKind",
     "DepthLevel",
-    "FieldMapping",
     "FundLimits",
     "FutureChain",
     "FutureContract",
@@ -98,7 +98,9 @@ __all__ = [
     "OptionContract",
     "OptionLeg",
     "OptionStrike",
+    "FieldMapping",
     "Order",
+    "OrderAck",
     "OrderResponse",
     "PnlExitPolicy",
     "PnlExitResult",

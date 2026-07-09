@@ -17,7 +17,7 @@ class _HealthGateway:
         return {"connected": True}
 
     def capabilities(self):
-        from brokers.common.capabilities import BrokerCapabilities
+        from tradex.runtime.capabilities import BrokerCapabilities
 
         return BrokerCapabilities(broker_id="stub")
 
@@ -28,11 +28,11 @@ def health_client():
 
     class _Checker:
         def run(self):
-            from brokers.common.services.production_readiness import ReadinessReport
+            from tradex.runtime.services.production_readiness import ReadinessReport
 
             return ReadinessReport()
 
-    import brokers.common.services.production_readiness as pr
+    import tradex.runtime.services.production_readiness as pr
 
     original = pr.ProductionReadinessChecker
     pr.ProductionReadinessChecker = lambda svc: _Checker()  # type: ignore[misc]

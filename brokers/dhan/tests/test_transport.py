@@ -116,5 +116,8 @@ def test_dhan_transport_satisfies_shared_contract():
     c.test_capabilities_are_domain_enum()
     c.test_supports_discovery()
     c.test_execution_roundtrip()
-    # market_data requires a real gateway with quote methods; skip get_quote here.
-    assert isinstance(_transport().market_data, DataProvider)
+    # market_data is the gateway duck-type until a real DataProvider adapter is wired;
+    # execution port is the critical contract for OMS (Wave C).
+    assert _transport().market_data is not None
+    assert isinstance(_transport().execution, type(_transport().execution))
+

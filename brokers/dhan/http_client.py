@@ -10,8 +10,8 @@ from typing import Any
 
 import requests
 
-from brokers.common.resilience.circuit_breaker import CircuitBreaker, CircuitState
-from brokers.common.resilience.rate_limiter import MultiBucketRateLimiter
+from tradex.runtime.resilience.circuit_breaker import CircuitBreaker, CircuitState
+from tradex.runtime.resilience.rate_limiter import MultiBucketRateLimiter
 from brokers.dhan.config import DhanResilienceConfig, DEFAULT_CONFIG
 from brokers.dhan.exceptions import AuthenticationError, DhanError, RateLimitError
 from brokers.dhan.metrics import (
@@ -19,7 +19,7 @@ from brokers.dhan.metrics import (
     dhan_request_duration_seconds,
     dhan_request_total,
 )
-from brokers.common.resilience.rate_limiter import DhanRateLimiterMetrics
+from tradex.runtime.resilience.rate_limiter import DhanRateLimiterMetrics
 from config.endpoints import Dhan
 
 logger = logging.getLogger(__name__)
@@ -91,23 +91,55 @@ def _categorize_endpoint(endpoint: str, config: DhanResilienceConfig | None = No
     return "admin"
 
 
-# Circuit-breaker categories (read/write/admin) differ from token-bucket
-# names (market_data/orders/admin). Map before acquire().
-# Derived from DEFAULT_CONFIG for backwards compatibility
+# Circuit-breaker categories (read/write/admin) are orthogonal to token-bucket
+# names. Rate-limit buckets align with ``dhan_capabilities().rate_limit_profiles``:
+# orders, quotes, historical, option_chain, funds, positions, holdings, admin.
+# Kept for backward-compat imports in regression tests.
 _RL_BUCKET_MAP = DEFAULT_CONFIG.rate_limit.bucket_map
 
 
 def _rate_limit_bucket(endpoint: str, config: DhanResilienceConfig | None = None) -> str:
     """Return the MultiBucketRateLimiter category for *endpoint*.
 
+    Path-based mapping (not CB category) so buckets match capability profiles
+    produced by :func:`create_rate_limiter`.
+
     Args:
         endpoint: The API endpoint path.
-        config: Optional configuration to use. If None, uses DEFAULT_CONFIG.
+        config: Optional configuration (unused for mapping; kept for API compat).
     """
-    if config is None:
-        config = DEFAULT_CONFIG
-    category = _categorize_endpoint(endpoint, config)
-    return config.rate_limit.bucket_map.get(category, "admin")
+    del config  # mapping is path-based; config retained for call-site compat
+    ep = (endpoint or "").lower().split("?", 1)[0]
+
+    # Orders / risk controls (write-ish)
+    if ep.startswith(
+        (
+            "/orders",
+            "/super",
+            "/forever",
+            "/slice",
+            "/killswitch",
+            "/exitall",
+            "/conditional",
+            "/triggers",
+        )
+    ):
+        return "orders"
+    if ep.startswith("/optionchain") or "/optionchain" in ep:
+        return "option_chain"
+    if ep.startswith("/charts") or "/historical" in ep or "/expired" in ep:
+        return "historical"
+    if ep.startswith(("/marketfeed/quote", "/marketfeed/ltp", "/marketfeed/ohlc")):
+        return "quotes"
+    if ep.startswith("/marketfeed"):
+        return "quotes"
+    if ep.startswith("/fundlimit") or "margin" in ep:
+        return "funds"
+    if ep.startswith("/positions"):
+        return "positions"
+    if ep.startswith("/holdings"):
+        return "holdings"
+    return "admin"
 
 
 class DhanHttpClient:
@@ -440,6 +472,12 @@ class DhanHttpClient:
 
             # 429 — rate limited, back off and retry
             if resp.status_code == 429:
+                try:
+                    from tradex.runtime.auth.metrics import AuthMetrics
+
+                    AuthMetrics.api_rate_limit("dhan")
+                except Exception:
+                    pass
                 if attempt < max_attempts:
                     retry_after = self._parse_retry_after(resp)
                     if retry_after is not None:

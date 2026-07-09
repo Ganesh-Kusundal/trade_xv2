@@ -235,7 +235,7 @@ async def get_live_candles(
     from fastapi.responses import JSONResponse
 
     try:
-        from brokers.common.historical_coordinator import HistoricalQuery
+        from tradex.runtime.historical_coordinator import HistoricalQuery
 
         query = HistoricalQuery(
             instrument=InstrumentRef(symbol=symbol, exchange=exchange),

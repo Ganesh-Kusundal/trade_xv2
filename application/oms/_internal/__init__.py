@@ -1,6 +1,6 @@
 """Internal OMS components — not part of the public API.
 
-Re-exports for use by brokers/common/oms shim layer.
+Prefer public re-exports from :mod:`application.oms` in application code.
 """
 
 from application.oms._internal.loss_circuit_breaker import (

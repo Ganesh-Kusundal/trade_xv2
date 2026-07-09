@@ -56,6 +56,23 @@ def test_corrupt_line_at_end_is_skipped_on_reload(tmp_path: Path) -> None:
     assert not repo.is_processed(TradeIdKey.from_trade(_make_trade("T2")))
 
 
+def test_hot_eviction_still_blocks_redelivery_via_durable_set(tmp_path: Path) -> None:
+    """P0-H: after max_age hot eviction, is_processed remains True."""
+    path = tmp_path / "trades.jsonl"
+    repo = ProcessedTradeRepository(persistence_path=path, max_age_seconds=1)
+    key = TradeIdKey.from_trade(_make_trade("T-EVICT"))
+    assert repo.mark_processed(key) is True
+    # Force timestamps into the past
+    import time
+
+    with repo._lock:
+        repo._key_timestamps[key] = time.time() - 10_000
+    assert repo.cleanup() >= 1
+    assert key not in repo._seen  # hot set evicted
+    assert repo.is_processed(key) is True  # durable set still holds
+    assert repo.mark_processed(key) is False  # redelivery blocked
+
+
 def test_post_recovery_repo_rejects_duplicate_trades(tmp_path: Path) -> None:
     path = tmp_path / "trades.jsonl"
     valid = json.dumps(

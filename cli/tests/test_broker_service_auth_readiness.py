@@ -6,8 +6,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.common.connection.bootstrap_result import BootstrapResult, BootstrapStatus
-from brokers.common.connection.errors import BrokerNotReadyError
+from tradex.runtime.connection.bootstrap_result import BootstrapResult, BootstrapStatus
+from tradex.runtime.connection.errors import BrokerNotReadyError
 
 
 def test_live_actionable_false_when_auth_probe_fails(monkeypatch, tmp_path):
@@ -28,7 +28,8 @@ def test_live_actionable_false_when_auth_probe_fails(monkeypatch, tmp_path):
 
     monkeypatch.setattr("cli.services.broker_service.bootstrap_gateway", failing_bootstrap)
     monkeypatch.setattr(
-        "cli.services.broker_service.start_http_observability", lambda *a, **k: None
+        "cli.services.broker_service.BrokerService._start_http_observability_server",
+        lambda self, rm: None,
     )
 
     from cli.services.broker_service import BrokerService
@@ -174,11 +175,10 @@ def test_active_broker_returns_upstox_oms_proxy_when_configured(monkeypatch, tmp
     bs._initialized = True
     bs._live_intent = True
     bs._gateway = dhan_gw
-    bs._oms_proxy = dhan_proxy
     bs._upstox_gateway = upstox_gw
-    bs._upstox_oms_proxy = upstox_proxy
     bs._active_name = "upstox"
 
-    assert bs.active_broker is upstox_proxy
+    # active_broker returns the live gateway (OMS proxy wire-up is separate)
+    assert bs.active_broker is upstox_gw
     bs._active_name = "dhan"
-    assert bs.active_broker is dhan_proxy
+    assert bs.active_broker is dhan_gw

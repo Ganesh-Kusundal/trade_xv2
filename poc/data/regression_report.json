@@ -1,0 +1,86 @@
+{
+  "method": "regression_vs_classification",
+  "test_years": [
+    2023,
+    2024,
+    2025
+  ],
+  "n_features": 50,
+  "stage1_filter_pct": 5.67455592186193,
+  "results": [
+    {
+      "test_year": 2023,
+      "candidates_per_day": 24.13877551020408,
+      "regression": {
+        "precision@3": 0.16256830601092895,
+        "rank_ic": 0.05056954578728537,
+        "top_decile_mean_ret": 0.08673181539363875,
+        "quintile_spread": 0.333232393217365,
+        "rmse": 2.4872804092295553
+      },
+      "classification": {
+        "precision@3": 0.20628415300546446,
+        "rank_ic": -0.028160411917245786,
+        "top_decile_mean_ret": 0.17695662597660022,
+        "quintile_spread": -0.020618231890302385,
+        "ap": 0.2019916073993459,
+        "baseline": 0.12377409536692593
+      },
+      "baselines": {
+        "momentum_candidates_prec@3": 0.23224043715846993,
+        "momentum_full_prec@3": 0.07210884353741495,
+        "regression_full_prec@3": 0.04353741496598639
+      }
+    },
+    {
+      "test_year": 2024,
+      "candidates_per_day": 25.28048780487805,
+      "regression": {
+        "precision@3": 0.18231292517006806,
+        "rank_ic": 0.06000919353830755,
+        "top_decile_mean_ret": 0.10175059090462037,
+        "quintile_spread": 0.49531578245570335,
+        "rmse": 2.5454692029043815
+      },
+      "classification": {
+        "precision@3": 0.20272108843537412,
+        "rank_ic": -0.06703173986555205,
+        "top_decile_mean_ret": -0.38621951420083894,
+        "quintile_spread": -0.07183596831811251,
+        "ap": 0.18429272585232717,
+        "baseline": 0.11818620356970574
+      },
+      "baselines": {
+        "momentum_candidates_prec@3": 0.18775510204081633,
+        "momentum_full_prec@3": 0.05284552845528455,
+        "regression_full_prec@3": 0.03523035230352303
+      }
+    },
+    {
+      "test_year": 2025,
+      "candidates_per_day": 23.77016129032258,
+      "regression": {
+        "precision@3": 0.1774193548387097,
+        "rank_ic": 0.026825632144274726,
+        "top_decile_mean_ret": -0.35114270678092946,
+        "quintile_spread": 0.20117059988726066,
+        "rmse": 2.372250521765008
+      },
+      "classification": {
+        "precision@3": 0.2271505376344086,
+        "rank_ic": -0.044256952121070905,
+        "top_decile_mean_ret": -0.028271958129691275,
+        "quintile_spread": -0.1285785752812389,
+        "ap": 0.2230004885748659,
+        "baseline": 0.12620865139949108
+      },
+      "baselines": {
+        "momentum_candidates_prec@3": 0.22446236559139787,
+        "momentum_full_prec@3": 0.05510752688172043,
+        "regression_full_prec@3": 0.036290322580645164
+      }
+    }
+  ],
+  "winning_approach": "CLASSIFICATION",
+  "reg_vs_cls_ratio": 0.8210262379113384
+}

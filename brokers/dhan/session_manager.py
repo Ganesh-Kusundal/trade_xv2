@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from brokers.common.auth import AuthManager
+from tradex.runtime.auth import AuthManager
 
 logger = logging.getLogger(__name__)
 

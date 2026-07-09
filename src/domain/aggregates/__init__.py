@@ -4,22 +4,21 @@ Each Aggregate Root owns identity and state, delegates behavior to
 providers and services, and enforces invariants within its boundary.
 
 Submodules:
-    instrument.py — InstrumentAggregate (replaces the anemic Instrument entity)
-    order.py — OrderAggregate (order lifecycle + trades)
+    instrument.py — InstrumentAggregate (deprecated alias → Instrument)
     position.py — PositionAggregate (account + instrument position state)
     account.py — AccountAggregate (balance + fund limits)
+
+Order lifecycle is owned by application.oms.OrderManager (not a domain aggregate).
 """
 
 from __future__ import annotations
 
 from domain.aggregates.account import AccountAggregate
 from domain.aggregates.instrument import InstrumentAggregate
-from domain.aggregates.order import OrderAggregate
 from domain.aggregates.position import PositionAggregate
 
 __all__ = [
     "AccountAggregate",
     "InstrumentAggregate",
-    "OrderAggregate",
     "PositionAggregate",
 ]

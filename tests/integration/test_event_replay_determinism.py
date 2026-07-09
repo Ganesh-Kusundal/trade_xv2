@@ -15,7 +15,7 @@ from pathlib import Path
 from application.oms.context import TradingContext
 from application.oms.order_manager import OrderManager
 from application.oms.position_manager import PositionManager
-from brokers.common.observability.event_metrics import EventMetrics
+from infrastructure.observability.event_metrics import EventMetrics
 from domain import (
     Order,
     OrderStatus,

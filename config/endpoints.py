@@ -174,15 +174,21 @@ class _UpstoxUrls:
     def market_holidays_url(self) -> str:
         return f"{self._v2()}/market/holidays"
 
-    # ── V3 market quote (Plus plan) ─────────────────────────────────────
+    # ── V3 market quote ─────────────────────────────────────────────────
+    # Docs (2026): LTP + OHLC + option-greek on /v3; full snapshot still /v2/quotes.
     def market_quote_full_v3_url(self) -> str:
-        return f"{self._v3()}/market-quote/full"
+        # Full market quote remains on v2 in official docs (≤500 keys).
+        return f"{self._v2()}/market-quote/quotes"
 
     def market_quote_option_greeks_v3_url(self) -> str:
-        return f"{self._v3()}/market-quote/option-greeks"
+        # Official docs: GET /v3/market-quote/option-greek (singular), max 50 keys.
+        return f"{self._v3()}/market-quote/option-greek"
 
     def market_quote_ltp_v3_url(self) -> str:
         return f"{self._v3()}/market-quote/ltp"
+
+    def market_quote_ohlc_v3_url(self) -> str:
+        return f"{self._v3()}/market-quote/ohlc"
 
     # ── V3 historical candles (Plus plan) ──────────────────────────────
     def historical_candle_v3_url(

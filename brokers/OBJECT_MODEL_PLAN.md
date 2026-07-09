@@ -1,6 +1,14 @@
 # Plan: Object‑Centric Broker Model (no gateway)
 
-**Status:** Proposal · **Scope:** `brokers/` + `domain/` · **Depends on:** existing
+**Status:** SUPERSEDED (2026-07-09) · Keep for historical context only.
+
+> **Architecture board decision (ENG-041):** Do **not** implement decorator-stacked
+> instruments (`DhanDepth20(Instrument)` wrappers). Use capability query +
+> `DataProvider`/`ExecutionProvider` ports. Prefer `tradex.connect` + domain
+> `Instrument` / `Session` (already implemented). See
+> `reports/ENGINEERING_BACKLOG.md` and `reports/ARCHITECTURE_REVIEW_BOARD_2026-07-09.md`.
+
+**Original status was:** Proposal · **Scope:** `brokers/` + `domain/` · **Depends on:** existing
 `brokers/*` adapters are demoted to *transports* (non‑breaking).
 
 > The current system is gateway‑centric: one `MarketDataGateway` (and per‑broker

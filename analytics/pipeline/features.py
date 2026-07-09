@@ -102,13 +102,9 @@ class RSI:
 
     def compute(self, df: pd.DataFrame) -> pd.DataFrame:
         _ensure_columns(df, ["close"])
-        delta = df["close"].diff()
-        gain = delta.clip(lower=0)
-        loss = -delta.clip(upper=0)
-        avg_gain = gain.rolling(window=self.period, min_periods=self.period).mean()
-        avg_loss = loss.rolling(window=self.period, min_periods=self.period).mean()
-        rs = avg_gain / avg_loss.replace(0, math.inf)
-        df[self.name] = 100 - (100 / (1 + rs))
+        from domain.indicators.rsi import RSI as WilderRSI
+
+        df[self.name] = WilderRSI(period=self.period).calculate_frame(df)
         return df
 
 

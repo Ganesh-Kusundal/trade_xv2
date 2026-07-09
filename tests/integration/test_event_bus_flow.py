@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from brokers.common.observability.event_metrics import EventMetrics
+from infrastructure.observability.event_metrics import EventMetrics
 from infrastructure.event_bus import DomainEvent, EventBus
 from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
 from infrastructure.event_bus.persistent_dead_letter_queue import (

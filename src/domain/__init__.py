@@ -1,8 +1,6 @@
 """Canonical domain layer — types, models, requests, and constants.
 
-All cross-layer imports should use ``domain`` (or sub-packages) rather than
-``brokers.common.core``.  ``brokers.common.core`` re-exports with deprecation
-warnings for one release cycle.
+All cross-layer imports should use ``domain`` (or sub-packages).
 """
 
 from __future__ import annotations

@@ -342,7 +342,7 @@ class TestDhanDepth200Feed:
 
 
 def _make_offline_gateway():
-    from brokers.dhan.gateway import BrokerGateway
+    from brokers.dhan.gateway import DhanBrokerGateway
     from brokers.dhan.resolver import SymbolResolver
 
     resolver = SymbolResolver()
@@ -372,7 +372,7 @@ def _make_offline_gateway():
         depth_type="DEPTH_5",
     )
 
-    gw = BrokerGateway.__new__(BrokerGateway)
+    gw = DhanBrokerGateway.__new__(DhanBrokerGateway)
     gw._conn = conn
     return gw
 

@@ -162,7 +162,7 @@ class TestRateLimitMiddleware:
             assert resp.status_code == 200
 
     def test_rate_limit_default_is_100_per_minute(self):
-        config = APIConfig()
+        config = APIConfig(auth_mode="none")
         assert config.rate_limit_per_minute == 100
 
 

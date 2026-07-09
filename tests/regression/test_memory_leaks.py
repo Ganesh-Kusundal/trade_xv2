@@ -299,7 +299,7 @@ class TestReferenceCycles:
 
     def test_health_monitor_no_reference_cycles(self):
         """BrokerHealthMonitor should not create reference cycles."""
-        from brokers.common.resilience.broker_health_monitor import BrokerHealthMonitor
+        from tradex.runtime.resilience.broker_health_monitor import BrokerHealthMonitor
 
         gc.collect()
         before = len(gc.garbage)
@@ -317,7 +317,7 @@ class TestReferenceCycles:
 
     def test_event_metrics_no_reference_cycles(self):
         """EventMetrics should not create reference cycles."""
-        from brokers.common.observability.event_metrics import EventMetrics
+        from infrastructure.observability.event_metrics import EventMetrics
 
         gc.collect()
         before = len(gc.garbage)
@@ -457,7 +457,7 @@ class TestOverallMemoryGrowth:
 
     def test_sustained_event_bus_load_bounded_growth(self):
         """Sustained EventBus load should have bounded memory growth (< 10MB)."""
-        from brokers.common.observability.event_metrics import EventMetrics
+        from infrastructure.observability.event_metrics import EventMetrics
         from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
         from infrastructure.event_bus.event_bus import DomainEvent, EventBus
 
@@ -514,7 +514,7 @@ class TestOverallMemoryGrowth:
 
     def test_no_unbounded_growth_in_metrics_timestamped_entries(self):
         """EventMetrics timestamped entries should be pruned, not accumulate."""
-        from brokers.common.observability.event_metrics import EventMetrics
+        from infrastructure.observability.event_metrics import EventMetrics
 
         metrics = EventMetrics()
 

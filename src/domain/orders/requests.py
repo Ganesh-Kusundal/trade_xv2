@@ -6,7 +6,7 @@ They are distinct from the *output* models in ``models.py``.
 
 Transport-only fields (``exchange_segment``, ``is_amo``, ``algo_name``,
 ``market_protection``, ``transport_only``) have been moved to
-:class:`brokers.common.dtos.BrokerOrderPayload`, which extends
+:class:`tradex.runtime.dtos.BrokerOrderPayload`, which extends
 ``OrderRequest`` with broker-transport metadata.
 """
 
@@ -29,7 +29,7 @@ class OrderRequest:
     """Input model for placing an order — domain fields only.
 
     Immutable by design. Broker-transport fields (exchange_segment, is_amo, etc.)
-    have been moved to :class:`brokers.common.dtos.BrokerOrderPayload`.
+    have been moved to :class:`tradex.runtime.dtos.BrokerOrderPayload`.
     Domain-level consumers (``OrderManager``, ``RiskManager``,
     ``OrderRepository``) should accept ``OrderRequest``; broker adapters that
     need transport metadata should accept ``BrokerOrderPayload``.

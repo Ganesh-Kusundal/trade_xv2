@@ -17,7 +17,7 @@ from analytics.pipeline.features import (
 )
 from analytics.pipeline.pipeline import FeaturePipeline
 from analytics.strategy import BreakoutStrategy, MomentumStrategy, StrategyPipeline
-from datalake.fast_backtest import FastBacktestEngine
+from analytics.backtest import FastBacktestEngine
 from datalake.gateway import DataLakeGateway
 
 

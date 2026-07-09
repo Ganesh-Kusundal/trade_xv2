@@ -19,7 +19,7 @@ import time
 
 import pytest
 
-from brokers.common.resilience import (
+from tradex.runtime.resilience import (
     CircuitBreaker,
     CircuitBreakerConfig,
     CircuitBreakerOpenError,
@@ -29,7 +29,7 @@ from brokers.common.resilience import (
     RetryConfig,
     RetryExecutor,
 )
-from brokers.common.resilience.backoff import BackoffStrategy, NoBackoff
+from tradex.runtime.resilience.backoff import BackoffStrategy, NoBackoff
 from tests.e2e.fixtures.mock_brokers import MockFailingBroker
 
 pytestmark = pytest.mark.e2e

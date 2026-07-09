@@ -1,5 +1,17 @@
-"""Providers — implementations of DataProvider and ExecutionProvider ports.
+"""Deprecated package (ENG-016).
 
-Each provider wraps a broker gateway and normalizes its outputs
-into the domain ports. The user layer never imports from this package.
+Prefer::
+
+    from brokers.dhan.transport import DhanOrderTransport
+    from tradex.runtime.adapter_factory import create_data_adapter, create_execution_provider
 """
+
+from __future__ import annotations
+
+import warnings
+
+warnings.warn(
+    "providers package is deprecated; use brokers.* / tradex.runtime adapters (ENG-016).",
+    DeprecationWarning,
+    stacklevel=2,
+)

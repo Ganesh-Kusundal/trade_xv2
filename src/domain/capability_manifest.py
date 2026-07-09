@@ -1183,7 +1183,7 @@ def abc_gateway_methods() -> frozenset[str]:
     """Abstract methods required by MarketDataGateway ABC.
 
     Kept in sync with the ``@abstractmethod`` definitions on
-    :class:`brokers.common.gateway.MarketDataGateway`. The streaming
+    :class:`domain.ports.broker_adapter.BrokerAdapter`. The streaming
     surface is split into three abstract methods: ``stream`` (market
     feed), ``stream_depth`` (depth feed) and ``stream_order`` (order
     feed); each has a corresponding manifest surface so the coverage

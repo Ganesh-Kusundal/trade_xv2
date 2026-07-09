@@ -6,23 +6,23 @@ from collections.abc import Sequence
 from decimal import Decimal
 from typing import Any
 
-from brokers.common.broker_port import QuotaToken
-from brokers.common.extensions import ExtensionBundle, register_extension_factory
-from brokers.common.extensions.forever_order import (
+from tradex.runtime.broker_port import QuotaToken
+from tradex.runtime.extensions import ExtensionBundle, register_extension_factory
+from tradex.runtime.extensions.forever_order import (
     ForeverOrderProvider,
     ForeverOrderRequest,
     ForeverOrderResult,
 )
-from brokers.common.extensions.native_slice_order import (
+from tradex.runtime.extensions.native_slice_order import (
     NativeSliceOrderProvider,
     SliceOrderSpec,
 )
-from brokers.common.extensions.super_order import (
+from tradex.runtime.extensions.super_order import (
     SuperOrderProvider,
     SuperOrderRequest,
     SuperOrderResult,
 )
-from brokers.common.gateway import MarketDataGateway
+from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 from brokers.dhan.extensions.depth20 import DhanDepth20Extension
 from brokers.dhan.extensions.depth200 import DhanDepth200Extension
 

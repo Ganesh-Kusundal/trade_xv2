@@ -15,7 +15,7 @@ from api.main import create_app
 @pytest.fixture
 def replay_ws_app():
     reset_container()
-    config = APIConfig(host="127.0.0.1", port=8000, cors_origins=[])
+    config = APIConfig(host="127.0.0.1", port=8000, cors_origins=[], auth_mode="none")
     app = create_app(config=config)
     yield app
     reset_container()

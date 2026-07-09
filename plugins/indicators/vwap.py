@@ -1,6 +1,4 @@
-import pandas as pd
+"""Backward-compatible re-export; implementation lives in domain."""
+from domain.indicators.vwap import VWAP
 
-
-class VWAP:
-    def calculate(self, df: pd.DataFrame) -> pd.Series:
-        return (df["close"] * df["volume"]).cumsum() / df["volume"].cumsum()
+__all__ = ["VWAP"]

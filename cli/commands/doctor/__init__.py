@@ -38,6 +38,7 @@ from cli.commands.doctor.orchestrator import CheckOrchestrator, SectionResult
 from cli.commands.doctor.renderer import ResultRenderer, _status_str
 from cli.commands.doctor.strategies import (
     ActiveBrokerCheck,
+    AuthLiveProbeCheck,
     AuthenticatedReadinessCheck,
     BrokerRegistryCheck,
     GatewayCreationCheck,
@@ -309,10 +310,37 @@ def run_doctor(
     renderer.render_summary(all_results)
 
 
+def run_auth_doctor(
+    broker_service: BrokerService,
+    console: Console,
+    *,
+    force_refresh: bool = False,
+    broker: str | None = None,
+) -> None:
+    """Auth-only diagnostics: probe with existing token; mint only if --force-refresh.
+
+    Default is **probe-only** (funds/profile). Never generates TOTP unless
+    ``force_refresh`` is True (then at most one mint after token rejection).
+    """
+    console.print()
+    console.print("[bold cyan]TradeXV2 Auth Doctor[/bold cyan]")
+    mode = "force-refresh (mint only if rejected)" if force_refresh else "probe-only (no TOTP)"
+    console.print(f"[dim]Mode: {mode}[/dim]")
+    console.print()
+
+    renderer = ResultRenderer(console)
+    check = AuthLiveProbeCheck(force_refresh=force_refresh, broker=broker)
+    results = check.execute(broker_service)
+    renderer.render_section("🔐 Live Auth Probe", results)
+    renderer.render_summary(results)
+
+
 def run(args: list[str], broker_service: BrokerService, console: Console) -> None:
     """Entry point for doctor subcommand.
 
     Supports optional flags:
+      auth            Auth-only probe (no full diagnostics)
+      --force-refresh With auth: allow one TOTP mint if probe rejects token
       --broker NAME   Run diagnostics for a specific broker
       --quick         Skip slower checks (depth, history)
       --parallel      Run independent checks in parallel (40-60% faster)
@@ -320,10 +348,18 @@ def run(args: list[str], broker_service: BrokerService, console: Console) -> Non
     broker_override: str | None = None
     quick_mode = False
     parallel_mode = False
+    auth_only = False
+    force_refresh = False
 
     i = 0
     while i < len(args):
-        if args[i] == "--broker" and i + 1 < len(args):
+        if args[i] in ("auth", "--auth"):
+            auth_only = True
+            i += 1
+        elif args[i] == "--force-refresh":
+            force_refresh = True
+            i += 1
+        elif args[i] == "--broker" and i + 1 < len(args):
             broker_override = args[i + 1].lower()
             i += 2
         elif args[i] == "--quick":
@@ -341,5 +377,19 @@ def run(args: list[str], broker_service: BrokerService, console: Console) -> Non
         except ValueError as exc:
             console.print(f"[red]{exc}[/red]")
             return
+
+    if auth_only:
+        run_auth_doctor(
+            broker_service,
+            console,
+            force_refresh=force_refresh,
+            broker=broker_override,
+        )
+        return
+
+    if force_refresh and not auth_only:
+        console.print(
+            "[yellow]--force-refresh only applies with `doctor auth`; ignoring.[/yellow]"
+        )
 
     run_doctor(broker_service, console, quick_mode=quick_mode, parallel_mode=parallel_mode)

@@ -1,9 +1,8 @@
 """Architecture tests: enforce single-source-of-truth for error hierarchies.
 
-Verifies that:
-1. brokers.common.resilience.errors is the canonical BrokerError root
-2. brokers.common.errors re-exports from resilience.errors (no duplicate definitions)
-3. No other module defines its own BrokerError class
+Canonical home (post brokers.common → tradex.runtime migration):
+``tradex.runtime.resilience.errors``. Thin shims under ``brokers.common`` may
+re-export but must not redefine ``BrokerError``.
 """
 from __future__ import annotations
 
@@ -26,16 +25,31 @@ class TestNoDuplicateBrokerError:
     """Ensure only one BrokerError class definition exists in the codebase."""
 
     def test_only_one_broker_error_definition(self) -> None:
-        """Only brokers.common.resilience.errors should define class BrokerError."""
-        canonical_file = ROOT / "brokers/common/resilience/errors.py"
+        """Only tradex.runtime.resilience.errors should define class BrokerError."""
+        canonical_file = ROOT / "tradex/runtime/resilience/errors.py"
         assert canonical_file.exists(), f"Canonical file missing: {canonical_file}"
 
-        dirs_to_check = ["domain", "application", "analytics", "api", "cli", "config", "infrastructure", "datalake"]
+        dirs_to_check = [
+            "domain",
+            "application",
+            "analytics",
+            "api",
+            "cli",
+            "config",
+            "infrastructure",
+            "datalake",
+            "brokers",
+        ]
         files = _find_python_files(dirs_to_check)
 
+        # Allow re-export modules (no ClassDef of BrokerError expected there)
+        allow_prefixes = (
+            "tradex/runtime/resilience/errors.py",
+        )
         violations: list[str] = []
         for f in files:
-            if f == canonical_file:
+            rel = str(f.relative_to(ROOT))
+            if rel in allow_prefixes:
                 continue
             try:
                 tree = ast.parse(f.read_text())
@@ -43,31 +57,21 @@ class TestNoDuplicateBrokerError:
                 continue
             for node in ast.walk(tree):
                 if isinstance(node, ast.ClassDef) and node.name == "BrokerError":
-                    violations.append(f"{f.relative_to(ROOT)}:{node.lineno}")
-
-        # brokers/common/errors.py is allowed (it re-exports)
-        allowed = {str((ROOT / "brokers/common/errors.py").relative_to(ROOT))}
-        violations = [v for v in violations if not any(v.startswith(a) for a in allowed)]
+                    violations.append(f"{rel}:{node.lineno}")
 
         assert not violations, (
             f"Duplicate BrokerError definitions found in: {violations}. "
-            f"Only brokers.common.resilience.errors should define it."
+            f"Only tradex.runtime.resilience.errors should define it."
         )
 
     def test_resilience_errors_is_canonical_root(self) -> None:
-        """brokers.common.resilience.errors.BrokerError should inherit from TradeXV2Error."""
-        from brokers.common.resilience.errors import BrokerError, TradeXV2Error
+        from tradex.runtime.resilience.errors import BrokerError, TradeXV2Error
 
-        assert issubclass(BrokerError, TradeXV2Error), (
-            "BrokerError should inherit from TradeXV2Error (canonical root)"
-        )
+        assert issubclass(BrokerError, TradeXV2Error)
 
-    def test_common_errors_reexports_canonical(self) -> None:
-        """brokers.common.errors.BrokerError should be the same object as resilience.errors.BrokerError."""
-        from brokers.common.errors import BrokerError as CommonBrokerError
-        from brokers.common.resilience.errors import BrokerError as ResilienceBrokerError
+    def test_runtime_errors_is_single_import_path(self) -> None:
+        """BrokerError must only be imported from tradex.runtime.resilience.errors."""
+        from tradex.runtime.resilience.errors import BrokerError as CanonicalBrokerError
+        from tradex.runtime.resilience import errors as resilience_errors
 
-        assert CommonBrokerError is ResilienceBrokerError, (
-            "brokers.common.errors.BrokerError should be a re-export of "
-            "brokers.common.resilience.errors.BrokerError"
-        )
+        assert CanonicalBrokerError is resilience_errors.BrokerError

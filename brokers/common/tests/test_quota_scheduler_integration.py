@@ -14,9 +14,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pytest
 
-from brokers.common.capabilities import RateLimitProfile
-from brokers.common.errors import QuotaExhaustedError
-from brokers.common.quota_scheduler import PriorityClass, QuotaScheduler
+from tradex.runtime.capabilities import RateLimitProfile
+from tradex.runtime.errors import QuotaExhaustedError
+from tradex.runtime.quota_scheduler import PriorityClass, QuotaScheduler
 
 
 @pytest.fixture

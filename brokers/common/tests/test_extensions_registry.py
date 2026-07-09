@@ -2,10 +2,10 @@
 
 import pytest
 
-from brokers.common.errors import UnsupportedExtensionError
-from brokers.common.extensions import ExtensionBundle, ExtensionRegistry
-from brokers.common.extensions.news import NewsProvider
-from brokers.common.extensions.super_order import SuperOrderProvider
+from tradex.runtime.errors import UnsupportedExtensionError
+from tradex.runtime.extensions import ExtensionBundle, ExtensionRegistry
+from tradex.runtime.extensions.news import NewsProvider
+from tradex.runtime.extensions.super_order import SuperOrderProvider
 
 
 class _UpstoxNewsProvider:

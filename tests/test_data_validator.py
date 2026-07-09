@@ -2,7 +2,7 @@
 
 import pandas as pd
 
-from brokers.common.services.data_validator import DataQualityValidator, ValidationReport
+from tradex.runtime.services.data_validator import DataQualityValidator, ValidationReport
 
 
 class TestValidationReport:

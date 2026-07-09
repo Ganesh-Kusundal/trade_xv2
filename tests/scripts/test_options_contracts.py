@@ -35,7 +35,7 @@ def _test_broker_options(
         console.print(f"[yellow]Skipping {name}: {env_filename} not found[/yellow]")
         return False
 
-    from brokers.common.env_loader import load_env_file
+    from tradex.runtime.env_loader import load_env_file
     from cli.services.broker_registry import create_gateway
 
     load_env_file(env_path)

@@ -12,7 +12,7 @@ from typing import Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response, status
 
-from api.auth import require_auth
+from api.auth import require_admin, require_auth
 from api.deps import (
     get_broker_service,
     get_event_bus,
@@ -312,7 +312,7 @@ async def live_slice(
     return serialize_value(result.response)
 
 
-@router.post("/kill-switch")
+@router.post("/kill-switch", dependencies=[Depends(require_admin)])
 async def live_broker_kill_switch(
     payload: dict[str, Any] = Body(...),
     response: Response = None,

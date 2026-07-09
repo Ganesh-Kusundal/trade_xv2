@@ -13,9 +13,15 @@ class UpstoxAutoReconnect:
         self,
         enabled: bool = True,
         interval_seconds: float = 10.0,
-        max_retries: int = 5,
+        max_retries: int = 50,
         jitter: float = 0.2,
     ) -> None:
+        """Exponential backoff reconnect policy.
+
+        ENG-017: default ``max_retries`` raised from 5 → 50 so a brief
+        outage does not permanently kill the market/portfolio feed.
+        Pass ``max_retries <= 0`` for unlimited retries while enabled.
+        """
         self._enabled = enabled
         self._interval = float(interval_seconds)
         self._max_retries = int(max_retries)
@@ -26,6 +32,8 @@ class UpstoxAutoReconnect:
         if not self._enabled:
             return False
         n = self._attempts if attempt is None else int(attempt)
+        if self._max_retries <= 0:
+            return True  # unlimited
         return n < self._max_retries
 
     def next_delay(self, attempt: int | None = None) -> float:

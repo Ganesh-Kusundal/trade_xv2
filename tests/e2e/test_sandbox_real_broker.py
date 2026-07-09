@@ -29,7 +29,7 @@ class TestDhanSandboxE2E:
         from dotenv import load_dotenv
 
         from brokers.dhan.connection import DhanConnection
-        from brokers.dhan.gateway import BrokerGateway
+        from brokers.dhan.gateway import DhanBrokerGateway
 
         load_dotenv(".env.local")
 
@@ -47,7 +47,7 @@ class TestDhanSandboxE2E:
         )
 
         # Create gateway
-        gw = BrokerGateway(conn)
+        gw = DhanBrokerGateway(conn)
         gw.load_instruments()
 
         yield gw
@@ -348,7 +348,7 @@ class TestCrossBrokerParity:
         from dotenv import load_dotenv
 
         from brokers.dhan.connection import DhanConnection
-        from brokers.dhan.gateway import BrokerGateway
+        from brokers.dhan.gateway import DhanBrokerGateway
 
         load_dotenv(".env.local")
 
@@ -364,7 +364,7 @@ class TestCrossBrokerParity:
             is_sandbox=True,
         )
 
-        gw = BrokerGateway(conn)
+        gw = DhanBrokerGateway(conn)
         gw.load_instruments()
 
         yield gw

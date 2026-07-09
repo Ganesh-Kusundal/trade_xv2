@@ -1,0 +1,187 @@
+{
+  "total_trading_days": 739,
+  "top_k": 3,
+  "mean_daily_return": -0.2446,
+  "std_daily_return": 2.4113,
+  "sharpe_ratio": -1.61,
+  "total_return_pct": -86.79,
+  "max_drawdown_pct": 89.49,
+  "win_rate_pct": 43.0,
+  "mean_precision_at_3": 0.0776,
+  "hit_rate_pct": 7.8,
+  "days_with_any_hit_pct": 19.9,
+  "total_picks": 2217,
+  "total_hits": 172,
+  "daily_trades_sample": [
+    {
+      "date": "2023-01-02",
+      "n_trades": 3,
+      "n_hits": 0,
+      "gross_return": 1.0014118691839675,
+      "net_return": 0.9014118691839675,
+      "symbols": [
+        "USHAMART",
+        "PNBHOUSING",
+        "GPIL"
+      ],
+      "returns": [
+        -2.901960784313731,
+        3.252474709017741,
+        2.653721682847893
+      ]
+    },
+    {
+      "date": "2023-01-03",
+      "n_trades": 3,
+      "n_hits": 0,
+      "gross_return": 0.9751829589056408,
+      "net_return": 0.8751829589056408,
+      "symbols": [
+        "TRITURBINE",
+        "IFCI",
+        "GPIL"
+      ],
+      "returns": [
+        1.279141737157002,
+        -0.3436426116838536,
+        1.9900497512437738
+      ]
+    },
+    {
+      "date": "2023-01-04",
+      "n_trades": 3,
+      "n_hits": 0,
+      "gross_return": 1.9015075301048645,
+      "net_return": 1.8015075301048644,
+      "symbols": [
+        "NIACL",
+        "ELGIEQUIP",
+        "FACT"
+      ],
+      "returns": [
+        0.8070432868672005,
+        -0.024685262898055473,
+        4.922164566345448
+      ]
+    },
+    {
+      "date": "2023-01-05",
+      "n_trades": 3,
+      "n_hits": 0,
+      "gross_return": 1.1799882788855285,
+      "net_return": 1.0799882788855284,
+      "symbols": [
+        "MAHABANK",
+        "KALYANKJIL",
+        "ENGINERSIN"
+      ],
+      "returns": [
+        0.32051282051282504,
+        2.44610281923715,
+        0.77334919690661
+      ]
+    },
+    {
+      "date": "2023-01-06",
+      "n_trades": 3,
+      "n_hits": 0,
+      "gross_return": -0.9955799795371982,
+      "net_return": -1.0955799795371983,
+      "symbols": [
+        "NCC",
+        "ANANTRAJ",
+        "MMTC"
+      ],
+      "returns": [
+        -1.680672268907572,
+        -0.3418803418803467,
+        -0.9641873278236759
+      ]
+    },
+    {
+      "date": "2023-01-09",
+      "n_trades": 3,
+      "n_hits": 0,
+      "gross_return": -1.3992820079181303,
+      "net_return": -1.4992820079181304,
+      "symbols": [
+        "GICRE",
+        "FACT",
+        "NIACL"
+      ],
+      "returns": [
+        -1.3567438148443645,
+        -1.4390559792775939,
+        -1.4020462296324323
+      ]
+    },
+    {
+      "date": "2023-01-10",
+      "n_trades": 3,
+      "n_hits": 0,
+      "gross_return": -1.0151440114523669,
+      "net_return": -1.115144011452367,
+      "symbols": [
+        "GODFRYPHLP",
+        "PNBHOUSING",
+        "VTL"
+      ],
+      "returns": [
+        -0.14285714285714285,
+        -2.2340425531914896,
+        -0.6685323383084683
+      ]
+    },
+    {
+      "date": "2023-01-11",
+      "n_trades": 3,
+      "n_hits": 0,
+      "gross_return": 0.3562616793581979,
+      "net_return": 0.2562616793581979,
+      "symbols": [
+        "USHAMART",
+        "GICRE",
+        "KPIL"
+      ],
+      "returns": [
+        1.0306482234879337,
+        0.6909894969596462,
+        -0.6528526823729861
+      ]
+    },
+    {
+      "date": "2023-01-12",
+      "n_trades": 3,
+      "n_hits": 0,
+      "gross_return": 0.6512809748355783,
+      "net_return": 0.5512809748355784,
+      "symbols": [
+        "RVNL",
+        "MAHABANK",
+        "ELGIEQUIP"
+      ],
+      "returns": [
+        1.6085790884718536,
+        0.32102728731942676,
+        0.02423654871545465
+      ]
+    },
+    {
+      "date": "2023-01-13",
+      "n_trades": 3,
+      "n_hits": 0,
+      "gross_return": -1.7764013227464648,
+      "net_return": -1.8764013227464649,
+      "symbols": [
+        "PNBHOUSING",
+        "CGCL",
+        "GICRE"
+      ],
+      "returns": [
+        -2.487714987714983,
+        -0.9397457158651282,
+        -1.901743264659283
+      ]
+    }
+  ]
+}

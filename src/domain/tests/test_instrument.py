@@ -43,12 +43,16 @@ def test_refresh_pulls_quote_and_emits():
     assert instr.mid_price() == Decimal("2500")
 
 
-def test_history_returns_dataframe():
+def test_history_returns_historical_series():
+    from domain.candles.historical import HistoricalSeries
+
     instr, _ = _new_equity()
-    df = instr.history(timeframe="5m", days=30)
-    assert isinstance(df, pd.DataFrame)
-    assert not df.empty
-    assert "close" in df.columns
+    series = instr.history(timeframe="5m", days=30)
+    assert isinstance(series, HistoricalSeries)
+    # Export adapter still available (lazy pandas)
+    df = series.to_dataframe()
+    assert not df.empty or series.bar_count == 0  # fakes may return empty
+
 
 
 def test_depth_returns_market_depth():

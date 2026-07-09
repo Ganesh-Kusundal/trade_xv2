@@ -22,6 +22,7 @@ class Position:
     realized_pnl: Decimal = Decimal("0")
     product_type: ProductType = ProductType.INTRADAY
     correlation_id: str | None = None
+    instrument_id: str | None = None
 
     @property
     def pnl(self) -> Decimal:

@@ -1,0 +1,44 @@
+classDiagram
+    class Instrument {
+        +quote
+        +history(interval)
+        +subscribe()
+        +depth()
+        +option_chain()
+        +buy(qty price)
+        +sell(qty)
+    }
+    class Equity
+    class Index
+    class Future
+    class Option {
+        +greeks
+        +delta
+        +implied_volatility()
+    }
+    class OptionChain {
+        +atm
+        +calls
+        +puts
+        +pcr
+        +max_pain()
+        +greeks()
+    }
+    class Portfolio {
+        +total_pnl
+        +positions()
+    }
+    class Position
+    class Order
+    class Trade
+    class Quote
+    class HistoricalSeries
+
+    Instrument <|-- Equity
+    Instrument <|-- Index
+    Instrument <|-- Future
+    Instrument <|-- Option
+    Instrument --> Quote
+    Instrument --> OptionChain
+    Portfolio --> Position
+    Order --> Trade

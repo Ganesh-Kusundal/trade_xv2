@@ -52,12 +52,14 @@ class MockDataCatalog:
 @pytest.fixture
 def app():
     """Create FastAPI test application with mocked services."""
+    # Explicit auth_mode=none: production default is api_key (ENG-004).
     config = APIConfig(
         host="127.0.0.1",
         port=8000,
         cors_origins=["http://localhost:3000"],
         max_page_size=1000,
         default_page_size=100,
+        auth_mode="none",
     )
 
     # Register mock services so endpoints return gracefully
@@ -182,7 +184,7 @@ class StubLiveGateway:
         return {"broker": "stub", "connected": True}
 
     def capabilities(self):
-        from brokers.common.capabilities import BrokerCapabilities
+        from tradex.runtime.capabilities import BrokerCapabilities
 
         return BrokerCapabilities(
             broker_id="stub",

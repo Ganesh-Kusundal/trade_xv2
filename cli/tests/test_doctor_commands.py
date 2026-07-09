@@ -228,7 +228,7 @@ class TestGatewayCreationCheck:
             ) as mock_list,
             patch("cli.commands.doctor.strategies.gateway_creation.bootstrap_gateway") as mock_bootstrap,
         ):
-            from brokers.common.connection.bootstrap_result import BootstrapResult, BootstrapStatus
+            from tradex.runtime.connection.bootstrap_result import BootstrapResult, BootstrapStatus
 
             mock_list.return_value = [
                 {"name": "dhan", "env_file": ".env.local", "available": True},

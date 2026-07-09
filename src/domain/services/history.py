@@ -2,18 +2,15 @@
 
 Wraps a :class:`~domain.ports.protocols.DataProvider` so the ``Instrument``
 never talks to a provider directly for historical data.  Pure domain layer:
-no broker or transport imports.
+no broker or transport imports. No top-level pandas.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-import pandas as pd
-
 if TYPE_CHECKING:
-    from domain.candles.historical import HistoricalSeries, InstrumentRef
-    from domain.instruments.instrument_id import InstrumentId
+    from domain.candles.historical import HistoricalSeries
     from domain.ports.protocols import DataProvider
 
 
@@ -40,9 +37,7 @@ class HistoryService:
         from domain.candles.historical import HistoricalSeries, InstrumentRef
 
         if self._provider is None:
-            if as_dataframe:
-                return pd.DataFrame()
-            return HistoricalSeries(
+            series = HistoricalSeries(
                 bars=[],
                 coverage=None,
                 instrument=InstrumentRef(
@@ -51,6 +46,7 @@ class HistoryService:
                 ),
                 timeframe=timeframe,
             )
+            return series.to_dataframe() if as_dataframe else series
 
         try:
             series = self._provider.get_history_series(
@@ -61,20 +57,33 @@ class HistoryService:
                 to_date=to_date,
             )
         except (AttributeError, NotImplementedError):
-            df = self._provider.get_history(
+            raw = self._provider.get_history(
                 instrument_id,
                 timeframe=timeframe,
                 lookback_days=lookback_days,
                 from_date=from_date,
                 to_date=to_date,
             )
-            series = HistoricalSeries.from_dataframe(
-                df,
-                InstrumentRef(
-                    symbol=instrument_id.underlying,
-                    exchange=instrument_id.exchange,
-                ),
-                timeframe,
-            )
+            if isinstance(raw, HistoricalSeries):
+                series = raw
+            elif isinstance(raw, list):
+                series = HistoricalSeries(
+                    bars=raw,
+                    coverage=None,
+                    instrument=InstrumentRef(
+                        symbol=getattr(instrument_id, "underlying", str(instrument_id)),
+                        exchange=getattr(instrument_id, "exchange", ""),
+                    ),
+                    timeframe=timeframe,
+                )
+            else:
+                series = HistoricalSeries.from_dataframe(
+                    raw,
+                    InstrumentRef(
+                        symbol=instrument_id.underlying,
+                        exchange=instrument_id.exchange,
+                    ),
+                    timeframe,
+                )
 
-        return series.df if as_dataframe else series
+        return series.to_dataframe() if as_dataframe else series

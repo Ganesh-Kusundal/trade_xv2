@@ -1,0 +1,24 @@
+flowchart TB
+    subgraph plugin [Broker Plugin]
+        Factory[adapter_factory registry]
+        Cap[BrokerCapabilities matrix]
+        Ext[Extension registry]
+        Adapter[BrokerAdapter impl]
+    end
+
+    subgraph domain_ports [Domain Ports]
+        DP[DataProvider]
+        EP[ExecutionProvider]
+        BA[BrokerAdapter]
+    end
+
+    Dhan[brokers.dhan] --> Factory
+    Upstox[brokers.upstox] --> Factory
+    Paper[brokers.paper] --> Factory
+    Factory --> Adapter
+    Adapter --> BA
+    BA --> DP
+    BA --> EP
+    Adapter --> Cap
+    Dhan --> Ext
+    Ext -->|"depth20 super_order"| Cap

@@ -82,3 +82,4 @@ market_data/_quarantine/
 archive/
 
 graphify-out/
+.env.local

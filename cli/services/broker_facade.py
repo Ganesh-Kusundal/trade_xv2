@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 # These are the only broker symbols the CLI may reference; everything else
 # flows through the domain ports below.
 from brokers.dhan.account_registry import AccountConnectionRegistry
-from brokers.dhan.gateway import BrokerGateway as DhanBrokerGateway
+from brokers.dhan.gateway import DhanBrokerGateway
 from brokers.dhan.loader import InstrumentLoader
 from brokers.dhan.reconciliation import create_reconciliation_service
 from brokers.dhan.symbol_validator import DhanSymbolValidator
@@ -42,9 +42,7 @@ def get_market_provider(broker: str = "dhan") -> "DataProvider | None":
     """
     result = bootstrap_gateway(
         broker,
-        analytics_only=True,
-        skip_credential_check=True,
-        require_authenticated=False,
+        skip_auth_probe=True,  # analytics composition; no TOTP burn
     )
     if not result.ok or result.gateway is None:
         return None
@@ -85,9 +83,7 @@ def create_instrument(
     """
     result = bootstrap_gateway(
         broker,
-        analytics_only=True,
-        skip_credential_check=True,
-        require_authenticated=False,
+        skip_auth_probe=True,  # instrument wire-up; no TOTP burn
     )
     if not result.ok or result.gateway is None:
         return None

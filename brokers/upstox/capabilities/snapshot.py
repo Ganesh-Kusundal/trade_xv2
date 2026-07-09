@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from brokers.common.capabilities import (
+from tradex.runtime.capabilities import (
     BrokerCapabilities,
     HistoricalWindowConstraint,
     RateLimitProfile,
@@ -17,7 +17,7 @@ def upstox_capabilities() -> BrokerCapabilities:
         supports_modify_order=True,
         supports_historical_data=True,
         supports_intraday_history=True,
-        supports_expired_options_history=False,
+        supports_expired_options_history=True,  # Plus plan client: expired_options.py
         supports_live_market_data=True,
         supports_depth=True,
         supports_depth_20_ws=False,
@@ -30,7 +30,7 @@ def upstox_capabilities() -> BrokerCapabilities:
         supports_fundamentals=True,
         supports_super_order=False,
         supports_forever_order=True,
-        supports_native_slice_order=False,
+        supports_native_slice_order=True,  # slice_adapter / place-order slice flag
         rate_limit_profiles=(
             RateLimitProfile(
                 endpoint_class="orders",
@@ -40,10 +40,11 @@ def upstox_capabilities() -> BrokerCapabilities:
                 cooldown_on_429_s=60,
             ),
             RateLimitProfile(
+                # Official "Other Standard APIs" (quotes) ≈ 50/s; stay under with headroom.
                 endpoint_class="quotes",
-                sustained_rps=1.0,
-                burst_rps=5.0,
-                min_interval_ms=1000,
+                sustained_rps=25.0,
+                burst_rps=50.0,
+                min_interval_ms=40,
                 cooldown_on_429_s=60,
             ),
             RateLimitProfile(
@@ -150,5 +151,5 @@ def upstox_capabilities() -> BrokerCapabilities:
         reliability_class="tier1",
         product_types=frozenset({"INTRADAY", "MARGIN", "CNC"}),
         order_types=frozenset({"MARKET", "LIMIT", "STOP_LOSS", "STOP_LOSS_MARKET"}),
-        max_batch_size=10,
+        max_batch_size=500,  # REST market-quote multi-key limit (docs UDAPI100042/43)
     )

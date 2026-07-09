@@ -42,6 +42,14 @@ def test_resolver_known_quote_endpoints():
     assert r.market_quote_ltp_url() == "https://api.upstox.com/v2/market-quote/ltp"
     assert r.market_quote_full_url() == "https://api.upstox.com/v2/market-quote/quotes"
     assert r.market_quote_ohlc_url() == "https://api.upstox.com/v2/market-quote/ohlc"
+    # V3 (docs 2026)
+    assert r.market_quote_ltp_v3_url() == "https://api.upstox.com/v3/market-quote/ltp"
+    assert r.market_quote_ohlc_v3_url() == "https://api.upstox.com/v3/market-quote/ohlc"
+    assert r.market_quote_option_greeks_v3_url() == (
+        "https://api.upstox.com/v3/market-quote/option-greek"
+    )
+    # Full snapshot remains v2 path even via full_v3 helper
+    assert r.market_quote_full_v3_url() == "https://api.upstox.com/v2/market-quote/quotes"
 
 
 def test_resolver_market_intelligence_endpoints():

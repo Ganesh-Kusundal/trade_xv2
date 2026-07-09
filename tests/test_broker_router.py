@@ -19,22 +19,22 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.common.capabilities import (
+from tradex.runtime.capabilities import (
     BrokerCapabilities,
     CapabilityDescriptor,
 )
-from brokers.common.errors import RoutingError
-from brokers.common.models import (
+from tradex.runtime.errors import RoutingError
+from tradex.runtime.models import (
     BrokerHealthSnapshot,
     OperationKind,
     RoutingRequest,
 )
-from brokers.common.policy import (
+from tradex.runtime.policy import (
     RoutingPolicy,
     SourceSelectionPolicy,
 )
-from brokers.common.registry import BrokerRegistry
-from brokers.common.router import BrokerRouter
+from tradex.runtime.registry import BrokerRegistry
+from tradex.runtime.router import BrokerRouter
 
 # ---------------------------------------------------------------------------
 # Helpers

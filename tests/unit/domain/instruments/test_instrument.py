@@ -15,11 +15,23 @@ from domain.instruments.instrument import (
     Future,
     Index,
     Instrument,
-    InstrumentState,
     Option,
 )
 from domain.instruments.instrument_id import InstrumentId
 from domain.provenance import DataProvenance, ProvenanceConfidence, SourceIdentity
+from domain.value_objects.state import InstrumentState
+
+
+@pytest.fixture(autouse=True)
+def _clear_provider_ambient():
+    from domain.ports.provider_registry import set_default_provider
+    from domain.ports.session_context import set_ambient_session
+
+    set_default_provider(None)
+    set_ambient_session(None)
+    yield
+    set_default_provider(None)
+    set_ambient_session(None)
 
 
 def _make_quote(
@@ -114,13 +126,21 @@ class TestInstrumentStateNoProvider:
     def test_is_live_is_false(self):
         assert Equity("RELIANCE").is_live is False
 
-    def test_refresh_returns_none(self):
-        assert Equity("RELIANCE").refresh() is None
+    def test_refresh_raises_without_provider(self):
+        from domain.errors import NotConfiguredError
+        from domain.ports.provider_registry import set_default_provider
 
-    def test_history_returns_empty(self):
-        import pandas as pd
+        set_default_provider(None)
+        with pytest.raises(NotConfiguredError):
+            Equity("RELIANCE").refresh()
 
-        assert isinstance(Equity("RELIANCE").history(), pd.DataFrame)
+    def test_history_raises_without_provider(self):
+        from domain.errors import NotConfiguredError
+        from domain.ports.provider_registry import set_default_provider
+
+        set_default_provider(None)
+        with pytest.raises(NotConfiguredError):
+            Equity("RELIANCE").history()
 
     def test_spread_is_none(self):
         assert Equity("RELIANCE").spread() is None

@@ -13,7 +13,7 @@ from typing import Any, Protocol
 import pandas as pd
 
 from brokers.common.api.spi import BrokerSource
-from brokers.common.resilience.errors import TradeXV2Error
+from tradex.runtime.resilience.errors import TradeXV2Error
 from datetime import date
 
 from domain import (

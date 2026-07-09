@@ -14,9 +14,10 @@ class TestAPIConfigDefaults:
         cfg = APIConfig()
         assert cfg.port == 8080
 
-    def test_default_auth_mode_is_none(self):
+    def test_default_auth_mode_is_api_key(self):
+        """ENG-004: API is secure by default."""
         cfg = APIConfig()
-        assert cfg.auth_mode == "none"
+        assert cfg.auth_mode == "api_key"
 
     def test_default_rate_limit(self):
         cfg = APIConfig()

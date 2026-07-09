@@ -146,7 +146,7 @@ class TestTotpBootstrap:
 
     @patch("brokers.upstox.auth.token_manager.UpstoxTotpClient")
     def test_try_refresh_on_401_reuses_in_memory_valid_token(self, mock_totp_client_class):
-        """Transient 401 should not trigger a fresh TOTP login when token is still valid."""
+        """First 401 soft-retries with same JWT; second 401 forces one TOTP mint."""
         settings = _make_settings()
         token_manager = UpstoxTokenManager(settings, state_store=MagicMock())
         state = token_manager._from_persisted(
@@ -160,9 +160,22 @@ class TestTotpBootstrap:
         )
         token_manager._apply_token_state(state, label="Upstox token (test)")
 
+        # First 401: soft-retry, no mint
         assert token_manager.try_refresh_on_401() is True
         assert token_manager.current_token() == "still-valid-token"
         mock_totp_client_class.assert_not_called()
+
+        # Second 401 for same token: force mint
+        mock_client = MagicMock()
+        mock_client.validate_config.return_value = True
+        mock_client.generate_token.return_value = {
+            "access_token": "brand-new-token",
+            "success": True,
+        }
+        mock_totp_client_class.return_value = mock_client
+        assert token_manager.try_refresh_on_401() is True
+        mock_client.generate_token.assert_called_once()
+        assert token_manager.current_token() == "brand-new-token"
 
 
 class TestTotpModeDetection:

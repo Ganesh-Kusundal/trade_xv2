@@ -331,41 +331,122 @@ class UpstoxDomainMapper:
         )
 
     @staticmethod
-    def to_quote(payload: Any) -> Quote:
-        if not isinstance(payload, dict):
-            return Quote(symbol="")
-        data = payload.get("data") if "data" in payload else payload
-        if not isinstance(data, dict):
-            data = {}
-        # Handle nested key structure: {"data": {"NSE_EQ|RELIANCE": {...}}}
-        if data and "symbol" not in data and "last_price" not in data and "ltp" not in data:
-            for _key, value in data.items():
-                if isinstance(value, dict) and (
-                    "last_price" in value or "ltp" in value or "symbol" in value
-                ):
-                    data = value
-                    break
+    def _quote_from_instrument_dict(
+        data: dict[str, Any],
+        *,
+        map_key: str = "",
+    ) -> Quote:
+        """Map a single instrument dict (v2 full or v3 LTP/OHLC envelope) to Quote."""
+        # Prefer classic ohlc; fall back to V3 live_ohlc / prev_ohlc / cp
         ohlc = data.get("ohlc") or {}
+        if not ohlc and isinstance(data.get("live_ohlc"), dict):
+            ohlc = data["live_ohlc"]
         depth = data.get("depth") or {}
         bid = depth.get("buy") if isinstance(depth, dict) else None
         ask = depth.get("sell") if isinstance(depth, dict) else None
+
+        symbol = str(
+            data.get("symbol")
+            or data.get("trading_symbol")
+            or ""
+        )
+        if not symbol and map_key:
+            # Response keys like "NSE_EQ:RELIANCE" or "NSE_FO:NIFTY…"
+            symbol = map_key.split(":")[-1] if ":" in map_key else map_key.split("|")[-1]
+
+        close = ohlc.get("close")
+        if close is None or close == "" or close == 0:
+            # V3 LTP: previous close is ``cp``
+            close = data.get("cp") or ohlc.get("close") or 0
+
+        change = data.get("change")
+        if change is None or change == "":
+            change = data.get("net_change") or 0
+
         return Quote(
-            symbol=str(data.get("symbol") or data.get("trading_symbol") or ""),
+            symbol=symbol,
             ltp=UpstoxPriceParser.parse(data.get("last_price") or data.get("ltp") or 0),
             open=UpstoxPriceParser.parse(ohlc.get("open") or 0),
             high=UpstoxPriceParser.parse(ohlc.get("high") or 0),
             low=UpstoxPriceParser.parse(ohlc.get("low") or 0),
-            close=UpstoxPriceParser.parse(ohlc.get("close") or 0),
-            volume=_to_int(data.get("volume")),
+            close=UpstoxPriceParser.parse(close or 0),
+            volume=_to_int(data.get("volume") or ohlc.get("volume")),
             bid=UpstoxPriceParser.parse(bid[0].get("price"))
             if isinstance(bid, list) and bid
             else None,
             ask=UpstoxPriceParser.parse(ask[0].get("price"))
             if isinstance(ask, list) and ask
             else None,
-            change=UpstoxPriceParser.parse(data.get("change") or 0),
+            change=UpstoxPriceParser.parse(change or 0),
             timestamp=_parse_iso(data.get("timestamp") or data.get("last_trade_time")),
         )
+
+    @staticmethod
+    def to_quote(payload: Any) -> Quote:
+        """Map a single-instrument (or first of multi) market-quote payload to Quote."""
+        if not isinstance(payload, dict):
+            return Quote(symbol="")
+        data = payload.get("data") if "data" in payload else payload
+        if not isinstance(data, dict):
+            data = {}
+        # Multi-instrument: pick first instrument dict
+        if data and "symbol" not in data and "last_price" not in data and "ltp" not in data:
+            for map_key, value in data.items():
+                if isinstance(value, dict) and (
+                    "last_price" in value or "ltp" in value or "symbol" in value
+                    or "live_ohlc" in value or "instrument_token" in value
+                ):
+                    return UpstoxDomainMapper._quote_from_instrument_dict(
+                        value, map_key=str(map_key)
+                    )
+        return UpstoxDomainMapper._quote_from_instrument_dict(data)
+
+    @staticmethod
+    def to_quotes(payload: Any) -> dict[str, Quote]:
+        """Map multi-instrument market-quote response to Quote dict.
+
+        Keys include response map key, ``instrument_token``, and ``symbol`` so
+        callers can resolve by request key or trading symbol.
+        """
+        out: dict[str, Quote] = {}
+        if not isinstance(payload, dict):
+            return out
+        data = payload.get("data") if "data" in payload else payload
+        if not isinstance(data, dict):
+            return out
+
+        # Single-instrument flat payload
+        if "last_price" in data or "ltp" in data:
+            q = UpstoxDomainMapper._quote_from_instrument_dict(data)
+            if q.symbol:
+                out[q.symbol] = q
+            token = data.get("instrument_token")
+            if token:
+                out[str(token)] = q
+            return out
+
+        for map_key, value in data.items():
+            if not isinstance(value, dict):
+                continue
+            if not (
+                "last_price" in value
+                or "ltp" in value
+                or "symbol" in value
+                or "live_ohlc" in value
+                or "instrument_token" in value
+            ):
+                continue
+            q = UpstoxDomainMapper._quote_from_instrument_dict(value, map_key=str(map_key))
+            out[str(map_key)] = q
+            token = value.get("instrument_token")
+            if token:
+                out[str(token)] = q
+                # also pipe form if colon form used in map key
+                out[str(token).replace("|", ":")] = q
+                out[str(token).replace(":", "|")] = q
+            if q.symbol:
+                out[q.symbol] = q
+        return out
 
     @staticmethod
     def to_position(payload: Any) -> Position:

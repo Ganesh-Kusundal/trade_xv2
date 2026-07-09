@@ -1,10 +1,8 @@
-"""DhanTransport — concrete Dhan broker plugin behind the domain BrokerTransport port.
+"""DhanTransport — domain ports over the Dhan gateway facade (transport).
 
-Additive: the existing ``BrokerGateway`` is reused as the underlying transport,
-not deleted. ``DhanTransport`` wraps it so application code depends on the
-domain port (``transport.market_data`` / ``transport.execution`` / capabilities)
-instead of a broker-specific gateway. The gateway can later be deleted once all
-consumers are re-pointed at this transport (per brokers/OBJECT_MODEL_PLAN.md).
+``DhanOrderTransport`` / ``DhanTransport`` wrap ``DhanBrokerGateway`` so OMS and
+Instrument code depend on ``ExecutionProvider`` / ``BrokerTransport``, not the
+gateway class. The gateway remains as ops transport (Wave C — evolutionary).
 """
 
 from __future__ import annotations
@@ -38,7 +36,7 @@ _DHAN_CAPABILITIES: tuple[Capability, ...] = (
 
 
 class DhanOrderTransport(ExecutionProvider):
-    """Adapts BrokerGateway order methods to the domain ExecutionProvider port."""
+    """Adapts DhanBrokerGateway order methods to the domain ExecutionProvider port."""
 
     def __init__(self, gateway: Any) -> None:
         self._gateway = gateway
@@ -51,7 +49,11 @@ class DhanOrderTransport(ExecutionProvider):
     def _wrap(response: Any) -> OrderResult:
         if getattr(response, "success", True):
             return OrderResult.ok(response)
-        return OrderResult.fail(getattr(response, "error", "broker rejected order"))
+        return OrderResult.fail(
+            getattr(response, "message", None)
+            or getattr(response, "error", None)
+            or "broker rejected order"
+        )
 
     def place_order(self, request: OrderRequest) -> OrderResult:
         try:

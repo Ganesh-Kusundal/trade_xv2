@@ -53,7 +53,7 @@ from cli.commands import (
     websocket as cmd_websocket,
 )
 from cli.commands.registry import lookup_handler, register_handler
-from cli.services.broker_registry import create_gateway
+from cli.services.broker_registry import bootstrap_gateway
 from cli.services.broker_service import BrokerService
 from cli.services.event_bus_service import EventBusService
 
@@ -119,17 +119,22 @@ def _try_create_gateway(
     event_bus: Any | None = None,
     lifecycle: Any | None = None,
 ) -> Any:
-    """Attempt to create a BrokerGateway; return None on failure.
+    """Bootstrap a broker gateway with automatic auth probe; None on failure.
 
-    Delegates to the unified :func:`cli.services.broker_registry.create_gateway`.
+    Production path: create → structural readiness → network probe → at most
+    one token remint. Delegates to :func:`bootstrap_gateway`.
     """
     try:
-        return create_gateway(
+        result = bootstrap_gateway(
             broker=broker,
             load_instruments=load_instruments,
             event_bus=event_bus,
             lifecycle=lifecycle,
+            require_authenticated=True,
         )
+        if result.live_ready:
+            return result.gateway
+        return None
     except Exception:
         return None
 

@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from brokers.common.auth.totp_cooldown import TotpRateLimitError
+from tradex.runtime.auth.totp_cooldown import TotpRateLimitError
 from brokers.upstox.auth.config import UpstoxConnectionSettings
 from brokers.upstox.auth.totp_client import UpstoxTotpClient
 
@@ -31,7 +31,7 @@ def _disable_totp_cooldown(monkeypatch):
     guard = MagicMock()
     guard.check_allowed.return_value = None
     monkeypatch.setattr(
-        "brokers.common.auth.totp_cooldown.TotpCooldownGuard.for_broker",
+        "tradex.runtime.auth.totp_cooldown.TotpCooldownGuard.for_broker",
         lambda *args, **kwargs: guard,
     )
 
@@ -117,7 +117,7 @@ class TestUpstoxTotpClientTokenGeneration:
         guard = MagicMock()
         guard.check_allowed.return_value = None
         monkeypatch.setattr(
-            "brokers.common.auth.totp_cooldown.TotpCooldownGuard.for_broker",
+            "tradex.runtime.auth.totp_cooldown.TotpCooldownGuard.for_broker",
             lambda *args, **kwargs: guard,
         )
 

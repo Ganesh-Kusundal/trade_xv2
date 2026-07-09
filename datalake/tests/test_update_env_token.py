@@ -11,7 +11,7 @@ import pytest
 
 pytest.importorskip("fcntl")
 
-from brokers.common.auth.env_token import update_env_token
+from tradex.runtime.auth.env_token import update_env_token
 
 
 class TestUpdateEnvToken:

@@ -195,7 +195,7 @@ def test_end_to_end_kill_switch_via_oms_blocks_dhan_place_order() -> None:
     rm.set_kill_switch(True)
 
     # Try to place an order — must raise OrderError due to risk gate
-    from brokers.common.dtos import BrokerOrderPayload
+    from tradex.runtime.dtos import BrokerOrderPayload
 
     with pytest.raises(OrderError, match="Risk check failed"):
         adapter.place_order(
@@ -384,7 +384,7 @@ def test_production_readiness_checker_fails_when_reconciliation_unwired() -> Non
     broker-specific implementation.
     """
     from application.oms.context import TradingContext
-    from brokers.common.services.production_readiness import (
+    from tradex.runtime.services.production_readiness import (
         ProductionReadinessChecker,
     )
 

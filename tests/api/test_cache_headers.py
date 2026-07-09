@@ -58,6 +58,27 @@ class MockDataLakeGateway:
 
         return df
 
+    def query_candles(
+        self,
+        symbol: str,
+        timeframe: str,
+        *,
+        from_ts=None,
+        to_ts=None,
+        limit: int | None = None,
+    ) -> pd.DataFrame | None:
+        """API market router calls this (not _load_parquet)."""
+        df = self._load_parquet(symbol, timeframe)
+        if df is None or df.empty:
+            return df
+        if from_ts is not None:
+            df = df[df["timestamp"] >= from_ts]
+        if to_ts is not None:
+            df = df[df["timestamp"] <= to_ts]
+        if limit is not None and limit > 0:
+            df = df.tail(limit)
+        return df.reset_index(drop=True)
+
 
 @pytest.fixture(autouse=True)
 def reset_container():
@@ -210,13 +231,47 @@ class TestCacheHeadersQuote:
 
     @pytest.fixture
     def client(self):
-        """Create test client with mock gateway."""
+        """Create test client with mock session for instrument.quote path."""
+        from datetime import datetime, timezone
+        from decimal import Decimal
+        from unittest.mock import MagicMock
+
+        import api.routers.market as market_router
+        from domain.candles.historical import InstrumentRef
+        from domain.entities.market import QuoteSnapshot
+        from domain.provenance import DataProvenance, ProvenanceConfidence, SourceIdentity
+
         mock_gateway = MockDataLakeGateway(num_candles=10)
         app = create_app(
             config=APIConfig(auth_mode="none"),
             datalake_gateway=mock_gateway,
         )
-        return TestClient(app)
+        # Wire domain session used by /quote/{symbol}
+        snap = QuoteSnapshot(
+            instrument=InstrumentRef(symbol="RELIANCE", exchange="NSE"),
+            ltp=Decimal("2500"),
+            event_time=datetime.now(timezone.utc),
+            provenance=DataProvenance(
+                source=SourceIdentity(broker_id="paper"),
+                fetched_at=datetime.now(timezone.utc),
+                request_id="test",
+                confidence=ProvenanceConfidence.AUTHORITATIVE,
+            ),
+            open=Decimal("2490"),
+            high=Decimal("2510"),
+            low=Decimal("2480"),
+            close=Decimal("2500"),
+            volume=1000,
+        )
+        instrument = MagicMock()
+        instrument.refresh.return_value = snap
+        universe = MagicMock()
+        universe.equity.return_value = instrument
+        session = MagicMock()
+        session.universe = universe
+        market_router.set_session(session)
+        yield TestClient(app)
+        market_router.set_session(None)
 
     def test_quote_cache_control_header_present(self, client):
         """Cache-Control header must be present on /quote response."""

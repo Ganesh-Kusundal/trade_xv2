@@ -15,12 +15,13 @@ This module handles:
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from application.oms import PositionManager, RiskConfig, RiskManager
 from application.oms.capital_provider import GatewayCapitalProvider
-from brokers.common.oms.defaults import build_dead_letter_queue, build_order_store
+from tradex.runtime.bootstrap import build_dead_letter_queue, build_order_store
 from cli.services.capital_provider import TrackedCapitalProvider
 from domain.constants import RECONCILIATION_INTERVAL_SECONDS
 from domain.constants.defaults import RISK_FALLBACK_CAPITAL
@@ -87,11 +88,14 @@ def _build_reconciliation_service(gateway: Any) -> Any:
 
         conn = getattr(gateway, "_conn", None)
         if conn is not None:
+            from application.oms.recon_heal_policy import log_heal_mode, should_auto_repair
+
+            log_heal_mode()
             reconciliation = create_reconciliation_service(
                 orders_adapter=conn.orders,
                 portfolio_adapter=conn.portfolio,
                 oms=None,  # Set below once OrderManager exists
-                auto_repair=False,
+                auto_repair=should_auto_repair(),
             )
             return reconciliation
     except Exception as exc:
@@ -201,10 +205,19 @@ def register_oms_services(
         # Attach lifecycle (registers reconciliation service, etc.)
         service._trading_context.attach_lifecycle(service._lifecycle)
 
-        # Point reconciliation service at OrderManager for auto_repair=False
-        # (we only want to surface drift; the operator decides)
+        # Point reconciliation at OrderManager so heal mode can upsert when
+        # TRADEX_RECONCILIATION_AUTO_REPAIR=1 (default remains report-only).
         if dhan_reconciliation is not None:
             dhan_reconciliation._oms = service._trading_context.order_manager
+            # Prefer position_manager for upsert_position during heal
+            dhan_reconciliation._oms.position_manager = (
+                service._trading_context.position_manager
+            )
+
+        # ENG-011: single process OMS book (CLI / API / tradex.connect).
+        from application.oms.composition import register_process_oms
+
+        register_process_oms(service._trading_context)
 
         logger.info("oms_services_registered")
 

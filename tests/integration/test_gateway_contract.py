@@ -15,7 +15,8 @@ from decimal import Decimal
 import pandas as pd
 import pytest
 
-from brokers.common.gateway import BrokerCapabilities, MarketDataGateway
+from tradex.runtime.capabilities import BrokerCapabilities
+from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 from domain import (
     Balance,
     Holding,
@@ -61,10 +62,10 @@ class TestGatewayContract:
         assert issubclass(PaperGateway, MarketDataGateway)
 
     def test_dhan_gateway_is_subclass(self):
-        """Dhan BrokerGateway must extend MarketDataGateway."""
-        from brokers.dhan.gateway import BrokerGateway
+        """Dhan DhanBrokerGateway must extend MarketDataGateway."""
+        from brokers.dhan.gateway import DhanBrokerGateway
 
-        assert issubclass(BrokerGateway, MarketDataGateway)
+        assert issubclass(DhanBrokerGateway, MarketDataGateway)
 
     def test_upstox_gateway_is_subclass(self):
         """Upstox UpstoxBrokerGateway must extend MarketDataGateway."""

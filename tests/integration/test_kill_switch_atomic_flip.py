@@ -1,6 +1,6 @@
 """Concurrent kill-switch flip and order-check race.
 
-Stress-tests the :class:`brokers.common.oms.risk_manager.RiskManager`
+Stress-tests the :class:`application.oms.risk_manager.RiskManager`
 under high contention: 4 threads continuously toggle the kill switch
 while 4 threads continuously call :meth:`check_order`. No reader must
 ever observe a half-written config, and no check_order call must

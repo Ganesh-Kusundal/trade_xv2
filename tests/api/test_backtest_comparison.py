@@ -56,7 +56,9 @@ class TestBacktestComparison:
         from api.main import create_app
 
         reset_container()
-        app = create_app(config=APIConfig(host="127.0.0.1", port=8000, cors_origins=[]))
+        app = create_app(
+            config=APIConfig(host="127.0.0.1", port=8000, cors_origins=[], auth_mode="none")
+        )
         client = TestClient(app)
 
         response = client.get(

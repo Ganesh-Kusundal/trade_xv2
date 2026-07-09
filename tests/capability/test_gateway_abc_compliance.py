@@ -6,7 +6,7 @@ import inspect
 
 import pytest
 
-from brokers.common.gateway import MarketDataGateway
+from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 from domain.capability_manifest import CAPABILITY_SURFACES, abc_gateway_methods, surface_by_id
 
 
@@ -38,11 +38,11 @@ class TestGatewayImplementationContract:
     """Gateway classes declare ABC methods (structural check via MRO)."""
 
     def test_dhan_gateway_implements_abc_methods(self) -> None:
-        from brokers.dhan.gateway import BrokerGateway as DhanGateway
+        from brokers.dhan.gateway import DhanBrokerGateway as DhanGateway
 
         abstract = _abstract_methods()
         for method in abstract:
-            assert hasattr(DhanGateway, method), f"Dhan BrokerGateway missing {method}"
+            assert hasattr(DhanGateway, method), f"Dhan DhanBrokerGateway missing {method}"
             impl = getattr(DhanGateway, method)
             assert getattr(impl, "__isabstractmethod__", False) is False
 

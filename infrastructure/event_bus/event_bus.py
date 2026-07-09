@@ -33,6 +33,7 @@ from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
 from domain.events import DomainEvent
+from domain.events.types import EventType, canonical_event_types
 
 if TYPE_CHECKING:
     from domain.ports.observability import AlertingEnginePort, EventMetricsPort
@@ -112,6 +113,7 @@ class EventBus:
         alerting_engine: AlertingEnginePort | None = None,
         alerting_interval_seconds: float = 10.0,
         max_processed_events: int = 10000,  # Idempotency cache size
+        enforce_event_types: bool = True,
     ) -> None:
         # Lock sharding — separate lightweight Lock for subscriber
         # management from the (now lock-free) sequence counter.
@@ -135,6 +137,8 @@ class EventBus:
         self._processed_events: deque[str] = deque(maxlen=max_processed_events)
         self._processed_event_ids: set[str] = set()
         self._idempotency_lock = threading.Lock()
+        self._enforce_event_types = enforce_event_types
+        self._known_event_types = canonical_event_types()
 
         # Start background alerting thread if engine is provided.
         if self._alerting_engine is not None:
@@ -171,6 +175,15 @@ class EventBus:
             enabled: True to persist events, False to suppress persistence.
         """
         self._logging_enabled = enabled
+
+    def set_event_log(self, event_log: Any | None) -> None:
+        """Attach or replace the persistent event log (ENG-010).
+
+        Composition roots often build the bus before the log. Calling this
+        once after both exist enables crash-recovery persistence without
+        reconstructing the bus (which would drop subscribers).
+        """
+        self._event_log = event_log
 
     @property
     def alerting_engine(self) -> AlertingEnginePort | None:
@@ -362,6 +375,13 @@ class EventBus:
         Idempotency - duplicate events (same event_id) are silently
         skipped to prevent double-processing under at-least-once delivery.
         """
+        if self._enforce_event_types and event.event_type not in self._known_event_types:
+            logger.warning(
+                "EventBus: unknown event_type=%r (not in EventType enum); "
+                "publish anyway but subscribers may never see it",
+                event.event_type,
+            )
+
         # Prepare event: inject infrastructure fields immutably
         event = self._prepare_event(event)
 

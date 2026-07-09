@@ -1,0 +1,28 @@
+flowchart TB
+    Exchange[Exchange]
+    Adapter[Broker Adapter Plugin]
+    Norm[Normalizer once at boundary]
+    DomainObj[Quote MarketDepth domain VOs]
+    Bus[EventBus]
+    Indicators[domain.indicators Wilder]
+    Signals[StrategyPipeline]
+    Risk[RiskManager]
+    OMS[OrderManager singleton]
+    BrokerOut[Broker execution]
+    Portfolio[Portfolio PositionManager]
+    Analytics[Analytics Backtest]
+    Persist[EventLog Datalake]
+
+    Exchange --> Adapter
+    Adapter --> Norm
+    Norm --> DomainObj
+    DomainObj --> Bus
+    Bus --> Indicators
+    Indicators --> Signals
+    Signals --> Risk
+    Risk --> OMS
+    OMS --> BrokerOut
+    BrokerOut --> Exchange
+    OMS --> Portfolio
+    Portfolio --> Analytics
+    Bus --> Persist

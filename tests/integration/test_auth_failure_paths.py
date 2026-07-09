@@ -160,7 +160,7 @@ class TestRateLimitedLogin:
         """429 on login should raise RateLimitError, not block."""
 
         # Simulate rate limiter
-        from brokers.common.resilience.rate_limiter import TokenBucketRateLimiter
+        from tradex.runtime.resilience.rate_limiter import TokenBucketRateLimiter
 
         limiter = TokenBucketRateLimiter(rate=1, capacity=1)
 
@@ -177,7 +177,7 @@ class TestRateLimitedLogin:
         """429 on login should not cause deadlock."""
         import threading
 
-        from brokers.common.resilience.rate_limiter import TokenBucketRateLimiter
+        from tradex.runtime.resilience.rate_limiter import TokenBucketRateLimiter
 
         limiter = TokenBucketRateLimiter(rate=1, capacity=1)
 
@@ -360,7 +360,7 @@ class TestAuthIntegrationWithGateway:
         from unittest.mock import MagicMock, patch
 
         from brokers.dhan.connection import DhanConnection
-        from brokers.dhan.gateway import BrokerGateway
+        from brokers.dhan.gateway import DhanBrokerGateway
 
         # Create connection
         conn = DhanConnection(
@@ -373,7 +373,7 @@ class TestAuthIntegrationWithGateway:
             mock_client.post.return_value = MagicMock(status_code=200)
             mock_client.get.return_value = MagicMock(status_code=200)
 
-            gw = BrokerGateway(conn)
+            gw = DhanBrokerGateway(conn)
             yield gw
 
     def test_gateway_handles_401_gracefully(self, mock_dhan_gateway):

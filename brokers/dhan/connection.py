@@ -7,7 +7,7 @@ from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
-from brokers.common.resilience.circuit_breaker import CircuitState
+from tradex.runtime.resilience.circuit_breaker import CircuitState
 from brokers.dhan.alerts import AlertsAdapter
 from brokers.dhan.conditional_triggers import ConditionalTriggersAdapter
 from brokers.dhan.connection_lifecycle import ConnectionLifecycle
@@ -17,6 +17,7 @@ from brokers.dhan.depth_200 import DhanDepth200Feed, Depth200ConnectionPool
 from brokers.dhan.edis import EDISAdapter
 from brokers.dhan.exit_all import ExitAllAdapter
 from brokers.dhan.forever_orders import ForeverOrdersAdapter
+from brokers.dhan.pnl_exit import PnlExitAdapter
 from brokers.dhan.futures import FuturesAdapter
 from brokers.dhan.historical import HistoricalAdapter
 from brokers.dhan.http_client import DhanHttpClient
@@ -63,6 +64,7 @@ _ADAPTERS_CLIENT_ONLY: list[tuple[str, type]] = [
     ("_ip_management", IPManagementAdapter),
     ("_edis", EDISAdapter),
     ("_exit_all", ExitAllAdapter),
+    ("_pnl_exit", PnlExitAdapter),
 ]
 
 
@@ -204,6 +206,10 @@ class DhanConnection:
     @property
     def exit_all(self) -> ExitAllAdapter:
         return self._exit_all
+
+    @property
+    def pnl_exit(self) -> PnlExitAdapter:
+        return self._pnl_exit
 
     @property
     def backfill_callback(self) -> Callable[[str, datetime, datetime], list[dict]] | None:

@@ -151,7 +151,7 @@ class TestPositionManagerStress:
         - Final position correctness
         """
         from application.oms.position_manager import PositionManager
-        from brokers.common.observability.event_metrics import EventMetrics
+        from infrastructure.observability.event_metrics import EventMetrics
         from infrastructure.event_bus import EventBus
         from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
 

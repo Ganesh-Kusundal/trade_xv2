@@ -1,18 +1,17 @@
 """DhanHQ broker adapter package — clean architecture.
 
 Canonical domain types (Order, Position, Holding, Trade, Side, OrderStatus,
-OrderType, ProductType, Validity, FundLimits) are no longer re-exported here.
-Import them from ``brokers.common.core.domain`` instead::
+OrderType, ProductType, Validity, FundLimits) live in ``domain``::
 
     from domain import Order, Side, OrderStatus
-    from brokers.dhan import Exchange, Instrument, BrokerGateway
+    from brokers.dhan import Exchange, DhanInstrument, DhanBrokerGateway
 """
 
 # ── Dhan-specific domain types ──────────────────────────────────────────────
 from brokers.dhan.connection import DhanConnection
 from brokers.dhan.domain import (
     Exchange,
-    Instrument,
+    DhanInstrument,
     InstrumentType,
     OptionType,
 )
@@ -28,7 +27,7 @@ from brokers.dhan.exceptions import (
     RateLimitError,
 )
 from brokers.dhan.factory import BrokerFactory
-from brokers.dhan.gateway import BrokerGateway
+from brokers.dhan.gateway import DhanBrokerGateway
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.identity import (
     DHAN_SEGMENTS,
@@ -54,7 +53,7 @@ __all__ = [
     # Domain — Dhan-specific types
     "Balance",
     "BrokerFactory",
-    "BrokerGateway",
+    "DhanBrokerGateway",
     "ConfigurationError",
     "DepthLevel",
     "DhanConnection",
@@ -71,7 +70,7 @@ __all__ = [
     # Reconciliation
     "DhanReconciliationService",
     "Exchange",
-    "Instrument",
+    "DhanInstrument",
     "InstrumentLoader",
     "InstrumentNotFoundError",
     "InstrumentType",
@@ -89,10 +88,39 @@ __all__ = [
     "is_dhan_segment",
 ]
 
-# ── Extension self-registration (ADR-007) ────────────────────────────────
-# Dhan registers its extension classes into the broker-common registry.
-from brokers.common.adapter_factory import register_broker_extensions
+# ── Extension + data/execution self-registration (ADR-007) ────────────────
+from tradex.runtime.adapter_factory import (
+    register_broker_extensions,
+    register_data_adapter,
+    register_execution_provider,
+)
+from brokers.dhan.data_provider import DhanDataProvider
 from brokers.dhan.extensions.depth20 import DhanDepth20Extension
 from brokers.dhan.extensions.depth200 import DhanDepth200Extension
+from brokers.dhan.extensions.forever_order import DhanForeverOrderExtension
+from brokers.dhan.extensions.super_order import DhanSuperOrderExtension
+from brokers.dhan.transport import DhanOrderTransport
 
-register_broker_extensions("dhan", [DhanDepth20Extension, DhanDepth200Extension])
+register_broker_extensions(
+    "dhan",
+    [
+        DhanDepth20Extension,
+        DhanDepth200Extension,
+        DhanSuperOrderExtension,
+        DhanForeverOrderExtension,
+    ],
+)
+register_data_adapter("dhan", DhanDataProvider)
+register_execution_provider("dhan", DhanOrderTransport)
+
+from tradex.runtime.broker_plugin import BrokerPlugin, register_broker_plugin
+
+register_broker_plugin(
+    BrokerPlugin(
+        broker_id="dhan",
+        env_file=".env.local",
+        default_mode="market",
+        supported_modes=frozenset({"market", "trade"}),
+        is_live=True,
+    )
+)

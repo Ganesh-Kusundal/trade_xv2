@@ -187,6 +187,56 @@ class DhanExtendedCapabilities:
         """Close all open positions."""
         return self._conn.exit_all.exit_all()
 
+    # ── Portfolio convert ─────────────────────────────────────────────
+
+    def convert_position(
+        self,
+        symbol: str,
+        *,
+        exchange: str = "NSE",
+        quantity: int,
+        from_product_type: str,
+        to_product_type: str,
+        position_type: str = "LONG",
+        security_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Convert open position product type (INTRADAY ↔ CNC, etc.)."""
+        return self._conn.portfolio.convert_position(
+            symbol,
+            exchange=exchange,
+            quantity=quantity,
+            from_product_type=from_product_type,
+            to_product_type=to_product_type,
+            position_type=position_type,
+            security_id=security_id,
+        )
+
+    # ── P&L Based Exit (Trader's Control) ─────────────────────────────
+
+    def configure_pnl_exit(
+        self,
+        *,
+        profit_value: Any = None,
+        loss_value: Any = None,
+        product_types: list[str] | None = None,
+        enable_kill_switch: bool = False,
+    ) -> Any:
+        """Configure day-session P&L auto-exit thresholds."""
+        return self._conn.pnl_exit.configure(
+            profit_value=profit_value,
+            loss_value=loss_value,
+            product_types=product_types,
+            enable_kill_switch=enable_kill_switch,
+        )
+
+    def stop_pnl_exit(self) -> Any:
+        """Disable active P&L based exit."""
+        return self._conn.pnl_exit.stop()
+
+    def get_pnl_exit(self) -> Any:
+        """Fetch current P&L based exit configuration."""
+        return self._conn.pnl_exit.get()
+
     # ── Options (broker-specific) ────────────────────────────────────
 
     def get_option_expiries(self, underlying: str, exchange: str = "NFO") -> list[str]:

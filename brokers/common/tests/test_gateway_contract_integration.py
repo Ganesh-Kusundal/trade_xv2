@@ -16,7 +16,7 @@ from unittest.mock import MagicMock
 import pandas as pd
 import pytest
 
-from brokers.common.capabilities import BrokerCapabilities
+from tradex.runtime.capabilities import BrokerCapabilities
 from domain import (
     Balance,
     FutureChain,
@@ -73,7 +73,7 @@ class TestABCContractSignatures:
     @pytest.mark.parametrize(
         "gw_module,gw_class",
         [
-            ("brokers.dhan.gateway", "BrokerGateway"),
+            ("brokers.dhan.gateway", "DhanBrokerGateway"),
             ("brokers.upstox.gateway", "UpstoxBrokerGateway"),
             ("brokers.paper.paper_gateway", "PaperGateway"),
         ],
@@ -88,7 +88,7 @@ class TestABCContractSignatures:
     @pytest.mark.parametrize(
         "gw_module,gw_class",
         [
-            ("brokers.dhan.gateway", "BrokerGateway"),
+            ("brokers.dhan.gateway", "DhanBrokerGateway"),
             ("brokers.upstox.gateway", "UpstoxBrokerGateway"),
             ("brokers.paper.paper_gateway", "PaperGateway"),
         ],
@@ -103,7 +103,7 @@ class TestABCContractSignatures:
     @pytest.mark.parametrize(
         "gw_module,gw_class",
         [
-            ("brokers.dhan.gateway", "BrokerGateway"),
+            ("brokers.dhan.gateway", "DhanBrokerGateway"),
             ("brokers.upstox.gateway", "UpstoxBrokerGateway"),
             ("brokers.paper.paper_gateway", "PaperGateway"),
         ],
@@ -118,7 +118,7 @@ class TestABCContractSignatures:
     @pytest.mark.parametrize(
         "gw_module,gw_class",
         [
-            ("brokers.dhan.gateway", "BrokerGateway"),
+            ("brokers.dhan.gateway", "DhanBrokerGateway"),
             ("brokers.upstox.gateway", "UpstoxBrokerGateway"),
         ],
     )
@@ -144,7 +144,7 @@ class TestABCContractSignatures:
     @pytest.mark.parametrize(
         "gw_module,gw_class",
         [
-            ("brokers.dhan.gateway", "BrokerGateway"),
+            ("brokers.dhan.gateway", "DhanBrokerGateway"),
             ("brokers.upstox.gateway", "UpstoxBrokerGateway"),
             ("brokers.paper.paper_gateway", "PaperGateway"),
         ],
@@ -159,7 +159,7 @@ class TestABCContractSignatures:
     @pytest.mark.parametrize(
         "gw_module,gw_class",
         [
-            ("brokers.dhan.gateway", "BrokerGateway"),
+            ("brokers.dhan.gateway", "DhanBrokerGateway"),
             ("brokers.upstox.gateway", "UpstoxBrokerGateway"),
             ("brokers.paper.paper_gateway", "PaperGateway"),
         ],
@@ -174,7 +174,7 @@ class TestABCContractSignatures:
     @pytest.mark.parametrize(
         "gw_module,gw_class",
         [
-            ("brokers.dhan.gateway", "BrokerGateway"),
+            ("brokers.dhan.gateway", "DhanBrokerGateway"),
             ("brokers.upstox.gateway", "UpstoxBrokerGateway"),
             ("brokers.paper.paper_gateway", "PaperGateway"),
         ],
@@ -191,7 +191,7 @@ class TestABCContractSignatures:
 
 
 class TestDhanGatewayReturnTypes:
-    """Test Dhan BrokerGateway methods return correct types using mocked HTTP."""
+    """Test Dhan DhanBrokerGateway methods return correct types using mocked HTTP."""
 
     @pytest.fixture()
     def dhan_gw(self):
@@ -213,9 +213,9 @@ class TestDhanGatewayReturnTypes:
         inst.canonical_symbol = "RELIANCE"
         conn.instruments.resolve.return_value = inst
 
-        from brokers.dhan.gateway import BrokerGateway
+        from brokers.dhan.gateway import DhanBrokerGateway
 
-        gw = BrokerGateway(conn)
+        gw = DhanBrokerGateway(conn)
         return gw
 
     def test_ltp_returns_decimal(self, dhan_gw):
@@ -539,7 +539,7 @@ class TestObservabilityProvider:
     pytestmark = pytest.mark.skip(reason="ObservabilityProvider was part of deleted MarketDataGateway ABC")
 
     def test_dhan_get_connection_status(self):
-        from brokers.dhan.gateway import BrokerGateway
+        from brokers.dhan.gateway import DhanBrokerGateway
 
         conn = MagicMock()
         conn.client_id = "TEST"
@@ -547,13 +547,13 @@ class TestObservabilityProvider:
         conn.event_bus = None
         conn.market_feed = None
         conn._lifecycle = None
-        gw = BrokerGateway(conn)
+        gw = DhanBrokerGateway(conn)
 
         result = gw.get_connection_status()
         assert isinstance(result, dict)
 
     def test_dhan_get_circuit_breaker_states(self):
-        from brokers.dhan.gateway import BrokerGateway
+        from brokers.dhan.gateway import DhanBrokerGateway
 
         conn = MagicMock()
         conn.client_id = "TEST"
@@ -562,13 +562,13 @@ class TestObservabilityProvider:
         conn.market_feed = None
         conn._lifecycle = None
         conn.circuit_breaker_states = {"data": 0, "order": 0, "quote": 0}
-        gw = BrokerGateway(conn)
+        gw = DhanBrokerGateway(conn)
 
         result = gw.get_circuit_breaker_states()
         assert isinstance(result, dict)
 
     def test_dhan_get_token_refresh_metrics(self):
-        from brokers.dhan.gateway import BrokerGateway
+        from brokers.dhan.gateway import DhanBrokerGateway
 
         conn = MagicMock()
         conn.client_id = "TEST"
@@ -577,7 +577,7 @@ class TestObservabilityProvider:
         conn.market_feed = None
         conn._lifecycle = None
         conn.token_refresh_metrics = {"refresh_count": 0, "last_refresh": None}
-        gw = BrokerGateway(conn)
+        gw = DhanBrokerGateway(conn)
 
         result = gw.get_token_refresh_metrics()
         assert isinstance(result, dict)
@@ -631,7 +631,7 @@ class TestUpstoxObservabilityProvider:
         assert "refresh_count" in result
 
     def test_upstox_get_rate_limiter_metrics(self):
-        from brokers.common.resilience.rate_limiter import MultiBucketRateLimiter, RateLimitConfig
+        from tradex.runtime.resilience.rate_limiter import MultiBucketRateLimiter, RateLimitConfig
         from brokers.upstox.gateway import UpstoxBrokerGateway
 
         rl = MultiBucketRateLimiter({

@@ -1,4 +1,4 @@
-"""BrokerFactory — creates configured BrokerGateway instances with AuthManager.
+"""BrokerFactory — creates configured DhanBrokerGateway instances with AuthManager.
 
 Implements BrokerProviderFactory for polymorphic factory pattern.
 """
@@ -14,12 +14,12 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
 
-from brokers.common.auth import AuthManager, JsonTokenStateStore, TokenSource, TokenState
-from brokers.common.factory import BrokerProviderFactory
-from brokers.common.gateway import MarketDataGateway
+from tradex.runtime.auth import AuthManager, JsonTokenStateStore, TokenSource, TokenState
+from tradex.runtime.factory import BrokerProviderFactory
+from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 from brokers.dhan.account_registry import AccountConnectionRegistry
 from brokers.dhan.connection import DhanConnection
-from brokers.dhan.gateway import BrokerGateway
+from brokers.dhan.gateway import DhanBrokerGateway
 from brokers.dhan.http_client import DhanHttpClient
 from brokers.dhan.settings import DhanConnectionSettings, DhanSettingsLoader
 from brokers.dhan.token_scheduler import TokenRefreshScheduler
@@ -117,7 +117,7 @@ class BrokerFactory(BrokerProviderFactory):
         )
 
         # ── Health check registration ──────────────────────────────
-        from brokers.common.observability.health_check import register_broker_health_check
+        from tradex.runtime.observability.health_check import register_broker_health_check
 
         register_broker_health_check("dhan", gateway)
 
@@ -130,13 +130,22 @@ class BrokerFactory(BrokerProviderFactory):
         settings: DhanConnectionSettings,
         env_file: Path,
     ) -> tuple[AuthManager, str]:
-        """Create AuthManager and acquire an access token."""
+        """Create AuthManager and resolve an access token (probe-before-mint).
+
+        Policy (token_ensure):
+        * Reuse env/store JWT when still valid — never TOTP.
+        * Mint at most once via ``DhanTotpClient`` (TotpCooldownGuard).
+        * Persist store + env atomically on mint.
+        """
+        from tradex.runtime.auth.token_ensure import ensure_access_token
+
         cid = settings.client_id
         token_state_dir = settings.resolved_token_state_dir
         token_state_dir.mkdir(parents=True, exist_ok=True)
         token_store = JsonTokenStateStore(token_state_dir / "dhan-token-state.json")
 
         def _generate_token() -> str | None:
+            # Single mint path — always through TotpCooldownGuard.
             return _generate_totp_token(settings)
 
         auth = AuthManager(
@@ -148,37 +157,34 @@ class BrokerFactory(BrokerProviderFactory):
             token_lifetime_seconds=settings.token_lifetime_seconds,
         )
 
-        token = settings.access_token
-        if not token:
-            state = auth.acquire()
-            if not state or not state.is_valid():
-                fresh = _generate_totp_token(settings)
-                if fresh:
-                    from datetime import datetime
+        try:
+            state = ensure_access_token(
+                store=token_store,
+                env_token=settings.access_token or None,
+                mint=_generate_token,
+                env_path=env_file if env_file.exists() else None,
+                env_key="DHAN_ACCESS_TOKEN",
+                broker_rejected=False,
+                allow_proactive=False,  # never burn TOTP for proactive refresh
+                source=TokenSource.TOTP,
+            )
+        except Exception as exc:
+            from brokers.dhan.exceptions import ConfigurationError
 
-                    now = datetime.now()
-                    state = TokenState(
-                        access_token=fresh,
-                        source=TokenSource.TOTP,
-                        issued_at=now,
-                        expires_at=_next_token_expiry(now, settings.token_lifetime_seconds),
-                    )
-                    auth._state = state
-                    if auth._store:
-                        auth._store.save(state)
-                else:
-                    state = None
+            raise ConfigurationError(
+                f"DHAN_ACCESS_TOKEN not configured and TOTP refresh failed: {exc}"
+            ) from exc
 
-            if not state or not state.access_token:
-                from brokers.dhan.exceptions import ConfigurationError
+        if not state or not state.access_token:
+            from brokers.dhan.exceptions import ConfigurationError
 
-                raise ConfigurationError("DHAN_ACCESS_TOKEN not configured and TOTP refresh failed")
+            raise ConfigurationError(
+                "DHAN_ACCESS_TOKEN not configured and TOTP refresh failed"
+            )
 
-            token = state.access_token
-            if env_file.exists():
-                _update_env_token(env_file, token)
-
-        return auth, token
+        # Hydrate AuthManager so 401 refresh / scheduler share the same state.
+        auth._set_token(state.access_token, source=state.source)
+        return auth, state.access_token
 
     def _create_http_client(
         self,
@@ -202,7 +208,7 @@ class BrokerFactory(BrokerProviderFactory):
         from brokers.dhan.config import DhanResilienceConfig, DEFAULT_CONFIG
         from brokers.dhan.config_loader import DhanConfigLoader
         from brokers.dhan.resilience import create_circuit_breakers
-        from brokers.common.resilience.rate_limiter import create_rate_limiter
+        from tradex.runtime.resilience.rate_limiter import create_rate_limiter
         from brokers.dhan.capabilities import dhan_capabilities
 
         # Load resilience configuration from settings or use defaults
@@ -219,7 +225,7 @@ class BrokerFactory(BrokerProviderFactory):
         if resilience_config.circuit_breaker.orders_failure_threshold != 3 or \
            resilience_config.circuit_breaker.default_failure_threshold != 5:
             # Use custom thresholds
-            from brokers.common.resilience.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
+            from tradex.runtime.resilience.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
             cbs = {
                 "orders": CircuitBreaker(
                     "dhan-orders",
@@ -298,8 +304,8 @@ class BrokerFactory(BrokerProviderFactory):
         reconciliation_service: object | None,
         backfill_callback: Callable[[str, datetime, datetime], list[dict]] | None,
         lifecycle: Any | None,
-    ) -> BrokerGateway:
-        """Create DhanConnection + BrokerGateway."""
+    ) -> DhanBrokerGateway:
+        """Create DhanConnection + DhanBrokerGateway (transport facade)."""
         connection = DhanConnection(
             client=client,
             event_bus=event_bus,
@@ -313,11 +319,11 @@ class BrokerFactory(BrokerProviderFactory):
         from brokers.dhan.session_manager import DhanSessionManager
 
         connection._session_manager = DhanSessionManager(connection, auth)
-        return BrokerGateway(connection)
+        return DhanBrokerGateway(connection)
 
     def _wire_websocket_services(
         self,
-        gateway: BrokerGateway,
+        gateway: DhanBrokerGateway,
         client: DhanHttpClient,
         token: str,
         lifecycle: Any | None,
@@ -352,7 +358,7 @@ class BrokerFactory(BrokerProviderFactory):
 
     def _setup_token_refresh_scheduler(
         self,
-        gateway: BrokerGateway,
+        gateway: DhanBrokerGateway,
         auth: AuthManager,
         client: DhanHttpClient,
         settings: DhanConnectionSettings,
@@ -402,26 +408,32 @@ def _refresh_via_auth(
     env_file: Path,
     refresh_lock: threading.Lock,
 ) -> str | None:
-    """Refresh token via AuthManager and persist to .env.local.
+    """Refresh after broker rejection (401/DH-906) — single mint, no store reload.
 
-    Uses the lock shared with the scheduler to prevent concurrent
-    refresh from the HTTP 401 handler and the background scheduler.
-    If a refresh is already in progress, waits up to 5 seconds for it
-    to complete rather than silently skipping — the in-flight refresh
-    may produce a valid token.
+    Clears AuthManager state first so we never re-serve a rejected JWT from
+    disk. Does **not** call ``acquire()`` after a failed force_refresh (that
+    previously reloaded the same stale store token).
     """
+    from tradex.runtime.auth.token_persistence import TokenPersistence
+
     acquired = refresh_lock.acquire(timeout=5.0)
     if not acquired:
         logger.debug("Token refresh timed out waiting for in-flight refresh")
         return None
     try:
+        # Drop rejected token from memory + store so acquire cannot revive it.
+        auth.revoke()
         state = auth.force_refresh()
         if state and state.access_token:
-            _update_env_token(env_file, state.access_token)
-            return state.access_token
-        state = auth.acquire()
-        if state and state.access_token:
-            _update_env_token(env_file, state.access_token)
+            if auth._store is not None:
+                TokenPersistence.save(
+                    state,
+                    auth._store,
+                    env_file if env_file.exists() else None,
+                    env_key="DHAN_ACCESS_TOKEN",
+                )
+            else:
+                _update_env_token(env_file, state.access_token)
             return state.access_token
         return None
     finally:
@@ -450,67 +462,21 @@ def _next_token_expiry(now: Any, lifetime_seconds: int) -> Any:
 
 
 def _generate_totp_token(settings: DhanConnectionSettings | None = None) -> str | None:
-    """Generate a fresh access token via TOTP. Returns None on failure.
+    """Generate a fresh access token via TOTP (single path through TotpCooldownGuard).
 
-    Raises RuntimeError with descriptive message if Dhan's rate limit
-    is hit ("Token can be generated once every 2 minutes").
-
-    Uses secrets from *settings* if provided, otherwise falls back to
-    environment variables ``DHAN_PIN`` / ``DHAN_TOTP_SECRET``.
+    Delegates to :class:`DhanTotpClient` so factory, HTTP 401 refresh, and
+    ad-hoc diagnostics share the same cooldown and broker rate-limit handling.
     """
-    if settings and settings.has_totp:
-        pin = settings.pin
-        totp_secret = settings.totp_secret
-        token_url = settings.generate_token_url
-    else:
-        pin = _read_secret("DHAN_PIN", "DHAN_PIN_FILE")
-        totp_secret = _read_secret("DHAN_TOTP_SECRET", "DHAN_TOTP_SECRET_FILE")
-        from brokers.dhan.settings import _GENERATE_TOKEN_URL
+    from brokers.dhan.totp_client import DhanTotpClient
+    from tradex.runtime.auth.totp_cooldown import TotpRateLimitError
 
-        token_url = _GENERATE_TOKEN_URL
-    if not pin or not totp_secret:
-        return None
     try:
-        import pyotp
-        import requests as _requests
-
-        totp_code = pyotp.TOTP(totp_secret).now()
-        client_id = settings.client_id if settings else os.environ.get("DHAN_CLIENT_ID", "")
-        params = {"dhanClientId": client_id, "pin": pin, "totp": totp_code}
-        url = f"{token_url}?{urlencode(params)}"
-        resp = _requests.post(url, timeout=15)
-
-        # Parse response body regardless of status code
-        try:
-            body = resp.json()
-        except (ValueError, TypeError, KeyError) as exc:
-            logger.warning("totp_response_parse_failed", extra={"error": str(exc)})
-            body = {}
-
-        # Check for rate limit error (even on HTTP 200)
-        message = body.get("message", "")
-        status = body.get("status", "")
-        if "once every 2 minutes" in message or status == "error":
-            error_msg = f"Dhan token rate limit: {message}"
-            logger.warning(error_msg)
-            raise RuntimeError(error_msg)
-
-        if resp.status_code != 200:
-            logger.warning("TOTP token generation failed: HTTP %d", resp.status_code)
-            return None
-
-        data = body.get("data", body)
-        result: str = data.get("accessToken") or data.get("access_token") or ""
-        return result or None
-    except RuntimeError:
-        # Re-raise rate limit errors
+        return DhanTotpClient(settings).generate()
+    except TotpRateLimitError:
         raise
     except Exception as exc:
         logger.warning("TOTP token generation failed: %s", exc)
         return None
-
-
-from brokers.dhan.secret_utils import read_secret as _read_secret
 
 
 def _update_env_token(env_path: Path, token: str) -> None:

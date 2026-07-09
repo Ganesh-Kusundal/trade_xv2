@@ -14,17 +14,17 @@ from unittest.mock import Mock
 
 import pytest
 
-from brokers.common.capabilities import (
+from tradex.runtime.capabilities import (
     BrokerCapabilities,
     CapabilityDescriptor,
 )
-from brokers.common.errors import RoutingError
-from brokers.common.models import BrokerHealthSnapshot, OperationKind, RoutingRequest
-from brokers.common.policy import RoutingPolicy, SourceSelectionPolicy
+from tradex.runtime.errors import RoutingError
+from tradex.runtime.models import BrokerHealthSnapshot, OperationKind, RoutingRequest
+from tradex.runtime.policy import RoutingPolicy, SourceSelectionPolicy
 from brokers.dhan.capabilities import dhan_capabilities
 from brokers.upstox.capabilities import upstox_capabilities
-from brokers.common.registry import BrokerRegistry
-from brokers.common.router import BrokerRouter
+from tradex.runtime.registry import BrokerRegistry
+from tradex.runtime.router import BrokerRouter
 
 
 @pytest.fixture

@@ -219,7 +219,7 @@ print()
 print("=" * 60)
 print("9. LIFECYCLE (capabilities, describe, search)")
 print("=" * 60)
-from brokers.common.capabilities import BrokerCapabilities
+from tradex.runtime.capabilities import BrokerCapabilities
 
 caps = gw.capabilities()
 check("capabilities() → BrokerCapabilities", isinstance(caps, BrokerCapabilities))

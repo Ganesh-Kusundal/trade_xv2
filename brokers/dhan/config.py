@@ -58,9 +58,11 @@ DEFAULT_WRITE_CB_PREFIXES: tuple[str, ...] = (
     "/sliceorder",
 )
 
-# Circuit breaker category to rate limiter bucket mapping
+# Legacy CB-category → RL-bucket map (prefer path-based mapping in http_client).
+# Kept for config overrides / older tests. create_rate_limiter also aliases
+# market_data→quotes and ensures an admin catch-all exists.
 DEFAULT_RL_BUCKET_MAP: dict[str, str] = {
-    "read": "market_data",
+    "read": "quotes",
     "write": "orders",
     "admin": "admin",
 }

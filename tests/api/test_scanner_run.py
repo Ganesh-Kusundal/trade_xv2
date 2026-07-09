@@ -39,7 +39,7 @@ def scanner_app(tmp_path):
     gateway = DataLakeGateway(root=str(market_root))
     catalog = DataCatalog(root=str(market_root), read_only=True)
 
-    config = APIConfig(host="127.0.0.1", port=8000, cors_origins=[])
+    config = APIConfig(host="127.0.0.1", port=8000, cors_origins=[], auth_mode="none")
     app = create_app(
         config=config,
         datalake_gateway=gateway,
@@ -60,7 +60,7 @@ class TestScannerRunIntegration:
 
         reset_container()
         app = create_app(
-            config=APIConfig(host="127.0.0.1", port=8000, cors_origins=[]),
+            config=APIConfig(host="127.0.0.1", port=8000, cors_origins=[], auth_mode="none"),
             datalake_gateway=DataLakeGateway(root=str(tmp_path / "market_data")),
             data_catalog=DataCatalog(root=str(tmp_path / "market_data"), read_only=True),
             trading_context=build_test_trading_context(event_bus=EventBus()),

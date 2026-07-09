@@ -4,7 +4,7 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from brokers.common.settings import BrokerSettings, SettingsLoaderBase
+from tradex.runtime.settings import BrokerSettings, SettingsLoaderBase
 
 UPSTOX_PREFIX = "UPSTOX"
 

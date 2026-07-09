@@ -25,6 +25,7 @@ Usage:
 from __future__ import annotations
 
 import logging
+from enum import Enum
 
 import numpy as np
 import pandas as pd
@@ -43,6 +44,21 @@ from analytics.strategy.pipeline import StrategyPipeline
 logger = logging.getLogger(__name__)
 
 
+class ResearchMode(str, Enum):
+    """ENG-012: explicit research vs live-parity simulation modes.
+
+    pure_sim
+        Fast research loop; may skip OMS risk. Results are **not** a live
+        guarantee.
+    parity
+        Requires OMS/trading_context wiring; risk gates and order path mirror
+        live as closely as the stack allows.
+    """
+
+    PURE_SIM = "pure_sim"
+    PARITY = "parity"
+
+
 class BacktestEngine:
     """Backtest engine with rich performance analytics.
 
@@ -57,6 +73,9 @@ class BacktestEngine:
         StrategyPipeline for signal generation.
     config:
         BacktestConfig with capital, slippage, benchmark, etc.
+    mode:
+        :class:`ResearchMode` — default ``pure_sim`` (standalone research).
+        Use ``parity`` only with OMS / trading_context supplied.
     """
 
     def __init__(
@@ -67,12 +86,28 @@ class BacktestEngine:
         trading_context=None,
         execution_adapter=None,
         oms_adapter=None,
+        mode: ResearchMode | str = ResearchMode.PURE_SIM,
     ) -> None:
         self._pipeline = pipeline or FeaturePipeline()
         self._strategy = strategy_pipeline or StrategyPipeline()
         self._config = config or BacktestConfig()
         self._trading_context = trading_context
         self._execution_adapter = execution_adapter
+        self._mode = ResearchMode(mode) if not isinstance(mode, ResearchMode) else mode
+
+        if self._mode is ResearchMode.PARITY:
+            if trading_context is None and oms_adapter is None:
+                raise ValueError(
+                    "ResearchMode.PARITY requires trading_context or oms_adapter "
+                    "(ENG-012). Use mode=pure_sim for standalone research."
+                )
+            allow_sim = False
+        else:
+            allow_sim = True
+            logger.info(
+                "BacktestEngine mode=pure_sim — OMS optional; not live-parity (ENG-012)"
+            )
+
         self._replay_engine = ReplayEngine(
             self._pipeline,
             self._strategy,
@@ -80,8 +115,12 @@ class BacktestEngine:
             trading_context=trading_context,
             execution_adapter=execution_adapter,
             oms_adapter=oms_adapter,
-            allow_simulate_without_oms=True,  # BacktestEngine works standalone
+            allow_simulate_without_oms=allow_sim,
         )
+
+    @property
+    def mode(self) -> ResearchMode:
+        return self._mode
 
     def run(
         self,

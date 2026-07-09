@@ -108,7 +108,7 @@ DAILY_PNL_ROLLOVER_HOUR_IST: int = 0
 
 #: Number of days the ProcessedTradeRepository retains trade IDs in
 #: memory before cleanup() may evict them.
-PROCESSED_TRADE_RETENTION_SECONDS: int = 24 * 60 * 60  # 86_400
+PROCESSED_TRADE_RETENTION_SECONDS: int = 0  # 0 = no in-memory eviction (durable dedup)
 
 #: Periodic cleanup interval for ProcessedTradeRepository.
 PROCESSED_TRADE_CLEANUP_INTERVAL_SECONDS: int = 60 * 60  # 1h

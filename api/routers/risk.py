@@ -6,7 +6,7 @@ import logging
 
 from fastapi import APIRouter, Depends
 
-from api.auth import require_auth
+from api.auth import require_admin, require_auth
 from api.deps import get_risk_manager
 from application.oms.risk_manager import RiskManager
 
@@ -24,7 +24,11 @@ async def get_risk_state(risk_manager: RiskManager = Depends(get_risk_manager)) 
     return risk_manager.snapshot()
 
 
-@router.post("/kill-switch", response_model=dict)
+@router.post(
+    "/kill-switch",
+    response_model=dict,
+    dependencies=[Depends(require_admin)],
+)
 async def toggle_kill_switch(risk_manager: RiskManager = Depends(get_risk_manager)) -> dict:
     """Toggle the kill switch.
 

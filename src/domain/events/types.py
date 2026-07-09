@@ -55,7 +55,8 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import TYPE_CHECKING, Any
+from types import MappingProxyType
+from typing import TYPE_CHECKING, Any, Mapping
 
 if TYPE_CHECKING:
     from domain.entities.order import Order
@@ -75,7 +76,7 @@ class DomainEvent:
 
     event_type: str
     timestamp: datetime
-    payload: dict
+    payload: Mapping[str, Any]
     symbol: str | None = None
     source: str | None = None
     event_id: str = field(default_factory=lambda: uuid.uuid4().hex[:EVENT_ID_HEX_LENGTH])
@@ -89,6 +90,8 @@ class DomainEvent:
                 f"Got naive datetime: {self.timestamp}. "
                 f"Use DomainEvent.now() factory or provide tzinfo explicitly."
             )
+        # ponytail: shallow freeze — nested dict/list values remain mutable; upgrade to deep-freeze if needed
+        object.__setattr__(self, "payload", MappingProxyType(dict(self.payload)))
 
     @classmethod
     def now(
@@ -140,6 +143,9 @@ class EventType(str, Enum):
     # ── Market data ────────────────────────────────────────────────────
     TICK = "TICK"
     DEPTH = "DEPTH"
+    QUOTE = "QUOTE"
+    DEPTH_20 = "DEPTH_20"
+    DEPTH_200 = "DEPTH_200"
     INDEX_QUOTE = "INDEX_QUOTE"
     OPTION_CHAIN = "OPTION_CHAIN"
 
@@ -150,6 +156,7 @@ class EventType(str, Enum):
     ORDER_CANCELLED = "ORDER_CANCELLED"
     ORDER_REJECTED = "ORDER_REJECTED"
     TRADE = "TRADE"
+    TRADE_FILLED = "TRADE_FILLED"
     # TRADE_APPLIED is the OMS-private downstream of TRADE — published
     # only after the OMS has accepted the trade (idempotency check
     # passed). External consumers should subscribe to TRADE; the
@@ -173,6 +180,7 @@ class EventType(str, Enum):
 
     # ── Legacy (still published by existing callers) ──────────────────
     POSITION_UPDATED = "POSITION_UPDATED"
+    BAR_CLOSED = "BAR_CLOSED"
     SIGNAL_GENERATED = "SIGNAL_GENERATED"
     RECONCILIATION_COMPLETED = "RECONCILIATION_COMPLETED"
 

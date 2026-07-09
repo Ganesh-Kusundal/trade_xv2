@@ -1,15 +1,11 @@
 """AnalyticsService — pure, in-process analytics over historical series.
 
-Wraps a :class:`~domain.ports.protocols.DataProvider` for parity with the other
-services, but its analytics are computed locally on a :class:`HistoricalSeries`.
-Pure domain layer: no broker or transport imports.
+No top-level pandas. DataFrame export is opt-in via ``as_dataframe``.
 """
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-import pandas as pd
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from domain.candles.historical import HistoricalSeries
@@ -19,18 +15,24 @@ if TYPE_CHECKING:
 class AnalyticsService:
     """Lightweight, dependency-free analytics over historical series."""
 
-    def __init__(self, provider: DataProvider | None = None) -> None:
+    def __init__(self, provider: "DataProvider | None" = None) -> None:
         self._provider = provider
 
     @property
-    def provider(self) -> DataProvider | None:
+    def provider(self) -> "DataProvider | None":
         return self._provider
 
-    def daily_returns(self, series: HistoricalSeries) -> pd.Series:
-        try:
-            df = series.to_dataframe()
-            df["timestamp"] = pd.to_datetime(df["timestamp"])
-            df = df.set_index("timestamp")
-            return df["close"].pct_change().dropna()
-        except Exception:
-            return pd.Series(dtype=float)
+    def daily_returns(
+        self, series: "HistoricalSeries", *, as_dataframe: bool = False
+    ) -> list[float] | Any:
+        """Simple close-to-close returns. Pure list by default."""
+        closes = [float(b.close) for b in series.bars]
+        rets: list[float] = []
+        for i in range(1, len(closes)):
+            prev = closes[i - 1]
+            rets.append((closes[i] / prev - 1.0) if prev else 0.0)
+        if not as_dataframe:
+            return rets
+        import pandas as pd
+
+        return pd.Series(rets, dtype=float)

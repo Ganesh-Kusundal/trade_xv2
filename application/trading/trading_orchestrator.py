@@ -44,6 +44,7 @@ from application.trading.models import (
     FeatureFetcher,
 )
 from domain import Order, OrderType, ProductType, Side
+from domain.execution.sizing import compute_order_quantity
 from domain.models.features import FeatureSet
 from domain.models.trading import CandidateDTO, SignalDTO
 from domain.ports.strategy_evaluator import StrategyEvaluator
@@ -359,6 +360,14 @@ class TradingOrchestrator:
 
         # Convert signal to order command
         order_command = self._signal_to_order_command(signal, correlation_id)
+        if order_command.quantity <= 0:
+            logger.warning(
+                "Skipping signal for %s: quantity resolved to %s",
+                signal.symbol,
+                order_command.quantity,
+            )
+            self._inc_rejected()
+            return
 
         # Place order through OMS
         result = self._place_order(order_command, signal)
@@ -394,12 +403,63 @@ class TradingOrchestrator:
             correlation_id=f"{correlation_id}:{signal.strategy or 'strategy'}",
         )
 
+    def _resolve_equity(self) -> float:
+        """Best-effort capital for sizing (risk manager capital provider)."""
+        rm = getattr(self._order_manager, "risk_manager", None)
+        if rm is None:
+            return 0.0
+        provider = getattr(rm, "_capital_provider", None) or getattr(
+            rm, "capital_provider", None
+        )
+        if provider is None:
+            return 0.0
+        try:
+            bal = provider.get_available_balance()
+            return float(bal)
+        except Exception:
+            logger.exception("Failed to resolve equity for sizing")
+            return 0.0
+
     def _calculate_quantity(self, signal: SignalDTO) -> int:
+        """Resolve order quantity from explicit qty or position-size percent.
+
+        ENG-003: ``position_size_pct`` is a **percent of equity**, not a share
+        count. Uses :func:`domain.execution.sizing.compute_order_quantity`.
+        """
         if signal.quantity > 0:
-            return signal.quantity
-        if signal.position_size_pct > Decimal("0"):
-            return max(1, int(signal.position_size_pct))
-        return 1
+            return int(signal.quantity)
+
+        pct = float(signal.position_size_pct or 0)
+        if self._config.max_position_size_pct > 0:
+            if pct > 0:
+                pct = min(pct, self._config.max_position_size_pct)
+            else:
+                pct = self._config.max_position_size_pct
+
+        if pct > 0:
+            entry = signal.entry_price or signal.price
+            price = float(entry) if entry is not None else 0.0
+            equity = self._resolve_equity()
+            qty = compute_order_quantity(
+                equity=equity, price=price, max_position_pct=pct
+            )
+            if qty <= 0:
+                logger.warning(
+                    "Sizing produced 0 shares for %s (equity=%.2f price=%.2f pct=%.2f)",
+                    signal.symbol,
+                    equity,
+                    price,
+                    pct,
+                )
+            return qty
+
+        # No explicit size — refuse silent qty=1 on live automation (ENG-003).
+        # Callers that need a default must set signal.quantity.
+        logger.warning(
+            "Signal %s has no quantity or position_size_pct; refusing default qty=1",
+            signal.symbol,
+        )
+        return 0
 
     def _place_order(
         self,

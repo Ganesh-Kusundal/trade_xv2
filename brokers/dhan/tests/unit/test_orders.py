@@ -2,7 +2,7 @@
 
 from decimal import Decimal
 
-from brokers.common.dtos import BrokerOrderPayload
+from tradex.runtime.dtos import BrokerOrderPayload
 from brokers.dhan.domain import Exchange
 from brokers.dhan.orders import OrdersAdapter
 from domain import OrderStatus, Side

@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from api.config import APIConfig
 from api.deps import reset_container
 from api.main import create_app
-from brokers.common.services.production_readiness import ProductionReadinessChecker
+from tradex.runtime.services.production_readiness import ProductionReadinessChecker
 from cli.diagnostics.doctor import DoctorDiagnostics
 from tests.api.conftest import StubLiveGateway
 

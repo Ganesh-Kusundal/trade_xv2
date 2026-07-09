@@ -159,8 +159,8 @@ class HistoricalSeries:
         """Return the set of broker_ids that contributed bars."""
         return {b.provenance.source.broker_id for b in self.bars}
 
-    def to_dataframe(self) -> pd.DataFrame:
-        """Convert this series to a canonical pandas DataFrame."""
+    def to_dataframe(self):
+        """Convert this series to a canonical pandas DataFrame (lazy import)."""
         import pandas as pd
         records = []
         for bar in self.bars:
@@ -193,7 +193,7 @@ class HistoricalSeries:
     # Convenience accessors (DataFrame becomes an *export* format only).
     # ------------------------------------------------------------------
     @property
-    def df(self) -> "pd.DataFrame":
+    def df(self):
         """Alias for :meth:`to_dataframe` — the canonical export view."""
         return self.to_dataframe()
 

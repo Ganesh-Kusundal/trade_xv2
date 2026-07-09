@@ -6,12 +6,12 @@ from unittest import mock
 
 import pytest
 
-from brokers.common.adapters.market_data_gateway_adapter import (
+from tradex.runtime.adapters.market_data_gateway_adapter import (
     MarketDataGatewayAdapter,
     wrap_market_gateway,
 )
-from brokers.common.broker_port import BrokerStreamPlan, HistoricalBarRequest, QuotaToken
-from brokers.common.capabilities import BrokerCapabilities
+from tradex.runtime.broker_port import BrokerStreamPlan, HistoricalBarRequest, QuotaToken
+from tradex.runtime.capabilities import BrokerCapabilities
 from brokers.dhan.capabilities import dhan_capabilities
 from brokers.paper import PaperGateway
 from domain.enums import OrderType, ProductType, Side, Validity

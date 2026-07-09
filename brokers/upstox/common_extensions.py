@@ -6,20 +6,20 @@ from collections.abc import Sequence
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from brokers.common.broker_port import QuotaToken
-from brokers.common.extensions import ExtensionBundle
-from brokers.common.extensions.forever_order import (
+from tradex.runtime.broker_port import QuotaToken
+from tradex.runtime.extensions import ExtensionBundle
+from tradex.runtime.extensions.forever_order import (
     ForeverOrderProvider,
     ForeverOrderRequest,
     ForeverOrderResult,
 )
-from brokers.common.extensions.fundamentals import (
+from tradex.runtime.extensions.fundamentals import (
     FinancialStatement,
     FundamentalsProvider,
     FundamentalsSnapshot,
 )
-from brokers.common.extensions.news import NewsItem, NewsProvider
-from brokers.common.gateway import MarketDataGateway
+from tradex.runtime.extensions.news import NewsItem, NewsProvider
+from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 
 
 class UpstoxNewsExtension(NewsProvider):
@@ -155,6 +155,6 @@ def register_upstox_extensions(gateway: MarketDataGateway) -> ExtensionBundle:
 
 
 # Register factory so brokers.common.adapters can find it without importing us
-from brokers.common.extensions import register_extension_factory
+from tradex.runtime.extensions import register_extension_factory
 
 register_extension_factory("upstox", register_upstox_extensions)

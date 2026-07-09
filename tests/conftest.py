@@ -34,7 +34,7 @@ def _register_domain_runtime_hooks() -> None:
     register_domain_event_factory(create_domain_event)
     register_trading_context_factory(create_trading_context)
 
-    # Ensure broker adapter classes are registered into brokers.common.adapter_factory.
+    # Ensure broker adapter classes are registered into tradex.runtime.adapter_factory.
     # Brokers self-register on package import; importing them here guarantees the
     # registry is populated for every test (idempotent).
     import brokers.dhan  # noqa: F401
@@ -206,8 +206,12 @@ def build_test_trading_context(**kwargs: Any) -> "TradingContext":
         )
     if "processed_trade_repository" not in kwargs:
         kwargs["processed_trade_repository"] = ProcessedTradeRepository()
+    import tempfile
+
     if "event_log" not in kwargs:
-        kwargs["event_log"] = BufferedEventLog(events_dir=Path("runtime/event-log"))
+        kwargs["event_log"] = BufferedEventLog(
+            events_dir=Path(tempfile.mkdtemp(prefix="tradex-test-events-"))
+        )
     if "metrics" not in kwargs:
         from infrastructure.observability.event_metrics import EventMetrics
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from brokers.common.dtos import BrokerOrderPayload
+from tradex.runtime.dtos import BrokerOrderPayload
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from domain import (
     FundLimits,

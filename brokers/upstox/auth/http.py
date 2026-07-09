@@ -39,14 +39,33 @@ def _categorize_upstox_url(url: str, method: str) -> str:
 
 
 def _rate_limit_bucket(url: str) -> str:
-    """Return the rate-limiter bucket name for an Upstox REST URL."""
+    """Return the rate-limiter bucket name for an Upstox REST URL.
+
+    Bucket names align with ``upstox_capabilities().rate_limit_profiles``
+    endpoint classes: orders, quotes, historical, option_chain, funds,
+    positions, holdings, plus catch-all ``admin``.
+    """
     lower = url.lower()
-    if "/market-quote" in lower or "/market/" in lower:
+    if "/market-quote" in lower or "/market-data" in lower:
         return "quotes"
-    if "/historical" in lower:
-        return "data"
-    if "/order" in lower:
+    if "/option/chain" in lower or "/option-chain" in lower or "option_chain" in lower:
+        return "option_chain"
+    if "/historical" in lower or "/expired-instruments" in lower:
+        return "historical"
+    if "/order" in lower or "/gtt" in lower:
         return "orders"
+    if "long-term-holdings" in lower or "/holdings" in lower:
+        return "holdings"
+    if "short-term-positions" in lower or "/positions" in lower:
+        return "positions"
+    if (
+        "get-funds" in lower
+        or "/funds" in lower
+        or "/charges/margin" in lower
+        or "/margins" in lower
+    ):
+        return "funds"
+    # profile, login, convert, payments, kill-switch, IPO, …
     return "admin"
 
 
@@ -329,6 +348,13 @@ class UpstoxHttpClient:
 
                 # Transient server-side failures: 429 (rate limited) or 5xx.
                 is_transient = resp.status_code == 429 or resp.status_code >= 500
+                if resp.status_code == 429:
+                    try:
+                        from tradex.runtime.auth.metrics import AuthMetrics
+
+                        AuthMetrics.api_rate_limit("upstox")
+                    except Exception:
+                        pass
                 if is_transient and attempt < total_attempts - 1:
                     retry_after = self._parse_retry_after(resp)
                     last_exc = UpstoxApiError(

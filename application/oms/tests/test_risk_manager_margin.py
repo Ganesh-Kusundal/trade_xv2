@@ -19,7 +19,7 @@ import pytest
 
 from application.oms import PositionManager, RiskConfig, RiskManager
 from brokers.common.api import MarginCalculationError, MarginProvider, MarginResult
-from brokers.common.oms.margin_provider import BrokerMarginProvider
+from brokers.common.oms.margin_provider import BrokerMarginProvider  # residual real module
 from domain import Order, OrderStatus, OrderType, ProductType, Side
 from domain.exchange_segments import is_derivative_segment
 

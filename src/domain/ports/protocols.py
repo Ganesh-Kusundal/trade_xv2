@@ -12,10 +12,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import date
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
-    import pandas as pd
     from domain.entities.options import FutureChain, OptionChain
     from domain.entities.account import Balance, Holding
     from domain.entities.order import Order, OrderResponse
@@ -161,8 +160,11 @@ class DataProvider(Protocol):
         *,
         timeframe: str = "1D",
         lookback_days: int = 120,
-    ) -> pd.DataFrame:
-        """Load historical OHLCV for multiple instruments in one call."""
+    ) -> Any:
+        """Load historical OHLCV for multiple instruments in one call.
+
+        Prefer list/series of domain bars; DataFrame only at adapter export.
+        """
         ...
 
     def list_instruments(self, exchange: str | None = None) -> list[InstrumentId]:

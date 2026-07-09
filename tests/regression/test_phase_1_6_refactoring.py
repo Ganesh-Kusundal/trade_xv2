@@ -132,8 +132,10 @@ class TestPhase4ModuleBoundaryEnforcement:
         architecture boundary. This would make brokers.common untestable in
         isolation and couple broker logic to OMS internals.
 
-        Exception: Test files in brokers.common.oms.tests/* may import from
+        Exception: Test files under brokers.common.tests/* may import from
         application/ for integration testing (allowed by import-linter ignores).
+        The ghost OMS suite under brokers.common.oms.tests was removed; OMS
+        tests live under application/oms/tests.
 
         Exception: TYPE_CHECKING blocks for type hints are allowed.
 
@@ -374,24 +376,23 @@ class TestPhase5GodObjectDecomposition:
         """
         # Force reimport by clearing cache
         modules_to_test = [
-            "brokers.common.factory",
+            "tradex.runtime.factory",
             "brokers.dhan.factory",
             "application.oms._internal.risk_manager",
             "application.oms.order_manager",
             "application.oms.position_manager",
             "brokers.dhan.websocket.market_feed",
             "brokers.dhan.websocket.order_stream",
-            "brokers.common.resilience.circuit_breaker",
-            "brokers.common.resilience.rate_limiter",
+            "tradex.runtime.resilience.circuit_breaker",
+            "tradex.runtime.resilience.rate_limiter",
         ]
 
         import_errors = []
         for module_name in modules_to_test:
             try:
-                # Clear from cache to force fresh import
-                if module_name in sys.modules:
-                    del sys.modules[module_name]
-
+                # Import without deleting from sys.modules: clearing ABC bases
+                # (e.g. tradex.runtime.factory) then reimporting only some
+                # subclasses leaves issubclass() broken for the rest of the suite.
                 importlib.import_module(module_name)
             except ImportError as e:
                 import_errors.append(f"{module_name}: {e}")
@@ -480,12 +481,12 @@ class TestPhase6TypeSafetyAndResilience:
         2. Rate limiter allows requests within limits
         3. Circuit breaker transitions work correctly (CLOSED → OPEN → HALF_OPEN → CLOSED)
         """
-        from brokers.common.resilience.circuit_breaker import (
+        from tradex.runtime.resilience.circuit_breaker import (
             CircuitBreaker,
             CircuitBreakerConfig,
             CircuitState,
         )
-        from brokers.common.resilience.rate_limiter import TokenBucketRateLimiter
+        from tradex.runtime.resilience.rate_limiter import TokenBucketRateLimiter
 
         # Test 1: Circuit breaker starts CLOSED (normal operation)
         cb_config = CircuitBreakerConfig(
@@ -535,7 +536,7 @@ class TestPhase6TypeSafetyAndResilience:
         2. Config validation accepts valid configurations
         3. Factory.create() method signature is compatible with existing callers
         """
-        from brokers.common.factory import BrokerProviderFactory
+        from tradex.runtime.factory import BrokerProviderFactory
         from brokers.dhan.factory import BrokerFactory
 
         # Test 1: BrokerFactory is instantiable
@@ -552,14 +553,14 @@ class TestPhase6TypeSafetyAndResilience:
 
         # Test 4: Config validation files exist and import cleanly
         try:
-            from brokers.common.settings import BrokerSettings
+            from tradex.runtime.settings import BrokerSettings
             # Settings should be loadable
             settings = BrokerSettings
             assert settings is not None, "BrokerSettings should be importable"
         except ImportError:
             # Settings module may have different name, check alternatives
-            from brokers.common import settings
-            assert settings is not None, "brokers.common.settings must be importable"
+            from tradex.runtime import settings
+            assert settings is not None, "tradex.runtime.settings must be importable"
 
     def test_cache_manager_accepts_optional_connection(self):
         """Prevent regression: CacheManager must work with both provided and internal

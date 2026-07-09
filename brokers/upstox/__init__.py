@@ -38,9 +38,37 @@ __all__ = [
     "UpstoxSettingsLoader",
 ]
 
-# ── Extension self-registration (ADR-007) ────────────────────────────────
-# Upstox registers its extension classes into the broker-common registry.
-from brokers.common.adapter_factory import register_broker_extensions
+# ── Extension + execution self-registration (ADR-007) ────────────────────
+from tradex.runtime.adapter_factory import (
+    register_broker_extensions,
+    register_data_adapter,
+    register_execution_provider,
+)
+from brokers.upstox.data_provider import UpstoxDataProvider
 from brokers.upstox.extensions.depth import UpstoxDepth30Extension
+from brokers.upstox.extensions.news import UpstoxNewsExtension
+from tradex.runtime.gateway_execution import GatewayExecutionProvider
 
-register_broker_extensions("upstox", [UpstoxDepth30Extension])
+
+class UpstoxExecutionProvider(GatewayExecutionProvider):
+    """Upstox gateway → domain ExecutionProvider."""
+
+    def __init__(self, gateway: Any) -> None:
+        super().__init__(gateway, broker_id="upstox")
+
+
+register_broker_extensions("upstox", [UpstoxDepth30Extension, UpstoxNewsExtension])
+register_data_adapter("upstox", UpstoxDataProvider)
+register_execution_provider("upstox", UpstoxExecutionProvider)
+
+from tradex.runtime.broker_plugin import BrokerPlugin, register_broker_plugin
+
+register_broker_plugin(
+    BrokerPlugin(
+        broker_id="upstox",
+        env_file=".env.upstox",
+        default_mode="market",
+        supported_modes=frozenset({"market", "trade"}),
+        is_live=True,
+    )
+)

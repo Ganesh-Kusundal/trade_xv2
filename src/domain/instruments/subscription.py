@@ -70,14 +70,20 @@ class Subscription:
             self._tick_count += 1
             event_type = EventType.TICK
         if self._event_bus is not None:
-            self._event_bus.publish(
-                event_type,
-                {
-                    "symbol": instrument_id.underlying,
-                    "exchange": instrument_id.exchange,
-                    "asset_type": instrument_id.asset_type,
-                },
-            )
+            event_payload: dict[str, Any] = {
+                "symbol": instrument_id.underlying,
+                "exchange": instrument_id.exchange,
+                "asset_type": instrument_id.asset_type,
+            }
+            ltp = getattr(payload, "ltp", None) or getattr(payload, "last_price", None)
+            if ltp is not None:
+                event_payload["ltp"] = float(ltp)
+            if isinstance(payload, dict):
+                if "ltp" in payload:
+                    event_payload["ltp"] = float(payload["ltp"])
+                if "last_price" in payload:
+                    event_payload["ltp"] = float(payload["last_price"])
+            self._event_bus.publish(event_type, event_payload)
 
     # ── Lifecycle ─────────────────────────────────────────────────────
 

@@ -158,7 +158,7 @@ class ReplayConfig:
     commission_model: CommissionModel = CommissionModel.FLAT
     indian_market_fees: IndianMarketFees = field(default_factory=IndianMarketFees)
     segment: str = "EQUITY"  # "EQUITY" or "FNO"
-    fill_model: FillModel = FillModel.CURRENT_CLOSE
+    fill_model: FillModel = FillModel.NEXT_OPEN
     publish_events: bool = False
 
     def __post_init__(self) -> None:
@@ -239,10 +239,17 @@ class SimulatedPosition:
     stop_loss: float | None = None
     target: float | None = None
     strategy: str = ""
+    mark_price: float | None = None  # latest bar close for MTM equity
 
     @property
     def notional(self) -> float:
         return self.entry_price * self.quantity
+
+    @property
+    def market_value(self) -> float:
+        """Mark-to-market position value (qty × latest close)."""
+        px = self.mark_price if self.mark_price is not None else self.entry_price
+        return px * self.quantity
 
     def to_domain_position(self) -> Any:
         """Convert to canonical ``domain.entities.Position`` (REF-016).
@@ -282,10 +289,10 @@ class ReplaySession:
 
     @property
     def current_equity(self) -> float:
-        """Current total equity (capital + position value)."""
+        """Current total equity (cash + mark-to-market position value)."""
         pos_value = 0.0
         if self.position:
-            pos_value = self.position.notional
+            pos_value = self.position.market_value
         return self.capital + pos_value
 
     @property

@@ -20,7 +20,7 @@ from unittest.mock import patch
 
 import pytest
 
-from brokers.common.resilience import (
+from tradex.runtime.resilience import (
     AuthenticationError,
     CircuitBreaker,
     CircuitBreakerConfig,
@@ -29,7 +29,7 @@ from brokers.common.resilience import (
     RetryConfig,
     RetryExecutor,
 )
-from brokers.common.resilience.backoff import ExponentialBackoff
+from tradex.runtime.resilience.backoff import ExponentialBackoff
 from infrastructure.event_bus import DeadLetterQueue, DomainEvent, EventBus
 from tests.e2e.fixtures.event_capturer import EventCapturer
 from tests.e2e.fixtures.trading_context_factory import create_test_trading_context
@@ -197,7 +197,7 @@ def test_retry_executor_backoff(fast_exp_backoff: ExponentialBackoff) -> None:
 
     captured_delays: list[float] = []
 
-    with patch("brokers.common.resilience.retry.time.sleep") as mock_sleep:
+    with patch("tradex.runtime.resilience.retry.time.sleep") as mock_sleep:
         mock_sleep.side_effect = lambda d: captured_delays.append(d)
         result = executor.execute(lambda: broker.place_order(None))
 
@@ -255,7 +255,7 @@ def test_order_eventually_placed(
 
 def test_order_fails_after_retry_exhaustion() -> None:
     """Exhausted retries must publish ORDER_FAILED and route to DLQ."""
-    from brokers.common.observability.event_metrics import EventMetrics
+    from infrastructure.observability.event_metrics import EventMetrics
     from tests.e2e.fixtures.mock_brokers import MockFailingBroker
 
     broker = MockFailingBroker(

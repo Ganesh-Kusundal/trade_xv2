@@ -266,6 +266,12 @@ def create_app(
     register_domain_event_factory(create_domain_event)
     register_trading_context_factory(create_trading_context)
 
+    # ENG-011: single process OMS book for REST, CLI, and tradex.connect.
+    if trading_context is not None:
+        from application.oms.composition import register_process_oms
+
+        register_process_oms(trading_context)
+
     # Initialize services (now includes TradingContext and Composers)
     initialize_all_services(
         datalake_gateway=datalake_gateway,

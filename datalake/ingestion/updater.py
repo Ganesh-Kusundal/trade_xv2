@@ -9,7 +9,7 @@ from pathlib import Path
 import pandas as pd
 import pyarrow as pa
 
-from brokers.common.batch_executor import batch_execute
+from tradex.runtime.batch_executor import batch_execute
 from datalake.core.io import atomic_parquet_write
 
 logger = logging.getLogger(__name__)

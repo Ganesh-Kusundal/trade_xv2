@@ -2,8 +2,8 @@
 
 import os
 
-from brokers.common.auth.env_token import update_env_token as _update_env_token
-from brokers.common.env_loader import load_env_file
+from tradex.runtime.auth.env_token import update_env_token as _update_env_token
+from tradex.runtime.env_loader import load_env_file
 
 
 def test_load_dotenv(tmp_path):

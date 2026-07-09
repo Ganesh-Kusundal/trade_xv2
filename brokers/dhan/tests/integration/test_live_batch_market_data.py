@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "..
 from brokers.dhan.factory import BrokerFactory
 
 pytestmark = [pytest.mark.dhan, pytest.mark.off_market_safe, pytest.mark.regression]
-from brokers.dhan.gateway import BrokerGateway
+from brokers.dhan.gateway import DhanBrokerGateway
 
 # ---------------------------------------------------------------------------
 # Skip guard — only run when .env.local has valid credentials
@@ -41,7 +41,7 @@ if ENV_PATH.exists() and ENV_PATH.stat().st_size > 0:
 class TestLiveBatchMarketData:
     """Batch market data endpoint tests against live Dhan API."""
 
-    def test_ltp_batch_nse_equity(self, gateway: BrokerGateway):
+    def test_ltp_batch_nse_equity(self, gateway: DhanBrokerGateway):
         """ltp_batch() for multiple NSE equity symbols should return dict."""
         symbols = ["RELIANCE", "TCS", "INFY"]
         result = gateway.ltp_batch(symbols, "NSE")
@@ -52,14 +52,14 @@ class TestLiveBatchMarketData:
             assert sym in result
             assert result[sym] > 0
 
-    def test_ltp_batch_returns_decimal(self, gateway: BrokerGateway):
+    def test_ltp_batch_returns_decimal(self, gateway: DhanBrokerGateway):
         """ltp_batch() values should be Decimal instances."""
         symbols = ["RELIANCE", "TCS"]
         result = gateway.ltp_batch(symbols, "NSE")
         for sym, ltp in result.items():
             assert isinstance(ltp, Decimal), f"LTP for {sym} is not Decimal"
 
-    def test_quote_batch_nse_equity(self, gateway: BrokerGateway):
+    def test_quote_batch_nse_equity(self, gateway: DhanBrokerGateway):
         """quote_batch() for multiple symbols should return dict of quotes."""
         symbols = ["RELIANCE", "TCS"]
         result = gateway.quote_batch(symbols, "NSE")
@@ -72,7 +72,7 @@ class TestLiveBatchMarketData:
             assert hasattr(quote, "ltp") or "ltp" in quote
             assert hasattr(quote, "symbol") or "symbol" in quote
 
-    def test_history_batch_nse_equity(self, gateway: BrokerGateway):
+    def test_history_batch_nse_equity(self, gateway: DhanBrokerGateway):
         """history_batch() for multiple symbols should return concatenated DataFrame."""
         symbols = ["RELIANCE", "TCS"]
         result = gateway.history_batch(symbols, "NSE", timeframe="1D", lookback_days=3)
@@ -85,7 +85,7 @@ class TestLiveBatchMarketData:
         for sym in symbols:
             assert sym in result_symbols, f"{sym} missing from history_batch result"
 
-    def test_ltp_batch_parity_with_individual(self, gateway: BrokerGateway):
+    def test_ltp_batch_parity_with_individual(self, gateway: DhanBrokerGateway):
         """ltp_batch() results should match individual ltp() calls."""
         symbols = ["RELIANCE", "TCS"]
         # Get batch results

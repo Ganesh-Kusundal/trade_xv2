@@ -7,11 +7,15 @@ routing, quota acquisition, and audit trails.
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import uuid
+from decimal import Decimal
 from typing import Any
 
 from domain.entities import Order, OrderResponse, Position, Trade
 from domain.orders.requests import ModifyOrderRequest, OrderRequest
+from domain.types import OrderStatus
 
 logger = logging.getLogger(__name__)
 
@@ -40,22 +44,29 @@ class ExecutionComposer:
         registry: Any,  # BrokerRegistry — injected at composition root
         router: Any,  # BrokerRouter — injected at composition root
         quota_scheduler: Any,  # QuotaScheduler — injected at composition root
-        risk_manager: Any | None = None,  # Optional kill-switch guard
+        risk_manager: Any,  # Mandatory kill-switch + risk guard (fail-closed)
+        order_manager: Any | None = None,  # Optional OMS spine for place/cancel/modify
     ) -> None:
+        if risk_manager is None:
+            raise ValueError(
+                "ExecutionComposer requires risk_manager (fail-closed). "
+                "Wire RiskManager from the composition root."
+            )
+        if order_manager is None:
+            raise ValueError(
+                "ExecutionComposer requires order_manager (OMS spine). "
+                "Wire OrderManager from TradingContext / composition root."
+            )
         self._registry = registry
         self._router = router
         self._quota_scheduler = quota_scheduler
         self._risk_manager = risk_manager
+        self._order_manager = order_manager
 
     def _check_kill_switch(self, operation: str) -> None:
-        """Raise OrderBlockedError if kill switch is active.
-
-        No-op when risk_manager is not provided (backward compatible).
-        """
-        if self._risk_manager is None:
-            return
+        """Raise OrderBlockedError if kill switch is active."""
         if self._risk_manager.is_kill_switch_active():
-            from application.oms.oms_gateway_proxy import OrderBlockedError
+            from application.oms.errors import OrderBlockedError
 
             raise OrderBlockedError(
                 f"Order blocked: kill switch active ({operation})",
@@ -102,20 +113,19 @@ class ExecutionComposer:
         # 2. Acquire quota
         quota = await self._acquire_quota(target_broker, "orders", "EXECUTION_CRITICAL")
 
-        # 3. Execute
         gateway = self._registry.get_gateway(target_broker)
         logger.info(
             "execution.place_order",
             extra={
                 "broker_id": target_broker,
                 "symbol": request.symbol,
-                "side": request.side,
+                "side": getattr(request, "transaction_type", getattr(request, "side", None)),
                 "quantity": request.quantity,
             },
         )
 
         try:
-            response = await gateway.place_order(request, quota=quota)
+            response = await self._place_via_oms(request, gateway, quota, target_broker)
             logger.info(
                 "execution.place_order.complete",
                 extra={
@@ -163,7 +173,7 @@ class ExecutionComposer:
         )
 
         try:
-            response = await gateway.cancel_order(order_id, quota=quota)
+            response = await self._cancel_via_oms(order_id, gateway, quota, target_broker)
             logger.info(
                 "execution.cancel_order.complete",
                 extra={"broker_id": target_broker, "order_id": order_id},
@@ -208,7 +218,7 @@ class ExecutionComposer:
         )
 
         try:
-            response = await gateway.modify_order(request, quota=quota)
+            response = await self._modify_via_oms(request, gateway, quota, target_broker)
             logger.info(
                 "execution.modify_order.complete",
                 extra={"broker_id": target_broker, "order_id": request.order_id},
@@ -278,13 +288,125 @@ class ExecutionComposer:
         gateway = self._registry.get_gateway(target_broker)
         return await gateway.get_trades(quota=quota)
 
+    async def _place_via_oms(
+        self,
+        request: OrderRequest,
+        gateway: Any,
+        quota: Any,
+        broker_id: str,
+    ) -> OrderResponse:
+        """Route placement through OrderManager (idempotency + risk + audit)."""
+        from application.oms.order_manager import OmsOrderCommand, OrderResult
+
+        cmd = self._to_oms_command(request)
+
+        def submit_fn(oms_cmd: OmsOrderCommand) -> Order:
+            resp = asyncio.run(gateway.place_order(request, quota=quota))
+            return self._broker_order_from_response(resp, oms_cmd)
+
+        result: OrderResult = await asyncio.to_thread(
+            self._order_manager.place_order, cmd, submit_fn
+        )
+        return self._order_result_to_response(result, broker_id)
+
+    async def _cancel_via_oms(
+        self,
+        order_id: str,
+        gateway: Any,
+        quota: Any,
+        broker_id: str,
+    ) -> OrderResponse:
+        from application.oms.order_manager import OrderResult
+
+        def cancel_fn(oid: str) -> bool:
+            resp = asyncio.run(gateway.cancel_order(oid, quota=quota))
+            return bool(getattr(resp, "success", True))
+
+        result: OrderResult = await asyncio.to_thread(
+            self._order_manager.cancel_order, order_id, cancel_fn
+        )
+        return self._order_result_to_response(result, broker_id)
+
+    async def _modify_via_oms(
+        self,
+        request: ModifyOrderRequest,
+        gateway: Any,
+        quota: Any,
+        broker_id: str,
+    ) -> OrderResponse:
+        from application.oms.order_manager import OrderResult
+
+        def modify_fn(req: ModifyOrderRequest) -> OrderResponse:
+            return asyncio.run(gateway.modify_order(req, quota=quota))
+
+        result: OrderResult = await asyncio.to_thread(
+            self._order_manager.modify_order, request, modify_fn
+        )
+        return self._order_result_to_response(result, broker_id)
+
+    @staticmethod
+    def _to_oms_command(request: OrderRequest) -> Any:
+        from application.oms.order_manager import OmsOrderCommand
+
+        side = getattr(request, "transaction_type", None) or getattr(request, "side", None)
+        raw_price = getattr(request, "price", None)
+        try:
+            price = Decimal(str(raw_price)) if raw_price is not None else Decimal("0")
+        except Exception:
+            price = Decimal("0")
+        return OmsOrderCommand(
+            symbol=request.symbol,
+            exchange=getattr(request, "exchange", "NSE"),
+            side=side,
+            quantity=request.quantity,
+            price=price,
+            order_type=request.order_type,
+            product_type=request.product_type,
+            correlation_id=request.correlation_id or str(uuid.uuid4()),
+        )
+
+    @staticmethod
+    def _broker_order_from_response(response: Any, cmd: Any) -> Order:
+        status = getattr(response, "status", OrderStatus.OPEN)
+        if isinstance(status, str):
+            try:
+                status = OrderStatus(status)
+            except ValueError:
+                status = OrderStatus.OPEN
+        return Order(
+            order_id=getattr(response, "order_id", "") or getattr(response, "broker_order_id", ""),
+            symbol=cmd.symbol,
+            exchange=cmd.exchange,
+            side=cmd.side,
+            order_type=cmd.order_type,
+            quantity=cmd.quantity,
+            price=cmd.price,
+            product_type=cmd.product_type,
+            status=status,
+            correlation_id=cmd.correlation_id,
+        )
+
+    @staticmethod
+    def _order_result_to_response(result: Any, broker_id: str) -> OrderResponse:
+        if result.success and result.order is not None:
+            order = result.order
+            return OrderResponse.ok(
+                order_id=order.order_id,
+                status=order.status,
+                message="OK",
+            )
+        return OrderResponse.fail(
+            message=result.error or "Order failed",
+            error_code="oms_rejected",
+        )
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
     def _route_order(self) -> str:
         """Route order operation to broker via policy."""
-        from brokers.common.models import OperationKind, RoutingRequest
+        from tradex.runtime.models import OperationKind, RoutingRequest
 
         request = RoutingRequest(
             operation=OperationKind.PLACE_ORDER,
@@ -295,7 +417,7 @@ class ExecutionComposer:
 
     def _route_portfolio(self) -> str:
         """Route portfolio read operation to broker via policy."""
-        from brokers.common.models import OperationKind, RoutingRequest
+        from tradex.runtime.models import OperationKind, RoutingRequest
 
         request = RoutingRequest(
             operation=OperationKind.GET_POSITIONS,

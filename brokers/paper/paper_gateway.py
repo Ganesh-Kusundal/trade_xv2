@@ -244,17 +244,54 @@ class PaperGateway:
         exchange: str = "NFO",
         expiry: str | None = None,
     ) -> OptionChain:
+        """Synthetic chain with spot, OI, IV, and rough greeks (DV-013 paper path)."""
+        import math
+
         import numpy as np
 
         base = float(self._market_data.get_ltp(underlying, "NSE"))
         strikes = [round(base + i * 50, 0) for i in range(-10, 11)]
         chain = []
         for strike in strikes:
+            # Moneyness proxy → rough call delta in (0, 1); put = call - 1
+            m = (base - float(strike)) / max(base, 1.0)
+            call_delta = max(0.05, min(0.95, 0.5 + m * 2.5))
+            put_delta = call_delta - 1.0
+            # Peak OI near ATM for usable PCR / max-pain
+            dist = abs(float(strike) - base)
+            oi_scale = max(1000, int(50_000 * math.exp(-((dist / 150.0) ** 2))))
+            call_oi = oi_scale + int(np.random.randint(0, 5000))
+            put_oi = int(oi_scale * 0.9) + int(np.random.randint(0, 5000))
+            iv = round(0.12 + abs(m) * 0.15 + np.random.uniform(0, 0.03), 4)
             chain.append(
                 {
                     "strike": strike,
-                    "call": {"ltp": round(max(0, base - strike + np.random.uniform(5, 50)), 2)},
-                    "put": {"ltp": round(max(0, strike - base + np.random.uniform(5, 50)), 2)},
+                    "call": {
+                        "ltp": round(max(0.05, base - strike + np.random.uniform(5, 50)), 2),
+                        "oi": call_oi,
+                        "volume": int(np.random.randint(100, 10000)),
+                        "iv": iv,
+                        "greeks": {
+                            "delta": round(call_delta, 4),
+                            "gamma": round(0.01 * math.exp(-((dist / 100.0) ** 2)), 6),
+                            "theta": round(-0.05 - abs(m) * 0.02, 4),
+                            "vega": round(0.1 * math.exp(-((dist / 120.0) ** 2)), 4),
+                            "rho": round(0.01 * call_delta, 4),
+                        },
+                    },
+                    "put": {
+                        "ltp": round(max(0.05, strike - base + np.random.uniform(5, 50)), 2),
+                        "oi": put_oi,
+                        "volume": int(np.random.randint(100, 10000)),
+                        "iv": iv,
+                        "greeks": {
+                            "delta": round(put_delta, 4),
+                            "gamma": round(0.01 * math.exp(-((dist / 100.0) ** 2)), 6),
+                            "theta": round(-0.05 - abs(m) * 0.02, 4),
+                            "vega": round(0.1 * math.exp(-((dist / 120.0) ** 2)), 4),
+                            "rho": round(0.01 * put_delta, 4),
+                        },
+                    },
                 }
             )
         return OptionChain.from_dict(
@@ -262,9 +299,11 @@ class PaperGateway:
                 "underlying": underlying,
                 "exchange": exchange,
                 "expiry": expiry or "2026-07-30",
+                "spot": base,
                 "strikes": chain,
             }
         )
+
 
     def future_chain(
         self,
@@ -425,8 +464,14 @@ class PaperGateway:
     # Lifecycle
     # =======================================================================
 
+    def list_capabilities(self):
+        """CommonBrokerGateway-compatible capability descriptor (registry/router)."""
+        from tradex.runtime.capabilities import CapabilityDescriptor
+
+        return CapabilityDescriptor.build(self.capabilities(), frozenset())
+
     def capabilities(self) -> BrokerCapabilities:
-        from brokers.common.capabilities import (
+        from tradex.runtime.capabilities import (
             BrokerCapabilities,
             HistoricalWindowConstraint,
             RateLimitProfile,

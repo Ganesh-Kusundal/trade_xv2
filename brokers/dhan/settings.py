@@ -23,7 +23,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from brokers.common.settings import BrokerSettings, SettingsLoaderBase
+from tradex.runtime.settings import BrokerSettings, SettingsLoaderBase
 from brokers.dhan.config import DhanResilienceConfig
 from domain.constants.auth import (
     DHAN_TOKEN_LIFETIME_SECONDS,

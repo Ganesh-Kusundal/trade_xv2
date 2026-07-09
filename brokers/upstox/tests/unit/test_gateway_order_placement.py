@@ -342,6 +342,24 @@ class TestModifyOrder:
         assert response.order_id == "ORD123"
         assert "modified" in response.message.lower()
 
+    def test_modify_order_success_order_response_contract(self):
+        """ENG-002: adapter returns OrderResponse — gateway must not fail it."""
+        from brokers.upstox.gateway import UpstoxBrokerGateway
+
+        mock_broker = MagicMock()
+        mock_broker.settings.allow_live_orders = True
+        mock_broker.settings.analytics_only = False
+        mock_broker.instrument_resolver = MagicMock()
+        mock_broker.order_command.modify_order.return_value = OrderResponse.ok(
+            order_id="ORD123", message="Order modified"
+        )
+
+        gateway = UpstoxBrokerGateway(mock_broker)
+        response = gateway.modify_order("ORD123", price=Decimal("2600"))
+
+        assert response.success
+        assert response.order_id == "ORD123"
+
     def test_modify_order_failure(self):
         """Failed modification should return OrderResponse.fail."""
         from brokers.upstox.gateway import UpstoxBrokerGateway

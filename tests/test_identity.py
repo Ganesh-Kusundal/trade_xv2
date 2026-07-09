@@ -16,12 +16,12 @@ from unittest.mock import Mock
 import pytest
 
 # Import directly from submodules to avoid circular import through __init__.py
-from brokers.dhan.domain import Exchange, Instrument, InstrumentType
+from brokers.dhan.domain import Exchange, DhanInstrument, InstrumentType
 from brokers.dhan.exceptions import DhanIdentityError, InstrumentNotFoundError
 from brokers.dhan.identity import DhanIdentityProvider, DhanInstrumentRef
 from brokers.dhan.resolver import SymbolResolver
 from brokers.dhan.segments import EXCHANGE_TO_SEGMENT
-from domain.entities.instrument_record import Instrument as DomainInstrument
+from domain.entities.instrument_record import InstrumentRecord as DomainInstrument
 
 # ── DhanInstrumentRef Tests ────────────────────────────────────────────────
 
@@ -140,8 +140,8 @@ class TestDhanIdentityProvider:
         exchange: Exchange,
         security_id: str,
         instrument_type: InstrumentType,
-    ) -> Instrument:
-        """Helper to create a Dhan Instrument using composition."""
+    ) -> DhanInstrument:
+        """Helper to create a DhanInstrument using composition."""
         domain_inst = DomainInstrument(
             symbol=symbol,
             exchange=exchange.value,
@@ -150,13 +150,13 @@ class TestDhanIdentityProvider:
             lot_size=1,
             tick_size=Decimal("0.05"),
         )
-        return Instrument(
+        return DhanInstrument(
             domain_instrument=domain_inst,
             exchange=exchange,
             instrument_type=instrument_type,
         )
 
-    def _create_mock_resolver(self, instrument: Instrument) -> SymbolResolver:
+    def _create_mock_resolver(self, instrument: DhanInstrument) -> SymbolResolver:
         """Create a mock resolver that returns the given instrument."""
         mock_resolver = Mock(spec=SymbolResolver)
         mock_resolver.resolve.return_value = instrument
@@ -319,7 +319,7 @@ class TestDhanIdentityProvider:
         inst = self._create_instrument(
             symbol="RELIANCE",
             exchange=Exchange.NSE,
-            security_id="11536",  # String in Instrument
+            security_id="11536",  # String in DhanInstrument
             instrument_type=InstrumentType.EQUITY,
         )
         mock_resolver = self._create_mock_resolver(inst)

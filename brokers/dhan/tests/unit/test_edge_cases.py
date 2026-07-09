@@ -6,7 +6,7 @@ import pytest
 
 from brokers.dhan.connection import DhanConnection
 from brokers.dhan.exceptions import InstrumentNotFoundError
-from brokers.dhan.gateway import BrokerGateway
+from brokers.dhan.gateway import DhanBrokerGateway
 from domain import OrderStatus
 
 SAMPLE_ROWS = [
@@ -62,11 +62,11 @@ class FakeHttpClient:
 
 
 @pytest.fixture()
-def offline_gateway() -> BrokerGateway:
+def offline_gateway() -> DhanBrokerGateway:
     client = FakeHttpClient()
     conn = DhanConnection(client=client)
     conn.instruments.load_from_rows(SAMPLE_ROWS)
-    return BrokerGateway(conn)
+    return DhanBrokerGateway(conn)
 
 
 class TestOrderStatusNormalization:

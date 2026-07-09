@@ -81,8 +81,8 @@ def test_enable_retry_removed():
 
 
 def test_read_circuit_breaker_does_not_block_write():
-    from brokers.common.resilience.circuit_breaker import CircuitState
-    from brokers.common.resilience.errors import CircuitBreakerOpenError
+    from tradex.runtime.resilience.circuit_breaker import CircuitState
+    from tradex.runtime.resilience.errors import CircuitBreakerOpenError
 
     session = MagicMock()
     settings = UpstoxConnectionSettings(client_id="CID")
@@ -114,7 +114,7 @@ def test_read_circuit_breaker_does_not_block_write():
 
 
 def test_default_rate_limiter_is_multi_bucket():
-    from brokers.common.resilience.rate_limiter import MultiBucketRateLimiter
+    from tradex.runtime.resilience.rate_limiter import MultiBucketRateLimiter
 
     session = MagicMock()
     settings = UpstoxConnectionSettings(client_id="CID")
@@ -122,7 +122,9 @@ def test_default_rate_limiter_is_multi_bucket():
         token_provider=lambda: "TOK", settings=settings, session=session
     )
     assert isinstance(client.rate_limiter, MultiBucketRateLimiter)
-    assert set(client.rate_limiter.categories()) == {
+    cats = set(client.rate_limiter.categories())
+    # Capability profiles + admin catch-all + legacy aliases
+    for required in (
         "orders",
         "quotes",
         "historical",
@@ -130,7 +132,9 @@ def test_default_rate_limiter_is_multi_bucket():
         "funds",
         "positions",
         "holdings",
-    }
+        "admin",
+    ):
+        assert required in cats
 
 
 def test_rate_limit_bucket_mapping():
@@ -138,8 +142,10 @@ def test_rate_limit_bucket_mapping():
 
     assert _rate_limit_bucket("https://api.upstox.com/v2/market-quote/ltp") == "quotes"
     assert _rate_limit_bucket("https://api.upstox.com/v2/market-quote/ohlc") == "quotes"
-    assert _rate_limit_bucket("https://api.upstox.com/v2/historical/candle") == "data"
+    assert _rate_limit_bucket("https://api.upstox.com/v2/historical/candle") == "historical"
     assert _rate_limit_bucket("https://api.upstox.com/v2/order/place") == "orders"
     assert _rate_limit_bucket("https://api.upstox.com/v2/order/book") == "orders"
-    assert _rate_limit_bucket("https://api.upstox.com/v2/portfolio/holdings") == "admin"
+    assert _rate_limit_bucket("https://api.upstox.com/v2/portfolio/long-term-holdings") == "holdings"
+    assert _rate_limit_bucket("https://api.upstox.com/v2/portfolio/short-term-positions") == "positions"
+    assert _rate_limit_bucket("https://api.upstox.com/v2/user/get-funds-and-margin") == "funds"
     assert _rate_limit_bucket("https://api.upstox.com/v2/user/profile") == "admin"

@@ -141,8 +141,27 @@ class PaperOrders:
             if price > 0 and order_type == OrderType.LIMIT
             else self._md.get_ltp(symbol, exchange)
         )
+        is_market = order_type == OrderType.MARKET
 
         def _fill(cmd: OmsOrderCommand) -> Order:
+            if is_market:
+                return Order(
+                    order_id=f"PPR-{seq:06d}",
+                    symbol=cmd.symbol,
+                    exchange=cmd.exchange,
+                    side=cmd.side,
+                    order_type=cmd.order_type,
+                    quantity=cmd.quantity,
+                    filled_quantity=cmd.quantity,
+                    price=cmd.price,
+                    trigger_price=trigger_price,
+                    status=OrderStatus.FILLED,
+                    timestamp=datetime.now(timezone.utc),
+                    product_type=cmd.product_type,
+                    avg_price=fill_price,
+                    correlation_id=cmd.correlation_id,
+                )
+            # Resting limit — OPEN
             return Order(
                 order_id=f"PPR-{seq:06d}",
                 symbol=cmd.symbol,
@@ -150,13 +169,13 @@ class PaperOrders:
                 side=cmd.side,
                 order_type=cmd.order_type,
                 quantity=cmd.quantity,
-                filled_quantity=cmd.quantity,
+                filled_quantity=0,
                 price=cmd.price,
                 trigger_price=trigger_price,
-                status=OrderStatus.FILLED,
+                status=OrderStatus.OPEN,
                 timestamp=datetime.now(timezone.utc),
                 product_type=cmd.product_type,
-                avg_price=fill_price,
+                avg_price=Decimal("0"),
                 correlation_id=cmd.correlation_id,
             )
 
@@ -187,32 +206,32 @@ class PaperOrders:
             self._orders.append(result.order)
             self._order_seq = seq  # sync sequence counter
 
-        # Record trade through OMS so PositionManager receives TRADE_APPLIED event.
-        self._trade_seq += 1
-        trade = Trade(
-            trade_id=f"PPR-T-{self._trade_seq:06d}",
-            order_id=result.order.order_id,
-            symbol=symbol,
-            exchange=exchange,
-            side=side,
-            quantity=quantity,
-            price=fill_price,
-            trade_value=fill_price * quantity,
-            timestamp=datetime.now(timezone.utc),
-            product_type=product_type,
-        )
-        with self._lock:
-            self._trades.append(trade)
-            # Sync internal position dict for backward-compatible getters.
-            self._positions = self._update_position(
-                symbol,
-                exchange,
-                side,
-                quantity,
-                fill_price,
-                product_type,
+        # Only record trade / positions on market fills
+        if is_market and result.order.status == OrderStatus.FILLED:
+            self._trade_seq += 1
+            trade = Trade(
+                trade_id=f"PPR-T-{self._trade_seq:06d}",
+                order_id=result.order.order_id,
+                symbol=symbol,
+                exchange=exchange,
+                side=side,
+                quantity=quantity,
+                price=fill_price,
+                trade_value=fill_price * quantity,
+                timestamp=datetime.now(timezone.utc),
+                product_type=product_type,
             )
-        self._order_manager.record_trade(trade)
+            with self._lock:
+                self._trades.append(trade)
+                self._positions = self._update_position(
+                    symbol,
+                    exchange,
+                    side,
+                    quantity,
+                    fill_price,
+                    product_type,
+                )
+            self._order_manager.record_trade(trade)
 
         return result.order
 
@@ -229,7 +248,12 @@ class PaperOrders:
         trigger_price: Decimal,
         correlation_id: str | None,
     ) -> Order:
-        """Legacy internal order placement (no OMS, backward compatible)."""
+        """Legacy internal order placement (no OMS, backward compatible).
+
+        MARKET → instant fill (FILLED).
+        LIMIT / stop styles → rest as OPEN (so cancel/modify e2e works).
+        """
+        is_market = order_type == OrderType.MARKET
         if price > 0 and order_type == OrderType.LIMIT:
             fill_price = price
         else:
@@ -262,6 +286,48 @@ class PaperOrders:
                 self._orders.append(rejected)
                 return rejected
 
+            if is_market:
+                order = Order(
+                    order_id=order_id,
+                    symbol=symbol,
+                    exchange=exchange,
+                    side=side,
+                    order_type=order_type,
+                    quantity=quantity,
+                    filled_quantity=quantity,
+                    price=price,
+                    trigger_price=trigger_price,
+                    status=OrderStatus.FILLED,
+                    timestamp=datetime.now(timezone.utc),
+                    product_type=product_type,
+                    validity=validity,
+                    avg_price=fill_price,
+                    correlation_id=correlation_id,
+                )
+                self._orders.append(order)
+                self._trade_seq += 1
+                trade = Trade(
+                    trade_id=f"PPR-T-{self._trade_seq:06d}",
+                    order_id=order_id,
+                    symbol=symbol,
+                    exchange=exchange,
+                    side=side,
+                    quantity=quantity,
+                    price=fill_price,
+                    trade_value=fill_price * quantity,
+                    timestamp=datetime.now(timezone.utc),
+                    product_type=product_type,
+                )
+                self._trades.append(trade)
+
+                if self._position_manager is not None:
+                    self._position_manager.apply_trade(trade)
+                self._positions = self._update_position(
+                    symbol, exchange, side, quantity, fill_price, product_type
+                )
+                return order
+
+            # Resting limit / conditional — OPEN (no fill yet)
             order = Order(
                 order_id=order_id,
                 symbol=symbol,
@@ -269,39 +335,17 @@ class PaperOrders:
                 side=side,
                 order_type=order_type,
                 quantity=quantity,
-                filled_quantity=quantity,
+                filled_quantity=0,
                 price=price,
                 trigger_price=trigger_price,
-                status=OrderStatus.FILLED,
+                status=OrderStatus.OPEN,
                 timestamp=datetime.now(timezone.utc),
                 product_type=product_type,
                 validity=validity,
-                avg_price=fill_price,
+                avg_price=Decimal("0"),
                 correlation_id=correlation_id,
             )
-
             self._orders.append(order)
-            self._trade_seq += 1
-            trade = Trade(
-                trade_id=f"PPR-T-{self._trade_seq:06d}",
-                order_id=order_id,
-                symbol=symbol,
-                exchange=exchange,
-                side=side,
-                quantity=quantity,
-                price=fill_price,
-                trade_value=fill_price * quantity,
-                timestamp=datetime.now(timezone.utc),
-                product_type=product_type,
-            )
-            self._trades.append(trade)
-
-            if self._position_manager is not None:
-                self._position_manager.apply_trade(trade)
-            self._positions = self._update_position(
-                symbol, exchange, side, quantity, fill_price, product_type
-            )
-
             return order
 
     def cancel_order(self, order_id: str) -> bool:
@@ -378,16 +422,9 @@ class PaperOrders:
                     f"Only OPEN orders can be modified."
                 )
 
-            # Cancel the original order
-            self._orders[original_idx] = original_order.with_status(OrderStatus.CANCELLED)
-
-            # Create a new modified order
-            self._order_seq += 1
-            new_order_id = f"PPR-{self._order_seq:06d}"
-
-            # Apply modifications
+            # In-place modify (same order_id) — matches OMS/broker modify semantics
             modified_order = Order(
-                order_id=new_order_id,
+                order_id=original_order.order_id,
                 symbol=original_order.symbol,
                 exchange=original_order.exchange,
                 side=original_order.side,
@@ -398,66 +435,19 @@ class PaperOrders:
                 validity=validity if validity is not None else original_order.validity,
                 product_type=original_order.product_type,
                 correlation_id=original_order.correlation_id,
-                status=OrderStatus.OPEN,  # New order starts as OPEN
+                status=OrderStatus.OPEN,
+                filled_quantity=original_order.filled_quantity,
                 timestamp=datetime.now(timezone.utc),
             )
 
             # Risk check on modified order
             allowed, reason = self._risk_check(modified_order)
             if not allowed:
-                rejected = replace(
-                    modified_order,
-                    status=OrderStatus.REJECTED,
-                    reject_reason=reason or "Risk check failed on modification",
-                )
-                self._orders.append(rejected)
-                return rejected
+                # Leave original OPEN; report rejection via exception for EP wrap
+                raise ValueError(reason or "Risk check failed on modification")
 
-            # For paper trading, instantly fill the modified order
-            fill_price = (
-                modified_order.price
-                if modified_order.price > 0 and modified_order.order_type == OrderType.LIMIT
-                else self._md.get_ltp(modified_order.symbol, modified_order.exchange)
-            )
-
-            filled_order = replace(
-                modified_order,
-                status=OrderStatus.FILLED,
-                filled_quantity=modified_order.quantity,
-                avg_price=fill_price,
-            )
-
-            self._orders.append(filled_order)
-
-            # Create trade for the fill
-            self._trade_seq += 1
-            trade = Trade(
-                trade_id=f"PPR-T-{self._trade_seq:06d}",
-                order_id=new_order_id,
-                symbol=modified_order.symbol,
-                exchange=modified_order.exchange,
-                side=modified_order.side,
-                quantity=modified_order.quantity,
-                price=fill_price,
-                trade_value=fill_price * modified_order.quantity,
-                timestamp=datetime.now(timezone.utc),
-                product_type=modified_order.product_type,
-            )
-            self._trades.append(trade)
-
-            # Update position if position_manager exists
-            if self._position_manager is not None:
-                self._position_manager.apply_trade(trade)
-            self._positions = self._update_position(
-                modified_order.symbol,
-                modified_order.exchange,
-                modified_order.side,
-                modified_order.quantity,
-                fill_price,
-                modified_order.product_type,
-            )
-
-            return filled_order
+            self._orders[original_idx] = modified_order
+            return modified_order
 
     def get_orderbook(self) -> list[Order]:
         with self._lock:

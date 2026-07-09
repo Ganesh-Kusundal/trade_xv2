@@ -16,7 +16,7 @@ Key Features
 
 Usage
 -----
-    from brokers.common.observability.alerting import (
+    from tradex.runtime.observability.alerting import (
         AlertingEngine,
         create_default_alert_rules,
     )

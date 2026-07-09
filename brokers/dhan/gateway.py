@@ -19,11 +19,7 @@ from brokers.dhan.domain import (
 )
 from brokers.common.capabilities_validator import validate_gateway_capabilities
 from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
-from tradex.runtime.capabilities import (
-    BrokerCapabilities,
-    HistoricalWindowConstraint,
-    RateLimitProfile,
-)
+from tradex.runtime.capabilities import BrokerCapabilities
 
 logger = logging.getLogger(__name__)
 
@@ -393,41 +389,10 @@ class DhanBrokerGateway:
         }
 
     def capabilities(self) -> BrokerCapabilities:
-        """Return Dhan broker capability matrix."""
-        return BrokerCapabilities(
-            broker_id="dhan",
-            supports_place_order=True,
-            supports_cancel_order=True,
-            supports_modify_order=True,
-            supports_historical_data=True,
-            supports_intraday_history=True,
-            supports_expired_options_history=True,
-            supports_live_market_data=True,
-            supports_depth=True,
-            supports_depth_20_ws=True,
-            supports_depth_200_ws=True,
-            supports_option_chain=True,
-            supports_polling_fallback=True,
-            supports_order_stream=True,
-            supports_portfolio_stream=True,
-            supports_super_order=True,
-            supports_forever_order=True,
-            supports_native_slice_order=True,
-            max_batch_size=1000,
-            product_types=frozenset({"INTRADAY", "MARGIN", "CNC", "MTF"}),
-            order_types=frozenset({"MARKET", "LIMIT", "STOP_LOSS", "STOP_LOSS_MARKET"}),
-            rate_limit_profiles=(
-                RateLimitProfile("orders", sustained_rps=6, burst_rps=10, min_interval_ms=100),
-                RateLimitProfile("quotes", sustained_rps=10, burst_rps=20, min_interval_ms=50),
-                RateLimitProfile("historical", sustained_rps=4, burst_rps=8, min_interval_ms=200),
-                RateLimitProfile("option_chain", sustained_rps=4, burst_rps=8, min_interval_ms=200),
-            ),
-            historical_windows=(
-                HistoricalWindowConstraint("1m", max_lookback_days=3650, max_chunk_days=60, supports_expired_instruments=True),
-                HistoricalWindowConstraint("5m", max_lookback_days=3650, max_chunk_days=60, supports_expired_instruments=True),
-                HistoricalWindowConstraint("1D", max_lookback_days=3650, max_chunk_days=365, supports_expired_instruments=True),
-            ),
-        )
+        """Return Dhan broker capability matrix (single source of truth)."""
+        from brokers.dhan.capabilities import dhan_capabilities
+
+        return dhan_capabilities()
 
     def list_capabilities(self):
         """CommonBrokerGateway-compatible capability descriptor (session kernel)."""

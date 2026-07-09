@@ -38,7 +38,7 @@ class TestCompleteDepthSnapshot:
     """gateway._complete_depth_snapshot merges REST fallback when a side is empty."""
 
     def _make_gateway(self):
-        from brokers.dhan.gateway import BrokerGateway
+        from brokers.dhan.gateway import DhanBrokerGateway
         from brokers.dhan.resolver import SymbolResolver
 
         resolver = SymbolResolver()
@@ -64,7 +64,7 @@ class TestCompleteDepthSnapshot:
         )
         conn.market_data.get_depth.return_value = rest_depth
 
-        gw = BrokerGateway.__new__(BrokerGateway)
+        gw = DhanBrokerGateway.__new__(DhanBrokerGateway)
         gw._conn = conn
         return gw
 
@@ -167,42 +167,45 @@ class TestSendSubscriptionUsesWsLoop:
 
 
 # ---------------------------------------------------------------------------
-# Fix 3 — Rate-limit bucket map: read→market_data, write→orders, admin→admin
+# Fix 3 — Rate-limit buckets align with capability endpoint_class names
 # ---------------------------------------------------------------------------
 
 class TestRateLimitBucketMap:
-    """_rate_limit_bucket maps CB category to MultiBucketRateLimiter name."""
+    """_rate_limit_bucket maps paths to capability MultiBucket names."""
 
-    def test_read_maps_to_market_data(self):
-        assert _rate_limit_bucket("/marketfeed/ltp") == "market_data"
-        assert _rate_limit_bucket("/marketfeed/quote") == "market_data"
-        assert _rate_limit_bucket("/optionchain") == "market_data"
-        assert _rate_limit_bucket("/charts/historical") == "market_data"
+    def test_quotes_and_history_and_chain(self):
+        assert _rate_limit_bucket("/marketfeed/ltp") == "quotes"
+        assert _rate_limit_bucket("/marketfeed/quote") == "quotes"
+        assert _rate_limit_bucket("/optionchain") == "option_chain"
+        assert _rate_limit_bucket("/charts/historical") == "historical"
 
     def test_write_maps_to_orders(self):
         assert _rate_limit_bucket("/orders") == "orders"
         assert _rate_limit_bucket("/killswitch") == "orders"
+        assert _rate_limit_bucket("/super/orders") == "orders"
 
-    def test_admin_maps_to_admin(self):
-        assert _rate_limit_bucket("/fundlimit") == "admin"
-        assert _rate_limit_bucket("/positions") == "admin"
-        assert _rate_limit_bucket("/holdings") == "admin"
+    def test_portfolio_buckets(self):
+        assert _rate_limit_bucket("/fundlimit") == "funds"
+        assert _rate_limit_bucket("/positions") == "positions"
+        assert _rate_limit_bucket("/holdings") == "holdings"
+        assert _rate_limit_bucket("/userprofile") == "admin"
 
     def test_rl_bucket_map_complete(self):
-        """All CB categories have an entry in _RL_BUCKET_MAP."""
+        """Legacy CB map still has entries for config overrides."""
         for category in ("read", "write", "admin"):
             assert category in _RL_BUCKET_MAP, f"Missing bucket map entry: {category}"
 
     def test_acquire_does_not_raise_for_known_endpoints(self):
-        """_acquire_rate_limit_token must not raise ValueError for standard endpoints."""
-        from brokers.common.resilience.rate_limiter import MultiBucketRateLimiter, RateLimitConfig
+        """_acquire_rate_limit_token must not raise for standard endpoints."""
+        from tradex.runtime.resilience.rate_limiter import MultiBucketRateLimiter, RateLimitConfig
         from brokers.dhan.http_client import DhanHttpClient
 
         limiter = MultiBucketRateLimiter(
             {
-                "market_data": RateLimitConfig(rate_per_second=10.0, capacity=10),
+                "quotes": RateLimitConfig(rate_per_second=10.0, capacity=10),
                 "orders": RateLimitConfig(rate_per_second=25.0, capacity=25),
-                "admin": RateLimitConfig(rate_per_second=20.0, capacity=20),
+                "funds": RateLimitConfig(rate_per_second=20.0, capacity=20),
+                "admin": RateLimitConfig(rate_per_second=10.0, capacity=10),
             }
         )
         client = DhanHttpClient(
@@ -210,7 +213,6 @@ class TestRateLimitBucketMap:
             access_token="t",
             _rate_limiter=limiter,
         )
-        # Must not raise — previously this returned True via ValueError bypass
         assert client._acquire_rate_limit_token("/marketfeed/quote") is True
         assert client._acquire_rate_limit_token("/orders") is True
         assert client._acquire_rate_limit_token("/fundlimit") is True
@@ -413,8 +415,8 @@ class TestAuditLeakAndMultiplexingFixes:
         assert len(conn._token_manager._token_receivers) == 0
 
     def test_broker_gateway_callback_leak_prevention(self):
-        """BrokerGateway unstream removes wrapper callback from feed."""
-        from brokers.dhan.gateway import BrokerGateway
+        """DhanBrokerGateway unstream removes wrapper callback from feed."""
+        from brokers.dhan.gateway import DhanBrokerGateway
         from brokers.dhan.subscription_engine import SubscriptionEngine
 
         feed = mock.MagicMock()
@@ -428,7 +430,7 @@ class TestAuditLeakAndMultiplexingFixes:
         )
         conn.subscription_engine = SubscriptionEngine(conn)
 
-        gw = BrokerGateway(conn)
+        gw = DhanBrokerGateway(conn)
 
         cb1 = mock.MagicMock()
         gw.stream("RELIANCE", "NSE", on_tick=cb1)
@@ -443,8 +445,8 @@ class TestAuditLeakAndMultiplexingFixes:
         """MarketDataGatewayAdapter tracks active handles and prevents premature stop."""
         import asyncio
 
-        from brokers.common.adapters.market_data_gateway_adapter import wrap_market_gateway
-        from brokers.common.broker_port import BrokerStreamPlan
+        from tradex.runtime.adapters.market_data_gateway_adapter import wrap_market_gateway
+        from tradex.runtime.broker_port import BrokerStreamPlan
 
         legacy_gw = mock.MagicMock()
         adapter = wrap_market_gateway(legacy_gw, "dhan")

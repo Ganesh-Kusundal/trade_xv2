@@ -25,11 +25,8 @@ Cron setup (run daily at 6 PM IST, after market close at 3:30 PM):
 
 After sync, also refresh the option analytics views:
     # The m_pcr / m_max_pain / m_iv_surface tables are NOT auto-refreshed by
-    # sync. Run ViewManager.materialize_options() to refresh them:
-    /Users/apple/Downloads/Trade_XV2/venv/bin/python -c "from analytics.views.manager import ViewManager; from datalake.storage.catalog import DataCatalog; ViewManager(DataCatalog().conn)._materialize_options()"
-
-    # Or just re-run the full pipeline:
-    /Users/apple/Downloads/Trade_XV2/venv/bin/python -c "from analytics.views.manager import ViewManager; from datalake.storage.catalog import DataCatalog; ViewManager(DataCatalog().conn).create_all()"
+    # sync. Run ViewManager.materialize_options() (analytics.views.manager)
+    # against DataCatalog to refresh them, or re-run ViewManager.create_all().
 """
 
 from __future__ import annotations

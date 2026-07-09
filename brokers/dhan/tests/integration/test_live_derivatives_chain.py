@@ -18,7 +18,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 
 from brokers.dhan.factory import BrokerFactory
-from brokers.dhan.gateway import BrokerGateway
+from brokers.dhan.gateway import DhanBrokerGateway
 
 pytestmark = [pytest.mark.dhan, pytest.mark.off_market_safe, pytest.mark.regression]
 
@@ -39,7 +39,7 @@ if ENV_PATH.exists() and ENV_PATH.stat().st_size > 0:
 class TestLiveOptionChain:
     """Option chain endpoint tests against live Dhan API."""
 
-    def test_option_chain_nifty(self, gateway: BrokerGateway):
+    def test_option_chain_nifty(self, gateway: DhanBrokerGateway):
         """option_chain() for NIFTY should return OptionChain with strikes."""
         chain = gateway.option_chain("NIFTY", "NFO")
         assert chain is not None
@@ -48,7 +48,7 @@ class TestLiveOptionChain:
         assert hasattr(chain, "strikes")
         assert len(chain.strikes) > 0
 
-    def test_option_chain_has_ce_pe_legs(self, gateway: BrokerGateway):
+    def test_option_chain_has_ce_pe_legs(self, gateway: DhanBrokerGateway):
         """Option chain strikes should have CE and PE legs with greeks."""
         try:
             chain = gateway.option_chain("NIFTY", "NFO")
@@ -63,7 +63,7 @@ class TestLiveOptionChain:
             # Verify PE leg
             assert hasattr(first_strike, "put") or first_strike.pe is not None
 
-    def test_option_chain_with_explicit_expiry(self, gateway: BrokerGateway):
+    def test_option_chain_with_explicit_expiry(self, gateway: DhanBrokerGateway):
         """option_chain() with explicit expiry should work."""
         # Get available expiries
         expiries = gateway.extended.get_option_expiries("NIFTY", "INDEX")
@@ -74,7 +74,7 @@ class TestLiveOptionChain:
             assert chain.spot > 0
             assert len(chain.strikes) > 0
 
-    def test_option_chain_banknifty(self, gateway: BrokerGateway):
+    def test_option_chain_banknifty(self, gateway: DhanBrokerGateway):
         """option_chain() for BANKNIFTY should return valid chain."""
         chain = gateway.option_chain("BANKNIFTY", "NFO")
         assert chain is not None
@@ -87,7 +87,7 @@ class TestLiveOptionChain:
 class TestLiveFutureChain:
     """Futures chain endpoint tests against live Dhan API."""
 
-    def test_future_chain_nifty(self, gateway: BrokerGateway):
+    def test_future_chain_nifty(self, gateway: DhanBrokerGateway):
         """future_chain() for NIFTY should return FutureChain with contracts."""
         chain = gateway.future_chain("NIFTY", "NFO")
         assert chain is not None
@@ -98,7 +98,7 @@ class TestLiveFutureChain:
         assert hasattr(chain, "contracts")
         assert len(chain.contracts) > 0
 
-    def test_future_chain_contract_schema(self, gateway: BrokerGateway):
+    def test_future_chain_contract_schema(self, gateway: DhanBrokerGateway):
         """Future contracts should have symbol, expiry, lot_size."""
         chain = gateway.future_chain("NIFTY", "NFO")
         if chain.contracts:
@@ -107,7 +107,7 @@ class TestLiveFutureChain:
             assert hasattr(contract, "expiry")
             assert hasattr(contract, "lot_size")
 
-    def test_future_chain_banknifty(self, gateway: BrokerGateway):
+    def test_future_chain_banknifty(self, gateway: DhanBrokerGateway):
         """future_chain() for BANKNIFTY should return valid chain."""
         chain = gateway.future_chain("BANKNIFTY", "NFO")
         assert chain is not None
@@ -116,7 +116,7 @@ class TestLiveFutureChain:
         assert len(chain.contracts) > 0
         time.sleep(2)
 
-    def test_future_chain_multiple_expiries(self, gateway: BrokerGateway):
+    def test_future_chain_multiple_expiries(self, gateway: DhanBrokerGateway):
         """future_chain() should return multiple expiry dates."""
         chain = gateway.future_chain("NIFTY", "NFO")
         # Index futures typically have near, mid, far month contracts
@@ -130,21 +130,21 @@ class TestLiveStockFnO:
     These cases close the gap where only index derivatives were tested live.
     """
 
-    def test_reliance_stock_option_chain(self, gateway: BrokerGateway):
+    def test_reliance_stock_option_chain(self, gateway: DhanBrokerGateway):
         """RELIANCE OPTSTK chain must have strikes (underlying exchange = NSE)."""
         chain = gateway.option_chain("RELIANCE", "NSE")
         assert chain is not None
         assert chain.spot > 0, f"RELIANCE stock option spot invalid: {chain.spot}"
         assert len(chain.strikes) > 0, "RELIANCE stock option chain has no strikes"
 
-    def test_reliance_stock_option_chain_has_expiries(self, gateway: BrokerGateway):
+    def test_reliance_stock_option_chain_has_expiries(self, gateway: DhanBrokerGateway):
         """RELIANCE OPTSTK must have at least one expiry via extended API."""
         expiries = gateway.extended.get_option_expiries("RELIANCE", "NSE")
         assert isinstance(expiries, list)
         assert len(expiries) >= 1, "RELIANCE extended expiries empty"
         time.sleep(1.5)
 
-    def test_reliance_stock_futures(self, gateway: BrokerGateway):
+    def test_reliance_stock_futures(self, gateway: DhanBrokerGateway):
         """RELIANCE FUTSTK chain must have at least one contract (underlying = NSE)."""
         chain = gateway.future_chain("RELIANCE", "NSE")
         assert chain is not None
@@ -152,14 +152,14 @@ class TestLiveStockFnO:
         assert chain.contracts[0].expiry is not None
         time.sleep(1.5)
 
-    def test_reliance_futures_lot_size(self, gateway: BrokerGateway):
+    def test_reliance_futures_lot_size(self, gateway: DhanBrokerGateway):
         """RELIANCE futures contracts must carry a non-zero lot_size."""
         chain = gateway.future_chain("RELIANCE", "NSE")
         if chain.contracts:
             lot = chain.contracts[0].lot_size
             assert isinstance(lot, int) and lot > 0, f"Invalid lot_size: {lot}"
 
-    def test_banknifty_stock_option_chain(self, gateway: BrokerGateway):
+    def test_banknifty_stock_option_chain(self, gateway: DhanBrokerGateway):
         """BANKNIFTY OPTSTK (index with equity-style strikes) chain must be valid."""
         chain = gateway.option_chain("BANKNIFTY", "NFO")
         assert chain is not None

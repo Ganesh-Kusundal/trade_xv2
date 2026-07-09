@@ -130,15 +130,32 @@ class DhanDataProvider(DataProvider):
         *,
         depth: bool = False,
     ) -> SubscriptionHandle:
-        """Subscribe to live market data from Dhan."""
+        """Subscribe to live market data from Dhan.
+
+        Gateway API: ``stream(symbol, exchange, mode=..., on_tick=...)``.
+        """
+        mode = "DEPTH" if depth else "QUOTE"
+
+        def _on_tick(payload: Any) -> None:
+            try:
+                if isinstance(payload, QuoteSnapshot):
+                    callback(instrument_id, payload)
+                elif isinstance(payload, MarketDepth):
+                    callback(instrument_id, payload)
+                else:
+                    callback(instrument_id, self._normalize_quote(payload, instrument_id))
+            except Exception:
+                pass
+
         try:
             handle = self._gw.stream(
                 instrument_id.underlying,
                 instrument_id.exchange,
-                callback,
-                depth=depth,
+                mode=mode,
+                on_tick=_on_tick,
             )
-            return _DhanSubscriptionHandle(stop_fn=getattr(handle, "stop", None))
+            stop = getattr(handle, "stop", None) or getattr(handle, "disconnect", None)
+            return _DhanSubscriptionHandle(stop_fn=stop if callable(stop) else None)
         except Exception:
             return _DhanSubscriptionHandle()
 

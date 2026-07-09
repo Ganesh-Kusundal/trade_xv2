@@ -38,7 +38,7 @@ def portfolio_app(tmp_path):
 
     event_bus = EventBus()
     trading_context = build_test_trading_context(event_bus=event_bus)
-    config = APIConfig(host="127.0.0.1", port=8000, cors_origins=[])
+    config = APIConfig(host="127.0.0.1", port=8000, cors_origins=[], auth_mode="none")
     app = create_app(
         config=config,
         trading_context=trading_context,

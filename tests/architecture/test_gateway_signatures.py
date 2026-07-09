@@ -21,7 +21,7 @@ def _get_public_methods(cls: type) -> dict[str, inspect.Signature]:
 
 def test_all_gateways_implement_abc_methods() -> None:
     """Every MarketDataGateway subclass must implement all abstract methods."""
-    from brokers.common.gateway import MarketDataGateway
+    from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 
     abc_methods = set()
     for name in dir(MarketDataGateway):
@@ -29,11 +29,11 @@ def test_all_gateways_implement_abc_methods() -> None:
         if getattr(obj, "__isabstractmethod__", False):
             abc_methods.add(name)
 
-    from brokers.dhan.gateway import BrokerGateway
+    from brokers.dhan.gateway import DhanBrokerGateway
     from brokers.paper.paper_gateway import PaperGateway
     from brokers.upstox.gateway import UpstoxBrokerGateway
 
-    for gw_cls in (BrokerGateway, UpstoxBrokerGateway, PaperGateway):
+    for gw_cls in (DhanBrokerGateway, UpstoxBrokerGateway, PaperGateway):
         for method_name in abc_methods:
             assert hasattr(gw_cls, method_name), (
                 f"{gw_cls.__name__} is missing abstract method {method_name!r}"

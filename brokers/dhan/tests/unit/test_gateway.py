@@ -1,4 +1,4 @@
-"""Tests for BrokerGateway — delegation to connection adapters."""
+"""Tests for DhanBrokerGateway — delegation to connection adapters."""
 
 from __future__ import annotations
 
@@ -11,15 +11,15 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "..
 
 from brokers.dhan.connection import DhanConnection
 from brokers.dhan.domain import Position
-from brokers.dhan.gateway import BrokerGateway
+from brokers.dhan.gateway import DhanBrokerGateway
 from brokers.dhan.tests.conftest import FakeHttpClient
 from domain import Balance, OrderRequest, Quote
 
 
 class TestBrokerGateway:
-    """Verify that BrokerGateway delegates every call to the correct adapter."""
+    """Verify that DhanBrokerGateway delegates every call to the correct adapter."""
 
-    def _make_gateway(self) -> tuple[BrokerGateway, DhanConnection]:
+    def _make_gateway(self) -> tuple[DhanBrokerGateway, DhanConnection]:
         """Create a gateway backed by a FakeHttpClient and mocked adapters."""
         client = FakeHttpClient()
         conn = DhanConnection(client=client)
@@ -29,7 +29,7 @@ class TestBrokerGateway:
         conn._orders = MagicMock()
         conn._portfolio = MagicMock()
 
-        gateway = BrokerGateway(conn)
+        gateway = DhanBrokerGateway(conn)
         return gateway, conn
 
     # -- market data delegation ------------------------------------------
@@ -172,7 +172,7 @@ class TestBrokerGateway:
         conn = DhanConnection(client=client)
         # Replace the client's close with a mock to track the call
         client.close = MagicMock()
-        gateway = BrokerGateway(conn)
+        gateway = DhanBrokerGateway(conn)
 
         gateway.close()
 

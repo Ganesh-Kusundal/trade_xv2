@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import jwt as pyjwt
 
-from brokers.common.auth.jwt_expiry import JwtExpiry
+from tradex.runtime.auth.jwt_expiry import JwtExpiry
 
 
 def test_jwt_expiry_parses_exp_claim():

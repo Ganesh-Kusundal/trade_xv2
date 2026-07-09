@@ -45,7 +45,7 @@ async def live_readyz(
             headers={"Retry-After": "30"},
         )
     try:
-        from brokers.common.services.production_readiness import ProductionReadinessChecker
+        from tradex.runtime.services.production_readiness import ProductionReadinessChecker
 
         report = ProductionReadinessChecker(broker_service).run()
         payload = {
