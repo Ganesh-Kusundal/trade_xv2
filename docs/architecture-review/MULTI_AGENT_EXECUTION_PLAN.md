@@ -479,10 +479,44 @@ import-time concerns (`get_logger`, `trace_operation`) remain exempt, by
 design.
 
 ### Known pre-existing gate status (working tree, not from D4)
-The working tree currently shows `CLI broker-implementation isolation` BROKEN
-due to uncommitted pre-existing changes in `cli/services/broker_service.py`
-(imports `brokers.dhan` / `brokers.paper`). This is unrelated to D4 — HEAD is
-green and the violation is pre-existing uncommitted work. D4's target contract
-`Application infrastructure separation` is KEPT. (Resolved earlier false "GREEN
-8/8": CI's `lint` job ran the stale `.import-linter.ini`, now deleted — see
-sub-slice a execution note.)
+The `CLI broker-implementation isolation` break that previously showed in the
+working tree is now **RESOLVED (sub-slice C)**: `cli/services/broker_service.py`
+no longer imports `brokers.dhan` / `brokers.paper` directly — it obtains the
+concrete classes via `cli.services.broker_registry` accessors (the sole `cli`
+module permitted to know about broker implementations). The lint gate is now
+**8/8 KEPT on the full working tree** (verified). The only remaining reds are
+two pre-existing *test* failures, unrelated to any import contract:
+- `application/oms/tests/test_graceful_shutdown.py::test_shutdown_no_event_log`
+  — event-log flush *behavior*: `event_log_flushed` is `True` when no event log
+  is configured. A real shutdown-semantics question, not a wiring bug.
+- `application/oms/tests/test_trade_idempotency.py::test_metrics_record_trade_outcomes`
+  — metrics-singleton test isolation: `MetricsRegistry` counters are
+  process-global, so this test's snapshot assertions are order-dependent (passes
+  alone, fails in the full run). Needs a per-test reset/isolation fixture.
+
+### Phase E — PROPOSAL (awaiting Board sign-off)
+Phase E formalizes the broker boundary that sub-slice C established via
+`ignore_imports` carve-outs, and greens the two remaining test failures.
+
+**E-1 — `BrokerProviderPort` (replaces the registry `ignore_imports`).**
+Promote `cli.services.broker_registry`'s concrete-class accessors
+(`get_paper_gateway_class`, `get_mock_broker_class`, `get_dhan_websocket_classes`,
+`get_dhan_reconciliation_service_factory`) to a real `BrokerProviderPort` in
+`domain.ports` returning broker-agnostic gateway / websocket / reconciliation
+*interfaces*. `cli` then depends on the port, and the `cli.services.broker_registry
+-> brokers.*` exemptions are deleted — completing the `cli → brokers` decoupling
+without `ignore_imports`. Gate: `CLI broker-implementation isolation` KEPT.
+
+**E-2 — green the two pre-existing test failures.**
+- `test_shutdown_no_event_log`: decide the intended shutdown semantics (flush
+  is a no-op vs. error when no event log) and align test + code.
+- `test_metrics_record_trade_outcomes`: add a `MetricsRegistry` reset/isolation
+  fixture (or scope counters per-test) so snapshot assertions are order-independent.
+
+**E-3 (optional, low priority).** Port `get_logger` / `trace_operation` to ports
+if a clean domain-side abstraction exists. Currently exempt by design
+(import/definition-time cross-cutting); high-churn, no architectural gain — defer
+unless a compelling abstraction emerges.
+
+*No code for E-1/E-2 is written yet; this section is a proposal requiring Board
+sign-off on scope before execution (same gated discipline as Phase D).*
