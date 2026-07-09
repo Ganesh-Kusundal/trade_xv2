@@ -13,6 +13,7 @@ from domain.ports.lifecycle import LifecycleManagerPort, ManagedServicePort
 from domain.ports.margin_provider import MarginProviderPort
 from domain.ports.market_data import MarketDataPort
 from domain.ports.metrics import MetricsRegistryPort
+from domain.ports.order_store import OrderStorePort
 from domain.ports.observability import AlertingEnginePort, EventMetricsPort, TracerPort
 from domain.ports.oms_backtest_adapter import OmsBacktestAdapterPort
 from domain.ports.protocols import DataProvider, ExecutionProvider, OrderResult, SubscriptionHandle
@@ -40,6 +41,7 @@ __all__ = [
     "MetricsRegistryPort",
     "OmsBacktestAdapterPort",
     "OrderResult",
+    "OrderStorePort",
     "OrderTransportPort",
     "RiskManagerPort",
     "StrategyEvaluator",

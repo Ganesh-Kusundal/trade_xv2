@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING, Any
 
 from application.oms import PositionManager, RiskConfig, RiskManager
 from application.oms.capital_provider import GatewayCapitalProvider
-from brokers.common.oms.defaults import build_dead_letter_queue
+from brokers.common.oms.defaults import build_dead_letter_queue, build_order_store
 from cli.services.capital_provider import TrackedCapitalProvider
 from domain.constants import RECONCILIATION_INTERVAL_SECONDS
 from domain.constants.defaults import RISK_FALLBACK_CAPITAL
@@ -122,6 +122,15 @@ def _build_dead_letter_queue() -> Any:
         return None
 
 
+def _build_order_store() -> Any:
+    """Build the durable order store (SqliteOrderStore) for crash-safe orders."""
+    try:
+        return build_order_store()
+    except Exception as exc:
+        logger.error("order_store_build_failed: %s", exc)
+        return None
+
+
 def _build_event_log() -> Any:
     """Build BufferedEventLog for crash recovery and OMS replay.
 
@@ -169,6 +178,7 @@ def register_oms_services(
     event_log = _build_event_log()
     processed_trades = _build_processed_trade_repository()
     dead_letter_queue = _build_dead_letter_queue()
+    order_store = _build_order_store()
 
     # Build TradingContext with shared risk_manager, reconciliation, and event_log
     try:
@@ -181,6 +191,7 @@ def register_oms_services(
             replay_events=event_log is not None,
             processed_trade_repository=processed_trades,
             dead_letter_queue=dead_letter_queue,
+            durable_order_store=order_store,
         )
 
         # Attach lifecycle (registers reconciliation service, etc.)

@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING
 from cachetools import TTLCache
 
 from domain.types import ORDER_STATUS_TRANSITIONS, OrderStatus
-from infrastructure.state_machine import IllegalTransitionError, StateMachine
+from domain.state_machine import IllegalTransitionError, StateMachine
 
 if TYPE_CHECKING:
     pass

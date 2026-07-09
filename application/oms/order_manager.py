@@ -30,14 +30,13 @@ from application.oms._internal.order_audit_logger import OrderAuditLogger
 from application.oms._internal.order_position_updater import OrderPositionUpdater
 from application.oms._internal.order_state_validator import OrderStateValidator
 from application.oms._internal.reentrancy_guard import _ReentrancyGuard
-from infrastructure.persistence.sqlite_order_store import SqliteOrderStore
 from application.oms.risk_manager import RiskManager
 from domain.entities import Order, Trade
 from domain.events.types import DomainEvent, EventType
 from domain.symbols import normalize_exchange, normalize_symbol
 from domain.types import ORDER_STATUS_TRANSITIONS, OrderStatus, OrderType, ProductType, Side
 from domain.events.types import TradeIdKey
-from domain.ports import EventBusPort, ProcessedTradeRepositoryPort
+from domain.ports import EventBusPort, OrderStorePort, ProcessedTradeRepositoryPort
 from infrastructure.logging_config import get_logger
 from infrastructure.metrics import metrics_registry
 from infrastructure.observability.event_metrics import EventMetrics
@@ -156,7 +155,7 @@ class OrderManager:
         state_validator: OrderStateValidator | None = None,
         audit_logger: OrderAuditLogger | None = None,
         position_updater: OrderPositionUpdater | None = None,
-        order_store: SqliteOrderStore | None = None,
+        order_store: OrderStorePort | None = None,
     ) -> None:
         self._lock = threading.RLock()
         self._orders: dict[str, Order] = {}

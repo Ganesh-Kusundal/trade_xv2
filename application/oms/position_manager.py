@@ -18,7 +18,7 @@ from domain.types import POSITION_STATE_TRANSITIONS, PositionState
 from domain.ports import EventBusPort, ProcessedTradeRepositoryPort
 from infrastructure.logging_config import get_logger
 from infrastructure.observability.event_metrics import EventMetrics
-from infrastructure.state_machine import IllegalTransitionError, StateMachine
+from domain.state_machine import IllegalTransitionError, StateMachine
 
 logger = get_logger(__name__)
 

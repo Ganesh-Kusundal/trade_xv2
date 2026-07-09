@@ -46,3 +46,14 @@ def build_dead_letter_queue() -> Any:
     )
 
     return create_default_dead_letter_queue()
+
+
+def build_order_store(db_path: str | None = None) -> Any:
+    """Construct the concrete durable order store (``SqliteOrderStore``).
+
+    The OMS depends on ``OrderStorePort``; this builder supplies the concrete
+    so ``application`` stays free of any ``infrastructure`` import.
+    """
+    from infrastructure.persistence.sqlite_order_store import SqliteOrderStore
+
+    return SqliteOrderStore(db_path=db_path) if db_path else SqliteOrderStore()

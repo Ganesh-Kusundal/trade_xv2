@@ -12,7 +12,7 @@ import pandas as pd
 from analytics.pipeline.pipeline import FeaturePipeline
 from domain.candles.historical import HistoricalSeries
 from domain.models.features import FeatureSet
-from infrastructure.market_data_adapter import GatewayMarketDataAdapter
+from domain.ports import MarketDataPort
 
 logger = logging.getLogger(__name__)
 
@@ -34,18 +34,13 @@ class PipelineFeatureFetcher:
     def __init__(
         self,
         pipeline: FeaturePipeline,
-        market_data: GatewayMarketDataAdapter | Any | None = None,
+        market_data: MarketDataPort | None = None,
         gateway: object | None = None,
         lookback_bars: int = 200,
         cache_max_entries: int = _DEFAULT_CACHE_MAX,
     ) -> None:
         self._pipeline = pipeline
-        if market_data is not None:
-            self._market_data = market_data
-        elif gateway is not None:
-            self._market_data = GatewayMarketDataAdapter(gateway)
-        else:
-            self._market_data = None
+        self._market_data = market_data
         self._lookback_bars = lookback_bars
         self._cache: OrderedDict[str, FeatureSet] = OrderedDict()
         self._cache_max = max(1, cache_max_entries)

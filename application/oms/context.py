@@ -10,7 +10,6 @@ from decimal import Decimal
 from typing import Any  # Only for signal handler frame type
 
 from application.oms.order_manager import OrderManager
-from infrastructure.persistence.sqlite_order_store import SqliteOrderStore
 from application.oms.position_manager import PositionManager
 from application.oms.reconciliation_service import ReconciliationService
 from application.oms.risk_manager import RiskConfig, RiskManager
@@ -20,6 +19,7 @@ from domain.ports import (
     DeadLetterQueuePort,
     EventBusPort,
     EventLogPort,
+    OrderStorePort,
     ProcessedTradeRepositoryPort,
 )
 from domain.ports.lifecycle import LifecycleManagerPort
@@ -200,7 +200,7 @@ class TradingContext:
         metrics: EventMetrics | None = None,
         dead_letter_queue: DeadLetterQueuePort | None = None,
         orchestrator: ITradingOrchestrator | None = None,
-        durable_order_store: SqliteOrderStore | None = None,
+        durable_order_store: OrderStorePort | None = None,
         enable_durable_orders: bool | None = None,
     ) -> None:
         self._event_log = event_log
@@ -226,11 +226,6 @@ class TradingContext:
         # LifecycleManager can stop it deterministically via
         # attach_lifecycle() below.
         self._processed_trades.attach_auto_cleanup()
-        _durable = (
-            enable_durable_orders
-            if enable_durable_orders is not None
-            else os.getenv("PYTEST_CURRENT_TEST") is None
-        )
         self._position_manager = position_manager or PositionManager(
             event_bus=self._event_bus,
             processed_trade_repository=self._processed_trades,
@@ -246,11 +241,7 @@ class TradingContext:
             risk_manager=self._risk_manager,
             processed_trade_repository=self._processed_trades,
             metrics=self._metrics,
-            order_store=(
-                durable_order_store
-                if durable_order_store is not None
-                else (SqliteOrderStore() if _durable else None)
-            ),
+            order_store=durable_order_store,
         )
 
         # Wire managers to the event bus.

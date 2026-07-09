@@ -12,6 +12,7 @@ from application.oms.risk_manager import RiskConfig
 from brokers.common.oms.defaults import (
     build_dead_letter_queue,
     build_event_bus,
+    build_order_store,
     build_processed_trade_repository,
 )
 from infrastructure.event_bus import EventBus
@@ -48,6 +49,8 @@ def build_trading_context(
         )
     if processed_trade_repository is None:
         processed_trade_repository = build_processed_trade_repository()
+    if "durable_order_store" not in kwargs:
+        kwargs["durable_order_store"] = build_order_store()
 
     from application.oms.factory import create_trading_context
 

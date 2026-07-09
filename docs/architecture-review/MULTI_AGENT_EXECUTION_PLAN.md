@@ -406,3 +406,52 @@ and `application.composer.* → brokers.common.*` are out of D4 scope.
 
 **Risk:** HIGH (compounds sub-slice a). Mitigation: one sub-slice per commit,
 gate-green before merge, characterization tests first (Feathers).
+
+### Phase D — slice 3 (D4 sub-slice c: persistence + state-machine) — EXECUTED
+**State machine relocated to domain.** `StateMachine` + `IllegalTransitionError`
+were pure domain logic (only depended on `domain.exceptions.TradeXV2Error`)
+living in `infrastructure.state_machine`; moved to `src/domain/state_machine.py`.
+`infrastructure/state_machine.py` now re-exports for back-compat. OMS modules
+(`position_manager`, `_internal/order_state_validator`) import from
+`domain.state_machine` — no `application → infrastructure.state_machine` import.
+
+**`OrderStorePort` added** (`src/domain/ports/order_store.py`): `upsert` /
+`load_all` / `close`. `context.py` + `order_manager.py` depend on the port (no
+`infrastructure.persistence` import); `TradingContext` no longer constructs
+`SqliteOrderStore` — composition roots inject it. `create_trading_context` gained
+`durable_order_store` (+ forwards `enable_durable_orders`).
+`brokers.common.oms.defaults.build_order_store` is the single concrete builder;
+`cli/services/oms_setup` + `api/lifecycle` inject it.
+
+**Removed `ignore_imports`:** 6 (state-machine ×2, persistence ×4). Verified
+`Application infrastructure separation` KEPT.
+
+### Phase D — slice 3 (D4 sub-slice d: market-data adapter) — EXECUTED
+`feature_fetcher.PipelineFeatureFetcher` depends on the existing
+`MarketDataPort` (was importing `infrastructure.market_data_adapter
+.GatewayMarketDataAdapter` and constructing it from a `gateway`). The
+`gateway`-based auto-build is removed; the adapter is injected.
+**Removed `ignore_imports`:** `application.trading.feature_fetcher →
+infrastructure.market_data_adapter`.
+
+### Cross-cutting observability (metrics / event-metrics / tracing / logging) — DEFERRED (exempt)
+`metrics_registry` (module-level singleton + module-level counter creation),
+`EventMetrics` (constructed in `TradingContext`), `trace_operation`
+(definition-time decorator), and `get_logger`/`correlation` are **process-wide
+cross-cutting infrastructure**, not per-instance OMS collaborators. Forcing them
+through per-instance ports is high-risk churn (module-level singletons,
+decorator-at-definition, construction defaults) with no architectural gain — the
+same rationale the plan already applies to `get_logger`. The ports already exist
+(`MetricsRegistryPort`, `EventMetricsPort`, `TracerPort`, `trace_operation` in
+`domain.ports`); it is the *usage patterns* that make extraction invasive. They
+stay as `ignore_imports` (exempt). **D4 collaborator de-coupling is complete;
+only cross-cutting observability remains, by design.**
+
+### Known pre-existing gate status (working tree, not from D4)
+The working tree currently shows `CLI broker-implementation isolation` BROKEN
+due to uncommitted pre-existing changes in `cli/services/broker_service.py`
+(imports `brokers.dhan` / `brokers.paper`). This is unrelated to D4 — HEAD is
+green and the violation is pre-existing uncommitted work. D4's target contract
+`Application infrastructure separation` is KEPT. (Resolved earlier false "GREEN
+8/8": CI's `lint` job ran the stale `.import-linter.ini`, now deleted — see
+sub-slice a execution note.)
