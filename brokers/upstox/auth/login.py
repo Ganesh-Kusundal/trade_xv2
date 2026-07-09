@@ -74,7 +74,11 @@ def build_auth_url(
     code_challenge: str,
     state: str | None = None,
 ) -> str:
-    """Build the Upstox authorization dialog URL for the given PKCE challenge."""
+    """Build the Upstox authorization dialog URL for the given PKCE challenge.
+
+    The base URL comes from the canonical resolver; we only
+    append the OAuth-specific query parameters here.
+    """
     params: dict[str, str] = {
         "client_id": settings.client_id,
         "redirect_uri": settings.redirect_uri,
@@ -86,8 +90,11 @@ def build_auth_url(
         params["state"] = state
     from urllib.parse import urlencode
 
-    base = "https://sandbox-api.upstox.com" if settings.is_sandbox else "https://api.upstox.com"
-    return f"{base}/v2/login/authorization/dialog?{urlencode(params)}"
+    from brokers.upstox.auth.urls import UpstoxApiUrlResolver
+
+    resolver = UpstoxApiUrlResolver(settings)
+    base = resolver.auth_dialog_url()
+    return f"{base}?{urlencode(params)}"
 
 
 def _open_browser(url: str) -> None:

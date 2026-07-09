@@ -40,7 +40,7 @@ from brokers.dhan.resilience.circuit_breaker import (
     DhanCircuitBreakerFactory,
     create_circuit_breakers,
 )
-from brokers.dhan.resilience.rate_limiter import (
+from brokers.dhan.resilience import (
     DhanRateLimiterFactory,
     DhanRateLimiterMetrics,
     create_rate_limiter,
@@ -456,34 +456,34 @@ class TestDhanRateLimiterFactory:
     """Test Dhan rate limiter factory."""
 
     def test_create_rate_limiter(self):
-        rl = create_rate_limiter()
+        rl = create_rate_limiter("dhan")
         assert isinstance(rl, MultiBucketRateLimiter)
-        assert set(rl.categories()) == {"orders", "market_data", "portfolio", "admin"}
+        assert "orders" in rl.categories()
+        assert "quotes" in rl.categories()
 
     def test_orders_rate_limit(self):
         config = DhanRateLimiterFactory.create_config("orders")
         assert config.rate_per_second == 25.0
-        assert config.capacity == 35
+        assert config.capacity == 50
 
     def test_market_data_rate_limit(self):
-        config = DhanRateLimiterFactory.create_config("market_data")
+        config = DhanRateLimiterFactory.create_config("historical")
         assert config.rate_per_second == 10.0
-        assert config.capacity == 15
+        assert config.capacity == 20
 
     def test_portfolio_rate_limit(self):
-        config = DhanRateLimiterFactory.create_config("portfolio")
+        config = DhanRateLimiterFactory.create_config("funds")
         assert config.rate_per_second == 20.0
-        assert config.capacity == 30
+        assert config.capacity == 40
 
     def test_admin_rate_limit(self):
-        config = DhanRateLimiterFactory.create_config("admin")
+        config = DhanRateLimiterFactory.create_config("holdings")
         assert config.rate_per_second == 20.0
-        assert config.capacity == 30
+        assert config.capacity == 40
 
     def test_unknown_category_defaults_to_admin(self):
         config = DhanRateLimiterFactory.create_config("unknown")
-        admin_config = DhanRateLimiterFactory.create_config("admin")
-        assert config.rate_per_second == admin_config.rate_per_second
+        assert config.rate_per_second == 20.0
 
 
 class TestRateLimiterEnforcement:

@@ -249,9 +249,67 @@ async def test_root_endpoint_returns_endpoints(server: HttpObservabilityServer) 
     assert "/healthz" in data["endpoints"]
     assert "/readyz" in data["endpoints"]
     assert "/metrics" in data["endpoints"]
+    assert "/version" in data["endpoints"]
+    assert "/info" in data["endpoints"]
+    assert "build" in data
+    assert "version" in data["build"]
 
 
-# ── /readyz with lifecycle ───────────────────────────────────────────────
+@pytest.mark.asyncio
+async def test_version_endpoint_returns_build_info(
+    server: HttpObservabilityServer,
+) -> None:
+    """REF-30: ``/version`` exposes build metadata for incident response."""
+    import aiohttp
+    port = _get_port(server)
+    async with aiohttp.ClientSession() as session:
+        async with session.get(f"http://127.0.0.1:{port}/version") as resp:
+            assert resp.status == 200
+            data = await resp.json()
+    assert "version" in data
+    assert "commit" in data
+    assert "build_time" in data
+
+
+@pytest.mark.asyncio
+async def test_info_endpoint_returns_runtime_and_endpoints(
+    server: HttpObservabilityServer,
+) -> None:
+    """REF-30: ``/info`` is the single-call discovery endpoint."""
+    import aiohttp
+    port = _get_port(server)
+    async with aiohttp.ClientSession() as session:
+        async with session.get(f"http://127.0.0.1:{port}/info") as resp:
+            assert resp.status == 200
+            data = await resp.json()
+    assert data["service"] == "http.observability"
+    assert "build" in data
+    assert "uptime_seconds" in data
+    assert "requests_served" in data
+    # All advertised endpoints should be in the list
+    for ep in ("/healthz", "/readyz", "/metrics", "/version", "/info"):
+        assert ep in data["endpoints"]
+
+
+def test_build_info_dict_has_three_keys():
+    """Structural test: build_info_dict is the canonical source.
+
+    If a future revision adds a fourth field (e.g. ``build_host``),
+    this test should be updated alongside it.
+    """
+    from brokers.common.build_info import build_info_dict
+
+    info = build_info_dict()
+    assert set(info.keys()) == {"version", "commit", "build_time"}
+
+
+def test_build_info_dict_returns_strings():
+    """All values must be JSON-serializable strings."""
+    from brokers.common.build_info import build_info_dict
+
+    info = build_info_dict()
+    for key, value in info.items():
+        assert isinstance(value, str), f"{key} must be str, got {type(value)}"# ── /readyz with lifecycle ───────────────────────────────────────────────
 
 
 def test_readyz_returns_503_when_a_service_failed() -> None:

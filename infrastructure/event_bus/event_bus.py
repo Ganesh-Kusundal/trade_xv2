@@ -246,6 +246,24 @@ class EventBus:
                     return True
         return False
 
+    def subscribe_all(self, handler: EventHandler) -> list[str]:
+        """Subscribe ``handler`` to every event type currently registered.
+
+        Mirrors the capability previously provided by the deleted
+        ``brokers.common.event_bus`` implementation, used by
+        ``EventBusService`` to mirror the canonical OMS bus for the CLI
+        ``events`` command without fabricating events. Returns a list of
+        tokens (one per event type) so the caller can unsubscribe cleanly.
+        Event types added after this call will NOT receive this handler —
+        call ``subscribe_all`` again to pick up newly-registered types.
+        """
+        tokens: list[str] = []
+        with self._subscribers_lock:
+            for event_type in list(self._subscribers.keys()):
+                token = self.subscribe(event_type, handler)
+                tokens.append(token)
+        return tokens
+
     def subscriber_count(self, event_type: str | None = None) -> int:
         """Return the number of subscribers (for tests / diagnostics)."""
         with self._subscribers_lock:

@@ -201,10 +201,9 @@ class BrokerFactory(BrokerProviderFactory):
         """
         from brokers.dhan.config import DhanResilienceConfig, DEFAULT_CONFIG
         from brokers.dhan.config_loader import DhanConfigLoader
-        from brokers.dhan.resilience import (
-            create_circuit_breakers,
-            create_rate_limiter,
-        )
+        from brokers.dhan.resilience import create_circuit_breakers
+        from brokers.common.resilience.rate_limiter import create_rate_limiter
+        from brokers.dhan.capabilities import dhan_capabilities
 
         # Load resilience configuration from settings or use defaults
         resilience_config = settings.resilience_config
@@ -268,10 +267,8 @@ class BrokerFactory(BrokerProviderFactory):
         cbs["portfolio"]
         cb_admin = cbs["admin"]
 
-        # Create rate limiter with config-based settings
-        # Note: create_rate_limiter() uses hardcoded values from resilience/rate_limiter.py
-        # For now, we'll use the default rate limiter
-        rate_limiter = create_rate_limiter()
+        # Create rate limiter from Dhan's canonical RateLimitProfile values
+        rate_limiter = create_rate_limiter("dhan", caps=dhan_capabilities())
 
         return DhanHttpClient(
             client_id=cid,

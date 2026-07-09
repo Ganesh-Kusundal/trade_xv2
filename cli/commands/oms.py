@@ -2,10 +2,115 @@
 
 from __future__ import annotations
 
+from decimal import Decimal, InvalidOperation
+
 from rich.console import Console
 from rich.table import Table
 
 from cli.services.broker_service import BrokerService
+
+
+def _parse_place_order_args(args: list[str]) -> dict | None:
+    """Parse ``tradex oms place SYM EX SIDE QTY [PRICE] [flags...]``."""
+    if not args or args[0] != "place":
+        return None
+    positional: list[str] = []
+    flags: dict[str, str] = {}
+    i = 1
+    while i < len(args):
+        a = args[i]
+        if a.startswith("--"):
+            key = a
+            # If the next token is the value (no leading --), consume it.
+            if i + 1 < len(args) and not args[i + 1].startswith("--"):
+                flags[key] = args[i + 1]
+                i += 2
+                continue
+            flags[key] = "true"
+            i += 1
+            continue
+        positional.append(a)
+        i += 1
+    if len(positional) < 4:
+        return {"_error": "Usage: tradex oms place SYMBOL EXCHANGE SIDE QUANTITY [PRICE] [--type MKT|LMT] [--product MIS|NRML|CNC]"}
+    try:
+        quantity = int(positional[3])
+    except ValueError:
+        return {"_error": f"Quantity must be an integer, got {positional[3]!r}"}
+    price = None
+    if len(positional) >= 5:
+        try:
+            price = Decimal(positional[4])
+        except InvalidOperation:
+            return {"_error": f"Price must be a decimal, got {positional[4]!r}"}
+    return {
+        "symbol": positional[0],
+        "exchange": positional[1],
+        "side": positional[2].upper(),
+        "quantity": quantity,
+        "price": price,
+        "order_type": flags.get("--type", "MKT").upper(),
+        "product_type": flags.get("--product", "MIS").upper(),
+    }
+
+
+def place_order_cmd(
+    args: list[str],
+    broker_service: BrokerService,
+    console: Console,
+) -> None:
+    """Phase 6: ``tradex oms place ...`` routes through BrokerService.
+
+    The OMS is the single chokepoint for order placement — risk check,
+    idempotency, event publishing. If the runtime is not
+    ``live_actionable`` (readiness gate failed, no broker credentials,
+    OMS not wired) the command refuses with a clear error.
+    """
+    parsed = _parse_place_order_args(args)
+    if parsed is None:
+        console.print(
+            "[yellow]Available oms subcommands:[/yellow]\n"
+            "  oms place SYMBOL EXCHANGE SIDE QUANTITY [PRICE] "
+            "[--type MKT|LMT] [--product MIS|NRML|CNC]\n"
+            "  oms (no args — show OMS summary)\n"
+            "  orders [status_filter]\n"
+            "  trades"
+        )
+        return
+    if "_error" in parsed:
+        console.print(f"[red]{parsed['_error']}[/red]")
+        return
+    if not broker_service.live_actionable:
+        console.print(
+            "[red]OMS refused: runtime is not live-actionable. "
+            "Run `tradex doctor` for the production readiness report; "
+            "address every failing check before placing orders.[/red]"
+        )
+        return
+    tc = broker_service.trading_context
+    if tc is None:
+        console.print(
+            "[red]OMS refused: no TradingContext available. "
+            "Verify .env.local credentials and broker connectivity.[/red]"
+        )
+        return
+    try:
+        order = broker_service.place_order(
+            symbol=parsed["symbol"],
+            exchange=parsed["exchange"],
+            side=parsed["side"],
+            quantity=parsed["quantity"],
+            price=parsed["price"],
+            order_type=parsed["order_type"],
+        )
+    except Exception as exc:
+        console.print(f"[red]place_order failed: {exc}[/red]")
+        return
+    console.print(
+        f"[green]Order accepted:[/green] {order.order_id} "
+        f"{order.symbol} {order.side.value} {order.quantity} "
+        f"@ {order.price} status={order.status.value}"
+    )
 
 
 def show_orders(
@@ -155,5 +260,12 @@ def show_oms_summary(broker_service: BrokerService, console: Console) -> None:
 
 
 def run(args: list[str], broker_service: BrokerService, console: Console) -> None:
-    """Entry point for OMS related subcommands."""
-    pass
+    """Entry point for OMS related subcommands.
+
+    With no arguments this prints the OMS summary. ``oms place ...``
+    routes through :func:`place_order_cmd`.
+    """
+    if args and args[0] == "place":
+        place_order_cmd(args, broker_service, console)
+        return
+    show_oms_summary(broker_service, console)

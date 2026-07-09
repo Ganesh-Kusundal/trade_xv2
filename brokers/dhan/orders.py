@@ -37,7 +37,7 @@ from domain import (
 from domain import (
     Side as OrderSide,
 )
-from domain.field_mapping import DefaultFieldMapping
+from brokers.common import DefaultFieldMapping
 from domain.ports.risk_manager import RiskManagerPort
 from domain.symbols import normalize_exchange
 from domain.events import DomainEvent
@@ -429,8 +429,7 @@ class OrdersAdapter:
             broker's ``status`` field (or inferred from
             ``errorCode`` being absent).
         """
-        from domain.entities import OrderResponse
-
+        from brokers.common import OrderResponse
         # Safety guard: prevent live order cancellations if disabled
         if not self._allow_live_orders:
             return OrderResponse.fail("Live orders are disabled. Set DHAN_ALLOW_LIVE_ORDERS=1 to enable.")

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from domain.entities.market import MarketDepth
+from brokers.common import MarketDepth
 from domain.extensions.base import Extension
 from domain.value_objects.capability import Capability
 

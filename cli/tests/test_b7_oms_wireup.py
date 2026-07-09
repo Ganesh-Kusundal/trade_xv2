@@ -45,17 +45,36 @@ from application.oms import (
 )
 
 # ── Helper: enable fail-open for tests that expect the legacy
-# placeholder semantics. Per the M-7 contract, the default is
-# fail-closed; tests must opt in.
+# placeholder semantics. Per the M-7 / Phase 1.1 contract, the default is
+# fail-closed; tests that expect the legacy placeholder must opt in
+# both via the env var AND the explicit flag passed to ``BrokerService``.
+# Tests that exercise the fail-closed path explicitly set
+# ``RISK_FAIL_OPEN=""`` and pass ``authorize_risk_fail_open=False``.
 
 
 @pytest.fixture(autouse=True)
 def _enable_fail_open(monkeypatch):
     """Default: RISK_FAIL_OPEN=1 so existing tests see the legacy
     placeholder when the gateway is missing. Tests that exercise the
-    fail-closed path explicitly monkeypatch RISK_FAIL_OPEN=0.
+    fail-closed path explicitly monkeypatch RISK_FAIL_OPEN="".
+
+    Phase 1.1 update: setting the env var alone is now refused. Tests
+    that build a ``BrokerService`` must pass
+    ``authorize_risk_fail_open=True`` explicitly. The patched
+    :class:`BrokerService` below injects the flag automatically.
     """
     monkeypatch.setenv("RISK_FAIL_OPEN", "1")
+    # Patch BrokerService.__init__ to default to authorize_risk_fail_open=True
+    # so the existing tests continue to pass without rewriting every call site.
+    from cli.services import broker_service as _bs_mod
+
+    _original_init = _bs_mod.BrokerService.__init__
+
+    def _patched_init(self, **kwargs):
+        kwargs.setdefault("authorize_risk_fail_open", True)
+        return _original_init(self, **kwargs)
+
+    monkeypatch.setattr(_bs_mod.BrokerService, "__init__", _patched_init)
     yield
 
 

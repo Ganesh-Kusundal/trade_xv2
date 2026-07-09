@@ -8,12 +8,13 @@ Usage:
     session = BrokerSession(gateway)
     stock = session.stock("RELIANCE")
     stock.ltp  # Fetches quote via provider
-    stock.buy(10, price=2450)  # Places order via execution provider
+    session.buy(stock, 10, price=2450)  # Places order via execution provider
 """
 
 from __future__ import annotations
 
 import threading
+from decimal import Decimal
 from typing import Any
 
 from domain.instruments.instrument import Equity, Future, Index
@@ -90,6 +91,101 @@ class BrokerSession:
         """Fetch option chain for an underlying."""
         instrument = self.index(underlying, exchange=exchange)
         return instrument.option_chain(expiry=expiry)
+
+    # ── Execution (order placement lives here, not on Instrument) ──────
+
+    def _place_order(
+        self,
+        instrument: "Equity | Index | Future",
+        side: str,
+        quantity: int,
+        price: Decimal | None = None,
+        order_type: str = "LIMIT",
+        product_type: str = "INTRADAY",
+        trigger_price: Decimal | None = None,
+    ):
+        """Place an order (internal helper). Delegates to execution_provider."""
+        executor = self._get_execution_provider()
+        if executor is None:
+            raise RuntimeError("No execution provider configured for this broker")
+        from domain.orders.requests import OrderRequest
+
+        return executor.place_order(
+            OrderRequest(
+                symbol=instrument.symbol,
+                exchange=instrument.exchange,
+                transaction_type=side,
+                quantity=quantity,
+                price=price or Decimal("0"),
+                order_type=order_type,
+                product_type=product_type,
+                trigger_price=trigger_price,
+            )
+        )
+
+    def buy(
+        self,
+        instrument: "Equity | Index | Future",
+        quantity: int,
+        price: Decimal | None = None,
+        order_type: str = "LIMIT",
+        product_type: str = "INTRADAY",
+    ):
+        """Place a buy order for the given instrument."""
+        return self._place_order(
+            instrument, "BUY", quantity, price, order_type, product_type
+        )
+
+    def sell(
+        self,
+        instrument: "Equity | Index | Future",
+        quantity: int,
+        price: Decimal | None = None,
+        order_type: str = "LIMIT",
+        product_type: str = "INTRADAY",
+    ):
+        """Place a sell order for the given instrument."""
+        return self._place_order(
+            instrument, "SELL", quantity, price, order_type, product_type
+        )
+
+    def market(
+        self,
+        instrument: "Equity | Index | Future",
+        quantity: int,
+        side: str = "BUY",
+    ):
+        """Place a market order for the given instrument."""
+        if side not in ("BUY", "SELL"):
+            raise ValueError(f"Invalid side: {side!r}. Must be 'BUY' or 'SELL'.")
+        return self._place_order(instrument, side, quantity, order_type="MARKET")
+
+    def limit(
+        self,
+        instrument: "Equity | Index | Future",
+        quantity: int,
+        price: Decimal,
+        side: str = "BUY",
+    ):
+        """Place a limit order for the given instrument."""
+        if side not in ("BUY", "SELL"):
+            raise ValueError(f"Invalid side: {side!r}. Must be 'BUY' or 'SELL'.")
+        return self._place_order(instrument, side, quantity, price=price)
+
+    def stop_loss(
+        self,
+        instrument: "Equity | Index | Future",
+        quantity: int,
+        trigger_price: Decimal,
+        side: str = "BUY",
+    ):
+        """Place a stop-loss order for the given instrument."""
+        if side not in ("BUY", "SELL"):
+            raise ValueError(f"Invalid side: {side!r}. Must be 'BUY' or 'SELL'.")
+        return self._place_order(
+            instrument, side.upper(), quantity,
+            order_type="STOP_LOSS_MARKET", trigger_price=trigger_price,
+        )
 
     def __repr__(self) -> str:
         return f"BrokerSession(broker={self._broker_id}, gateway={type(self._gw).__name__})"

@@ -139,7 +139,6 @@ class TestImportDirection:
 
         # Files that ARE the shims — they MUST import from themselves
         shim_file_paths = {
-            str(ROOT / "brokers/common/core/models.py"),
             str(ROOT / "brokers/common/core/types.py"),
             str(ROOT / "brokers/common/core/field_mapping.py"),
             str(ROOT / "brokers/common/core/requests.py"),

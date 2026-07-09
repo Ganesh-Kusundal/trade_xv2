@@ -1,73 +1,119 @@
-"""Event Bus Service layer for diagnostics and operation terminal."""
+"""Event Bus Service layer for diagnostics and operation terminal.
+
+Phase 3: this service is now a thin read-only mirror over the canonical
+OMS :class:`EventBus` (built inside :class:`TradingContext`). The
+previous implementation built a second, separate ``EventBus`` instance
+and exposed ``simulate_event()`` which fabricated fake events. That was
+a **silent safety bug**: an operator running ``tradex events`` saw
+fabricated activity while the real OMS events flowed through a
+different bus that was never wired to the CLI display. This module
+now subscribes to the canonical bus and surfaces real events only.
+"""
 
 from __future__ import annotations
 
-import random
+from typing import TYPE_CHECKING
 
-from infrastructure.event_bus import EventBus
+if TYPE_CHECKING:
+    from infrastructure.event_bus import EventBus
 
 
 class EventBusService:
-    """Monitors event bus traffic and manages metrics/counters."""
+    """Read-only mirror over the canonical OMS EventBus.
 
-    def __init__(self):
-        self.event_bus = EventBus()
-        self._counters = {
-            "Market Events": 0,
-            "Signal Events": 0,
-            "Order Events": 0,
-            "Position Events": 0,
-            "Risk Events": 0,
+    Maintains a rolling in-memory log of recent events for the CLI
+    ``events`` command. If constructed without a real bus (legacy code
+    paths or unit tests that do not build a TradingContext), the
+    service falls back to a private empty bus that never receives
+    events; the ``events`` command will then print an explanatory
+    banner rather than fabricate activity.
+    """
+
+    def __init__(self, event_bus: "EventBus | None" = None) -> None:
+        self.event_bus = event_bus
+        self._counters: dict[str, int] = {
+            "MARKET": 0,
+            "ORDER": 0,
+            "POSITION": 0,
+            "RISK": 0,
         }
         self._logs: list[str] = []
+        self._max_logs = 500
+        # Phase 3: subscribe to the canonical bus so every published
+        # event is captured for operator visibility. No fabrication.
+        if event_bus is not None:
+            try:
+                event_bus.subscribe_all(self._on_event)
+            except AttributeError:
+                # The bus may not expose subscribe_all in older
+                # versions; degrade to no-op rather than fabricate.
+                pass
+
+    def _on_event(self, event) -> None:
+        """Capture every event for the rolling log + per-category counter."""
+        event_type = getattr(event, "event_type", "")
+        category = self._categorise(event_type)
+        self._counters[category] = self._counters.get(category, 0) + 1
+        line = self._format(event)
+        self._logs.append(line)
+        if len(self._logs) > self._max_logs:
+            self._logs.pop(0)
+
+    @staticmethod
+    def _categorise(event_type: str) -> str:
+        upper = event_type.upper()
+        if "TICK" in upper or "QUOTE" in upper or "DEPTH" in upper or "MARKET" in upper:
+            return "MARKET"
+        if "ORDER" in upper:
+            return "ORDER"
+        if "POSITION" in upper or "TRADE" in upper:
+            return "POSITION"
+        if "RISK" in upper:
+            return "RISK"
+        return "MARKET"
+
+    @staticmethod
+    def _format(event) -> str:
+        event_type = getattr(event, "event_type", "")
+        symbol = getattr(event, "symbol", "") or ""
+        source = getattr(event, "source", "") or ""
+        ts = getattr(event, "timestamp", None)
+        ts_str = ts.isoformat() if hasattr(ts, "isoformat") else str(ts)
+        payload = getattr(event, "payload", {}) or {}
+        order = payload.get("order")
+        trade = payload.get("trade")
+        if order is not None:
+            detail = (
+                f"{getattr(order, 'symbol', symbol)} "
+                f"{getattr(order, 'side', '')} "
+                f"{getattr(order, 'quantity', '')} @ "
+                f"{getattr(order, 'price', '')} "
+                f"status={getattr(order, 'status', '')}"
+            )
+            return f"[ORDER] {ts_str} {event_type} {detail}"
+        if trade is not None:
+            detail = (
+                f"{getattr(trade, 'symbol', symbol)} "
+                f"{getattr(trade, 'side', '')} "
+                f"qty={getattr(trade, 'quantity', '')} "
+                f"@ {getattr(trade, 'price', '')}"
+            )
+            return f"[POSITION] {ts_str} {event_type} {detail}"
+        return f"[{source or 'EVENT'}] {ts_str} {event_type} symbol={symbol}"
 
     def get_counters(self) -> dict[str, int]:
-        """Fetch current event counts."""
+        """Return a copy of the per-category counters."""
         return dict(self._counters)
 
     def get_logs(self, limit: int = 50) -> list[str]:
-        """Fetch rolling history of event logs."""
+        """Return the most recent N log lines (most recent last)."""
         return self._logs[-limit:]
 
-    def increment(self, category: str, message: str = "") -> None:
-        """Increment count for a category and append log."""
-        if category in self._counters:
-            self._counters[category] += 1
-            if message:
-                self._logs.append(message)
-                if len(self._logs) > 500:
-                    self._logs.pop(0)
+    def has_real_bus(self) -> bool:
+        """``True`` when this service is subscribed to a real OMS bus.
 
-    def simulate_event(self) -> str:
-        """Simulate a random event flowing through the pipeline."""
-        category = random.choice(list(self._counters.keys()))
-        msgs = {
-            "Market Events": [
-                "LTP Update: RELIANCE NSE @ 2567.40",
-                "Tick received: NIFTY IDX @ 25012.30",
-                "Option Chain updated: NIFTY 18 JUN Spot=25000",
-            ],
-            "Signal Events": [
-                "MovingAverage: BUY Signal generated for RELIANCE",
-                "EMA crossover: SELL Trigger for SBIN",
-                "VWAP cross: Signal generated NIFTY",
-            ],
-            "Order Events": [
-                "Order created: DHAN-ORD-34012 Qty=10 Price=2550",
-                "OMS state updated: DHAN-ORD-101 (FILLED)",
-                "Order cancellation request: ZR-ORD-998 (SUCCESS)",
-            ],
-            "Position Events": [
-                "Position updated: RELIANCE NSE (Qty=10, Realized PnL=0.00)",
-                "Holding sync complete: 2 assets verified",
-                "Position closed: NIFTY26JUN25000CE (PnL=+337.50)",
-            ],
-            "Risk Events": [
-                "Risk Check: Exposure Limit check PASSED (Units=2/3)",
-                "Margin check: Available margin sufficient",
-                "Max daily loss check: Daily loss at 0.00 / 5000.00 (OK)",
-            ],
-        }
-        msg = random.choice(msgs[category])
-        self.increment(category, f"[{category.split()[0].upper()}] {msg}")
-        return f"[{category.split()[0].upper()}] {msg}"
+        Used by the CLI ``events`` command to print an explanatory
+        banner when no TradingContext is available (legacy / unit-test
+        paths). The banner replaces the previous fabricated output.
+        """
+        return self.event_bus is not None

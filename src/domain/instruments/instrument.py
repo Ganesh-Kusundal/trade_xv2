@@ -379,76 +379,6 @@ class Instrument:
             return FutureChain.empty()
         return self._provider.get_future_chain(self._id)
 
-    # ── Orders ────────────────────────────────────────────────────────
-
-    def _place_order(
-        self,
-        side: str,
-        quantity: int,
-        price: Decimal | None = None,
-        order_type: str = "LIMIT",
-        product_type: str = "INTRADAY",
-        trigger_price: Decimal | None = None,
-    ):
-        """Place an order (internal helper)."""
-        if self._executor is None:
-            raise RuntimeError("No execution provider configured")
-        from domain.orders.requests import OrderRequest
-
-        return self._executor.place_order(
-            OrderRequest(
-                symbol=self.symbol,
-                exchange=self.exchange,
-                transaction_type=side,
-                quantity=quantity,
-                price=price or Decimal("0"),
-                order_type=order_type,
-                product_type=product_type,
-                trigger_price=trigger_price,
-            )
-        )
-
-    def buy(
-        self,
-        quantity: int,
-        price: Decimal | None = None,
-        order_type: str = "LIMIT",
-        product_type: str = "INTRADAY",
-    ):
-        """Place a buy order."""
-        return self._place_order("BUY", quantity, price, order_type, product_type)
-
-    def sell(
-        self,
-        quantity: int,
-        price: Decimal | None = None,
-        order_type: str = "LIMIT",
-        product_type: str = "INTRADAY",
-    ):
-        """Place a sell order."""
-        return self._place_order("SELL", quantity, price, order_type, product_type)
-
-    def market(self, quantity: int, side: str = "BUY"):
-        """Place a market order."""
-        if side not in ("BUY", "SELL"):
-            raise ValueError(f"Invalid side: {side!r}. Must be 'BUY' or 'SELL'.")
-        return self._place_order(side, quantity, order_type="MARKET")
-
-    def limit(self, quantity: int, price: Decimal, side: str = "BUY"):
-        """Place a limit order."""
-        if side not in ("BUY", "SELL"):
-            raise ValueError(f"Invalid side: {side!r}. Must be 'BUY' or 'SELL'.")
-        return self._place_order(side, quantity, price=price)
-
-    def stop_loss(self, quantity: int, trigger_price: Decimal, side: str = "BUY"):
-        """Place a stop-loss order."""
-        if side not in ("BUY", "SELL"):
-            raise ValueError(f"Invalid side: {side!r}. Must be 'BUY' or 'SELL'.")
-        return self._place_order(
-            side.upper(), quantity, order_type="STOP_LOSS_MARKET",
-            trigger_price=trigger_price,
-        )
-
     # ── Extensions ────────────────────────────────────────────────────
 
     @property
@@ -598,6 +528,14 @@ class Option(Instrument):
     @property
     def iv(self):
         return getattr(self._leg, "iv", None)
+
+    @property
+    def delta(self) -> Decimal:
+        """First-order greek, read from the option's greeks surface.
+
+        Thin accessor over ``Option.greeks`` — no analytics/IO imported.
+        """
+        return self.greeks.delta
 
     def black_scholes(self, spot: Decimal, rate: Decimal | None = None) -> Decimal | None:
         return None

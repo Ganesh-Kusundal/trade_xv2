@@ -9,7 +9,6 @@ from textual.widgets import Footer, Header, TabbedContent, TabPane
 
 from cli.services.broker_service import BrokerService
 from cli.services.event_bus_service import EventBusService
-from cli.services.oms_service import OmsService
 from cli.widgets.broker_console import BrokerConsoleWidget
 from cli.widgets.diagnostics_console import DiagnosticsConsoleWidget
 from cli.widgets.event_ws_console import EventWsConsoleWidget
@@ -30,13 +29,12 @@ class TradexTuiApp(App):
     def __init__(
         self,
         broker_service: BrokerService,
-        oms_service: OmsService,
         event_bus_service: EventBusService,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self._broker_service = broker_service
-        self._oms_service = oms_service
+        self._oms_service = broker_service
         self._event_bus_service = event_bus_service
 
     def compose(self) -> ComposeResult:

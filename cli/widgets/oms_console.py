@@ -10,7 +10,7 @@ from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical
 from textual.widgets import Button, DataTable, Input, Label, Select, Static
 
-from cli.services.oms_service import OmsService
+from cli.services.broker_service import BrokerService
 from domain.symbols import normalize_symbol
 
 logger = logging.getLogger(__name__)
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class OmsConsoleWidget(Static):
     """Interactive OMS operations console displaying order book, trade book, and order form."""
 
-    def __init__(self, oms_service: OmsService, **kwargs):
+    def __init__(self, oms_service: BrokerService, **kwargs):
         super().__init__(**kwargs)
         self._oms_service = oms_service
 

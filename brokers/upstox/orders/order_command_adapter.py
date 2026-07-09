@@ -137,8 +137,7 @@ class UpstoxOrderCommandAdapter(OrderCommand):
             :class:`OrderResponse` indicating success or carrying the
             broker's error code/message on failure.
         """
-        from domain.entities import OrderResponse
-
+        from brokers.common import OrderResponse
         try:
             result = self._order_client.cancel_order_v3(order_id)
         except (RuntimeError, OSError) as exc:

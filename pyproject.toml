@@ -226,7 +226,7 @@ skip-magic-trailing-comma = false
 # Run: lint-imports --config pyproject.toml
 
 [tool.importlinter]
-root_packages = ["domain", "brokers", "analytics", "datalake", "cli", "api", "application", "infrastructure"]
+root_packages = ["src/domain", "brokers", "analytics", "datalake", "cli", "api", "application", "infrastructure"]
 
 [[tool.importlinter.contracts]]
 name = "Domain independence"
@@ -313,6 +313,9 @@ ignore_imports = [
     "cli.services.broker_registry -> brokers.dhan.factory",
     "cli.services.broker_registry -> brokers.upstox.factory",
     "cli.services.broker_registry -> brokers.paper",
+    "cli.services.broker_registry -> brokers.paper.mock_broker",
+    "cli.services.broker_registry -> brokers.dhan.websocket",
+    "cli.services.broker_registry -> brokers.dhan.reconciliation",
     # Test-only: integration tests legitimately import broker implementations.
     "cli.tests.* -> brokers.dhan",
     "cli.tests.* -> brokers.dhan.**",

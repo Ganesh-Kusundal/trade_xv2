@@ -73,7 +73,15 @@ class TestUpstoxAdapterContext:
         s = _settings()
         ctx = UpstoxAdapterContext(settings=s, token_provider=lambda: "abc")
         assert isinstance(ctx.rate_limiter, MultiBucketRateLimiter)
-        assert set(ctx.rate_limiter.categories()) == {"quotes", "data", "orders", "admin"}
+        assert set(ctx.rate_limiter.categories()) == {
+            "orders",
+            "quotes",
+            "historical",
+            "option_chain",
+            "funds",
+            "positions",
+            "holdings",
+        }
 
     def test_http_client_shares_context_rate_limiter(self):
         s = _settings()

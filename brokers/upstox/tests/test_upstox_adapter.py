@@ -9,7 +9,7 @@ import pandas as pd
 import pytest
 
 from brokers.upstox.adapter import UpstoxDataAdapter
-from domain.entities.market import DepthLevel, MarketDepth, Quote
+from brokers.common import DepthLevel, MarketDepth, Quote
 from domain.entities.options import FutureChain, OptionChain
 from domain.instruments.instrument_id import InstrumentId
 from domain.ports.protocols import DataProvider

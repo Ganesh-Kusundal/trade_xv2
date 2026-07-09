@@ -115,11 +115,37 @@ class EventWsConsoleWidget(Static):
         self.refresh_ws_event_data()
 
     def trigger_simulation(self) -> None:
-        """Trigger a simulated event and append it to the log widget."""
-        msg = self._event_bus_service.simulate_event()
+        """Trigger an event and append it to the log widget.
+
+        Phase 3: this method used to call
+        ``self._event_bus_service.simulate_event()`` which fabricated
+        fake events on a separate, non-OMS bus. It now reads real
+        events from the OMS event bus via the
+        ``EventBusService.get_logs()`` mirror. When no real bus is
+        attached, it prints a banner explaining why no events are
+        displayed rather than fabricating activity.
+        """
         logs_list = self.query_one("#tui-event-logs-list", ListView)
-        logs_list.append(ListItem(Label(msg)))
-        # Scroll to bottom
+        if not self._event_bus_service.has_real_bus():
+            logs_list.append(
+                ListItem(
+                    Label(
+                        "[yellow]No OMS event bus attached; "
+                        "events will appear when a live broker is connected.[/yellow]"
+                    )
+                )
+            )
+            logs_list.index = len(logs_list) - 1
+            return
+        # Pull the most recent real event from the service's rolling
+        # log mirror (populated by the canonical bus subscription).
+        recent = self._event_bus_service.get_logs(limit=1)
+        if not recent:
+            logs_list.append(
+                ListItem(Label("[dim]Waiting for OMS events...[/dim]"))
+            )
+        else:
+            logs_list.append(ListItem(Label(recent[-1])))
         logs_list.index = len(logs_list) - 1
 
     def refresh_ws_event_data(self) -> None:

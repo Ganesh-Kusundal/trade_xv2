@@ -1347,4 +1347,105 @@ gantt
 
 ---
 
+# Addendum — Current-State Review (2026-07-09, graph @ `817d09e`)
+
+> Appended after a directed knowledge-graph rebuild of the current HEAD
+> (`graphify-out/graph.json`, 29,800 nodes / 58,846 edges / 968 communities).
+> This updates and **corrects** the Jul-8 review in three places, and
+> reconciles `brokers/OBJECT_MODEL_PLAN.md` with the existing plan above.
+
+## A. What changed since Jul 8
+
+The D-phase refactor (`817d09e`, commits `ca4c5b1`→`817d09e`) added:
+- `src/domain/ports/` seam — `broker_gateway, order_store, event_publisher,
+  execution_provider, market_data, risk_manager, margin_provider, lifecycle,
+  time_service, provider_registry, bootstrap`. This is the **correct** port
+  layer the Jul-8 review asked for (Phase 4 "Extract ports").
+- Self-registering adapters (`e770b7a`, "close D1").
+- `runtime/trading_runtime_factory.py` (the kernel seed).
+
+**But it introduced a regression the Jul-8 review could not have seen:**
+
+### 🔴 P0 — Broker layer is currently import-broken
+`brokers/dhan/gateway.py:13` and `brokers/upstox/gateway.py:53` do
+`from brokers.common.core.domain import ...`, but:
+- `brokers/common/core/domain.py` **does not exist** → `ModuleNotFoundError`.
+- `brokers/common/core/models.py:31` imports `brokers.common.core.constants`
+  / `.types`, which **also don't exist** (only `models.py` is in that dir).
+- `pyproject.toml:214-217` *enforces* importing these models from
+  `brokers.common.core.domain` — so the enforcement rule is dead.
+
+Verified: `python -c "import brokers.dhan.gateway"` → fails.
+`python -c "from src.domain.entities.order import Order"` → works.
+
+**Implication for the Jul-8 plan:** Phase 1 "Remove dead code & fix ports"
+must *first* restore importability. The `core/` shim is half-wired — create
+`core/domain.py` (re-export of `core/models.py`), `core/constants.py`,
+`core/types.py`, then repoint the stale `from domain.*` alias in
+`brokers/common/*` → `src.domain.*`.
+
+## B. Corrections to the Jul-8 review
+
+1. **"Instrument God Object — 486 lines" (Risk #3).** The `OBJECT_MODEL_PLAN.md`
+   proposes a *new* `Instrument(ABC)` under `brokers/common/objects/`. This would
+   **worsen** the God Object problem and violate the plan's own boundary rule
+   (brokers = transports, not domain). Correct approach: **extend the existing
+   `src/domain/instruments/instrument.py`** (already a near-rich `Instrument`
+   with `quote`/`ltp`/`market_depth` properties) and **decompose** it per the
+   Jul-8 Phase 2 ("Decompose God Object"). Do not create a second `Instrument`.
+
+2. **"Duplicate domain objects — Instrument defined 3 times" (Risk #4).** Still
+   true, but the *third* copy (`brokers/common/core/models.py`) is the broken
+   shim from §A. The two real canonical sets are `src/domain/entities/*` (works)
+   and `brokers/common/core/models.py` (broken). Fold the latter into the former;
+   keep a `brokers.common.core.domain` re-export for `pyproject` compliance.
+
+3. **"Two gateway interfaces" (Risk #2).** The graph confirms two `EventBus`
+   impls too (`infrastructure/event_bus` vs `brokers/common/event_bus`) plus
+   4× rate limiter and 3× status mapper. These are lower-effort wins than the
+   gateway unification and should be done in Phase 1.
+
+4. **Rich object model is ~70% already built in `src/domain`, not `brokers/`.**
+   `src/domain/options/option_chain.py` already exposes `chain.atm`, `chain.calls`,
+   `chain.puts`, `chain.pcr()`, `chain.max_pain()`, `chain.greeks()` — and
+   depends **only on a `DataProvider` port** (zero broker imports). The prompt's
+   target API (`Equity("NIFTY").option_chain().atm.delta`) is mostly present.
+   → The SDK work (Jul-8 Phase 8) is smaller than estimated; build a thin
+   `interfaces/sdk` facade over existing `src/domain` objects + add
+   `subscribe()`/`history()`/`buy()` to `Instrument`.
+
+## C. Reconciled recommendation (supersedes OBJECT_MODEL_PLAN.md §8 layout)
+
+| OBJECT_MODEL_PLAN.md says | Corrected (this review) |
+|---|---|
+| Objects under `brokers/common/objects/` | Objects in `src/domain/instruments/*` + thin `interfaces/sdk/` |
+| New `Instrument(ABC)` with subscribe/history | Extend existing `src/domain/instruments/instrument.py`; decompose God Object |
+| Port `OptionChain` from `domain/aggregates/` | Retire `aggregates/option_chain.py`; `options/option_chain.py` is already richer |
+| Keep `MarketDataGateway` public | Demote to `BrokerTransport` behind `broker_gateway` port; never imported by domain |
+| Decorator for broker caps | ✅ Keep — but wrap `src/domain` instruments |
+| Composition for chains | ✅ Keep |
+
+## D. Updated priority (do this order)
+
+- **P0 (now):** Fix `core/` import break (§A). Unblocks everything.
+- **P0:** Repoint stale `domain.*` alias → `src.domain.*`.
+- **P1:** One EventBus, one RateLimiter, one status-mapper-as-data, fold
+  `core/models.py` → `src/domain/entities`.
+- **P2:** Decompose `Instrument` God Object; single OMS behind `order_store` port.
+- **P3:** `interfaces/sdk` facade (`Equity`/`Option`/`BrokerSession`) over
+  existing `src/domain` objects.
+
+## E. Definition of Done (add to Jul-8 checklist)
+
+- [ ] `import brokers.dhan.gateway` and `import brokers.upstox.gateway` succeed.
+- [ ] Exactly 1 `EventBus`, 1 `RateLimiter`, 1 `Order` class in the graph.
+- [ ] `grep -r "brokers/common/event_bus"` → 0 results.
+- [ ] `grep -r "from domain\." brokers/ src/` → 0 stale aliases.
+- [ ] `Equity("NIFTY").option_chain("…").atm.delta` runs end-to-end.
+- [ ] `import_linter` passes: brokers import only `src/domain/ports`, never
+      `src/domain` *implementations*.
+
+*End addendum. No code written (review-only per directive). Next step on
+approval: Phase 0 P0 import-break fix.*
+
 *Generated by Zed Agent · 2026-07-08 · TradeXV2 Architecture Review*

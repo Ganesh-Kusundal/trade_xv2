@@ -73,9 +73,10 @@ class UpstoxHttpClient:
         if rate_limiter is not None:
             self._rate_limiter = rate_limiter
         else:
-            from brokers.upstox.resilience.rate_limiter import UpstoxRateLimiterFactory
+            from brokers.common.resilience.rate_limiter import create_rate_limiter
+            from brokers.upstox.capabilities.snapshot import upstox_capabilities
 
-            self._rate_limiter = UpstoxRateLimiterFactory.create()
+            self._rate_limiter = create_rate_limiter("upstox", caps=upstox_capabilities())
         if session is not None:
             self._session = session
         else:

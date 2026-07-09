@@ -101,6 +101,29 @@ class UpstoxApiUrlResolver:
     def market_quote_ltp_v3_url(self) -> str:
         return self._delegate.market_quote_ltp_v3_url()
 
+    def historical_candle_v3_url(
+        self,
+        instrument_key: str,
+        unit: str,
+        interval: int,
+        to_date: str,
+        from_date: str | None = None,
+    ) -> str:
+        return self._delegate.historical_candle_v3_url(
+            instrument_key, unit, interval, to_date, from_date
+        )
+
+    def intraday_candle_v3_url(
+        self,
+        instrument_key: str,
+        unit: str,
+        interval: int,
+        to_date: str,
+    ) -> str:
+        return self._delegate.intraday_candle_v3_url(
+            instrument_key, unit, interval, to_date
+        )
+
     # ── WebSocket authorize (v2/v3, HFT) ───────────────────────────
     def feed_authorize_v2_url(self) -> str:
         return self._delegate.feed_authorize_v2_url()

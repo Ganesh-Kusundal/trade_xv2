@@ -54,9 +54,10 @@ class UpstoxAdapterContext:
             settings=settings, oauth_client=self._oauth_client
         )
 
-        from brokers.upstox.resilience.rate_limiter import UpstoxRateLimiterFactory
+        from brokers.common.resilience.rate_limiter import create_rate_limiter
+        from brokers.upstox.capabilities.snapshot import upstox_capabilities
 
-        self._rate_limiter = UpstoxRateLimiterFactory.create()
+        self._rate_limiter = create_rate_limiter("upstox", caps=upstox_capabilities())
         self._http_client = UpstoxHttpClient(
             token_provider=token_provider,
             settings=settings,

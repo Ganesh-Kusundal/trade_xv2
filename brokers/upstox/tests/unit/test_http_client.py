@@ -122,7 +122,15 @@ def test_default_rate_limiter_is_multi_bucket():
         token_provider=lambda: "TOK", settings=settings, session=session
     )
     assert isinstance(client.rate_limiter, MultiBucketRateLimiter)
-    assert set(client.rate_limiter.categories()) == {"quotes", "data", "orders", "admin"}
+    assert set(client.rate_limiter.categories()) == {
+        "orders",
+        "quotes",
+        "historical",
+        "option_chain",
+        "funds",
+        "positions",
+        "holdings",
+    }
 
 
 def test_rate_limit_bucket_mapping():

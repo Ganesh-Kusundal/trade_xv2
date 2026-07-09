@@ -788,8 +788,7 @@ class UpstoxBrokerGateway(BatchFetchMixin, MarketDataGateway, ObservabilityProvi
 
     def modify_order(self, order_id: str, **changes: Any) -> OrderResponse:
         """Modify an order via Upstox V3 API."""
-        from domain.entities import OrderResponse
-
+        from brokers.common import OrderResponse
         # Safety guard: prevent live order modifications if disabled
         if self._broker.settings.analytics_only:
             return OrderResponse.fail("Analytics-only mode: live orders are blocked.")

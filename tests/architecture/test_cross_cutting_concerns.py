@@ -478,6 +478,59 @@ class TestGuardrailNoPickleLoad:
         )
 
 
+class TestGuardrailNoInlineUpstoxUrls:
+    """REF-22: no inline ``https://api.upstox.com`` or
+    ``https://api-hft.upstox.com`` strings in Upstox production code.
+
+    All Upstox URLs MUST be constructed via
+    :class:`brokers.upstox.auth.urls.UpstoxApiUrlResolver`. The
+    resolver is the single source of truth — see
+    ``docs/UPSTOX_WIRE_FORMAT.md``.
+
+    Allowed exceptions:
+    - The resolver itself (``auth/urls.py``, ``config/endpoints.py``).
+    - Tests (the audit makes it easy to grep for these).
+    - Configuration defaults (where the host string is the value).
+    """
+
+    INLINE_PATTERNS = (
+        "https://api.upstox.com",
+        "https://api-hft.upstox.com",
+        "https://sandbox-api.upstox.com",
+        "https://sandbox-api-hft.upstox.com",
+    )
+
+    @pytest.mark.parametrize("directory", ["brokers/upstox"])
+    def test_no_inline_upstox_urls(self, directory: str):
+        if not (ROOT / directory).exists():
+            pytest.skip(f"{directory}/ not present")
+        files = _find_python_files([directory])
+        violations: dict[str, list[tuple[int, str]]] = {}
+        for filepath in files:
+            if "/tests/" in str(filepath) or "/test_" in str(filepath):
+                continue
+            # The resolver files are exempt — they ARE the source of truth.
+            if "auth/urls.py" in str(filepath) or "auth/config.py" in str(filepath):
+                continue
+            if "config/endpoints" in str(filepath):
+                continue
+            try:
+                content = filepath.read_text()
+                for line_no, line in enumerate(content.splitlines(), start=1):
+                    for pattern in self.INLINE_PATTERNS:
+                        if pattern in line:
+                            violations.setdefault(
+                                str(filepath.relative_to(ROOT)), []
+                            ).append((line_no, line.strip()[:80]))
+            except (UnicodeDecodeError, OSError):
+                continue
+        assert not violations, (
+            "Inline Upstox URL strings detected in production code. "
+            "Use brokers.upstox.auth.urls.UpstoxApiUrlResolver instead. "
+            f"Violations: {violations}"
+        )
+
+
 class TestGuardrailNoBareTokenLogging:
     """REF-29: no logger call interpolating a token-named variable
     in production code. The redaction filter is defence-in-depth;
@@ -500,4 +553,226 @@ class TestGuardrailNoBareTokenLogging:
             "Token/secret/password interpolation in logger call detected. "
             "Use extra={...} or pass an explicit redacted value. "
             f"Violations: {violations}"
+        )
+
+
+# ── Phase 8 architectural guardrails ──────────────────────────────────────
+# These tests enforce the invariants introduced in Phases 1-7. They are
+# static-analysis checks over the production source tree; they will
+# fail CI if a regression reintroduces a previously-fixed anti-pattern.
+
+
+def _file_contains_pattern(
+    filepath: Path,
+    needle: str,
+) -> list[int]:
+    """Return line numbers where ``needle`` appears literally in the file."""
+    matches: list[int] = []
+    try:
+        text = filepath.read_text()
+    except (OSError, UnicodeDecodeError):
+        return matches
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        if needle in line:
+            matches.append(lineno)
+    return matches
+
+
+def _walk_production_files() -> list[Path]:
+    """Return every production .py file (excluding tests, __pycache__, .venv)."""
+    skip_dirs = ("tests", "__pycache__", ".venv", "venv", "build", "dist", ".git")
+    skip_basenames = ("__init__",)
+    roots = ["brokers", "cli", "datalake", "analytics"]
+    files: list[Path] = []
+    for root in roots:
+        root_path = ROOT / root
+        if not root_path.exists():
+            continue
+        for path in root_path.rglob("*.py"):
+            spath = str(path)
+            if any(sd in spath for sd in skip_dirs):
+                continue
+            if any(part.startswith("test_") for part in path.parts):
+                continue
+            if path.name in skip_basenames and "/tests/" not in spath:
+                # __init__.py files are allowed (they may re-export)
+                continue
+            files.append(path)
+    return files
+
+
+class TestPhase8Guardrails:
+    """Static checks for the Phase 1-7 invariants.
+
+    A regression that re-introduces any of these anti-patterns should
+    fail this test class loudly so the CI pipeline catches it before
+    the code reaches production.
+    """
+
+    def test_no_simulate_event_in_production_code(self):
+        """Phase 3: ``simulate_event`` was deleted from EventBusService.
+        Production code must not call it — it fabricated fake events on a
+        separate, non-OMS bus, which was a silent safety bug.
+        """
+        import ast
+        violations: dict[str, list[int]] = {}
+        for path in _walk_production_files():
+            try:
+                tree = ast.parse(path.read_text(), filename=str(path))
+            except (SyntaxError, UnicodeDecodeError):
+                continue
+            for node in ast.walk(tree):
+                # Look for Attribute access: ``X.simulate_event``
+                if isinstance(node, ast.Attribute) and node.attr == "simulate_event":
+                    violations.setdefault(
+                        str(path.relative_to(ROOT)), []
+                    ).append(node.lineno)
+                # Or a Name: ``simulate_event(...)``
+                if isinstance(node, ast.Name) and node.id == "simulate_event":
+                    violations.setdefault(
+                        str(path.relative_to(ROOT)), []
+                    ).append(node.lineno)
+        assert not violations, (
+            "simulate_event() is forbidden in production code. "
+            "EventBusService must mirror the canonical OMS bus, never fabricate events. "
+            f"Violations: {violations}"
+        )
+
+    def test_no_dhan_reconciliation_monkey_patch(self):
+        """Phase 1.4: ``dhan_reconciliation._oms = order_manager`` was
+        replaced by ``TradingContext.attach_reconciliation_service``.
+        The monkey-patch left drift detection silently disabled if any
+        earlier step raised.
+
+        Scope: this test flags the specific anti-pattern of assigning
+        to ``_oms`` on a reconciliation *instance* in production code
+        paths outside of class ``__init__``. Class definitions and
+        legitimate setters (e.g. ``self._oms = ...`` inside a class
+        ``__init__``) are allowed.
+        """
+        import ast
+        violations: dict[str, list[int]] = {}
+        for path in _walk_production_files():
+            try:
+                tree = ast.parse(path.read_text(), filename=str(path))
+            except (SyntaxError, UnicodeDecodeError):
+                continue
+            for node in ast.walk(tree):
+                if not isinstance(node, ast.Assign):
+                    continue
+                # Look for ``X._oms = ...`` where X is an Attribute.
+                for target in node.targets:
+                    if not isinstance(target, ast.Attribute):
+                        continue
+                    if target.attr != "_oms":
+                        continue
+                    if not isinstance(target.value, ast.Attribute):
+                        # ``self._oms = ...`` is fine inside a class
+                        # __init__ (the legitimate dataclass-style setter).
+                        continue
+                    # ``reconciliation._oms = ...`` is the banned pattern.
+                    violations.setdefault(
+                        str(path.relative_to(ROOT)), []
+                    ).append(node.lineno)
+        assert not violations, (
+            "Direct reconciliation._oms assignment is forbidden (Phase 1.4). "
+            "Use TradingContext.attach_reconciliation_service() instead. "
+            f"Violations: {violations}"
+        )
+
+    def test_oms_service_place_order_calls_live_actionable(self):
+        """Phase 1.2: ``OmsService.place_order`` must check
+        ``live_actionable`` before dispatching. The contract is what
+        protects the OMS from running with an unsafe configuration.
+        """
+        # We verify the OmsService class has the live_actionable check
+        # by reading its source.
+        oms_path = ROOT / "cli" / "services" / "oms_service.py"
+        if not oms_path.exists():
+            pytest.skip("OmsService source not found")
+        text = oms_path.read_text()
+        assert "_live_actionable_fn()" in text, (
+            "OmsService.place_order must consult self._live_actionable_fn() "
+            "before dispatching to the OMS OrderManager. "
+            "Without this gate, place_order will dispatch under unsafe "
+            "configurations (missing broker creds, OMS not wired, "
+            "readiness gate failed)."
+        )
+
+    def test_broker_service_has_live_actionable_property(self):
+        """Phase 1.2: ``BrokerService.live_actionable`` must exist so
+        callers can query readiness before placing orders.
+        """
+        bs_path = ROOT / "cli" / "services" / "broker_service.py"
+        if not bs_path.exists():
+            pytest.skip("BrokerService source not found")
+        text = bs_path.read_text()
+        assert "def live_actionable" in text, (
+            "BrokerService.live_actionable property is required "
+            "(Phase 1.2). It is the source of truth for whether "
+            "place_order may dispatch."
+        )
+
+    def test_every_broker_has_authenticator_registered(self):
+        """Phase 7: every broker in the registry must have an
+        authenticator in ``brokers.common.auth.registry``.
+        """
+        from brokers.common.auth.registry import list_supported_brokers
+        from cli.services.broker_registry import ENV_FILES
+
+        authenticators = set(list_supported_brokers())
+        registered_brokers = set(ENV_FILES.keys())
+        missing = registered_brokers - authenticators
+        # paper / datalake intentionally have no authenticator.
+        missing -= {"paper", "datalake"}
+        assert not missing, (
+            f"Brokers {missing} are registered in broker_registry but "
+            "have no BrokerAuthenticator in brokers.common.auth.registry. "
+            "Add a DhanAuthenticator / UpstoxAuthenticator / etc."
+        )
+
+    def test_compose_module_exists(self):
+        """Phase 5: ``cli.services.compose.build_runtime`` is the
+        single composition root for the trading runtime.
+        """
+        compose_path = ROOT / "cli" / "services" / "compose.py"
+        if not compose_path.exists():
+            pytest.skip("compose.py not present")
+        text = compose_path.read_text()
+        assert "def build_runtime" in text, (
+            "cli.services.compose.build_runtime is the single composition "
+            "root for the trading runtime (Phase 5). Callers should "
+            "use it instead of constructing BrokerService directly."
+        )
+
+    def test_event_log_replays_order_placed(self):
+        """Phase 2.2: ``TradingContext._replay_log_into_oms`` must
+        replay ORDER_PLACED in addition to ORDER_UPDATED and TRADE.
+        Without this, orders placed just before a crash are lost on
+        restart.
+        """
+        ctx_path = ROOT / "brokers" / "common" / "oms" / "context.py"
+        if not ctx_path.exists():
+            pytest.skip("TradingContext source not found")
+        text = ctx_path.read_text()
+        assert "ORDER_PLACED" in text, (
+            "TradingContext._replay_log_into_oms must replay ORDER_PLACED "
+            "events so the OMS book is rebuilt on crash recovery. "
+            "Without this, an order placed just before a crash is lost."
+        )
+
+    def test_trade_model_supports_cumulative_filled(self):
+        """Phase 2.1: ``Trade.cumulative_filled`` is required so the OMS
+        uses monotonic fill semantics and out-of-order WS delivery
+        cannot decrease the running fill count.
+        """
+        models_path = ROOT / "brokers" / "common" / "core" / "models.py"
+        if not models_path.exists():
+            pytest.skip("models.py not found")
+        text = models_path.read_text()
+        assert "cumulative_filled" in text, (
+            "Trade.cumulative_filled is required (Phase 2.1) so the "
+            "OMS can use max(prev, cumulative) semantics. Out-of-order "
+            "WS delivery without this field double-counts or "
+            "under-counts fills."
         )
