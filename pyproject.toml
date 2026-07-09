@@ -50,7 +50,7 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src", "."]
-include = ["brokers*", "cli*", "analytics*", "datalake*", "config*", "domain*", "runtime*", "application*", "infrastructure*", "market_data*", "oms*", "event_bus*", "portfolio*", "risk*", "strategy*", "backtesting*", "replay*", "plugins*", "providers*", "interfaces*", "shared*", "tradex*"]
+include = ["brokers*", "cli*", "analytics*", "datalake*", "config*", "domain*", "runtime*", "application*", "infrastructure*", "market_data*", "oms*", "event_bus*", "portfolio*", "risk*", "strategy*", "backtesting*", "replay*", "tradex*"]
 
 # ─── pytest ────────────────────────────────────────────────
 [tool.pytest.ini_options]
@@ -229,7 +229,7 @@ skip-magic-trailing-comma = false
 # CI pins PYTHONPATH the same way (.github/workflows/ci.yml).
 
 [tool.importlinter]
-root_packages = ["domain", "brokers", "analytics", "datalake", "cli", "api", "application", "infrastructure", "tradex", "shared"]
+root_packages = ["domain", "brokers", "analytics", "datalake", "cli", "api", "application", "infrastructure", "tradex"]
 
 [[tool.importlinter.contracts]]
 name = "Domain independence"

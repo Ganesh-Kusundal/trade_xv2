@@ -1,6 +1,5 @@
 # Environment files
 .env
-.env.local
 .env.*
 !.env.example
 
@@ -45,7 +44,6 @@ venv/
 # Phase 0 additions
 .cache/
 .runtime/
-.env.local
 .env.local.sandbox
 .env.local.live_readonly
 .coverage.*
@@ -82,4 +80,8 @@ market_data/_quarantine/
 archive/
 
 graphify-out/
-.env.local
+
+# Runtime logs and lock files
+*.log
+runtime/*.lock
+runtime/*.json
