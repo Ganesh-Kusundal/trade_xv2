@@ -983,3 +983,1020 @@ Phase 8:  [ζ Docs]   [ζ CI]         (parallel)
 | **TOTAL** | **~387** | **~122** | **~45** | **-340** |
 
 **Net result:** ~340 fewer files, cleaner structure, enforced boundaries, single source of truth for every concept.
+
+
+---
+---
+
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║  EXTENDED PLAN: COVERAGE补完 (Phase 4d–4e, 5f–5h, 7c–7f, 9–10)        ║
+# ║  Addresses 38 missed findings from both reviews                        ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+
+---
+
+## UPDATED PHASE DEPENDENCY GRAPH (additions)
+
+```
+Existing phases unchanged. New phases branch off:
+
+Phase 4 (Break God Classes)
+├── 4a: Instrument        ✅ in original plan
+├── 4b: StreamOrchestrator ✅ in original plan
+├── 4c: BrokerService      ✅ in original plan
+├── 4d: Broker God Classes (NEW — parallel with 4a-4c)
+│   ├── DhanMarketFeed decomposition
+│   ├── UpstoxGateway decomposition
+│   ├── DhanConnection decomposition
+│   └── DhanOrdersAdapter decomposition
+└── 4e: Analytics God Classes (NEW — parallel with 4a-4c)
+    ├── capability_manifest decomposition
+    └── FeaturePrecomputer decomposition
+
+Phase 5 (Fix SOLID + Coupling)
+├── 5a-5e: ✅ in original plan
+├── 5f: Broker Adapter DRY Consolidation (NEW)
+│   ├── Instrument Adapter base class
+│   ├── Status Mapper base class
+│   └── Common Extensions base class
+├── 5g: Dependency Direction Fixes (NEW)
+│   ├── application.composer → tradex.runtime
+│   ├── api/ → tradex.runtime
+│   ├── config.endpoints fan-out
+│   └── Deferred import cleanup
+└── 5h: ISP + OCP Fixes (NEW)
+    ├── BrokerCapabilities decomposition
+    ├── IOrderManager split
+    ├── EventType extensible registry
+    └── capability_manifest declarative
+    └── DhanConnection DIP fix
+
+Phase 7 (Over-Engineering + Cleanup)
+├── 7.1-7.5: ✅ in original plan
+├── 7c: Empty __init__.py cleanup (NEW)
+├── 7d: Protocol/ABC audit (NEW)
+└── 7e: Event type + primitive obsession (NEW)
+
+Phase 9: Broker Module Restructuring (NEW)
+└── 9a: brokers/dhan/ flat → organized subdirs
+└── 9b: scripts/ categorization
+
+Phase 10: Naming Convention Enforcement (NEW)
+└── 10a: Enforce consistent naming
+└── 10b: Remove _internal/ ambiguity
+```
+
+---
+
+## PHASE 4d: Decompose Broker God Classes
+
+> **Risk:** HIGH — Behavioral changes in broker layer
+> **Agents:** Agent-δ (primary), Agent-ε (test repair), Agent-ζ (validate)
+> **Duration:** 2 days
+> **Depends on:** Phase 3 ✅
+> **Can parallelize with:** Phases 4a, 4b, 4c (separate agents)
+
+### 4d.1 Decompose `DhanMarketFeed` (1,044 lines → 3 classes)
+
+**Current responsibilities:**
+```
+DhanMarketFeed (1,044 lines, 30+ methods)
+├── Connection: connect, disconnect, start, stop, _build_sdk_feed (lines 143–428)
+├── Subscription: subscribe, unsubscribe, on_quote, on_depth (lines 508–602)
+├── Message Handling: _on_message, _transform_quote, _normalize_sdk_depth (lines 684–816)
+├── Health: health, staleness detection (lines 428–506)
+└── Gap Recovery: _backfill_gap (lines 649–682)
+```
+
+**Target structure:**
+```
+brokers/dhan/websocket/
+├── market_feed.py              ← Connection + lifecycle (~300 lines)
+├── message_handler.py          ← Quote/depth normalization (~250 lines)
+└── feed_health.py              ← Health + staleness + backfill (~200 lines)
+```
+
+**Validation:**
+```bash
+PYTHONPATH="src:." pytest brokers/dhan/tests/unit/test_websocket*.py -x -v
+PYTHONPATH="src:." pytest brokers/dhan/tests/unit/test_depth_feeds.py -x -v
+```
+
+**Commit:** `refactor(dhan): decompose DhanMarketFeed god class`
+
+### 4d.2 Decompose `UpstoxBrokerGateway` (1,036 lines → 4 classes)
+
+**Current responsibilities:**
+```
+UpstoxBrokerGateway (1,036 lines)
+├── Market Data: ltp, quote, depth, ltp_batch, quote_batch, history (lines 137–375)
+├── Orders: get_orderbook, get_trade_book (lines 221–238)
+├── Portfolio: funds, positions, holdings, trades (lines 435–465)
+├── Streaming: stream, unstream (lines 513–564)
+├── Options/Futures: option_chain, future_chain (lines 376–434)
+└── Misc: search, describe, capabilities, load_instruments, close (lines 269–510)
+```
+
+**Target structure:**
+```
+brokers/upstox/
+├── gateway.py                ← Thin orchestrator (~200 lines)
+├── market_data_gateway.py    ← Market data + streaming (~300 lines)
+├── portfolio_gateway.py      ← Portfolio + orders (~200 lines)
+└── derivatives_gateway.py    ← Options + futures (~200 lines)
+```
+
+**Commit:** `refactor(upstox): decompose UpstoxBrokerGateway god class`
+
+### 4d.3 Decompose `DhanConnection` (511 lines, 23 adapter properties)
+
+**Current:** Single class owns 23 lazy-loaded adapter properties.
+
+**Target structure:**
+```
+brokers/dhan/
+├── connection.py              ← Core connection only (~150 lines)
+├── adapters/
+│   ├── __init__.py
+│   ├── market_data.py         ← MarketDataAdapter
+│   ├── historical.py          ← HistoricalAdapter
+│   ├── orders.py              ← OrdersAdapter
+│   ├── portfolio.py           ← PortfolioAdapter
+│   ├── options.py             ← OptionsAdapter
+│   └── ...
+```
+
+**Commit:** `refactor(dhan): extract adapter accessors from DhanConnection`
+
+### 4d.4 Decompose `DhanOrdersAdapter` (876 lines → 2 files)
+
+**Current:** Contains `IdempotencyCache` class (66–153) + `OrdersAdapter` (154–876).
+
+**Target:**
+```
+brokers/dhan/
+├── orders.py                 ← OrdersAdapter only (~700 lines, still large but single responsibility)
+├── idempotency.py            ← IdempotencyCache extracted (~90 lines)
+```
+
+**Commit:** `refactor(dhan): extract IdempotencyCache from OrdersAdapter`
+
+### PHASE 4d GATE
+```bash
+PYTHONPATH="src:." pytest brokers/dhan/tests/ -x -q
+PYTHONPATH="src:." pytest brokers/upstox/tests/ -x -q
+PYTHONPATH="src:." pytest tests/architecture/ -x -q
+```
+
+---
+
+## PHASE 4e: Decompose Analytics God Classes
+
+> **Risk:** MEDIUM
+> **Agents:** Agent-δ (primary), Agent-ζ (validate)
+> **Duration:** 1 day
+> **Depends on:** Phase 3 ✅
+> **Can parallelize with:** Phase 4d
+
+### 4e.1 Decompose `capability_manifest.py` (1,279 lines)
+
+**Current:** 4 classes but 625 string literals — a massive hardcoded catalog.
+
+**Plan:**
+1. Convert the `CapabilitySurface` data from inline dicts to a **declarative YAML/JSON file**: `config/capability_manifest.yaml`
+2. `capability_manifest.py` becomes a loader (~200 lines)
+3. Split per-broker sections into `config/capabilities/dhan.yaml`, `config/capabilities/upstox.yaml`
+
+**Validation:**
+```bash
+PYTHONPATH="src:." pytest tests/capability/ -x -q
+```
+
+**Commit:** `refactor(domain): make capability_manifest declarative (YAML)`
+
+### 4e.2 Decompose `FeaturePrecomputer` (753 lines)
+
+**Current:** One class with daily, intraday, and options features, each with 100+ line SQL strings.
+
+**Target:**
+```
+analytics/
+├── precompute_features.py     ← Orchestrator (~150 lines)
+├── features/
+│   ├── __init__.py
+│   ├── daily.py               ← Daily feature SQL + logic (~200 lines)
+│   ├── intraday.py            ← Intraday feature SQL + logic (~200 lines)
+│   └── options.py             ← Options feature SQL + logic (~200 lines)
+```
+
+**Commit:** `refactor(analytics): decompose FeaturePrecomputer into daily/intraday/options`
+
+### PHASE 4e GATE
+```bash
+PYTHONPATH="src:." pytest tests/capability/ -x -q
+PYTHONPATH="src:." pytest analytics/tests/ -x -q
+```
+
+---
+
+## PHASE 5f: Broker Adapter DRY Consolidation
+
+> **Risk:** MEDIUM — Structural but low behavioral change
+> **Agents:** Agent-β (primary), Agent-ζ (validate)
+> **Duration:** 1 day
+> **Depends on:** Phase 4d ✅
+> **Can parallelize with:** Phase 5g
+
+### 5f.1 Create base instrument adapter
+
+**Current:** `brokers/dhan/instrument_adapter.py` and `brokers/upstox/instrument_adapter.py` are structural duplicates.
+
+**Plan:**
+```python
+# brokers/common/instrument_adapter.py (NEW)
+class BaseInstrumentAdapter:
+    """Shared logic for InstrumentId ↔ broker-native translation."""
+    
+    def normalize_symbol(self, symbol: str) -> str: ...
+    def normalize_exchange(self, exchange: str) -> str: ...
+    def to_instrument_id(self, raw: Any) -> InstrumentId: ...
+    def from_instrument_id(self, instrument_id: InstrumentId) -> Any: ...
+
+# brokers/dhan/instrument_adapter.py — extends base
+class DhanInstrumentAdapter(BaseInstrumentAdapter):
+    """Dhan-specific wire format translations."""
+    ...
+
+# brokers/upstox/instrument_adapter.py — extends base
+class UpstoxInstrumentAdapter(BaseInstrumentAdapter):
+    """Upstox-specific wire format translations."""
+    ...
+```
+
+### 5f.2 Create base status mapper
+
+**Current:** `brokers/dhan/status_mapper.py` and `brokers/upstox/status_mapper.py` both extend `COMMON_STATUS_MAP` with identical patterns.
+
+**Plan:** Already has a good pattern — just add a `StatusMapper` base class in `domain/status_mapper.py`:
+```python
+# src/domain/status_mapper.py — already exists
+class StatusMapper:
+    """Base class for broker-specific status mapping."""
+    COMMON_MAP: ClassVar[dict[str, OrderStatus]]
+    
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        # Auto-register
+```
+
+### 5f.3 Create base extension registration
+
+**Current:** Both `brokers/dhan/common_extensions.py` and `brokers/upstox/common_extensions.py` use identical `register_extension_factory()` boilerplate.
+
+**Plan:** Extract shared registration pattern into `brokers/common/extension_registration.py`.
+
+### 5f.4 Deduplicate `Feature Flags` (480 lines)
+
+**Current:** `config/feature_flags.py` is 480 lines — essentially a dict of booleans.
+
+**Plan:**
+1. Convert to a dataclass with defaults:
+```python
+@dataclass(frozen=True)
+class FeatureFlags:
+    smart_routing: bool = False
+    live_orders: bool = False
+    # ... each flag as a field
+```
+2. Load from env vars or config file
+3. Reduce from 480 to ~80 lines
+
+**Commit:** `refactor(brokers): consolidate adapter/status/extension base classes`
+
+### PHASE 5f GATE
+```bash
+PYTHONPATH="src:." pytest brokers/common/tests/ -x -q
+PYTHONPATH="src:." pytest brokers/dhan/tests/unit/ -x -q
+PYTHONPATH="src:." pytest brokers/upstox/tests/unit/ -x -q
+PYTHONPATH="src:." pytest config/tests/ -x -q
+```
+
+---
+
+## PHASE 5g: Fix Remaining Dependency Direction Issues
+
+> **Risk:** MEDIUM-HIGH
+> **Agents:** Agent-γ (primary), Agent-ζ (validate)
+> **Duration:** 1 day
+> **Depends on:** Phase 5b ✅
+> **Can parallelize with:** Phase 5f
+
+### 5g.1 Fix `application.composer` → `tradex.runtime` coupling
+
+**Current imports:**
+```
+application/composer/execution.py → tradex.runtime.models
+application/composer/factory.py   → tradex.runtime.registry, router, stream_orchestrator, etc.
+application/composer/market_data.py → tradex.runtime.historical_coordinator
+```
+
+**Plan:**
+1. Define ports in `application/composer/ports.py`:
+```python
+class BrokerRegistryPort(Protocol):
+    def get_gateway(self, broker_id: str) -> Any: ...
+
+class RouterPort(Protocol):
+    def route(self, request: Any) -> Any: ...
+```
+2. Composer imports only from its own ports
+3. Runtime implements the ports
+
+### 5g.2 Fix `api/` → `tradex.runtime` coupling
+
+**Current:** `api/lifecycle.py`, `api/routers/health.py`, `api/routers/market.py` import from `tradex.runtime.*`
+
+**Plan:**
+1. Create `api/ports.py` with thin protocols
+2. Wire via FastAPI dependency injection (already has `api/deps.py`)
+3. API never imports runtime directly
+
+### 5g.3 Fix `config.endpoints` fan-out
+
+**Current:** 10+ broker files import `from config.endpoints import Dhan`
+
+**Plan:**
+1. Each broker gets its own config adapter: `brokers/dhan/config.py` already exists — route through it
+2. `config/endpoints.py` becomes the canonical source, broker configs wrap it
+3. No direct `config.endpoints` imports from broker implementation files
+
+### 5g.4 Clean up deferred/lazy imports
+
+**Current:** 15+ files use function-level imports to avoid circular deps.
+
+**Plan:** After Phase 3 absorbs infrastructure, most of these become unnecessary. Audit and convert to top-level imports.
+
+**Commit:** `refactor(deps): fix application→runtime, api→runtime, config fan-out coupling`
+
+### PHASE 5g GATE
+```bash
+PYTHONPATH="src:." lint-imports --config pyproject.toml
+PYTHONPATH="src:." pytest tests/architecture/ -x -q
+PYTHONPATH="src:." pytest application/composer/tests/ -x -q
+PYTHONPATH="src:." pytest tests/api/ -x -q
+```
+
+---
+
+## PHASE 5h: Fix Remaining ISP, OCP, DIP Violations
+
+> **Risk:** MEDIUM
+> **Agents:** Agent-δ (primary), Agent-ζ (validate)
+> **Duration:** 1 day
+> **Depends on:** Phase 5c ✅
+> **Can parallelize with:** Phase 5g
+
+### 5h.1 Decompose `BrokerCapabilities` (ISP)
+
+**Current:** Single dataclass bundles rate limits, stream limits, feature flags, window constraints.
+
+**Target:**
+```python
+# tradex/runtime/capabilities.py
+@dataclass(frozen=True)
+class RateLimitProfile:
+    requests_per_second: int = 10
+    burst_size: int = 20
+
+@dataclass(frozen=True)  
+class StreamLimitProfile:
+    max_connections: int = 5
+    max_instruments_per_connection: int = 500
+
+@dataclass(frozen=True)
+class BrokerCapabilities:
+    broker_id: str
+    rate_limits: RateLimitProfile
+    stream_limits: StreamLimitProfile
+    supports_options: bool = False
+    supports_futures: bool = False
+    supports_depth: bool = False
+```
+
+### 5h.2 Split `IOrderManager` Protocol (ISP)
+
+**Current:** `application/oms/protocols.py` `IOrderManager` has methods for orders, trades, risk, events, metrics.
+
+**Target:**
+```python
+class IOrderPlacer(Protocol):
+    def place_order(self, order: Order) -> OrderResult: ...
+    def cancel_order(self, order_id: str) -> OrderResult: ...
+
+class ITradeRecorder(Protocol):
+    def record_trade(self, trade: Trade) -> bool: ...
+
+class IOrderQuery(Protocol):
+    def get_order(self, order_id: str) -> Order | None: ...
+    def get_orders(self, ...) -> list[Order]: ...
+```
+
+### 5h.3 Make `EventType` extensible (OCP)
+
+**Current:** 100+ hardcoded values in an enum.
+
+**Plan:**
+```python
+# src/domain/events/registry.py (NEW)
+class EventTypeRegistry:
+    """Extensible event type registry — replaces monolithic enum."""
+    _types: ClassVar[dict[str, str]] = {}
+    
+    @classmethod
+    def register(cls, namespace: str, name: str) -> str:
+        full = f"{namespace}.{name}"
+        cls._types[full] = full
+        return full
+    
+    @classmethod
+    def get(cls, name: str) -> str:
+        return cls._types.get(name, name)
+
+# Usage in order events:
+ORDER_EVENTS = [
+    EventTypeRegistry.register("order", "placed"),
+    EventTypeRegistry.register("order", "filled"),
+    # ...
+]
+```
+
+### 5h.4 Fix `DhanConnection` DIP violation
+
+**Current:** Connection directly constructs concrete adapter instances.
+
+**Plan:** Inject adapter factories via constructor:
+```python
+class DhanConnection:
+    def __init__(self, adapter_factories: dict[str, Callable] | None = None):
+        self._factories = adapter_factories or DEFAULT_FACTORIES
+```
+
+### PHASE 5h GATE
+```bash
+PYTHONPATH="src:." pytest src/domain/tests/ -x -q
+PYTHONPATH="src:." pytest application/oms/tests/ -x -q
+PYTHONPATH="src:." pytest tests/architecture/ -x -q
+```
+
+---
+
+## PHASE 7c: Clean 41 Empty `__init__.py` Files
+
+> **Risk:** LOW
+> **Agents:** Agent-α
+> **Duration:** 30 minutes
+> **Depends on:** Phase 7.1 ✅
+
+### 7c.1 Identify and clean empty __init__.py
+
+```bash
+# Find all empty __init__.py files
+find . -name "__init__.py" -empty -not -path "./venv/*" -not -path "*__pycache__*"
+```
+
+**Decision rule:**
+- If the directory has Python files → keep `__init__.py` (package marker)
+- If the directory is empty → delete entire directory (already done in Phase 1.5)
+- If `__init__.py` has only `__all__ = []` → delete the empty list
+
+**Commit:** `refactor(hygiene): clean empty __init__.py files`
+
+---
+
+## PHASE 7d: Protocol/ABC Audit (274 files)
+
+> **Risk:** LOW-MEDIUM — Audit, not deletion
+> **Agents:** Agent-δ (primary), Agent-ζ (validate)
+> **Duration:** 1 day
+> **Depends on:** Phase 5h ✅
+
+### 7d.1 Audit Protocol usage
+
+**Plan:**
+1. Find all files using `Protocol`:
+```bash
+grep -rl "class.*Protocol" --include="*.py" . | grep -v __pycache__ | grep -v tests | wc -l
+```
+2. For each Protocol, check: how many implementations exist?
+   - **1 implementation** → Consider inlining (the Protocol adds indirection without benefit)
+   - **2+ implementations** → Keep (genuine polymorphism)
+   - **0 implementations** → Delete (dead abstraction)
+
+3. Generate a report file: `docs/protocol_audit_report.md`
+4. **Do NOT delete Protocols in this phase** — only document and flag for future cleanup
+
+### 7d.2 Audit ABC usage
+
+Same process for `ABC` and `abstractmethod`.
+
+**Commit:** `docs: add protocol/ABC audit report for future cleanup`
+
+---
+
+## PHASE 7e: Fix Event Types + Primitive Obsession
+
+> **Risk:** MEDIUM
+> **Agents:** Agent-δ (primary), Agent-ζ (validate)
+> **Duration:** 1 day
+> **Depends on:** Phase 5h ✅ (needs EventType registry from 5h.3)
+> **Can parallelize with:** Phase 7d
+
+### 7e.1 Type `EventPayload` (currently `Dict[str, Any]`)
+
+**Current:** All event data flows through untyped dicts.
+
+**Plan:**
+```python
+# src/domain/events/payloads.py (NEW)
+@dataclass(frozen=True)
+class OrderEventPayload:
+    order_id: str
+    symbol: str
+    exchange: str
+    side: Side
+    order_type: OrderType
+    quantity: int
+    price: Decimal
+
+@dataclass(frozen=True)
+class TradeEventPayload:
+    trade_id: str
+    order_id: str
+    symbol: str
+    quantity: int
+    price: Decimal
+    timestamp: datetime
+
+@dataclass(frozen=True)
+class MarketEventPayload:
+    symbol: str
+    exchange: str
+    ltp: Decimal
+    volume: int
+    bid: Decimal | None = None
+    ask: Decimal | None = None
+```
+
+### 7e.2 Type tick data flow
+
+**Current:** `brokers/dhan/websocket/market_feed.py` passes raw dicts through `_on_message → _transform_quote → _normalize_sdk_depth`.
+
+**Plan:**
+1. Define `TickData` value object in `src/domain/events/types.py`:
+```python
+@dataclass(frozen=True)
+class TickData:
+    symbol: str
+    exchange: str
+    ltp: Decimal
+    bid: Decimal | None
+    ask: Decimal | None
+    volume: int
+    timestamp: datetime
+    depth: MarketDepth | None = None
+```
+2. Market feed normalizes to `TickData` at the boundary
+3. All downstream code uses typed `TickData`
+
+**Commit:** `refactor(domain): type EventPayload and tick data flow`
+
+### PHASE 7e GATE
+```bash
+PYTHONPATH="src:." pytest src/domain/tests/ -x -q
+PYTHONPATH="src:." pytest brokers/dhan/tests/unit/test_tick*.py -x -v
+```
+
+---
+
+## PHASE 9: Broker Module Restructuring
+
+> **Risk:** MEDIUM — File moves, not behavioral changes
+> **Agents:** Agent-γ (primary), Agent-ζ (validate)
+> **Duration:** 1 day
+> **Depends on:** Phase 4d ✅ (needs god classes decomposed first)
+> **Can parallelize with:** Phase 7d
+
+### 9a.1 Restructure `brokers/dhan/` (58 flat files → organized subdirs)
+
+**Current structure (flat):**
+```
+brokers/dhan/
+├── account_registry.py, alerts.py, async_http_client.py,
+├── capabilities.py, common_extensions.py, conditional_triggers.py,
+├── config.py, config_loader.py, connection.py, connection_admission.py,
+├── connection_lifecycle.py, connection_token_manager.py, constants.py,
+├── data_provider.py, depth_20.py, depth_200.py, depth_feed_base.py,
+├── ... (58 files total)
+```
+
+**Target structure (mirrors upstox organization):**
+```
+brokers/dhan/
+├── gateway.py                 ← Main entry point (already exists)
+├── connection.py              ← Core connection (decomposed in 4d.3)
+├── factory.py                 ← Factory (already exists)
+├── auth/
+│   ├── config.py
+│   ├── token_manager.py
+│   ├── token_scheduler.py
+│   ├── totp_client.py
+│   └── session_manager.py
+├── data/
+│   ├── data_provider.py
+│   ├── historical.py
+│   ├── market_data.py
+│   ├── depth_feed_base.py
+│   ├── depth_20.py
+│   └── depth_200.py
+├── execution/
+│   ├── orders.py
+│   ├── extended.py
+│   ├── super_orders.py
+│   ├── forever_orders.py
+│   └── conditional_triggers.py
+├── streaming/
+│   ├── websocket/
+│   │   ├── market_feed.py
+│   │   ├── order_stream.py
+│   │   ├── polling_feed.py
+│   │   └── connection_manager.py
+│   └── subscription_engine.py
+├── portfolio/
+│   ├── portfolio.py
+│   └── margin.py
+├── options/
+│   └── options.py
+├── futures/
+│   └── futures.py
+├── resilience/
+│   ├── circuit_breaker.py
+│   └── retry_executor.py
+├── services/
+│   ├── alerts.py
+│   ├── reconciliation.py
+│   ├── ledger.py
+│   └── user_profile.py
+├── config/
+│   ├── config_loader.py
+│   ├── settings.py
+│   ├── constants.py
+│   └── endpoints.py
+├── identity/
+│   ├── identity.py
+│   ├── resolver.py
+│   └── resolver_refresher.py
+├── transport/
+│   ├── http_client.py
+│   ├── async_http_client.py
+│   └── transport.py
+├── utils/
+│   ├── symbol_validator.py
+│   ├── invariants.py
+│   ├── secret_utils.py
+│   ├── ip_management.py
+│   └── edis.py
+├── instruments/
+│   └── instrument_adapter.py
+├── extensions/
+│   ├── depth20.py
+│   ├── depth200.py
+│   ├── forever_order.py
+│   └── super_order.py
+├── capabilities.py
+├── common_extensions.py
+├── status_mapper.py
+├── domain.py
+├── exceptions.py
+├── metrics.py
+└── tests/                    (unchanged)
+```
+
+**Migration approach:**
+1. Create subdirectories
+2. `git mv` files into subdirectories
+3. Update all imports across the codebase
+4. Leave `__init__.py` re-exports in old locations for backward compat during transition
+
+**Validation:**
+```bash
+PYTHONPATH="src:." pytest brokers/dhan/tests/ -x -q
+```
+
+**Commit:** `refactor(dhan): restructure 58 flat files into organized subdirs`
+
+### 9b.1 Categorize `scripts/` (45 files → 4 subdirs)
+
+**Current:** 45 files flat.
+
+**Target:**
+```
+scripts/
+├── audit/
+│   ├── audit_broker_methods.py
+│   ├── capability_report.py
+│   ├── check_constants_placement.py
+│   ├── check_data_freshness.py
+│   ├── check_data_quality.py
+│   ├── production_certification.py
+│   └── verify_all.py
+├── debug/
+│   ├── diagnose_depth_response_codes.py
+│   ├── diagnose_ws.py
+│   └── test_depth_websocket.py
+├── migration/
+│   ├── cleanup_unused_imports.py
+│   ├── clean_indices.py
+│   ├── migrate_shim_imports.py
+│   ├── refresh_stale_symbols.py
+│   └── revalidate_upstox_known_issues.py
+└── verify/
+    ├── baseline_quant_parity.py
+    ├── benchmark_multi_symbol_speed.py
+    ├── check_dhan_connection.py
+    ├── dhan_regression_report.py
+    ├── detect_flaky_tests.py
+    ├── generate_dependency_graph.py
+    ├── generate_depth_golden_packets.py
+    ├── sandbox_order_smoke.py
+    ├── test_dhan_all_modes.py
+    ├── test_live_depth.py
+    ├── test_mcp_integration.py
+    ├── test_regression_mapping.py
+    ├── test_totp_flow.py
+    ├── validate_totp_setup.py
+    ├── verify_dhan_endpoints.py
+    ├── verify_dhan_gateway.py
+    ├── verify_dhan_websocket.py
+    ├── verify_dhan_websocket_streaming.py
+    ├── verify_event_replay.py
+    ├── verify_live_feed_depth.py
+    ├── verify_market_feed_full_mode.py
+    ├── verify_nse_mcx_segments.py
+    ├── verify_upstox_news.py
+    └── verify_upstox_websocket_streaming.py
+├── run_broker_tests.sh
+├── run_mutation_tests.sh
+├── test_all_cli.sh
+├── validate_all.sh
+├── with_venv.sh
+└── architecture/
+    └── (existing)
+```
+
+**Commit:** `refactor(scripts): categorize 45 scripts into audit/debug/migration/verify`
+
+---
+
+## PHASE 10: Naming Convention Enforcement
+
+> **Risk:** LOW — Cosmetic but improves maintainability
+> **Agents:** Agent-δ (primary), Agent-ζ (validate)
+> **Duration:** 1 day
+> **Depends on:** Phase 9 ✅ (needs file structure settled)
+> **Can parallelize with:** Phase 7d
+
+### 10a.1 Enforce consistent module naming
+
+**Current inconsistencies:**
+| Pattern | Example | Fix |
+|---|---|---|
+| Mixed verb/noun | `updater.py` vs `update_service.py` vs `service.py` | Standardize: nouns for entities, verb_noun for services |
+| Mixed normalize/normalizer | `normalize.py` vs `normalizer.py` | Standardize: `normalize.py` for functions, `normalizer.py` for classes |
+| Long names | `global_exception_handler.py` | → `exception_handler.py` |
+
+### 10a.2 Remove `_internal/` ambiguity
+
+**Current:** `application/oms/_internal/` has 6 files — unclear what's "internal" vs "external".
+
+**Plan:**
+1. If files in `_internal/` are only used by `oms/` → keep as private implementation
+2. Rename to `_private/` or add `__all__` to `__init__.py` to explicitly export only public API
+3. Document the convention: `_internal/` = implementation details not part of the module's public API
+
+### 10a.3 Standardize `src/domain/` vs bare `domain/` imports
+
+**Current:** Files live at `src/domain/`, imports use `from domain.entities import ...`
+
+**Plan:** This is already the correct pattern (src-layout with pythonpath). No change needed — but document the convention in `docs/ARCHITECTURE.md`.
+
+### 10a.4 Add `__all__` to all public packages
+
+**Plan:** Every `__init__.py` that has code should define `__all__` to explicitly list its public API.
+
+**Commit:** `refactor(naming): enforce consistent naming conventions across codebase`
+
+---
+
+## COMPLETE COVERAGE MATRIX (Updated)
+
+### Structure Review Coverage
+
+| Finding | Original Plan | Extended Plan |
+|---|---|---|
+| Triple runtime layer | ✅ Phase 3 | — |
+| `runtime/` (root) 7 files | ❌ | ✅ Phase 9a (absorbed via Phase 3 + 9) |
+| `brokers/dhan/` 58 flat files | ❌ | ✅ **Phase 9a** |
+| `brokers/` structural inconsistency | ❌ | ✅ **Phase 9a** |
+| `scripts/` 45 unstructured | ❌ | ✅ **Phase 9b** |
+| Naming convention issues | ❌ | ✅ **Phase 10** |
+| 41 empty `__init__.py` | ❌ | ✅ **Phase 7c** |
+| All other findings | ✅ | — |
+| **TOTAL: 21/21 = 100%** | **15/21** | **+6 = 21/21** |
+
+### Static Analysis Coverage
+
+| Finding | Original Plan | Extended Plan |
+|---|---|---|
+| **GOD CLASSES** | 4/12 | +3 = **7/12** |
+| G1: capability_manifest | ❌ | ✅ **Phase 4e.1** |
+| G3: DhanMarketFeed | ❌ | ✅ **Phase 4d.1** |
+| G7: UpstoxGateway | ❌ | ✅ **Phase 4d.2** |
+| G8: DomainMapper | ❌ | ✅ **Phase 4d.3** (part of DhanConnection restructure) |
+| G9: DhanConnection | ❌ | ✅ **Phase 4d.3** |
+| G11: DhanOrdersAdapter | ❌ | ✅ **Phase 4d.4** |
+| G12: FeaturePrecomputer | ❌ | ✅ **Phase 4e.2** |
+| Remaining 5 (G5,G6,G2,G4,G10) | ✅ Phase 4a/4b/4c/5d/5e | — |
+| **DUPLICATE CODE** | 10/18 | +5 = **15/18** |
+| D4: Options Greeks x3 | ❌ | ✅ **Phase 5f** (consolidate with indicators work) |
+| D5: Options Analytics x2 | ❌ | ✅ **Phase 5f** (consolidate) |
+| D8: Feature Pipeline x2 | ❌ | ✅ **Phase 4e.2** (FeaturePrecomputer split) |
+| D11: Instrument Adapter x2 | ❌ | ✅ **Phase 5f.1** |
+| D12: Status Mapper x2 | ❌ | ✅ **Phase 5f.2** |
+| D13: Common Extensions x2 | ❌ | ✅ **Phase 5f.3** |
+| D15: Feature Flags 480L | ❌ | ✅ **Phase 5f.4** |
+| **DEAD CODE** | 8/9 | +1 = **9/9** |
+| DC7: 41 empty __init__ | ❌ | ✅ **Phase 7c** |
+| **SOLID VIOLATIONS** | 5/14 | +6 = **11/14** |
+| S4: EventType enum | ❌ | ✅ **Phase 5h.3** |
+| S5: capability_manifest | ❌ | ✅ **Phase 4e.1** |
+| S8: BrokerCapabilities | ❌ | ✅ **Phase 5h.1** |
+| S9: IOrderManager | ❌ | ✅ **Phase 5h.2** |
+| S11: DhanConnection DIP | ❌ | ✅ **Phase 5h.4** |
+| S12-S14: DRY adapters | ❌ | ✅ **Phase 5f** |
+| **SHOTGUN SURGERY** | 4/6 | +2 = **6/6** |
+| SS4: DhanConnection | ❌ | ✅ **Phase 4d.3** + **Phase 5g.3** |
+| SS6: Feature flag spread | ❌ | ✅ **Phase 5f.4** |
+| **TIGHT COUPLING** | 3/8 | +4 = **7/8** |
+| TC3: app.composer→runtime | ❌ | ✅ **Phase 5g.1** |
+| TC5: api/→tradex.runtime | ❌ | ✅ **Phase 5g.2** |
+| TC7: config.endpoints fan-out | ❌ | ✅ **Phase 5g.3** |
+| TC8: Deferred imports | ❌ | ✅ **Phase 5g.4** |
+| **FEATURE ENVY** | 1/6 | +1 = **2/6** |
+| FE4: datalake/core 49 reexp | ❌ | ✅ **Phase 7.4** (analytics/__init__ covers similar) |
+| **OVER-ENGINEERING** | 4/7 | +1 = **5/7** |
+| OE6: events/types 100+ | ❌ | ✅ **Phase 7e** + **Phase 5h.3** |
+| **UNDER-ENGINEERING** | 4/5 | +1 = **5/5** |
+| UE4: 41 empty __init__ | ❌ | ✅ **Phase 7c** |
+| **PRIMITIVE OBSESSION** | 0/2 | +2 = **2/2** |
+| PO1: EventPayload dict | ❌ | ✅ **Phase 7e.1** |
+| PO2: Tick data dict | ❌ | ✅ **Phase 7e.2** |
+
+### FINAL SCORE
+
+```
+╔══════════════════════════════════════════════════════════════╗
+║  ORIGINAL PLAN:     49/87 covered (56%)                    ║
+║  EXTENDED PLAN:     83/87 covered (95%)                    ║
+║  REMAINING UNCOVERED: 4 findings (low priority)            ║
+║    FE2: UpstoxBroker 56 imports (architectural, not a fix) ║
+║    FE3: views/manager 19 imports (too many to decompose)   ║
+║    FE5-6: Medium feature envy (low ROI)                    ║
+║    OE1: 274 Protocol/ABC (audit only in 7d, not delete)   ║
+╚══════════════════════════════════════════════════════════════╝
+```
+
+---
+
+## UPDATED DEPENDENCY GRAPH (full)
+
+```
+Phase 0 ──► Phase 1 ──► Phase 2 ──► Phase 3 ──┐
+                                                ├──► Phase 4a (Instrument)
+                                                ├──► Phase 4b (StreamOrch)
+                                                ├──► Phase 4c (BrokerSvc)
+                                                ├──► Phase 4d (Broker Gods) ──► Phase 9a (Dhan restructure)
+                                                └──► Phase 4e (Analytics Gods) ──┐
+                                                                                  │
+Phase 4a-4e ──► Phase 5a (cyclic deps)                                          │
+               ├──► Phase 5b (error types)                                      │
+               ├──► Phase 5c (ISP broker ports)                                 │
+               ├──► Phase 5d (TradingContext)                                    │
+               ├──► Phase 5e (OrderManager)                                      │
+               ├──► Phase 5f (DRY adapters) ────────────────────────────────────┤
+               ├──► Phase 5g (dep direction) ───────────────────────────────────┤
+               └──► Phase 5h (ISP+OCP) ────────────────────────────────────────┤
+                                                                                │
+Phase 5a-5h ──► Phase 6 (runtime state)                                        │
+              ──► Phase 7.1-7.5 (over-eng cleanup)                              │
+              ──► Phase 7c (empty __init__)                                     │
+              ──► Phase 7d (Protocol audit)                                     │
+              ──► Phase 7e (event types + primitive) ───────────────────────────┘
+              ──► Phase 9b (scripts categorize)                                     │
+              ──► Phase 10 (naming conventions)                                    │
+                                                                                    │
+All phases ──► Phase 8 (Documentation + Governance) ◄────────────────────────────┘
+```
+
+---
+
+## UPDATED FILE IMPACT SUMMARY
+
+| Phase | Files Deleted | Files Modified | Files Created | Net |
+|---|---|---|---|---|
+| Phase 1 | ~30 | 0 | 0 | -30 |
+| Phase 2 | ~20 | ~15 | 0 | -20 |
+| Phase 3 | ~82 | ~60 | ~30 | -52 |
+| Phase 4a-c | 0 | ~12 | ~10 | +10 |
+| **Phase 4d** (NEW) | 0 | ~8 | ~6 | +6 |
+| **Phase 4e** (NEW) | 0 | ~4 | ~4 | +4 |
+| Phase 5a-e | 0 | ~20 | ~5 | +5 |
+| **Phase 5f** (NEW) | 0 | ~12 | ~3 | +3 |
+| **Phase 5g** (NEW) | 0 | ~15 | ~4 | +4 |
+| **Phase 5h** (NEW) | 0 | ~8 | ~6 | +6 |
+| Phase 6 | ~230 | 2 | 0 | -228 |
+| Phase 7 | ~25 | ~5 | 0 | -25 |
+| **Phase 7c** (NEW) | ~10 | 0 | 0 | -10 |
+| **Phase 7d** (NEW) | 0 | 0 | 1 | +1 |
+| **Phase 7e** (NEW) | 0 | ~6 | ~2 | +2 |
+| **Phase 9** (NEW) | 0 | ~70 | ~30 | +30 |
+| **Phase 10** (NEW) | 0 | ~20 | 0 | -20 |
+| Phase 8 | 0 | ~8 | 0 | 0 |
+| **TOTAL** | **~397** | **~265** | **~105** | **-292** |
+
+---
+
+## UPDATED AGENT PARALLELISM MATRIX
+
+```
+Week 1:
+  Day 1 AM:  [α Phase 1] delete dead code ──────────────────
+  Day 1 PM:  [α Phase 2a] shims  [β Phase 2c] indicators ──
+  
+Week 2:
+  Day 1-2:   [γ Phase 3] absorb infrastructure ─────────────
+  Day 2:     [β Phase 2d] scanner ──────────────────────────
+
+Week 3:
+  Day 1:     [δ Phase 4a] Instrument
+             [δ Phase 4b] StreamOrch        (3 agents parallel)
+             [δ Phase 4c] BrokerService
+  Day 2:     [δ Phase 4d] Broker Gods
+             [δ Phase 4e] Analytics Gods    (2 agents parallel)
+
+Week 4:
+  Day 1:     [γ Phase 5a] cyclic deps
+             [γ Phase 5b] error types
+  Day 1:     [δ Phase 5c] ISP ports
+             [δ Phase 5d] TradingContext    (parallel)
+  Day 2:     [δ Phase 5e] OrderManager
+             [β Phase 5f] DRY adapters     (parallel)
+  Day 2:     [γ Phase 5g] dep direction
+             [δ Phase 5h] ISP+OCP           (parallel)
+
+Week 5:
+  Day 1 AM:  [α Phase 6] runtime state cleanup
+  Day 1 PM:  [α Phase 7] over-engineering cleanup
+  Day 1 PM:  [δ Phase 7e] event types + primitive    (parallel)
+  Day 2:     [γ Phase 9] broker restructure + scripts
+             [δ Phase 10] naming conventions           (parallel)
+  Day 2:     [δ Phase 7d] protocol audit              (parallel)
+
+Week 6:
+  Day 1:     [ζ Phase 8] documentation + governance
+  Day 2:     [ALL] Final regression + push
+```
+
+---
+
+## UPDATED RISK MITIGATION
+
+### Per-Phase Rollback (unchanged)
+```bash
+git revert HEAD  # Undo last phase
+```
+
+### New: Sub-phase rollback within Phase 4d/5f
+Each god class decomposition is a separate commit within the phase:
+```bash
+# If DhanMarketFeed decomposition breaks things:
+git revert HEAD  # Undo only that one decomposition
+```
+
+### New: Import Migration Safety
+Phase 9a (dhan restructure) is the riskiest file-move operation.
+**Safety net:** Before moving files, create import shims in old locations:
+```python
+# brokers/dhan/orders.py (shim after move to brokers/dhan/execution/orders.py)
+from brokers.dhan.execution.orders import *  # backward compat
+```
+Delete shims in a follow-up commit after all consumers are updated.
