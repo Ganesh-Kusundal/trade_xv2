@@ -89,7 +89,7 @@ archive/
 
 graphify-out/
 
-# Runtime logs and lock files
+# Runtime logs and lock files (top-level process dir only)
 *.log
-runtime/*.lock
-runtime/*.json
+/runtime/*.lock
+/runtime/*.json
