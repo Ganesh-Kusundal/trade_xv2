@@ -217,7 +217,8 @@ class BrokerService:
         if _ENV_PATH.exists():
             try:
                 # B7: OMS risk_manager first (capital gate for live orders).
-                oms_risk_manager = self._build_oms_risk_manager()
+                oms_risk_manager, oms_capital_provider = self._build_oms_risk_manager()
+                self._oms_capital_provider = oms_capital_provider
                 # Production path: bootstrap = create + automatic auth probe
                 result = bootstrap_gateway(
                     "dhan",
@@ -240,6 +241,8 @@ class BrokerService:
                     self._gateway = result.gateway
                     if hasattr(self, "_oms_gateway_holder"):
                         self._oms_gateway_holder["gw"] = self._gateway
+                    if oms_capital_provider is not None:
+                        oms_capital_provider.update_gateway(self._gateway)
                     self._build_and_register_oms_services(oms_risk_manager)
                     self._start_websocket_services()
                     self._lifecycle.start_all()

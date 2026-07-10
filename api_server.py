@@ -15,7 +15,7 @@ from interface.api.config import APIConfig
 from interface.api.main import create_app
 from infrastructure.auth.environment_bootstrap import bootstrap_environment
 from infrastructure.logging_config import configure_logging
-from runtime.api_bootstrap import initialize_api_services
+from interface.api.bootstrap import initialize_api_services
 
 logger = logging.getLogger(__name__)
 

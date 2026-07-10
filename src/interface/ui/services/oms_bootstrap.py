@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import logging
 import os
-from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -44,118 +43,25 @@ class OmsBootstrap:
         """B7: build a RiskManager for the OMS that the live path
         will consult.
 
-        C.1 (Phase C): the capital_fn is now wired to the real
-        ``gateway.funds().available_balance`` once the gateway is
-        constructed. The closure captures the gateway by reference via
-        ``self._svc._oms_gateway_holder``, which ``_ensure_initialized``
-        populates after the factory call returns. This is the central
-        risk-calibration invariant: the daily_loss_pct and
-        position_pct checks are sized to the real account, not a
-        placeholder.
+        Returns:
+            Tuple of ``(RiskManager, GatewayCapitalProvider)`` so callers
+            and tests can unpack ``rm, cp = service._build_oms_risk_manager()``
+            and later call ``cp.update_gateway(gateway)`` once the live
+            gateway exists.
 
-        B-3 / M-7 (2026-06-15): the legacy ``Decimal("1000000")`` silent
-        placeholder has been removed. The capital_fn now:
-
-          * Returns the real broker balance when available.
-          * On any failure (init incomplete, broker call exception,
-            zero/negative balance), increments
-            ``self._svc._capital_fallback_count`` and emits a WARNING.
-          * Returns ``Decimal(0)`` — which the OMS interprets as
-            "Insufficient capital" and BLOCKS every order — UNLESS
-            ``RISK_FAIL_OPEN=1`` is set in the environment, in which
-            case the operator has explicitly authorised the legacy
-            1,000,000 placeholder. The override is logged at WARNING
-            and exposed as a Prometheus gauge
-            (``risk_fail_open_active``).
-
-        This is a fail-safe design: no order can be placed against an
-        unknown capital baseline unless the operator has explicitly
-        opted into fail-open mode.
+        Capital retrieval is delegated to :mod:`oms_setup` which wires
+        :class:`GatewayCapitalProvider` + :class:`TrackedCapitalProvider`
+        (fail-closed by default; ``RISK_FAIL_OPEN=1`` + explicit
+        authorisation enables the legacy placeholder).
         """
-        from application.oms._internal.risk_manager import RiskConfig, RiskManager
-        from application.oms.position_manager import PositionManager
+        from interface.ui.services.oms_setup import build_risk_manager as _build
 
+        # Keep gateway holder for any legacy paths that still set it.
         svc = self._svc
-
-        # The gateway is set after the factory returns. Use a mutable
-        # holder so the closure can read the live reference.
         if not hasattr(svc, "_oms_gateway_holder") or svc._oms_gateway_holder is None:
             svc._oms_gateway_holder: dict = {"gw": None}  # type: ignore[assignment]
 
-        def _capital_fn() -> Decimal:
-            gw = svc._oms_gateway_holder.get("gw")
-            if gw is None:
-                # Init not yet complete or gateway construction failed.
-                # B-3: fail closed — return 0 so RiskManager blocks every
-                # order. Operator must set RISK_FAIL_OPEN=1 to override.
-                svc._capital_fallback_count += 1
-                if svc._risk_fail_open:
-                    logger.warning(
-                        "risk_capital_using_placeholder",
-                        extra={
-                            "reason": "gateway_not_constructed",
-                            "placeholder": "Decimal('1000000')",
-                            "fallback_count": svc._capital_fallback_count,
-                        },
-                    )
-                    return Decimal("1000000")
-                logger.error(
-                    "risk_capital_blocking",
-                    extra={
-                        "reason": "gateway_not_constructed",
-                        "fallback_count": svc._capital_fallback_count,
-                        "override": "set RISK_FAIL_OPEN=1 to allow",
-                    },
-                )
-                return Decimal("0")
-
-            try:
-                balance = gw.funds()
-            except Exception as exc:
-                # Broker call failed (network, auth, etc.). B-3: fail closed
-                # by default; allow override via RISK_FAIL_OPEN=1.
-                svc._capital_fallback_count += 1
-                if svc._risk_fail_open:
-                    logger.warning(
-                        "risk_capital_using_placeholder",
-                        extra={
-                            "reason": f"funds_call_failed:{type(exc).__name__}",
-                            "placeholder": "Decimal('1000000')",
-                            "fallback_count": svc._capital_fallback_count,
-                        },
-                    )
-                    return Decimal("1000000")
-                logger.error(
-                    "risk_capital_blocking",
-                    extra={
-                        "reason": f"funds_call_failed:{type(exc).__name__}",
-                        "fallback_count": svc._capital_fallback_count,
-                        "override": "set RISK_FAIL_OPEN=1 to allow",
-                    },
-                )
-                return Decimal("0")
-
-            balance_value = getattr(balance, "available_balance", None)
-            if balance_value is None or balance_value <= 0:
-                # B-3: zero/negative balance is a hard stop, even with
-                # RISK_FAIL_OPEN. A phantom capital would defeat the risk
-                # gate. The operator must wait for a positive balance.
-                svc._capital_fallback_count += 1
-                logger.error(
-                    "risk_capital_blocking",
-                    extra={
-                        "reason": f"balance_non_positive:{balance_value}",
-                        "fallback_count": svc._capital_fallback_count,
-                    },
-                )
-                return Decimal("0")
-            return balance_value
-
-        return RiskManager(
-            position_manager=PositionManager(),
-            config=RiskConfig(),
-            capital_fn=_capital_fn,
-        )
+        return _build(svc)
 
     # ------------------------------------------------------------------
     # TradingContext + reconciliation + event log

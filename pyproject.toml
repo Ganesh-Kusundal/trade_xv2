@@ -401,9 +401,16 @@ ignore_imports = [
     "analytics.replay.engine -> interface.ui.services.compose",
 ]
 
-# Known residual (NOT enforced yet): runtime.trading_runtime_factory lazily imports
-# interface.ui.services.broker_service. Do not add "runtime ↛ interface" until that
-# edge is removed (prefer composition-root injection). See REF-6 notes.
+[[tool.importlinter.contracts]]
+name = "Runtime does not import interface"
+type = "forbidden"
+source_modules = ["runtime"]
+forbidden_modules = ["interface"]
+unmatched_ignore_imports_alerting = "warn"
+ignore_imports = [
+    # Back-compat shim only; call sites should use interface.api.bootstrap.
+    "runtime.api_bootstrap -> interface.api.bootstrap",
+]
 
 [[tool.importlinter.contracts]]
 name = "Application infrastructure separation"
@@ -418,7 +425,8 @@ ignore_imports = [
     "application.composer.gap_reconciler -> infrastructure.time.clock",
     # Services import infrastructure IO directly (parquet storage).
     "application.services.download_engine -> infrastructure.io.parquet",
-    "application.services.historical_data -> infrastructure.io.parquet",
+    # Thin re-export: HistoricalDataService lives in infrastructure (wave 3).
+    "application.services.historical_data -> infrastructure.historical_data",
     # Production readiness inspects hardened TLS sessions.
     "application.services.production_readiness -> infrastructure.security.ssl_hardening",
     # Audit / clock edges under application.data|streaming|scheduling (namespace

@@ -50,10 +50,13 @@ def build_risk_manager(service: BrokerService) -> tuple[RiskManager, GatewayCapi
     Returns:
         Tuple of (RiskManager, GatewayCapitalProvider)
     """
-    # Create base capital provider
+    # Create base capital provider. fail_closed=False so soft failures
+    # return fallback_balance; TrackedCapitalProvider applies the
+    # fail-open / fail-closed policy (0 vs RISK_MANUAL_FAIL_OPEN).
     capital_provider = GatewayCapitalProvider(
         gateway=None,  # Will be updated after gateway construction
         fallback_balance=RISK_FALLBACK_CAPITAL,
+        fail_closed=False,
     )
 
     # Wrap with tracking

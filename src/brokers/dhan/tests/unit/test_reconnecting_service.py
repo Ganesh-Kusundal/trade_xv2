@@ -122,13 +122,22 @@ class TestMessageTracking:
 
 class TestBackoffDiscipline:
     def test_initial_backoff_value(self):
-        assert ReconnectingServiceMixin.INITIAL_BACKOFF == 1.0
-        assert ReconnectingServiceMixin.MAX_BACKOFF == 30.0
+        from domain.constants.resilience import (
+            BACKOFF_MULTIPLIER,
+            MAX_RETRY_DELAY_MS,
+            RETRY_BASE_DELAY_MS,
+        )
+
+        assert ReconnectingServiceMixin.INITIAL_BACKOFF == RETRY_BASE_DELAY_MS / 1000.0
+        assert ReconnectingServiceMixin.MAX_BACKOFF == MAX_RETRY_DELAY_MS / 1000.0
+        assert BACKOFF_MULTIPLIER == 2.0  # doubles each step
 
     def test_backoff_sleep_returns_doubled_value(self):
+        from domain.constants.resilience import BACKOFF_MULTIPLIER
+
         stub = _StubMixin()
         next_backoff = stub._backoff_sleep(2.0)
-        assert next_backoff == 4.0
+        assert next_backoff == 2.0 * BACKOFF_MULTIPLIER
 
     def test_backoff_sleep_caps_at_max(self):
         stub = _StubMixin()

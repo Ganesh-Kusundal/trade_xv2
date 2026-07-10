@@ -1,7 +1,8 @@
-"""TradingRuntimeFactory — single composition root for CLI, API, and scripts.
+"""TradingRuntimeFactory — wire a Runtime from an existing broker service.
 
-Unifies broker gateway wiring, OMS TradingContext, TradingOrchestrator,
-optional BrokerInfrastructure for multi-broker routing, and runtime parity gating.
+BrokerService construction (CLI/API) lives in the UI compose composition root.
+This package wires only an already-built broker service; it must not depend on
+the presentation layer.
 """
 
 from __future__ import annotations
@@ -46,7 +47,7 @@ class Runtime:
 
 
 class TradingRuntimeFactory:
-    """Build a :class:`Runtime` with consistent wiring across entry points."""
+    """Build a :class:`Runtime` from an injected broker service."""
 
     def __init__(
         self,
@@ -71,37 +72,8 @@ class TradingRuntimeFactory:
         self._orchestrator_dry_run = orchestrator_dry_run
         self._skip_parity_gate = skip_parity_gate
 
-    @classmethod
-    def build_for_api(
-        cls,
-        *,
-        wire_orchestrator: bool = True,
-        skip_parity_gate: bool = False,
-        wire_intelligent_gateway: bool | None = None,
-    ) -> Runtime:
-        """API bootstrap: single AsyncEventBus shared with BrokerService + OMS."""
-        from interface.ui.services.broker_service import BrokerService
-        from runtime.composition import create_api_event_bus
-
-        event_bus, _ = create_api_event_bus(maxsize=2000)
-        bs = BrokerService(event_bus=event_bus)
-        factory = cls(
-            wire_orchestrator=wire_orchestrator,
-            skip_parity_gate=skip_parity_gate,
-            wire_intelligent_gateway=wire_intelligent_gateway if wire_intelligent_gateway is not None else True,
-        )
-        return factory.build_from_broker_service(bs)
-
-    def build(self) -> Runtime:
-        """Construct and wire the full trading runtime (CLI path)."""
-        from interface.ui.services.broker_service import BrokerService
-
-        bs = BrokerService()
-        return self.build_from_broker_service(bs)
-
     def build_from_broker_service(self, bs: Any) -> Runtime:
         """Wire runtime from an existing :class:`BrokerService`."""
-        from interface.ui.services.oms_service import OmsService
         from runtime.parity_gate import assert_runtime_parity_or_raise
         from runtime.production_config import validate_production_config
 
@@ -140,17 +112,13 @@ class TradingRuntimeFactory:
         # no adapter needed. Only paper/replay/backtest need adapters.
         # See application/execution/execution_mode_adapter.py docstring.
 
-        oms_service = OmsService(
-            gateway=gateway,
-            trading_context=tc,
-        )
-
+        # D6: OmsService retired — BrokerService owns order place/cancel + live_actionable.
         return Runtime(
             broker_name=bs.active_broker_name,
             gateway=gateway,
             trading_context=tc,
             lifecycle=bs.lifecycle,
-            oms_service=oms_service,
+            oms_service=bs,
             http_observability=bs.http_observability,
             readiness_report=getattr(bs, "_readiness_report", None),
             live_actionable=bs.live_actionable,
@@ -239,23 +207,3 @@ class TradingRuntimeFactory:
         except Exception as exc:
             logger.warning("Failed to build BrokerInfrastructure: %s", exc)
             return None
-
-
-def build_runtime(
-    broker: str = "dhan",
-    *,
-    authorize_risk_fail_open: bool = False,
-    env_path: Path | None = None,
-    wire_orchestrator: bool = True,
-    wire_intelligent_gateway: bool | None = None,
-    skip_parity_gate: bool = False,
-) -> Runtime:
-    """Convenience wrapper around :class:`TradingRuntimeFactory`."""
-    return TradingRuntimeFactory(
-        broker=broker,
-        authorize_risk_fail_open=authorize_risk_fail_open,
-        env_path=env_path,
-        wire_orchestrator=wire_orchestrator,
-        wire_intelligent_gateway=wire_intelligent_gateway,
-        skip_parity_gate=skip_parity_gate,
-    ).build()

@@ -38,6 +38,7 @@ from brokers.dhan.streaming.connection_admission import MarketFeedConnectionAdmi
 from brokers.dhan.api.reconnecting_service import ReconnectingServiceMixin
 from brokers.dhan.data.depth_parser import DepthPacketParser
 from domain import DepthLevel, MarketDepth
+from domain.constants.resilience import BACKOFF_MULTIPLIER, MAX_RETRY_DELAY_MS
 from domain.symbols import normalize_symbol
 from domain.events import DomainEvent
 from infrastructure.event_bus.event_bus import EventBus
@@ -410,7 +411,12 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
 
             if not self._stop_event.is_set():
                 self._reconnect_count += 1
-                time.sleep(min(2 ** min(self._reconnect_count, 5), 30))
+                time.sleep(
+                    min(
+                        BACKOFF_MULTIPLIER ** min(self._reconnect_count, 5),
+                        MAX_RETRY_DELAY_MS / 1000.0,
+                    )
+                )
 
     def _connect_and_run(self) -> None:
         """Establish WebSocket connection and process messages."""

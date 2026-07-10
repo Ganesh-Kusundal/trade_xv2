@@ -1,79 +1,11 @@
-"""API service bootstrap — shared runtime wiring without CLI imports.
+"""Back-compat re-export — prefer :mod:`interface.api.bootstrap`.
 
-Used by :mod:`api_server` and tests to initialize datalake + trading runtime.
+Kept so existing ``from runtime.api_bootstrap import initialize_api_services``
+call sites keep working. New code should import from interface.
 """
 
 from __future__ import annotations
 
-import logging
-from pathlib import Path
-from typing import Any
-
-from runtime.trading_runtime_factory import Runtime, TradingRuntimeFactory
-
-logger = logging.getLogger(__name__)
-
-
-def initialize_api_services(
-    project_root: Path | None = None,
-    *,
-    wire_orchestrator: bool = True,
-    skip_parity_gate: bool = False,
-) -> dict[str, Any]:
-    """Build datalake services and unified trading runtime for the API."""
-    root = project_root or Path(__file__).resolve().parent.parent
-
-    from analytics.views.manager import ViewManager
-    from datalake.storage.catalog import DataCatalog
-    from datalake.gateway import DataLakeGateway
-
-    logger.info("Initializing TradeXV2 API services from runtime bootstrap...")
-
-    datalake_gateway = DataLakeGateway(root=str(root / "market_data"))
-    data_catalog = DataCatalog(root=str(root / "market_data"), read_only=True)
-    view_manager = ViewManager(
-        catalog_path=root / "market_data" / "catalog.duckdb",
-        read_only=True,
-    )
-
-    runtime: Runtime = TradingRuntimeFactory.build_for_api(
-        wire_orchestrator=wire_orchestrator,
-        skip_parity_gate=skip_parity_gate,
-    )
-
-    trading_context = runtime.trading_context
-    event_bus = runtime.event_bus
-    if trading_context is not None and event_bus is not trading_context.event_bus:
-        logger.warning(
-            "Runtime event_bus differs from TradingContext event_bus; using context bus"
-        )
-        event_bus = trading_context.event_bus
-
-    # Create composers from broker infrastructure (if available)
-    market_data_composer = None
-    execution_composer = None
-    broker_infra = runtime.broker_infrastructure
-    if broker_infra is not None:
-        from application.composer.factory import create_composers_from_infra
-
-        risk_manager = trading_context.risk_manager if trading_context else None
-        market_data_composer, execution_composer = create_composers_from_infra(
-            infra=broker_infra,
-            risk_manager=risk_manager,
-        )
-        logger.info("Composers created with risk_manager=%s", "yes" if risk_manager else "no")
-
-    return {
-        "datalake_gateway": datalake_gateway,
-        "data_catalog": data_catalog,
-        "view_manager": view_manager,
-        "event_bus": event_bus,
-        "trading_context": trading_context,
-        "broker_service": runtime.broker_service,
-        "market_data_composer": market_data_composer,
-        "execution_composer": execution_composer,
-        "runtime": runtime,
-    }
-
+from interface.api.bootstrap import initialize_api_services
 
 __all__ = ["initialize_api_services"]

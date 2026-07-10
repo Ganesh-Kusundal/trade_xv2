@@ -16,7 +16,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from application.oms.capital_provider import CapitalProvider
-from domain.constants.defaults import RISK_MANUAL_FAIL_OPEN
+from domain.constants.defaults import RISK_MANUAL_FAIL_OPEN as RISK_FAIL_OPEN_THRESHOLD
 
 if TYPE_CHECKING:
     from application.oms.capital_provider import GatewayCapitalProvider

@@ -41,6 +41,12 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Generic, TypeVar
 
+from domain.constants.resilience import (
+    BACKOFF_MULTIPLIER,
+    MAX_RETRY_DELAY_MS,
+    RETRY_BASE_DELAY_MS,
+)
+
 _CallbackT = TypeVar("_CallbackT", bound=Callable[..., None])
 
 
@@ -68,10 +74,11 @@ class ReconnectingServiceMixin(Generic[_CallbackT]):
     _message_count: int
     _callback_lock: threading.RLock
 
-    # Backoff config (Plan §5.3 noted the original DhanMarketFeed backoff
-    # only reset on certain exception types; the mixin always resets).
-    INITIAL_BACKOFF = 1.0
-    MAX_BACKOFF = 30.0
+    # Backoff config from domain resilience constants (seconds).
+    # Plan §5.3: original DhanMarketFeed only reset on certain exception
+    # types; the mixin always resets.
+    INITIAL_BACKOFF = RETRY_BASE_DELAY_MS / 1000.0
+    MAX_BACKOFF = MAX_RETRY_DELAY_MS / 1000.0
 
     def _init_reconnect_state(self) -> None:
         """Initialise the reconnect / message-tracking state."""
@@ -133,8 +140,8 @@ class ReconnectingServiceMixin(Generic[_CallbackT]):
         sleep immediately rather than blocking the thread for the full
         backoff window.
 
-        Returns the next backoff value (``current * 2`` capped at
-        ``MAX_BACKOFF``). The caller should call this in a loop:
+        Returns the next backoff value (``current * BACKOFF_MULTIPLIER``
+        capped at ``MAX_BACKOFF``). The caller should call this in a loop:
 
             backoff = INITIAL_BACKOFF
             while not self._stop_event.is_set():
@@ -151,7 +158,7 @@ class ReconnectingServiceMixin(Generic[_CallbackT]):
         # Event.wait returns True if the event was set during the wait,
         # so a stop() interrupts immediately.
         self._stop_event.wait(timeout=wait)
-        return min(current * 2, self.MAX_BACKOFF)
+        return min(current * BACKOFF_MULTIPLIER, self.MAX_BACKOFF)
 
     def _on_clean_disconnect(self) -> float:
         """Reset state after a clean (expected) disconnect.

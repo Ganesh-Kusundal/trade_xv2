@@ -450,6 +450,9 @@ class PaperTradingEngine:
             if order_id:
                 proceeds = float(price) * pos.quantity - config.commission_flat
                 session.capital += proceeds
+                # Simple realized PnL (entry vs exit, commission on exit)
+                simple_pnl = (float(price) - pos.entry_price) * pos.quantity - config.commission_flat
+                session.daily_pnl += simple_pnl
                 del session.positions[bar.symbol]
 
     def _close_position(
@@ -505,6 +508,7 @@ class PaperTradingEngine:
 
         # Net P&L
         net_pnl = pnl - commission
+        session.daily_pnl += net_pnl
 
         # Return capital
         session.capital += pos.quantity * pos.entry_price + net_pnl

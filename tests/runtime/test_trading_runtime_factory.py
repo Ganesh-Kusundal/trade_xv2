@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from interface.ui.services.compose import build_for_api
 from runtime.trading_runtime_factory import TradingRuntimeFactory
 
 
@@ -26,7 +27,7 @@ def test_build_for_api_uses_composition_module():
                 "build_from_broker_service",
                 return_value=MagicMock(),
             ) as build_from_bs:
-                TradingRuntimeFactory.build_for_api()
+                build_for_api()
     create_bus.assert_called_once()
     build_from_bs.assert_called_once_with(mock_bs)
 

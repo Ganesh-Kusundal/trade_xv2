@@ -364,6 +364,34 @@ class TestPositionManagement:
         if r.session.trades:
             assert r.session.total_commission > 0
 
+    def test_close_position_updates_daily_pnl(self, mock_oms_adapter):
+        """Successful OMS close must accumulate session.daily_pnl."""
+        engine = PaperTradingEngine(
+            _pipeline(),
+            config=PaperConfig(commission_flat=0.0, commission_pct=0.0, slippage_pct=0.0),
+            oms_adapter=mock_oms_adapter,
+        )
+        session = PaperSession(capital=100_000)
+        session.positions["T"] = PaperPosition(
+            symbol="T",
+            side=PositionSide.LONG,
+            entry_price=100.0,
+            quantity=10,
+            entry_time=datetime.now(timezone.utc),
+            current_price=100.0,
+            strategy="test",
+        )
+        assert session.daily_pnl == 0.0
+        engine._close_position(
+            "T",
+            110.0,
+            datetime.now(timezone.utc),
+            session,
+            "manual close",
+        )
+        assert "T" not in session.positions
+        assert session.daily_pnl == pytest.approx(100.0)  # (110-100)*10
+
 
 # --- Result summary ---
 
