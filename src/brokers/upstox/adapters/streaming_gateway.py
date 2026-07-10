@@ -67,7 +67,7 @@ class StreamingGateway:
     ) -> Any:
         """Subscribe to a live tick stream for *symbol* on *exchange*.
 
-        The *on_tick* callback receives a canonical :class:`brokers.common.core.domain.Quote`
+        The *on_tick* callback receives a canonical :class:`domain.Quote`
         object — broker-specific ``instrument_key`` values are never exposed to
         the caller.  If the resolver does not find a definition for the incoming
         key the raw payload dict is forwarded instead so nothing is silently

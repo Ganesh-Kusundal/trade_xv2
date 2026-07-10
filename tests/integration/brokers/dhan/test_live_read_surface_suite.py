@@ -1,7 +1,7 @@
 """Dhan regression suite orchestrator.
 
 Parametrized entry point that runs every case registered in
-``brokers.dhan.tests.regression.manifest``.  Cases are split into two
+``tests.integration.brokers.dhan.regression.manifest``.  Cases are split into two
 groups by their ``tier`` field:
 
 - ``off_market_safe``  — REST/read-only; run anytime with live creds.
@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import pytest
 
-from brokers.dhan.tests.regression.manifest import (
+from tests.integration.brokers.dhan.regression.manifest import (
     MARKET_HOURS_CASES,
     OFF_MARKET_CASES,
     RegressionCase,

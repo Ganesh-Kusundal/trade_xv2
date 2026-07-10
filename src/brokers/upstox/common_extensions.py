@@ -117,7 +117,9 @@ class UpstoxFundamentalsExtension(FundamentalsProvider):
         return statements
 
 
-class UpstoxForeverOrderExtension(ForeverOrderProvider):
+class UpstoxGttForeverOrderStrategy(ForeverOrderProvider):
+    """Registry strategy — forever-order port backed by Upstox GTT adapter."""
+
     def __init__(self, gateway: MarketDataGateway) -> None:
         broker = getattr(gateway, "_broker", None)
         if broker is None:
@@ -127,10 +129,26 @@ class UpstoxForeverOrderExtension(ForeverOrderProvider):
     async def place_forever_order(
         self, request: ForeverOrderRequest, *, quota: object
     ) -> ForeverOrderResult:
-        return ForeverOrderResult(success=False, message="use Upstox GTT adapter directly")
+        from domain import Order, OrderType, ProductType, Side
+
+        order = Order(
+            symbol=request.symbol,
+            exchange=request.exchange,
+            side=request.side if isinstance(request.side, Side) else Side(str(request.side)),
+            quantity=request.quantity,
+            price=request.price1,
+            order_type=OrderType.LIMIT,
+            product_type=ProductType.CNC,
+        )
+        result = self._gtt.place_gtt_single(order, order_flag="ABOVE")
+        order_id = str(getattr(result, "order_id", "") or "")
+        return ForeverOrderResult(success=bool(order_id), order_id=order_id)
 
     async def cancel_forever_order(self, order_id: str, *, quota: object) -> ForeverOrderResult:
-        self._gtt.cancel_gtt(order_id)
+        cancel = getattr(self._gtt, "cancel_gtt", None) or getattr(self._gtt, "cancel", None)
+        if cancel is None:
+            return ForeverOrderResult(success=False, message="GTT cancel not available", order_id=order_id)
+        cancel(order_id)
         return ForeverOrderResult(success=True, order_id=order_id)
 
     async def modify_forever_order(
@@ -150,7 +168,7 @@ def register_upstox_extensions(gateway: MarketDataGateway) -> ExtensionBundle:
     bundle = ExtensionBundle("upstox")
     bundle.register(NewsProvider, UpstoxNewsExtension(gateway))
     bundle.register(FundamentalsProvider, UpstoxFundamentalsExtension(gateway))
-    bundle.register(ForeverOrderProvider, UpstoxForeverOrderExtension(gateway))
+    bundle.register(ForeverOrderProvider, UpstoxGttForeverOrderStrategy(gateway))
     return bundle
 
 

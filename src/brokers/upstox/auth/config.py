@@ -63,7 +63,7 @@ class UpstoxConnectionSettings(BrokerSettings):
     ws_max_connections: int = 2
     ws_auto_reconnect: bool = True
     ws_reconnect_interval_s: int = 10
-    ws_reconnect_max_retries: int = 5
+    ws_reconnect_max_retries: int = 3
 
     # TOTP-specific fields (for automated token generation)
     mobile: str = ""

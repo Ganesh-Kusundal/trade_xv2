@@ -3,7 +3,7 @@
 Runs a daemon thread that refreshes the Upstox token daily at a configured
 time (default: 8:00 AM IST, before market open at 9:15 AM IST).
 
-This service is a :class:`brokers.common.lifecycle.ManagedService`.
+This service is a :class:`infrastructure.lifecycle.lifecycle.ManagedService`.
 """
 
 from __future__ import annotations

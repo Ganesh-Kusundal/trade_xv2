@@ -27,7 +27,7 @@ from brokers.dhan.extensions.depth20 import DhanDepth20Extension
 from brokers.dhan.extensions.depth200 import DhanDepth200Extension
 
 
-class DhanSuperOrderExtension(SuperOrderProvider):
+class DhanSuperOrderStrategy(SuperOrderProvider):
     def __init__(self, gateway: MarketDataGateway) -> None:
         self._extended = gateway.extended
 
@@ -79,7 +79,7 @@ class DhanSuperOrderExtension(SuperOrderProvider):
         return SuperOrderResult(success=True, entry_order_id=entry_order_id)
 
 
-class DhanForeverOrderExtension(ForeverOrderProvider):
+class DhanForeverOrderStrategy(ForeverOrderProvider):
     def __init__(self, gateway: MarketDataGateway) -> None:
         self._extended = gateway.extended
 
@@ -140,8 +140,8 @@ class DhanNativeSliceExtension(NativeSliceOrderProvider):
 
 def register_dhan_extensions(gateway: MarketDataGateway) -> ExtensionBundle:
     bundle = ExtensionBundle("dhan")
-    bundle.register(SuperOrderProvider, DhanSuperOrderExtension(gateway))
-    bundle.register(ForeverOrderProvider, DhanForeverOrderExtension(gateway))
+    bundle.register(SuperOrderProvider, DhanSuperOrderStrategy(gateway))
+    bundle.register(ForeverOrderProvider, DhanForeverOrderStrategy(gateway))
     bundle.register(NativeSliceOrderProvider, DhanNativeSliceExtension(gateway))
     bundle.register(DhanDepth20Extension, DhanDepth20Extension(gateway))
     bundle.register(DhanDepth200Extension, DhanDepth200Extension(gateway))

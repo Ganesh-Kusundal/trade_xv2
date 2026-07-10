@@ -6,6 +6,16 @@ from brokers.common.broker_capabilities import (
     RateLimitProfile,
     StreamLimitProfile,
 )
+from domain.capabilities.market_surface import (
+    LTP,
+    OPTION_CHAIN,
+    QUOTE,
+    RESOLVE,
+    FUTURE_CHAIN,
+    MarketSurface,
+)
+from domain.constants.exchanges import CDS, MCX, NFO, NSE
+from domain.instruments.asset_kind import AssetKind
 
 
 def upstox_capabilities() -> BrokerCapabilities:
@@ -152,4 +162,14 @@ def upstox_capabilities() -> BrokerCapabilities:
         product_types=frozenset({"INTRADAY", "MARGIN", "CNC"}),
         order_types=frozenset({"MARKET", "LIMIT", "STOP_LOSS", "STOP_LOSS_MARKET"}),
         max_batch_size=500,  # REST market-quote multi-key limit (docs UDAPI100042/43)
+        market_surfaces=frozenset(
+            {
+                MarketSurface(AssetKind.EQUITY, NSE, "RELIANCE", frozenset({RESOLVE, QUOTE, LTP})),
+                MarketSurface(AssetKind.INDEX, NSE, "NIFTY", frozenset({RESOLVE, LTP})),
+                MarketSurface(AssetKind.OPTIONS, NFO, "NIFTY", frozenset({OPTION_CHAIN})),
+                MarketSurface(AssetKind.FUTURES, NFO, "NIFTY", frozenset({FUTURE_CHAIN})),
+                MarketSurface(AssetKind.FUTURES, MCX, "GOLD", frozenset({FUTURE_CHAIN, QUOTE})),
+                MarketSurface(AssetKind.SPOT, CDS, "USDINR", frozenset({RESOLVE, QUOTE, LTP})),
+            }
+        ),
     )

@@ -2,7 +2,7 @@
 
 Mirrors Trade_J ``UpstoxSegmentMapper``.
 
-Upstox segment strings (wire values) ↔ ``brokers.common.core.enums.ExchangeSegment``.
+Upstox segment strings (wire values) ↔ ``domain.ExchangeSegment``.
 """
 
 from __future__ import annotations
@@ -10,6 +10,15 @@ from __future__ import annotations
 from typing import Any
 
 from domain import ExchangeSegment
+from domain.constants.exchanges import (
+    BFO,
+    BSE,
+    MCX,
+    NFO,
+    NSE,
+    WIRE_BSE_EQ,
+    WIRE_NSE_EQ,
+)
 
 _UPSTOX_TO_SEGMENT: dict[str, ExchangeSegment] = {
     "NSE_EQ": ExchangeSegment.NSE,
@@ -29,8 +38,8 @@ _UPSTOX_TO_SEGMENT: dict[str, ExchangeSegment] = {
 }
 
 _SEGMENT_TO_UPSTOX: dict[ExchangeSegment, str] = {
-    ExchangeSegment.NSE: "NSE_EQ",
-    ExchangeSegment.BSE: "BSE_EQ",
+    ExchangeSegment.NSE: WIRE_NSE_EQ,
+    ExchangeSegment.BSE: WIRE_BSE_EQ,
     ExchangeSegment.NSE_FNO: "NSE_FO",
     ExchangeSegment.BSE_FNO: "BSE_FO",
     ExchangeSegment.NSE_CURRENCY: "NCD_FO",
@@ -56,15 +65,15 @@ class UpstoxSegmentMapper:
     def to_wire(cls, segment: Any) -> str:
         if isinstance(segment, str):
             segment_upper = segment.upper()
-            if segment_upper == "NSE":
+            if segment_upper == NSE:
                 segment = ExchangeSegment.NSE
-            elif segment_upper == "BSE":
+            elif segment_upper == BSE:
                 segment = ExchangeSegment.BSE
-            elif segment_upper in ("NSE_FNO", "NFO"):
+            elif segment_upper in ("NSE_FNO", NFO):
                 segment = ExchangeSegment.NSE_FNO
-            elif segment_upper in ("BSE_FNO", "BFO"):
+            elif segment_upper in ("BSE_FNO", BFO):
                 segment = ExchangeSegment.BSE_FNO
-            elif segment_upper == "MCX":
+            elif segment_upper == MCX:
                 segment = ExchangeSegment.MCX
             elif segment_upper == "INDEX":
                 segment = ExchangeSegment.IDX_I
@@ -75,10 +84,10 @@ class UpstoxSegmentMapper:
                         break
 
         if isinstance(segment, ExchangeSegment):
-            return _SEGMENT_TO_UPSTOX.get(segment, "NSE_EQ")
+            return _SEGMENT_TO_UPSTOX.get(segment, WIRE_NSE_EQ)
         if isinstance(segment, str):
-            return segment.upper() or "NSE_EQ"
-        return "NSE_EQ"
+            return segment.upper() or WIRE_NSE_EQ
+        return WIRE_NSE_EQ
 
     @classmethod
     def all_upstox_segments(cls) -> list[str]:

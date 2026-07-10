@@ -148,7 +148,7 @@ class TestSendSubscriptionUsesWsLoop:
 
     def test_empty_side_does_not_wipe_existing_cache(self):
         """An empty-level packet must not zero out the opposite side."""
-        from brokers.dhan.tests.unit.test_depth_feeds import _make_depth_packet
+        from tests.unit.brokers.dhan.test_depth_feeds import _make_depth_packet
 
         feed = self._make_feed()
         # Inject bid levels

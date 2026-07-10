@@ -37,8 +37,8 @@ from typing import Any
 from brokers.dhan.streaming.connection_admission import MarketFeedConnectionAdmission
 from brokers.dhan.api.reconnecting_service import ReconnectingServiceMixin
 from brokers.dhan.data.depth_parser import DepthPacketParser
+from brokers.common.transport_policy import ResiliencePolicy
 from domain import DepthLevel, MarketDepth
-from domain.constants.resilience import BACKOFF_MULTIPLIER, MAX_RETRY_DELAY_MS
 from domain.symbols import normalize_symbol
 from domain.events import DomainEvent
 from infrastructure.event_bus.event_bus import EventBus
@@ -402,7 +402,8 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
     # ── WebSocket loop ─────────────────────────────────────────────────────
 
     def _websocket_loop(self) -> None:
-        """Main WebSocket loop with auto-reconnect."""
+        """Main WebSocket loop with auto-reconnect via shared ResiliencePolicy."""
+        policy = ResiliencePolicy.for_dhan_ws()
         while not self._stop_event.is_set():
             try:
                 self._connect_and_run()
@@ -410,13 +411,15 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
                 logger.error("%s_error: %s", self.DEPTH_TYPE.lower(), exc)
 
             if not self._stop_event.is_set():
-                self._reconnect_count += 1
-                time.sleep(
-                    min(
-                        BACKOFF_MULTIPLIER ** min(self._reconnect_count, 5),
-                        MAX_RETRY_DELAY_MS / 1000.0,
+                # Prefer mixin helper when available; fall back to policy delay.
+                if hasattr(self, "_on_reconnect_failure"):
+                    wait = self._on_reconnect_failure(
+                        policy.delay_for(self._reconnect_count, with_jitter=False)
                     )
-                )
+                else:
+                    self._reconnect_count += 1
+                    wait = policy.delay_for(self._reconnect_count, with_jitter=False)
+                time.sleep(wait)
 
     def _connect_and_run(self) -> None:
         """Establish WebSocket connection and process messages."""

@@ -6,6 +6,16 @@ from brokers.common.broker_capabilities import (
     RateLimitProfile,
     StreamLimitProfile,
 )
+from domain.capabilities.market_surface import (
+    LTP,
+    OPTION_CHAIN,
+    QUOTE,
+    RESOLVE,
+    FUTURE_CHAIN,
+    MarketSurface,
+)
+from domain.constants.exchanges import CDS, MCX, NFO, NSE
+from domain.instruments.asset_kind import AssetKind
 
 
 def dhan_capabilities() -> BrokerCapabilities:
@@ -135,4 +145,15 @@ def dhan_capabilities() -> BrokerCapabilities:
         product_types=frozenset({"INTRADAY", "MARGIN", "CNC", "MTF"}),
         order_types=frozenset({"MARKET", "LIMIT", "STOP_LOSS", "STOP_LOSS_MARKET"}),
         max_batch_size=1000,
+        market_surfaces=frozenset(
+            {
+                MarketSurface(AssetKind.EQUITY, NSE, "RELIANCE", frozenset({RESOLVE, QUOTE, LTP})),
+                MarketSurface(AssetKind.INDEX, NSE, "NIFTY", frozenset({RESOLVE, LTP})),
+                MarketSurface(AssetKind.OPTIONS, NFO, "NIFTY", frozenset({OPTION_CHAIN})),
+                MarketSurface(AssetKind.FUTURES, NFO, "NIFTY", frozenset({FUTURE_CHAIN})),
+                MarketSurface(AssetKind.FUTURES, MCX, "GOLD", frozenset({FUTURE_CHAIN, QUOTE})),
+                MarketSurface(AssetKind.OPTIONS, MCX, "GOLD", frozenset({OPTION_CHAIN})),
+                MarketSurface(AssetKind.SPOT, CDS, "USDINR", frozenset({RESOLVE, QUOTE, LTP})),
+            }
+        ),
     )

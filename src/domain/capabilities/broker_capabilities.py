@@ -14,6 +14,9 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
+from domain.capabilities.market_surface import MarketSurface
+from domain.instruments.asset_kind import AssetKind
+
 # ---------------------------------------------------------------------------
 # Sub-profiles
 # ---------------------------------------------------------------------------
@@ -154,6 +157,11 @@ class BrokerCapabilities:
     product_types: frozenset[str] = field(default_factory=frozenset)
     order_types: frozenset[str] = field(default_factory=frozenset)
 
+    # -- Market coverage (asset_kind x exchange lanes) --
+    # Single source of truth for *market* coverage; shared contracts iterate this
+    # instead of branching on broker names. See domain.capabilities.market_surface.
+    market_surfaces: frozenset[MarketSurface] = field(default_factory=frozenset)
+
     # -- Batch limits --
     max_batch_size: int = 1
 
@@ -194,6 +202,23 @@ class BrokerCapabilities:
             return False
         return lookback_days <= constraint.max_lookback_days
 
+    def serves(self, asset_kind: "AssetKind | str", exchange: str) -> bool:
+        """Return True if this broker serves the given (asset_kind, exchange) lane.
+
+        ``asset_kind`` may be an :class:`AssetKind` or a string (parsed leniently
+        via ``AssetKind.parse``). Used by coverage contracts and routing to avoid
+        ``if broker_id == "dhan"`` branches.
+        """
+        if isinstance(asset_kind, AssetKind):
+            ak = asset_kind
+        else:
+            ak = AssetKind.parse(asset_kind)
+        if ak is None:
+            return False
+        return any(
+            s.asset_kind == ak and s.exchange == exchange for s in self.market_surfaces
+        )
+
 
 # ---------------------------------------------------------------------------
 # CapabilityDescriptor — wraps BrokerCapabilities for registry use
@@ -231,6 +256,7 @@ __all__ = [
     "BrokerCapabilities",
     "CapabilityDescriptor",
     "HistoricalWindowConstraint",
+    "MarketSurface",
     "RateLimitProfile",
     "StreamLimitProfile",
 ]

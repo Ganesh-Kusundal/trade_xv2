@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", "..
 
 from brokers.dhan.streaming.connection import DhanConnection
 from brokers.dhan.resolver import SymbolResolver
-from brokers.dhan.tests.conftest import SAMPLE_ROWS, FakeHttpClient
+from tests.support.brokers.dhan.fixtures import SAMPLE_ROWS, FakeHttpClient
 
 
 class TestDhanConnection:

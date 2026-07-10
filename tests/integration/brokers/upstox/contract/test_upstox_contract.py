@@ -138,3 +138,33 @@ class TestUpstoxContract(BrokerContractSuite):
         assert isinstance(result, dict)
         assert result.get("underlying") == "NIFTY"
         assert result.get("contracts")
+
+    def test_port_methods_do_not_return_raw_wire_dicts(self, gateway: UpstoxBrokerGateway) -> None:
+        gateway._market_data.quote = MagicMock(
+            return_value=Quote(
+                symbol="RELIANCE",
+                ltp=Decimal("2550.00"),
+                open=Decimal("2540.00"),
+                high=Decimal("2560.00"),
+                low=Decimal("2535.00"),
+                close=Decimal("2545.00"),
+                volume=500000,
+            )
+        )
+        gateway._portfolio.get_funds = MagicMock(
+            return_value=Balance(
+                available_balance=Decimal("100000.00"),
+                used_margin=Decimal("0.00"),
+            )
+        )
+        gateway._portfolio.get_positions = MagicMock(return_value=[])
+        quote = gateway.quote("RELIANCE", "NSE")
+        assert isinstance(quote, Quote)
+        funds = gateway.funds()
+        assert isinstance(funds, Balance)
+        assert isinstance(gateway.positions(), list)
+
+    def test_search_returns_list(self, gateway: UpstoxBrokerGateway) -> None:
+        gateway._data_gw.search = MagicMock(return_value=[{"symbol": "RELIANCE"}])
+        result = gateway.search("RELIANCE")
+        assert isinstance(result, list)

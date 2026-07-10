@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from brokers.upstox.tests.integration.conftest import skip_live
+from tests.integration.brokers.upstox.conftest import skip_live
 
 
 @skip_live

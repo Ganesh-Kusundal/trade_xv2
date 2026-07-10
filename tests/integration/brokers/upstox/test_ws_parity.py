@@ -6,7 +6,7 @@ import threading
 
 import pytest
 
-from brokers.upstox.tests.integration.conftest import requires_pre_prod
+from tests.integration.brokers.upstox.conftest import requires_pre_prod
 
 pytestmark = [
     pytest.mark.regression,

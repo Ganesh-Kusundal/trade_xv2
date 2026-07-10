@@ -33,7 +33,7 @@ from brokers.upstox.adapters.streaming_gateway import StreamingGateway
 from brokers.upstox.broker import UpstoxBroker
 from brokers.common.capabilities_validator import enforce_gateway_capabilities
 from brokers.upstox.capabilities import upstox_capabilities
-from brokers.upstox.extended import UpstoxExtendedCapabilities
+from brokers.upstox.extras import UpstoxExtendedCapabilities
 from brokers.upstox.market_data.market_data_adapter import (
     UpstoxMarketDataAdapter as MarketDataAdapter,
 )
@@ -60,6 +60,9 @@ class UpstoxBrokerGateway(BatchFetchMixin):
     def __init__(self, broker: UpstoxBroker):
         """Initialize gateway with broker facade and create adapters."""
         self._broker = broker
+        from brokers.upstox.wire import build_upstox_wire
+
+        self._wire = build_upstox_wire()
 
         self._market_data = MarketDataAdapter(
             broker.market_data_v2, broker.market_data_v3, broker.historical_v2
@@ -87,6 +90,10 @@ class UpstoxBrokerGateway(BatchFetchMixin):
             )
 
         enforce_gateway_capabilities(self)
+
+    @property
+    def wire(self):
+        return self._wire
 
     # ── Backward compatibility properties ────────────────────────────────
 
@@ -241,14 +248,14 @@ class UpstoxBrokerGateway(BatchFetchMixin):
         return self._stream_gw.get_connection_status()
 
     def get_circuit_breaker_states(self) -> dict[str, int]:
-        from infrastructure.resilience.circuit_breaker import CircuitState
-        http = self._broker.context.http_client
-        mapping = {"read": http._read_circuit_breaker, "write": http._write_circuit_breaker, "admin": http._admin_circuit_breaker}
-        return {name: cb.state.value if cb is not None else CircuitState.CLOSED.value for name, cb in mapping.items()}
+        return self._broker.context.http_client.circuit_breaker_states()
 
     def get_token_refresh_metrics(self) -> dict[str, int]:
         tm = self._broker.context.token_manager
-        return {"refresh_count": getattr(tm, "refresh_count", 0), "error_count": getattr(tm, "error_count", 0)}
+        return {
+            "refresh_count": int(getattr(tm, "refresh_count", 0) or 0),
+            "error_count": int(getattr(tm, "error_count", 0) or 0),
+        }
 
     def get_rate_limiter_metrics(self) -> dict[str, int]:
         rl = self._broker.context.rate_limiter

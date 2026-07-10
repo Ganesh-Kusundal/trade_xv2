@@ -11,6 +11,7 @@ from brokers.dhan.exceptions import ForeverOrderError
 from brokers.dhan.api.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 from brokers.dhan.resilience.invariants import assert_dhan_payload
+from brokers.common.acl import normalize_order_status
 from brokers.common.idempotency import IdempotencyCache
 from domain import OrderResponse
 from domain.value_objects.price import to_wire_float
@@ -306,7 +307,7 @@ class ForeverOrdersAdapter:
         """Parse forever order from API response."""
         return ForeverOrder(
             order_id=str(data.get("orderId", "")),
-            order_status=data.get("orderStatus", ""),
+            order_status=normalize_order_status(data.get("orderStatus", "")),
             order_flag=data.get("orderFlag", ""),
             transaction_type=data.get("transactionType", ""),
             exchange_segment=data.get("exchangeSegment", ""),

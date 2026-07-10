@@ -26,7 +26,7 @@ from pathlib import Path
 
 # Map test ids (case.id) to their capability + severity — reuse manifest data
 try:
-    from brokers.dhan.tests.regression.manifest import (
+    from tests.integration.brokers.dhan.regression.manifest import (
         MARKET_HOURS_CASES,
         OFF_MARKET_CASES,
     )

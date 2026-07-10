@@ -58,6 +58,28 @@ class BrokerContractSuite:
         caps = gateway.capabilities()
         assert isinstance(caps, BrokerCapabilities)
 
+    def test_capabilities_declare_market_surfaces(self, gateway: Any) -> None:
+        caps = gateway.capabilities()
+        assert caps.market_surfaces, "broker must declare market_surfaces"
+        for surface in caps.market_surfaces:
+            assert caps.serves(surface.asset_kind, surface.exchange), (
+                f"declared surface not served: {surface}"
+            )
+
+    def test_port_methods_do_not_return_raw_wire_dicts(self, gateway: Any) -> None:
+        """Port methods must return domain entities, not raw ``{\"data\": ...}`` envelopes."""
+        quote = gateway.quote("RELIANCE", "NSE")
+        assert not isinstance(quote, dict), "quote() must not return a raw dict"
+        assert isinstance(quote, Quote)
+
+        funds = gateway.funds()
+        assert not isinstance(funds, dict), "funds() must not return a raw dict"
+        assert isinstance(funds, Balance)
+
+        positions = gateway.positions()
+        assert isinstance(positions, list)
+        assert not (positions and isinstance(positions[0], dict) and "data" in positions[0])
+
     # ── Market Data ───────────────────────────────────────────────────────
 
     def test_quote_returns_quote(self, gateway: Any) -> None:
@@ -164,6 +186,18 @@ class BrokerContractSuite:
         assert OrderStatus.normalize("PARTIALLY_EXECUTED") == OrderStatus.PARTIALLY_FILLED
         for status in OrderStatus:
             assert OrderStatus.normalize(status.value) == status
+
+    def test_orderbook_entries_use_typed_order_status(self, gateway: Any) -> None:
+        """When the orderbook is non-empty, every entry's status must be OrderStatus."""
+        book = gateway.get_orderbook()
+        assert isinstance(book, list)
+        for order in book:
+            status = getattr(order, "order_status", None) or getattr(order, "status", None)
+            if status is None:
+                continue
+            assert isinstance(status, OrderStatus), (
+                f"order_status must be OrderStatus enum, got {type(status).__name__}: {status!r}"
+            )
 
     # ── Observability ────────────────────────────────────────────────────
 

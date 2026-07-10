@@ -477,6 +477,15 @@ class PaperGateway:
             RateLimitProfile,
             StreamLimitProfile,
         )
+        from domain.capabilities.market_surface import (
+            FUTURE_CHAIN,
+            LTP,
+            OPTION_CHAIN,
+            QUOTE,
+            RESOLVE,
+            MarketSurface,
+        )
+        from domain.instruments.asset_kind import AssetKind
 
         return BrokerCapabilities(
             broker_id="paper",
@@ -553,6 +562,14 @@ class PaperGateway:
             product_types=frozenset({"INTRADAY", "MARGIN", "CNC"}),
             order_types=frozenset({"MARKET", "LIMIT", "STOP_LOSS", "STOP_LOSS_MARKET"}),
             max_batch_size=100,
+            market_surfaces=frozenset(
+                {
+                    MarketSurface(AssetKind.EQUITY, "NSE", "RELIANCE", frozenset({RESOLVE, QUOTE, LTP})),
+                    MarketSurface(AssetKind.OPTIONS, "NFO", "NIFTY", frozenset({OPTION_CHAIN})),
+                    MarketSurface(AssetKind.FUTURES, "NFO", "NIFTY", frozenset({FUTURE_CHAIN})),
+                    MarketSurface(AssetKind.FUTURES, "MCX", "GOLD", frozenset({FUTURE_CHAIN, QUOTE})),
+                }
+            ),
         )
 
     def describe(self) -> dict:

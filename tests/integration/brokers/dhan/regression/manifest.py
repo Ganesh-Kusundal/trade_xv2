@@ -1,13 +1,14 @@
 """Dhan regression suite manifest.
 
-Single source of truth mapping every P0/P1 Dhan capability to:
-  - the tier it belongs to (off_market_safe | market_hours | pre_prod | sandbox)
-  - the exchange segment under test
-  - a short assertion function called by the parametrized orchestrator in
-    ``test_regression_suite.py``
+Dhan-specific quirks and deep cases only. NSE/MCX/CDS P0 market-coverage
+lanes (ltp/quote/option_chain/future_chain for declared ``market_surfaces``)
+live in the shared ``MarketCoverageContract`` — do not re-add them here.
 
-Adding a new capability?  Add an entry here; ``test_coverage_manifest.py``
-will fail CI if any P0 capability has no registered case.
+This manifest keeps:
+  - depth / history / portfolio / batch / search / health
+  - architecture wiring (SubscriptionEngine, SessionManager, stream_order)
+  - Dhan-specific NFO variants (BANKNIFTY, stock options/futures)
+  - market-hours WS quirks (depth_20 merge, FULL mode ticks)
 """
 
 from __future__ import annotations
@@ -40,19 +41,6 @@ class RegressionCase:
 # live gateway during a regression run.
 # ---------------------------------------------------------------------------
 
-def _assert_nse_ltp(gw: DhanBrokerGateway) -> None:
-    from decimal import Decimal
-    ltp = gw.ltp("RELIANCE", "NSE")
-    assert isinstance(ltp, Decimal) and ltp > 0, f"NSE LTP invalid: {ltp}"
-
-
-def _assert_nse_quote(gw: DhanBrokerGateway) -> None:
-    q = gw.quote("RELIANCE", "NSE")
-    assert q.ltp > 0, f"NSE quote LTP invalid: {q.ltp}"
-    assert q.open >= 0
-    assert q.high >= q.low
-
-
 def _assert_nse_depth(gw: DhanBrokerGateway) -> None:
     depth = gw.depth("RELIANCE", "NSE")
     assert len(depth.bids) >= 1, "NSE REST depth: no bids"
@@ -68,28 +56,10 @@ def _assert_nse_history(gw: DhanBrokerGateway) -> None:
         assert col in df.columns, f"Missing column: {col}"
 
 
-def _assert_index_ltp(gw: DhanBrokerGateway) -> None:
-    from decimal import Decimal
-    ltp = gw.ltp("NIFTY", "INDEX")
-    assert isinstance(ltp, Decimal) and ltp > 0, f"INDEX LTP invalid: {ltp}"
-
-
-def _assert_nfo_option_chain(gw: DhanBrokerGateway) -> None:
-    chain = gw.option_chain("NIFTY", "NFO")
-    assert chain.spot > 0, f"NIFTY option chain spot invalid: {chain.spot}"
-    assert len(chain.strikes) > 0, "NIFTY option chain has no strikes"
-
-
 def _assert_nfo_option_chain_banknifty(gw: DhanBrokerGateway) -> None:
     chain = gw.option_chain("BANKNIFTY", "NFO")
     assert chain.spot > 0
     assert len(chain.strikes) > 0
-
-
-def _assert_nfo_future_chain_nifty(gw: DhanBrokerGateway) -> None:
-    fc = gw.future_chain("NIFTY", "NFO")
-    assert len(fc.contracts) >= 1, "NIFTY future chain empty"
-    assert fc.contracts[0].expiry is not None
 
 
 def _assert_nfo_future_chain_reliance(gw: DhanBrokerGateway) -> None:
@@ -207,28 +177,10 @@ def _assert_full_mode_tick(gw: DhanBrokerGateway) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Manifest — canonical list of regression cases
+# Manifest — Dhan-specific quirks only (shared lanes → MarketCoverageContract)
 # ---------------------------------------------------------------------------
 
 OFF_MARKET_CASES: list[RegressionCase] = [
-    RegressionCase(
-        id="nse_ltp",
-        capability="supports_live_market_data",
-        tier="off_market_safe",
-        segment="NSE_EQ",
-        description="NSE equity LTP > 0",
-        assert_fn=_assert_nse_ltp,
-        severity="P0",
-    ),
-    RegressionCase(
-        id="nse_quote",
-        capability="supports_live_market_data",
-        tier="off_market_safe",
-        segment="NSE_EQ",
-        description="NSE equity quote has valid OHLCV",
-        assert_fn=_assert_nse_quote,
-        severity="P0",
-    ),
     RegressionCase(
         id="nse_depth_rest",
         capability="supports_depth",
@@ -258,39 +210,12 @@ OFF_MARKET_CASES: list[RegressionCase] = [
         severity="P0",
     ),
     RegressionCase(
-        id="index_ltp",
-        capability="supports_live_market_data",
-        tier="off_market_safe",
-        segment="IDX_I",
-        description="NIFTY INDEX LTP > 0",
-        assert_fn=_assert_index_ltp,
-        severity="P0",
-    ),
-    RegressionCase(
-        id="nfo_option_chain_nifty",
-        capability="supports_option_chain",
-        tier="off_market_safe",
-        segment="NFO",
-        description="NIFTY option chain has strikes and spot",
-        assert_fn=_assert_nfo_option_chain,
-        severity="P0",
-    ),
-    RegressionCase(
         id="nfo_option_chain_banknifty",
         capability="supports_option_chain",
         tier="off_market_safe",
         segment="NFO",
         description="BANKNIFTY option chain has strikes and spot",
         assert_fn=_assert_nfo_option_chain_banknifty,
-        severity="P0",
-    ),
-    RegressionCase(
-        id="nfo_future_chain_nifty",
-        capability="supports_live_market_data",
-        tier="off_market_safe",
-        segment="NFO",
-        description="NIFTY futures chain has at least 1 contract",
-        assert_fn=_assert_nfo_future_chain_nifty,
         severity="P0",
     ),
     RegressionCase(

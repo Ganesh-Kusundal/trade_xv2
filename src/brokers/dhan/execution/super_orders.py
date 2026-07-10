@@ -11,6 +11,7 @@ from brokers.dhan.exceptions import SuperOrderError
 from brokers.dhan.api.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 from brokers.dhan.resilience.invariants import assert_dhan_payload
+from brokers.common.acl import normalize_order_status
 from brokers.common.idempotency import IdempotencyCache
 from domain import OrderResponse
 from domain.value_objects.price import to_wire_float
@@ -337,7 +338,11 @@ class SuperOrdersAdapter:
                 trigger_price=Decimal(str(leg.get("triggerPrice")))
                 if leg.get("triggerPrice") is not None
                 else None,
-                order_status=leg.get("orderStatus"),
+                order_status=(
+                    normalize_order_status(leg.get("orderStatus"))
+                    if leg.get("orderStatus") is not None
+                    else None
+                ),
                 trailing_jump=Decimal(str(leg.get("trailingJump")))
                 if leg.get("trailingJump") is not None
                 else None,
@@ -358,7 +363,7 @@ class SuperOrdersAdapter:
             target_price=Decimal(str(data.get("targetPrice", 0))),
             stop_loss_price=Decimal(str(data.get("stopLossPrice", 0))),
             trailing_jump=Decimal(str(data.get("trailingJump", 0))),
-            order_status=data.get("orderStatus", ""),
+            order_status=normalize_order_status(data.get("orderStatus", "")),
             leg_details=leg_details,
             trading_symbol=data.get("tradingSymbol"),
             created_time=data.get("createdAt"),

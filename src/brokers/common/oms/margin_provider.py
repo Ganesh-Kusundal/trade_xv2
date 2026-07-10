@@ -25,6 +25,51 @@ from brokers.common.api import MarginCalculationError, MarginProvider, MarginRes
 logger = logging.getLogger(__name__)
 
 
+def parse_margin_response(raw: dict) -> MarginResult:
+    """Parse a raw broker margin response into a MarginResult.
+
+    Handles common NSE field names (totalMargin/orderMargin/spanMargin/
+    exposureMargin). Authoritative per-exchange field confirmation is
+    flagged for product review before expanding beyond these aliases.
+    """
+    required = Decimal("0")
+    for key in (
+        "total_margin",
+        "totalMargin",
+        "order_margin",
+        "orderMargin",
+        "required_margin",
+    ):
+        if key in raw:
+            required = Decimal(str(raw[key]))
+            break
+
+    available = Decimal("0")
+    for key in ("available_margin", "availableMargin", "net_available"):
+        if key in raw:
+            available = Decimal(str(raw[key]))
+            break
+
+    span: Decimal | None = None
+    for key in ("span_margin", "spanMargin"):
+        if key in raw and raw[key] is not None:
+            span = Decimal(str(raw[key]))
+            break
+
+    exposure: Decimal | None = None
+    for key in ("exposure_margin", "exposureMargin"):
+        if key in raw and raw[key] is not None:
+            exposure = Decimal(str(raw[key]))
+            break
+
+    return MarginResult(
+        required_margin=required,
+        available_margin=available,
+        span_margin=span,
+        exposure_margin=exposure,
+    )
+
+
 class BrokerMarginProvider(MarginProvider):
     """Adapts a broker-specific margin adapter to the RiskManager's MarginProvider port.
 
@@ -131,58 +176,7 @@ class BrokerMarginProvider(MarginProvider):
         except Exception as exc:
             raise MarginCalculationError(f"Broker margin API call failed: {exc}") from exc
 
-        # Parse the raw response into a MarginResult
-        return self._parse_margin_response(raw_response)
+        return parse_margin_response(raw_response)
 
     def _parse_margin_response(self, raw: dict) -> MarginResult:
-        """Parse a raw broker margin response into a MarginResult.
-
-        Different brokers may return different field names. This method
-        handles the most common patterns.
-
-        Args:
-            raw: Raw response dict from the broker's margin API.
-
-        Returns:
-            Parsed MarginResult.
-        """
-        # Extract required margin — try various field names
-        required = Decimal("0")
-        for key in (
-            "total_margin",
-            "totalMargin",
-            "order_margin",
-            "orderMargin",
-            "required_margin",
-        ):
-            if key in raw:
-                required = Decimal(str(raw[key]))
-                break
-
-        # Extract available margin
-        available = Decimal("0")
-        for key in ("available_margin", "availableMargin", "net_available"):
-            if key in raw:
-                available = Decimal(str(raw[key]))
-                break
-
-        # Extract span margin (optional)
-        span: Decimal | None = None
-        for key in ("span_margin", "spanMargin"):
-            if key in raw and raw[key] is not None:
-                span = Decimal(str(raw[key]))
-                break
-
-        # Extract exposure margin (optional)
-        exposure: Decimal | None = None
-        for key in ("exposure_margin", "exposureMargin"):
-            if key in raw and raw[key] is not None:
-                exposure = Decimal(str(raw[key]))
-                break
-
-        return MarginResult(
-            required_margin=required,
-            available_margin=available,
-            span_margin=span,
-            exposure_margin=exposure,
-        )
+        return parse_margin_response(raw)

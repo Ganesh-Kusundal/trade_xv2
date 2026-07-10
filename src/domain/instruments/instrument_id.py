@@ -67,7 +67,7 @@ class InstrumentId:
     kind: str | None = None
 
     # Valid exchange codes (core product set)
-    VALID_EXCHANGES: ClassVar[frozenset[str]] = frozenset({"NSE", "BSE", "NFO", "MCX"})
+    VALID_EXCHANGES: ClassVar[frozenset[str]] = frozenset({"NSE", "BSE", "NFO", "MCX", "CDS"})
     # Valid right values
     VALID_RIGHTS: ClassVar[frozenset[str]] = frozenset({"CE", "PE", "FUT"})
 

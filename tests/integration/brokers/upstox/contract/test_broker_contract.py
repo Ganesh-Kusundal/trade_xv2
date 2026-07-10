@@ -15,7 +15,7 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 
 from brokers.upstox.gateway import UpstoxBrokerGateway
-from brokers.upstox.tests.integration.conftest import ENV_PATH, skip_live
+from tests.integration.brokers.upstox.conftest import ENV_PATH, skip_live
 from domain import MarketDepth, Quote
 
 pytestmark = pytest.mark.live_readonly

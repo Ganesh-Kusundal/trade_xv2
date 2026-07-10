@@ -195,7 +195,7 @@ class SuperOrderLeg:
     quantity: int
     price: Decimal
     trigger_price: Decimal | None = None
-    order_status: str | None = None
+    order_status: OrderStatus | None = None
     trailing_jump: Decimal | None = None
 
 
@@ -215,7 +215,7 @@ class SuperOrder:
     target_price: Decimal
     stop_loss_price: Decimal
     trailing_jump: Decimal
-    order_status: str
+    order_status: OrderStatus
     leg_details: list[SuperOrderLeg]
     trading_symbol: str | None = None
     created_time: str | None = None
@@ -249,7 +249,7 @@ class ForeverOrder:
     """Forever Order (Single GTT or OCO)."""
 
     order_id: str
-    order_status: str
+    order_status: OrderStatus
     order_flag: str  # SINGLE or OCO
     transaction_type: str
     exchange_segment: str

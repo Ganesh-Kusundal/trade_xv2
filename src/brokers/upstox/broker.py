@@ -27,6 +27,7 @@ from brokers.upstox.ipo.adapter import UpstoxIpoAdapter
 from brokers.upstox.ipo.client import UpstoxIpoClient
 from brokers.upstox.kill_switch.adapter import UpstoxKillSwitchAdapter
 from brokers.upstox.kill_switch.client import UpstoxKillSwitchClient
+from brokers.upstox.orders.exit_all_adapter import UpstoxExitAllAdapter
 from brokers.upstox.market_data.client_v2 import UpstoxMarketDataV2Client
 from brokers.upstox.market_data.client_v3 import UpstoxMarketDataV3Client
 from brokers.upstox.market_data.expired_options import UpstoxExpiredInstrumentsClient
@@ -216,6 +217,7 @@ class UpstoxBroker:
             self.intelligence_client
         )
         self.kill_switch = UpstoxKillSwitchAdapter(self.kill_switch_client)
+        self.exit_all = UpstoxExitAllAdapter(self.kill_switch_client)
         # ``static_ip``, ``ipo``, ``payments``, ``mutual_funds``,
         # ``fundamentals`` and ``intelligence`` are Upstox-specific "extended"
         # adapters — they are NOT built here. They are wired lazily by
@@ -438,6 +440,12 @@ class UpstoxBroker:
         return self.connect()
 
     # ── Capability registry ──
+
+    def capability_snapshot(self):
+        """Declarative BrokerCapabilities SSOT — same as gateway.capabilities()."""
+        from brokers.upstox.capabilities.snapshot import upstox_capabilities
+
+        return upstox_capabilities()
 
     def _register_capability(self, capability: Capability, provider: Any) -> None:
         self._capabilities.add(capability)

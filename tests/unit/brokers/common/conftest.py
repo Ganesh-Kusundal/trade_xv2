@@ -6,7 +6,7 @@ These fixtures provide standardized broker configurations for:
 - Split environment testing (reads from live, writes to sandbox)
 
 Usage:
-    from brokers.common.tests.conftest import sandbox_broker_settings
+    from tests.unit.brokers.common.conftest import sandbox_broker_settings
 
     @pytest.mark.sandbox
     def test_place_order(sandbox_broker_settings):

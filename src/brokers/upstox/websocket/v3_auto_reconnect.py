@@ -1,11 +1,12 @@
-"""Upstox V3 WebSocket auto-reconnect (exponential backoff + jitter).
+"""Upstox V3 WebSocket auto-reconnect — thin wrapper over kernel policy.
 
-Mirrors Trade_J ``UpstoxResubscribeUnitTest`` / reconnect logic.
+Defaults match the official Upstox SDK: ``auto_reconnect(True, 10, 3)``.
 """
 
 from __future__ import annotations
 
-import random
+from brokers.common.transport import ReconnectingTransport
+from brokers.common.transport_policy import ResiliencePolicy
 
 
 class UpstoxAutoReconnect:
@@ -13,37 +14,32 @@ class UpstoxAutoReconnect:
         self,
         enabled: bool = True,
         interval_seconds: float = 10.0,
-        max_retries: int = 50,
+        max_retries: int = 3,
         jitter: float = 0.2,
     ) -> None:
-        """Exponential backoff reconnect policy.
-
-        ENG-017: default ``max_retries`` raised from 5 → 50 so a brief
-        outage does not permanently kill the market/portfolio feed.
-        Pass ``max_retries <= 0`` for unlimited retries while enabled.
-        """
         self._enabled = enabled
-        self._interval = float(interval_seconds)
-        self._max_retries = int(max_retries)
-        self._jitter = float(jitter)
-        self._attempts = 0
+        policy = ResiliencePolicy(
+            base_delay_s=float(interval_seconds),
+            max_delay_s=max(300.0, float(interval_seconds) * 32),
+            max_attempts=int(max_retries),
+            jitter=float(jitter),
+        )
+        self._transport = ReconnectingTransport(policy)
 
     def should_retry(self, attempt: int | None = None) -> bool:
         if not self._enabled:
             return False
-        n = self._attempts if attempt is None else int(attempt)
-        if self._max_retries <= 0:
-            return True  # unlimited
-        return n < self._max_retries
+        if attempt is not None:
+            return self._transport.policy.should_retry(int(attempt))
+        return self._transport.should_retry()
 
     def next_delay(self, attempt: int | None = None) -> float:
-        n = self._attempts if attempt is None else int(attempt)
-        # exponential with jitter: base * 2^n +/- jitter
-        base = self._interval * (2**n)
-        return base * (1.0 + random.uniform(-self._jitter, self._jitter))
+        if attempt is not None:
+            return self._transport.policy.delay_for(int(attempt))
+        return self._transport.next_delay()
 
     def reset(self) -> None:
-        self._attempts = 0
+        self._transport.reset()
 
     def record_failure(self) -> None:
-        self._attempts += 1
+        self._transport.record_failure()

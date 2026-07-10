@@ -14,7 +14,7 @@ leads to two real problems:
 2. **Schema drift** — Dhan occasionally adds new columns to the master
    CSV. Without a periodic refresh, the resolver falls behind silently.
 
-The :class:`ResolverRefresher` is a :class:`brokers.common.lifecycle.ManagedService`
+The :class:`ResolverRefresher` is a :class:`infrastructure.lifecycle.lifecycle.ManagedService`
 that re-runs :meth:`brokers.dhan.connection.DhanConnection.load_instruments`
 on a configurable interval, atomic-swaps the new resolver, and emits a
 ``resolver_refreshed`` audit event. Failures are recorded in the

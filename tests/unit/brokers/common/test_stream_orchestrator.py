@@ -16,7 +16,7 @@ from application.streaming.orchestrator import (
     StreamOrchestrator,
     SubscriptionRequest,
 )
-from brokers.common.tests.fixtures.in_memory_gateway import InMemoryBrokerGateway
+from tests.unit.brokers.common.fixtures.in_memory_gateway import InMemoryBrokerGateway
 from brokers.dhan.config.capabilities import dhan_capabilities
 from brokers.upstox.capabilities import upstox_capabilities
 from domain.stream_health import FreshnessState, SubscriptionState, TransportState

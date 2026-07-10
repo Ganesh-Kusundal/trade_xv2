@@ -473,7 +473,7 @@ class TestConnectionWiring:
     def test_connection_market_feed_default_none(self):
         """DhanConnection.market_feed must be None by default."""
         from brokers.dhan.streaming.connection import DhanConnection
-        from brokers.dhan.tests.conftest import FakeHttpClient
+        from tests.support.brokers.dhan.fixtures import FakeHttpClient
 
         conn = DhanConnection(client=FakeHttpClient())
         assert conn.market_feed is None
@@ -481,7 +481,7 @@ class TestConnectionWiring:
     def test_connection_order_stream_default_none(self):
         """DhanConnection.order_stream must be None by default."""
         from brokers.dhan.streaming.connection import DhanConnection
-        from brokers.dhan.tests.conftest import FakeHttpClient
+        from tests.support.brokers.dhan.fixtures import FakeHttpClient
 
         conn = DhanConnection(client=FakeHttpClient())
         assert conn.order_stream is None
@@ -489,7 +489,7 @@ class TestConnectionWiring:
     def test_connection_market_feed_setter(self):
         """DhanConnection.market_feed setter must store the value."""
         from brokers.dhan.streaming.connection import DhanConnection
-        from brokers.dhan.tests.conftest import FakeHttpClient
+        from tests.support.brokers.dhan.fixtures import FakeHttpClient
 
         conn = DhanConnection(client=FakeHttpClient())
         feed = DhanMarketFeed("CLIENT", "TOKEN", [])
@@ -499,7 +499,7 @@ class TestConnectionWiring:
     def test_connection_order_stream_setter(self):
         """DhanConnection.order_stream setter must store the value."""
         from brokers.dhan.streaming.connection import DhanConnection
-        from brokers.dhan.tests.conftest import FakeHttpClient
+        from tests.support.brokers.dhan.fixtures import FakeHttpClient
 
         conn = DhanConnection(client=FakeHttpClient())
         stream = DhanOrderStream("CLIENT", "TOKEN")
@@ -516,7 +516,7 @@ class TestPollingMarketFeed:
     """Verify PollingMarketFeed API surface and behavior."""
 
     def test_init(self):
-        from brokers.dhan.tests.conftest import FakeHttpClient
+        from tests.support.brokers.dhan.fixtures import FakeHttpClient
         from brokers.dhan.websocket import PollingMarketFeed
 
         client = FakeHttpClient()
@@ -533,7 +533,7 @@ class TestPollingMarketFeed:
         assert not feed.is_connected
 
     def test_on_quote_callback_registration(self):
-        from brokers.dhan.tests.conftest import FakeHttpClient
+        from tests.support.brokers.dhan.fixtures import FakeHttpClient
         from brokers.dhan.websocket import PollingMarketFeed
 
         feed = PollingMarketFeed(
@@ -548,7 +548,7 @@ class TestPollingMarketFeed:
     def test_connect_starts_thread(self):
         import time
 
-        from brokers.dhan.tests.conftest import FakeHttpClient
+        from tests.support.brokers.dhan.fixtures import FakeHttpClient
         from brokers.dhan.websocket import PollingMarketFeed
 
         feed = PollingMarketFeed(
@@ -569,7 +569,7 @@ class TestPollingMarketFeed:
     def test_disconnect_stops_thread(self):
         import time
 
-        from brokers.dhan.tests.conftest import FakeHttpClient
+        from tests.support.brokers.dhan.fixtures import FakeHttpClient
         from brokers.dhan.websocket import PollingMarketFeed
 
         feed = PollingMarketFeed(
@@ -587,7 +587,7 @@ class TestPollingMarketFeed:
     def test_double_connect_is_safe(self):
         import time
 
-        from brokers.dhan.tests.conftest import FakeHttpClient
+        from tests.support.brokers.dhan.fixtures import FakeHttpClient
         from brokers.dhan.websocket import PollingMarketFeed
 
         feed = PollingMarketFeed(

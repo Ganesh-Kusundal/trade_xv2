@@ -83,14 +83,18 @@ def test_mcx_future_defaults_commodity_kind():
 
 
 def test_register_exchange():
+    # CDS is a core allowed exchange (FX spot); no registration required.
     reset_extra_exchanges()
-    with pytest.raises(ValueError, match="Invalid exchange"):
-        InstrumentId.equity("CDS", "USDINR")
-    register_exchange("CDS")
     assert "CDS" in allowed_exchanges()
     iid = InstrumentId.currency("CDS", "USDINR")
     assert iid.asset_type == "CURRENCY"
+
+    # Dynamic extra-exchange mechanism still works for genuinely new codes.
+    register_exchange("NYSE")
+    assert "NYSE" in allowed_exchanges()
+    InstrumentId.equity("NYSE", "AAPL")
     reset_extra_exchanges()
+    assert "NYSE" not in allowed_exchanges()
 
 
 def test_universe_typed_factories():

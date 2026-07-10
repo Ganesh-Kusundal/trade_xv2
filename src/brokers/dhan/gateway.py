@@ -25,11 +25,23 @@ logger = logging.getLogger(__name__)
 
 
 class DhanBrokerGateway:
-    """Unified broker API. All calls delegate to connection adapters."""
+    """Unified broker API. All calls delegate to connection adapters.
+
+    Strangler-fig shim: declarative wire policy is available via :attr:`wire`
+    (``brokers.dhan.wire.DhanWireAdapter``). Callers should migrate to the
+    wire adapter + kernel; this gateway remains during Stage 3/4.
+    """
 
     def __init__(self, connection: DhanConnection):
         self._conn = connection
+        from brokers.dhan.wire import build_dhan_wire
+
+        self._wire = build_dhan_wire()
         enforce_gateway_capabilities(self)
+
+    @property
+    def wire(self):
+        return self._wire
 
     @property
     def extended(self) -> Any:
@@ -313,7 +325,7 @@ class DhanBrokerGateway:
         """Subscribe to a live tick stream for *symbol* on *exchange*.
 
         The *on_tick* callback receives a canonical
-        :class:`brokers.common.core.domain.Quote` object.  Broker-specific
+        :class:`domain.Quote` object.  Broker-specific
         ``security_id`` values are never exposed to the caller — mapping is
         internal to the connection.
         """

@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from domain import MarketDepth
+from domain.constants.exchanges import NFO, NSE, WIRE_IDX, WIRE_NSE_EQ, WIRE_NSE_FNO
 from domain.extensions.base import Extension
 from domain.value_objects.capability import Capability
 
@@ -26,7 +27,7 @@ class UpstoxDepth30Extension(Extension):
     ``depth_30`` — 30-level bid/ask ladder for NSE segments.
     """
 
-    _NSE_SEGMENTS = frozenset({"NSE", "NSE_EQ", "NFO", "NSE_FNO", "IDX_I"})
+    _NSE_SEGMENTS = frozenset({NSE, WIRE_NSE_EQ, NFO, WIRE_NSE_FNO, WIRE_IDX})
 
     def __init__(self, gateway: Any) -> None:
         self._gw = gateway

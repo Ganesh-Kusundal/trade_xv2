@@ -184,6 +184,20 @@ class UpstoxHttpClient:
             return self._write_circuit_breaker
         return self._admin_circuit_breaker
 
+    def circuit_breaker_states(self) -> dict[str, int]:
+        """Public observability surface — no private ``_read_circuit_breaker`` reaches."""
+        from infrastructure.resilience.circuit_breaker import CircuitState
+
+        mapping = {
+            "read": self._read_circuit_breaker,
+            "write": self._write_circuit_breaker,
+            "admin": self._admin_circuit_breaker,
+        }
+        return {
+            name: cb.state.value if cb is not None else CircuitState.CLOSED.value
+            for name, cb in mapping.items()
+        }
+
     def _headers(self, algo_name: str | None = None) -> dict[str, str]:
         headers = {
             "Accept": "application/json",

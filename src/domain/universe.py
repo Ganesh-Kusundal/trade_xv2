@@ -127,7 +127,7 @@ class Universe:
             )
         )
 
-    def spot(self, symbol: str, exchange: str = "NSE") -> Spot:
+    def spot(self, symbol: str, exchange: str = "CDS") -> Spot:
         return self._stamp(
             Spot(
                 symbol,

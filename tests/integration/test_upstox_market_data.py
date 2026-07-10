@@ -600,7 +600,7 @@ class TestMarketDataErrorHandling:
 
 # ─── Live read-only depth (gated) ─────────────────────────────────────────
 
-from brokers.upstox.tests.integration.conftest import skip_live
+from tests.integration.brokers.upstox.conftest import skip_live
 
 
 @skip_live

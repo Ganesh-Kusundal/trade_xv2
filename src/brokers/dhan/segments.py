@@ -1,12 +1,28 @@
 """Dhan segment adapter — wire format and SDK integer mappings.
 
-Canonical parsing delegates to :mod:`brokers.common.core.exchange_segments`.
+Canonical parsing delegates to :mod:`domain.exchange_segments`.
 This module owns Dhan-specific wire strings (``MCX_COMM``) and SDK transport codes.
 """
 
 from __future__ import annotations
 
 from brokers.dhan.domain import Exchange
+from domain.constants.exchanges import (
+    BCD,
+    BFO,
+    BSE,
+    CDS,
+    MCX,
+    NFO,
+    NSE,
+    WIRE_BSE_CURRENCY,
+    WIRE_BSE_EQ,
+    WIRE_BSE_FNO,
+    WIRE_IDX,
+    WIRE_NSE_CURRENCY,
+    WIRE_NSE_EQ,
+    WIRE_NSE_FNO,
+)
 from domain.constants.market import DEFAULT_EXCHANGE_SEGMENT_FALLBACK
 from domain.exchange_segments import parse_segment as _parse_segment
 from domain.types import ExchangeSegment
@@ -14,26 +30,29 @@ from domain.types import ExchangeSegment
 DEFAULT_SEGMENT = DEFAULT_EXCHANGE_SEGMENT_FALLBACK
 
 # Dhan HTTP/wire segment strings (distinct from canonical enum values).
+# ponytail: Dhan uses ``MCX_COMM`` (underscore); domain WIRE_MCX_COMM is ``MCXCOMM``.
+_DHAN_MCX_COMM = "MCX_COMM"
+
 _DHAN_WIRE: dict[ExchangeSegment, str] = {
-    ExchangeSegment.NSE: "NSE_EQ",
-    ExchangeSegment.BSE: "BSE_EQ",
-    ExchangeSegment.NSE_FNO: "NSE_FNO",
-    ExchangeSegment.BSE_FNO: "BSE_FNO",
-    ExchangeSegment.MCX: "MCX_COMM",
-    ExchangeSegment.NSE_CURRENCY: "NSE_CURRENCY",
-    ExchangeSegment.BSE_CURRENCY: "BSE_CURRENCY",
-    ExchangeSegment.IDX_I: "IDX_I",
+    ExchangeSegment.NSE: WIRE_NSE_EQ,
+    ExchangeSegment.BSE: WIRE_BSE_EQ,
+    ExchangeSegment.NSE_FNO: WIRE_NSE_FNO,
+    ExchangeSegment.BSE_FNO: WIRE_BSE_FNO,
+    ExchangeSegment.MCX: _DHAN_MCX_COMM,
+    ExchangeSegment.NSE_CURRENCY: WIRE_NSE_CURRENCY,
+    ExchangeSegment.BSE_CURRENCY: WIRE_BSE_CURRENCY,
+    ExchangeSegment.IDX_I: WIRE_IDX,
 }
 
 # Short exchange codes used in Dhan Instrument.exchange and user input.
 _EXCHANGE_SHORT: dict[ExchangeSegment, str] = {
-    ExchangeSegment.NSE: "NSE",
-    ExchangeSegment.BSE: "BSE",
-    ExchangeSegment.NSE_FNO: "NFO",
-    ExchangeSegment.BSE_FNO: "BFO",
-    ExchangeSegment.MCX: "MCX",
-    ExchangeSegment.NSE_CURRENCY: "CDS",
-    ExchangeSegment.BSE_CURRENCY: "BCD",
+    ExchangeSegment.NSE: NSE,
+    ExchangeSegment.BSE: BSE,
+    ExchangeSegment.NSE_FNO: NFO,
+    ExchangeSegment.BSE_FNO: BFO,
+    ExchangeSegment.MCX: MCX,
+    ExchangeSegment.NSE_CURRENCY: CDS,
+    ExchangeSegment.BSE_CURRENCY: BCD,
     ExchangeSegment.IDX_I: "INDEX",
 }
 
@@ -42,42 +61,42 @@ EXCHANGE_TO_SEGMENT: dict[str, str] = {
     for seg, short in _EXCHANGE_SHORT.items()
     if short in {e.value for e in Exchange}
 }
-EXCHANGE_TO_SEGMENT["INDEX"] = "IDX_I"
+EXCHANGE_TO_SEGMENT["INDEX"] = WIRE_IDX
 
 SEGMENT_TO_EXCHANGE: dict[str, str] = {
     wire: _EXCHANGE_SHORT[seg] for seg, wire in _DHAN_WIRE.items()
 }
 SEGMENT_TO_EXCHANGE.update(
     {
-        "BSE_CURRENCY": "BCD",
-        "NSE_COMM": "MCX",
+        WIRE_BSE_CURRENCY: BCD,
+        "NSE_COMM": MCX,
     }
 )
 
 _COMPACT_SEGMENT_MAP: dict[tuple[str, str], str] = {
-    ("NSE", "E"): "NSE_EQ",
-    ("NSE", "D"): "NSE_FNO",
-    ("NSE", "I"): "IDX_I",
-    ("BSE", "E"): "BSE_EQ",
-    ("BSE", "D"): "BSE_FNO",
-    ("BSE", "I"): "IDX_I",
-    ("MCX", "M"): "MCX_COMM",
-    ("CDS", "D"): "NSE_CURRENCY",
-    ("NSE", "C"): "NSE_CURRENCY",
-    ("BSE", "C"): "BSE_CURRENCY",
-    ("NSE", "M"): "NSE_COMM",
+    (NSE, "E"): WIRE_NSE_EQ,
+    (NSE, "D"): WIRE_NSE_FNO,
+    (NSE, "I"): WIRE_IDX,
+    (BSE, "E"): WIRE_BSE_EQ,
+    (BSE, "D"): WIRE_BSE_FNO,
+    (BSE, "I"): WIRE_IDX,
+    (MCX, "M"): _DHAN_MCX_COMM,
+    (CDS, "D"): WIRE_NSE_CURRENCY,
+    (NSE, "C"): WIRE_NSE_CURRENCY,
+    (BSE, "C"): WIRE_BSE_CURRENCY,
+    (NSE, "M"): "NSE_COMM",
 }
 
 # Binary protocol numeric codes (Dhan v2 websocket)
 NUMERIC_TO_SEGMENT: dict[int, str] = {
-    0: "IDX_I",
-    1: "NSE_EQ",
-    2: "NSE_FNO",
-    3: "NSE_CURRENCY",
-    4: "BSE_EQ",
-    5: "MCX_COMM",
-    7: "BSE_CURRENCY",
-    8: "BSE_FNO",
+    0: WIRE_IDX,
+    1: WIRE_NSE_EQ,
+    2: WIRE_NSE_FNO,
+    3: WIRE_NSE_CURRENCY,
+    4: WIRE_BSE_EQ,
+    5: _DHAN_MCX_COMM,
+    7: WIRE_BSE_CURRENCY,
+    8: WIRE_BSE_FNO,
 }
 
 SEGMENT_TO_NUMERIC: dict[str, int] = {v: k for k, v in NUMERIC_TO_SEGMENT.items()}

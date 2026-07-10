@@ -258,6 +258,13 @@ class PaperOrders:
         MARKET → instant fill (FILLED).
         LIMIT / stop styles → rest as OPEN (so cancel/modify e2e works).
         """
+        from brokers.common.order_validation import validate_lot_size
+
+        # Paper default lot size 1; still route through shared validator.
+        lot_err = validate_lot_size(quantity, 1, symbol, exchange)
+        if lot_err:
+            raise ValueError(lot_err)
+
         is_market = order_type == OrderType.MARKET
         if price > 0 and order_type == OrderType.LIMIT:
             fill_price = price
