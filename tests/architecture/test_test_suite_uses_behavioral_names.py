@@ -62,3 +62,13 @@ def test_pyramid_directories_exist() -> None:
     """Top-level pyramid layout is present under tests/."""
     for name in ("unit", "component", "integration", "e2e", "architecture"):
         assert (_ROOT / "tests" / name).is_dir(), f"missing tests/{name}"
+
+
+def test_domain_and_oms_tests_live_under_pyramid() -> None:
+    """Wave-1 consolidation: no package-local domain/oms test suites under src/."""
+    domain_tests = _ROOT / "src" / "domain" / "tests"
+    oms_tests = _ROOT / "src" / "application" / "oms" / "tests"
+    assert not domain_tests.is_dir(), "domain tests must live under tests/unit/domain"
+    assert not oms_tests.is_dir(), "OMS tests must live under tests/component/oms"
+    assert (_ROOT / "tests" / "unit" / "domain").is_dir()
+    assert (_ROOT / "tests" / "component" / "oms").is_dir()

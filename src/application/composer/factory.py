@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from application.scheduling.quota_scheduler import QuotaScheduler
     from domain.policies.source_selection import SourceSelectionPolicy
     from domain.ports.broker_gateway import CommonBrokerGateway
-    from runtime.broker_infrastructure import BrokerInfrastructure
+    from domain.ports.broker_infrastructure import BrokerInfrastructurePort
 
 from application.composer.execution import ExecutionComposer
 from application.composer.market_data import MarketDataComposer
@@ -331,7 +331,7 @@ def _apply_default_backfill(
 
 
 def create_composers_from_infra(
-    infra: BrokerInfrastructure,
+    infra: BrokerInfrastructurePort,
     risk_manager: Any | None = None,
     order_manager: Any | None = None,
 ) -> tuple[MarketDataComposer, ExecutionComposer]:

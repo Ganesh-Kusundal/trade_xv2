@@ -119,7 +119,8 @@ class TestBusinessLayerIsolation:
         ],
         "threading.Thread": [
             "src/application/oms/",
-            "src/domain/tests/",
+            "tests/unit/domain/",
+            "tests/unit/domain/",  # legacy path; suite consolidated wave 1
         ],
     }
 

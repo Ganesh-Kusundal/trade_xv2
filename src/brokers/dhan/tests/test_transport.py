@@ -103,7 +103,7 @@ def test_dhan_transport_close_tears_down_gateway():
 
 def test_dhan_transport_satisfies_shared_contract():
     # Reuse the domain's BrokerTransport contract on the real plugin.
-    from domain.tests.test_broker_transport_contract import _BrokerTransportContract, FakeProvider
+    from tests.unit.domain.test_broker_transport_contract import _BrokerTransportContract, FakeProvider
     from domain.ports.protocols import DataProvider
 
     class _Contract(_BrokerTransportContract):

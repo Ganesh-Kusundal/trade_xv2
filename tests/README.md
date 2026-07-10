@@ -4,36 +4,34 @@ Tests are the **living specification** of platform guarantees. They describe
 behavior that must remain true across refactors — not the history of how a
 change was introduced.
 
-## Pyramid
+**Consolidation plan:** see [`CONSOLIDATION_PLAN.md`](./CONSOLIDATION_PLAN.md).
+
+## Pyramid + source hierarchy
 
 ```text
-                    E2E / Production Validation
-                  ───────────────────────────────
-                 tests/e2e, tests/chaos, sandbox
-
-               Integration / Contract Tests
-           ───────────────────────────────────────
-         tests/integration, package */tests/integration
-
-               Component / Service Tests
-         ────────────────────────────────────────
-        tests/component, application/*/tests
-
-             Domain / Unit Tests
-      ─────────────────────────────────
-     tests/unit, domain/tests, value objects
+tests/
+├── unit/domain/**          ↔  src/domain/**
+├── component/oms/**        ↔  src/application/oms/**
+├── component/execution/**  ↔  src/application/execution/**
+├── integration/brokers/**  ↔  multi-module broker contracts
+├── e2e/ chaos/             ↔  full process
+└── architecture/           ↔  layering / suite rules
 ```
 
 | Layer | Directory | Question answered |
 |-------|-----------|-------------------|
-| Unit | `tests/unit/`, `src/domain/tests/` | Does this business rule work? |
-| Component | `tests/component/`, `src/application/*/tests/` | Does this service behave correctly? |
-| Integration | `tests/integration/`, broker `*/tests/integration/` | Do components collaborate? |
+| Unit | `tests/unit/` (esp. `unit/domain/`) | Does this business rule work? |
+| Component | `tests/component/` (oms, execution, trading, …) | Does this service behave correctly? |
+| Integration | `tests/integration/` | Do components collaborate? |
 | E2E | `tests/e2e/`, `tests/chaos/` | Does the full system work? |
 | Architecture | `tests/architecture/` | Do layering / import rules hold? |
 
-Package-local tests under `src/**/tests` remain allowed for fast unit/component
-coverage next to the code they protect. Prefer **behavioral file names**.
+**Wave 1 done:** domain + application OMS/execution/trading/composer/services
+tests live under `tests/unit` and `tests/component` — not under `src/**/tests`.
+
+**Still co-located (later waves):** `src/brokers/**/tests`, `src/analytics/**/tests`,
+`src/datalake/**/tests`, `src/infrastructure/**/tests`, `src/interface/**/tests`.
+Do **not** add new tests under those paths; put them in the pyramid.
 
 ## Naming rules
 

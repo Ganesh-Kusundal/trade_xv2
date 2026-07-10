@@ -387,6 +387,8 @@ forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper", "brokers
 unmatched_ignore_imports_alerting = "warn"
 ignore_imports = [
     # Test-only: integration tests import concrete broker / residual common modules.
+    # OMS/execution tests moved to tests/component (wave 1); keep legacy
+    # application.*.tests ignores if any residual modules reappear.
     "application.oms.tests.* -> brokers.common.**",
     "application.oms.tests.* -> brokers.dhan.**",
     "application.execution.tests.* -> brokers.paper.**",
