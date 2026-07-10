@@ -234,7 +234,7 @@ def test_broker_extension_depth20():
 
     assert ext.name == "depth_20"
     assert ext.broker == "dhan"
-    assert ext.capabilities == (Capability(name="depth_20"),)
+    assert ext.capabilities == (Capability.DEPTH_20,)
 
     # Attach to an instrument
     from domain.instruments.instrument import Equity

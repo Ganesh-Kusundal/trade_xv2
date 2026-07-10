@@ -15,6 +15,7 @@ probe-before-mint / soft-then-hard 401 policy runs automatically.
 
 from __future__ import annotations
 
+import importlib
 import logging
 from pathlib import Path
 from typing import Any
@@ -298,10 +299,10 @@ def _create_dhan(
     risk_manager: Any | None = None,
 ) -> Any | None:
     try:
-        from brokers.dhan.factory import BrokerFactory
+        _mod = importlib.import_module("brokers.dhan.factory")
 
         resolved = Path(env_path) if env_path is not None else resolve_env_path("dhan")
-        return BrokerFactory().create(
+        return _mod.BrokerFactory().create(
             env_path=resolved,
             load_instruments=load_instruments,
             event_bus=event_bus,
@@ -325,10 +326,10 @@ def _create_upstox(
     risk_manager: Any | None = None,
 ) -> Any | None:
     try:
-        from brokers.upstox.factory import UpstoxBrokerFactory
+        _mod = importlib.import_module("brokers.upstox.factory")
 
         resolved = Path(env_path) if env_path is not None else resolve_env_path("upstox")
-        return UpstoxBrokerFactory().create(
+        return _mod.UpstoxBrokerFactory().create(
             env_path=resolved,
             load_instruments=load_instruments,
             event_bus=event_bus,

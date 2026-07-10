@@ -10,8 +10,6 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-import pandas as pd
-
 from domain.instruments.instrument_id import InstrumentId
 from domain.tests._fakes import FakeProvider, make_quote
 
@@ -32,11 +30,15 @@ class _DataProviderContract:
     def test_get_history_returns_ohlcv(self) -> None:
         provider = self.build_provider()
         iid = InstrumentId.equity("NSE", "RELIANCE")
-        df = provider.get_history(iid, timeframe="5m")
-        assert isinstance(df, pd.DataFrame)
-        assert not df.empty
-        for col in ("open", "high", "low", "close", "volume"):
-            assert col in df.columns
+        bars = provider.get_history(iid, timeframe="5m")
+        assert isinstance(bars, list)
+        assert len(bars) > 0
+        bar = bars[0]
+        assert bar.open is not None
+        assert bar.high is not None
+        assert bar.low is not None
+        assert bar.close is not None
+        assert bar.volume is not None
 
     def test_get_depth_returns_ladder(self) -> None:
         provider = self.build_provider()

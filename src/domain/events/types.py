@@ -278,6 +278,11 @@ EVENT_PAYLOADS: dict[EventType, EventPayload] = {
             "tick is valid during warmup."
         ),
     ),
+    EventType.QUOTE: EventPayload(
+        required_keys=("symbol", "exchange", "ltp"),
+        optional_keys=("bid", "ask", "volume", "open", "high", "low", "close"),
+        notes="QUOTE carries a real-time quote snapshot for one instrument.",
+    ),
     EventType.DEPTH: EventPayload(
         required_keys=("bids", "asks"),
         optional_keys=("ltp", "timestamp"),
@@ -491,6 +496,25 @@ EVENT_PAYLOADS: dict[EventType, EventPayload] = {
     ),
     EventType.STRATEGY_DISABLED: EventPayload(
         required_keys=("strategy_name", "reason"),
+    ),
+    EventType.DEPTH_20: EventPayload(
+        required_keys=("bids", "asks"),
+        optional_keys=("ltp", "timestamp"),
+        notes="DEPTH_20 carries a 20-level order-book snapshot.",
+    ),
+    EventType.DEPTH_200: EventPayload(
+        required_keys=("bids", "asks"),
+        optional_keys=("ltp", "timestamp"),
+        notes="DEPTH_200 carries a 200-level order-book snapshot.",
+    ),
+    EventType.TRADE_FILLED: EventPayload(
+        required_keys=("trade",),
+        notes="TRADE_FILLED is published when a fill is confirmed.",
+    ),
+    EventType.BAR_CLOSED: EventPayload(
+        required_keys=("symbol", "timeframe"),
+        optional_keys=("open", "high", "low", "close", "volume"),
+        notes="BAR_CLOSED is published when a trading bar completes.",
     ),
 }
 

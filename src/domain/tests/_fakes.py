@@ -177,6 +177,9 @@ class FakeProvider:
     def list_instruments(self, exchange=None):
         return []
 
+    def get_quotes_batch(self, instrument_ids):
+        return [self.get_quote(iid) for iid in instrument_ids]
+
     # ── test helper ─────────────────────────────────────────────────
 
     def fire_tick(self, symbol: str, exchange: str, payload) -> None:

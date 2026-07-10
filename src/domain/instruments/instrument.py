@@ -334,6 +334,9 @@ class Instrument(
                 return ext.for_instrument(self)
             bind = getattr(ext, "for_instrument", None)
             if callable(bind):
+                # Avoid re-binding if already bound to this instrument
+                if getattr(ext, "_symbol", None) == self.symbol and getattr(ext, "_exchange", None) == self.exchange:
+                    return ext
                 try:
                     return bind(self.symbol, self.exchange)
                 except TypeError:
@@ -461,6 +464,63 @@ class Future(Instrument):
             **kwargs,
         )
         self._expiry = expiry
+
+    @property
+    def expiry(self) -> date:
+        return self._expiry
+
+    def _futures_ltp(self) -> Decimal | None:
+        if self.ltp is not None:
+            return self.ltp
+        try:
+            q = self.refresh()
+            return q.ltp if q is not None else None
+        except Exception:
+            return None
+
+    def _spot_ltp(self, spot: Decimal | None = None) -> Decimal | None:
+        if spot is not None:
+            return spot
+        from domain.instruments.derivatives_math import map_underlying_cash_exchange
+
+        try:
+            provider = self._resolve_provider()
+        except Exception:
+            return None
+        cash_ex = map_underlying_cash_exchange(self.exchange)
+        und_id = InstrumentId.equity(cash_ex, self.symbol)
+        q = provider.get_quote(und_id)
+        if q is None:
+            und_id = InstrumentId.index(cash_ex, self.symbol)
+            q = provider.get_quote(und_id)
+        return q.ltp if q is not None else None
+
+    def basis(self, spot: Decimal | None = None) -> Decimal | None:
+        """F - S (normative). None if either leg missing."""
+        from domain.instruments.derivatives_math import future_basis
+
+        return future_basis(self._futures_ltp(), self._spot_ltp(spot))
+
+    def cost_of_carry(self, rate: Decimal | None = None) -> Decimal | None:
+        """Implied continuous rate if rate is None; else F - S*e^{rT}."""
+        from domain.instruments.derivatives_math import cost_of_carry_basis, year_fraction
+
+        return cost_of_carry_basis(
+            self._futures_ltp(),
+            self._spot_ltp(),
+            year_fraction(self._expiry),
+            rate,
+        )
+
+    def continuous(self) -> HistoricalSeries:
+        """v1: empty DERIVED continuous series (no provider continuous support)."""
+        return HistoricalSeries(
+            bars=[],
+            coverage=None,
+            instrument=InstrumentRef(symbol=self.symbol, exchange=self.exchange),
+            timeframe="1D",
+            merge_manifest=None,
+        )
 
 
 class Commodity(Future):

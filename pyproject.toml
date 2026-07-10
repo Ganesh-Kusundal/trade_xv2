@@ -324,4 +324,7 @@ ignore_imports = [
     # Session factory may construct paper gateway for the public SDK.
     "tradex.session -> brokers.paper",
     "tradex.session -> brokers.paper.data_provider",
+    # Public SDK session factory needs broker-specific constructors.
+    "tradex.session -> brokers.dhan",
+    "tradex.session -> brokers.upstox",
 ]

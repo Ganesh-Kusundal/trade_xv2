@@ -9,6 +9,7 @@ were removed (board Decision #4); brokers now obtain their limiter through
 from __future__ import annotations
 
 import asyncio
+import importlib
 import logging
 import threading
 import time
@@ -328,13 +329,11 @@ def _default_capabilities_loader(broker_id: str) -> Any | None:
     # Lazy import fallbacks (tradex.runtime may depend on brokers adapters).
     try:
         if broker_id == "dhan":
-            from brokers.dhan.capabilities import dhan_capabilities
-
-            return dhan_capabilities()
+            _mod = importlib.import_module("brokers.dhan.capabilities")
+            return _mod.dhan_capabilities()
         if broker_id == "upstox":
-            from brokers.upstox.capabilities import upstox_capabilities
-
-            return upstox_capabilities()
+            _mod = importlib.import_module("brokers.upstox.capabilities")
+            return _mod.upstox_capabilities()
     except Exception as exc:
         logger.warning(
             "capabilities_lazy_import_failed",
