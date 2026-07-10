@@ -13,7 +13,12 @@ from interface.ui.utils.error_formatter import (
     get_error_severity,
     is_retryable_error,
 )
-from interface.ui.utils.retry_handler import retry_with_backoff, with_retry
+from domain.constants.resilience import MAX_RETRY_ATTEMPTS, RETRY_BASE_DELAY_MS
+from interface.ui.utils.retry_handler import (
+    DEFAULT_BACKOFF_FACTOR,
+    retry_with_backoff,
+    with_retry,
+)
 from interface.ui.utils.timeout_handler import with_timeout, with_timeout_async
 
 # ── Timeout Handler Tests ─────────────────────────────────────────────────
@@ -105,6 +110,27 @@ class TestWithTimeoutAsync:
 
 
 # ── Retry Handler Tests ──────────────────────────────────────────────────
+
+
+class TestRetryDefaultsFromDomain:
+    """Defaults must come from domain.constants.resilience (REF-2)."""
+
+    def test_default_max_retries_is_max_retry_attempts(self):
+        params = with_retry.__kwdefaults__
+        assert params is not None
+        assert params["max_retries"] == MAX_RETRY_ATTEMPTS
+
+    def test_default_backoff_factor_maps_base_delay_ms(self):
+        assert DEFAULT_BACKOFF_FACTOR == RETRY_BASE_DELAY_MS / 1000.0
+        params = with_retry.__kwdefaults__
+        assert params is not None
+        assert params["backoff_factor"] == DEFAULT_BACKOFF_FACTOR
+
+    def test_retry_with_backoff_defaults_match(self):
+        params = retry_with_backoff.__kwdefaults__
+        assert params is not None
+        assert params["max_retries"] == MAX_RETRY_ATTEMPTS
+        assert params["backoff_factor"] == DEFAULT_BACKOFF_FACTOR
 
 
 class TestWithRetryDecorator:

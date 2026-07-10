@@ -1,4 +1,9 @@
-"""Place order use case — risk → validation → OMS → events (REF-6)."""
+"""Place order use case — risk → validation → OMS → events (REF-6).
+
+Canonical application entry for order placement. Prefer this (directly or via
+``ExecutionService`` / ``tradex.Session``) from UI and API layers instead of
+calling ``OrderManager.place_order`` or broker gateways bare.
+"""
 
 from __future__ import annotations
 
@@ -11,7 +16,12 @@ from domain.orders.requests import OrderRequest
 
 
 class PlaceOrderUseCase:
-    """Single entry point for order placement with risk and event publishing."""
+    """Single entry point for order placement with risk and event publishing.
+
+    UI/API should route here (or through ``ExecutionService.place_order`` which
+    delegates here in live mode) so risk, idempotency, and event publish stay
+    on one spine.
+    """
 
     def __init__(
         self,
@@ -24,21 +34,24 @@ class PlaceOrderUseCase:
         self._events = event_publisher
         self._submit_fn = submit_fn
 
-    def execute(self, request: OrderRequest) -> OrderResult:
-        command = OmsOrderCommand(
-            symbol=request.symbol,
-            exchange=request.exchange,
-            side=(
-                request.transaction_type
-                if isinstance(request.transaction_type, Side)
-                else Side(str(request.transaction_type).upper())
-            ),
-            order_type=request.order_type,
-            quantity=int(request.quantity),
-            price=request.price,
-            product_type=request.product_type,
-            correlation_id=request.correlation_id or "",
-        )
+    def execute(self, request: OrderRequest | OmsOrderCommand) -> OrderResult:
+        if isinstance(request, OmsOrderCommand):
+            command = request
+        else:
+            command = OmsOrderCommand(
+                symbol=request.symbol,
+                exchange=request.exchange,
+                side=(
+                    request.transaction_type
+                    if isinstance(request.transaction_type, Side)
+                    else Side(str(request.transaction_type).upper())
+                ),
+                order_type=request.order_type,
+                quantity=int(request.quantity),
+                price=request.price,
+                product_type=request.product_type,
+                correlation_id=request.correlation_id or "",
+            )
         result = self._oms.place_order(command, submit_fn=self._submit_fn)
         if self._events is not None and result.success and result.order is not None:
             self._events.publish(

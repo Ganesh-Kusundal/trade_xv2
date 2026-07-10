@@ -1,9 +1,14 @@
-"""OMS-backed order repository adapter (REF-15)."""
+"""OMS-backed order repository adapter (REF-15).
+
+Placement routes through :class:`~application.execution.place_order_use_case.PlaceOrderUseCase`
+so repository consumers share the same risk/event spine as CLI/API.
+"""
 
 from __future__ import annotations
 
 from collections.abc import Callable
 
+from application.execution.place_order_use_case import PlaceOrderUseCase
 from application.oms.order_manager import OmsOrderCommand, OrderManager, OrderResult
 from domain import Order, OrderResponse, OrderStatus, OrderType, ProductType, Side
 from domain.orders.requests import OrderRequest
@@ -76,7 +81,12 @@ class OrderManagerRepository:
         return self._oms.get_order(order_id)
 
     def place_order(self, request: OrderRequest) -> OrderResponse:
-        result = self._oms.place_order(_request_to_command(request), submit_fn=self._submit_fn)
+        # Convert first so order_type/product_type enums stay consistent, then
+        # PlaceOrderUseCase (not bare OrderManager) for the shared spine.
+        result = PlaceOrderUseCase(
+            self._oms,
+            submit_fn=self._submit_fn,
+        ).execute(_request_to_command(request))
         return _result_to_response(result)
 
     def cancel_order(self, order_id: str) -> OrderResponse:
@@ -90,7 +100,10 @@ class OrderManagerRepository:
         submit_fn: Callable[[OmsOrderCommand], Order] | None = None,
     ) -> OrderResult:
         """Advanced placement with optional per-call submit_fn."""
-        return self._oms.place_order(command, submit_fn=submit_fn or self._submit_fn)
+        return PlaceOrderUseCase(
+            self._oms,
+            submit_fn=submit_fn or self._submit_fn,
+        ).execute(command)
 
     def cancel_with_fn(
         self,

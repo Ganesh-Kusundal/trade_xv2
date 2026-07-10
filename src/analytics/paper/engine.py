@@ -387,6 +387,21 @@ class PaperTradingEngine:
         if signal.is_buy and bar.symbol not in session.positions:
             if session.position_count >= config.max_positions:
                 return
+            # REF-4: float → Decimal daily-loss gate (domain policy helper).
+            if config.max_daily_loss_pct > 0:
+                from domain.risk.policy import check_paper_daily_loss
+
+                loss_check = check_paper_daily_loss(
+                    session.daily_pnl,
+                    session.total_equity,
+                    config.max_daily_loss_pct,
+                )
+                if not loss_check.approved:
+                    logger.info(
+                        "paper_daily_loss_blocked",
+                        extra={"reason": loss_check.reason, "symbol": bar.symbol},
+                    )
+                    return
             price = _apply_slippage(Decimal(str(bar.close)), side="BUY", slippage_pct=config.slippage_pct)
             qty = compute_order_quantity(
                 equity=session.capital,

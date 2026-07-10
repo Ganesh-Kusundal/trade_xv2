@@ -51,6 +51,8 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 if TYPE_CHECKING:
     from domain.portfolio.risk_profile import RiskProfile
+    from domain.risk.policy import KillSwitch as DomainKillSwitch
+    from domain.risk.policy import RiskResult as DomainRiskResult
 
 from application.oms._internal.loss_circuit_breaker import (
     LossCircuitBreaker,
@@ -98,6 +100,19 @@ class RiskResult:
     reason: str | None = None
 
 
+def risk_result_from_domain(domain_result: "DomainRiskResult") -> RiskResult:
+    """Map ``domain.risk.policy.RiskResult`` (``approved``) → OMS ``RiskResult`` (``allowed``).
+
+    Bridge only — does not reimplement domain policy. Callers that already hold a
+    domain :class:`~domain.risk.policy.RiskResult` (e.g. from :class:`~domain.risk.policy.KillSwitch`)
+    use this to stay on the OMS ``check_order`` return type.
+    """
+    return RiskResult(
+        allowed=domain_result.approved,
+        reason=domain_result.reason or None,
+    )
+
+
 class RiskManager:
     """Deterministic, stateless risk checks.
 
@@ -114,7 +129,18 @@ class RiskManager:
     the lock for the duration of the read so an interleaved
     ``set_kill_switch`` or ``update_daily_pnl`` cannot produce a
     half-observed state.
+
+    Kill-switch desk policy (Part 5 §3.1)
+    ------------------------------------
+    ``KILL_SWITCH_MODE = freeze_all``: when active, *all* order-modifying
+    actions are rejected — new risk, cancels/modifies, square-off, and
+    ``exit_all``. This is intentional: a compromised process must not be
+    able to "emergency exit" destructively. Operators clear the kill
+    switch, then flatten. No ``freeze_new_orders_only`` dual-mode.
     """
+
+    #: Desk policy: kill switch freezes every order action (incl. exit_all).
+    KILL_SWITCH_MODE = "freeze_all"
 
     #: Fraction of the daily-loss budget consumed before RISK_LIMIT_BREACHED
     #: fires. Deliberately below 1.0 so operators get a warning before the
@@ -131,6 +157,7 @@ class RiskManager:
         margin_provider: MarginProviderPort | None = None,
         instrument_provider: InstrumentProvider | None = None,
         on_risk_event: Callable[[str, dict], None] | None = None,
+        domain_kill_switch: "DomainKillSwitch | None" = None,
     ) -> None:
         self._position_manager = position_manager
         self._config = config
@@ -140,6 +167,10 @@ class RiskManager:
         # None by default (no-op) so every existing caller is unaffected.
         self._on_risk_event = on_risk_event
         self._risk_limit_breach_notified = False
+        # Optional domain KillSwitch (REF-4 bridge). When set, check_order
+        # consults it in addition to RiskConfig.kill_switch; set_kill_switch
+        # keeps both in sync. Default None = legacy config-only path.
+        self._domain_kill_switch = domain_kill_switch
 
         # Support both old capital_fn and new capital_provider (P2-2)
         if capital_provider is not None:
@@ -326,6 +357,12 @@ class RiskManager:
             if self._config.kill_switch:
                 return RiskResult(False, "Kill switch is active")
 
+            # Domain KillSwitch bridge (REF-4): optional pure policy object.
+            if self._domain_kill_switch is not None:
+                domain_ks = risk_result_from_domain(self._domain_kill_switch.check())
+                if not domain_ks.allowed:
+                    return domain_ks
+
             # Loss circuit breaker check (before capital check)
             cb_allowed, cb_reason = self._loss_cb.allow_trading()
             if not cb_allowed:
@@ -473,6 +510,12 @@ class RiskManager:
         with self._lock:
             previous = self._config.kill_switch
             self._config = replace(self._config, kill_switch=active)
+            # Keep optional domain KillSwitch in lock-step with config.
+            if self._domain_kill_switch is not None:
+                if active:
+                    self._domain_kill_switch.activate()
+                else:
+                    self._domain_kill_switch.deactivate()
             if previous != active:
                 self._kill_switch_toggles += 1
                 logger.warning(
@@ -481,17 +524,22 @@ class RiskManager:
                 )
 
     def is_kill_switch_active(self) -> bool:
-        """Check if kill switch is currently active.
+        """Check if kill switch is currently active (freeze_all mode).
 
-        P4-5: Thread-safe read of kill switch status.
+        When True, *all* order actions are blocked including exit_all /
+        square-off. See :attr:`KILL_SWITCH_MODE`.
 
         Returns
         -------
         bool:
-            True if kill switch prevents order execution.
+            True if kill switch prevents every order-modifying action.
         """
         with self._lock:
-            return self._config.kill_switch
+            if self._config.kill_switch:
+                return True
+            if self._domain_kill_switch is not None and self._domain_kill_switch.is_active:
+                return True
+            return False
 
     def reset_daily_pnl(self) -> None:
         """Reset the daily PnL to zero.
@@ -532,9 +580,17 @@ class RiskManager:
 
     @property
     def kill_switch(self) -> bool:
-        """Current kill-switch state. Thread-safe."""
+        """Current kill-switch state. Thread-safe.
+
+        True if config kill switch is on **or** the optional domain KillSwitch
+        is active (REF-4 bridge).
+        """
         with self._lock:
-            return self._config.kill_switch
+            if self._config.kill_switch:
+                return True
+            if self._domain_kill_switch is not None and self._domain_kill_switch.is_active:
+                return True
+            return False
 
     @property
     def loss_circuit_breaker(self) -> LossCircuitBreaker:

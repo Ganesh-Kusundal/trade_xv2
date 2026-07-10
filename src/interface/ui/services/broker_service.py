@@ -361,7 +361,7 @@ class BrokerService:
         price: Decimal | None = None,
         order_type: str = "MARKET",
     ) -> Order:
-        """Place order via the OMS OrderManager."""
+        """Place order via CLI facade → ExecutionService → PlaceOrderUseCase → OMS."""
         return self._facade.place_order(
             symbol, exchange=exchange, side=side, quantity=quantity,
             price=price, order_type=order_type,

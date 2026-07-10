@@ -56,7 +56,7 @@ _ALLOWED_PLACE_ORDER_FILES = frozenset(
         "src/brokers/dhan/execution/orders.py",
         "src/brokers/dhan/execution/order_placement.py",
         "src/brokers/dhan/api/transport.py",
-        "src/brokers/dhan/order_placement.py",
+        # src/brokers/dhan/order_placement.py — removed (shim deleted; logic in execution/order_placement.py)
     }
 )
 

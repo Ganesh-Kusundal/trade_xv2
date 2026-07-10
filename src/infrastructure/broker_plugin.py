@@ -52,8 +52,9 @@ def ensure_core_plugins() -> None:
     (``brokers/{dhan,upstox,paper}/__init__.py`` all call
     ``register_broker_plugin`` themselves at import time) — that was tried
     and reverted: importing the broker packages from here transitively
-    pulls in ``application.oms.*`` (e.g. ``brokers.dhan.portfolio
-    .reconciliation -> application.oms.reconciliation.engine``) and breaks
+    pulls in ``application.oms.*`` (historically ``brokers.dhan.portfolio
+    .reconciliation``; engine now lives in ``domain.reconciliation_engine``)
+    and breaks
     two real import-linter contracts (``Infrastructure independence``,
     ``Tradex public API broker isolation``). Duplicating the metadata here
     is the architecturally correct choice, not an oversight — it trades a

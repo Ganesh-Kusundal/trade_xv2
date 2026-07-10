@@ -1,11 +1,11 @@
-"""Broker-agnostic reconciliation engine.
+"""Broker-agnostic reconciliation engine (compat re-export).
 
-Canonical location: ``application.oms.reconciliation``.
+Canonical location: ``domain.reconciliation_engine``.
 """
 
 from __future__ import annotations
 
-from .engine import ReconciliationEngine
+from domain.reconciliation_engine import ReconciliationEngine
 
 __all__ = [
     "ReconciliationEngine",

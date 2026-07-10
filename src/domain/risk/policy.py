@@ -116,6 +116,44 @@ class KillSwitch:
         return RiskResult(True)
 
 
+def check_daily_loss_pct(
+    daily_pnl: Decimal,
+    capital: Decimal,
+    max_daily_loss_pct: Decimal,
+) -> RiskResult:
+    """Reject when cumulative daily loss reaches ``max_daily_loss_pct`` of capital.
+
+    ``max_daily_loss_pct`` is a percentage (e.g. ``Decimal("2")`` = 2%).
+    Zero or negative limit disables the check (always approved).
+    """
+    if max_daily_loss_pct <= 0 or capital <= 0:
+        return RiskResult(True)
+    if daily_pnl < 0 and abs(daily_pnl) / capital * 100 >= max_daily_loss_pct:
+        return RiskResult(
+            False,
+            f"daily loss {daily_pnl} breached {max_daily_loss_pct}% of capital {capital}",
+        )
+    return RiskResult(True)
+
+
+def check_paper_daily_loss(
+    daily_pnl: float | Decimal,
+    capital: float | Decimal,
+    max_daily_loss_pct: float | Decimal,
+) -> RiskResult:
+    """Paper/float adapter for :func:`check_daily_loss_pct`.
+
+    Converts paper-engine floats to :class:`Decimal` then delegates to the
+    pure domain percentage check. Use when config has a non-zero
+    ``max_daily_loss_pct``.
+    """
+    return check_daily_loss_pct(
+        Decimal(str(daily_pnl)),
+        Decimal(str(capital)),
+        Decimal(str(max_daily_loss_pct)),
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class RiskGate:
     """Composes multiple policies and short-circuits on the first rejection.

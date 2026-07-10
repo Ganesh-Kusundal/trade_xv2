@@ -12,6 +12,8 @@ from domain.risk.policy import (
     OrderNotionalLimit,
     RiskGate,
     RiskResult,
+    check_daily_loss_pct,
+    check_paper_daily_loss,
 )
 
 
@@ -114,6 +116,30 @@ def test_kill_switch_deactivate_resumes():
     ks.activate()
     ks.deactivate()
     assert ks.check().approved
+
+
+# ── Daily loss pct (OMS / paper bridge) ─────────────────────────────
+
+def test_daily_loss_pct_within_limit():
+    assert check_daily_loss_pct(
+        Decimal("-1000"), Decimal("100000"), Decimal("2")
+    ).approved
+
+
+def test_daily_loss_pct_breached():
+    r = check_daily_loss_pct(Decimal("-2500"), Decimal("100000"), Decimal("2"))
+    assert not r.approved
+    assert "breached" in r.reason
+
+
+def test_daily_loss_pct_disabled_when_zero():
+    assert check_daily_loss_pct(Decimal("-99999"), Decimal("100000"), Decimal("0")).approved
+
+
+def test_paper_daily_loss_float_adapter():
+    r = check_paper_daily_loss(-2500.0, 100000.0, 2.0)
+    assert not r.approved
+    assert check_paper_daily_loss(-1000.0, 100000.0, 2.0).approved
 
 
 # ── RiskGate composition ────────────────────────────────────────────

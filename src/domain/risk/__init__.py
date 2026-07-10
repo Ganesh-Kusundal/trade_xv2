@@ -13,6 +13,8 @@ from domain.risk.policy import (
     OrderNotionalLimit,
     RiskGate,
     RiskResult,
+    check_daily_loss_pct,
+    check_paper_daily_loss,
 )
 
 __all__ = [
@@ -23,6 +25,8 @@ __all__ = [
     "OrderNotionalLimit",
     "RiskGate",
     "RiskResult",
+    "check_daily_loss_pct",
+    "check_paper_daily_loss",
     "effective_notional",
     "resolve_effective_price",
     "resolve_multiplier",

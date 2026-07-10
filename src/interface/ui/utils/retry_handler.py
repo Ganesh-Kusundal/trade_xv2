@@ -18,7 +18,12 @@ from collections.abc import Callable
 from functools import wraps
 from typing import Any
 
+from domain.constants.resilience import MAX_RETRY_ATTEMPTS, RETRY_BASE_DELAY_MS
+
 logger = logging.getLogger(__name__)
+
+#: Default base wait (seconds) for exponential backoff; maps RETRY_BASE_DELAY_MS.
+DEFAULT_BACKOFF_FACTOR: float = RETRY_BASE_DELAY_MS / 1000.0
 
 DEFAULT_RETRYABLE_ERRORS: tuple[type[Exception], ...] = (
     ConnectionError,
@@ -76,8 +81,8 @@ def _execute_with_retry(
 def with_retry(
     func: Callable | None = None,
     *,
-    max_retries: int = 3,
-    backoff_factor: float = 1.0,
+    max_retries: int = MAX_RETRY_ATTEMPTS,
+    backoff_factor: float = DEFAULT_BACKOFF_FACTOR,
     retryable_errors: tuple[type[Exception], ...] = DEFAULT_RETRYABLE_ERRORS,
     on_retry: Callable | None = None,
 ) -> Callable:
@@ -103,8 +108,8 @@ def with_retry(
 def retry_with_backoff(
     func: Callable,
     *args: Any,
-    max_retries: int = 3,
-    backoff_factor: float = 1.0,
+    max_retries: int = MAX_RETRY_ATTEMPTS,
+    backoff_factor: float = DEFAULT_BACKOFF_FACTOR,
     retryable_errors: tuple[type[Exception], ...] = DEFAULT_RETRYABLE_ERRORS,
     **kwargs: Any,
 ) -> Any:

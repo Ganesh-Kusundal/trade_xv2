@@ -1,8 +1,8 @@
 """Dhan reconciliation — drift detection between local OMS and Dhan broker state.
 
-Delegates order/position comparison to the shared
-application.oms.reconciliation_service (canonical reconciliation path)
-so broker-specific services only handle fetch + repair logic.
+Delegates order/position comparison to the shared domain
+``ReconciliationEngine`` so broker-specific services only handle
+fetch + repair logic.
 """
 
 from __future__ import annotations
@@ -11,10 +11,10 @@ import logging
 import time
 from typing import Any
 
-from application.oms.reconciliation.engine import ReconciliationEngine
 from brokers.dhan.execution.orders import OrdersAdapter
 from brokers.dhan.portfolio.portfolio import PortfolioAdapter
 from domain import DriftItem, ReconciliationReport
+from domain.reconciliation_engine import ReconciliationEngine
 
 logger = logging.getLogger(__name__)
 

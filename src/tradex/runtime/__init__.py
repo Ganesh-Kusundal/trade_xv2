@@ -48,7 +48,6 @@ FACADE_TO_CANONICAL: dict[str, str] = {
     'tradex.runtime.candle_aggregator': 'application.streaming.candle_aggregator',
     'tradex.runtime.capabilities': 'domain.capabilities.broker_capabilities',
     'tradex.runtime.clock': 'infrastructure.time.clock',
-    'tradex.runtime.common_broker_access': 'infrastructure.common_broker_access',
     'tradex.runtime.connection': 'infrastructure.connection',
     'tradex.runtime.connection.authenticated_readiness': 'infrastructure.connection.authenticated_readiness',
     'tradex.runtime.connection.bootstrap_result': 'infrastructure.connection.bootstrap_result',
@@ -87,8 +86,8 @@ FACADE_TO_CANONICAL: dict[str, str] = {
     'tradex.runtime.provenance': 'application.data.provenance',
     'tradex.runtime.quota_decorator': 'application.scheduling.quota_decorator',
     'tradex.runtime.quota_scheduler': 'application.scheduling.quota_scheduler',
-    'tradex.runtime.reconciliation': 'application.oms.reconciliation',
-    'tradex.runtime.reconciliation.engine': 'application.oms.reconciliation.engine',
+    'tradex.runtime.reconciliation': 'domain.reconciliation',
+    'tradex.runtime.reconciliation.engine': 'domain.reconciliation_engine',
     'tradex.runtime.registry': 'application.composer.registry',
     'tradex.runtime.resilience': 'infrastructure.resilience',
     'tradex.runtime.resilience.backoff': 'infrastructure.resilience.backoff',
@@ -109,7 +108,6 @@ FACADE_TO_CANONICAL: dict[str, str] = {
     'tradex.runtime.settings': 'infrastructure.config.settings',
     'tradex.runtime.ssl_hardening': 'infrastructure.security.ssl_hardening',
     'tradex.runtime.stream_orchestrator': 'application.streaming.orchestrator',
-    'tradex.runtime.submission_pipeline': 'application.execution.submission_pipeline'
 }
 
 

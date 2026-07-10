@@ -34,7 +34,7 @@ from application.oms.position_manager import PositionManager
 from application.oms.recon_heal_policy import HealMode, resolve_heal_mode, should_auto_repair
 from application.oms.session_bridge import OmsOrderService, make_submit_fn
 from application.oms._internal.risk_manager import RiskConfig, RiskManager
-from brokers.dhan.reconciliation import DhanReconciliationService
+from brokers.dhan.portfolio.reconciliation import DhanReconciliationService
 from domain import Order, OrderStatus, OrderType, ProductType, Side
 from domain.orders.intent import OrderIntent
 from domain.orders.requests import OrderRequest
@@ -308,7 +308,7 @@ class TestReconHealPolicy:
         assert order_manager.get_order("BRK-REPAIR-1") is not None
 
     def test_funds_mismatch_detected(self):
-        from application.oms.reconciliation.engine import ReconciliationEngine
+        from domain.reconciliation_engine import ReconciliationEngine
 
         engine = ReconciliationEngine()
         drift = engine.compare_funds(Decimal("100"), Decimal("50"))
