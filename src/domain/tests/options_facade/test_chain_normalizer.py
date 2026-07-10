@@ -1,4 +1,4 @@
-"""Unit tests for brokers.common.options — chain normalizer and facade."""
+"""Unit tests for domain.options.chain_normalizer."""
 
 from __future__ import annotations
 

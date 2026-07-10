@@ -1,4 +1,4 @@
-"""Tests for brokers.common.auth.env_token.update_env_token — atomic env update."""
+"""Tests for infrastructure.auth.env_token.update_env_token — atomic env update."""
 
 from __future__ import annotations
 

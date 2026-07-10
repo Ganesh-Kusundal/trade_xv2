@@ -1,7 +1,7 @@
 """Dhan reconciliation — drift detection between local OMS and Dhan broker state.
 
 Delegates order/position comparison to the shared
-:class:`~brokers.common.reconciliation.engine.ReconciliationEngine`
+application.oms.reconciliation_service (canonical reconciliation path)
 so broker-specific services only handle fetch + repair logic.
 """
 

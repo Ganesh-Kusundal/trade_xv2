@@ -181,15 +181,6 @@ class TestInfrastructureOwnership:
                 if pattern in content:
                     violations.append(f"{filepath}: {pattern}")
 
-        # Known exceptions: resilience is broker-specific
-        known_exceptions = [
-            "src/brokers/common/resilience",
-        ]
-        violations = [
-            v for v in violations
-            if not any(exc in v for exc in known_exceptions)
-        ]
-
         assert not violations, (
             f"Broker layer defining infrastructure patterns: {violations}"
         )
@@ -318,11 +309,8 @@ class TestRetryUsage:
 
         # Known exceptions - files that legitimately use sleep
         known_exceptions = [
-            "src/brokers/common/resilience",  # Implements retry
             "src/brokers/common/tests",  # Tests
             "tests/",  # Tests
-            "src/brokers/common/quota_scheduler.py",  # Scheduler uses sleep
-            "src/brokers/common/services/download_engine.py",  # Download engine
             "src/brokers/dhan/api/reconnecting_service.py",  # Reconnection logic
             "src/brokers/dhan/data/depth_feed_base.py",  # Depth feed uses poll intervals
             "src/brokers/dhan/api/http_client.py",  # Rate limiting + retry backoff
@@ -331,8 +319,6 @@ class TestRetryUsage:
             "src/interface/ui/commands/market.py",  # CLI polling loop
             "src/interface/ui/commands/events.py",  # CLI event polling
             "src/interface/ui/commands/websocket.py",  # CLI WebSocket keepalive
-            "src/brokers/common/idempotency/file_cache.py",  # Cache TTL/poll interval
-            "src/brokers/common/idempotency/redis_cache.py",  # Cache TTL/poll interval
             "src/brokers/dhan/depth_200.py",  # Depth feed poll interval
             "src/application/scheduling/quota_scheduler.py",  # Scheduler uses sleep
             "src/application/services/download_engine.py",  # Download engine

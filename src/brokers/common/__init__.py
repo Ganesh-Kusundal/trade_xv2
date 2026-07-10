@@ -15,3 +15,7 @@ What remains here
 
 Do not add new re-export shims. Prefer importing from the canonical modules above.
 """
+
+# Intentionally empty — import residual modules by full path
+# (e.g. ``brokers.common.api``, ``brokers.common.oms``).
+__all__: list[str] = []
