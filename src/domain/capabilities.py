@@ -52,6 +52,7 @@ class Capability(str, Enum):
     EXIT_ALL = "exit_all"
     PORTFOLIO_STREAM = "portfolio_stream"
     ORDER_SLICING = "order_slicing"
+    DEPTH_20 = "depth_20"
     DEPTH_30 = "depth_30"
     LEVEL2_MARKET_DATA = "level2_market_data"
     OPTION_GREEKS = "option_greeks"

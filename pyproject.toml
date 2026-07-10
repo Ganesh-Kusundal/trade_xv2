@@ -301,7 +301,6 @@ source_modules = ["cli"]
 forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper"]
 ignore_imports = [
     "cli.services.broker_facade -> brokers.**",
-    "cli.services.broker_registry -> brokers.dhan.factory",
     "cli.services.broker_registry -> brokers.upstox.factory",
     "cli.services.broker_registry -> brokers.paper",
     "cli.services.broker_registry -> brokers.dhan.websocket",
