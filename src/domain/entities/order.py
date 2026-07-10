@@ -123,6 +123,12 @@ class OrderResponse:
     http_status: int | None = None
     raw_payload: dict[str, Any] | None = None
     latency_ms: float = 0.0
+    # Idempotency correlation_id the caller supplied (or one generated for
+    # them). Was previously passed at construction by
+    # brokers/dhan/execution/order_placement.py without being defined here,
+    # raising TypeError on every Dhan place_order call -- the field was
+    # missing, not the caller being wrong to want it on the response.
+    correlation_id: str = ""
 
     @classmethod
     def ok(

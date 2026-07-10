@@ -48,6 +48,12 @@ class OrderRequest:
     correlation_id: str | None = None
     tag: str | None = None
     slice: bool = False
+    # Portion of `quantity` visible in the order book (iceberg orders); the
+    # remainder is hidden. None/0 means fully disclosed. Was previously
+    # accessed by brokers/dhan/execution/order_placement.py without being
+    # defined here, causing every Dhan place_order call to raise
+    # AttributeError -- the field was missing, not the access being wrong.
+    disclosed_quantity: int | None = None
 
 
 @dataclass(slots=True, frozen=True)

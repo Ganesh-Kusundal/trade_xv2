@@ -109,9 +109,6 @@ class TradeRecorder:
                 )
                 return False
 
-            if self._processed_trades is not None:
-                self._processed_trades.mark_processed(key)
-
             updated = self._position_updater.apply_trade(order, trade)
 
             orders[order.order_id] = updated
@@ -134,7 +131,14 @@ class TradeRecorder:
             )
 
             self._publish_callback(EventType.ORDER_UPDATED.value, updated)
+            # R6 (P0): apply to the position book (via TRADE_APPLIED) BEFORE
+            # marking the ledger. If we crash after apply but before mark,
+            # recovery replays the trade and re-applies it instead of silently
+            # skipping an already-marked trade_id (which would lose the fill).
             self._publish_trade_applied(trade)
+
+            if self._processed_trades is not None:
+                self._processed_trades.mark_processed(key)
             return True
 
     def _publish_trade_applied(self, trade: Trade) -> None:
@@ -172,14 +176,15 @@ class TradeRecorder:
             order = orders.get(trade.order_id)
             if order is None:
                 continue
-            if self._processed_trades is not None:
-                key = TradeIdKey.from_trade(trade)
-                if not self._processed_trades.mark_processed(key):
-                    continue
             updated = self._position_updater.apply_trade(order, trade)
             orders[order.order_id] = updated
             if order.correlation_id:
                 orders_by_correlation[order.correlation_id] = updated
             self._trades_processed += 1
             self._publish_callback(EventType.ORDER_UPDATED.value, updated)
+            # R6 (P0): apply to the position book (via TRADE_APPLIED) BEFORE
+            # marking the ledger, so a crash after apply but before mark is
+            # recoverable by replay rather than silently skipped.
             self._publish_trade_applied(trade)
+            if self._processed_trades is not None:
+                self._processed_trades.mark_processed(key)

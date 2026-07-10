@@ -14,7 +14,10 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 import pytest
 
-from brokers.common.capabilities_validator import validate_gateway_capabilities
+from brokers.common.capabilities_validator import (
+    enforce_gateway_capabilities,
+    validate_gateway_capabilities,
+)
 from brokers.upstox.gateway import UpstoxBrokerGateway
 
 
@@ -74,8 +77,8 @@ def test_history_success_path_unaffected() -> None:
 def test_gateway_construct_runs_capability_check() -> None:
     broker = MagicMock()
     with patch(
-        "brokers.upstox.gateway.validate_gateway_capabilities",
-        wraps=validate_gateway_capabilities,
+        "brokers.upstox.gateway.enforce_gateway_capabilities",
+        wraps=enforce_gateway_capabilities,
     ) as spy:
         gw = UpstoxBrokerGateway(broker)
         assert isinstance(gw, UpstoxBrokerGateway)

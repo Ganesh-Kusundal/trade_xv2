@@ -23,11 +23,24 @@ _CAPABILITY_METHOD_MAP: dict[str, tuple[str, ...]] = {
 }
 
 
+class CapabilityMismatchError(RuntimeError):
+    """Raised when a gateway advertises a capability it cannot actually deliver.
+
+    Broker-agnostic on purpose: shared by every broker's gateway constructor
+    via :func:`enforce_gateway_capabilities`, so a "capability lie" always
+    fails the same way regardless of which broker produced it.
+    """
+
+
 def validate_gateway_capabilities(
     gateway: Any,
     log: logging.Logger = logging.getLogger(__name__),
 ) -> list[str]:
     """Check a gateway's capabilities against the methods it actually exposes.
+
+    Pure check, never raises — existing callers rely on this returning a
+    plain list. Use :func:`enforce_gateway_capabilities` at gateway
+    construction time when a mismatch must abort startup.
 
     Args:
         gateway: Object exposing a ``capabilities()`` method returning a
@@ -55,3 +68,28 @@ def validate_gateway_capabilities(
             mismatches.append(message)
 
     return mismatches
+
+
+def enforce_gateway_capabilities(
+    gateway: Any,
+    log: logging.Logger = logging.getLogger(__name__),
+) -> None:
+    """Run :func:`validate_gateway_capabilities` and abort on any mismatch.
+
+    Call this from a gateway's ``__init__`` (in place of the bare check) so
+    a capability lie fails startup instead of only being logged. This
+    closes the gap between the already-correct check and the
+    already-specified but previously-unenforced startup invariant
+    ("capability lie → abort or strip") in
+    docs/architecture/TARGET_SYSTEM_DESIGN.md §6.
+
+    Raises:
+        CapabilityMismatchError: if any advertised capability has no
+            backing method on the gateway.
+    """
+    mismatches = validate_gateway_capabilities(gateway, log=log)
+    if mismatches:
+        raise CapabilityMismatchError(
+            f"{type(gateway).__name__} advertises capabilities it cannot "
+            f"deliver: {'; '.join(mismatches)}"
+        )

@@ -17,7 +17,7 @@ from brokers.dhan.domain import (
     Position,
     Trade,
 )
-from brokers.common.capabilities_validator import validate_gateway_capabilities
+from brokers.common.capabilities_validator import enforce_gateway_capabilities
 from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
 from brokers.common.broker_capabilities import BrokerCapabilities
 
@@ -29,7 +29,7 @@ class DhanBrokerGateway:
 
     def __init__(self, connection: DhanConnection):
         self._conn = connection
-        validate_gateway_capabilities(self)
+        enforce_gateway_capabilities(self)
 
     @property
     def extended(self) -> Any:

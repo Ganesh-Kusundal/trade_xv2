@@ -14,13 +14,20 @@ if TYPE_CHECKING:
     from domain.entities.account import Balance
     from domain.entities.position import Holding, Position
     from domain.ports.protocols import ExecutionProvider
+    from domain.ports.risk_view import RiskViewPort
+    from domain.portfolio.risk_profile import RiskProfile
 
 
 class AccountView:
     """Live account snapshot surface (positions, holdings, funds, Portfolio)."""
 
-    def __init__(self, execution_provider: "ExecutionProvider | None" = None) -> None:
+    def __init__(
+        self,
+        execution_provider: "ExecutionProvider | None" = None,
+        risk_view: "RiskViewPort | None" = None,
+    ) -> None:
         self._ep = execution_provider
+        self._risk_view = risk_view
         self._portfolio = Portfolio()
         self._positions: list[Any] = []
         self._holdings: list[Any] = []
@@ -46,6 +53,19 @@ class AccountView:
     @property
     def is_refreshed(self) -> bool:
         return self._refreshed
+
+    @property
+    def risk_profile(self) -> "RiskProfile | None":
+        """Current risk limits and today's headroom, or None if not wired.
+
+        Read-only — never call this to make a risk decision; it exists
+        so a caller (human, strategy, or AI agent) can ask "how much room
+        do I have" before attempting an order. The actual risk decision
+        still happens exactly where it already did, in RiskManager.check_order.
+        """
+        if self._risk_view is None:
+            return None
+        return self._risk_view.get_risk_profile()
 
     def refresh(self) -> "AccountView":
         """Pull positions / holdings / funds from ExecutionProvider into domain objects."""

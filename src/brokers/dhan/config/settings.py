@@ -82,8 +82,9 @@ class DhanConnectionSettings(BrokerSettings):
         """
         if self.token_state_dir:
             return Path(self.token_state_dir)
-        # brokers/dhan/settings.py → brokers/dhan → brokers → project root (Trade_XV2/)
-        return Path(__file__).resolve().parents[2] / "runtime"
+        # src/brokers/dhan/config/settings.py → … → project root (Trade_XV2/)
+        # parents: config, dhan, brokers, src, project_root
+        return Path(__file__).resolve().parents[4] / "runtime"
 
     @property
     def is_sandbox(self) -> bool:

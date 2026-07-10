@@ -26,15 +26,13 @@ from domain.ports import (
 )
 from domain.ports.lifecycle import LifecycleManagerPort
 
-# Optional import to avoid circular dependency
-try:
-    from application.trading import TradingOrchestrator
-
-    _HAS_ORCHESTRATOR = True
-except ImportError:
-    _HAS_ORCHESTRATOR = False
-    TradingOrchestrator = None  # type: ignore
-
+# The concrete TradingOrchestrator was previously imported here (guarded by
+# a try/except "to avoid circular dependency") but was dead code: neither
+# the import nor its _HAS_ORCHESTRATOR flag were ever read anywhere in this
+# file. All real typing/usage already goes through the ITradingOrchestrator
+# protocol below, which is also what makes this module safe from depending
+# on application.trading (and transitively analytics.*) at all — see the
+# "Trading does not import Analytics (D2)" import-linter contract.
 from application.oms.protocols import (
     IBrokerGateway,
     IReconciliationService,
@@ -272,6 +270,19 @@ class TradingContext:
             EventType.TRADE_APPLIED.value, self._position_manager.on_trade_applied
         )
 
+        # R2 / Q1: feed live position PnL into the risk engine so the daily
+        # loss limit and rolling loss circuit breaker actually observe fills
+        # and mark-to-market. update_daily_pnl() stores the absolute daily PnL
+        # and records the delta internally, so we pass the total book PnL
+        # (realized + unrealized) computed from the position manager's book.
+        # This is the composition root, so no new import cycle is introduced.
+        self._event_bus.subscribe(
+            EventType.POSITION_UPDATED.value, self._feed_daily_pnl
+        )
+        self._event_bus.subscribe(
+            EventType.POSITION_CLOSED.value, self._feed_daily_pnl
+        )
+
         # Reconciliation: an externally-owned ReconciliationService
         # (a ManagedService) is created here so it can be registered
         # with the lifecycle and drained on shutdown. The previous
@@ -413,6 +424,32 @@ class TradingContext:
         if self._reconciliation_service is None:
             return
         self._reconciliation_service.stop()
+
+    def _feed_daily_pnl(self, event: DomainEvent | None = None) -> None:
+        """Push the current book PnL into the risk engine.
+
+        Wires the position book to :meth:`RiskManager.update_daily_pnl` so the
+        daily loss limit and loss circuit breaker observe live fills and
+        mark-to-market. Called on every ``POSITION_UPDATED`` / ``POSITION_CLOSED``
+        event published by the position manager.
+
+        The risk engine stores the absolute daily PnL and derives the delta
+        internally, so we pass the total book PnL (sum of realized + unrealized
+        across all positions). Passing the absolute total on each tick yields
+        the correct incremental delta for the loss circuit breaker.
+        """
+        if self._risk_manager is None:
+            return
+        positions = self._position_manager.get_positions()
+        total = Decimal("0")
+        for p in positions:
+            realized = getattr(p, "realized_pnl", Decimal("0")) or Decimal("0")
+            unrealized = getattr(p, "unrealized_pnl", Decimal("0")) or Decimal("0")
+            total += realized + unrealized
+        try:
+            self._risk_manager.update_daily_pnl(total)
+        except Exception:  # pragma: no cover - defensive: never block the bus
+            logger.exception("daily_pnl_feed_failed")
 
     def _register_daily_pnl_reset(self, lifecycle: LifecycleManagerPort) -> None:
         """Auto-wire a DailyPnlResetScheduler so daily PnL is always reset.

@@ -287,12 +287,23 @@ class EventBus:
         tokens (one per event type) so the caller can unsubscribe cleanly.
         Event types added after this call will NOT receive this handler —
         call ``subscribe_all`` again to pick up newly-registered types.
+
+        Snapshots the event-type list under the lock, then releases it
+        before calling :meth:`subscribe` per type. ``subscribe`` acquires
+        the same ``_subscribers_lock`` itself, and ``threading.Lock`` is
+        not reentrant — holding the lock for the whole loop (the previous
+        implementation) self-deadlocked on every call, since the lock was
+        never actually free once acquired. Confirmed: this made
+        ``subscribe_all`` hang forever whenever ``_subscribers`` was
+        non-empty at call time, i.e. on every real invocation once
+        anything else had already subscribed to any event type.
         """
-        tokens: list[str] = []
         with self._subscribers_lock:
-            for event_type in list(self._subscribers.keys()):
-                token = self.subscribe(event_type, handler)
-                tokens.append(token)
+            event_types = list(self._subscribers.keys())
+        tokens: list[str] = []
+        for event_type in event_types:
+            token = self.subscribe(event_type, handler)
+            tokens.append(token)
         return tokens
 
     def subscriber_count(self, event_type: str | None = None) -> int:

@@ -9,14 +9,13 @@ Owns:
 from __future__ import annotations
 
 import logging
-import threading
 import time
 import uuid
-from contextlib import contextmanager
 from decimal import Decimal
 from typing import Any
 
 from domain.models.dtos import BrokerOrderPayload
+from brokers.common.idempotency import IdempotencyCache
 from brokers.dhan.exceptions import OrderError
 from brokers.dhan.api.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, DhanInstrumentRef
@@ -44,71 +43,16 @@ logger = logging.getLogger(__name__)
 # Reusable field mapping instance for Dhan order parsing
 _DHAN_MAPPING = DefaultFieldMapping()
 
-
-class IdempotencyCache:
-    """Thread-safe idempotency store keyed by correlation_id.
-
-    The cache uses a three-phase commit protocol (reserve -> _post_ ->
-    commit / clear_reservation) so that two concurrent place_order calls
-    with the same correlation_id cannot each issue their own HTTP POST.
-
-    Lock order: ``_lock`` is always acquired before ``_pending_lock``
-    (never the reverse).
-    """
-
-    def __init__(self, ttl: float = 300.0, max_size: int = 10_000) -> None:
-        self._ttl = ttl
-        self._max_size = max_size
-        self._lock = threading.Lock()
-        # committed results keyed by correlation_id
-        self._cache: dict[str, tuple[float, OrderResponse]] = {}
-        # pending reservations keyed by correlation_id
-        self._pending: dict[str, float] = {}
-        self._pending_lock = threading.Lock()
-
-    def lock(self, cid: str) -> bool:
-        return self._pending_lock.acquire(timeout=10)
-
-    @property
-    def locked(self) -> bool:
-        return self._pending_lock.locked()
-
-    def get(self, cid: str) -> OrderResponse | None:
-        entry = self._cache.get(cid)
-        if entry is None:
-            return None
-        ts, response = entry
-        if time.monotonic() - ts > self._ttl:
-            with self._lock:
-                del self._cache[cid]
-            return None
-        return response
-
-    def put(self, cid: str, response: OrderResponse) -> None:
-        with self._lock:
-            if len(self._cache) >= self._max_size:
-                oldest_key = min(self._cache.keys(), key=lambda k: self._cache[k][0])
-                del self._cache[oldest_key]
-            self._cache[cid] = (time.monotonic(), response)
-
-    def reserve(self, cid: str) -> bool:
-        """Atomically try to reserve *cid*. Returns True if we got it."""
-        with self._pending_lock:
-            now = time.monotonic()
-            existing = self._pending.get(cid)
-            if existing is not None and (now - existing) < self._ttl:
-                return False  # another caller holds the reservation
-            self._pending[cid] = now
-            return True
-
-    def commit(self, cid: str, response: OrderResponse) -> None:
-        self.put(cid, response)
-        with self._pending_lock:
-            self._pending.pop(cid, None)
-
-    def clear_reservation(self, cid: str) -> None:
-        with self._pending_lock:
-            self._pending.pop(cid, None)
+# IdempotencyCache now lives in brokers.common.idempotency (shared with
+# Upstox, built on infrastructure.idempotency.memory_cache — fixes a
+# confirmed race condition that existed in the old Dhan-only version:
+# get() used to read the cache without holding its lock, then delete an
+# expired entry under a different lock, so two threads racing an expired
+# read could both pass the check and the second del raised KeyError.
+# Re-exported here so existing `from brokers.dhan.execution.order_placement
+# import IdempotencyCache` call sites (and the two backward-compat shims at
+# brokers/dhan/orders.py and brokers/dhan/order_placement.py) keep working.
+__all__ = ["IdempotencyCache", "OrderPlacer"]
 
 
 class OrderPlacer:
@@ -170,8 +114,9 @@ class OrderPlacer:
         finally:
             # If we reserved but never committed (exception path), release
             # so the next caller can try rather than waiting for TTL expiry.
-            if self._idempotency.locked:
-                pass  # commit / clear_reservation already called
+            # commit() already pops the reservation on success; this is a
+            # harmless no-op in that case and the real release on the
+            # exception path.
             self._idempotency.clear_reservation(cid)
 
     def _place_order_impl(self, request: BrokerOrderPayload, cid: str) -> OrderResponse:
@@ -351,13 +296,14 @@ class OrderPlacer:
             order_id = str(raw.get("orderId", raw.get("order_id", "")))
             broker_id = str(raw.get("orderId", raw.get("order_id", "")))
             status_str = str(raw.get("orderStatus", raw.get("status", ""))).upper()
-            status_map = {
-                "PENDING": OrderStatus.PENDING,
-                "OPEN": OrderStatus.OPEN,
-                "TRANSIT": OrderStatus.PENDING,
-                "REJECTED": OrderStatus.REJECTED,
-            }
-            status = status_map.get(status_str, OrderStatus.PENDING)
+            # Delegates to the canonical, registered status mapper
+            # (domain.status_mapper.COMMON_STATUS_MAP + DHAN_STATUS_MAP)
+            # instead of a hand-rolled dict. The previous hand-rolled dict
+            # referenced OrderStatus.PENDING, which does not exist on the
+            # canonical enum (OPEN/PARTIALLY_FILLED/FILLED/CANCELLED/
+            # PARTIALLY_CANCELLED/REJECTED/EXPIRED/UNKNOWN) -- every Dhan
+            # place_order call raised AttributeError here.
+            status = OrderStatus.normalize(status_str) if status_str else OrderStatus.OPEN
             err = raw.get("errorMessage") or raw.get("error", "")
             if err:
                 return OrderResponse.fail(
@@ -368,7 +314,7 @@ class OrderPlacer:
         else:
             order_id = str(raw) if raw else ""
             broker_id = order_id
-            status = OrderStatus.PENDING
+            status = OrderStatus.OPEN
 
         return OrderResponse(
             success=bool(order_id),

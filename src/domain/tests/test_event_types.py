@@ -51,9 +51,12 @@ class TestEventType:
         assert EventType.TRADE_APPLIED
 
     def test_risk_events_exist(self):
-        assert EventType.RISK_BREACH
-        assert EventType.KILL_SWITCH_FLIPPED
-        assert EventType.RISK_VIOLATED
+        # RISK_BREACH, KILL_SWITCH_FLIPPED, and RISK_VIOLATED were removed
+        # 2026-07-10 (confirmed zero live publishers); RISK_LIMIT_BREACHED
+        # is the real, wired replacement (RiskManager.get_risk_profile /
+        # _maybe_publish_risk_limit_breach).
+        assert EventType.RISK_LIMIT_BREACHED
+        assert EventType.KILL_SWITCH_TOGGLED
         assert EventType.DRAWDOWN_LIMIT_HIT
 
 

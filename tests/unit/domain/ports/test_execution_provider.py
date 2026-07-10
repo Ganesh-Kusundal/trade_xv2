@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from domain.ports.execution_provider import ExecutionProvider
+from domain.ports.protocols import ExecutionProvider
 
 
 class TestExecutionProviderInterface:

@@ -31,7 +31,7 @@ from brokers.upstox.adapters.order_gateway import OrderGateway
 from brokers.upstox.adapters.portfolio_gateway import PortfolioGateway
 from brokers.upstox.adapters.streaming_gateway import StreamingGateway
 from brokers.upstox.broker import UpstoxBroker
-from brokers.common.capabilities_validator import validate_gateway_capabilities
+from brokers.common.capabilities_validator import enforce_gateway_capabilities
 from brokers.upstox.capabilities import upstox_capabilities
 from brokers.upstox.extended import UpstoxExtendedCapabilities
 from brokers.upstox.market_data.market_data_adapter import (
@@ -86,7 +86,7 @@ class UpstoxBrokerGateway(BatchFetchMixin):
                 options_attr, exchange_normalize=_upstox_normalize_exchange
             )
 
-        validate_gateway_capabilities(self)
+        enforce_gateway_capabilities(self)
 
     # ── Backward compatibility properties ────────────────────────────────
 

@@ -60,6 +60,53 @@ class ExtendedOrderService:
         if self._risk is not None and self._risk.is_kill_switch_active():
             raise KillSwitchActiveError("Kill switch is active — order rejected")
 
+    def _check_risk(self, payload: dict[str, Any]) -> ExtendedOrderResult | None:
+        """Run the FULL pre-trade risk path on an order built from ``payload``.
+
+        Normal (non-extended) orders go through ``RiskManager.check_order`` which
+        enforces kill switch, daily-loss circuit breaker, margin, concentration,
+        and notional limits. Extended orders previously only ran the kill-switch
+        check (R7). This method routes them through the same gate.
+
+        Returns an :class:`ExtendedOrderResult` describing the rejection when the
+        order fails any risk limit, or ``None`` when it passes (or when no risk
+        manager is wired). The kill-switch check is preserved separately by
+        :meth:`_check_kill_switch` and short-circuits before this runs.
+        """
+        if self._risk is None:
+            return None
+        from decimal import Decimal
+
+        from domain import Order, OrderStatus, OrderType, ProductType, Side, Validity
+
+        try:
+            order = Order(
+                order_id="",
+                symbol=payload.get("symbol", ""),
+                exchange=payload.get("exchange", "NSE"),
+                side=Side(payload.get("side", "BUY")),
+                order_type=OrderType(payload.get("order_type", "MARKET")),
+                quantity=int(payload.get("quantity", 0)),
+                price=Decimal(str(payload.get("price", "0"))),
+                product_type=ProductType(payload.get("product_type", "INTRADAY")),
+                status=OrderStatus.OPEN,
+                validity=Validity(payload.get("validity", "DAY")),
+            )
+        except (ValueError, TypeError):
+            # Payload cannot be coerced into a domain order (e.g. missing or
+            # malformed fields). Fall back to the kill-switch-only check already
+            # performed by the caller rather than silently allowing the order.
+            return None
+
+        result = self._risk.check_order(order)
+        if not result.allowed:
+            return ExtendedOrderResult(
+                success=False,
+                error=result.reason or "Risk check rejected order",
+                risk_rejected=True,
+            )
+        return None
+
     def _publish_event(
         self,
         event_type: str,
@@ -145,6 +192,9 @@ class ExtendedOrderService:
     def place_super_order(self, gw: Any, payload: dict[str, Any]) -> ExtendedOrderResult:
         try:
             self._check_kill_switch()
+            risk_result = self._check_risk(payload)
+            if risk_result is not None:
+                return risk_result
             self._require_broker("dhan")
             ext = self._get_extended(gw)
             with oms_managed():
@@ -166,6 +216,9 @@ class ExtendedOrderService:
     def place_forever_order(self, gw: Any, payload: dict[str, Any]) -> ExtendedOrderResult:
         try:
             self._check_kill_switch()
+            risk_result = self._check_risk(payload)
+            if risk_result is not None:
+                return risk_result
             broker_name = self._broker_name()
 
             if broker_name == "dhan":
@@ -196,6 +249,9 @@ class ExtendedOrderService:
     def place_trigger(self, gw: Any, payload: dict[str, Any]) -> ExtendedOrderResult:
         try:
             self._check_kill_switch()
+            risk_result = self._check_risk(payload)
+            if risk_result is not None:
+                return risk_result
             broker_name = self._broker_name()
 
             if broker_name == "dhan":
@@ -225,9 +281,16 @@ class ExtendedOrderService:
     # ── Exit All ─────────────────────────────────────────────────────────
 
     def exit_all(self, gw: Any) -> ExtendedOrderResult:
-        try:
-            self._check_kill_switch()
+        """Flatten all positions.
 
+        Deliberately NOT gated by the kill switch: exit_all only reduces
+        risk (it closes positions), and the kill switch's purpose is to
+        stop new risk-taking. Gating the emergency flatten-all action
+        behind the same switch that trips when something has gone wrong
+        would block the one action an operator most needs at exactly that
+        moment. See docs/architecture/trading-os/TRADING_OS_BLUEPRINT_V2_PART5.md §3.1.
+        """
+        try:
             ext = self._get_extended(gw)
             if hasattr(ext, "exit_all"):
                 with oms_managed():
@@ -253,6 +316,9 @@ class ExtendedOrderService:
     def place_gtt(self, gw: Any, payload: dict[str, Any]) -> ExtendedOrderResult:
         try:
             self._check_kill_switch()
+            risk_result = self._check_risk(payload)
+            if risk_result is not None:
+                return risk_result
             self._require_broker("upstox")
 
             broker = self._get_broker(gw)
@@ -275,6 +341,9 @@ class ExtendedOrderService:
     def place_cover_order(self, gw: Any, payload: dict[str, Any]) -> ExtendedOrderResult:
         try:
             self._check_kill_switch()
+            risk_result = self._check_risk(payload)
+            if risk_result is not None:
+                return risk_result
             self._require_broker("upstox")
 
             broker = self._get_broker(gw)
@@ -285,7 +354,7 @@ class ExtendedOrderService:
             req = OrderRequest(
                 symbol=payload.get("symbol", ""),
                 exchange=payload.get("exchange", "NSE"),
-                side=Side(payload.get("side", "BUY")),
+                transaction_type=Side(payload.get("side", "BUY")),
                 quantity=int(payload.get("quantity", 0)),
                 order_type=OrderType(payload.get("order_type", "MARKET")),
                 product_type=ProductType(payload.get("product_type", "INTRADAY")),
@@ -313,6 +382,9 @@ class ExtendedOrderService:
     def place_slice_order(self, gw: Any, payload: dict[str, Any]) -> ExtendedOrderResult:
         try:
             self._check_kill_switch()
+            risk_result = self._check_risk(payload)
+            if risk_result is not None:
+                return risk_result
             broker_name = self._broker_name()
 
             if broker_name == "dhan":

@@ -81,12 +81,26 @@ def authenticated_readiness_probe(
         "authenticated_probe_token_rejected",
         extra={"broker": broker, "probe": first.probe_name},
     )
-    refreshed = _force_token_refresh(gateway, broker, env_path=env_path)
+    try:
+        refreshed = _force_token_refresh(gateway, broker, env_path=env_path)
+        refresh_error: str | None = None
+    except Exception as remint_exc:
+        refreshed = False
+        refresh_error = str(remint_exc)
+        logger.warning(
+            "authenticated_probe_remint_exception",
+            extra={"broker": broker, "error": refresh_error},
+        )
     if not refreshed:
+        detail = first.error or "token rejected"
+        if refresh_error:
+            detail = f"{detail}; auto remint failed: {refresh_error}"
+        else:
+            detail = f"{detail}; auto remint failed (TOTP/credentials/cooldown)"
         return AuthProbeResult(
             ok=False,
             probe_name=first.probe_name,
-            error=first.error or "token rejected and refresh failed",
+            error=detail,
             token_rejected=True,
             refreshed_token=False,
         )
@@ -214,14 +228,25 @@ def _force_dhan_token_refresh(
     gateway: Any,
     env_path: str | Path | None = None,
 ) -> bool:
+    """Remint Dhan token after 401 and push it into client + receivers.
+
+    Factory wires ``connection._auth`` as :class:`AuthManager` with
+    ``on_refresh`` → TOTP mint. We revoke first so a rejected JWT cannot
+    be reloaded from the store by a subsequent ``acquire()``.
+    """
     conn = getattr(gateway, "_conn", None)
     if conn is None:
         return False
     auth = getattr(conn, "_auth", None)
     client = getattr(conn, "_client", None)
     if auth is None:
+        logger.warning("dhan_force_token_refresh_failed: connection has no _auth")
         return False
     try:
+        # Drop rejected token so force_refresh/on_refresh is the only path.
+        revoke = getattr(auth, "revoke", None)
+        if callable(revoke):
+            revoke()
         state = auth.force_refresh()
         if not state or not state.access_token:
             return False
@@ -230,12 +255,17 @@ def _force_dhan_token_refresh(
         if hasattr(conn, "broadcast_token"):
             conn.broadcast_token(state.access_token)
         try:
-            from infrastructure.auth import JsonTokenStateStore
             from infrastructure.auth.token_persistence import TokenPersistence
 
             dhan_env = _resolve_dhan_env_path(env_path)
-            store = JsonTokenStateStore(Path("runtime/dhan-token-state.json"))
-            TokenPersistence.save(state, store, dhan_env)
+            store = getattr(auth, "_store", None)
+            if store is not None:
+                TokenPersistence.save(
+                    state,
+                    store,
+                    dhan_env if dhan_env.exists() else None,
+                    env_key="DHAN_ACCESS_TOKEN",
+                )
         except Exception as exc:
             logger.debug("dhan_env_token_update_skipped: %s", exc)
         return True

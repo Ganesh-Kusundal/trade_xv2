@@ -97,9 +97,14 @@ class MemoryIdempotencyCache(IdempotencyCacheBackend[T]):
         expires_at = time.time() + ttl
         
         with self._lock:
-            self._evict_if_needed()
+            # Insert first, then evict: evicting before the insert checks
+            # len(cache) > max_size against the PRE-insert size, so a cache
+            # already at max_size never trips the check and transiently
+            # holds max_size + 1 entries until the *next* put. Evicting
+            # after the insert enforces the bound immediately.
             self._cache[key] = CacheEntry(value, expires_at)
             self._update_access_order(key)
+            self._evict_if_needed()
 
     def delete(self, key: str) -> bool:
         """Delete a value by key. Returns True if key existed."""

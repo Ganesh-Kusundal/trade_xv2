@@ -173,25 +173,20 @@ class Instrument(
         )
 
     def _resolve_order_service(self) -> OrderServicePort | None:
-        """OMS only: stamped weakref → ambient Session.order_service. Never EP."""
+        """OMS only: explicit weakref stamp via session.universe.* only. Never EP.
+
+        No ambient-session fallback: an instrument must be explicitly bound
+        to an OrderServicePort (via ``session.universe.equity(...)`` or
+        ``_bind_session_ports``) to trade. This closes a previously
+        discouraged-but-live path where a bare instrument could silently
+        pick up whatever Session happened to be ambient in the current
+        context, which is unsafe once more than one Session coexists in a
+        process (e.g. paper + live).
+        """
         if self._order_service_ref is not None:
             osvc = self._order_service_ref()
             if osvc is not None:
                 return osvc
-        try:
-            from domain.ports.session_context import get_ambient_session
-
-            ambient = get_ambient_session()
-            if ambient is not None:
-                osvc = getattr(ambient, "order_service", None)
-                if osvc is not None:
-                    logger.warning(
-                        "orders_via_ambient_session symbol=%s — prefer session.universe.* stamps",
-                        self.symbol,
-                    )
-                    return osvc
-        except Exception:
-            pass
         return None
 
     # ── Behaviors ─────────────────────────────────────────────────────

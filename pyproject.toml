@@ -43,16 +43,27 @@ dev = [
 ]
 
 [project.entry-points."tradex.brokers"]
-# Phase 2 will populate these; leave empty for Phase 0
-# dhan = "brokers.dhan:DhanBroker"
-# upstox = "brokers.upstox:UpstoxBroker"
-# paper = "brokers.paper:PaperBroker"
+# Module-only targets (no ":ClassName" suffix) deliberately -- each broker
+# package already self-registers via register_broker_plugin() etc. at
+# import time (brokers/{dhan,upstox,paper}/__init__.py), so the entry
+# point's job is just "import this module," not "load this specific
+# class." The originally-drafted values here (brokers.dhan:DhanBroker,
+# brokers.paper:PaperBroker) referenced classes that were never built --
+# only brokers.upstox.broker.UpstoxBroker exists. Corrected to real,
+# existing targets. See runtime/broker_discovery.py for the composition-
+# root code that consumes this group via importlib.metadata.entry_points().
+dhan = "brokers.dhan"
+upstox = "brokers.upstox"
+paper = "brokers.paper"
 
 # Single-root packaging: all library code lives under src/.
 # Layout (Clean Architecture):
 #   src/domain, application, infrastructure, brokers,
 #   interface/{api,ui}, analytics, datalake, config, runtime, tradex
 # Run/tests: PYTHONPATH=src  (or editable install: pip install -e .)
+# Note: `runtime` is the composition root package (wires application layers);
+# it contains only Python source — artefacts (locks, logs, tokens) live in
+# the repo-root runtime/ directory which is NOT distributed.
 [tool.setuptools.packages.find]
 where = ["src"]
 include = [
@@ -83,8 +94,7 @@ exclude = [
 # ─── pytest ────────────────────────────────────────────────
 [tool.pytest.ini_options]
 minversion = "7.0"
-# Library packages resolve from src/; repo root is needed for the `tests` package
-# and root entrypoint shims (api/, cli/).
+# Library packages resolve from src/; repo root is needed for the `tests` package.
 pythonpath = ["src", "."]
 testpaths = [
     "tests",
@@ -323,6 +333,17 @@ name = "Analytics broker-adapter isolation"
 type = "forbidden"
 source_modules = ["analytics"]
 forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper"]
+
+[[tool.importlinter.contracts]]
+# Blueprint Part 1 §5.1 D2: Trading must be usable (and testable) with zero
+# strategies/scanners loaded — a scanner bug must never be able to affect
+# order state. application.oms + application.execution are the concrete
+# Trading-context modules today (see
+# docs/architecture/trading-os/TRADING_OS_BLUEPRINT_V2.md Part 1 §4/§5).
+name = "Trading does not import Analytics (D2)"
+type = "forbidden"
+source_modules = ["application.oms", "application.execution"]
+forbidden_modules = ["analytics"]
 
 [[tool.importlinter.contracts]]
 name = "Broker common isolation"

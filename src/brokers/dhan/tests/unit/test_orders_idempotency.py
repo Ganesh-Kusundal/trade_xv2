@@ -23,7 +23,7 @@ def _make_response(order_id: str = "ORD1", correlation_id: str | None = None) ->
 
 def test_idempotency_cache_is_thread_safe():
     """Concurrent puts/gets should not corrupt the cache."""
-    cache = IdempotencyCache(max_size=100, ttl_seconds=3600)
+    cache = IdempotencyCache(max_size=100, ttl=3600)
     errors: list[Exception] = []
     barrier = threading.Barrier(20)
 
@@ -50,24 +50,35 @@ def test_idempotency_cache_is_thread_safe():
 
 
 def test_idempotency_cache_eviction_is_thread_safe():
-    """Eviction of oldest entries under concurrency must remain deterministic."""
-    cache = IdempotencyCache(max_size=5, ttl_seconds=3600)
+    """Inserting past max_size must evict the oldest (least-recently-used) entry."""
+    cache = IdempotencyCache(max_size=5, ttl=3600)
     for i in range(5):
         cache.put(f"cid-{i}", _make_response(order_id=f"ORD{i}"))
 
-    # Let entry 0 expire by manipulating time via a tiny TTL, then exercise eviction.
-    cache._ttl = -1
+    # Cache is now full at max_size=5; inserting a 6th evicts the LRU entry
+    # (cid-0, the oldest, since none of cid-0..cid-4 have been accessed since
+    # insertion).
     cache.put("cid-new", _make_response(order_id="ORD-NEW"))
     assert cache.get("cid-0") is None
+    assert cache.get("cid-new") is not None
 
 
-def test_lock_context_manager_returns_cache():
-    """lock() must be usable as a context manager and expose the cache."""
+def test_reserve_commit_prevents_concurrent_double_placement():
+    """reserve()/commit()/clear_reservation() is the real idempotency protocol
+    (the previous lock()-as-context-manager surface never worked correctly —
+    lock() acquired a lock with no matching release — and is removed)."""
     cache = IdempotencyCache()
     response = _make_response()
-    with cache.lock("cid") as locked_cache:
-        locked_cache.put("cid", response)
-        assert locked_cache.get("cid") is response
+
+    assert cache.reserve("cid") is True
+    # A second caller with the same cid must not also get the reservation.
+    assert cache.reserve("cid") is False
+
+    cache.commit("cid", response)
+    assert cache.get("cid") is response
+    # After commit, the reservation is released — a later, unrelated attempt
+    # to reserve the same cid (e.g. after TTL-scoped retry logic) is a no-op
+    # concern for the cache hit path, since get() now short-circuits it.
 
 
 def test_place_order_generates_correlation_id(fake_client, resolver):

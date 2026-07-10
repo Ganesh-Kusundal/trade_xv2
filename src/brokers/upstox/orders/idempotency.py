@@ -1,29 +1,32 @@
 """In-memory idempotency cache for order placement safety.
 
-Mirrors ``brokers.dhan.orders.idempotency.InMemoryIdempotencyCache``.
+Now shared with Dhan via brokers.common.idempotency (see that module's
+docstring for why: this class used to be a hand-mirrored duplicate of
+brokers.dhan.execution.order_placement.IdempotencyCache, and the Dhan
+version had a confirmed race condition this consolidation fixes).
+
+``InMemoryIdempotencyCache`` is kept as a name-compatible alias so existing
+call sites (``InMemoryIdempotencyCache()``) are unaffected — it accepts no
+constructor args, matching the old class, and uses the shared cache's
+defaults.
 """
 
 from __future__ import annotations
 
-import threading
-from typing import Generic, TypeVar
+from typing import TypeVar
+
+from brokers.common.idempotency import IdempotencyCache, IdempotencyCachePort
 
 T = TypeVar("T")
 
 
-class InMemoryIdempotencyCache(Generic[T]):
-    def __init__(self) -> None:
-        self._store: dict[str, T] = {}
-        self._lock = threading.RLock()
+class InMemoryIdempotencyCache(IdempotencyCache[T]):
+    """Backward-compatible name for brokers.common.idempotency.IdempotencyCache.
 
-    def get(self, key: str) -> T | None:
-        with self._lock:
-            return self._store.get(key)
+    The old version had no TTL/reservation protocol (bare dict + RLock);
+    the shared cache adds both but they are optional to use — get()/put()
+    alone (this class's original surface) still works unchanged.
+    """
 
-    def put(self, key: str, value: T) -> None:
-        with self._lock:
-            self._store[key] = value
 
-    def clear(self) -> None:
-        with self._lock:
-            self._store.clear()
+__all__ = ["InMemoryIdempotencyCache", "IdempotencyCachePort"]

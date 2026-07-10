@@ -42,7 +42,29 @@ def list_broker_plugins() -> list[BrokerPlugin]:
 
 
 def ensure_core_plugins() -> None:
-    """Idempotent defaults if packages have not registered yet."""
+    """Idempotent defaults if packages have not registered yet.
+
+    ``tradex/session.py`` calls this before any concrete broker package is
+    guaranteed to have been imported (a fresh process calling
+    ``tradex.connect("dhan")`` for the first time may reach here before
+    anything else has imported ``brokers.dhan``), so this cannot simply
+    defer to each broker's real self-registration
+    (``brokers/{dhan,upstox,paper}/__init__.py`` all call
+    ``register_broker_plugin`` themselves at import time) — that was tried
+    and reverted: importing the broker packages from here transitively
+    pulls in ``application.oms.*`` (e.g. ``brokers.dhan.portfolio
+    .reconciliation -> application.oms.reconciliation.engine``) and breaks
+    two real import-linter contracts (``Infrastructure independence``,
+    ``Tradex public API broker isolation``). Duplicating the metadata here
+    is the architecturally correct choice, not an oversight — it trades a
+    (currently harmless, since the values match) risk of the two copies
+    drifting apart for not letting ``infrastructure``/``tradex`` depend on
+    concrete broker packages, which matters more. If this ever needs
+    revisiting, the metadata itself (not the import graph) is where a
+    single-source-of-truth fix belongs — e.g. a static registry module
+    that both the broker packages and this fallback import, containing no
+    business logic of its own.
+    """
     if "paper" not in _PLUGINS:
         register_broker_plugin(
             BrokerPlugin(

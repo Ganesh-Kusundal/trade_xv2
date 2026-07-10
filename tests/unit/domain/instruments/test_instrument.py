@@ -156,7 +156,7 @@ class TestInstrumentStateNoProvider:
 
 class TestInstrumentStateWithProvider:
     def _make_provider(self, quote=None):
-        from domain.ports.data_provider import DataProvider
+        from domain.ports.protocols import DataProvider
 
         class MockProvider(DataProvider):
             @property

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from domain.ports.data_provider import DataProvider
+from domain.ports.protocols import DataProvider
 
 
 class TestDataProviderInterface:

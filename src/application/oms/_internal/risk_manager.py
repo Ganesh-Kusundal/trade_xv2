@@ -47,7 +47,10 @@ import threading
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from decimal import Decimal
-from typing import Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+
+if TYPE_CHECKING:
+    from domain.portfolio.risk_profile import RiskProfile
 
 from application.oms._internal.loss_circuit_breaker import (
     LossCircuitBreaker,
@@ -56,6 +59,7 @@ from application.oms._internal.loss_circuit_breaker import (
 from application.oms.capital_provider import CapitalProvider, FixedCapitalProvider
 from application.oms.position_manager import PositionManager
 from domain import Order
+from domain.events.types import EventType
 from domain.constants import (
     RISK_DAILY_LOSS_PERCENT,
     RISK_GROSS_PERCENT,
@@ -112,6 +116,11 @@ class RiskManager:
     half-observed state.
     """
 
+    #: Fraction of the daily-loss budget consumed before RISK_LIMIT_BREACHED
+    #: fires. Deliberately below 1.0 so operators get a warning before the
+    #: hard daily-loss check in check_order starts rejecting orders outright.
+    RISK_LIMIT_BREACH_THRESHOLD = Decimal("0.8")
+
     def __init__(
         self,
         position_manager: PositionManager,
@@ -121,11 +130,16 @@ class RiskManager:
         loss_cb_config: LossCircuitBreakerConfig | None = None,
         margin_provider: MarginProviderPort | None = None,
         instrument_provider: InstrumentProvider | None = None,
+        on_risk_event: Callable[[str, dict], None] | None = None,
     ) -> None:
         self._position_manager = position_manager
         self._config = config
         self._margin_provider = margin_provider
         self._instrument_provider = instrument_provider
+        # Optional event-publish hook: on_risk_event(event_type_value, payload).
+        # None by default (no-op) so every existing caller is unaffected.
+        self._on_risk_event = on_risk_event
+        self._risk_limit_breach_notified = False
 
         # Support both old capital_fn and new capital_provider (P2-2)
         if capital_provider is not None:
@@ -419,6 +433,36 @@ class RiskManager:
             capital = self._capital_provider.get_available_balance()
             self._loss_cb.record_loss(delta, capital)
 
+            self._maybe_publish_risk_limit_breach(pnl, capital)
+
+    def _maybe_publish_risk_limit_breach(self, pnl: Decimal, capital: Decimal) -> None:
+        """Publish RISK_LIMIT_BREACHED once when the daily-loss budget is
+        mostly consumed, and again only after recovering and re-breaching
+        (edge-triggered, not level-triggered, so this doesn't spam the
+        event bus on every single MTM update while still in breach).
+
+        Must be called with ``_lock`` already held.
+        """
+        if self._on_risk_event is None or capital <= 0 or self._config.max_daily_loss_pct <= 0:
+            return
+        loss_budget = capital * (self._config.max_daily_loss_pct / Decimal("100"))
+        if loss_budget <= 0:
+            return
+        consumed = (abs(pnl) / loss_budget) if pnl < 0 else Decimal("0")
+        breached = consumed >= self.RISK_LIMIT_BREACH_THRESHOLD
+        if breached and not self._risk_limit_breach_notified:
+            self._risk_limit_breach_notified = True
+            self._on_risk_event(
+                EventType.RISK_LIMIT_BREACHED.value,
+                {
+                    "rule": "max_daily_loss_pct",
+                    "value": str(pnl),
+                    "limit": str(self._config.max_daily_loss_pct),
+                },
+            )
+        elif not breached:
+            self._risk_limit_breach_notified = False
+
     def set_kill_switch(self, active: bool) -> None:
         """Enable or disable the kill switch by replacing the frozen config.
 
@@ -527,3 +571,25 @@ class RiskManager:
         # Append loss circuit breaker state (takes its own lock).
         base["loss_circuit_breaker"] = self._loss_cb.snapshot()
         return base
+
+    def get_risk_profile(self) -> "RiskProfile":
+        """Return a read-only domain.portfolio.risk_profile.RiskProfile snapshot.
+
+        Implements domain.ports.risk_view.RiskViewPort so Session/AccountView
+        can expose ``.risk_profile`` without importing this module. Additive
+        and read-only: does not change any risk decision.
+        """
+        from domain.portfolio.risk_profile import RiskProfile
+
+        with self._lock:
+            config = self._config
+            daily_pnl = self._daily_pnl
+        capital = self._capital_provider.get_available_balance()
+        return RiskProfile(
+            max_daily_loss_pct=config.max_daily_loss_pct,
+            max_position_pct=config.max_position_pct,
+            max_gross_exposure_pct=config.max_gross_exposure_pct,
+            kill_switch=config.kill_switch,
+            daily_pnl=daily_pnl,
+            capital=capital,
+        )

@@ -165,13 +165,18 @@ class EventType(str, Enum):
     TRADE_APPLIED = "TRADE_APPLIED"
 
     # ── Risk / position ────────────────────────────────────────────────
-    POSITION_CHANGED = "POSITION_CHANGED"
-    RISK_BREACH = "RISK_BREACH"
-    KILL_SWITCH_FLIPPED = "KILL_SWITCH_FLIPPED"
+    # RISK_LIMIT_BREACHED is published by RiskManager whenever the
+    # continuous daily-loss MTM feed crosses a threshold (not just on
+    # order rejection) — see application.oms._internal.risk_manager.
+    # POSITION_CHANGED, RISK_BREACH, and KILL_SWITCH_FLIPPED were removed
+    # 2026-07-10 (confirmed zero live publishers via grep; see
+    # docs/architecture/trading-os/TRADING_OS_BLUEPRINT_V2_PART3.md §2).
+    RISK_LIMIT_BREACHED = "RISK_LIMIT_BREACHED"
 
     # ── Reconciliation ─────────────────────────────────────────────────
+    # RECONCILIATION_OK removed 2026-07-10 (confirmed zero live publishers;
+    # RECONCILIATION_COMPLETED below is the one actually in use).
     RECONCILIATION_DRIFT = "RECONCILIATION_DRIFT"
-    RECONCILIATION_OK = "RECONCILIATION_OK"
 
     # ── Lifecycle / system ─────────────────────────────────────────────
     SERVICE_STARTED = "SERVICE_STARTED"
@@ -185,7 +190,8 @@ class EventType(str, Enum):
     RECONCILIATION_COMPLETED = "RECONCILIATION_COMPLETED"
 
     # ── Additional Risk Events ───────────────────────────────────────
-    RISK_VIOLATED = "RISK_VIOLATED"
+    # RISK_VIOLATED removed 2026-07-10 (confirmed zero live publishers;
+    # RISK_LIMIT_BREACHED above is the real, wired risk-threshold event).
     KILL_SWITCH_TOGGLED = "KILL_SWITCH_TOGGLED"
     DAILY_PNL_RESET = "DAILY_PNL_RESET"
     DRAWDOWN_LIMIT_HIT = "DRAWDOWN_LIMIT_HIT"
@@ -324,25 +330,18 @@ EVENT_PAYLOADS: dict[EventType, EventPayload] = {
             "subscribe to TRADE."
         ),
     ),
-    EventType.POSITION_CHANGED: EventPayload(
-        required_keys=("symbol", "quantity"),
-        optional_keys=("avg_price", "realized_pnl"),
-    ),
-    EventType.RISK_BREACH: EventPayload(
+    EventType.RISK_LIMIT_BREACHED: EventPayload(
         required_keys=("rule", "value", "limit"),
         optional_keys=("symbol",),
-    ),
-    EventType.KILL_SWITCH_FLIPPED: EventPayload(
-        required_keys=("active",),
-        optional_keys=("actor", "reason"),
+        notes=(
+            "Published by RiskManager when the continuous daily-loss MTM "
+            "feed crosses a configured threshold — independent of any "
+            "single order's approve/reject decision."
+        ),
     ),
     EventType.RECONCILIATION_DRIFT: EventPayload(
         required_keys=("symbol", "internal", "broker"),
         optional_keys=("side", "quantity_diff"),
-    ),
-    EventType.RECONCILIATION_OK: EventPayload(
-        optional_keys=("checked_at", "symbols"),
-        notes="Heartbeat-style: published after each successful reconcile cycle.",
     ),
     EventType.SERVICE_STARTED: EventPayload(
         required_keys=("service_name",),
@@ -373,10 +372,6 @@ EVENT_PAYLOADS: dict[EventType, EventPayload] = {
     ),
     EventType.RECONCILIATION_COMPLETED: EventPayload(
         optional_keys=("checked_at", "symbols", "drift_count"),
-    ),
-    EventType.RISK_VIOLATED: EventPayload(
-        required_keys=("rule", "value", "limit"),
-        optional_keys=("symbol",),
     ),
     EventType.KILL_SWITCH_TOGGLED: EventPayload(
         required_keys=("active",),
