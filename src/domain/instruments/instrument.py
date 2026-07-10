@@ -19,40 +19,40 @@ import threading
 import weakref
 from datetime import date, datetime, timezone
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, Callable
+from typing import TYPE_CHECKING, Any
 
 logger = logging.getLogger(__name__)
 
 from domain.candles.historical import HistoricalSeries, InstrumentRef
 from domain.candles.instrument_history import InstrumentHistory
-from domain.entities.market import MarketDepth, QuoteSnapshot
 from domain.entities.options import FutureChain
 from domain.entities.options import OptionChain as OptionChainVO
-from domain.enums import OrderType, ProductType, Side
 from domain.instruments.composition import (
     ExtensionManager,
     InstrumentIdentity,
     TradingSpec,
 )
 from domain.instruments.instrument_id import InstrumentId
-from domain.orders.placement import build_order_intent, place_via_order_service
-from domain.value_objects.state import (
-    InstrumentState,
-    SubscriptionState,
-    SubscriptionStatus,
-)
+from domain.instruments.instrument_market_data import InstrumentMarketDataMixin
+from domain.instruments.instrument_streaming import InstrumentStreamingMixin
+from domain.instruments.instrument_trading import InstrumentTradingMixin
+from domain.value_objects.state import InstrumentState
 
 if TYPE_CHECKING:
     from domain.ports.order_service import OrderServicePort
-    from domain.ports.protocols import DataProvider, ExecutionProvider, OrderResult, SubscriptionHandle
+    from domain.ports.protocols import DataProvider, ExecutionProvider
 
 
 # ══════════════════════════════════════════════════════════════════════
-# Instrument (base)
+# Instrument (base) — decomposed via mixins (KD-202)
 # ══════════════════════════════════════════════════════════════════════
 
 
-class Instrument:
+class Instrument(
+    InstrumentStreamingMixin,
+    InstrumentMarketDataMixin,
+    InstrumentTradingMixin,
+):
     """Pure domain object. Users work with this directly.
 
     Owns:
@@ -84,8 +84,8 @@ class Instrument:
         self._metadata = metadata or {}
         self._trading = TradingSpec.from_metadata(self._metadata)
         self._state = InstrumentState()
-        self._subscription: SubscriptionHandle | None = None
-        self._callbacks: dict[str, list[Callable]] = {
+        self._subscription: Any = None  # set by InstrumentStreamingMixin
+        self._callbacks: dict[str, list[Any]] = {
             "tick": [],
             "quote": [],
             "depth": [],
@@ -100,9 +100,9 @@ class Instrument:
     def _bind_session_ports(
         self,
         *,
-        data_provider: "DataProvider | None" = None,
-        execution_provider: "ExecutionProvider | None" = None,
-        order_service: "OrderServicePort | None" = None,
+        data_provider: DataProvider | None = None,
+        execution_provider: ExecutionProvider | None = None,
+        order_service: OrderServicePort | None = None,
     ) -> None:
         """Stamp ports from Universe / composition root (KD-12)."""
         if data_provider is not None:
@@ -138,52 +138,9 @@ class Instrument:
     def tick_size(self) -> Decimal:
         return self._trading.tick_size
 
-    # ── Live State ────────────────────────────────────────────────────
-
-    @property
-    def quote(self) -> QuoteSnapshot | None:
-        return self._state.quote
-
-    @property
-    def ltp(self) -> Decimal | None:
-        q = self._state.quote
-        return q.ltp if q else None
-
-    @property
-    def bid(self) -> Decimal | None:
-        q = self._state.quote
-        return q.bid if q else None
-
-    @property
-    def ask(self) -> Decimal | None:
-        q = self._state.quote
-        return q.ask if q else None
-
-    @property
-    def volume(self) -> int:
-        q = self._state.quote
-        return q.volume if q else 0
-
-    @property
-    def market_depth(self) -> MarketDepth | None:
-        return self._state.depth
-
-    @property
-    def order_book(self) -> MarketDepth | None:
-        return self._state.depth
-
-    @property
-    def is_live(self) -> bool:
-        return self._state.is_subscribed
-
-    @property
-    def last_tick(self) -> QuoteSnapshot | None:
-        # ponytail: last_tick aliases quote; VO tracks last_update instead
-        return self._state.quote
-
     # ── Provider resolution (KD-1) ────────────────────────────────────
 
-    def _resolve_provider(self) -> "DataProvider":
+    def _resolve_provider(self) -> DataProvider:
         """Resolve DataProvider: explicit → ambient Session → default registry.
 
         Raises
@@ -215,7 +172,7 @@ class Instrument:
             "or session.universe.equity(...)"
         )
 
-    def _resolve_order_service(self) -> "OrderServicePort | None":
+    def _resolve_order_service(self) -> OrderServicePort | None:
         """OMS only: stamped weakref → ambient Session.order_service. Never EP."""
         if self._order_service_ref is not None:
             osvc = self._order_service_ref()
@@ -239,79 +196,10 @@ class Instrument:
 
     # ── Behaviors ─────────────────────────────────────────────────────
 
-    def refresh(self) -> QuoteSnapshot | None:
-        """Pull latest quote into state."""
-        provider = self._resolve_provider()
-        quote = provider.get_quote(self._id)
-        if quote is not None:
-            with self._lock:
-                self._state = self._state.with_quote(quote)
-        return quote
-
     @property
     def history(self) -> InstrumentHistory:
         """History facade — call as ``inst.history(timeframe=..., days=...)``."""
         return self._history
-
-    def depth(self) -> MarketDepth | None:
-        """Fetch market depth into owned state and return it."""
-        provider = self._resolve_provider()
-        d = provider.get_depth(self._id)
-        if d is not None:
-            with self._lock:
-                self._state = self._state.with_depth(d)
-        return d
-
-    def spread(self) -> Decimal | None:
-        if self.bid is not None and self.ask is not None:
-            return self.ask - self.bid
-        return None
-
-    def mid_price(self) -> Decimal | None:
-        if self.bid is not None and self.ask is not None:
-            return (self.bid + self.ask) / 2
-        return None
-
-    def statistics(self) -> dict:
-        """Return current statistics snapshot."""
-        q = self._state.quote
-        return {
-            "symbol": self.symbol,
-            "exchange": self.exchange,
-            "asset_type": self.asset_type,
-            "ltp": q.ltp if q else None,
-            "bid": q.bid if q else None,
-            "ask": q.ask if q else None,
-            "volume": q.volume if q else 0,
-            "high": q.high if q else None,
-            "low": q.low if q else None,
-            "open": q.open_ if q else None,
-            "close": q.close if q else None,
-            "spread": self.spread(),
-            "mid_price": self.mid_price(),
-        }
-
-    def snapshot(self) -> dict:
-        """Return full state snapshot."""
-        return {
-            "id": str(self._id),
-            "state": {
-                "quote": self._state.quote.__dict__ if self._state.quote else None,
-                "depth": self._state.depth.__dict__ if self._state.depth else None,
-                "is_subscribed": self._state.is_subscribed,
-                "error": self._state.error,
-            },
-        }
-
-    def serialize(self) -> dict:
-        """JSON-serializable representation."""
-        return {
-            "symbol": self.symbol,
-            "exchange": self.exchange,
-            "asset_type": self.asset_type,
-            "lot_size": self.lot_size,
-            "tick_size": str(self.tick_size),
-        }
 
     def clone(self) -> Instrument:
         """Deep copy of this instrument (ports stamped; history cache not copied)."""
@@ -326,93 +214,6 @@ class Instrument:
             if osvc is not None:
                 inst._order_service_ref = weakref.ref(osvc)
         return inst
-
-    # ── Live Data ─────────────────────────────────────────────────────
-
-    def subscribe(
-        self,
-        callback: Callable[[InstrumentId, Any], None] | None = None,
-        *,
-        depth: bool = False,
-    ) -> SubscriptionHandle | None:
-        """Subscribe to live data."""
-        provider = self._resolve_provider()
-
-        def _wrapped(iid: InstrumentId, payload: Any) -> None:
-            # Update state atomically
-            with self._lock:
-                if isinstance(payload, MarketDepth):
-                    self._state = self._state.with_depth(payload)
-                elif isinstance(payload, QuoteSnapshot):
-                    self._state = self._state.with_quote(payload)
-                sub = self._state.subscription
-                if not sub.is_active:
-                    self._state = self._state.with_subscription(
-                        SubscriptionState(
-                            status=SubscriptionStatus.SUBSCRIBED,
-                            symbol=self.symbol,
-                            exchange=self.exchange,
-                            started_at=sub.started_at or datetime.now(timezone.utc),
-                        )
-                    )
-            # Invoke registered callbacks (outside lock to avoid deadlock)
-            # Snapshot the list under lock to avoid race conditions
-            with self._lock:
-                tick_callbacks = list(self._callbacks.get("tick", []))
-            for cb in tick_callbacks:
-                try:
-                    cb(payload)
-                except Exception:
-                    logger.exception("tick callback %r failed for %s", cb, self._id)
-            # Invoke user callback
-            if callback is not None:
-                callback(iid, payload)
-
-        handle = provider.subscribe(self._id, _wrapped, depth=depth)
-        self._subscription = handle
-        with self._lock:
-            self._state = self._state.with_subscription(
-                SubscriptionState(
-                    status=SubscriptionStatus.SUBSCRIBED,
-                    symbol=self.symbol,
-                    exchange=self.exchange,
-                    started_at=datetime.now(timezone.utc),
-                )
-            )
-        return handle
-
-    def unsubscribe(self) -> None:
-        """Tear down live subscription."""
-        if self._subscription is not None:
-            self._subscription.unsubscribe()
-            self._subscription = None
-        with self._lock:
-            self._state = self._state.with_unsubscribed()
-
-    def on_tick(self, callback: Callable) -> None:
-        """Register tick callback."""
-        with self._lock:
-            self._callbacks["tick"] = self._callbacks["tick"] + [callback]
-
-    def on_quote(self, callback: Callable) -> None:
-        """Register quote callback."""
-        with self._lock:
-            self._callbacks["quote"] = self._callbacks["quote"] + [callback]
-
-    def on_depth(self, callback: Callable) -> None:
-        """Register depth callback."""
-        with self._lock:
-            self._callbacks["depth"] = self._callbacks["depth"] + [callback]
-
-    def on_disconnect(self, callback: Callable) -> None:
-        """Register disconnect callback."""
-        with self._lock:
-            self._callbacks["disconnect"] = self._callbacks["disconnect"] + [callback]
-
-    def on_reconnect(self, callback: Callable) -> None:
-        """Register reconnect callback."""
-        with self._lock:
-            self._callbacks["reconnect"] = self._callbacks["reconnect"] + [callback]
 
     # ── Chains ────────────────────────────────────────────────────────
 
@@ -563,205 +364,6 @@ class Instrument:
         if callable(list_fn):
             return list(list_fn())
         return []
-
-    # ── Orders (OMS-only — KD-9) ──────────────────────────────────────
-
-    def buy(
-        self,
-        quantity: int,
-        price: Decimal | None = None,
-        order_type: OrderType | str = OrderType.LIMIT,
-        product_type: ProductType | str = ProductType.INTRADAY,
-        *,
-        correlation_id: str | None = None,
-    ) -> "OrderResult":
-        """Place a buy via OrderServicePort only (never ExecutionProvider)."""
-        return self._place(Side.BUY, quantity, price, order_type, product_type, correlation_id)
-
-    def sell(
-        self,
-        quantity: int,
-        price: Decimal | None = None,
-        order_type: OrderType | str = OrderType.LIMIT,
-        product_type: ProductType | str = ProductType.INTRADAY,
-        *,
-        correlation_id: str | None = None,
-    ) -> "OrderResult":
-        """Place a sell via OrderServicePort only (never ExecutionProvider)."""
-        return self._place(Side.SELL, quantity, price, order_type, product_type, correlation_id)
-
-    def market(
-        self,
-        quantity: int,
-        side: Side | str = Side.BUY,
-        *,
-        product_type: ProductType | str = ProductType.INTRADAY,
-        correlation_id: str | None = None,
-    ) -> "OrderResult":
-        """Place a market order via OMS only."""
-        s = side if isinstance(side, Side) else Side(str(side).upper())
-        return self._place(
-            s, quantity, None, OrderType.MARKET, product_type, correlation_id
-        )
-
-    def limit(
-        self,
-        quantity: int,
-        price: Decimal,
-        side: Side | str = Side.BUY,
-        *,
-        product_type: ProductType | str = ProductType.INTRADAY,
-        correlation_id: str | None = None,
-    ) -> "OrderResult":
-        """Place a limit order via OMS only."""
-        s = side if isinstance(side, Side) else Side(str(side).upper())
-        return self._place(
-            s, quantity, price, OrderType.LIMIT, product_type, correlation_id
-        )
-
-    def stop_loss(
-        self,
-        quantity: int,
-        trigger_price: Decimal,
-        side: Side | str = Side.BUY,
-        *,
-        product_type: ProductType | str = ProductType.INTRADAY,
-        correlation_id: str | None = None,
-    ) -> "OrderResult":
-        """Place a stop-loss market order via OMS only."""
-        s = side if isinstance(side, Side) else Side(str(side).upper())
-        return self._place(
-            s,
-            quantity,
-            None,
-            OrderType.STOP_LOSS_MARKET,
-            product_type,
-            correlation_id,
-            trigger_price=trigger_price,
-        )
-
-    def cancel(self, order_id: str) -> "OrderResult":
-        """Cancel an open order via OrderServicePort (OMS), never ExecutionProvider."""
-        from domain.errors import NotConfiguredError
-
-        osvc = self._require_order_service()
-        cancel = getattr(osvc, "cancel", None)
-        if not callable(cancel):
-            raise NotConfiguredError(
-                "OrderServicePort does not implement cancel(); upgrade OMS wiring."
-            )
-        return cancel(order_id)
-
-    def modify(
-        self,
-        order_id: str,
-        *,
-        quantity: int | None = None,
-        price: Decimal | None = None,
-        trigger_price: Decimal | None = None,
-        order_type: OrderType | str | None = None,
-    ) -> "OrderResult":
-        """Modify an open order via OrderServicePort (OMS)."""
-        from domain.errors import NotConfiguredError
-        from domain.orders.requests import ModifyOrderRequest
-
-        osvc = self._require_order_service()
-        modify = getattr(osvc, "modify", None)
-        if not callable(modify):
-            raise NotConfiguredError(
-                "OrderServicePort does not implement modify(); upgrade OMS wiring."
-            )
-        ot = None
-        if order_type is not None:
-            ot = (
-                order_type
-                if isinstance(order_type, OrderType)
-                else OrderType(str(order_type).upper())
-            )
-        return modify(
-            ModifyOrderRequest(
-                order_id=order_id,
-                quantity=quantity,
-                price=price,
-                trigger_price=trigger_price,
-                order_type=ot,
-            )
-        )
-
-    def _require_order_service(self) -> "OrderServicePort":
-        """Resolve OMS or raise ORDERS_DISABLED / NotConfiguredError."""
-        from domain.errors import NotConfiguredError
-
-        osvc = self._resolve_order_service()
-        if osvc is not None:
-            # Market-mode ambient: still refuse even if something stamped OMS
-            try:
-                from domain.ports.session_context import get_ambient_session
-
-                ambient = get_ambient_session()
-                st = getattr(ambient, "status", None) if ambient is not None else None
-                if st is not None and not getattr(st, "orders_enabled", True):
-                    raise NotConfiguredError(
-                        "ORDERS_DISABLED: Session is market-data only "
-                        f"(mode={getattr(st, 'mode', 'market')!r}). "
-                        "Reconnect with mode='trade' when ready to trade."
-                    )
-            except NotConfiguredError:
-                raise
-            except Exception:
-                pass
-            return osvc
-        try:
-            from domain.ports.session_context import get_ambient_session
-
-            ambient = get_ambient_session()
-            st = getattr(ambient, "status", None) if ambient is not None else None
-            if st is not None and not getattr(st, "orders_enabled", True):
-                raise NotConfiguredError(
-                    "ORDERS_DISABLED: Session is market-data only "
-                    f"(mode={getattr(st, 'mode', 'market')!r}). "
-                    "Reconnect with mode='trade' when ready to trade."
-                )
-        except NotConfiguredError:
-            raise
-        except Exception:
-            pass
-        raise NotConfiguredError(
-            "Instrument has no OrderServicePort (OMS). "
-            "Use tradex.connect(..., mode='sim'|'trade')."
-        )
-
-    def _place(
-        self,
-        side: Side,
-        quantity: int,
-        price: Decimal | None,
-        order_type: OrderType | str,
-        product_type: ProductType | str,
-        correlation_id: str | None,
-        *,
-        trigger_price: Decimal | None = None,
-    ) -> "OrderResult":
-        from domain.errors import NotConfiguredError
-
-        ot = order_type if isinstance(order_type, OrderType) else OrderType(str(order_type).upper())
-        pt = (
-            product_type
-            if isinstance(product_type, ProductType)
-            else ProductType(str(product_type).upper())
-        )
-        osvc = self._require_order_service()
-        intent = build_order_intent(
-            self,
-            side,
-            quantity,
-            price=price,
-            order_type=ot,
-            product_type=pt,
-            trigger_price=trigger_price,
-            correlation_id=correlation_id,
-        )
-        return place_via_order_service(osvc, intent)
 
     # ── Representation ────────────────────────────────────────────────
 
