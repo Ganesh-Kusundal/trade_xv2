@@ -16,7 +16,7 @@ from unittest.mock import MagicMock
 import pandas as pd
 import pytest
 
-from tradex.runtime.capabilities import BrokerCapabilities
+from domain.capabilities.broker_capabilities import BrokerCapabilities
 from domain import (
     Balance,
     FutureChain,
@@ -631,7 +631,7 @@ class TestUpstoxObservabilityProvider:
         assert "refresh_count" in result
 
     def test_upstox_get_rate_limiter_metrics(self):
-        from tradex.runtime.resilience.rate_limiter import MultiBucketRateLimiter, RateLimitConfig
+        from infrastructure.resilience.rate_limiter import MultiBucketRateLimiter, RateLimitConfig
         from brokers.upstox.gateway import UpstoxBrokerGateway
 
         rl = MultiBucketRateLimiter({

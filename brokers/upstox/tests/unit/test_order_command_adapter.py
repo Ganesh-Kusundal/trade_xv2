@@ -32,7 +32,7 @@ class _FakeOrderClient(UpstoxRestOrderClient):
 
 
 def test_place_order_publishes_order_placed() -> None:
-    from tradex.runtime.dtos import BrokerOrderPayload
+    from domain.models.dtos import BrokerOrderPayload
 
     bus = EventBus()
     received = []
@@ -66,7 +66,7 @@ def test_place_order_publishes_order_placed() -> None:
 
 
 def test_place_order_failure_does_not_publish() -> None:
-    from tradex.runtime.dtos import BrokerOrderPayload
+    from domain.models.dtos import BrokerOrderPayload
 
     bus = EventBus()
     received = []
@@ -103,7 +103,7 @@ def test_place_order_failure_does_not_publish() -> None:
 def test_place_order_risk_check_blocks_order() -> None:
     from application.oms.position_manager import PositionManager
     from application.oms.risk_manager import RiskConfig, RiskManager
-    from tradex.runtime.dtos import BrokerOrderPayload
+    from domain.models.dtos import BrokerOrderPayload
 
     resolver = MagicMock()
     resolver.resolve.return_value = MagicMock(instrument_key="NSE_EQ|RELIANCE")
@@ -142,7 +142,7 @@ def test_place_order_always_enforces_risk_check() -> None:
     """Risk checks are always enforced regardless of any transport flags."""
     from application.oms.position_manager import PositionManager
     from application.oms.risk_manager import RiskConfig, RiskManager
-    from tradex.runtime.dtos import BrokerOrderPayload
+    from domain.models.dtos import BrokerOrderPayload
 
     resolver = MagicMock()
     resolver.resolve.return_value = MagicMock(instrument_key="NSE_EQ|RELIANCE")

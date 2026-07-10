@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from tradex.runtime.extensions import (
+from domain.extensions.broker_bundle import (
     ExtensionBundle,
     get_extension_factory,
     register_extension_factory,
 )
-from tradex.runtime.extensions.news import NewsProvider
-from tradex.runtime.extensions.super_order import SuperOrderProvider
+from domain.extensions.news import NewsProvider
+from domain.extensions.super_order import SuperOrderProvider
 
 
 class TestExtensionFactoryRegistry:
@@ -18,7 +18,7 @@ class TestExtensionFactoryRegistry:
 
     def setup_method(self):
         """Clear registry before each test."""
-        from tradex.runtime.extensions import _extension_factories
+        from domain.extensions.broker_bundle import _extension_factories
 
         _extension_factories.clear()
 
@@ -48,12 +48,12 @@ class TestBuildExtensionBundle:
     """Tests for build_extension_bundle using the registry."""
 
     def setup_method(self):
-        from tradex.runtime.extensions import _extension_factories
+        from domain.extensions.broker_bundle import _extension_factories
 
         _extension_factories.clear()
 
     def test_build_with_registered_factory(self):
-        from tradex.runtime.adapters.extensions import build_extension_bundle
+        from infrastructure.adapters.extensions import build_extension_bundle
 
         class FakeProvider:
             pass
@@ -70,13 +70,13 @@ class TestBuildExtensionBundle:
         assert "FakeProvider" in bundle.registered_names()
 
     def test_build_without_factory_returns_empty_bundle(self):
-        from tradex.runtime.adapters.extensions import build_extension_bundle
+        from infrastructure.adapters.extensions import build_extension_bundle
 
         bundle = build_extension_bundle("unknown_broker", MagicMock())
         assert bundle.registered_names() == frozenset()
 
     def test_build_bundle_has_correct_broker_id(self):
-        from tradex.runtime.adapters.extensions import build_extension_bundle
+        from infrastructure.adapters.extensions import build_extension_bundle
 
         def factory(gw):
             return ExtensionBundle("mybroker")
@@ -99,8 +99,8 @@ class TestDhanRegistration:
 
     def test_dhan_factory_returns_bundle_with_providers(self):
         import brokers.dhan.common_extensions  # noqa: F401
-        from tradex.runtime.extensions.forever_order import ForeverOrderProvider
-        from tradex.runtime.extensions.native_slice_order import NativeSliceOrderProvider
+        from domain.extensions.forever_order import ForeverOrderProvider
+        from domain.extensions.native_slice_order import NativeSliceOrderProvider
 
         factory = get_extension_factory("dhan")
         gateway = MagicMock()
@@ -126,8 +126,8 @@ class TestUpstoxRegistration:
 
     def test_upstox_factory_returns_bundle_with_providers(self):
         import brokers.upstox.common_extensions  # noqa: F401
-        from tradex.runtime.extensions.forever_order import ForeverOrderProvider
-        from tradex.runtime.extensions.fundamentals import FundamentalsProvider
+        from domain.extensions.forever_order import ForeverOrderProvider
+        from domain.extensions.fundamentals import FundamentalsProvider
 
         factory = get_extension_factory("upstox")
         gateway = MagicMock()

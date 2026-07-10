@@ -2,8 +2,8 @@
 
 import os
 
-from tradex.runtime.auth.env_token import update_env_token as _update_env_token
-from tradex.runtime.env_loader import load_env_file
+from infrastructure.auth.env_token import update_env_token as _update_env_token
+from infrastructure.config.env_loader import load_env_file
 
 
 def test_load_dotenv(tmp_path):

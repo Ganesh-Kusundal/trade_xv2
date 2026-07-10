@@ -23,12 +23,12 @@ import pytest
 def _import_runtime():
     """Lazy-import the (gitignored) runtime package; skip if unimportable."""
     try:
-        from tradex.runtime.candle_aggregator import (
+        from application.streaming.candle_aggregator import (
             CandleAggregator,
             Candle,
             parse_timeframe,
         )
-        from tradex.runtime.stream_orchestrator import (
+        from application.streaming.orchestrator import (
             MarketTick,
             StreamOrchestrator,
         )

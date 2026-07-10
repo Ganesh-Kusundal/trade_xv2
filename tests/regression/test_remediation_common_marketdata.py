@@ -193,9 +193,9 @@ def test_m2_seen_ids_bounded_lru_and_dedup(tmp_path):
 def _make_orch() -> "object":
     """Build a StreamOrchestrator without running __init__ (heavy deps)."""
     try:
-        from tradex.runtime.stream_orchestrator import StreamOrchestrator
+        from application.streaming.orchestrator import StreamOrchestrator
     except Exception as exc:  # pragma: no cover
-        pytest.skip(f"tradex.runtime.stream_orchestrator unavailable: {exc}")
+        pytest.skip(f"application.streaming.orchestrator unavailable: {exc}")
     orch = object.__new__(StreamOrchestrator)
     orch._dedup_seen = {}  # type: ignore[attr-defined]
     return orch
@@ -203,9 +203,9 @@ def _make_orch() -> "object":
 
 def test_m3_exchange_timestamp_preserved_not_now():
     try:
-        from tradex.runtime.stream_orchestrator import StreamOrchestrator
+        from application.streaming.orchestrator import StreamOrchestrator
     except Exception as exc:  # pragma: no cover
-        pytest.skip(f"tradex.runtime.stream_orchestrator unavailable: {exc}")
+        pytest.skip(f"application.streaming.orchestrator unavailable: {exc}")
 
     now = datetime(2020, 1, 1, tzinfo=timezone.utc)  # "arrival" time
     # Upstox-style epoch-millis exchange timestamp (2023-01-01 UTC)

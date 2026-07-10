@@ -20,7 +20,7 @@ from unittest.mock import patch
 
 import pytest
 
-from tradex.runtime.resilience import (
+from infrastructure.resilience import (
     AuthenticationError,
     CircuitBreaker,
     CircuitBreakerConfig,
@@ -29,7 +29,7 @@ from tradex.runtime.resilience import (
     RetryConfig,
     RetryExecutor,
 )
-from tradex.runtime.resilience.backoff import ExponentialBackoff
+from infrastructure.resilience.backoff import ExponentialBackoff
 from infrastructure.event_bus import DeadLetterQueue, DomainEvent, EventBus
 from tests.e2e.fixtures.event_capturer import EventCapturer
 from tests.e2e.fixtures.trading_context_factory import create_test_trading_context
@@ -197,7 +197,7 @@ def test_retry_executor_backoff(fast_exp_backoff: ExponentialBackoff) -> None:
 
     captured_delays: list[float] = []
 
-    with patch("tradex.runtime.resilience.retry.time.sleep") as mock_sleep:
+    with patch("infrastructure.resilience.retry.time.sleep") as mock_sleep:
         mock_sleep.side_effect = lambda d: captured_delays.append(d)
         result = executor.execute(lambda: broker.place_order(None))
 

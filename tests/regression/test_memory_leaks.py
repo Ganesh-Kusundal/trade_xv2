@@ -299,7 +299,7 @@ class TestReferenceCycles:
 
     def test_health_monitor_no_reference_cycles(self):
         """BrokerHealthMonitor should not create reference cycles."""
-        from tradex.runtime.resilience.broker_health_monitor import BrokerHealthMonitor
+        from infrastructure.resilience.broker_health_monitor import BrokerHealthMonitor
 
         gc.collect()
         before = len(gc.garbage)

@@ -7,7 +7,7 @@ from decimal import Decimal
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from tradex.runtime.mappers import DefaultFieldMapping
+from infrastructure.mappers import DefaultFieldMapping
 from domain.types import OrderStatus
 
 

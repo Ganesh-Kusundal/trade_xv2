@@ -376,22 +376,22 @@ class TestPhase5GodObjectDecomposition:
         """
         # Force reimport by clearing cache
         modules_to_test = [
-            "tradex.runtime.factory",
+            "infrastructure.gateway.provider_factory",
             "brokers.dhan.factory",
             "application.oms._internal.risk_manager",
             "application.oms.order_manager",
             "application.oms.position_manager",
             "brokers.dhan.websocket.market_feed",
             "brokers.dhan.websocket.order_stream",
-            "tradex.runtime.resilience.circuit_breaker",
-            "tradex.runtime.resilience.rate_limiter",
+            "infrastructure.resilience.circuit_breaker",
+            "infrastructure.resilience.rate_limiter",
         ]
 
         import_errors = []
         for module_name in modules_to_test:
             try:
                 # Import without deleting from sys.modules: clearing ABC bases
-                # (e.g. tradex.runtime.factory) then reimporting only some
+                # (e.g. infrastructure.gateway.provider_factory) then reimporting only some
                 # subclasses leaves issubclass() broken for the rest of the suite.
                 importlib.import_module(module_name)
             except ImportError as e:
@@ -481,12 +481,12 @@ class TestPhase6TypeSafetyAndResilience:
         2. Rate limiter allows requests within limits
         3. Circuit breaker transitions work correctly (CLOSED → OPEN → HALF_OPEN → CLOSED)
         """
-        from tradex.runtime.resilience.circuit_breaker import (
+        from infrastructure.resilience.circuit_breaker import (
             CircuitBreaker,
             CircuitBreakerConfig,
             CircuitState,
         )
-        from tradex.runtime.resilience.rate_limiter import TokenBucketRateLimiter
+        from infrastructure.resilience.rate_limiter import TokenBucketRateLimiter
 
         # Test 1: Circuit breaker starts CLOSED (normal operation)
         cb_config = CircuitBreakerConfig(
@@ -536,7 +536,7 @@ class TestPhase6TypeSafetyAndResilience:
         2. Config validation accepts valid configurations
         3. Factory.create() method signature is compatible with existing callers
         """
-        from tradex.runtime.factory import BrokerProviderFactory
+        from infrastructure.gateway.provider_factory import BrokerProviderFactory
         from brokers.dhan.factory import BrokerFactory
 
         # Test 1: BrokerFactory is instantiable
@@ -553,14 +553,14 @@ class TestPhase6TypeSafetyAndResilience:
 
         # Test 4: Config validation files exist and import cleanly
         try:
-            from tradex.runtime.settings import BrokerSettings
+            from infrastructure.config.settings import BrokerSettings
             # Settings should be loadable
             settings = BrokerSettings
             assert settings is not None, "BrokerSettings should be importable"
         except ImportError:
             # Settings module may have different name, check alternatives
-            from tradex.runtime import settings
-            assert settings is not None, "tradex.runtime.settings must be importable"
+            import infrastructure.config.settings as settings
+            assert settings is not None, "infrastructure.config.settings must be importable"
 
     def test_cache_manager_accepts_optional_connection(self):
         """Prevent regression: CacheManager must work with both provided and internal

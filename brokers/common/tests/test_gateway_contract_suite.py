@@ -21,7 +21,7 @@ from decimal import Decimal
 import pandas as pd
 import pytest
 
-from tradex.runtime.capabilities import BrokerCapabilities
+from domain.capabilities.broker_capabilities import BrokerCapabilities
 from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 from domain.entities import (
     Balance,

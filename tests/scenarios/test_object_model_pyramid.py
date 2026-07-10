@@ -174,7 +174,7 @@ def test_I_ACCOUNT_REFRESH():
 
 def test_I_MODE_MARKET_BLOCK_CANCEL():
     mock_gw = MagicMock()
-    with patch("tradex.runtime.gateway_factory.create_gateway", return_value=mock_gw):
+    with patch("infrastructure.gateway.factory.create_gateway", return_value=mock_gw):
         import brokers.dhan  # noqa: F401
 
         session = tradex.connect("dhan", mode="market", load_instruments=False)
@@ -187,7 +187,7 @@ def test_I_MODE_MARKET_BLOCK_CANCEL():
 
 def test_I_UPSTOX_ADAPTER():
     import brokers.upstox  # noqa: F401
-    from tradex.runtime.adapter_factory import create_data_adapter
+    from infrastructure.adapter_factory import create_data_adapter
 
     gw = MagicMock()
     gw.quote.return_value = MagicMock(ltp=Decimal("10"), bid=0, ask=0, volume=0)
@@ -350,7 +350,7 @@ def test_E_PAPER_ASSET_TYPES_AND_ORDERS_LIST():
 
 def test_I_DHAN_EXTENSION_CAPS_INCLUDE_SUPER():
     mock_gw = MagicMock()
-    with patch("tradex.runtime.gateway_factory.create_gateway", return_value=mock_gw):
+    with patch("infrastructure.gateway.factory.create_gateway", return_value=mock_gw):
         import brokers.dhan  # noqa: F401
 
         session = tradex.connect("dhan", mode="market", load_instruments=False)

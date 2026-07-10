@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 from brokers.dhan.gateway import DhanBrokerGateway
 from domain.entities.order import OrderResponse
 from domain.enums import OrderStatus, OrderType, Side
-from tradex.runtime.dtos import BrokerOrderPayload
+from domain.models.dtos import BrokerOrderPayload
 
 
 def test_place_order_builds_broker_order_payload() -> None:

@@ -160,7 +160,7 @@ class TestRateLimitedLogin:
         """429 on login should raise RateLimitError, not block."""
 
         # Simulate rate limiter
-        from tradex.runtime.resilience.rate_limiter import TokenBucketRateLimiter
+        from infrastructure.resilience.rate_limiter import TokenBucketRateLimiter
 
         limiter = TokenBucketRateLimiter(rate=1, capacity=1)
 
@@ -177,7 +177,7 @@ class TestRateLimitedLogin:
         """429 on login should not cause deadlock."""
         import threading
 
-        from tradex.runtime.resilience.rate_limiter import TokenBucketRateLimiter
+        from infrastructure.resilience.rate_limiter import TokenBucketRateLimiter
 
         limiter = TokenBucketRateLimiter(rate=1, capacity=1)
 

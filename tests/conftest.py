@@ -34,7 +34,7 @@ def _register_domain_runtime_hooks() -> None:
     register_domain_event_factory(create_domain_event)
     register_trading_context_factory(create_trading_context)
 
-    # Ensure broker adapter classes are registered into tradex.runtime.adapter_factory.
+    # Ensure broker adapter classes are registered into infrastructure.adapter_factory.
     # Brokers self-register on package import; importing them here guarantees the
     # registry is populated for every test (idempotent).
     import brokers.dhan  # noqa: F401

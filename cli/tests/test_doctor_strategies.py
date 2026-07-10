@@ -185,7 +185,7 @@ class TestGatewayCreationCheck:
     """Tests for GatewayCreationCheck strategy."""
 
     def test_success(self):
-        from tradex.runtime.connection.bootstrap_result import BootstrapResult, BootstrapStatus
+        from infrastructure.connection.bootstrap_result import BootstrapResult, BootstrapStatus
 
         with (
             patch(
@@ -230,7 +230,7 @@ class TestGatewayCreationCheck:
             assert any(r.status == "FAIL" for r in results)
 
     def test_bootstrap_failed(self):
-        from tradex.runtime.connection.bootstrap_result import BootstrapResult, BootstrapStatus
+        from infrastructure.connection.bootstrap_result import BootstrapResult, BootstrapStatus
 
         with (
             patch(

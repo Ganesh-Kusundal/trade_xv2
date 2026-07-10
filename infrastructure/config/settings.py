@@ -8,7 +8,7 @@ env-var parsing logic.
 
 Usage::
 
-    from tradex.runtime.settings import BrokerSettings, SettingsLoaderBase
+    from infrastructure.config.settings import BrokerSettings, SettingsLoaderBase
 
     class DhanConnectionSettings(BrokerSettings):
         base_url: str = "https://api.dhan.co/v2"
@@ -48,7 +48,7 @@ class SettingsLoaderBase:
 
     Provides:
     * Default env file discovery (``.env.local`` → ``.env``).
-    * ``load_env_file()`` integration via :func:`tradex.runtime.env_loader.load_env_file`.
+    * ``load_env_file()`` integration via :func:`infrastructure.config.env_loader.load_env_file`.
     * Parse helpers for int, float, bool.
     * Simple ``_get()`` lookup.
 
@@ -66,7 +66,7 @@ class SettingsLoaderBase:
 
     @classmethod
     def _load_env_file(cls, path: Path) -> None:
-        """Load *path* via :func:`tradex.runtime.env_loader.load_env_file`."""
+        """Load *path* via :func:`infrastructure.config.env_loader.load_env_file`."""
         from infrastructure.config.env_loader import load_env_file
 
         load_env_file(path)

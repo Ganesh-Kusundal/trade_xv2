@@ -4,7 +4,7 @@ Consumers use symbol names like "NIFTY", "RELIANCE" — never security_id or ins
 The registry translates between canonical names and broker-specific identifiers.
 
 Usage:
-    from tradex.runtime.services.instrument_registry import CanonicalInstrumentRegistry
+    from application.services.instrument_registry import CanonicalInstrumentRegistry
 
     registry = CanonicalInstrumentRegistry(gateway)
 

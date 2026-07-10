@@ -184,7 +184,7 @@ class StubLiveGateway:
         return {"broker": "stub", "connected": True}
 
     def capabilities(self):
-        from tradex.runtime.capabilities import BrokerCapabilities
+        from domain.capabilities.broker_capabilities import BrokerCapabilities
 
         return BrokerCapabilities(
             broker_id="stub",

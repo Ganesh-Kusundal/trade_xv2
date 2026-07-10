@@ -197,7 +197,7 @@ class TestRateLimitBucketMap:
 
     def test_acquire_does_not_raise_for_known_endpoints(self):
         """_acquire_rate_limit_token must not raise for standard endpoints."""
-        from tradex.runtime.resilience.rate_limiter import MultiBucketRateLimiter, RateLimitConfig
+        from infrastructure.resilience.rate_limiter import MultiBucketRateLimiter, RateLimitConfig
         from brokers.dhan.api.http_client import DhanHttpClient
 
         limiter = MultiBucketRateLimiter(
@@ -445,8 +445,8 @@ class TestAuditLeakAndMultiplexingFixes:
         """MarketDataGatewayAdapter tracks active handles and prevents premature stop."""
         import asyncio
 
-        from tradex.runtime.adapters.market_data_gateway_adapter import wrap_market_gateway
-        from tradex.runtime.broker_port import BrokerStreamPlan
+        from infrastructure.adapters.market_data_gateway_adapter import wrap_market_gateway
+        from domain.ports.broker_gateway import BrokerStreamPlan
 
         legacy_gw = mock.MagicMock()
         adapter = wrap_market_gateway(legacy_gw, "dhan")

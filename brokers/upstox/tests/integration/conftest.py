@@ -25,7 +25,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
 
 
 def _resolve_upstox_env_path() -> Path:
-    from tradex.runtime.auth.credential_resolver import CredentialResolver
+    from infrastructure.auth.credential_resolver import CredentialResolver
 
     return CredentialResolver.resolve_upstox_env_path() or _REPO_ROOT / ".env.upstox"
 
@@ -75,7 +75,7 @@ def _should_skip_live() -> bool:
     if auth_mode != "TOTP":
         token = os.environ.get("UPSTOX_ACCESS_TOKEN", "")
         try:
-            from tradex.runtime.auth.jwt_expiry import JwtExpiry
+            from infrastructure.auth.jwt_expiry import JwtExpiry
 
             exp_ms = JwtExpiry.parse_expiry_epoch_ms(token)
             if exp_ms > 0 and exp_ms < time.time() * 1000:
@@ -138,7 +138,7 @@ def ws_teardown(gateway):
     """Disconnect WS streams after each test using the session gateway."""
     yield
     broker = gateway._broker
-    from tradex.runtime.async_compat import run_async_compat
+    from infrastructure.async_compat import run_async_compat
 
     mux = getattr(broker, "market_data_websocket", None)
     portfolio = getattr(broker, "portfolio_stream", None)

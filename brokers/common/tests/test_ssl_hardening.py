@@ -12,7 +12,7 @@ import ssl
 import pytest
 import requests
 
-from tradex.runtime.ssl_hardening import (
+from infrastructure.security.ssl_hardening import (
     HardenedHTTPSAdapter,
     assert_secure_session,
     create_pinned_session,

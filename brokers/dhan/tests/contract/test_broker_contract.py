@@ -59,7 +59,7 @@ def _should_skip_live() -> bool:
     token = os.environ.get("DHAN_ACCESS_TOKEN", "")
     import time as _time
 
-    from tradex.runtime.auth.jwt_expiry import JwtExpiry
+    from infrastructure.auth.jwt_expiry import JwtExpiry
 
     exp_ms = JwtExpiry.parse_expiry_epoch_ms(token)
     if exp_ms > 0 and exp_ms < _time.time() * 1000:

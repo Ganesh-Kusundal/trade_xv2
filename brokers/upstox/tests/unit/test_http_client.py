@@ -81,8 +81,8 @@ def test_enable_retry_removed():
 
 
 def test_read_circuit_breaker_does_not_block_write():
-    from tradex.runtime.resilience.circuit_breaker import CircuitState
-    from tradex.runtime.resilience.errors import CircuitBreakerOpenError
+    from infrastructure.resilience.circuit_breaker import CircuitState
+    from infrastructure.resilience.errors import CircuitBreakerOpenError
 
     session = MagicMock()
     settings = UpstoxConnectionSettings(client_id="CID")
@@ -114,7 +114,7 @@ def test_read_circuit_breaker_does_not_block_write():
 
 
 def test_default_rate_limiter_is_multi_bucket():
-    from tradex.runtime.resilience.rate_limiter import MultiBucketRateLimiter
+    from infrastructure.resilience.rate_limiter import MultiBucketRateLimiter
 
     session = MagicMock()
     settings = UpstoxConnectionSettings(client_id="CID")

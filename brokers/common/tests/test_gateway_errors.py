@@ -1,4 +1,4 @@
-"""Tests for :class:`tradex.runtime.gateway_errors.UnsupportedGatewayOperationError`.
+"""Tests for :class:`domain.errors.UnsupportedGatewayOperationError`.
 
 :class:`~datalake.gateway.DataLakeGateway` is a read-only gateway.
 Trading and portfolio methods raise ``NotImplementedError``.
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from tradex.runtime.gateway_errors import (
+from domain.errors import (
     UnsupportedGatewayOperationError as UnsupportedGatewayOperation,
 )
 from datalake.gateway import DataLakeGateway

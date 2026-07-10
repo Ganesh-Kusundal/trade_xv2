@@ -17,7 +17,7 @@ from decimal import Decimal
 import pytest
 
 from application.oms import PositionManager, RiskConfig, RiskManager
-from tradex.runtime.resilience.circuit_breaker import (
+from infrastructure.resilience.circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerConfig,
     CircuitState,

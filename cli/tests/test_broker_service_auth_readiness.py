@@ -6,8 +6,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from tradex.runtime.connection.bootstrap_result import BootstrapResult, BootstrapStatus
-from tradex.runtime.connection.errors import BrokerNotReadyError
+from infrastructure.connection.bootstrap_result import BootstrapResult, BootstrapStatus
+from infrastructure.connection.errors import BrokerNotReadyError
 
 
 def test_live_actionable_false_when_auth_probe_fails(monkeypatch, tmp_path):

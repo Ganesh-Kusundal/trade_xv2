@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from rich.console import Console
 
-from tradex.runtime.env_loader import load_env_file
+from infrastructure.config.env_loader import load_env_file
 
 console = Console()
 

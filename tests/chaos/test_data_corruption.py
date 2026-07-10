@@ -23,7 +23,7 @@ import pandas as pd
 import pytest
 
 from infrastructure.observability.event_metrics import EventMetrics
-from tradex.runtime.resilience.broker_health_monitor import BrokerHealthMonitor
+from infrastructure.resilience.broker_health_monitor import BrokerHealthMonitor
 from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
 from infrastructure.event_bus.event_bus import DomainEvent, EventBus
 
@@ -501,7 +501,7 @@ class TestInvalidStateTransitions:
     def test_event_bus_alerting_thread_clean_shutdown(self):
         """Alerting thread should shut down cleanly."""
         metrics = EventMetrics()
-        from tradex.runtime.observability.alerting import AlertingEngine
+        from infrastructure.observability.alerting import AlertingEngine
 
         engine = AlertingEngine(metrics)
         bus = EventBus(

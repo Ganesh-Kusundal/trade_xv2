@@ -8,7 +8,7 @@ Manages requests.Session instances keyed by broker type with:
 
 Usage
 -----
-    from tradex.runtime.connection_pool import get_connection_pool
+    from infrastructure.pool.connection_pool import get_connection_pool
 
     # Application startup
     pool = get_connection_pool()

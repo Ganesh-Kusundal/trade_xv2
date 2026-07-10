@@ -16,13 +16,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from tradex.runtime.resilience.circuit_breaker import (
+from infrastructure.resilience.circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerConfig,
     CircuitState,
 )
-from tradex.runtime.resilience.errors import RetryableError
-from tradex.runtime.resilience.retry import RetryConfig, RetryExecutor
+from infrastructure.resilience.errors import RetryableError
+from infrastructure.resilience.retry import RetryConfig, RetryExecutor
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 

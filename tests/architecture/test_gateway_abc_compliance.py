@@ -140,7 +140,7 @@ class TestGatewayABCCompliance:
         This test will FAIL until Phase 2.3 is complete.
         """
         from brokers.upstox.factory import UpstoxBrokerFactory
-        from tradex.runtime.factory import BrokerProviderFactory
+        from infrastructure.gateway.provider_factory import BrokerProviderFactory
 
         assert issubclass(UpstoxBrokerFactory, BrokerProviderFactory), (
             "UpstoxBrokerFactory does not implement BrokerProviderFactory"
@@ -152,7 +152,7 @@ class TestGatewayABCCompliance:
     def test_dhan_factory_implements_broker_provider_factory(self):
         """BrokerFactory must implement BrokerProviderFactory ABC."""
         from brokers.dhan.factory import BrokerFactory
-        from tradex.runtime.factory import BrokerProviderFactory
+        from infrastructure.gateway.provider_factory import BrokerProviderFactory
 
         assert issubclass(BrokerFactory, BrokerProviderFactory), (
             "BrokerFactory does not implement BrokerProviderFactory"
@@ -193,7 +193,7 @@ class TestExceptionHierarchy:
 
         This test will FAIL until Phase 3.5 is complete.
         """
-        from tradex.runtime.resilience.errors import BrokerError
+        from infrastructure.resilience.errors import BrokerError
         from brokers.upstox.auth.exceptions import UpstoxApiError
 
         if not issubclass(UpstoxApiError, BrokerError):
@@ -203,7 +203,7 @@ class TestExceptionHierarchy:
 
     def test_dhan_exceptions_extend_broker_error(self):
         """Dhan exceptions must extend BrokerError."""
-        from tradex.runtime.resilience.errors import BrokerError
+        from infrastructure.resilience.errors import BrokerError
         from brokers.dhan.exceptions import DhanError
 
         assert issubclass(DhanError, BrokerError)

@@ -68,6 +68,26 @@ jobs:
             exit 1
           fi
           echo "✅ No application-to-broker direct imports"
+      - name: Verify production packages do not import tradex.runtime facade
+        run: |
+          # Mirror tests/architecture/test_no_tradex_runtime_in_production.py (grep gate for CI speed).
+          # Excludes tests/ trees and the facade package itself.
+          set +e
+          violations=$(grep -RInE 'from tradex\.runtime(\.| import)|import tradex\.runtime' \
+            --include='*.py' \
+            application infrastructure brokers cli api config datalake analytics runtime src/domain \
+            2>/dev/null \
+            | grep -v '/tests/' \
+            | grep -v 'test_' \
+            || true)
+          set -e
+          if [ -n "$violations" ]; then
+            echo "❌ Production code imports deprecated tradex.runtime facade:"
+            echo "$violations"
+            echo "Import from domain/application/infrastructure/runtime instead."
+            exit 1
+          fi
+          echo "✅ No production tradex.runtime facade imports"
 
   no-print-statements:
     name: No Print Statements in Production Code

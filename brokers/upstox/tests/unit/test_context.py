@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from tradex.runtime.resilience.rate_limiter import MultiBucketRateLimiter
-from tradex.runtime.resilience.retry import RetryExecutor
+from infrastructure.resilience.rate_limiter import MultiBucketRateLimiter
+from infrastructure.resilience.retry import RetryExecutor
 from brokers.upstox.auth.config import UpstoxConnectionSettings
 from brokers.upstox.auth.context import UpstoxAdapterContext
 from brokers.upstox.auth.http import UpstoxHttpClient

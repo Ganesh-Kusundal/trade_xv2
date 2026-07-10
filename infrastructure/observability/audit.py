@@ -32,7 +32,7 @@ to a metrics pipeline.
 
 Usage in broker infrastructure code::
 
-    from tradex.runtime.observability.audit import emit_routing_decision
+    from infrastructure.observability.audit import emit_routing_decision
 
     emit_routing_decision(decision)
     emit_quota_event(token, wait_ms=12.3)

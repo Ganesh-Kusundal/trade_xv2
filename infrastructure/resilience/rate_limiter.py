@@ -3,7 +3,7 @@
 This is the CANONICAL rate limiter for the whole system. Per-broker copies
 were removed (board Decision #4); brokers now obtain their limiter through
 :func:`create_rate_limiter`, which builds buckets from the broker's
-``RateLimitProfile`` definitions in ``tradex.runtime.capabilities``.
+``RateLimitProfile`` definitions in ``domain.capabilities.broker_capabilities``.
 """
 
 from __future__ import annotations
@@ -306,7 +306,7 @@ class EndpointRateLimiter:
 # ---------------------------------------------------------------------------
 
 # Maps a broker id to the function returning its BrokerCapabilities. Each
-# broker's rate_limit_profiles (RateLimitProfile in tradex.runtime.capabilities)
+# broker's rate_limit_profiles (RateLimitProfile in domain.capabilities.broker_capabilities)
 # are the canonical source of per-broker RPS / capacity values.
 _BROKER_CAPABILITIES: dict[str, Callable[[], Any]] = {}
 

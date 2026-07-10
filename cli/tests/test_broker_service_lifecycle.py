@@ -142,7 +142,7 @@ def test_lifecycle_registers_token_scheduler_and_reconciliation(monkeypatch, tmp
     # directly via the dotted path.
     # Note: initialize may call create_gateway for both Dhan
     # AND Upstox; only capture the first (Dhan) call.
-    from tradex.runtime.connection.bootstrap_result import BootstrapResult, BootstrapStatus
+    from infrastructure.connection.bootstrap_result import BootstrapResult, BootstrapStatus
 
     def patched_bootstrap(broker, **kwargs):
         if "factory_kwargs" not in captured:
@@ -240,7 +240,7 @@ def test_close_drains_lifecycle(monkeypatch, tmp_path) -> None:
             kwargs["lifecycle"].register(fake_scheduler)
             return FakeGateway(**kwargs)
 
-    from tradex.runtime.connection.bootstrap_result import BootstrapResult, BootstrapStatus
+    from infrastructure.connection.bootstrap_result import BootstrapResult, BootstrapStatus
 
     def patched_bootstrap(broker, **kwargs):
         kwargs["lifecycle"].register(fake_scheduler)

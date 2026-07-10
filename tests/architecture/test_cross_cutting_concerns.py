@@ -182,13 +182,13 @@ class TestExceptionHierarchy:
 
     def test_broker_error_inherits_from_tradexv2_error(self):
         """BrokerError must inherit from TradeXV2Error."""
-        from tradex.runtime.resilience.errors import BrokerError, TradeXV2Error
+        from infrastructure.resilience.errors import BrokerError, TradeXV2Error
 
         assert issubclass(BrokerError, TradeXV2Error)
 
     def test_all_broker_exceptions_inherit_from_broker_error(self):
         """All broker-specific exceptions must inherit from BrokerError."""
-        from tradex.runtime.resilience.errors import (
+        from infrastructure.resilience.errors import (
             AuthenticationError,
             BrokerError,
             CircuitBreakerOpenError,
@@ -214,7 +214,7 @@ class TestExceptionHierarchy:
 
     def test_non_broker_exceptions_inherit_from_tradexv2_error(self):
         """Non-broker exceptions must inherit from TradeXV2Error."""
-        from tradex.runtime.resilience.errors import (
+        from infrastructure.resilience.errors import (
             BrokerError,
             ConfigError,
             DataError,
@@ -238,7 +238,7 @@ class TestErrorCodes:
 
     def test_dhan_error_codes_exist(self):
         """Dhan error codes must be defined."""
-        from tradex.runtime.resilience.error_codes import (
+        from infrastructure.resilience.error_codes import (
             DHAN_ERR_INVALID_TOKEN,
             DHAN_ERR_TOKEN_EXPIRED,
         )
@@ -248,7 +248,7 @@ class TestErrorCodes:
 
     def test_broker_error_codes_exist(self):
         """Broker error codes must be defined."""
-        from tradex.runtime.resilience.error_codes import (
+        from infrastructure.resilience.error_codes import (
             BRO_ERR_AUTH_FAILED,
             BRO_ERR_TIMEOUT,
         )
@@ -715,9 +715,9 @@ class TestPhase8Guardrails:
 
     def test_every_broker_has_authenticator_registered(self):
         """Phase 7: every broker in the registry must have an
-        authenticator in ``tradex.runtime.auth.registry``.
+        authenticator in ``infrastructure.auth.registry``.
         """
-        from tradex.runtime.auth.registry import list_supported_brokers
+        from infrastructure.auth.registry import list_supported_brokers
         from cli.services.broker_registry import ENV_FILES
 
         authenticators = set(list_supported_brokers())
@@ -727,7 +727,7 @@ class TestPhase8Guardrails:
         missing -= {"paper", "datalake"}
         assert not missing, (
             f"Brokers {missing} are registered in broker_registry but "
-            "have no BrokerAuthenticator in tradex.runtime.auth.registry. "
+            "have no BrokerAuthenticator in infrastructure.auth.registry. "
             "Add a DhanAuthenticator / UpstoxAuthenticator / etc."
         )
 

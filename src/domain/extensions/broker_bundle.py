@@ -120,7 +120,7 @@ class BrokerExtensionRegistry:
         ]
 
 
-# Facade-compat alias — historical name used by tradex.runtime.extensions
+# Facade-compat alias — historical name used by domain.extensions.broker_bundle
 ExtensionRegistry = BrokerExtensionRegistry
 
 __all__ = [

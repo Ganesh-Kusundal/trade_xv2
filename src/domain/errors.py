@@ -3,7 +3,7 @@
 The root ``TradeXV2Error`` lives in :mod:`domain.exceptions`. This module
 defines the platform error hierarchy. Infrastructure and application code
 classify errors through these types — never by importing broker packages.
-Runtime helpers re-export selected types from ``tradex.runtime.resilience.errors``.
+Runtime helpers re-export selected types from ``infrastructure.resilience.errors``.
 """
 
 from __future__ import annotations

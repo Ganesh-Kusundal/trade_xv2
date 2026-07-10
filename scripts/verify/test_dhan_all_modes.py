@@ -55,7 +55,7 @@ def _legacy_placeholder():
     console.print("[bold cyan]═" * 70)
 
     try:
-        from tradex.runtime.env_loader import load_env_file
+        from infrastructure.config.env_loader import load_env_file
         from cli.services.broker_registry import bootstrap_gateway
 
         # Load .env.local

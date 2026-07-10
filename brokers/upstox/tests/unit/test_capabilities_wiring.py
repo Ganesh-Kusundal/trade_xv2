@@ -92,7 +92,7 @@ def test_capability_groups_reference_same_adapters_as_broker() -> None:
 
 
 def test_orders_capability_place_delegates_to_order_command() -> None:
-    from tradex.runtime.dtos import BrokerOrderPayload
+    from domain.models.dtos import BrokerOrderPayload
 
     broker = _broker()
     mock_response = OrderResponse.ok(order_id="CAP-001")

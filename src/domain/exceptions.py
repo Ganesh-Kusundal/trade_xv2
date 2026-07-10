@@ -3,7 +3,7 @@
 This module defines the root exception and platform-level (non-broker)
 exceptions. Broker transport adapters may define local exceptions that
 inherit from :class:`TradeXV2Error`. Runtime resilience errors live in
-``tradex.runtime.resilience.errors``.
+``infrastructure.resilience.errors``.
 """
 
 from __future__ import annotations

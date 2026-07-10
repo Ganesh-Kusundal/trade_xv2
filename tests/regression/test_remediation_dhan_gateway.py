@@ -224,7 +224,7 @@ def _make_adapter(client, allow_live=True):
 
 
 def _payload(correlation_id):
-    from tradex.runtime.dtos import BrokerOrderPayload
+    from domain.models.dtos import BrokerOrderPayload
 
     return BrokerOrderPayload(
         symbol="RELIANCE",

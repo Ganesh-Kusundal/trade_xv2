@@ -20,17 +20,17 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pytest
 
-from tradex.runtime.resilience.circuit_breaker import (
+from infrastructure.resilience.circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerConfig,
     CircuitState,
 )
-from tradex.runtime.resilience.errors import (
+from infrastructure.resilience.errors import (
     CircuitBreakerOpenError,
     NonRetryableError,
     RetryableError,
 )
-from tradex.runtime.resilience.rate_limiter import (
+from infrastructure.resilience.rate_limiter import (
     MultiBucketRateLimiter,
     RateLimitConfig,
 )

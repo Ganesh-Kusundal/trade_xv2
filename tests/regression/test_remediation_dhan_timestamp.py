@@ -30,7 +30,7 @@ import pytest
 def _import_runtime():
     """Lazy-import the (gitignored) runtime module; skip if unimportable."""
     try:
-        from tradex.runtime.stream_orchestrator import (
+        from application.streaming.orchestrator import (
             MarketTick,
             StreamOrchestrator,
             _parse_exchange_time,

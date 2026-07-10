@@ -369,7 +369,7 @@ class TestShowHistorical:
 
             mock_composer.fetch_historical = MagicMock(return_value=(mock_series, mock_ledger))
 
-            with patch("tradex.runtime.async_compat.run_async_compat", return_value=(mock_series, mock_ledger)):
+            with patch("infrastructure.async_compat.run_async_compat", return_value=(mock_series, mock_ledger)):
                 show_historical(mock_broker_service, "RELIANCE", console)
 
             output = console.export_text()
@@ -387,7 +387,7 @@ class TestShowHistorical:
             mock_ledger = MagicMock()
             mock_ledger.conflicts = []
 
-            with patch("tradex.runtime.async_compat.run_async_compat", return_value=(mock_series, mock_ledger)):
+            with patch("infrastructure.async_compat.run_async_compat", return_value=(mock_series, mock_ledger)):
                 show_historical(mock_broker_service, "RELIANCE", console)
 
             output = console.export_text()
@@ -404,7 +404,7 @@ class TestShowHistorical:
             mock_ledger = MagicMock()
             mock_ledger.conflicts = []
 
-            with patch("tradex.runtime.async_compat.run_async_compat", return_value=(mock_series, mock_ledger)):
+            with patch("infrastructure.async_compat.run_async_compat", return_value=(mock_series, mock_ledger)):
                 show_historical(mock_broker_service, "RELIANCE", console)
 
             output = console.export_text()
@@ -473,7 +473,7 @@ class TestMarketRouter:
             mock_ledger = MagicMock()
             mock_ledger.conflicts = []
 
-            with patch("tradex.runtime.async_compat.run_async_compat", return_value=(mock_series, mock_ledger)):
+            with patch("infrastructure.async_compat.run_async_compat", return_value=(mock_series, mock_ledger)):
                 cmd_market.run(["historical", "RELIANCE"], mock_broker_service, console)
 
             output = console.export_text()

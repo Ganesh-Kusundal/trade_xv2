@@ -70,9 +70,9 @@ def test_connect_dhan_stamps_extensions_on_instrument():
         probe_name="mock",
     )
     with (
-        patch("tradex.runtime.gateway_factory.bootstrap_gateway", return_value=ready),
+        patch("infrastructure.gateway.factory.bootstrap_gateway", return_value=ready),
         patch(
-            "tradex.runtime.adapter_factory.get_broker_extension_classes",
+            "infrastructure.adapter_factory.get_broker_extension_classes",
             return_value=[_FakeDepth20, _FakeDepth200],
         ),
     ):

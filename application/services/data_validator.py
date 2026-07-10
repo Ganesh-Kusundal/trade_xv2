@@ -1,7 +1,7 @@
 """Data Quality Validation Engine — checks for missing candles, duplicates, OI/volume anomalies, timestamp issues.
 
 Usage:
-    from tradex.runtime.services.data_validator import DataQualityValidator, ValidationReport
+    from application.services.data_validator import DataQualityValidator, ValidationReport
 
     validator = DataQualityValidator()
     report = validator.validate(df, symbol="NIFTY")

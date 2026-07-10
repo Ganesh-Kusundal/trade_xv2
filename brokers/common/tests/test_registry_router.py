@@ -2,11 +2,11 @@
 
 import pytest
 
-from tradex.runtime.errors import BrokerUnavailableError, RoutingError
-from tradex.runtime.models import BrokerHealthSnapshot, OperationKind, RoutingRequest
-from tradex.runtime.policy import auto_dual_broker_policy, default_dhan_only_policy
-from tradex.runtime.registry import BrokerRegistry
-from tradex.runtime.router import BrokerRouter
+from domain.errors import BrokerUnavailableError, RoutingError
+from domain.models.routing import BrokerHealthSnapshot, OperationKind, RoutingRequest
+from domain.policies.source_selection import auto_dual_broker_policy, default_dhan_only_policy
+from application.composer.registry import BrokerRegistry
+from application.composer.router import BrokerRouter
 from brokers.common.tests.fixtures.in_memory_gateway import InMemoryBrokerGateway
 from brokers.dhan.capabilities import dhan_capabilities
 from brokers.upstox.capabilities import upstox_capabilities

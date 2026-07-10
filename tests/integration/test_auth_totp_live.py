@@ -16,8 +16,8 @@ import os
 
 import pytest
 
-from tradex.runtime.auth.environment_bootstrap import bootstrap_environment
-from tradex.runtime.connection.bootstrap_result import BootstrapStatus
+from infrastructure.auth.environment_bootstrap import bootstrap_environment
+from infrastructure.connection.bootstrap_result import BootstrapStatus
 from tests.integration.auth_gates import (
     REPO_ROOT,
     dhan_readonly_gate,

@@ -169,7 +169,7 @@ def test_concurrent_place_order_with_same_correlation_id_posts_once() -> None:
 def test_read_circuit_breaker_opens_under_load_does_not_block_writes() -> None:
     """From A1/B1: a 5xx storm on a read endpoint opens the read CB
     but does not block order placement (write CB is independent)."""
-    from tradex.runtime.resilience.circuit_breaker import (
+    from infrastructure.resilience.circuit_breaker import (
         CircuitBreaker,
         CircuitBreakerConfig,
         CircuitState,

@@ -7,11 +7,11 @@ from unittest import mock
 
 import pytest
 
-from tradex.runtime.broker_port import BrokerStreamPlan
-from tradex.runtime.policy import auto_dual_broker_policy
-from tradex.runtime.registry import BrokerRegistry
-from tradex.runtime.router import BrokerRouter
-from tradex.runtime.stream_orchestrator import (
+from domain.ports.broker_gateway import BrokerStreamPlan
+from domain.policies.source_selection import auto_dual_broker_policy
+from application.composer.registry import BrokerRegistry
+from application.composer.router import BrokerRouter
+from application.streaming.orchestrator import (
     MarketTick,
     StreamOrchestrator,
     SubscriptionRequest,
@@ -251,7 +251,7 @@ class _TransportLossGateway:
         return "dhan"
 
     def list_capabilities(self):
-        from tradex.runtime.capabilities import CapabilityDescriptor
+        from domain.capabilities.broker_capabilities import CapabilityDescriptor
 
         return CapabilityDescriptor.build(dhan_capabilities(), frozenset())
 
@@ -281,7 +281,7 @@ class _TransportLossGateway:
             )
 
     async def health(self):
-        from tradex.runtime.broker_port import BrokerHealthSnapshot
+        from domain.ports.broker_gateway import BrokerHealthSnapshot
 
         return BrokerHealthSnapshot(broker_id="dhan", alive=True, auth_valid=True)
 

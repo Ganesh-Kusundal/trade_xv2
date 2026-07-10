@@ -228,7 +228,7 @@ def main() -> int:
     if violations:
         print(f"\n❌ FAIL: Found {len(violations)} violations")
         print("\nTo fix these violations:")
-        print("1. Import TradeXV2Error: from tradex.runtime.resilience.errors import TradeXV2Error")
+        print("1. Import TradeXV2Error: from infrastructure.resilience.errors import TradeXV2Error")
         print(f"2. Change base class to {CANONICAL_BASE} or a known subclass")
         print("3. Ensure the exception hierarchy is consistent")
         return 1

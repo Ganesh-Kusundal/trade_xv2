@@ -9,8 +9,8 @@ This is the universal data download engine that handles:
   - Parquet caching
 
 Usage:
-    from tradex.runtime.services.download_engine import HistoricalDownloadEngine
-    from tradex.runtime.gateway import MarketDataGateway
+    from application.services.download_engine import HistoricalDownloadEngine
+    from infrastructure.gateway.base import MarketDataGateway
 
     gw: MarketDataGateway = PaperGateway()  # Any broker implementing the contract
     engine = HistoricalDownloadEngine(gw)

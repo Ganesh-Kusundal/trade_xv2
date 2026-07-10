@@ -1,7 +1,7 @@
 """Architecture tests: enforce single-source-of-truth for error hierarchies.
 
 Canonical home (post brokers.common → tradex.runtime migration):
-``tradex.runtime.resilience.errors``. Thin shims under ``brokers.common`` may
+``infrastructure.resilience.errors``. Thin shims under ``brokers.common`` may
 re-export but must not redefine ``BrokerError``.
 """
 from __future__ import annotations
@@ -25,12 +25,12 @@ class TestNoDuplicateBrokerError:
     """Ensure only one BrokerError class definition exists in the codebase."""
 
     def test_only_one_broker_error_definition(self) -> None:
-        """Only tradex.runtime.resilience.errors should define class BrokerError."""
-        canonical_file = ROOT / "tradex/runtime/resilience/errors.py"
+        """Only domain.errors should define class BrokerError."""
+        canonical_file = ROOT / "src/domain/errors.py"
         assert canonical_file.exists(), f"Canonical file missing: {canonical_file}"
 
         dirs_to_check = [
-            "domain",
+            "src/domain",
             "application",
             "analytics",
             "api",
@@ -42,14 +42,14 @@ class TestNoDuplicateBrokerError:
         ]
         files = _find_python_files(dirs_to_check)
 
-        # Allow re-export modules (no ClassDef of BrokerError expected there)
-        allow_prefixes = (
-            "tradex/runtime/resilience/errors.py",
-        )
+        # Canonical ClassDef lives in domain.errors; re-export modules must not redefine.
+        allow_classdef = {
+            "src/domain/errors.py",
+        }
         violations: list[str] = []
         for f in files:
             rel = str(f.relative_to(ROOT))
-            if rel in allow_prefixes:
+            if rel in allow_classdef:
                 continue
             try:
                 tree = ast.parse(f.read_text())
@@ -61,17 +61,17 @@ class TestNoDuplicateBrokerError:
 
         assert not violations, (
             f"Duplicate BrokerError definitions found in: {violations}. "
-            f"Only tradex.runtime.resilience.errors should define it."
+            f"Only domain.errors should define it."
         )
 
     def test_resilience_errors_is_canonical_root(self) -> None:
-        from tradex.runtime.resilience.errors import BrokerError, TradeXV2Error
+        from infrastructure.resilience.errors import BrokerError, TradeXV2Error
 
         assert issubclass(BrokerError, TradeXV2Error)
 
     def test_runtime_errors_is_single_import_path(self) -> None:
-        """BrokerError must only be imported from tradex.runtime.resilience.errors."""
-        from tradex.runtime.resilience.errors import BrokerError as CanonicalBrokerError
-        from tradex.runtime.resilience import errors as resilience_errors
+        """BrokerError must only be imported from infrastructure.resilience.errors."""
+        from infrastructure.resilience.errors import BrokerError as CanonicalBrokerError
+        from infrastructure.resilience import errors as resilience_errors
 
         assert CanonicalBrokerError is resilience_errors.BrokerError

@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 
 import pandas as pd
 
-from tradex.runtime.services.download_engine import (
+from application.services.download_engine import (
     DownloadConfig,
     DownloadProgress,
     HistoricalDownloadEngine,

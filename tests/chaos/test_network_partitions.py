@@ -21,7 +21,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from infrastructure.observability.event_metrics import EventMetrics
-from tradex.runtime.resilience.broker_health_monitor import (
+from infrastructure.resilience.broker_health_monitor import (
     BrokerHealthMonitor,
 )
 from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue

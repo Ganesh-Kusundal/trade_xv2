@@ -20,7 +20,7 @@ from unittest.mock import patch
 import pytest
 import requests
 
-from tradex.runtime.connection_pool import (
+from infrastructure.pool.connection_pool import (
     ConnectionPoolManager,
     get_connection_pool,
     reset_connection_pool,

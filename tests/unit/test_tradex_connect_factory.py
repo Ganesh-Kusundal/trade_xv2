@@ -8,11 +8,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import tradex
-from tradex.runtime.adapter_factory import (
+from infrastructure.adapter_factory import (
     create_execution_provider,
     register_execution_provider,
 )
-from tradex.runtime.gateway_factory import ENV_FILES, list_available_brokers
+from infrastructure.gateway.factory import ENV_FILES, list_available_brokers
 
 
 def test_list_available_brokers_includes_core():
@@ -143,6 +143,6 @@ def test_paper_execution_provider_registered():
 
 def test_cli_broker_registry_reexports_create_gateway():
     from cli.services.broker_registry import create_gateway as cli_cg
-    from tradex.runtime.gateway_factory import create_gateway as runtime_cg
+    from infrastructure.gateway.factory import create_gateway as runtime_cg
 
     assert cli_cg is runtime_cg

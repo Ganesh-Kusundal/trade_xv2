@@ -24,7 +24,7 @@ from decimal import Decimal
 
 import pytest
 
-from tradex.runtime.capabilities import BrokerCapabilities
+from domain.capabilities.broker_capabilities import BrokerCapabilities
 from brokers.upstox.gateway import UpstoxBrokerGateway
 from domain import (
     Balance,

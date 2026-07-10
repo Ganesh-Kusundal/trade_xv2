@@ -145,7 +145,7 @@ def assert_secure_session(session) -> None:
     if not isinstance(https_adapter, HardenedHTTPSAdapter):
         raise RuntimeError(
             "insecure session: https adapter is not HardenedHTTPSAdapter; "
-            "use tradex.runtime.ssl_hardening.create_pinned_session()"
+            "use infrastructure.security.ssl_hardening.create_pinned_session()"
         )
 
 

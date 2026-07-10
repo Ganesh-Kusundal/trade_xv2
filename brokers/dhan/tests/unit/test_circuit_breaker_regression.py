@@ -11,7 +11,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from tradex.runtime.resilience.circuit_breaker import (
+from infrastructure.resilience.circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerConfig,
     CircuitState,

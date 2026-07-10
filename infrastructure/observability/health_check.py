@@ -6,7 +6,7 @@ poll a single endpoint for system-wide health.
 
 Usage (called automatically by broker factories)::
 
-    from tradex.runtime.observability.health_check import register_broker_health_check
+    from infrastructure.observability.health_check import register_broker_health_check
 
     register_broker_health_check("dhan", gateway)
 

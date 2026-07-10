@@ -14,17 +14,17 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from tradex.runtime.resilience.circuit_breaker import (
+from infrastructure.resilience.circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerConfig,
     CircuitState,
 )
-from tradex.runtime.resilience.rate_limiter import (
+from infrastructure.resilience.rate_limiter import (
     MultiBucketRateLimiter,
     RateLimitConfig,
     TokenBucketRateLimiter,
 )
-from tradex.runtime.resilience.retry import RetryConfig, RetryExecutor
+from infrastructure.resilience.retry import RetryConfig, RetryExecutor
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -173,7 +173,7 @@ class TestRateLimitExhausted:
         assert cb.state == CircuitState.OPEN
 
         # Next request should fail fast
-        from tradex.runtime.resilience.errors import CircuitBreakerOpenError
+        from infrastructure.resilience.errors import CircuitBreakerOpenError
 
         executor = RetryExecutor(
             config=RetryConfig(max_attempts=3),

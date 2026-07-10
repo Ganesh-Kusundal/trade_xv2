@@ -174,7 +174,7 @@ def test_sandbox_allow_live_orders_gate_blocks_when_disabled() -> None:
 
     from brokers.dhan.orders import OrdersAdapter
     from domain.enums import OrderType, ProductType, Side, Validity
-    from tradex.runtime.dtos import BrokerOrderPayload
+    from domain.models.dtos import BrokerOrderPayload
 
     adapter = OrdersAdapter(
         MagicMock(),

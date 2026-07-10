@@ -4,7 +4,7 @@
 Routing, UI gating, and feature access decisions query this object at runtime
 rather than branching on broker names.
 
-``brokers.common.broker_capabilities`` and ``tradex.runtime.capabilities``
+``brokers.common.broker_capabilities`` and ``domain.capabilities.broker_capabilities``
 re-export from here for backward compatibility.
 """
 

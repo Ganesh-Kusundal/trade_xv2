@@ -42,7 +42,7 @@ def _load_env() -> bool:
 def _token_valid() -> tuple[bool, str]:
     token = os.environ.get("UPSTOX_ACCESS_TOKEN", "")
     try:
-        from tradex.runtime.auth.jwt_expiry import JwtExpiry
+        from infrastructure.auth.jwt_expiry import JwtExpiry
 
         exp_ms = JwtExpiry.parse_expiry_epoch_ms(token)
         if exp_ms > 0 and exp_ms < time.time() * 1000:

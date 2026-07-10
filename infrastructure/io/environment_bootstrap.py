@@ -14,7 +14,7 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 # Canonical env file paths relative to project root.
-# Moved here from tradex.runtime.auth.credential_resolver to break
+# Moved here from infrastructure.auth.credential_resolver to break
 # the infrastructure -> brokers dependency.
 CANONICAL_ENV_FILES: dict[str, str] = {
     "dhan": ".env.local",

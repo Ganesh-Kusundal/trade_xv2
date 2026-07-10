@@ -7,7 +7,7 @@ import json
 import time
 from unittest.mock import MagicMock, patch
 
-from tradex.runtime.auth import AuthManager, JsonTokenStateStore, TokenSource, TokenState
+from infrastructure.auth import AuthManager, JsonTokenStateStore, TokenSource, TokenState
 
 
 def _make_jwt(payload: dict) -> str:

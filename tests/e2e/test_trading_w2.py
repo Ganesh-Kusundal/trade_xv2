@@ -31,7 +31,7 @@ def _status_value(order) -> str:
 def test_tr022_trade_mode_without_oms_raises() -> None:
     reset_oms_context()
     mock_gw = MagicMock(name="DhanGateway")
-    with patch("tradex.runtime.gateway_factory.create_gateway", return_value=mock_gw):
+    with patch("infrastructure.gateway.factory.create_gateway", return_value=mock_gw):
         import brokers.dhan  # noqa: F401
 
         with pytest.raises(ConnectError) as ei:
@@ -52,7 +52,7 @@ def test_tr022_trade_mode_with_process_oms_enables_orders() -> None:
 
     register_oms_context(_Ctx())  # type: ignore[arg-type]
     try:
-        with patch("tradex.runtime.gateway_factory.create_gateway", return_value=mock_gw):
+        with patch("infrastructure.gateway.factory.create_gateway", return_value=mock_gw):
             import brokers.dhan  # noqa: F401
 
             session = tradex.connect("dhan", mode="trade", load_instruments=False)

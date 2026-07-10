@@ -4,9 +4,9 @@ import threading
 
 import pytest
 
-from tradex.runtime.capabilities import RateLimitProfile
-from tradex.runtime.errors import QuotaExhaustedError
-from tradex.runtime.quota_scheduler import PriorityClass, QuotaScheduler
+from domain.capabilities.broker_capabilities import RateLimitProfile
+from domain.errors import QuotaExhaustedError
+from application.scheduling.quota_scheduler import PriorityClass, QuotaScheduler
 
 
 class TestQuotaScheduler:

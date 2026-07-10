@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 import pytest
 
-from tradex.runtime.auth import JsonTokenStateStore, TokenSource, TokenState
+from infrastructure.auth import JsonTokenStateStore, TokenSource, TokenState
 from brokers.dhan.factory import BrokerFactory
 
 
