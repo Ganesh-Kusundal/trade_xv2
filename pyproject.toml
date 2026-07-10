@@ -361,6 +361,4 @@ ignore_imports = [
     # Public SDK session factory needs broker-specific constructors.
     "tradex.session -> brokers.dhan",
     "tradex.session -> brokers.upstox",
-    # Facade-package tests exercise CLI doctor probe (composition path to brokers).
-    "tradex.runtime.auth.tests.* -> cli.commands.doctor.strategies.auth_live_probe",
 ]

@@ -27,8 +27,16 @@ config/icici-username.txt
 config/icici-password.txt
 config/icici-api-session.txt
 
-# Runtime/token state
-runtime/
+# Process runtime state (top-level data only — NOT the Python `runtime` package
+# and NOT `tradex/runtime` facade). Keep *.py sources trackable.
+/runtime/*.json
+/runtime/*.lock
+/runtime/*.log
+/runtime/*.sqlite
+/runtime/*.sqlite-shm
+/runtime/*.sqlite-wal
+/runtime/event-log/
+/runtime/server.log
 runtime-dev/
 brokers/runtime/
 
