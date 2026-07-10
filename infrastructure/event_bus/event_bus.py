@@ -185,6 +185,24 @@ class EventBus:
         """
         self._event_log = event_log
 
+    @staticmethod
+    def _is_capital_event(event_type: str) -> bool:
+        """True for money-path events that must fsync on BufferedEventLog."""
+        et = (event_type or "").upper()
+        if et in {
+            EventType.TRADE.value,
+            EventType.TRADE_APPLIED.value,
+            EventType.TRADE_FILLED.value,
+            EventType.ORDER_PLACED.value,
+            EventType.ORDER_UPDATED.value,
+            EventType.ORDER_CANCELLED.value,
+            EventType.ORDER_REJECTED.value,
+            EventType.ORDER_SUBMITTED.value,
+        }:
+            return True
+        # Prefix match for ORDER_* / TRADE_* / POSITION_* capital lifecycle.
+        return et.startswith("ORDER_") or et.startswith("TRADE_") or et.startswith("POSITION_")
+
     @property
     def alerting_engine(self) -> AlertingEnginePort | None:
         """The alerting engine instance, if configured."""
@@ -392,10 +410,16 @@ class EventBus:
                 self._metrics.add_timestamped_counter(event.event_type, "published")
 
             # 1. Persist first (so a crash mid-dispatch can be recovered).
-            # Skip persistence in replay mode (no recursive writes)
+            # Skip persistence in replay mode (no recursive writes).
+            # Capital events force sync/fsync on BufferedEventLog.
             if self._event_log is not None and self._logging_enabled and not self._replay_mode:
                 try:
-                    self._event_log.append(event)
+                    sync = self._is_capital_event(event.event_type)
+                    try:
+                        self._event_log.append(event, sync_mode=sync)  # type: ignore[call-arg]
+                    except TypeError:
+                        # Plain EventLog.append has no sync_mode kwarg.
+                        self._event_log.append(event)
                 except Exception as exc:
                     # Surface, never swallow.
                     if self._metrics is not None:
