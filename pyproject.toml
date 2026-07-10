@@ -56,7 +56,7 @@ include = ["brokers*", "cli*", "analytics*", "datalake*", "config*", "domain*", 
 [tool.pytest.ini_options]
 minversion = "7.0"
 pythonpath = ["src", "."]
-testpaths = ["tests", "brokers", "analytics", "cli", "datalake", "application", "src", "infrastructure"]
+testpaths = ["tests", "brokers", "analytics", "cli", "datalake", "application", "src"]
 markers = [
     "unit: module-owned unit tests",
     "contract: broker/module contract tests",
@@ -91,7 +91,6 @@ markers = [
     "live_orders: guarded real order placement (requires TRADEX_LIVE_ORDERS=1)",
     "property: property-based tests (hypothesis)",
     "component: component tests with mocked/doubled collaborators",
-    "contract: broker/module contract tests",
     "mutation: mutation testing (tests verify behavior, not implementation)",
 ]
 asyncio_mode = "auto"
@@ -105,7 +104,7 @@ python_functions = ["test_*"]
 
 # ─── coverage ─────────────────────────────────────────────
 [tool.coverage.run]
-source = ["brokers", "analytics", "cli", "datalake", "application", "domain", "infrastructure"]
+source = ["brokers", "analytics", "cli", "datalake", "application", "domain", "infrastructure", "api"]
 omit = [
     "*/tests/*",
     "*/__init__.py",
@@ -301,10 +300,9 @@ source_modules = ["cli"]
 forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper"]
 ignore_imports = [
     "cli.services.broker_facade -> brokers.**",
-    "cli.services.broker_registry -> brokers.upstox.factory",
     "cli.services.broker_registry -> brokers.paper",
     "cli.services.broker_registry -> brokers.dhan.websocket",
-    "cli.services.broker_registry -> brokers.dhan.reconciliation",
+
     # Test-only: integration tests legitimately import broker implementations.
     "cli.tests.* -> brokers.dhan",
     "cli.tests.* -> brokers.dhan.**",

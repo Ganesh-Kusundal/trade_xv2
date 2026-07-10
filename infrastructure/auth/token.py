@@ -5,6 +5,7 @@ Patterns replicated from Trade_J:
 - ``TokenState``: immutable token snapshot with expiry/refresh logic
 - ``TokenStateStore``: abstract persistent storage interface
 - ``AuthManager``: token lifecycle management (acquire, validate, refresh, revoke)
+- ``TokenManager``: alias for ``AuthManager`` for backward compatibility
 - ``TotpGenerator``: TOTP code generation for Dhan authentication
 """
 
@@ -487,3 +488,7 @@ class AuthManager:
         for callback in callbacks:
             with contextlib.suppress(Exception):
                 callback()
+
+
+#: Backward-compatible alias (some consumers import TokenManager)
+TokenManager = AuthManager

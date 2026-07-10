@@ -45,9 +45,9 @@ repos:
         args: [
           "-m", "unit",
           "-x", "--tb=short", "-q",
-          "tests/brokers/dhan/tests/",
-          "tests/brokers/upstox/tests/",
-          "tests/brokers/paper/tests/",
+          "brokers/dhan/tests/",
+          "brokers/upstox/tests/",
+          "brokers/paper/tests/",
         ]
         pass_filenames: false
         description: Run fast unit tests on broker test files
