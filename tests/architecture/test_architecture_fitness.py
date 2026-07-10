@@ -208,6 +208,7 @@ class TestImportRules:
                         "domain.policies",
                         "domain.orders", "domain.parsing", "domain.status_mapper",
                         "domain.market_enums", "domain.exchange_segments",
+                        "domain.extensions",
                     ))
                     and "/tests/" not in filepath
                 ):

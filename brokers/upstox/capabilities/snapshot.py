@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from tradex.runtime.capabilities import (
+from brokers.common.broker_capabilities import (
     BrokerCapabilities,
     HistoricalWindowConstraint,
     RateLimitProfile,

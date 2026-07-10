@@ -243,7 +243,7 @@ class MarketDataGateway:
             if not expiries:
                 return OptionChain(underlying=underlying, exchange=exchange, expiry="")
             expiry = expiries[0]
-        from tradex.runtime.options.chain_normalizer import upstox_chain_to_canonical
+        from domain.options.chain_normalizer import upstox_chain_to_canonical
 
         if hasattr(self._broker.options, "get_option_chain_with_meta"):
             result = self._broker.options.get_option_chain_with_meta(underlying, exchange, expiry)

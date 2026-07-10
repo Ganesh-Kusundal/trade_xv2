@@ -7,17 +7,17 @@ from decimal import Decimal
 from typing import Any
 
 from domain.ports.broker_gateway import QuotaToken
-from tradex.runtime.extensions import ExtensionBundle, register_extension_factory
-from tradex.runtime.extensions.forever_order import (
+from domain.extensions.broker_bundle import ExtensionBundle, register_extension_factory
+from domain.extensions.forever_order import (
     ForeverOrderProvider,
     ForeverOrderRequest,
     ForeverOrderResult,
 )
-from tradex.runtime.extensions.native_slice_order import (
+from domain.extensions.native_slice_order import (
     NativeSliceOrderProvider,
     SliceOrderSpec,
 )
-from tradex.runtime.extensions.super_order import (
+from domain.extensions.super_order import (
     SuperOrderProvider,
     SuperOrderRequest,
     SuperOrderResult,

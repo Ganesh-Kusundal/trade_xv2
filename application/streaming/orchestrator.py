@@ -388,7 +388,7 @@ class StreamOrchestrator:
             },
         )
         with contextlib.suppress(Exception):
-            from tradex.runtime.observability.audit import emit_stream_state_change
+            from infrastructure.observability.audit import emit_stream_state_change
 
             emit_stream_state_change(
                 session_id=session_id,

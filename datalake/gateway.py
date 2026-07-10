@@ -26,7 +26,7 @@ import pandas as pd
 
 from domain import MarketDepth, Quote
 from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
-from tradex.runtime.capabilities import BrokerCapabilities
+from brokers.common.broker_capabilities import BrokerCapabilities
 from datalake.core.symbols import normalize_symbol, symbol_to_path
 
 logger = logging.getLogger(__name__)

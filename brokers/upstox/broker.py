@@ -15,7 +15,7 @@ from typing import Any
 from domain import Capability, ConnectionStatus
 from infrastructure.event_bus import EventBus
 from domain.ports.risk_manager import RiskManagerPort
-from tradex.runtime.services.historical_data import HistoricalDataService
+from application.services.historical_data import HistoricalDataService
 from brokers.upstox.auth.config import UpstoxConnectionSettings
 from brokers.upstox.auth.context import UpstoxAdapterContext
 from brokers.upstox.auth.token_manager import UpstoxTokenManager

@@ -20,7 +20,7 @@ from typing import Any
 import pandas as pd
 
 from infrastructure.batch_mixin import BatchFetchMixin
-from tradex.runtime.capabilities import BrokerCapabilities
+from brokers.common.broker_capabilities import BrokerCapabilities
 from brokers.upstox.adapters import (
     HistoricalAdapter,
     PortfolioAdapter,
@@ -78,7 +78,7 @@ class UpstoxBrokerGateway(BatchFetchMixin):
         self._portfolio_gw = PortfolioGateway(self._portfolio)
 
         # Broker-agnostic options facade for CLI / tests.
-        from tradex.runtime.options.gateway_facade import GatewayOptionsFacade
+        from domain.options.gateway_facade import GatewayOptionsFacade
 
         options_attr = getattr(self._broker, "options", None)
         if options_attr is not None:

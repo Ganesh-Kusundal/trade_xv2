@@ -466,12 +466,12 @@ class PaperGateway:
 
     def list_capabilities(self):
         """CommonBrokerGateway-compatible capability descriptor (registry/router)."""
-        from tradex.runtime.capabilities import CapabilityDescriptor
+        from brokers.common.broker_capabilities import CapabilityDescriptor
 
         return CapabilityDescriptor.build(self.capabilities(), frozenset())
 
     def capabilities(self) -> BrokerCapabilities:
-        from tradex.runtime.capabilities import (
+        from brokers.common.broker_capabilities import (
             BrokerCapabilities,
             HistoricalWindowConstraint,
             RateLimitProfile,

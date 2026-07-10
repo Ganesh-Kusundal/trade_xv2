@@ -44,7 +44,7 @@ from typing import ClassVar
 
 from domain.errors import QuotaExhaustedError
 from domain.ports.broker_gateway import QuotaToken
-from tradex.runtime.capabilities import RateLimitProfile
+from brokers.common.broker_capabilities import RateLimitProfile
 
 logger = logging.getLogger(__name__)
 
@@ -256,7 +256,7 @@ class QuotaScheduler:
                     },
                 )
                 with contextlib.suppress(Exception):
-                    from tradex.runtime.observability.audit import emit_quota_event
+                    from infrastructure.observability.audit import emit_quota_event
 
                     emit_quota_event(
                         broker_id,
@@ -285,7 +285,7 @@ class QuotaScheduler:
                     },
                 )
                 with contextlib.suppress(Exception):
-                    from tradex.runtime.observability.audit import emit_quota_event
+                    from infrastructure.observability.audit import emit_quota_event
 
                     emit_quota_event(
                         broker_id,

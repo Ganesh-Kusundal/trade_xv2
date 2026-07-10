@@ -38,7 +38,7 @@ from domain.session_status import (
     SessionStatus,
 )
 from domain.universe import Session as DomainSession
-from tradex.runtime.broker_plugin import ensure_core_plugins, get_broker_plugin
+from infrastructure.broker_plugin import ensure_core_plugins, get_broker_plugin
 
 
 def _default_mode(broker_id: str) -> str:
@@ -153,7 +153,7 @@ def open_session(
     _session_kernel = None
     if gw is None and data is None and executor is None:
         from domain.ports.bootstrap import BootstrapStatus
-        from tradex.runtime.gateway_factory import bootstrap_gateway
+        from infrastructure.gateway.factory import bootstrap_gateway
 
         try:
             boot = bootstrap_gateway(
@@ -217,7 +217,7 @@ def open_session(
 
     # P0-I: register quota profiles + router whenever we have a concrete gateway
     if gw is not None and broker_id not in {"datalake"}:
-        from tradex.runtime.session_infra import wire_gateway_for_session
+        from infrastructure.session.infra import wire_gateway_for_session
 
         try:
             _session_kernel = wire_gateway_for_session(gw, broker_id)
@@ -235,7 +235,7 @@ def open_session(
 
             data = PaperDataProvider(gw)
         elif gw is not None:
-            from tradex.runtime.adapter_factory import create_data_adapter
+            from infrastructure.adapter_factory import create_data_adapter
 
             data = create_data_adapter(gw, broker_id=broker_id)
         else:
@@ -257,11 +257,11 @@ def open_session(
 
             executor = PaperExecutionProvider(gw)
         else:
-            from tradex.runtime.adapter_factory import create_execution_provider
+            from infrastructure.adapter_factory import create_execution_provider
 
             executor = create_execution_provider(gw, broker_id=broker_id)
             if executor is None:
-                from tradex.runtime.gateway_execution import GatewayExecutionProvider
+                from infrastructure.gateway.execution import GatewayExecutionProvider
 
                 executor = GatewayExecutionProvider(gw, broker_id=broker_id)
 
@@ -371,7 +371,7 @@ def _collect_gateway_extensions(gateway: Any, *, broker_id: str = "") -> list[An
 
     if broker_id:
         try:
-            from tradex.runtime.adapter_factory import get_broker_extension_classes
+            from infrastructure.adapter_factory import get_broker_extension_classes
 
             for cls in get_broker_extension_classes(broker_id):
                 try:

@@ -86,12 +86,7 @@ class DhanBrokerGateway:
 
                 correlation_id = get_current_correlation_id()
             except ImportError:
-                try:
-                    from tradex.runtime.correlation import get_current_correlation_id  # type: ignore
-
-                    correlation_id = get_current_correlation_id()
-                except ImportError:
-                    pass
+                pass
         # OrdersAdapter expects BrokerOrderPayload (not flat kwargs).
         from domain.enums import OrderType, ProductType, Side, Validity
         from domain.market_enums import ExchangeSegment

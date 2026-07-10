@@ -212,7 +212,7 @@ class HistoricalDataCoordinator:
         for c in conflicts:
             ledger.add_conflict(c)
             with contextlib.suppress(Exception):
-                from tradex.runtime.observability.audit import emit_merge_conflict
+                from infrastructure.observability.audit import emit_merge_conflict
 
                 emit_merge_conflict(
                     request_id=request_id,
@@ -456,7 +456,7 @@ class HistoricalDataCoordinator:
         )
 
         with contextlib.suppress(Exception):
-            from tradex.runtime.observability.audit import emit_historical_chunk
+            from infrastructure.observability.audit import emit_historical_chunk
 
             emit_historical_chunk(
                 request_id=plan.request_id,

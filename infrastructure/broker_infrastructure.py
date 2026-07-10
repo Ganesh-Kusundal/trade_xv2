@@ -34,7 +34,7 @@ from dataclasses import dataclass
 from domain.ports.broker_gateway import CommonBrokerGateway
 from domain.policies.source_selection import SourceSelectionPolicy
 from tradex.runtime.capabilities import BrokerCapabilities
-from tradex.runtime.extensions import ExtensionBundle, ExtensionRegistry
+from domain.extensions.broker_bundle import ExtensionBundle, ExtensionRegistry
 from tradex.runtime.historical_coordinator import HistoricalDataCoordinator
 from tradex.runtime.quota_scheduler import QuotaScheduler
 from tradex.runtime.registry import BrokerRegistry

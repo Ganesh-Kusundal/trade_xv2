@@ -89,7 +89,7 @@ __all__ = [
 ]
 
 # ── Extension + data/execution self-registration (ADR-007) ────────────────
-from tradex.runtime.adapter_factory import (
+from infrastructure.adapter_factory import (
     register_broker_extensions,
     register_data_adapter,
     register_execution_provider,
@@ -113,7 +113,7 @@ register_broker_extensions(
 register_data_adapter("dhan", DhanDataProvider)
 register_execution_provider("dhan", DhanOrderTransport)
 
-from tradex.runtime.broker_plugin import BrokerPlugin, register_broker_plugin
+from infrastructure.broker_plugin import BrokerPlugin, register_broker_plugin
 
 register_broker_plugin(
     BrokerPlugin(

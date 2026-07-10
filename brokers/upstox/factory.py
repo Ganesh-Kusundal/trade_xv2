@@ -11,7 +11,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from tradex.runtime.factory import BrokerProviderFactory
+from infrastructure.gateway.provider_factory import BrokerProviderFactory
 from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 from brokers.upstox.auth.config import UpstoxSettingsLoader
 from brokers.upstox.auth.exceptions import UpstoxAuthError

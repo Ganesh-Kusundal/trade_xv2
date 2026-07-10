@@ -362,7 +362,7 @@ class ProductionReadinessChecker:
 
     def _check_ssl_hardening(self) -> tuple[bool, str]:
         """REF-38: every outbound HTTP session in the live path MUST be
-        built with :class:`tradex.runtime.ssl_hardening.HardenedHTTPSAdapter`.
+        built with :class:`infrastructure.security.ssl_hardening.HardenedHTTPSAdapter`.
 
         A session using the default ``requests`` adapter is acceptable
         for tests but must not be used in live trading — the audit
@@ -384,7 +384,7 @@ class ProductionReadinessChecker:
             )
         # Local import keeps the readiness module importable in tests
         # that don't have requests installed.
-        from tradex.runtime.ssl_hardening import assert_secure_session
+        from infrastructure.security.ssl_hardening import assert_secure_session
 
         for idx, session in enumerate(sessions):
             try:

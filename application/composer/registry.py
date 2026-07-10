@@ -14,6 +14,7 @@ from collections.abc import Callable
 from domain.ports.broker_gateway import CommonBrokerGateway
 from brokers.common.broker_capabilities import BrokerCapabilities, CapabilityDescriptor
 from domain.errors import BrokerUnavailableError
+from domain.extensions.broker_bundle import ExtensionBundle, ExtensionRegistry
 from domain.models.routing import BrokerHealthSnapshot, RegistrySnapshot
 from domain.stream_health import StreamStateSummary
 
@@ -37,8 +38,6 @@ class BrokerRegistry:
     """
 
     def __init__(self) -> None:
-        from tradex.runtime.extensions import ExtensionRegistry
-
         self._lock = threading.RLock()
         self._gateways: dict[str, CommonBrokerGateway] = {}
         self._capabilities: dict[str, CapabilityDescriptor] = {}

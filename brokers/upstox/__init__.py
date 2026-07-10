@@ -39,7 +39,7 @@ __all__ = [
 ]
 
 # ── Extension + execution self-registration (ADR-007) ────────────────────
-from tradex.runtime.adapter_factory import (
+from infrastructure.adapter_factory import (
     register_broker_extensions,
     register_data_adapter,
     register_execution_provider,
@@ -61,7 +61,7 @@ register_broker_extensions("upstox", [UpstoxDepth30Extension, UpstoxNewsExtensio
 register_data_adapter("upstox", UpstoxDataProvider)
 register_execution_provider("upstox", UpstoxExecutionProvider)
 
-from tradex.runtime.broker_plugin import BrokerPlugin, register_broker_plugin
+from infrastructure.broker_plugin import BrokerPlugin, register_broker_plugin
 
 register_broker_plugin(
     BrokerPlugin(

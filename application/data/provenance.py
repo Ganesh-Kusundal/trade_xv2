@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from decimal import Decimal
 
-from tradex.runtime.clock import time_service
+from infrastructure.time.clock import time_service
 
 
 @dataclass(frozen=True)

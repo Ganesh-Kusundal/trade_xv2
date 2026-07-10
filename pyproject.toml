@@ -302,16 +302,23 @@ type = "forbidden"
 source_modules = ["application"]
 forbidden_modules = ["infrastructure"]
 ignore_imports = [
-    # Composer still routes BrokerInfrastructure through the tradex.runtime facade.
-    "application.composer.* -> tradex.runtime.infrastructure",
+    # Composer TYPE_CHECKING annotation for BrokerInfrastructure.
+    "application.composer.factory -> infrastructure.broker_infrastructure",
     # Composer imports cross-cutting infrastructure directly (audit, time).
     "application.composer.router -> infrastructure.observability.audit",
     "application.composer.router -> infrastructure.time.clock",
     # Services import infrastructure IO directly (parquet storage).
     "application.services.download_engine -> infrastructure.io.parquet",
     "application.services.historical_data -> infrastructure.io.parquet",
-    # Services import SSL hardening via tradex.runtime facade.
-    "application.services.production_readiness -> tradex.runtime.ssl_hardening",
+    # Production readiness inspects hardened TLS sessions.
+    "application.services.production_readiness -> infrastructure.security.ssl_hardening",
+    # Audit / clock edges under application.data|streaming|scheduling (namespace
+    # packages without __init__.py) are invisible to grimp; if those packages gain
+    # __init__.py, re-add precise ignores for:
+    #   application.data.provenance -> infrastructure.time.clock
+    #   application.data.historical_coordinator -> infrastructure.observability.audit
+    #   application.streaming.orchestrator -> infrastructure.observability.audit
+    #   application.scheduling.quota_scheduler -> infrastructure.observability.audit
     # Test-only: integration tests legitimately import infrastructure.
     "application.oms.tests.* -> infrastructure.**",
     # Test-only: break transitive application→infrastructure paths that hop via

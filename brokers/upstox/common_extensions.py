@@ -7,18 +7,18 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from domain.ports.broker_gateway import QuotaToken
-from tradex.runtime.extensions import ExtensionBundle
-from tradex.runtime.extensions.forever_order import (
+from domain.extensions.broker_bundle import ExtensionBundle
+from domain.extensions.forever_order import (
     ForeverOrderProvider,
     ForeverOrderRequest,
     ForeverOrderResult,
 )
-from tradex.runtime.extensions.fundamentals import (
+from domain.extensions.fundamentals import (
     FinancialStatement,
     FundamentalsProvider,
     FundamentalsSnapshot,
 )
-from tradex.runtime.extensions.news import NewsItem, NewsProvider
+from domain.extensions.news import NewsItem, NewsProvider
 from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 
 
@@ -155,6 +155,6 @@ def register_upstox_extensions(gateway: MarketDataGateway) -> ExtensionBundle:
 
 
 # Register factory so brokers.common.adapters can find it without importing us
-from tradex.runtime.extensions import register_extension_factory
+from domain.extensions.broker_bundle import register_extension_factory
 
 register_extension_factory("upstox", register_upstox_extensions)

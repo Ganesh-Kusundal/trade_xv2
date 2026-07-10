@@ -15,7 +15,7 @@ from typing import Any
 from urllib.parse import urlencode
 
 from infrastructure.auth import AuthManager, JsonTokenStateStore, TokenSource, TokenState
-from tradex.runtime.factory import BrokerProviderFactory
+from infrastructure.gateway.provider_factory import BrokerProviderFactory
 from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 from brokers.dhan.identity.account_registry import AccountConnectionRegistry
 from brokers.dhan.streaming.connection import DhanConnection

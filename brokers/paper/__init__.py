@@ -19,8 +19,8 @@ from brokers.paper.paper_orders import PaperOrders
 from brokers.paper.paper_portfolio import PaperPortfolio
 
 # Self-register execution adapter (ADR-007)
-from tradex.runtime.adapter_factory import register_execution_provider
-from tradex.runtime.broker_plugin import BrokerPlugin, register_broker_plugin
+from infrastructure.adapter_factory import register_execution_provider
+from infrastructure.broker_plugin import BrokerPlugin, register_broker_plugin
 
 register_execution_provider("paper", PaperExecutionProvider)
 register_broker_plugin(

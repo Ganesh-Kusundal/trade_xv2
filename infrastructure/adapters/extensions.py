@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from tradex.runtime.extensions import ExtensionBundle, get_extension_factory
+from domain.extensions.broker_bundle import ExtensionBundle, get_extension_factory
 from infrastructure.gateway.base import MarketDataGateway
 
 
