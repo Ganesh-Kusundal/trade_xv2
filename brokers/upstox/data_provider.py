@@ -159,18 +159,48 @@ class UpstoxDataProvider(DataProvider):
         *,
         depth: bool = False,
     ) -> SubscriptionHandle:
+        """Subscribe via gateway.stream(symbol, exchange, mode=, on_tick=).
+
+        When *depth* is True, prefer ``stream_depth`` if available; otherwise
+        use full quote mode on the LTP stream API.
+        """
+        import logging
+
+        log = logging.getLogger(__name__)
+
+        def _on_tick(raw: Any) -> None:
+            callback(instrument_id, raw)
+
         try:
+            if depth:
+                stream_depth = getattr(self._gw, "stream_depth", None)
+                if callable(stream_depth):
+                    handle = stream_depth(
+                        instrument_id.underlying,
+                        instrument_id.exchange,
+                        on_depth=_on_tick,
+                    )
+                    return _UpstoxSubscriptionHandle(stop_fn=getattr(handle, "stop", None))
             stream = getattr(self._gw, "stream", None)
             if callable(stream):
+                mode = "full" if depth else "LTP"
                 handle = stream(
                     instrument_id.underlying,
                     instrument_id.exchange,
-                    callback,
-                    depth=depth,
+                    mode=mode,
+                    on_tick=_on_tick,
                 )
                 return _UpstoxSubscriptionHandle(stop_fn=getattr(handle, "stop", None))
+            log.warning(
+                "upstox_subscribe_no_stream",
+                extra={"symbol": instrument_id.underlying, "exchange": instrument_id.exchange},
+            )
         except Exception:
-            pass
+            log.exception(
+                "upstox_subscribe_failed",
+                extra={"symbol": instrument_id.underlying, "exchange": instrument_id.exchange},
+            )
+            raise
         return _UpstoxSubscriptionHandle()
 
     def unsubscribe(self, handle: SubscriptionHandle) -> None:

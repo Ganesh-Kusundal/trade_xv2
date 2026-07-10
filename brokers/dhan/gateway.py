@@ -156,6 +156,10 @@ class DhanBrokerGateway:
         """Cancel all open orders, delegating to the orders adapter."""
         return self._conn.orders.cancel_all_orders()
 
+    def get_order(self, order_id: str) -> Order:
+        """Fetch a single order by id (parity with Upstox/Paper gateways)."""
+        return self._conn.orders.get_order(order_id)
+
     def get_orderbook(self) -> list[Order]:
         return self._conn.orders.get_orderbook()
 
