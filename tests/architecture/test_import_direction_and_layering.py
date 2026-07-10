@@ -1,15 +1,10 @@
-"""Architectural invariant tests.
-
-These tests enforce structural rules that keep the codebase maintainable
-and prevent regression as the team scales.
-
-Run with: pytest tests/test_architecture.py -v
-"""
+"""Import direction and package layering invariants."""
 
 import ast
 from pathlib import Path
 
-ROOT = Path(__file__).parent.parent
+# Repo root (tests/architecture/ → parents[2])
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def _get_python_files(directory: str) -> list[Path]:

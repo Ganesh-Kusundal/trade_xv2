@@ -14,7 +14,7 @@ Pinned fixes:
 
 Run:
   cd /Users/apple/Downloads/Trade_XV2 && \
-    ./venv/bin/python -m pytest tests/regression/test_remediation_dhan_feeds.py -q
+    ./venv/bin/python -m pytest tests/integration/brokers/test_dhan_market_feed_reconnect.py -q
 """
 
 from __future__ import annotations

@@ -215,7 +215,7 @@ class TestInstrumentLoaderSecurity:
     def test_no_pickle_load_in_instrument_loader(self):
         """UpstoxInstrumentLoader must not use pickle.load.
 
-        Note: This check is covered by tests/test_security_findings.py::TestNoPickleLoad
+        Note: This check is covered by tests/unit/security/test_security_controls.py
         which has smarter logic to allow pickle.load in migration functions.
         """
         import pytest

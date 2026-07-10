@@ -1,4 +1,4 @@
-"""Phase 7 hardening checks — architecture invariants for the public SDK."""
+"""Public SDK surface: gateways importable; dead OMS proxies stay gone."""
 
 from __future__ import annotations
 

@@ -10,7 +10,7 @@ it cannot be imported in the current environment.
 
 Run:
   cd /Users/apple/Downloads/Trade_XV2 && \
-    ./venv/bin/python -m pytest tests/regression/test_remediation_live_candles.py -q
+    ./venv/bin/python -m pytest tests/integration/brokers/test_live_candles_normalize_consistently.py -q
 """
 
 from __future__ import annotations

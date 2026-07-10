@@ -1,34 +1,4 @@
-"""Tests for Phase B / B7: Central OMS on the live CLI path.
-
-The previous implementation had the central OMS
-(``brokers/common/oms/``) built and tested in isolation, but the
-live CLI path bypassed it. ``OrdersAdapter.place_order`` was
-called directly with no risk check at all (the risk_manager
-parameter was never injected). The CLI's ``OmsService.place_order``
-called the broker gateway, which called the dhan adapter, with
-no canonical risk gate.
-
-B7 fixes this:
-
-  - ``BrokerService.initialize`` now constructs a
-    :class:`RiskManager` first, threads it into
-    ``BrokerFactory.create(risk_manager=...)``, which passes it
-    to ``DhanConnection`` → ``OrdersAdapter``. The risk check
-    is now enforced on every place_order call.
-
-  - ``BrokerService._build_and_register_oms_services`` builds
-    a :class:`DailyPnlResetScheduler` and a
-    :class:`TradingContext`, both registered with the
-    LifecycleManager. They are drained on close().
-
-  - The capital_fn reads ``gateway.funds().available_balance`` and
-    is fail-closed: a broker outage returns ``Decimal(0)`` and the
-    OMS blocks every order unless ``RISK_FAIL_OPEN=1`` is set
-    (B-3 / M-7). The tests in this file use ``RISK_FAIL_OPEN=1``
-    where the legacy placeholder is the expected value, and
-    ``RISK_FAIL_OPEN=0`` (the default) where fail-closed is the
-    expected value.
-"""
+"""Live path: RiskManager gates place_order; capital is fail-closed by default."""
 
 from __future__ import annotations
 from tests.conftest import build_test_trading_context

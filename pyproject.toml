@@ -96,6 +96,8 @@ exclude = [
 minversion = "7.0"
 # Library packages resolve from src/; repo root is needed for the `tests` package.
 pythonpath = ["src", "."]
+# Pyramid: tests/{unit,component,integration,e2e,architecture} plus package-local
+# unit/component suites under src/**/tests (see tests/README.md).
 testpaths = [
     "tests",
     "src/brokers",
@@ -104,9 +106,11 @@ testpaths = [
     "src/datalake",
     "src/application",
     "src/domain",
+    "src/infrastructure",
 ]
 markers = [
-    "unit: module-owned unit tests",
+    "unit: domain / pure business-rule tests",
+    "component: single-service tests (OMS, execution, registry)",
     "contract: broker/module contract tests",
     "dhan: DhanHQ integration tests",
     "integration: tests that call external broker APIs",

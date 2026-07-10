@@ -1,4 +1,4 @@
-"""Phase 0 architecture hardening — layering and event contract."""
+"""Domain ports must not import presentation or composition packages."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from infrastructure.event_bus.event_bus import EventBus
 
 
 def test_domain_broker_adapter_port_does_not_import_tradex() -> None:
-    """Domain broker port must not depend upward on tradex (Phase 0 layering)."""
+    """Domain broker port must not depend upward on tradex."""
     port_path = (
         Path(__file__).resolve().parents[2]
         / "src"
@@ -32,7 +32,7 @@ def test_domain_broker_adapter_port_does_not_import_tradex() -> None:
 
 
 def test_market_bridge_event_types_in_canonical_enum() -> None:
-    """Orphan bridge event types must be registered in EventType (Phase 0)."""
+    """Orphan bridge event types must be registered in EventType."""
     canonical = canonical_event_types()
     for name in ("QUOTE", "DEPTH_20", "DEPTH_200", "TRADE_FILLED"):
         assert name in canonical

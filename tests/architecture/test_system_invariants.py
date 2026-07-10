@@ -1,11 +1,4 @@
-"""Tests for Dhan invariants — runtime assertion functions.
-
-Verifies:
-- assert_dhan_identity() validates DhanInstrumentRef correctly
-- assert_dhan_identity() rejects invalid objects
-- assert_valid_security_id() validates security_id strings
-- Edge cases and error messages
-"""
+"""Cross-cutting system invariants (money path, isolation)."""
 
 from __future__ import annotations
 

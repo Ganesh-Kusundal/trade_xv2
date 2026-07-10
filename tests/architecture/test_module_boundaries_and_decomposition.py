@@ -1,21 +1,4 @@
-"""Regression tests for Phase 1-6 architectural refactoring.
-
-These tests verify that the structural refactoring completed in Phases 1-6
-did NOT break existing functionality. Each test compares CURRENT behavior
-(post-refactoring) with EXPECTED behavior (documented in code/tests).
-
-CRITICAL RULES:
-- Use REAL objects and REAL imports — no mocks
-- Tests must be DETERMINISTIC (same input → same output)
-- Zero production contamination (no test imports in production code)
-- Each test must have a clear docstring explaining WHAT regression it prevents
-
-Phase Coverage:
-- Phase 3: Structural Cleanup (Tasks 3.1-3.6)
-- Phase 4: Module Boundary Enforcement (import-linter contracts)
-- Phase 5: God Object Decomposition (RiskManager, Dhan WebSocket)
-- Phase 6: Type Safety + Resilience + Config (Protocols, CircuitBreakers, CacheManager)
-"""
+"""Module boundaries, decomposition, and resilience contracts hold."""
 
 from __future__ import annotations
 
@@ -89,24 +72,21 @@ class TestPhase3StructuralCleanup:
         Note: This test runs import-linter as a subprocess to avoid polluting
         the test process with import side effects.
         """
-        project_root = Path(__file__).parent.parent.parent
-        import_linter_config = project_root / ".import-linter.ini"
+        project_root = Path(__file__).resolve().parents[2]
+        # Contracts live in pyproject.toml (not a separate .import-linter.ini).
+        import_linter_config = project_root / "pyproject.toml"
 
         assert import_linter_config.exists(), (
             f"import-linter config not found at {import_linter_config}"
         )
-
-        # Run import-linter with the project's venv python
-        venv_python = project_root / "venv" / "bin" / "python"
-        if not venv_python.exists():
-            pytest.skip("venv Python not found, skipping import-linter check")
 
         result = subprocess.run(
             ["lint-imports", "--config", str(import_linter_config)],
             cwd=str(project_root),
             capture_output=True,
             text=True,
-            timeout=60,
+            timeout=120,
+            env={**dict(**__import__("os").environ), "PYTHONPATH": str(project_root / "src")},
         )
 
         # import-linter returns 0 on success, non-zero on violations
@@ -515,13 +495,21 @@ class TestPhase6TypeSafetyAndResilience:
         )
 
         # Test 4: Rate limiter allows requests within capacity
-        rate_limiter = TokenBucketRateLimiter(rate_per_second=10, capacity=10)
+        from infrastructure.resilience.rate_limiter import RateLimitConfig
+
+        rate_limiter = TokenBucketRateLimiter(
+            RateLimitConfig(rate_per_second=10, capacity=10)
+        )
         for _ in range(5):  # Request 5 tokens (within capacity)
-            assert rate_limiter.acquire(), "Rate limiter should allow requests within capacity"
+            assert rate_limiter.acquire(timeout=1.0), (
+                "Rate limiter should allow requests within capacity"
+            )
 
         # Test 5: Rate limiter refills over time
         time.sleep(0.2)  # Wait for refill (10 tokens/sec = 2 tokens in 0.2s)
-        assert rate_limiter.acquire(), "Rate limiter should allow request after refill"
+        assert rate_limiter.acquire(timeout=1.0), (
+            "Rate limiter should allow request after refill"
+        )
 
     def test_config_validation_doesnt_break_factory(self):
         """Prevent regression: Config validation must not prevent BrokerFactory from

@@ -376,13 +376,17 @@ class TestPayloadIsolation:
         )
 
     def test_handler_cannot_mutate_shared_payload(self):
-        """One handler mutating payload should not affect another handler's view."""
+        """Payload is frozen: mutation fails and peer handlers still receive the event."""
         bus = EventBus(fail_fast=False)
         payloads_seen = []
+        mutations_blocked = []
 
         def handler1(event):
-            # Handler1 tries to mutate
-            event.payload["modified"] = True
+            try:
+                event.payload["modified"] = True  # type: ignore[index]
+                mutations_blocked.append(False)
+            except (TypeError, AttributeError):
+                mutations_blocked.append(True)
             payloads_seen.append(dict(event.payload))
 
         def handler2(event):
@@ -393,9 +397,11 @@ class TestPayloadIsolation:
 
         bus.publish(DomainEvent.now("TICK", {"price": 100.0}))
 
-        # Both handlers see the same mutable dict (same event instance)
-        # but the original payload dict passed to now() is unaffected
+        # Both handlers run; mutation is rejected (mappingproxy / frozen payload).
         assert len(payloads_seen) == 2
+        assert mutations_blocked == [True]
+        assert "modified" not in payloads_seen[1]
+        assert payloads_seen[0]["price"] == 100.0
 
     def test_payload_is_dict_not_original_reference(self):
         original = {"data": [1, 2, 3]}

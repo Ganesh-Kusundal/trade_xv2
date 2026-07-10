@@ -97,38 +97,27 @@ class TestDuckDBParameterization:
 
 
 class TestCacheUtilsSQLInjection:
-    """Test that cache_utils.py SQL queries are parameterized."""
+    """Candle cache helpers must not assemble SQL via f-strings."""
 
-    def test_get_last_candle_fast_uses_parameterized_query(self) -> None:
-        """get_last_candle_fast must use parameterized queries, not f-strings."""
+    def test_get_last_candle_fast_uses_pyarrow_not_sql(self) -> None:
+        """get_last_candle_fast reads Parquet via PyArrow (no dynamic SQL)."""
         import inspect
 
         from datalake.storage.cache_utils import get_last_candle_fast
 
         source = inspect.getsource(get_last_candle_fast)
-
-        # Should NOT use f-string with path interpolation
-        assert 'f"""' not in source or "read_parquet(?)" in source
-        assert "f'" not in source or "?" in source
-
-        # Should use parameterized query
-        assert "?" in source or "read_parquet(?" in source
+        assert "ParquetFile" in source or "pyarrow" in source
+        assert re.search(r'f["\'].*SELECT\s', source, re.I) is None
 
     def test_cache_utils_no_fstring_sql(self) -> None:
-        """cache_utils.py must not have f-string SQL queries."""
+        """datalake.storage.cache_utils must not embed f-string SQL."""
         import inspect
 
-        import datalake.cache_utils
+        from datalake.storage import cache_utils
 
-        source = inspect.getsource(datalake.cache_utils)
-
-        # Check for f-string SQL patterns (should not exist after fix)
-        fstring_sql_pattern = r'f["\'].*SELECT\s'
-        matches = re.findall(fstring_sql_pattern, source, re.IGNORECASE)
-
-        # After fix, there should be no f-string SQL queries
-        # (This test will fail before the fix, pass after)
-        assert len(matches) == 0, f"Found f-string SQL queries: {matches}"
+        source = inspect.getsource(cache_utils)
+        matches = re.findall(r'f["\'].*SELECT\s', source, re.IGNORECASE)
+        assert matches == [], f"Found f-string SQL queries: {matches}"
 
 
 class TestViewManagerSQLInjection:
@@ -188,33 +177,18 @@ class TestViewManagerSQLInjection:
 
 
 class TestDataLakeGatewaySQLInjection:
-    """Test that DataLakeGateway SQL queries are parameterized."""
+    """DataLakeGateway batch helpers must not concatenate user input into SQL."""
 
-    def test_gateway_batch_query_uses_parameters(self, tmp_path: Path) -> None:
-        """DataLakeGateway must use parameterized DuckDB queries."""
+    def test_gateway_batch_helpers_delegate_without_raw_sql(self) -> None:
+        """ltp_batch / history_batch map over symbols via _batch_execute."""
         import inspect
 
         from datalake.gateway import DataLakeGateway
 
-        # Check ltp_batch method
-        source = inspect.getsource(DataLakeGateway.ltp_batch)
-
-        # Should use parameterized query
-        assert "read_parquet(?" in source
-
-        # Should NOT use f-string with path
-        assert 'f"' not in source or "?" in source
-
-    def test_gateway_history_batch_uses_parameters(self, tmp_path: Path) -> None:
-        """DataLakeGateway.history_batch must use parameterized queries."""
-        import inspect
-
-        from datalake.gateway import DataLakeGateway
-
-        source = inspect.getsource(DataLakeGateway.history_batch)
-
-        # Should use parameterized query
-        assert "read_parquet(?" in source
+        for method in (DataLakeGateway.ltp_batch, DataLakeGateway.history_batch):
+            source = inspect.getsource(method)
+            assert "_batch_execute" in source
+            assert re.search(r'f["\'].*SELECT\s', source, re.I) is None
 
 
 class TestSQLInjectionPatterns:

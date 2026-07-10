@@ -1,26 +1,4 @@
-"""Regression tests for the applied Dhan gateway/orders remediation.
-
-These pin the specific fixed behaviors described in the remediation notes:
-
-* G1  - ``DhanBrokerGateway`` gained ``modify_order`` / ``cancel_all_orders``
-        delegating to ``self._conn.orders.*``, ``stream()`` now routes through
-        ``self._conn.create_market_feed(...)`` (registering a token receiver)
-        instead of building ``DhanMarketFeed`` directly, and ``__init__`` runs
-        :func:`validate_gateway_capabilities`.
-* R3  - ``IdempotencyCache`` now has ``reserve`` / ``commit`` /
-        ``clear_reservation``; ``place_order`` holds the idempotency lock ONLY
-        for the reserve+commit, NOT across the blocking HTTP. Concurrent
-        ``place_order`` with the SAME correlation id issues exactly ONE post;
-        with distinct ids issues N posts; a hung/blocking post does not prevent
-        OTHER ``place_order`` calls from proceeding.
-* R1-adjacent - ``cancel_all_orders`` now guards non-dict responses (no
-  ``AttributeError``); a fake returning a list/None yields ``[]``.
-
-All product-code imports are performed *lazily inside each test* so a broken
-package ``__init__`` chain on this mid-refactor branch cannot block
-collection. If a required module genuinely cannot be imported, the test skips
-cleanly.
-"""
+"""Dhan gateway: idempotent place_order and stream registration contracts."""
 
 from __future__ import annotations
 

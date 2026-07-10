@@ -17,7 +17,7 @@ The (gitignored) runtime module is lazy-imported; tests skip if unimportable.
 
 Run:
   cd /Users/apple/Downloads/Trade_XV2 && \
-    ./venv/bin/python -m pytest tests/regression/test_remediation_dhan_timestamp.py -q
+    ./venv/bin/python -m pytest tests/integration/brokers/test_dhan_timestamps_are_exchange_aligned.py -q
 """
 
 from __future__ import annotations

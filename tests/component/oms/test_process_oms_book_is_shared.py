@@ -1,9 +1,4 @@
-"""Phase 2 architecture test: single OMS singleton per process.
-
-Guards the money-path invariant: tradex.connect / Session.buy and the REST
-API must resolve the SAME OrderManager + PositionManager. If they diverge,
-fills land in a book the operator never queries (silent PnL desync).
-"""
+"""Process-wide OMS book is shared by Session and REST (no dual books)."""
 
 from __future__ import annotations
 
