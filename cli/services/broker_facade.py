@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 # ── Re-exports of broker internals the CLI legitimately needs ────────────────
 # These are the only broker symbols the CLI may reference; everything else
 # flows through the domain ports below.
-from brokers.dhan.account_registry import AccountConnectionRegistry
+from brokers.dhan.identity.account_registry import AccountConnectionRegistry
 from brokers.dhan.gateway import DhanBrokerGateway
 from brokers.dhan.loader import InstrumentLoader
 from brokers.dhan.reconciliation import create_reconciliation_service

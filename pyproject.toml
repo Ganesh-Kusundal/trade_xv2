@@ -244,7 +244,6 @@ forbidden_modules = ["brokers", "analytics", "cli", "application", "api"]
 ignore_imports = [
     # Tests legitimately import application/infrastructure for integration testing.
     "infrastructure.tests.test_audit -> application.audit",
-    "infrastructure.tests.test_global_exception_handler -> tradex.runtime.resilience.errors",
     # Gateway factory is a composition root — it constructs broker gateways.
     "infrastructure.gateway.factory -> brokers.paper",
     # Gateway factory imports datalake (datalake.gateway re-exports broker capabilities).
@@ -362,8 +361,6 @@ ignore_imports = [
     # Public SDK session factory needs broker-specific constructors.
     "tradex.session -> brokers.dhan",
     "tradex.session -> brokers.upstox",
-    # Test-only: integration tests import broker exceptions.
-    "tradex.runtime.auth.tests.* -> brokers.dhan.exceptions",
+    # Facade-package tests exercise CLI doctor probe (composition path to brokers).
     "tradex.runtime.auth.tests.* -> cli.commands.doctor.strategies.auth_live_probe",
-    "tradex.runtime.connection.tests.* -> brokers.dhan.exceptions",
 ]
