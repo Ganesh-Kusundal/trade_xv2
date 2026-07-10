@@ -14,7 +14,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.dhan.transport import DhanOrderTransport
+from brokers.dhan.api.transport import DhanOrderTransport
 from brokers.paper.data_provider import PaperDataProvider
 from brokers.paper.execution_provider import PaperExecutionProvider
 from brokers.paper.paper_gateway import PaperGateway

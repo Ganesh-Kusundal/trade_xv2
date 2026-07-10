@@ -10,7 +10,7 @@ from brokers.dhan.api.http_client import DhanHttpClient
 
 def _make_client() -> DhanHttpClient:
     """Create a DhanHttpClient with a mocked session (no real HTTP calls)."""
-    with patch("brokers.dhan.http_client.requests.Session") as mock_cls:
+    with patch("brokers.dhan.api.http_client.requests.Session") as mock_cls:
         mock_session = MagicMock()
         mock_session.headers = {}
         mock_cls.return_value = mock_session

@@ -37,7 +37,7 @@ class BrokerMarginProvider(MarginProvider):
     Example usage::
 
         from brokers.common.oms.margin_provider import BrokerMarginProvider
-        from brokers.dhan.margin import MarginAdapter
+        from brokers.dhan.portfolio.margin import MarginAdapter
 
         dhan_margin = MarginAdapter(client, identity)
         provider = BrokerMarginProvider(dhan_margin)

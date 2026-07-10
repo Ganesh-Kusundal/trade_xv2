@@ -9,7 +9,7 @@ from pathlib import Path
 repo_root = Path(__file__).parent.parent
 sys.path.insert(0, str(repo_root))
 
-from brokers.dhan.factory import BrokerFactory
+from brokers.dhan.identity.factory import BrokerFactory
 
 
 async def main():

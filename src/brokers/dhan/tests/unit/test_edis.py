@@ -2,7 +2,7 @@
 
 import pytest
 
-from brokers.dhan.edis import EDISAdapter
+from brokers.dhan.auth.edis import EDISAdapter
 
 
 def test_generate_tpin(fake_client):

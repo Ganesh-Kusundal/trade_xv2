@@ -15,6 +15,8 @@ from __future__ import annotations
 from unittest import mock
 
 from brokers.dhan.websocket import DhanMarketFeed
+from brokers.dhan.websocket._helpers import _to_decimal
+from brokers.dhan.websocket.publish import MarketFeedPublisher
 
 
 def _make_feed(event_bus=None) -> DhanMarketFeed:
@@ -23,10 +25,16 @@ def _make_feed(event_bus=None) -> DhanMarketFeed:
 
     feed = DhanMarketFeed.__new__(DhanMarketFeed)
     feed._event_bus = event_bus
-    feed._published_depths = 0
-    feed._dropped_depths = 0
-    feed._published_ticks = 0
-    feed._dropped_ticks = 0
+    # _published_depths/_dropped_depths/etc. are read-only properties
+    # delegating to self._publisher (MarketFeedPublisher) -- see the
+    # identical fix in test_publish_tick_strict.py for the full
+    # explanation (property has no setter; _publish_depth() is a silent
+    # no-op when self._publisher is None).
+    feed._publisher = MarketFeedPublisher(
+        event_bus,
+        lambda symbol: 1,
+        to_decimal=_to_decimal,
+    )
     feed._thread = None
     feed._reconnect_count = 0
     feed._last_message_at = None
@@ -187,8 +195,8 @@ class TestPublishDepthNoBus:
 class TestHealthExposesDepthCounters:
     def test_health_metrics_contain_published_and_dropped(self):
         feed = _make_feed(event_bus=None)
-        feed._published_depths = 17
-        feed._dropped_depths = 4
+        feed._publisher.published_depths = 17
+        feed._publisher.dropped_depths = 4
         h = feed.health()
         assert h.metrics["published_depths"] == 17
         assert h.metrics["dropped_depths"] == 4

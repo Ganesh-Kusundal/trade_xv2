@@ -216,7 +216,7 @@ class Depth200ConnectionPool:
 
             # NOTE: Connection-cap enforcement lives entirely in the
             # ``max_connections`` eviction-by-oldest block below. The former
-            # spin-wait against brokers.dhan.resilience.websocket_rate_limiter_simple
+            # former SimpleWebSocketRateLimiter spin-wait removed (dead gate)
             # was removed because that limiter never actually incremented its
             # counter (so can_create_depth_200_connection() was a no-op) and the
             # unbounded ``while not ...: time.sleep(0.1)`` could spin forever

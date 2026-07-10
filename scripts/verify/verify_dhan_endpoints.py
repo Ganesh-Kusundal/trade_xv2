@@ -29,7 +29,7 @@ def record(endpoint: str, segment: str, status: str, detail: str = ""):
 
 
 def test_gateway():
-    from brokers.dhan.factory import BrokerFactory
+    from brokers.dhan.identity.factory import BrokerFactory
 
     print("=== Creating Dhan Gateway ===")
     factory = BrokerFactory()

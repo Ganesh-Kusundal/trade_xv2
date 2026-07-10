@@ -19,7 +19,7 @@ from pathlib import Path
 
 import pytest
 
-from brokers.dhan.factory import BrokerFactory
+from brokers.dhan.identity.factory import BrokerFactory
 from brokers.dhan.gateway import DhanBrokerGateway
 
 _INTEGRATION_DIR = Path(__file__).resolve().parent

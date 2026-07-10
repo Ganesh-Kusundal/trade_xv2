@@ -11,8 +11,8 @@ import pandas as pd
 # Add repo to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from brokers.dhan.factory import BrokerFactory
-from brokers.dhan.settings import DhanSettingsLoader
+from brokers.dhan.identity.factory import BrokerFactory
+from brokers.dhan.config.settings import DhanSettingsLoader
 
 
 def main():

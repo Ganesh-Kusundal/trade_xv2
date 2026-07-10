@@ -2,7 +2,7 @@
 
 import pytest
 
-from brokers.dhan.ip_management import IPManagementAdapter
+from brokers.dhan.auth.ip_management import IPManagementAdapter
 
 
 def test_set_ip_primary(fake_client):

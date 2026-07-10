@@ -2,7 +2,7 @@
 
 from decimal import Decimal
 
-from brokers.dhan.options import OptionsAdapter
+from brokers.dhan.data.options import OptionsAdapter
 
 
 def test_option_chain_parsing(fake_client, resolver):

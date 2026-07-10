@@ -11,7 +11,7 @@ from application.scheduling.quota_scheduler import PriorityClass, QuotaScheduler
 from application.composer.registry import BrokerRegistry
 from application.composer.router import BrokerRouter
 from brokers.common.tests.fixtures.in_memory_gateway import InMemoryBrokerGateway, _bar
-from brokers.dhan.capabilities import dhan_capabilities
+from brokers.dhan.config.capabilities import dhan_capabilities
 from brokers.upstox.capabilities import upstox_capabilities
 from domain.candles.historical import HistoricalBar, InstrumentRef
 from domain.provenance import DataProvenance

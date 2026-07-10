@@ -91,14 +91,14 @@ class TestDhanRegistration:
 
     def test_dhan_factory_registered(self):
         # Explicit import triggers self-registration of the dhan factory.
-        import brokers.dhan.common_extensions  # noqa: F401
+        import brokers.dhan.extensions.common_extensions  # noqa: F401
 
         factory = get_extension_factory("dhan")
         assert factory is not None
         assert callable(factory)
 
     def test_dhan_factory_returns_bundle_with_providers(self):
-        import brokers.dhan.common_extensions  # noqa: F401
+        import brokers.dhan.extensions.common_extensions  # noqa: F401
         from domain.extensions.forever_order import ForeverOrderProvider
         from domain.extensions.native_slice_order import NativeSliceOrderProvider
 

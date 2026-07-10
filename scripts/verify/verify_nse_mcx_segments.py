@@ -258,7 +258,7 @@ def main():
     print()
 
     try:
-        from brokers.dhan.factory import BrokerFactory
+        from brokers.dhan.identity.factory import BrokerFactory
 
         print("Creating Dhan Gateway...")
         factory = BrokerFactory()

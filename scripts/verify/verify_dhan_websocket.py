@@ -8,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from brokers.dhan.factory import BrokerFactory
+from brokers.dhan.identity.factory import BrokerFactory
 
 
 async def main():

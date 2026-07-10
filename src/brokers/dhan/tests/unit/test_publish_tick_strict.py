@@ -15,6 +15,8 @@ from decimal import Decimal
 from unittest import mock
 
 from brokers.dhan.websocket import DhanMarketFeed
+from brokers.dhan.websocket._helpers import _to_decimal
+from brokers.dhan.websocket.publish import MarketFeedPublisher
 
 
 def _make_feed(event_bus=None) -> DhanMarketFeed:
@@ -26,10 +28,17 @@ def _make_feed(event_bus=None) -> DhanMarketFeed:
     # attributes that ``_publish_tick`` / ``_publish_depth`` and
     # ``health`` read.
     feed._event_bus = event_bus
-    feed._published_ticks = 0
-    feed._dropped_ticks = 0
-    feed._published_depths = 0
-    feed._dropped_depths = 0
+    # _published_ticks/_dropped_ticks/etc. are now read-only properties
+    # delegating to self._publisher (MarketFeedPublisher) -- they cannot
+    # be assigned directly (confirmed: AttributeError, "property has no
+    # setter"). _publish_tick()/_publish_depth() are themselves silent
+    # no-ops when self._publisher is None. Construct a real publisher
+    # instead of poking now-nonexistent plain attributes.
+    feed._publisher = MarketFeedPublisher(
+        event_bus,
+        lambda symbol: 1,
+        to_decimal=_to_decimal,
+    )
     feed._thread = None
     feed._reconnect_count = 0
     feed._last_message_at = None
@@ -149,8 +158,8 @@ class TestPublishTickNoBus:
 class TestHealthExposesTickCounters:
     def test_health_metrics_contain_published_and_dropped(self):
         feed = _make_feed(event_bus=None)
-        feed._published_ticks = 12
-        feed._dropped_ticks = 3
+        feed._publisher.published_ticks = 12
+        feed._publisher.dropped_ticks = 3
         h = feed.health()
         assert h.metrics["published_ticks"] == 12
         assert h.metrics["dropped_ticks"] == 3

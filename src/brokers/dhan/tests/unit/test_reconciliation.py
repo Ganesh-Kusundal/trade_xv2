@@ -3,7 +3,7 @@
 from decimal import Decimal
 from unittest.mock import MagicMock
 
-from brokers.dhan.reconciliation import DhanReconciliationService
+from brokers.dhan.portfolio.reconciliation import DhanReconciliationService
 from domain import Order, OrderStatus, OrderType, Position, Side
 
 

@@ -8,7 +8,7 @@ from domain.policies.source_selection import auto_dual_broker_policy, default_dh
 from application.composer.registry import BrokerRegistry
 from application.composer.router import BrokerRouter
 from brokers.common.tests.fixtures.in_memory_gateway import InMemoryBrokerGateway
-from brokers.dhan.capabilities import dhan_capabilities
+from brokers.dhan.config.capabilities import dhan_capabilities
 from brokers.upstox.capabilities import upstox_capabilities
 
 

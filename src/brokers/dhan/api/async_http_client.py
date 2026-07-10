@@ -1,7 +1,7 @@
 """DhanAsyncHttpClient — async HTTP client for Dhan REST API with non-blocking I/O.
 
 Uses ``httpx.AsyncClient`` instead of the synchronous ``requests.Session`` used
-by :class:`~brokers.dhan.http_client.DhanHttpClient`.  All retry back-offs and
+by :class:`~brokers.dhan.api.http_client.DhanHttpClient`.  All retry back-offs and
 rate-limit waits use ``asyncio.sleep()`` so they never block the event loop.
 
 Intended for event-loop-based composition roots and async workflows that need

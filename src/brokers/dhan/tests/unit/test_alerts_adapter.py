@@ -6,7 +6,7 @@ from decimal import Decimal
 
 import pytest
 
-from brokers.dhan.alerts import AlertsAdapter
+from brokers.dhan.data.alerts import AlertsAdapter
 from brokers.dhan.domain import Alert, AlertRequest
 
 

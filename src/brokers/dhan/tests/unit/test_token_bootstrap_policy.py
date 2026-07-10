@@ -11,7 +11,7 @@ from unittest.mock import patch
 import pytest
 
 from infrastructure.auth import JsonTokenStateStore, TokenSource, TokenState
-from brokers.dhan.factory import BrokerFactory
+from brokers.dhan.identity.factory import BrokerFactory
 
 
 def _make_jwt(payload: dict) -> str:
@@ -55,11 +55,11 @@ def test_bootstrap_reuses_valid_json_token_without_totp(env_file, tmp_path):
         totp_calls["count"] += 1
         return "should-not-be-called"
 
-    with patch("brokers.dhan.factory._generate_totp_token", fake_generate):
+    with patch("brokers.dhan.identity.factory._generate_totp_token", fake_generate):
         factory = BrokerFactory()
         auth, token = factory._create_auth(
             __import__(
-                "brokers.dhan.settings", fromlist=["DhanSettingsLoader"]
+                "brokers.dhan.config.settings", fromlist=["DhanSettingsLoader"]
             ).DhanSettingsLoader.from_env(env_path=env_file),
             env_file,
         )
@@ -90,11 +90,11 @@ def test_bootstrap_generates_once_when_token_expired(env_file, tmp_path):
         totp_calls["count"] += 1
         return fresh_token
 
-    with patch("brokers.dhan.factory._generate_totp_token", fake_generate):
+    with patch("brokers.dhan.identity.factory._generate_totp_token", fake_generate):
         factory = BrokerFactory()
         auth, token = factory._create_auth(
             __import__(
-                "brokers.dhan.settings", fromlist=["DhanSettingsLoader"]
+                "brokers.dhan.config.settings", fromlist=["DhanSettingsLoader"]
             ).DhanSettingsLoader.from_env(env_path=env_file),
             env_file,
         )
@@ -116,10 +116,10 @@ def test_bootstrap_with_valid_env_token_never_mints(env_file, tmp_path):
         totp_calls["count"] += 1
         return "should-not-be-called"
 
-    with patch("brokers.dhan.factory._generate_totp_token", fake_generate):
+    with patch("brokers.dhan.identity.factory._generate_totp_token", fake_generate):
         factory = BrokerFactory()
         settings = __import__(
-            "brokers.dhan.settings", fromlist=["DhanSettingsLoader"]
+            "brokers.dhan.config.settings", fromlist=["DhanSettingsLoader"]
         ).DhanSettingsLoader.from_env(env_path=env_file)
         auth, token = factory._create_auth(settings, env_file)
 
@@ -131,9 +131,9 @@ def test_bootstrap_with_valid_env_token_never_mints(env_file, tmp_path):
 
 def test_generate_totp_delegates_to_client():
     """Factory mint path must use DhanTotpClient (TotpCooldownGuard), not raw HTTP."""
-    from brokers.dhan.factory import _generate_totp_token
+    from brokers.dhan.identity.factory import _generate_totp_token
 
-    with patch("brokers.dhan.totp_client.DhanTotpClient") as mock_cls:
+    with patch("brokers.dhan.auth.totp_client.DhanTotpClient") as mock_cls:
         mock_cls.return_value.generate.return_value = "fresh-token"
         out = _generate_totp_token(None)
     assert out == "fresh-token"

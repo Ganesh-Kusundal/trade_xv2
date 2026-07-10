@@ -32,7 +32,7 @@ def main():
     # ── 1. Load settings ──────────────────────────────────────────
     print("\n[1/6] Loading settings from .env.local ...")
     try:
-        from brokers.dhan.settings import DhanSettingsLoader
+        from brokers.dhan.config.settings import DhanSettingsLoader
 
         settings = DhanSettingsLoader.from_env(env_path=env_path)
         print(f"  client_id     : {settings.client_id[:4]}****")
@@ -48,7 +48,7 @@ def main():
     print("\n[2/6] Creating Dhan gateway (factory) ...")
     t0 = time.monotonic()
     try:
-        from brokers.dhan.factory import BrokerFactory
+        from brokers.dhan.identity.factory import BrokerFactory
 
         gateway = BrokerFactory().create(
             env_path=env_path,

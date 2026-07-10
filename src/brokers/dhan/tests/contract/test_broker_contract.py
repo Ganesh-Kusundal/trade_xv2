@@ -33,7 +33,7 @@ from brokers.dhan.domain import (
     Exchange,
 )
 from brokers.dhan.exceptions import InstrumentNotFoundError
-from brokers.dhan.factory import BrokerFactory
+from brokers.dhan.identity.factory import BrokerFactory
 from brokers.dhan.gateway import DhanBrokerGateway
 from brokers.dhan.execution.orders import IdempotencyCache
 from brokers.dhan.tests.conftest import SAMPLE_ROWS, FakeHttpClient

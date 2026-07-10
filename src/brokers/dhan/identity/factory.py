@@ -144,12 +144,9 @@ class BrokerFactory(BrokerProviderFactory):
         token_store = JsonTokenStateStore(token_state_dir / "dhan-token-state.json")
 
         def _generate_token() -> str | None:
-            # Late lookup via package shim so unit tests can patch
-            # ``brokers.dhan.factory._generate_totp_token`` (and so all
-            # callers share one mint entrypoint under TotpCooldownGuard).
-            import brokers.dhan.factory as dhan_factory
-
-            return dhan_factory._generate_totp_token(settings)
+            # Call module-local mint so tests can patch
+            # ``brokers.dhan.identity.factory._generate_totp_token``.
+            return _generate_totp_token(settings)
 
         auth = AuthManager(
             client_id=cid,
@@ -294,11 +291,9 @@ class BrokerFactory(BrokerProviderFactory):
                 },
             )
 
-        # Late import via package shim so unit tests can patch
-        # ``brokers.dhan.factory.TokenRefreshScheduler``.
-        import brokers.dhan.factory as dhan_factory
+        from brokers.dhan.auth.token_scheduler import TokenRefreshScheduler
 
-        scheduler = dhan_factory.TokenRefreshScheduler(
+        scheduler = TokenRefreshScheduler(
             auth=auth,
             interval_seconds=settings.scheduler_interval_seconds,
             buffer_seconds=settings.refresh_buffer_seconds,
@@ -384,8 +379,8 @@ def _generate_totp_token(settings: DhanConnectionSettings | None = None) -> str 
     Returns ``None`` on other mint failures (invalid TOTP, network, etc.).
     """
     # Import via package shim so unit tests can patch
-    # ``brokers.dhan.totp_client.DhanTotpClient``.
-    from brokers.dhan.totp_client import DhanTotpClient
+    # ``brokers.dhan.auth.totp_client.DhanTotpClient``.
+    from brokers.dhan.auth.totp_client import DhanTotpClient
     from infrastructure.auth.totp_cooldown import TotpRateLimitError
 
     try:

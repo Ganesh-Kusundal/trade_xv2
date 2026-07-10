@@ -7,7 +7,7 @@ from decimal import Decimal
 import pytest
 
 from brokers.dhan.domain import MarginRequest, MarginResponse
-from brokers.dhan.margin import MarginAdapter
+from brokers.dhan.portfolio.margin import MarginAdapter
 
 
 class TestMarginDomain:

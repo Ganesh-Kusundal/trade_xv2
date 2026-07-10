@@ -341,7 +341,7 @@ def main():
     try:
         import asyncio
 
-        from brokers.dhan.factory import BrokerFactory
+        from brokers.dhan.identity.factory import BrokerFactory
 
         print("Creating Dhan Gateway...")
         factory = BrokerFactory()

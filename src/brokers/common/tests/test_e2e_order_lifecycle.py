@@ -28,7 +28,7 @@ LIVE = pytest.mark.skipif(
 class TestDhanE2EOrderLifecycle:
     @pytest.fixture()
     def dhan_gateway(self):
-        from brokers.dhan.factory import BrokerFactory
+        from brokers.dhan.identity.factory import BrokerFactory
 
         factory = BrokerFactory()
         return factory.create()

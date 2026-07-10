@@ -173,7 +173,7 @@ class TestAuthManagerIntegration:
         assert store.load() is None
 
     def test_refresh_via_auth_prefers_force_refresh(self, tmp_path):
-        from brokers.dhan.factory import _refresh_via_auth
+        from brokers.dhan.identity.factory import _refresh_via_auth
 
         env_file = tmp_path / ".env.local"
         env_file.write_text("DHAN_ACCESS_TOKEN=old\n")
@@ -189,14 +189,14 @@ class TestAuthManagerIntegration:
 
 class TestTokenSchedulerWithoutLifecycle:
     def test_scheduler_registers_atexit_shutdown_when_lifecycle_absent(self):
-        from brokers.dhan.factory import BrokerFactory
+        from brokers.dhan.identity.factory import BrokerFactory
 
         factory = BrokerFactory()
         scheduler = MagicMock()
         gateway = MagicMock()
         gateway._conn = MagicMock()
 
-        with patch("brokers.dhan.factory.TokenRefreshScheduler", return_value=scheduler):
+        with patch("brokers.dhan.auth.token_scheduler.TokenRefreshScheduler", return_value=scheduler):
             with patch("atexit.register") as register_atexit:
                 factory._setup_token_refresh_scheduler(
                     gateway,

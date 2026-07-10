@@ -389,7 +389,7 @@ class DhanBrokerGateway:
 
     def capabilities(self) -> BrokerCapabilities:
         """Return Dhan broker capability matrix (single source of truth)."""
-        from brokers.dhan.capabilities import dhan_capabilities
+        from brokers.dhan.config.capabilities import dhan_capabilities
 
         return dhan_capabilities()
 

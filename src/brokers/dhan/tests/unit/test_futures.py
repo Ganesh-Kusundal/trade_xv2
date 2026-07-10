@@ -1,6 +1,6 @@
 """Unit tests for FuturesAdapter."""
 
-from brokers.dhan.futures import FuturesAdapter
+from brokers.dhan.data.futures import FuturesAdapter
 
 
 def test_get_contracts_from_cache(fake_client, resolver):

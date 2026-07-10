@@ -2,7 +2,7 @@
 
 import pandas as pd
 
-from brokers.dhan.historical import HistoricalAdapter
+from brokers.dhan.data.historical import HistoricalAdapter
 
 
 def test_daily_uses_historical_endpoint(fake_client, resolver):

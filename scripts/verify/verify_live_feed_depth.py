@@ -28,7 +28,7 @@ def record(test: str, segment: str, status: str, detail: str = ""):
 
 
 def test_live_feed_and_depth():
-    from brokers.dhan.factory import BrokerFactory
+    from brokers.dhan.identity.factory import BrokerFactory
 
     print("=== Creating Dhan Gateway ===")
     factory = BrokerFactory()
