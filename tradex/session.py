@@ -217,7 +217,7 @@ def open_session(
 
     # P0-I: register quota profiles + router whenever we have a concrete gateway
     if gw is not None and broker_id not in {"datalake"}:
-        from infrastructure.session.infra import wire_gateway_for_session
+        from runtime.session_infra import wire_gateway_for_session
 
         try:
             _session_kernel = wire_gateway_for_session(gw, broker_id)

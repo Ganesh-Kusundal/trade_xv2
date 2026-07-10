@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from application.scheduling.quota_scheduler import QuotaScheduler
     from domain.policies.source_selection import SourceSelectionPolicy
     from domain.ports.broker_gateway import CommonBrokerGateway
-    from infrastructure.broker_infrastructure import BrokerInfrastructure
+    from runtime.broker_infrastructure import BrokerInfrastructure
 
 from application.composer.execution import ExecutionComposer
 from application.composer.market_data import MarketDataComposer

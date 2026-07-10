@@ -15,7 +15,7 @@ import logging
 from typing import Any
 
 from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
-from infrastructure.broker_infrastructure import BrokerInfrastructure
+from runtime.broker_infrastructure import BrokerInfrastructure
 from infrastructure.io.async_compat import run_async_compat
 from infrastructure.pool.connection_pool import get_connection_pool
 

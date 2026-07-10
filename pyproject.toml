@@ -247,12 +247,6 @@ ignore_imports = [
     "infrastructure.tests.test_global_exception_handler -> tradex.runtime.resilience.errors",
     # Gateway factory is a composition root — it constructs broker gateways.
     "infrastructure.gateway.factory -> brokers.paper",
-    # Session infra is a composition root — it wires registry/router.
-    "infrastructure.session.infra -> tradex.runtime.registry",
-    "infrastructure.session.infra -> tradex.runtime.router",
-    # Broker infrastructure is a composition root — it wires broker components.
-    "infrastructure.broker_infrastructure -> tradex.runtime.registry",
-    "infrastructure.broker_infrastructure -> tradex.runtime.router",
     # Gateway factory imports datalake (datalake.gateway re-exports broker capabilities).
     "infrastructure.gateway.factory -> datalake.gateway",
 ]
@@ -298,8 +292,6 @@ type = "forbidden"
 source_modules = ["application"]
 forbidden_modules = ["infrastructure"]
 ignore_imports = [
-    # Composer TYPE_CHECKING annotation for BrokerInfrastructure.
-    "application.composer.factory -> infrastructure.broker_infrastructure",
     # Composer imports cross-cutting infrastructure directly (audit, time).
     "application.composer.router -> infrastructure.observability.audit",
     "application.composer.router -> infrastructure.time.clock",
