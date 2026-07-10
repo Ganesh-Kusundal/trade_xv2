@@ -98,3 +98,14 @@ class TestDomainResolvesInRepo:
         assert (ROOT / "src" / "domain").resolve() in domain_file.parents or domain_file.parent == (
             ROOT / "src" / "domain"
         ).resolve()
+
+    def test_domain_imports_from_src_layout(self) -> None:
+        """Dual-root guard: domain must load from src/domain, not a root package."""
+        import domain
+
+        # Normalize separators so Windows paths still contain the src-layout marker.
+        domain_path = Path(domain.__file__).resolve().as_posix()
+        assert "/src/domain" in domain_path, (
+            f"Expected domain.__file__ under .../src/domain, got {domain.__file__}. "
+            f"Use PYTHONPATH=src:. (pytest pythonpath already sets this)."
+        )

@@ -48,9 +48,38 @@ dev = [
 # upstox = "brokers.upstox:UpstoxBroker"
 # paper = "brokers.paper:PaperBroker"
 
+# Dual-root packaging (intentional for this pass — not a big-bang layout move):
+# - `domain` lives under src/ (src-layout) so installs and PYTHONPATH=src:. resolve it cleanly.
+# - application, infrastructure, brokers, cli, api, config, datalake, analytics, tradex,
+#   and runtime remain at the repo root. Do not relocate domain to root or stuff everything
+#   into src/ until import-linter, CI PYTHONPATH, and editable installs are fully aligned.
 [tool.setuptools.packages.find]
 where = ["src", "."]
-include = ["brokers*", "cli*", "analytics*", "datalake*", "config*", "domain*", "runtime*", "application*", "infrastructure*", "market_data*", "oms*", "event_bus*", "portfolio*", "risk*", "strategy*", "backtesting*", "replay*", "tradex*"]
+include = [
+    "domain*",
+    "application*",
+    "infrastructure*",
+    "brokers*",
+    "cli*",
+    "api*",
+    "config*",
+    "datalake*",
+    "analytics*",
+    "tradex*",
+    "runtime*",
+]
+exclude = [
+    "tests*",
+    "*.tests*",
+    "venv*",
+    "docs*",
+    "scripts*",
+    "examples*",
+    "graphify*",
+    "market_data*",
+    "analytics_cache*",
+    "runtime-dev*",
+]
 
 # ─── pytest ────────────────────────────────────────────────
 [tool.pytest.ini_options]
@@ -228,7 +257,18 @@ skip-magic-trailing-comma = false
 # CI pins PYTHONPATH the same way (.github/workflows/ci.yml).
 
 [tool.importlinter]
-root_packages = ["domain", "brokers", "analytics", "datalake", "cli", "api", "application", "infrastructure", "tradex"]
+root_packages = [
+    "domain",
+    "brokers",
+    "analytics",
+    "datalake",
+    "cli",
+    "api",
+    "application",
+    "infrastructure",
+    "tradex",
+    "runtime",
+]
 
 [[tool.importlinter.contracts]]
 name = "Domain independence"
@@ -248,6 +288,9 @@ ignore_imports = [
     "infrastructure.gateway.factory -> brokers.paper",
     # Gateway factory imports datalake (datalake.gateway re-exports broker capabilities).
     "infrastructure.gateway.factory -> datalake.gateway",
+    # Thin re-export shims: composition roots live in runtime/ (may wire application).
+    "infrastructure.broker_infrastructure -> runtime.broker_infrastructure",
+    "infrastructure.session.infra -> runtime.session_infra",
 ]
 
 [[tool.importlinter.contracts]]

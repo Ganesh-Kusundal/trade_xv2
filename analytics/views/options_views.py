@@ -10,6 +10,8 @@ import logging
 
 import duckdb
 
+from datalake.analytics.options_analytics_sql import SQL_M_IV_SURFACE, SQL_M_MAX_PAIN, SQL_M_PCR
+
 logger = logging.getLogger(__name__)
 
 
@@ -20,11 +22,20 @@ class OptionViews:
         """Create all option analytics views.
 
         Expects m_pcr, m_max_pain, m_iv_surface to already be materialized
-        (see ViewManager._materialize_options).
+        (see OptionViews.materialization_sql).
         """
         self._create_pcr(conn)
         self._create_max_pain(conn)
         self._create_iv_surface(conn)
+
+    @staticmethod
+    def materialization_sql() -> list[tuple[str, str]]:
+        """SQL for option analytics tables (PCR, Max Pain, IV surface)."""
+        return [
+            ("m_pcr", SQL_M_PCR),
+            ("m_max_pain", SQL_M_MAX_PAIN),
+            ("m_iv_surface", SQL_M_IV_SURFACE),
+        ]
 
     def _create_pcr(self, conn: duckdb.DuckDBPyConnection) -> None:
         """v_pcr — Put-Call Ratio (volume + OI) per (timestamp, underlying, expiry)."""

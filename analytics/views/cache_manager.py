@@ -198,3 +198,27 @@ class CacheManager:
         version_dir = MATERIALIZED_DIR / "versions" / table_name
         if version_dir.exists():
             shutil.rmtree(version_dir)
+
+    def materialize_tables(
+        self,
+        tables: list[tuple[str, str]],
+        conn: duckdb.DuckDBPyConnection | None = None,
+    ) -> None:
+        """Materialize and register a batch of (table_name, sql) pairs.
+
+        Failures for individual tables are logged and skipped so a single
+        bad SQL definition does not block the rest of the batch.
+        """
+        db_conn = conn or self._conn
+        if db_conn is None:
+            raise ValueError("No DuckDB connection provided")
+
+        for table_name, sql in tables:
+            try:
+                start = time.perf_counter()
+                self.materialize(table_name, sql, db_conn)
+                self.register_materialized(table_name, db_conn)
+                elapsed = time.perf_counter() - start
+                logger.info("Materialized %s (%.2fs)", table_name, elapsed)
+            except Exception as exc:
+                logger.error("Failed to materialize %s: %s", table_name, exc)

@@ -18,22 +18,39 @@ class QueryExecutor:
     results, and performance benchmarking.
     """
 
-    def __init__(self, get_connection, get_query_connection) -> None:
+    def __init__(
+        self,
+        get_connection,
+        get_query_connection,
+        *,
+        read_only: bool = False,
+    ) -> None:
         """Initialize with connection providers.
 
         Args:
             get_connection: Callable returning RW DuckDB connection.
             get_query_connection: Context manager yielding connection for queries.
+            read_only: When True, query() materializes results via a short-lived
+                RO connection (relations cannot outlive the context).
         """
         self._get_connection = get_connection
         self._get_query_connection = get_query_connection
+        self._read_only = read_only
 
     def query(self, sql: str, params: list | None = None) -> duckdb.DuckDBPyRelation:
         """Execute a query against the analytics views."""
-        conn = self._get_connection()
-        if params:
-            return conn.execute(sql, params)
-        return conn.execute(sql)
+        if not self._read_only:
+            conn = self._get_connection()
+            if params:
+                return conn.execute(sql, params)
+            return conn.execute(sql)
+        with self._get_query_connection() as conn:
+            df = (
+                conn.execute(sql, params).fetchdf()
+                if params
+                else conn.execute(sql).fetchdf()
+            )
+        return duckdb.from_df(df)
 
     def query_df(self, sql: str, params: list | None = None) -> Any:
         """Execute a query and return as pandas DataFrame."""

@@ -17,6 +17,7 @@ Orchestration contract
    * :class:`IdempotencyGuard` — correlation-id dedup
    * :class:`OrderValidator` — placement gate + risk checks
    * :class:`TradeRecorder` — trade recording + idempotency + events
+   * :class:`OrderLifecycle` — cancel / modify / upsert / place finalization
 """
 
 from __future__ import annotations
@@ -29,7 +30,9 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
+from application.observability import get_logger, trace_operation
 from application.oms._internal.order_audit_logger import OrderAuditLogger
+from application.oms._internal.order_lifecycle import OrderLifecycle, order_as_recon_dict
 from application.oms._internal.order_position_updater import OrderPositionUpdater
 from application.oms._internal.order_state_validator import OrderStateValidator
 from application.oms._internal.reentrancy_guard import _ReentrancyGuard
@@ -39,8 +42,6 @@ from application.oms.risk_manager import RiskManager
 from application.oms.trade_recorder import TradeRecorder
 from domain.entities import Order, Trade
 from domain.events.types import DomainEvent, EventType
-from domain.symbols import normalize_exchange, normalize_symbol
-from domain.types import ORDER_STATUS_TRANSITIONS, OrderStatus, OrderType, ProductType, Side
 from domain.ports import (
     EventBusPort,
     EventMetricsPort,
@@ -48,7 +49,8 @@ from domain.ports import (
     OrderStorePort,
     ProcessedTradeRepositoryPort,
 )
-from application.observability import get_logger, trace_operation
+from domain.symbols import normalize_exchange, normalize_symbol
+from domain.types import ORDER_STATUS_TRANSITIONS, OrderStatus, OrderType, ProductType, Side
 
 if TYPE_CHECKING:
     pass
@@ -95,7 +97,6 @@ class OmsOrderCommand:
 OrderRequest = OmsOrderCommand
 
 
-
 @dataclass(frozen=True)
 class OrderResult:
     success: bool
@@ -106,34 +107,9 @@ class OrderResult:
 class OrderManager:
     """Thread-safe order book with idempotency, risk checks, and event publishing.
 
-    Parameters
-    ----------
-    event_bus:
-        Bus used to publish ``ORDER_PLACED`` / ``ORDER_UPDATED`` / etc.
-    risk_manager:
-        Pre-trade risk gate.
-    processed_trade_repository:
-        Idempotency ledger for trade events. When supplied, every
-        :meth:`record_trade` and :meth:`on_trade` invocation is checked
-        against it before mutating order state. This is the **only**
-        defence against double-position bugs.
-    metrics:
-        Optional :class:`EventMetrics` instance. Increments
-        ``(TRADE, trade_processed)`` and ``(TRADE, trade_duplicated)``
-        for every accepted / rejected trade.
-    enforce_state_transitions:
-        When True (default), invalid order status transitions raise
-        :class:`IllegalTransitionError`. When False, violations are logged
-        but accepted (audit mode). Enabled by default for safety (P0.5).
-    state_validator:
-        Optional OrderStateValidator instance. If not provided, one is
-        created internally.
-    audit_logger:
-        Optional OrderAuditLogger instance. If not provided, one is
-        created internally.
-    position_updater:
-        Optional OrderPositionUpdater instance. If not provided, one is
-        created internally.
+    Public façade: holds the lock and order maps; delegates lifecycle work to
+    :class:`OrderLifecycle`, validation to :class:`OrderValidator`, and fills to
+    :class:`TradeRecorder`.
     """
 
     def __init__(
@@ -156,7 +132,6 @@ class OrderManager:
         self._risk_manager = risk_manager
         self._processed_trades = processed_trade_repository
         self._metrics = metrics
-        # Metrics created from the injected registry (idempotent by name).
         self._orders_total = (
             metrics_registry.counter("oms_orders_total", "Total orders placed through the OMS")
             if metrics_registry is not None
@@ -172,15 +147,12 @@ class OrderManager:
             else None
         )
         self._active_orders = (
-            metrics_registry.gauge("oms_active_orders", "Currently open (non-terminal) orders in the OMS")
+            metrics_registry.gauge(
+                "oms_active_orders", "Currently open (non-terminal) orders in the OMS"
+            )
             if metrics_registry is not None
             else None
         )
-        # Re-entrancy guard: when a handler is currently being invoked, an
-        # ORDER_UPDATED that the OMS publishes internally (e.g. via
-        # upsert_order) MUST NOT re-enter the OMS handler, otherwise we
-        # recurse forever. Set true at the entry of every event handler
-        # and reset on the way out.
         self._handler_depth: int = 0
 
         self._state_validator = state_validator or OrderStateValidator(
@@ -191,7 +163,6 @@ class OrderManager:
         self._position_updater = position_updater or OrderPositionUpdater()
         self._order_store = order_store
 
-        # Focused collaborators
         self._idempotency_guard = IdempotencyGuard()
         self._order_validator = OmsOrderValidator(
             risk_manager=risk_manager,
@@ -205,6 +176,15 @@ class OrderManager:
             audit_logger=self._audit_logger,
             position_updater=self._position_updater,
             publish_callback=self._publish,
+        )
+        self._lifecycle = OrderLifecycle(
+            state_validator=self._state_validator,
+            audit_logger=self._audit_logger,
+            trade_recorder=self._trade_recorder,
+            idempotency_guard=self._idempotency_guard,
+            risk_manager=risk_manager,
+            publish=self._publish,
+            active_orders=self._active_orders,
         )
 
     @property
@@ -223,8 +203,6 @@ class OrderManager:
         """Set a callable that gates order placement."""
         self._order_validator.set_placement_gate(gate_fn)
 
-    # ── Public API ──────────────────────────────────────────────────────────
-
     @trace_operation("order_manager.place_order")
     def place_order(
         self,
@@ -240,21 +218,26 @@ class OrderManager:
         """
         _start = time.monotonic()
         try:
-            # Phase 1: Idempotency + pending check (under lock)
             order_id, early_result = self._idempotency_guard.check_and_reserve(
                 self._lock, self._orders_by_correlation, request.correlation_id
             )
             if early_result is not None:
                 return early_result
 
-            # Phases 2-3: Build, validate, submit (no lock held)
             try:
                 order, rejection = self._order_validator.build_and_validate(order_id, request)
                 if rejection is not None:
                     self._idempotency_guard.release_pending(self._lock, request.correlation_id)
                     return rejection
 
-                order, rejection = self._submit_to_broker(order, request, submit_fn)
+                order, rejection = self._lifecycle.submit_to_broker(
+                    self._lock,
+                    self._orders,
+                    self._orders_by_correlation,
+                    order,
+                    request,
+                    submit_fn,
+                )
                 if rejection is not None:
                     self._idempotency_guard.release_pending(self._lock, request.correlation_id)
                     return rejection
@@ -262,8 +245,13 @@ class OrderManager:
                 self._idempotency_guard.release_pending(self._lock, request.correlation_id)
                 raise
 
-            # Phase 4: Record result (under lock)
-            self._record_and_publish(order, request)
+            self._lifecycle.record_and_publish(
+                self._lock,
+                self._orders,
+                self._orders_by_correlation,
+                order,
+                request,
+            )
             if self._orders_total is not None:
                 self._orders_total.inc()
             return OrderResult(success=True, order=order)
@@ -271,116 +259,17 @@ class OrderManager:
             if self._order_latency is not None:
                 self._order_latency.observe(time.monotonic() - _start)
 
-    # ── place_order phase helpers ─────────────────────────────────────────
-
-    def _submit_to_broker(
-        self,
-        order: Order,
-        request: OmsOrderCommand,
-        submit_fn: Callable[[OmsOrderCommand], Order] | None,
-    ) -> tuple[Order | None, OrderResult | None]:
-        """Phase 3: Submit order to broker (no lock).
-
-        Returns (order, None) on success, or (None, OrderResult) on failure.
-        """
-        if submit_fn is None:
-            return order, None
-        # Record-then-submit: persist stub before broker I/O so a crash after
-        # broker accept still leaves a reconcilable order in the book.
-        with self._lock:
-            self._orders[order.order_id] = order
-            self._orders_by_correlation[request.correlation_id] = order
-        try:
-            order = submit_fn(request)
-            return order, None
-        except Exception as exc:
-            self._publish(
-                EventType.ORDER_REJECTED.value,
-                order,
-                reason=str(exc),
-            )
-            return None, OrderResult(success=False, error=str(exc))
-
-    def _record_and_publish(
-        self, order: Order, request: OmsOrderCommand
-    ) -> None:
-        """Phase 4: Record order in book and publish event (under lock)."""
-        with self._lock:
-            self._idempotency_guard.release_pending(self._lock, request.correlation_id)
-            prior = self._orders_by_correlation.get(request.correlation_id)
-            if prior is not None and prior.order_id != order.order_id:
-                self._orders.pop(prior.order_id, None)
-            self._orders[order.order_id] = order
-            self._orders_by_correlation[request.correlation_id] = order
-
-        self._audit_logger.log_new_order(
-            order.order_id,
-            OrderStatus.OPEN,
-            details={
-                "symbol": order.symbol,
-                "side": order.side.value,
-                "quantity": order.quantity,
-            },
-        )
-        self._publish(EventType.ORDER_PLACED.value, order)
-        if self._active_orders is not None:
-            self._active_orders.inc()
-
-    # ── Upsert (used by broker event handlers) ────────────────────────────
-
     def upsert_order(self, order: Order) -> None:
-        """Update or insert an order (used by broker event handlers).
-
-        P4-3: Delegates state validation to OrderStateValidator.
-        """
-        with self._lock:
-            existing = self._orders.get(order.order_id)
-            if existing is not None:
-                self._state_validator.validate_transition(
-                    order.order_id,
-                    existing.status,
-                    order.status,
-                )
-
-            self._orders[order.order_id] = order
-            if order.correlation_id:
-                self._orders_by_correlation[order.correlation_id] = order
-
-            if existing is not None and existing.status != order.status:
-                self._audit_logger.log_state_change(
-                    order.order_id,
-                    existing.status,
-                    order.status,
-                )
-                # Decrement active orders gauge when order reaches terminal state
-                if order.status.is_terminal and self._active_orders is not None:
-                    self._active_orders.dec()
-
-            self._publish(EventType.ORDER_UPDATED.value, order)
-            self._trade_recorder.flush_pending_trades_locked(
-                self._lock, self._orders, self._orders_by_correlation, order.order_id
-            )
-
-    # ── Trade recording ─────────────────────────────────────────────────
+        """Update or insert an order (used by broker event handlers)."""
+        self._lifecycle.upsert_order(
+            self._lock, self._orders, self._orders_by_correlation, order
+        )
 
     def record_trade(self, trade: Trade) -> bool:
-        """Record a trade and update the parent order.
-
-        Idempotent on ``trade.trade_id``: a duplicate trade is logged and
-        silently dropped before it can mutate order state.
-
-        Returns
-        -------
-        bool
-            True if the trade was accepted and applied.
-            False if the trade was a duplicate (already processed) or
-            referenced an unknown order (buffered for later).
-        """
+        """Record a trade and update the parent order (idempotent on trade_id)."""
         return self._trade_recorder.record_trade(
             self._lock, self._orders, self._orders_by_correlation, trade
         )
-
-    # ── Queries ─────────────────────────────────────────────────────────
 
     def get_order(self, order_id: str) -> Order | None:
         with self._lock:
@@ -406,25 +295,7 @@ class OrderManager:
     def get_all_orders(self) -> list[dict]:
         """Return all orders as list of dicts for reconciliation compatibility."""
         with self._lock:
-            return [
-                {
-                    "order_id": order.order_id,
-                    "symbol": order.symbol,
-                    "exchange": order.exchange,
-                    "side": order.side.value,
-                    "order_type": order.order_type.value,
-                    "quantity": order.quantity,
-                    "filled_quantity": order.filled_quantity,
-                    "price": str(order.price),
-                    "avg_price": str(order.avg_price),
-                    "product_type": order.product_type.value,
-                    "status": order.status.value,
-                    "timestamp": order.timestamp.isoformat() if order.timestamp else "",
-                }
-                for order in self._orders.values()
-            ]
-
-    # ── Cancel / modify ─────────────────────────────────────────────────
+            return [order_as_recon_dict(order) for order in self._orders.values()]
 
     def cancel_order(
         self,
@@ -432,37 +303,13 @@ class OrderManager:
         cancel_fn: Callable[[str], bool] | None = None,
     ) -> OrderResult:
         """Cancel an order locally and optionally at the broker."""
-        with self._lock:
-            order = self._orders.get(order_id)
-            if order is None:
-                return OrderResult(success=False, error="Order not found")
-            if order.status.is_terminal:
-                return OrderResult(success=False, error="Order already final")
-
-            if cancel_fn is not None:
-                try:
-                    if not cancel_fn(order_id):
-                        return OrderResult(success=False, error="Broker cancel failed")
-                except Exception as exc:
-                    return OrderResult(success=False, error=str(exc))
-
-            old_status = order.status
-            updated = order.with_status(OrderStatus.CANCELLED)
-            self._orders[order_id] = updated
-            if order.correlation_id:
-                self._orders_by_correlation[order.correlation_id] = updated
-
-            self._audit_logger.log_state_change(
-                order_id,
-                old_status,
-                OrderStatus.CANCELLED,
-                details={"reason": "User requested"},
-            )
-            if self._active_orders is not None:
-                self._active_orders.dec()
-
-            self._publish(EventType.ORDER_CANCELLED.value, updated)
-            return OrderResult(success=True, order=updated)
+        return self._lifecycle.cancel_order(
+            self._lock,
+            self._orders,
+            self._orders_by_correlation,
+            order_id,
+            cancel_fn,
+        )
 
     def modify_order(
         self,
@@ -470,59 +317,13 @@ class OrderManager:
         modify_fn: Callable[..., object] | None = None,
     ) -> OrderResult:
         """Modify a pending order locally and optionally at the broker."""
-        from domain.orders.requests import ModifyOrderRequest
-
-        req = request if isinstance(request, ModifyOrderRequest) else ModifyOrderRequest(
-            order_id=getattr(request, "order_id", ""),
-            quantity=getattr(request, "quantity", None),
-            price=getattr(request, "price", None),
-            order_type=getattr(request, "order_type", None),
-            product_type=getattr(request, "product_type", None),
+        return self._lifecycle.modify_order(
+            self._lock,
+            self._orders,
+            self._orders_by_correlation,
+            request,
+            modify_fn,
         )
-        with self._lock:
-            order = self._orders.get(req.order_id)
-            if order is None:
-                return OrderResult(success=False, error="Order not found")
-            if order.status.is_terminal:
-                return OrderResult(success=False, error="Order already final")
-
-        # Kill-switch / risk guard (shared RiskManager owns the switch).
-        if self._risk_manager is not None and self._risk_manager.is_kill_switch_active():
-            from application.oms.errors import OrderBlockedError
-
-            return OrderResult(
-                success=False,
-                error=f"Order blocked: kill switch active (modify_order {req.order_id})",
-            )
-
-        if modify_fn is not None:
-            try:
-                response = modify_fn(req)
-                if response is not None and not getattr(response, "success", True):
-                    return OrderResult(
-                        success=False,
-                        error=getattr(response, "message", None)
-                        or getattr(response, "error", "broker modify failed"),
-                    )
-            except Exception as exc:
-                return OrderResult(success=False, error=str(exc))
-
-        # Reflect the requested change in local state (authoritative book).
-        updated: Order = order  # type: ignore[assignment]
-        if req.price is not None:
-            updated = updated.with_price(req.price)
-        if req.quantity is not None:
-            updated = updated.with_quantity(req.quantity)
-        if req.order_type is not None:
-            updated = updated.with_order_type(req.order_type)
-        with self._lock:
-            self._orders[req.order_id] = updated
-            if updated.correlation_id:
-                self._orders_by_correlation[updated.correlation_id] = updated
-        self._publish(EventType.ORDER_UPDATED.value, updated)
-        return OrderResult(success=True, order=updated)
-
-    # ── Event handlers ──────────────────────────────────────────────────────
 
     def on_order_update(self, event: DomainEvent) -> None:
         """Handle broker order-update events from the bus."""
@@ -541,14 +342,7 @@ class OrderManager:
                 )
 
     def on_trade(self, event: DomainEvent) -> bool:
-        """Handle broker trade events from the bus.
-
-        Returns
-        -------
-        bool
-            True if the trade was accepted by :meth:`record_trade`.
-            False if reentered, invalid, duplicate, or unknown order.
-        """
+        """Handle broker trade events from the bus."""
         with self._reentrancy_guard() as guard:
             if guard.reentered:
                 return False
@@ -564,13 +358,9 @@ class OrderManager:
                 )
                 return False
 
-    # ── Re-entrancy guard ───────────────────────────────────────────────────
-
     def _reentrancy_guard(self):
         """Context manager that atomically checks and increments ``_handler_depth``."""
         return _ReentrancyGuard(self._lock, self)
-
-    # ── Helpers ─────────────────────────────────────────────────────────────
 
     def _publish(
         self,

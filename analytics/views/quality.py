@@ -31,11 +31,52 @@ class QualityViews:
         """Create all quality views.
 
         Expects m_duplicate_candles and m_missing_candles to already be
-        materialized (see ViewManager._materialize_quality).
+        materialized (see QualityViews.materialization_sql).
         """
         self._create_missing_candles(conn)
         self._create_duplicate_candles(conn)
         self._create_quality_score(conn)
+
+    @staticmethod
+    def materialization_sql() -> list[tuple[str, str]]:
+        """SQL for quality tables (expensive GROUP BYs over full candle history)."""
+        return [
+            # ─── Trading days: distinct (symbol, trade_date) pairs ───────────
+            (
+                "m_trading_days",
+                """
+                SELECT DISTINCT symbol, CAST(timestamp AS DATE) as trade_date
+                FROM v_candles_1m
+            """,
+            ),
+            # ─── Duplicate candles: GROUP BY symbol, timestamp ────────────────
+            (
+                "m_duplicate_candles",
+                """
+                SELECT
+                    symbol,
+                    timestamp,
+                    COUNT(*) as duplicate_count
+                FROM v_candles_1m
+                GROUP BY symbol, timestamp
+                HAVING COUNT(*) > 1
+            """,
+            ),
+            # ─── Missing candles: GROUP BY symbol, date ───────────────────────
+            (
+                "m_missing_candles",
+                """
+                SELECT
+                    symbol,
+                    CAST(timestamp AS DATE) as trade_date,
+                    COUNT(DISTINCT EXTRACT(HOUR FROM timestamp) * 60
+                          + EXTRACT(MINUTE FROM timestamp)) as minute_count
+                FROM v_candles_1m
+                WHERE EXTRACT(HOUR FROM timestamp) BETWEEN 9 AND 15
+                GROUP BY symbol, CAST(timestamp AS DATE)
+            """,
+            ),
+        ]
 
     def _create_missing_candles(self, conn: duckdb.DuckDBPyConnection) -> None:
         """v_missing_candles — detect missing 1m candles during NSE market hours.

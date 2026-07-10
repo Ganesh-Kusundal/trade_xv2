@@ -2,8 +2,9 @@
 
 Extracted connection lifecycle to :class:`MarketFeedConnection` and
 subscription management to :class:`MarketFeedSubscriptionManager`
-(Task 2).  This module is a thin facade that composes both managers
-and owns the message transformation / publishing pipeline.
+(Task 2).  Pure payload parsing lives in ``_helpers``.  This module is a
+thin facade that composes both managers and owns the message
+transformation / publishing pipeline.
 
 All existing import paths continue to work:
 
@@ -15,18 +16,22 @@ from __future__ import annotations
 import logging
 import threading
 from datetime import datetime, timezone
-from decimal import Decimal
 from typing import Any, Callable
 
 from brokers.dhan.api.reconnecting_service import ReconnectingServiceMixin
 from brokers.dhan.streaming.connection_admission import MarketFeedConnectionAdmission
-from brokers.dhan.websocket._helpers import _DhanContext, _to_decimal, _to_sdk_instruments
+from brokers.dhan.websocket._helpers import (
+    _DhanContext,
+    _normalize_sdk_depth,
+    _to_decimal,
+    _transform_depth,
+    _transform_quote,
+)
 from brokers.dhan.websocket.connection import MarketFeedConnection
+from brokers.dhan.websocket.publish import MarketFeedPublisher
 from brokers.dhan.websocket.subscription import MarketFeedSubscriptionManager
-from domain import DepthLevel, MarketDepth, Quote
-from domain.events import DomainEvent
-from infrastructure.event_bus.event_bus import EventBus
 from domain.lifecycle_health import HealthStatus
+from infrastructure.event_bus.event_bus import EventBus
 from infrastructure.lifecycle.lifecycle import HealthState, ManagedService
 
 logger = logging.getLogger(__name__)
@@ -96,11 +101,8 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
         # Plan §7.2: shared reconnect / message-tracking state (from mixin).
         self._init_reconnect_state()
 
-        # Strict-mode publish counters (visible via health()).
-        self._published_ticks = 0
-        self._dropped_ticks = 0
-        self._published_depths = 0
-        self._dropped_depths = 0
+        # Fallback sequence counters for partial construction (unit tests).
+        self._sequence_counters: dict[str, int] = {}
 
         # --- Create extracted components ---
 
@@ -125,6 +127,87 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
         # Wire up optional injection for the admission gate.
         if admission is not None:
             self._conn._set_admission_for_test(admission)
+
+        self._publisher = MarketFeedPublisher(
+            event_bus,
+            self._next_sequence,
+            to_decimal=_to_decimal,
+        )
+
+    # ------------------------------------------------------------------
+    # Compatibility surface — attributes historically on the facade
+    # ------------------------------------------------------------------
+
+    @property
+    def _instruments(self) -> list[tuple]:
+        return self._sub._instruments
+
+    @_instruments.setter
+    def _instruments(self, value: list[tuple]) -> None:
+        self._sub._instruments = value
+
+    @property
+    def _subscribed_instruments(self) -> set:
+        return self._sub._subscribed_instruments
+
+    @property
+    def _quote_callbacks(self) -> list:
+        return self._sub._quote_callbacks
+
+    @property
+    def _depth_callbacks(self) -> list:
+        return self._sub._depth_callbacks
+
+    @property
+    def _last_tick_time(self) -> dict[str, datetime]:
+        return self._sub._last_tick_time
+
+    @property
+    def _feed(self) -> Any | None:
+        return self._conn.feed if getattr(self, "_conn", None) is not None else None
+
+    @property
+    def _thread(self) -> threading.Thread | None:
+        if getattr(self, "_conn", None) is not None:
+            return self._conn.thread
+        return getattr(self, "__thread_fallback", None)
+
+    @_thread.setter
+    def _thread(self, value: threading.Thread | None) -> None:
+        # Used by partial-construction unit tests that set _thread=None.
+        if getattr(self, "_conn", None) is not None:
+            self._conn._thread = value
+        else:
+            object.__setattr__(self, "__thread_fallback", value)
+
+    @property
+    def _disconnect_time(self) -> datetime | None:
+        if getattr(self, "_conn", None) is not None:
+            return self._conn._disconnect_time
+        return getattr(self, "__disconnect_time_fallback", None)
+
+    @_disconnect_time.setter
+    def _disconnect_time(self, value: datetime | None) -> None:
+        if getattr(self, "_conn", None) is not None:
+            self._conn._disconnect_time = value
+        else:
+            object.__setattr__(self, "__disconnect_time_fallback", value)
+
+    def _on_close(self, feed) -> None:
+        """Compatibility shim — SDK close callback lives on connection."""
+        self._conn._on_close(feed)
+
+    def _on_connect(self, feed) -> None:
+        """Compatibility shim — SDK connect callback lives on connection."""
+        self._conn._on_connect(feed)
+
+    def _on_error(self, feed, error) -> None:
+        """Compatibility shim — SDK error callback lives on connection."""
+        self._conn._on_error(feed, error)
+
+    def _track_tick_time(self, quote: dict) -> None:
+        """Compatibility shim — tick tracking lives on subscription manager."""
+        self._sub.track_tick_time(quote)
 
     # ------------------------------------------------------------------
     # Public API — connection lifecycle (delegated to self._conn)
@@ -194,36 +277,52 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
         """SDK message callback — transform, track, and publish."""
         if not data:
             return
-        self._conn._note_message_received()
-        with self._lock:
-            if self._conn._message_count % 100 == 0:
-                self._sub.cleanup_stale_tick_tracking()
+        if getattr(self, "_conn", None) is not None:
+            self._conn._note_message_received()
+            with self._lock:
+                if self._conn._message_count % 100 == 0 and getattr(self, "_sub", None) is not None:
+                    self._sub.cleanup_stale_tick_tracking()
         data_type = data.get("type", "")
         if data_type in ("Ticker Data", "Quote Data"):
             quote = self._transform_quote(data)
-            self._sub.track_tick_time(quote)
-            callbacks = self._sub.snapshot_quote_callbacks()
+            if getattr(self, "_sub", None) is not None:
+                self._sub.track_tick_time(quote)
+                callbacks = self._sub.snapshot_quote_callbacks()
+            else:
+                callbacks = []
             for cb in callbacks:
                 try:
                     cb(quote)
                 except Exception as exc:
                     logger.error("Quote callback error: %s", exc)
-            self._publish_tick(quote, correlation_id=self._sub.gen_ws_correlation_id())
+            corr = (
+                self._sub.gen_ws_correlation_id()
+                if getattr(self, "_sub", None) is not None
+                else None
+            )
+            self._publish_tick(quote, correlation_id=corr)
         elif data_type in ("Market Depth", "Full Data"):
             depth = self._transform_depth(data)
-            callbacks = self._sub.snapshot_depth_callbacks()
+            if getattr(self, "_sub", None) is not None:
+                callbacks = self._sub.snapshot_depth_callbacks()
+                corr_id = self._sub.gen_ws_correlation_id()
+            else:
+                callbacks = []
+                corr_id = None
             for cb in callbacks:
                 try:
                     cb(depth)
                 except Exception as exc:
                     logger.error("Depth callback error: %s", exc)
-            corr_id = self._sub.gen_ws_correlation_id()
             self._publish_depth(depth, correlation_id=corr_id)
             # Full Data frames carry quote fields; publish tick too for FULL mode.
             if data_type == "Full Data":
                 quote = self._transform_quote(data)
-                self._sub.track_tick_time(quote)
-                quote_callbacks = self._sub.snapshot_quote_callbacks()
+                if getattr(self, "_sub", None) is not None:
+                    self._sub.track_tick_time(quote)
+                    quote_callbacks = self._sub.snapshot_quote_callbacks()
+                else:
+                    quote_callbacks = []
                 for cb in quote_callbacks:
                     try:
                         cb(quote)
@@ -243,6 +342,8 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
             return
         now = datetime.now(timezone.utc)
         if disconnect_time >= now:
+            return
+        if getattr(self, "_sub", None) is None:
             return
         symbol_times = self._sub.symbol_tick_times()
         symbols = list(symbol_times.keys())
@@ -273,206 +374,68 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
                 logger.warning("Backfill failed for %s: %s", symbol, exc)
 
     # ------------------------------------------------------------------
-    # Data transformation (pure, stateless)
+    # Data transformation — thin wrappers over pure helpers
     # ------------------------------------------------------------------
 
     def _transform_quote(self, data: dict) -> dict:
-        security_id = str(data.get("security_id", ""))
-        symbol = security_id
-        if self._resolver:
-            try:
-                inst = self._resolver.get_by_security_id(security_id)
-                if inst:
-                    symbol = inst.symbol
-            except Exception as exc:
-                logger.warning(
-                    "dhan_ws_symbol_resolution_failed",
-                    extra={"security_id": security_id, "exception_type": type(exc).__name__},
-                )
-        return {
-            "symbol": symbol,
-            "security_id": security_id,
-            "ltp": Decimal(str(data.get("last_price", data.get("LTP", "0")))),
-            "open": Decimal(str(data["open"])) if data.get("open") else None,
-            "high": Decimal(str(data["high"])) if data.get("high") else None,
-            "low": Decimal(str(data["low"])) if data.get("low") else None,
-            "close": Decimal(str(data["close"])) if data.get("close") else None,
-            "volume": int(data.get("volume", 0)),
-            "change": Decimal("0"),
-            "timestamp": datetime.now(timezone.utc),
-        }
+        return _transform_quote(data, getattr(self, "_resolver", None))
 
     @staticmethod
     def _normalize_sdk_depth(raw_depth: Any) -> dict[str, list[dict[str, Any]]]:
-        """Convert Dhan SDK depth payload to {bids, asks} ladder dict."""
-        if isinstance(raw_depth, dict):
-            return {
-                "bids": list(raw_depth.get("bids") or []),
-                "asks": list(raw_depth.get("asks") or []),
-            }
-        if isinstance(raw_depth, list):
-            bids: list[dict[str, Any]] = []
-            asks: list[dict[str, Any]] = []
-            for row in raw_depth:
-                if not isinstance(row, dict):
-                    continue
-                bid_qty = int(row.get("bid_quantity") or 0)
-                ask_qty = int(row.get("ask_quantity") or 0)
-                if bid_qty > 0:
-                    bids.append(
-                        {
-                            "price": row.get("bid_price", 0),
-                            "quantity": bid_qty,
-                            "orders": int(row.get("bid_orders") or 0),
-                        }
-                    )
-                if ask_qty > 0:
-                    asks.append(
-                        {
-                            "price": row.get("ask_price", 0),
-                            "quantity": ask_qty,
-                            "orders": int(row.get("ask_orders") or 0),
-                        }
-                    )
-            return {"bids": bids, "asks": asks}
-        return {"bids": [], "asks": []}
+        return _normalize_sdk_depth(raw_depth)
 
     def _transform_depth(self, data: dict) -> dict:
-        security_id = str(data.get("security_id", ""))
-        symbol = security_id
-        if self._resolver:
-            try:
-                inst = self._resolver.get_by_security_id(security_id)
-                if inst:
-                    symbol = inst.symbol
-            except Exception as exc:
-                logger.warning(
-                    "dhan_ws_symbol_resolution_failed",
-                    extra={"security_id": security_id, "exception_type": type(exc).__name__},
-                )
-        return {
-            "symbol": symbol,
-            "security_id": security_id,
-            "ltp": Decimal(str(data.get("last_price", data.get("LTP", "0")))),
-            "depth": self._normalize_sdk_depth(data.get("depth", [])),
-        }
+        return _transform_depth(data, getattr(self, "_resolver", None))
+
+    def _next_sequence(self, symbol: str) -> int:
+        """Monotonic per-symbol sequence (uses sub manager when available)."""
+        if getattr(self, "_sub", None) is not None:
+            return self._sub.next_sequence(symbol)
+        counters = getattr(self, "_sequence_counters", None)
+        if counters is None:
+            self._sequence_counters = {}
+            counters = self._sequence_counters
+        seq = counters.get(symbol, 0) + 1
+        counters[symbol] = seq
+        return seq
 
     # ------------------------------------------------------------------
-    # Publishing pipeline
+    # Publishing pipeline (delegated)
     # ------------------------------------------------------------------
 
     def _publish_tick(self, quote: dict, correlation_id: str | None = None) -> None:
         """Publish a tick to the event bus under strict mode."""
-        if self._event_bus is None:
+        pub = getattr(self, "_publisher", None)
+        if pub is None:
             return
-        try:
-            ltp_raw = quote.get("ltp")
-            symbol = quote.get("symbol", "")
-            ltp = _to_decimal(ltp_raw)
-            if ltp_raw is None or ltp == 0:
-                self._dropped_ticks += 1
-                try:
-                    from brokers.dhan.resilience.metrics import dhan_ws_dropped_ticks_total
-                    dhan_ws_dropped_ticks_total.inc()
-                except Exception:
-                    pass
-                logger.warning("tick_dropped_missing_or_zero_ltp: symbol=%s", symbol or "<unknown>")
-                return
-            if not symbol:
-                self._dropped_ticks += 1
-                try:
-                    from brokers.dhan.resilience.metrics import dhan_ws_dropped_ticks_total
-                    dhan_ws_dropped_ticks_total.inc()
-                except Exception:
-                    pass
-                logger.warning("tick_dropped_missing_symbol")
-                return
-
-            seq = self._sub.next_sequence(symbol)
-            quote["sequence"] = seq
-            q = Quote(
-                symbol=symbol,
-                ltp=ltp,
-                open=_to_decimal(quote.get("open")),
-                high=_to_decimal(quote.get("high")),
-                low=_to_decimal(quote.get("low")),
-                close=_to_decimal(quote.get("close")),
-                volume=quote.get("volume", 0),
-                change=_to_decimal(quote.get("change")),
-                timestamp=quote.get("timestamp"),
-            )
-            self._event_bus.publish(
-                DomainEvent.now(
-                    "TICK",
-                    {"quote": q},
-                    symbol=q.symbol,
-                    source="DhanMarketFeed",
-                    correlation_id=correlation_id,
-                )
-            )
-            self._published_ticks += 1
-            try:
-                from brokers.dhan.resilience.metrics import dhan_ws_ticks_total
-                dhan_ws_ticks_total.inc()
-            except Exception:
-                pass
-        except Exception as exc:
-            self._dropped_ticks += 1
-            logger.error("EventBus TICK publish error: %s", exc)
+        pub.publish_tick(quote, correlation_id=correlation_id)
 
     def _publish_depth(self, depth: dict, correlation_id: str | None = None) -> None:
         """Publish a depth snapshot under strict mode."""
-        if self._event_bus is None:
+        pub = getattr(self, "_publisher", None)
+        if pub is None:
             return
-        symbol = depth.get("symbol", "")
-        if not symbol:
-            self._dropped_depths += 1
-            logger.warning("depth_dropped_missing_symbol")
-            return
-        try:
-            d = depth.get("depth", {}) or {}
-            bids = [
-                DepthLevel(
-                    price=Decimal(str(b.get("price", 0))),
-                    quantity=int(b.get("quantity", 0)),
-                    orders=int(b.get("orders", 0)),
-                )
-                for b in d.get("bids", [])
-            ]
-            asks = [
-                DepthLevel(
-                    price=Decimal(str(a.get("price", 0))),
-                    quantity=int(a.get("quantity", 0)),
-                    orders=int(a.get("orders", 0)),
-                )
-                for a in d.get("asks", [])
-            ]
-            if not bids and not asks:
-                self._dropped_depths += 1
-                logger.warning("depth_dropped_both_sides_empty: symbol=%s", symbol)
-                return
-            if bids and bids[0].price <= 0:
-                self._dropped_depths += 1
-                logger.warning("depth_dropped_invalid_bid_top: symbol=%s bid0=%s", symbol, bids[0].price)
-                return
-            if asks and asks[0].price <= 0:
-                self._dropped_depths += 1
-                logger.warning("depth_dropped_invalid_ask_top: symbol=%s ask0=%s", symbol, asks[0].price)
-                return
-            md = MarketDepth(bids=bids, asks=asks)
-            self._event_bus.publish(
-                DomainEvent.now(
-                    "DEPTH",
-                    {"depth": md},
-                    symbol=symbol,
-                    source="DhanMarketFeed",
-                    correlation_id=correlation_id,
-                )
-            )
-            self._published_depths += 1
-        except Exception as exc:
-            self._dropped_depths += 1
-            logger.error("EventBus DEPTH publish error: %s", exc)
+        pub.publish_depth(depth, correlation_id=correlation_id)
+
+    @property
+    def _published_ticks(self) -> int:
+        pub = getattr(self, "_publisher", None)
+        return pub.published_ticks if pub is not None else 0
+
+    @property
+    def _dropped_ticks(self) -> int:
+        pub = getattr(self, "_publisher", None)
+        return pub.dropped_ticks if pub is not None else 0
+
+    @property
+    def _published_depths(self) -> int:
+        pub = getattr(self, "_publisher", None)
+        return pub.published_depths if pub is not None else 0
+
+    @property
+    def _dropped_depths(self) -> int:
+        pub = getattr(self, "_publisher", None)
+        return pub.dropped_depths if pub is not None else 0
 
     # ------------------------------------------------------------------
     # Health (bridges connection + publish counters)
@@ -482,7 +445,25 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
         """ManagedService protocol: return a point-in-time health snapshot."""
         import os
 
-        snap = self._conn.health_snapshot()
+        if getattr(self, "_conn", None) is not None:
+            snap = self._conn.health_snapshot()
+        else:
+            # Partial construction (unit tests that bypass __init__).
+            thread = getattr(self, "_thread", None)
+            thread_alive = bool(thread and thread.is_alive())
+            is_connected = bool(getattr(self, "_is_connected", False))
+            snap = {
+                "thread_alive": thread_alive,
+                "is_connected": is_connected,
+                "reconnect_count": int(getattr(self, "_reconnect_count", 0)),
+                "last_message_age": None,
+                "admission_blocked": False,
+                "is_stale": False,
+                "staleness_threshold": float(
+                    os.getenv("DHAN_STALENESS_THRESHOLD_SECONDS", "60.0")
+                ),
+                "admission_status": {},
+            }
 
         if snap["thread_alive"] and snap["is_connected"] and not snap["is_stale"]:
             state = HealthState.HEALTHY

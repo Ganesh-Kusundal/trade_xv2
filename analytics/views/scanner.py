@@ -14,6 +14,10 @@ import duckdb
 
 logger = logging.getLogger(__name__)
 
+# Named constants for materialization thresholds
+MIN_SYMBOLS_FOR_FULL_DAY = 100  # minimum distinct symbols to consider a day "full"
+DAILY_LOOKBACK_DAYS = 50  # days of daily candles for indicator warmup
+
 
 class ScannerViews:
     """Creates scanner analytics views in DuckDB."""
@@ -26,6 +30,230 @@ class ScannerViews:
         self._create_intraday_snapshot(conn)
         self._create_top3_candidates(conn)
         self._create_top10_candidates(conn)
+
+    @staticmethod
+    def materialization_sql() -> list[tuple[str, str]]:
+        """SQL for intermediate tables required by scanner views.
+
+        Returns ordered (table_name, sql) pairs — later tables depend on earlier ones.
+        """
+        return [
+            # ─── Intraday: Current day's 1m candles ────────────────────────────
+            (
+                "m_intraday",
+                f"""
+                WITH latest_full_day AS (
+                    SELECT CAST(timestamp AS DATE) as trade_date
+                    FROM v_candles_1m
+                    GROUP BY CAST(timestamp AS DATE)
+                    HAVING COUNT(DISTINCT symbol) >= {MIN_SYMBOLS_FOR_FULL_DAY}
+                    ORDER BY trade_date DESC
+                    LIMIT 1
+                )
+                SELECT
+                    i.timestamp,
+                    i.symbol,
+                    i.open,
+                    i.high,
+                    i.low,
+                    i.close,
+                    i.volume,
+                    i.oi
+                FROM v_candles_1m i
+                INNER JOIN latest_full_day d ON CAST(i.timestamp AS DATE) = d.trade_date
+            """,
+            ),
+            # ─── Recent daily: Last N days for indicator warmup ────────────────
+            (
+                "m_recent_daily",
+                f"""
+                WITH daily AS (
+                    SELECT
+                        CAST(timestamp AS DATE) as trade_date,
+                        symbol,
+                        FIRST(open ORDER BY timestamp) as open,
+                        MAX(high) as high,
+                        MIN(low) as low,
+                        LAST(close ORDER BY timestamp) as close,
+                        SUM(volume) as volume
+                    FROM v_candles_1m
+                    WHERE CAST(timestamp AS DATE) >= (
+                        SELECT MAX(CAST(timestamp AS DATE)) - INTERVAL '{DAILY_LOOKBACK_DAYS} days'
+                        FROM v_candles_1m
+                    )
+                    GROUP BY CAST(timestamp AS DATE), symbol
+                )
+                SELECT
+                    trade_date,
+                    symbol,
+                    open,
+                    high,
+                    low,
+                    close,
+                    volume,
+                    -- SMA indicators
+                    AVG(close) OVER (PARTITION BY symbol ORDER BY trade_date
+                        ROWS BETWEEN 19 PRECEDING AND CURRENT ROW) as sma_20,
+                    AVG(close) OVER (PARTITION BY symbol ORDER BY trade_date
+                        ROWS BETWEEN 49 PRECEDING AND CURRENT ROW) as sma_50,
+                    -- RSI
+                    close - LAG(close) OVER (PARTITION BY symbol ORDER BY trade_date) as daily_change,
+                    -- Volume
+                    SUM(volume) OVER (PARTITION BY symbol ORDER BY trade_date
+                        ROWS BETWEEN 19 PRECEDING AND CURRENT ROW) / 20.0 as avg_volume_20,
+                    -- Momentum
+                    LAG(close, 5) OVER (PARTITION BY symbol ORDER BY trade_date) as close_5d,
+                    LAG(close, 10) OVER (PARTITION BY symbol ORDER BY trade_date) as close_10d,
+                    LAG(close, 20) OVER (PARTITION BY symbol ORDER BY trade_date) as close_20d
+                FROM daily
+            """,
+            ),
+            # ─── Symbol snapshot: Latest candle + all indicators (~500 rows) ────
+            (
+                "m_symbol_snapshot",
+                """
+                WITH latest AS (
+                    SELECT
+                        symbol,
+                        LAST(timestamp ORDER BY timestamp) as last_ts,
+                        LAST(close ORDER BY timestamp) as close,
+                        LAST(high ORDER BY timestamp) as high,
+                        LAST(low ORDER BY timestamp) as low,
+                        LAST(open ORDER BY timestamp) as open,
+                        LAST(volume ORDER BY timestamp) as volume,
+                        SUM(volume) as total_volume_today
+                    FROM m_intraday
+                    GROUP BY symbol
+                ),
+                today_intraday AS (
+                    SELECT
+                        symbol,
+                        COUNT(*) as bars_today,
+                        MAX(high) as day_high,
+                        MIN(low) as day_low,
+                        FIRST(close ORDER BY timestamp) as day_open,
+                        LAST(close ORDER BY timestamp) as day_close,
+                        SUM(volume) as day_volume
+                    FROM m_intraday
+                    GROUP BY symbol
+                )
+                SELECT
+                    l.symbol,
+                    l.last_ts,
+                    l.close,
+                    l.high,
+                    l.low,
+                    l.open,
+                    l.volume as last_volume,
+                    t.bars_today,
+                    t.day_high,
+                    t.day_low,
+                    t.day_open,
+                    t.day_close,
+                    t.day_volume,
+                    r.sma_20,
+                    r.sma_50,
+                    r.close_5d,
+                    r.close_10d,
+                    r.close_20d,
+                    CASE
+                        WHEN r.close_5d > 0 THEN (l.close - r.close_5d) / r.close_5d * 100
+                        ELSE 0
+                    END as roc_5,
+                    CASE
+                        WHEN r.close_10d > 0 THEN (l.close - r.close_10d) / r.close_10d * 100
+                        ELSE 0
+                    END as roc_10,
+                    CASE
+                        WHEN r.close_20d > 0 THEN (l.close - r.close_20d) / r.close_20d * 100
+                        ELSE 0
+                    END as roc_20,
+                    CASE
+                        WHEN l.close > r.sma_20 AND r.sma_20 > r.sma_50 THEN 'Bullish'
+                        WHEN l.close < r.sma_20 AND r.sma_20 < r.sma_50 THEN 'Bearish'
+                        ELSE 'Neutral'
+                    END as trend,
+                    CASE
+                        WHEN t.day_volume > 0 AND r.avg_volume_20 > 0
+                        THEN t.day_volume / r.avg_volume_20
+                        ELSE 1.0
+                    END as relative_volume
+                FROM latest l
+                LEFT JOIN today_intraday t ON l.symbol = t.symbol
+                LEFT JOIN m_recent_daily r ON l.symbol = r.symbol
+                    AND r.trade_date = (SELECT MAX(trade_date) FROM m_recent_daily WHERE symbol = l.symbol)
+            """,
+            ),
+            # ─── Intraday snapshot: Final scanner view (~500 rows) ─────────────
+            (
+                "m_intraday_snapshot",
+                """
+                SELECT
+                    s.symbol,
+                    s.close as ltp,
+                    s.day_open,
+                    s.day_high,
+                    s.day_low,
+                    s.day_close,
+                    s.day_volume,
+                    s.bars_today,
+                    s.sma_20,
+                    s.sma_50,
+                    s.roc_5,
+                    s.roc_10,
+                    s.roc_20,
+                    s.trend,
+                    s.relative_volume,
+                    s.close_5d,
+                    s.close_10d,
+                    s.close_20d,
+                    -- RSI from daily data
+                    CASE
+                        WHEN s.close_5d > 0 THEN (s.close - s.close_5d) / s.close_5d * 100
+                        ELSE 0
+                    END as rsi_approx,
+                    -- ATR approximation from daily range
+                    (s.day_high - s.day_low) as atr_approx,
+                    -- Composite intraday score
+                    (
+                        CASE
+                            WHEN s.trend = 'Bullish' THEN 80
+                            WHEN s.trend = 'Bearish' THEN 20
+                            ELSE 50
+                        END * 0.25 +
+                        CASE
+                            WHEN s.relative_volume > 2.0 THEN 90
+                            WHEN s.relative_volume > 1.5 THEN 70
+                            WHEN s.relative_volume > 1.0 THEN 50
+                            ELSE 30
+                        END * 0.25 +
+                        CASE
+                            WHEN s.roc_5 > 3 THEN 90
+                            WHEN s.roc_5 > 1 THEN 70
+                            WHEN s.roc_5 > 0 THEN 50
+                            WHEN s.roc_5 > -1 THEN 30
+                            ELSE 10
+                        END * 0.25 +
+                        CASE
+                            WHEN s.close > s.sma_20 THEN 70
+                            ELSE 30
+                        END * 0.25
+                    ) as intraday_score,
+                    -- Signal
+                    CASE
+                        WHEN s.roc_5 > 0 AND s.trend = 'Bullish' AND s.relative_volume > 1.5
+                        THEN 'BUY'
+                        WHEN s.roc_5 < 0 AND s.trend = 'Bearish'
+                        THEN 'SELL'
+                        WHEN s.relative_volume > 2.0 AND s.trend = 'Bullish'
+                        THEN 'BREAKOUT'
+                        ELSE 'NEUTRAL'
+                    END as signal
+                FROM m_symbol_snapshot s
+                WHERE s.bars_today > 0
+            """,
+            ),
+        ]
 
     def _create_intraday_vwap(self, conn: duckdb.DuckDBPyConnection) -> None:
         """v_intraday_vwap — VWAP for current trading day."""
