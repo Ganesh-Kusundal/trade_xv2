@@ -247,16 +247,12 @@ ignore_imports = [
     "infrastructure.tests.test_global_exception_handler -> tradex.runtime.resilience.errors",
     # Gateway factory is a composition root — it constructs broker gateways.
     "infrastructure.gateway.factory -> brokers.paper",
-    "infrastructure.gateway.base -> tradex.runtime.capabilities",
     # Session infra is a composition root — it wires registry/router.
     "infrastructure.session.infra -> tradex.runtime.registry",
     "infrastructure.session.infra -> tradex.runtime.router",
     # Broker infrastructure is a composition root — it wires broker components.
     "infrastructure.broker_infrastructure -> tradex.runtime.registry",
     "infrastructure.broker_infrastructure -> tradex.runtime.router",
-    "infrastructure.broker_infrastructure -> tradex.runtime.capabilities",
-    # Market data adapter is a composition root — it wires broker capabilities.
-    "infrastructure.adapters.market_data_gateway_adapter -> tradex.runtime.capabilities",
     # Gateway factory imports datalake (datalake.gateway re-exports broker capabilities).
     "infrastructure.gateway.factory -> datalake.gateway",
 ]

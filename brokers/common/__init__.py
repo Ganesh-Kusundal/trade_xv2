@@ -8,7 +8,7 @@ Canonical homes
 
 What remains here
 -----------------
-- ``broker_capabilities`` — capability SSOT (also re-exported via ``tradex.runtime.capabilities``)
+- ``broker_capabilities`` — thin re-export of ``domain.capabilities.broker_capabilities``
 - ``api`` — broker SPI / margin contracts
 - ``oms.margin_provider`` — margin adapter (OMS itself is ``application.oms``)
 - ``contracts`` / ``tests`` — cross-broker contract and certification suites

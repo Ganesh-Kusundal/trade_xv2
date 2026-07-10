@@ -17,7 +17,7 @@ from domain.ports.broker_gateway import (
     HistoricalBarRequest,
     QuotaToken,
 )
-from tradex.runtime.capabilities import BrokerCapabilities, CapabilityDescriptor
+from domain.capabilities.broker_capabilities import BrokerCapabilities, CapabilityDescriptor
 from infrastructure.gateway.base import MarketDataGateway
 from domain.entities import Balance, Order, OrderResponse, Position, Quote, Trade
 from domain.entities.market import MarketDepth

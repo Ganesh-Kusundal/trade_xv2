@@ -1,8 +1,10 @@
 """Value objects — capability and extension info types.
 
-Re-exports rich broker capability model from ``brokers.common`` AND
-provides the lightweight ``Capability`` enum and ``ExtensionInfo``
+Provides the lightweight ``Capability`` enum and ``ExtensionInfo``
 descriptor used throughout domain and application code.
+
+The rich broker capability matrix lives in
+``domain.capabilities.broker_capabilities``.
 """
 
 from __future__ import annotations

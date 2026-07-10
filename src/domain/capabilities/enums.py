@@ -1,6 +1,7 @@
 """Broker capability and connection lifecycle enums.
 
-Submodule of :mod:`domain.types` — imported via the re-export facade.
+Canonical home for ``Capability`` / ``ConnectionStatus``.
+Also re-exported from :mod:`domain.capabilities` and :mod:`domain.types`.
 """
 
 from __future__ import annotations

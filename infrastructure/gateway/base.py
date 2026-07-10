@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from domain.ports.broker_adapter import BrokerAdapter
 from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
-from tradex.runtime.capabilities import BrokerCapabilities
+from domain.capabilities.broker_capabilities import BrokerCapabilities
 
 __all__ = [
     "BrokerAdapter",
