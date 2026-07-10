@@ -72,3 +72,14 @@ def test_domain_and_oms_tests_live_under_pyramid() -> None:
     assert not oms_tests.is_dir(), "OMS tests must live under tests/component/oms"
     assert (_ROOT / "tests" / "unit" / "domain").is_dir()
     assert (_ROOT / "tests" / "component" / "oms").is_dir()
+
+
+def test_broker_and_api_tests_live_under_pyramid() -> None:
+    """Wave-2: broker/API suites live under tests/{unit,integration}, not src or legacy tops."""
+    for legacy in ("api", "oms", "contract", "runtime", "regression", "capability"):
+        assert not (_ROOT / "tests" / legacy).is_dir(), f"legacy tests/{legacy} must be folded"
+    for broker in ("dhan", "upstox", "paper", "common"):
+        pkg_tests = _ROOT / "src" / "brokers" / broker / "tests"
+        assert not pkg_tests.is_dir(), f"broker tests must not live under {pkg_tests}"
+    assert (_ROOT / "tests" / "unit" / "brokers" / "dhan").is_dir()
+    assert (_ROOT / "tests" / "integration" / "api").is_dir()

@@ -8,7 +8,7 @@ Usage:
     python -m analytics.replay.golden_dataset save --symbol NIFTY --date 2026-05-12
 
     # Run regression test
-    pytest tests/regression/test_golden_dataset.py
+    pytest tests/architecture/regression_invariants/test_golden_dataset.py
 """
 
 from __future__ import annotations

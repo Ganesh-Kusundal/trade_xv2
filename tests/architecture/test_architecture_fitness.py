@@ -310,7 +310,7 @@ class TestRetryUsage:
 
         # Known exceptions - files that legitimately use sleep
         known_exceptions = [
-            "src/brokers/common/tests",  # Tests
+            "tests/unit/brokers/common",  # Tests
             "tests/",  # Tests
             "src/brokers/dhan/api/reconnecting_service.py",  # Reconnection logic
             "src/brokers/dhan/data/depth_feed_base.py",  # Depth feed uses poll intervals

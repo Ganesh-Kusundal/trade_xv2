@@ -31,8 +31,8 @@ check_files() {
 
 echo "📊 TEAM 1 - Broker Adapters Status:"
 echo "-----------------------------------"
-check_tests "brokers/dhan/tests/unit/"
-check_tests "brokers/upstox/tests/unit/"
+check_tests "tests/unit/brokers/dhan/"
+check_tests "tests/unit/brokers/upstox/"
 check_files "test_*.py"
 echo ""
 

@@ -91,7 +91,7 @@ def test_place_order_kill_switch_under_contention() -> None:
 
 
 # NOTE: DH-906 circuit-breaker regression tests (Dhan-specific) were
-# moved to brokers/dhan/tests/unit/test_order_factory_dhan_resolver.py
+# moved to tests/unit/brokers/dhan/test_order_factory_dhan_resolver.py
 # as part of REF-012 import-linter enforcement.
 
 

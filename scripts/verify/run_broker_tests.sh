@@ -96,7 +96,7 @@ run_integration_tests() {
     
     args=(-m "integration" -v --tb=short)
     if [ "${DHAN_INTEGRATION:-}" = "1" ]; then
-        args+=(brokers/dhan/tests/integration/)
+        args+=(tests/integration/brokers/dhan/)
     fi
     "$PYTHON" -m pytest "${args[@]}"
 }
@@ -170,8 +170,8 @@ run_regression_off_market() {
     mkdir -p reports
     "$PYTHON" -m pytest \
         -m "dhan and off_market_safe and regression" \
-        brokers/dhan/tests/integration/test_regression_suite.py \
-        brokers/dhan/tests/regression/test_e2e_smoke.py \
+        tests/integration/brokers/dhan/test_regression_suite.py \
+        tests/integration/brokers/dhan/regression/test_e2e_smoke.py \
         --tb=short -v \
         --junitxml=reports/off_market_regression.xml \
         --timeout=120
@@ -189,8 +189,8 @@ run_regression_market_hours() {
     FORCE_MARKET_OPEN="${FORCE_MARKET_OPEN:-0}" \
     "$PYTHON" -m pytest \
         -m "dhan and market_hours and regression" \
-        brokers/dhan/tests/integration/test_regression_suite.py \
-        brokers/dhan/tests/regression/test_e2e_smoke.py \
+        tests/integration/brokers/dhan/test_regression_suite.py \
+        tests/integration/brokers/dhan/regression/test_e2e_smoke.py \
         --tb=short -v \
         --junitxml=reports/market_hours_regression.xml \
         --timeout=120
@@ -205,7 +205,7 @@ run_regression_full() {
     FORCE_MARKET_OPEN="${FORCE_MARKET_OPEN:-0}" \
     "$PYTHON" -m pytest \
         -m "dhan and regression" \
-        brokers/dhan/tests/integration/ \
+        tests/integration/brokers/dhan/ \
         --tb=short -v \
         --junitxml=reports/full_regression.xml \
         --timeout=180

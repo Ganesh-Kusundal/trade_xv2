@@ -1,10 +1,10 @@
 """Thin wrapper — delegates to the pytest suite.
 
 The canonical source of truth is now:
-    brokers/dhan/tests/regression/test_e2e_smoke.py
+    tests/integration/brokers/dhan/regression/test_e2e_smoke.py
 
 Running this script is equivalent to:
-    pytest brokers/dhan/tests/regression/test_e2e_smoke.py -v
+    pytest tests/integration/brokers/dhan/regression/test_e2e_smoke.py -v
 
 Kept for backward-compatibility with shell scripts and CI pipelines that call
 it directly.  The original test logic has been superseded by the pytest suite.
@@ -21,7 +21,7 @@ def main() -> int:
     """Run the e2e smoke suite via pytest and forward the exit code."""
     cmd = [
         sys.executable, "-m", "pytest",
-        "brokers/dhan/tests/regression/test_e2e_smoke.py",
+        "tests/integration/brokers/dhan/regression/test_e2e_smoke.py",
         "-v", "--tb=short",
     ]
     result = subprocess.run(cmd, cwd=str(PROJECT_ROOT))
@@ -44,7 +44,7 @@ def test_all_modes_options_futures_depth():
 def _legacy_placeholder():
     """The original imperative test code has been migrated to the pytest suite.
 
-    See: brokers/dhan/tests/regression/test_e2e_smoke.py
+    See: tests/integration/brokers/dhan/regression/test_e2e_smoke.py
 
     The tests below are kept as dead code for reference only; they are NOT
     executed by this script any longer.

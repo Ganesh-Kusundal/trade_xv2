@@ -26,12 +26,15 @@ tests/
 | E2E | `tests/e2e/`, `tests/chaos/` | Does the full system work? |
 | Architecture | `tests/architecture/` | Do layering / import rules hold? |
 
-**Wave 1 done:** domain + application OMS/execution/trading/composer/services
-tests live under `tests/unit` and `tests/component` — not under `src/**/tests`.
+**Wave 1 done:** domain + application → `tests/unit/domain`, `tests/component/*`.
 
-**Still co-located (later waves):** `src/brokers/**/tests`, `src/analytics/**/tests`,
-`src/datalake/**/tests`, `src/infrastructure/**/tests`, `src/interface/**/tests`.
-Do **not** add new tests under those paths; put them in the pyramid.
+**Wave 2 done:** leftover top-level buckets (`api`, `oms`, `contract`, …) folded into
+pyramid; broker package tests rehomed to `tests/unit/brokers/*` and
+`tests/integration/brokers/*`.
+
+**Still co-located (wave 3):** `src/analytics/**/tests`, `src/datalake/**/tests`,
+`src/infrastructure/**/tests`, `src/interface/**/tests`.
+Do **not** add new tests under `src/**/tests`.
 
 ## Naming rules
 

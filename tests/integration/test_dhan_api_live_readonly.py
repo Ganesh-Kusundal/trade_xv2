@@ -1,6 +1,6 @@
 """Live readonly integration: real FastAPI routes wired to the Dhan gateway.
 
-Closes the gap where ``tests/api/test_live_market_endpoints.py`` uses a
+Closes the gap where ``tests/integration/api/test_live_market_endpoints.py`` uses a
 ``StubLiveGateway`` — these tests use the real Dhan broker.
 
 Architecture under test

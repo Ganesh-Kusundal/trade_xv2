@@ -9,8 +9,8 @@ Run from repo root:
     python scripts/generate_depth_golden_packets.py
 
 Output:
-    brokers/dhan/tests/fixtures/depth_20_packet.bin
-    brokers/dhan/tests/fixtures/depth_200_packet.bin
+    tests/unit/brokers/dhan/fixtures/depth_20_packet.bin
+    tests/unit/brokers/dhan/fixtures/depth_200_packet.bin
 
 Why this exists
 ---------------
@@ -32,7 +32,7 @@ import struct
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-FIXTURE_DIR = REPO_ROOT / "brokers" / "dhan" / "tests" / "fixtures"
+FIXTURE_DIR = REPO_ROOT / "tests" / "unit" / "brokers" / "dhan" / "fixtures"
 
 # Response codes (must match brokers.dhan.depth_20/200 constants)
 DEPTH_20_BID = 41
