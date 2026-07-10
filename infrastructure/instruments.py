@@ -7,7 +7,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from decimal import Decimal
 
-from domain import ExchangeSegment, InstrumentType
+from domain.market_enums import ExchangeSegment, InstrumentType
 from domain.entities.instrument_record import InstrumentRecord as DomainInstrument
 from domain.exchange_segments import canonical_exchange_short, parse_segment
 from domain.symbols import normalize_exchange, normalize_symbol

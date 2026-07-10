@@ -10,7 +10,7 @@ from typing import Any
 import pandas as pd
 
 from domain import Balance, MarketDepth, OrderResponse, Quote
-from brokers.dhan.connection import DhanConnection
+from brokers.dhan.streaming.connection import DhanConnection
 from brokers.dhan.domain import (
     Holding,
     Order,

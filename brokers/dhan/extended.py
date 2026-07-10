@@ -22,7 +22,7 @@ from domain import OrderResponse
 from domain.symbols import normalize_exchange, normalize_symbol
 
 if TYPE_CHECKING:
-    from brokers.dhan.connection import DhanConnection
+    from brokers.dhan.streaming.connection import DhanConnection
 
 
 class DhanExtendedCapabilities:

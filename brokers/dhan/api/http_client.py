@@ -591,3 +591,17 @@ class DhanHttpClient:
 
     def close(self) -> None:
         self._session.close()
+
+
+# ── Module-level backward-compat aliases ────────────────────────────────────
+# async_http_client.py and other code imports these as module-level functions.
+
+
+def _match_rate_limit(endpoint: str) -> float:
+    """Module-level alias — matches *endpoint* against the default rate-limit table."""
+    return DhanHttpClient._match_rate_limit(endpoint, _RATE_LIMITS)
+
+
+def _parse_retry_after(resp: Any) -> float | None:
+    """Module-level alias — parse Retry-After header."""
+    return DhanHttpClient._parse_retry_after(resp)

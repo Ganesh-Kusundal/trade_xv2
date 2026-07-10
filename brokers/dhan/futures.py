@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from brokers.dhan.http_client import DhanHttpClient
+from brokers.dhan.api.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 from domain.symbols import normalize_exchange, normalize_symbol
 

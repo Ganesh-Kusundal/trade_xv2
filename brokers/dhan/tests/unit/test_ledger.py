@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import pytest
 
-from brokers.dhan.ledger import LedgerAdapter
+from brokers.dhan.portfolio.ledger import LedgerAdapter
 
 
 def test_get_ledger_payload(fake_client):

@@ -7,7 +7,7 @@ import logging
 import pandas as pd
 
 from brokers.dhan.exceptions import MarketDataError
-from brokers.dhan.http_client import DhanHttpClient
+from brokers.dhan.api.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 from brokers.dhan.invariants import assert_dhan_payload
 from domain.symbols import normalize_exchange

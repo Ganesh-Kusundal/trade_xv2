@@ -17,12 +17,12 @@ from urllib.parse import urlencode
 from tradex.runtime.auth import AuthManager, JsonTokenStateStore, TokenSource, TokenState
 from tradex.runtime.factory import BrokerProviderFactory
 from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
-from brokers.dhan.account_registry import AccountConnectionRegistry
-from brokers.dhan.connection import DhanConnection
+from brokers.dhan.identity.account_registry import AccountConnectionRegistry
+from brokers.dhan.streaming.connection import DhanConnection
 from brokers.dhan.gateway import DhanBrokerGateway
-from brokers.dhan.http_client import DhanHttpClient
-from brokers.dhan.settings import DhanConnectionSettings, DhanSettingsLoader
-from brokers.dhan.token_scheduler import TokenRefreshScheduler
+from brokers.dhan.api.http_client import DhanHttpClient
+from brokers.dhan.config.settings import DhanConnectionSettings, DhanSettingsLoader
+from brokers.dhan.auth.token_scheduler import TokenRefreshScheduler
 
 logger = logging.getLogger(__name__)
 
@@ -206,7 +206,7 @@ class BrokerFactory(BrokerProviderFactory):
         circuit breaker naming used by the HTTP client and connection.
         """
         from brokers.dhan.config import DhanResilienceConfig, DEFAULT_CONFIG
-        from brokers.dhan.config_loader import DhanConfigLoader
+        from brokers.dhan.config.config_loader import DhanConfigLoader
         from brokers.dhan.resilience import create_circuit_breakers
         from tradex.runtime.resilience.rate_limiter import create_rate_limiter
         from brokers.dhan.capabilities import dhan_capabilities
@@ -467,7 +467,7 @@ def _generate_totp_token(settings: DhanConnectionSettings | None = None) -> str 
     Delegates to :class:`DhanTotpClient` so factory, HTTP 401 refresh, and
     ad-hoc diagnostics share the same cooldown and broker rate-limit handling.
     """
-    from brokers.dhan.totp_client import DhanTotpClient
+    from brokers.dhan.auth.totp_client import DhanTotpClient
     from tradex.runtime.auth.totp_cooldown import TotpRateLimitError
 
     try:

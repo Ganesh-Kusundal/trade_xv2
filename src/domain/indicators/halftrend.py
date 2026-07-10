@@ -23,7 +23,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
-import pandas as pd
+# ponytail: lazy import — domain purity forbids top-level pandas
+# import pandas as pd  (imported inside each method)
 
 
 @dataclass(frozen=True)
@@ -51,6 +52,8 @@ class HalfTrend:
     name: str = "halftrend"
 
     def compute(self, df: pd.DataFrame) -> pd.DataFrame:
+        import pandas as pd
+
         """Compute HalfTrend and add columns to DataFrame.
 
         Adds:

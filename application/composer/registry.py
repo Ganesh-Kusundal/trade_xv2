@@ -12,7 +12,7 @@ import threading
 from collections.abc import Callable
 
 from domain.ports.broker_gateway import CommonBrokerGateway
-from domain.value_objects.capability import BrokerCapabilities, CapabilityDescriptor
+from brokers.common.broker_capabilities import BrokerCapabilities, CapabilityDescriptor
 from domain.errors import BrokerUnavailableError
 from domain.models.routing import BrokerHealthSnapshot, RegistrySnapshot
 from domain.stream_health import StreamStateSummary

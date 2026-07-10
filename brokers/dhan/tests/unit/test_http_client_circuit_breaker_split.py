@@ -24,7 +24,7 @@ from tradex.runtime.resilience.circuit_breaker import (
     CircuitState,
 )
 from brokers.dhan.exceptions import DhanError
-from brokers.dhan.http_client import (
+from brokers.dhan.api.http_client import (
     DhanHttpClient,
     _categorize_endpoint,
 )

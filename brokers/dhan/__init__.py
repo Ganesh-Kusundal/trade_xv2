@@ -8,7 +8,7 @@ OrderType, ProductType, Validity, FundLimits) live in ``domain``::
 """
 
 # ── Dhan-specific domain types ──────────────────────────────────────────────
-from brokers.dhan.connection import DhanConnection
+from brokers.dhan.streaming.connection import DhanConnection
 from brokers.dhan.domain import (
     Exchange,
     DhanInstrument,
@@ -28,7 +28,7 @@ from brokers.dhan.exceptions import (
 )
 from brokers.dhan.factory import BrokerFactory
 from brokers.dhan.gateway import DhanBrokerGateway
-from brokers.dhan.http_client import DhanHttpClient
+from brokers.dhan.api.http_client import DhanHttpClient
 from brokers.dhan.identity import (
     DHAN_SEGMENTS,
     DhanIdentityError,
@@ -94,12 +94,12 @@ from tradex.runtime.adapter_factory import (
     register_data_adapter,
     register_execution_provider,
 )
-from brokers.dhan.data_provider import DhanDataProvider
+from brokers.dhan.data.data_provider import DhanDataProvider
 from brokers.dhan.extensions.depth20 import DhanDepth20Extension
 from brokers.dhan.extensions.depth200 import DhanDepth200Extension
 from brokers.dhan.extensions.forever_order import DhanForeverOrderExtension
 from brokers.dhan.extensions.super_order import DhanSuperOrderExtension
-from brokers.dhan.transport import DhanOrderTransport
+from brokers.dhan.api.transport import DhanOrderTransport
 
 register_broker_extensions(
     "dhan",

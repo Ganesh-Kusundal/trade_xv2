@@ -5,7 +5,7 @@ from decimal import Decimal
 import pytest
 
 from brokers.dhan.exceptions import InstrumentNotFoundError
-from brokers.dhan.market_data import MarketDataAdapter
+from brokers.dhan.data.market_data import MarketDataAdapter
 
 
 def test_get_ltp_success(fake_client, resolver):

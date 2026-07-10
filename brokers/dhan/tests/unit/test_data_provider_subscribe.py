@@ -5,7 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 from unittest.mock import MagicMock
 
-from brokers.dhan.data_provider import DhanDataProvider
+from brokers.dhan.data.data_provider import DhanDataProvider
 from domain.entities.market import QuoteSnapshot
 from domain.instruments.instrument_id import InstrumentId
 

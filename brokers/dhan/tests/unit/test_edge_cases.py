@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from brokers.dhan.connection import DhanConnection
+from brokers.dhan.streaming.connection import DhanConnection
 from brokers.dhan.exceptions import InstrumentNotFoundError
 from brokers.dhan.gateway import DhanBrokerGateway
 from domain import OrderStatus

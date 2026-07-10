@@ -22,7 +22,7 @@ from __future__ import annotations
 from decimal import Decimal
 from unittest import mock
 
-from brokers.dhan.http_client import (
+from brokers.dhan.api.http_client import (
     _RATE_LIMITS,
     _RL_BUCKET_MAP,
     _rate_limit_bucket,
@@ -122,7 +122,7 @@ class TestSendSubscriptionUsesWsLoop:
     """_send_subscription uses self._ws_loop (not asyncio.get_running_loop)."""
 
     def _make_feed(self):
-        from brokers.dhan.depth_20 import DhanDepth20Feed
+        from brokers.dhan.data.depth_20 import DhanDepth20Feed
 
         return DhanDepth20Feed("client", "token")
 
@@ -198,7 +198,7 @@ class TestRateLimitBucketMap:
     def test_acquire_does_not_raise_for_known_endpoints(self):
         """_acquire_rate_limit_token must not raise for standard endpoints."""
         from tradex.runtime.resilience.rate_limiter import MultiBucketRateLimiter, RateLimitConfig
-        from brokers.dhan.http_client import DhanHttpClient
+        from brokers.dhan.api.http_client import DhanHttpClient
 
         limiter = MultiBucketRateLimiter(
             {
@@ -392,7 +392,7 @@ class TestAuditLeakAndMultiplexingFixes:
         """DhanConnection uses weak references and avoids leaking stopped feeds."""
         import gc
 
-        from brokers.dhan.connection import DhanConnection
+        from brokers.dhan.streaming.connection import DhanConnection
         from brokers.dhan.websocket.market_feed import DhanMarketFeed
 
         conn = DhanConnection(client=mock.MagicMock())
@@ -417,7 +417,7 @@ class TestAuditLeakAndMultiplexingFixes:
     def test_broker_gateway_callback_leak_prevention(self):
         """DhanBrokerGateway unstream removes wrapper callback from feed."""
         from brokers.dhan.gateway import DhanBrokerGateway
-        from brokers.dhan.subscription_engine import SubscriptionEngine
+        from brokers.dhan.data.subscription_engine import SubscriptionEngine
 
         feed = mock.MagicMock()
         feed.is_connected = False

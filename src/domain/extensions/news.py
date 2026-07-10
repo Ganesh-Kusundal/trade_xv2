@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Protocol
 
-from tradex.runtime.broker_port import QuotaToken
+from domain.ports.broker_gateway import QuotaToken
 
 
 @dataclass(frozen=True)

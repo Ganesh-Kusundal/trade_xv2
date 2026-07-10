@@ -32,7 +32,7 @@ import logging
 from threading import RLock
 from typing import TYPE_CHECKING, Dict, Tuple
 
-from brokers.dhan.depth_feed_base import BinaryDepthFeed
+from brokers.dhan.data.depth_feed_base import BinaryDepthFeed
 from domain import MarketDepth
 from infrastructure.event_bus.event_bus import EventBus
 

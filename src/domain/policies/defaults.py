@@ -23,7 +23,7 @@ Usage::
 
 from __future__ import annotations
 
-from tradex.runtime.policy import RoutingPolicy, SourceSelectionPolicy
+from domain.policies.source_selection import RoutingPolicy, SourceSelectionPolicy
 
 
 def default_source_selection_policy() -> SourceSelectionPolicy:

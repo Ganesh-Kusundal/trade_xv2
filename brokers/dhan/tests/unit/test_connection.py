@@ -8,7 +8,7 @@ import sys
 # Ensure project root is on sys.path for direct pytest invocation
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 
-from brokers.dhan.connection import DhanConnection
+from brokers.dhan.streaming.connection import DhanConnection
 from brokers.dhan.resolver import SymbolResolver
 from brokers.dhan.tests.conftest import SAMPLE_ROWS, FakeHttpClient
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from brokers.dhan.depth_200 import DhanDepth200Feed
+from brokers.dhan.data.depth_200 import DhanDepth200Feed
 
 
 class TestDhanDepth200Feed:

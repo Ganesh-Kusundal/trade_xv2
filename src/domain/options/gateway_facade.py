@@ -33,7 +33,7 @@ class GatewayOptionsFacade:
     def get_option_chain(
         self, underlying: str, exchange: str = "NFO", expiry: str | None = None
     ) -> OptionChain:
-        from tradex.runtime.options.chain_normalizer import to_canonical_strikes
+        from domain.options.chain_normalizer import to_canonical_strikes
 
         exchange = self._normalize_exchange(underlying, exchange)
         if expiry is None:
@@ -79,6 +79,6 @@ class GatewayOptionsFacade:
 
 
 def _upstox_canonical(contracts, raw_rows, underlying, exchange, expiry) -> OptionChain:
-    from tradex.runtime.options.chain_normalizer import upstox_chain_to_canonical
+    from domain.options.chain_normalizer import upstox_chain_to_canonical
 
     return upstox_chain_to_canonical(contracts, raw_rows, underlying, exchange, expiry)

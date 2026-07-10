@@ -28,14 +28,14 @@ import pytest
 # ---------------------------------------------------------------------------
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 
-from brokers.dhan.connection import DhanConnection
+from brokers.dhan.streaming.connection import DhanConnection
 from brokers.dhan.domain import (
     Exchange,
 )
 from brokers.dhan.exceptions import InstrumentNotFoundError
 from brokers.dhan.factory import BrokerFactory
 from brokers.dhan.gateway import DhanBrokerGateway
-from brokers.dhan.orders import IdempotencyCache
+from brokers.dhan.execution.orders import IdempotencyCache
 from brokers.dhan.tests.conftest import SAMPLE_ROWS, FakeHttpClient
 from domain import MarketDepth, OrderStatus, Quote
 

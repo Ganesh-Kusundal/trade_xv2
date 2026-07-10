@@ -5,7 +5,7 @@ from decimal import Decimal
 import pytest
 
 from brokers.dhan.domain import ForeverOrderRequest
-from brokers.dhan.forever_orders import ForeverOrdersAdapter
+from brokers.dhan.execution.forever_orders import ForeverOrdersAdapter
 
 
 def test_place_forever_order_single(fake_client, resolver):

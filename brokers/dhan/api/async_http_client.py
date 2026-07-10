@@ -9,7 +9,7 @@ to issue Dhan API calls without tying up a thread-pool worker.
 
 Usage::
 
-    from brokers.dhan.async_http_client import DhanAsyncHttpClient
+    from brokers.dhan.api.async_http_client import DhanAsyncHttpClient
 
     async with DhanAsyncHttpClient(
         client_id="...",
@@ -47,7 +47,7 @@ from brokers.dhan.metrics import (
     dhan_request_duration_seconds,
     dhan_request_total,
 )
-from brokers.dhan.http_client import (
+from brokers.dhan.api.http_client import (
     _MAX_DELAY_MS,
     _MAX_RETRIES,
     _RATE_LIMIT_BACKOFF_SECONDS,
@@ -55,8 +55,8 @@ from brokers.dhan.http_client import (
     _categorize_endpoint,
     _rate_limit_bucket,
 )
-from brokers.dhan.http_client import _match_rate_limit as _match_static_rate_limit
-from brokers.dhan.http_client import _parse_retry_after
+from brokers.dhan.api.http_client import _match_rate_limit as _match_static_rate_limit
+from brokers.dhan.api.http_client import _parse_retry_after
 from config.endpoints import Dhan
 
 logger = logging.getLogger(__name__)
@@ -432,7 +432,7 @@ class DhanAsyncHttpClient:
 
 def _match_prefix(endpoint: str) -> str | None:
     """Return the matching rate-limit prefix key for endpoint, or None."""
-    from brokers.dhan.http_client import _RATE_LIMITS
+    from brokers.dhan.api.http_client import _RATE_LIMITS
     if endpoint in _RATE_LIMITS:
         return endpoint
     for prefix in _RATE_LIMITS:
@@ -443,6 +443,6 @@ def _match_prefix(endpoint: str) -> str | None:
 
 def _backoff_delay(attempt: int) -> float:
     """Exponential backoff: 500ms, 1s, 2s, 4s... capped at 5s."""
-    from brokers.dhan.http_client import _BASE_DELAY_MS
+    from brokers.dhan.api.http_client import _BASE_DELAY_MS
     delay_ms = min(_BASE_DELAY_MS * (2 ** (attempt - 1)), _MAX_DELAY_MS)
     return delay_ms / 1000.0

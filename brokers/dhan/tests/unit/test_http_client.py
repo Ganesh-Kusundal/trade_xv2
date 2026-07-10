@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from brokers.dhan.exceptions import AuthenticationError, DhanError, RateLimitError
-from brokers.dhan.http_client import DhanHttpClient
+from brokers.dhan.api.http_client import DhanHttpClient
 
 
 def _make_client() -> DhanHttpClient:

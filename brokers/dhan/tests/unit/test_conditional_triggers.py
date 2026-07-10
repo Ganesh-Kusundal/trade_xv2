@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import pytest
 
-from brokers.dhan.conditional_triggers import ConditionalTriggersAdapter
+from brokers.dhan.execution.conditional_triggers import ConditionalTriggersAdapter
 from brokers.dhan.domain import ConditionalTriggerRequest
 
 

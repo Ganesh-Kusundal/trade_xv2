@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from tradex.runtime.dtos import BrokerOrderPayload
 from brokers.dhan.domain import Exchange
-from brokers.dhan.orders import OrdersAdapter
+from brokers.dhan.execution.orders import OrdersAdapter
 from domain import OrderStatus, Side
 from infrastructure.event_bus import EventBus
 
@@ -388,7 +388,7 @@ def test_get_trade_history_pagination(fake_client, resolver):
 
 def test_place_slice_order_live_orders_disabled(fake_client, resolver):
     """place_slice_order raises OrderError when live orders are disabled."""
-    from brokers.dhan.orders import OrderError
+    from brokers.dhan.execution.orders import OrderError
 
     adapter = OrdersAdapter(fake_client, resolver, allow_live_orders=False)
     import pytest

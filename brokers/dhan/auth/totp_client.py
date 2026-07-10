@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from tradex.runtime.auth.totp_cooldown import TotpCooldownGuard, TotpRateLimitError
 
 if TYPE_CHECKING:
-    from brokers.dhan.settings import DhanConnectionSettings
+    from brokers.dhan.config.settings import DhanConnectionSettings
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +88,7 @@ class DhanTotpClient:
             )
         pin = _read_secret("DHAN_PIN", "DHAN_PIN_FILE")
         totp_secret = _read_secret("DHAN_TOTP_SECRET", "DHAN_TOTP_SECRET_FILE")
-        from brokers.dhan.settings import _GENERATE_TOKEN_URL
+        from brokers.dhan.config.settings import _GENERATE_TOKEN_URL
 
         client_id = os.environ.get("DHAN_CLIENT_ID", "")
         return pin, totp_secret, _GENERATE_TOKEN_URL, client_id

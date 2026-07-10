@@ -12,8 +12,8 @@ import time
 from typing import Any
 
 from tradex.runtime.reconciliation.engine import ReconciliationEngine
-from brokers.dhan.orders import OrdersAdapter
-from brokers.dhan.portfolio import PortfolioAdapter
+from brokers.dhan.execution.orders import OrdersAdapter
+from brokers.dhan.portfolio.portfolio import PortfolioAdapter
 from domain import DriftItem, ReconciliationReport
 
 logger = logging.getLogger(__name__)

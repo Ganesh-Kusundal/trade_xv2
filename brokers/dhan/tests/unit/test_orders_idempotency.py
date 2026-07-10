@@ -6,7 +6,7 @@ import threading
 
 import pytest
 
-from brokers.dhan.orders import IdempotencyCache, OrdersAdapter
+from brokers.dhan.execution.orders import IdempotencyCache, OrdersAdapter
 from domain import Order, OrderResponse, OrderStatus, OrderType, ProductType, Side, Validity
 from domain.orders.requests import OrderRequest
 

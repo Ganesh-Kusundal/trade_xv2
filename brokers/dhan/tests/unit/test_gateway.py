@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 
-from brokers.dhan.connection import DhanConnection
+from brokers.dhan.streaming.connection import DhanConnection
 from brokers.dhan.domain import Position
 from brokers.dhan.gateway import DhanBrokerGateway
 from brokers.dhan.tests.conftest import FakeHttpClient

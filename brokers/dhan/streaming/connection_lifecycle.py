@@ -33,9 +33,9 @@ from collections.abc import Callable
 from datetime import datetime
 from typing import Any
 
-from brokers.dhan.depth_20 import DhanDepth20Feed
-from brokers.dhan.depth_200 import DhanDepth200Feed, Depth200ConnectionPool
-from brokers.dhan.http_client import DhanHttpClient
+from brokers.dhan.data.depth_20 import DhanDepth20Feed
+from brokers.dhan.data.depth_200 import DhanDepth200Feed, Depth200ConnectionPool
+from brokers.dhan.api.http_client import DhanHttpClient
 from brokers.dhan.resolver import SymbolResolver
 from brokers.dhan.resolver_refresher import ResolverRefresher
 from brokers.dhan.websocket import DhanMarketFeed, DhanOrderStream, PollingMarketFeed

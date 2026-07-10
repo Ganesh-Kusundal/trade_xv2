@@ -6,7 +6,7 @@ import logging
 
 from brokers.dhan.domain import UserProfile
 from brokers.dhan.exceptions import UserProfileError
-from brokers.dhan.http_client import DhanHttpClient
+from brokers.dhan.api.http_client import DhanHttpClient
 
 logger = logging.getLogger(__name__)
 

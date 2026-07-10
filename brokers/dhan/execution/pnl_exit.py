@@ -8,7 +8,7 @@ from typing import Any
 
 from brokers.dhan.domain import PnlExitConfig, PnlExitStatus
 from brokers.dhan.exceptions import PnlExitError
-from brokers.dhan.http_client import DhanHttpClient
+from brokers.dhan.api.http_client import DhanHttpClient
 
 logger = logging.getLogger(__name__)
 

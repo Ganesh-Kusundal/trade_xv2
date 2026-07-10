@@ -61,9 +61,9 @@ def register_tools(mcp) -> None:
         min_rel_volume: float = 0,
     ) -> dict:
         """Execute a scanner rule and return matching stocks."""
-        from analytics.scanner.rules.engine import RuleEngine
+        from datalake.scanner_proxy import get_rule_engine
 
-        engine = RuleEngine()
+        engine = get_rule_engine()
         params = {"as_of_date": date}
 
         try:
@@ -158,7 +158,7 @@ def register_tools(mcp) -> None:
     @mcp.tool()
     def datalake_list_rules() -> dict:
         """List all available scanner rules."""
-        from analytics.scanner.rules.engine import RuleEngine
+        from datalake.scanner_proxy import get_rule_engine
 
-        engine = RuleEngine()
+        engine = get_rule_engine()
         return {"count": 0, "rules": engine.list_rules()}

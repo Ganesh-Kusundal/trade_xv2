@@ -22,7 +22,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from brokers.dhan.connection import DhanConnection
+from brokers.dhan.streaming.connection import DhanConnection
 
 
 @pytest.fixture

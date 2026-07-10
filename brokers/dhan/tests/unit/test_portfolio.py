@@ -3,7 +3,7 @@
 from decimal import Decimal
 
 from brokers.dhan.domain import ProductType
-from brokers.dhan.portfolio import PortfolioAdapter
+from brokers.dhan.portfolio.portfolio import PortfolioAdapter
 
 
 def test_get_positions_parsing(fake_client, resolver):

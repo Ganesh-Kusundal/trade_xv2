@@ -13,7 +13,7 @@ Header layout: security_id at offset 4 (see ``BinaryDepthFeed.header_carries_sec
 
 from __future__ import annotations
 
-from brokers.dhan.depth_feed_base import BinaryDepthFeed
+from brokers.dhan.data.depth_feed_base import BinaryDepthFeed
 from domain import MarketDepth
 from infrastructure.event_bus.event_bus import EventBus
 

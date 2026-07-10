@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
-    from tradex.runtime.models import OperationKind
+    from domain.models.routing import OperationKind
 
 # ---------------------------------------------------------------------------
 # Per-operation-class routing policy
@@ -91,7 +91,7 @@ class SourceSelectionPolicy:
 
     def for_operation_kind(self, kind: OperationKind) -> RoutingPolicy:  # type: ignore[name-defined]
         """Return the applicable RoutingPolicy for the given OperationKind."""
-        from tradex.runtime.models import OperationKind
+        from domain.models.routing import OperationKind
 
         if kind in {
             OperationKind.PLACE_ORDER,

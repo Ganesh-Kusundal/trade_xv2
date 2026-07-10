@@ -108,6 +108,17 @@ _DEV_PUBLIC_PATHS = frozenset(
 )
 
 
+PUBLIC_PATHS: frozenset[str] = frozenset(
+    {
+        "/healthz",
+        "/readyz",
+        "/docs",
+        "/redoc",
+        "/openapi.json",
+    }
+)
+
+
 def is_public_path(path: str) -> bool:
     """Check if a path should bypass authentication."""
     if path in _BASE_PUBLIC_PATHS:

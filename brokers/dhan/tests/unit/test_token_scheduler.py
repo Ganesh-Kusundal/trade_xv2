@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from tradex.runtime.auth import AuthManager, TokenSource, TokenState
-from brokers.dhan.token_scheduler import TokenRefreshScheduler
+from brokers.dhan.auth.token_scheduler import TokenRefreshScheduler
 
 
 @pytest.fixture

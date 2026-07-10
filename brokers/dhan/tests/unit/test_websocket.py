@@ -472,7 +472,7 @@ class TestConnectionWiring:
 
     def test_connection_market_feed_default_none(self):
         """DhanConnection.market_feed must be None by default."""
-        from brokers.dhan.connection import DhanConnection
+        from brokers.dhan.streaming.connection import DhanConnection
         from brokers.dhan.tests.conftest import FakeHttpClient
 
         conn = DhanConnection(client=FakeHttpClient())
@@ -480,7 +480,7 @@ class TestConnectionWiring:
 
     def test_connection_order_stream_default_none(self):
         """DhanConnection.order_stream must be None by default."""
-        from brokers.dhan.connection import DhanConnection
+        from brokers.dhan.streaming.connection import DhanConnection
         from brokers.dhan.tests.conftest import FakeHttpClient
 
         conn = DhanConnection(client=FakeHttpClient())
@@ -488,7 +488,7 @@ class TestConnectionWiring:
 
     def test_connection_market_feed_setter(self):
         """DhanConnection.market_feed setter must store the value."""
-        from brokers.dhan.connection import DhanConnection
+        from brokers.dhan.streaming.connection import DhanConnection
         from brokers.dhan.tests.conftest import FakeHttpClient
 
         conn = DhanConnection(client=FakeHttpClient())
@@ -498,7 +498,7 @@ class TestConnectionWiring:
 
     def test_connection_order_stream_setter(self):
         """DhanConnection.order_stream setter must store the value."""
-        from brokers.dhan.connection import DhanConnection
+        from brokers.dhan.streaming.connection import DhanConnection
         from brokers.dhan.tests.conftest import FakeHttpClient
 
         conn = DhanConnection(client=FakeHttpClient())

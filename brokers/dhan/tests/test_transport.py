@@ -11,7 +11,7 @@ from domain.orders.requests import OrderRequest
 from domain.ports.broker_transport import BrokerTransport
 from domain.types import OrderType, ProductType, Side
 
-from brokers.dhan.transport import DhanTransport, _DHAN_CAPABILITIES
+from brokers.dhan.api.transport import DhanTransport, _DHAN_CAPABILITIES
 
 
 class _FakeResponse:

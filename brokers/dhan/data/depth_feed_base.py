@@ -34,8 +34,8 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
-from brokers.dhan.connection_admission import MarketFeedConnectionAdmission
-from brokers.dhan.reconnecting_service import ReconnectingServiceMixin
+from brokers.dhan.streaming.connection_admission import MarketFeedConnectionAdmission
+from brokers.dhan.api.reconnecting_service import ReconnectingServiceMixin
 from domain import DepthLevel, MarketDepth
 from domain.symbols import normalize_symbol
 from domain.events import DomainEvent

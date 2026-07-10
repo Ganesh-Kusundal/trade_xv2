@@ -10,13 +10,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from brokers.common.broker_capabilities import (  # noqa: F401
-    BrokerCapabilities,
-    CapabilityDescriptor,
-    HistoricalWindowConstraint,
-    RateLimitProfile,
-    StreamLimitProfile,
-)
 from domain.capabilities import Capability  # noqa: F401
 
 
@@ -47,11 +40,6 @@ class ExtensionInfo:
 
 
 __all__ = [
-    "BrokerCapabilities",
     "Capability",
-    "CapabilityDescriptor",
     "ExtensionInfo",
-    "HistoricalWindowConstraint",
-    "RateLimitProfile",
-    "StreamLimitProfile",
 ]

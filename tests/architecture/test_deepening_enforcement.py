@@ -72,14 +72,14 @@ def test_api_orders_router_uses_oms_submit_fn():
 def test_broker_service_exposes_oms_transport_submit():
     svc_path = REPO_ROOT / "cli/services/broker_service.py"
     text = svc_path.read_text(encoding="utf-8")
-    assert "ExecutionService" in text
-    assert "place_order_through_oms" in text
-    assert "execution_service" in text
+    assert "OmsBootstrap" in text
+    assert "place_order" in text
+    assert "CliBrokerFacade" in text
 
 
 def test_no_broker_specific_constants_in_common_package():
     """REF-4: UPSTOX operational constants belong in adapter packages."""
-    constants_path = REPO_ROOT / "domain/constants/__init__.py"
+    constants_path = REPO_ROOT / "src/domain/constants/__init__.py"
     text = constants_path.read_text(encoding="utf-8")
     assert "UPSTOX_DEFAULT_RATE_PER_SECOND" not in text
     assert "UPSTOX_WS_PING_INTERVAL_SECONDS" not in text

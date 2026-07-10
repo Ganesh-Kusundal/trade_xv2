@@ -44,7 +44,7 @@ API_LAYERS = {
 }
 
 ALL_SOURCE_DIRS = [
-    "application", "domain", "infrastructure", "config", "brokers",
+    "application", "src/domain", "infrastructure", "config", "brokers",
     "api", "cli", "analytics", "datalake",
 ]
 
@@ -201,8 +201,12 @@ class TestImportRules:
                         "domain.constants", "domain.lifecycle_health", "domain.ports",
                         "domain.correlation", "domain.exceptions", "domain.entities",
                         "domain.provenance", "domain.symbols", "domain.instruments.instrument_id",
+                        "domain.market_enums", "domain.orders", "domain.parsing",
+                        "domain.status_mapper",
                         "domain.ports.protocols", "domain.candles.historical",
                         "domain.errors",
+                        "domain.orders", "domain.parsing", "domain.status_mapper",
+                        "domain.market_enums", "domain.exchange_segments",
                     ))
                     and "/tests/" not in filepath
                 ):
@@ -318,6 +322,10 @@ class TestRetryUsage:
             "brokers/common/idempotency/file_cache.py",  # Cache TTL/poll interval
             "brokers/common/idempotency/redis_cache.py",  # Cache TTL/poll interval
             "brokers/dhan/depth_200.py",  # Depth feed poll interval
+            "application/scheduling/quota_scheduler.py",  # Scheduler uses sleep
+            "application/services/download_engine.py",  # Download engine
+            "brokers/upstox/auth/http.py",  # HTTP retry backoff
+            "brokers/dhan/websocket/order_stream.py",  # WebSocket reconnect
         ]
         violations = [
             v for v in violations

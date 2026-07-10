@@ -13,7 +13,7 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from brokers.dhan.reconnecting_service import ReconnectingServiceMixin
+from brokers.dhan.api.reconnecting_service import ReconnectingServiceMixin
 from brokers.dhan.segments import EXCHANGE_TO_SEGMENT
 from brokers.dhan.websocket._helpers import _to_decimal
 from domain import Quote

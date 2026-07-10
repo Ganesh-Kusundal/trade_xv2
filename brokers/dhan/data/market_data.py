@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from decimal import Decimal
 
-from brokers.dhan.http_client import DhanHttpClient
+from brokers.dhan.api.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 from brokers.dhan.invariants import assert_dhan_identity
 from domain import DepthLevel, MarketDepth, Quote

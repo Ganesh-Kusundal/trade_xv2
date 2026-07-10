@@ -6,7 +6,8 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from domain import Order, OrderResponse, OrderStatus, OrderType, ProductType, Side, Validity
+from domain.entities import Order, OrderResponse
+from domain.enums import OrderStatus, OrderType, ProductType, Side, Validity
 
 
 def _enum_value(value: Any) -> Any:

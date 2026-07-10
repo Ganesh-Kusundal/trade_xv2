@@ -31,7 +31,7 @@ from brokers.dhan.config import (
     DhanRetryConfig,
     DhanTokenConfig,
 )
-from brokers.dhan.config_loader import (
+from brokers.dhan.config.config_loader import (
     ENV_PREFIX,
     DhanConfigLoader,
     load_from_environment,
@@ -308,7 +308,7 @@ class TestConfigIntegration:
 
     def test_http_client_accepts_config(self):
         """Test that DhanHttpClient accepts config parameter."""
-        from brokers.dhan.http_client import DhanHttpClient
+        from brokers.dhan.api.http_client import DhanHttpClient
 
         config = DhanResilienceConfig(
             retry=DhanRetryConfig(max_retries=5),
@@ -322,7 +322,7 @@ class TestConfigIntegration:
 
     def test_http_client_uses_default_config(self):
         """Test that DhanHttpClient uses default config when none provided."""
-        from brokers.dhan.http_client import DhanHttpClient
+        from brokers.dhan.api.http_client import DhanHttpClient
 
         client = DhanHttpClient(
             client_id="test",

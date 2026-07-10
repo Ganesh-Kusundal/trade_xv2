@@ -34,7 +34,7 @@ from tradex.runtime.resilience.rate_limiter import (
     MultiBucketRateLimiter,
     RateLimitConfig,
 )
-from brokers.dhan.connection import DhanConnection
+from brokers.dhan.streaming.connection import DhanConnection
 from brokers.dhan.gateway import DhanBrokerGateway
 from brokers.dhan.resilience.circuit_breaker import (
     DhanCircuitBreakerFactory,
@@ -567,14 +567,14 @@ class TestGracefulDegradation:
 
     def test_rate_limiter_fallback_when_not_configured(self):
         """Requests should succeed when no rate limiter is configured."""
-        from brokers.dhan.http_client import DhanHttpClient
+        from brokers.dhan.api.http_client import DhanHttpClient
 
         client = DhanHttpClient(client_id="test", access_token="test")
         assert client._acquire_rate_limit_token("/orders") is True
 
     def test_circuit_breaker_fallback_to_legacy(self):
         """HTTP client should fall back to legacy circuit breaker if specific one not provided."""
-        from brokers.dhan.http_client import DhanHttpClient
+        from brokers.dhan.api.http_client import DhanHttpClient
 
         legacy_cb = CircuitBreaker("legacy", CircuitBreakerConfig(failure_threshold=5))
         client = DhanHttpClient(
@@ -850,7 +850,7 @@ class TestRateLimiting:
     """Verify rate limiting prevents rapid requests."""
 
     def test_rate_limit_exists(self):
-        from brokers.dhan.http_client import _RATE_LIMITS
+        from brokers.dhan.api.http_client import _RATE_LIMITS
 
         assert "/marketfeed/quote" in _RATE_LIMITS
         assert "/optionchain" in _RATE_LIMITS

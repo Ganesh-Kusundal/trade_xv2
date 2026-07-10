@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from brokers.dhan.settings import (
+from brokers.dhan.config.settings import (
     _BASE_URL,
     _GENERATE_TOKEN_URL,
     DhanConnectionSettings,

@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import pytest
 
-from brokers.dhan.connection_admission import NoopAdmission
+from brokers.dhan.streaming.connection_admission import NoopAdmission
 
 
 @pytest.fixture(autouse=True, scope="session")

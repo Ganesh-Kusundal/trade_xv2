@@ -28,7 +28,7 @@ def test_dhan_place_order_with_read_cb_open_still_posts_order() -> None:
     read / write / admin categories. This test pins that split.
     """
     from brokers.dhan.exceptions import DhanError
-    from brokers.dhan.http_client import DhanHttpClient
+    from brokers.dhan.api.http_client import DhanHttpClient
 
     cb_read = CircuitBreaker(
         "test-read", CircuitBreakerConfig(failure_threshold=1, open_duration_ms=30_000)
@@ -70,7 +70,7 @@ def test_dhan_place_order_with_read_cb_open_still_posts_order() -> None:
 def test_dhan_post_orders_with_write_cb_open_fails_fast() -> None:
     """The inverse: a write CB that is OPEN must fast-fail a POST /orders call."""
     from brokers.dhan.exceptions import DhanError
-    from brokers.dhan.http_client import DhanHttpClient
+    from brokers.dhan.api.http_client import DhanHttpClient
 
     cb_write = CircuitBreaker(
         "test-write", CircuitBreakerConfig(failure_threshold=1, open_duration_ms=30_000)

@@ -14,7 +14,7 @@ def dhan_capabilities() -> BrokerCapabilities:
     NOTE ON DEPTH_200 LIMITATION:
         Dhan's depth-200 WebSocket API only supports 1 instrument per connection.
         To monitor multiple instruments at 200-level depth, you must create multiple
-        connections. Use Depth200ConnectionPool from brokers.dhan.depth_200 for
+        connections. Use Depth200ConnectionPool from brokers.dhan.data.depth_200 for
         efficient connection management.
     """
     return BrokerCapabilities(

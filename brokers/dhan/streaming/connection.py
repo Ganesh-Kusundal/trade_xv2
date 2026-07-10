@@ -9,31 +9,31 @@ from typing import Any
 
 from tradex.runtime.resilience.circuit_breaker import CircuitState
 from brokers.dhan.alerts import AlertsAdapter
-from brokers.dhan.conditional_triggers import ConditionalTriggersAdapter
-from brokers.dhan.connection_lifecycle import ConnectionLifecycle
-from brokers.dhan.connection_token_manager import ConnectionTokenManager
-from brokers.dhan.depth_20 import DhanDepth20Feed
-from brokers.dhan.depth_200 import DhanDepth200Feed, Depth200ConnectionPool
+from brokers.dhan.execution.conditional_triggers import ConditionalTriggersAdapter
+from brokers.dhan.streaming.connection_lifecycle import ConnectionLifecycle
+from brokers.dhan.auth.connection_token_manager import ConnectionTokenManager
+from brokers.dhan.data.depth_20 import DhanDepth20Feed
+from brokers.dhan.data.depth_200 import DhanDepth200Feed, Depth200ConnectionPool
 from brokers.dhan.edis import EDISAdapter
-from brokers.dhan.exit_all import ExitAllAdapter
-from brokers.dhan.forever_orders import ForeverOrdersAdapter
-from brokers.dhan.pnl_exit import PnlExitAdapter
+from brokers.dhan.execution.exit_all import ExitAllAdapter
+from brokers.dhan.execution.forever_orders import ForeverOrdersAdapter
+from brokers.dhan.execution.pnl_exit import PnlExitAdapter
 from brokers.dhan.futures import FuturesAdapter
 from brokers.dhan.historical import HistoricalAdapter
-from brokers.dhan.http_client import DhanHttpClient
+from brokers.dhan.api.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider
 from brokers.dhan.ip_management import IPManagementAdapter
-from brokers.dhan.ledger import LedgerAdapter
+from brokers.dhan.portfolio.ledger import LedgerAdapter
 from brokers.dhan.loader import InstrumentLoader
 from brokers.dhan.margin import MarginAdapter
-from brokers.dhan.market_data import MarketDataAdapter
+from brokers.dhan.data.market_data import MarketDataAdapter
 from brokers.dhan.options import OptionsAdapter
-from brokers.dhan.orders import OrdersAdapter
-from brokers.dhan.portfolio import PortfolioAdapter
+from brokers.dhan.execution.orders import OrdersAdapter
+from brokers.dhan.portfolio.portfolio import PortfolioAdapter
 from brokers.dhan.resolver import SymbolResolver
 from brokers.dhan.session_manager import DhanSessionManager
-from brokers.dhan.super_orders import SuperOrdersAdapter
-from brokers.dhan.user_profile import UserProfileAdapter
+from brokers.dhan.execution.super_orders import SuperOrdersAdapter
+from brokers.dhan.identity.user_profile import UserProfileAdapter
 from brokers.dhan.websocket import DhanMarketFeed, DhanOrderStream, PollingMarketFeed
 from domain.ports.risk_manager import RiskManagerPort
 from infrastructure.event_bus.event_bus import EventBus
@@ -134,7 +134,7 @@ class DhanConnection:
         )
         self._backfill_callback = backfill_callback
         self._reconciliation_service = reconciliation_service
-        from brokers.dhan.subscription_engine import SubscriptionEngine
+        from brokers.dhan.data.subscription_engine import SubscriptionEngine
 
         self.subscription_engine = SubscriptionEngine(self)
         self._session_manager: DhanSessionManager | None = None
