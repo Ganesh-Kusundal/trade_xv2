@@ -1,17 +1,29 @@
-"""Domain risk policies — pure, composable business rules for pre-trade risk.
+"""Domain risk policies and notional helpers."""
 
-These policy objects encapsulate risk logic that previously lived in
-``application/oms/_internal/risk_manager.py``. Each policy is a testable,
-stateless (or lightly stateful) value object: no infrastructure, no broker
-references, no service singletons. Application workflows compose policies
-and delegate to them — the policies never know about orders, gateways, or
-REST payloads.
+from domain.risk.notional import (
+    effective_notional,
+    resolve_effective_price,
+    resolve_multiplier,
+)
+from domain.risk.policy import (
+    ConcentrationLimit,
+    DailyLossCircuitBreaker,
+    GrossExposureLimit,
+    KillSwitch,
+    OrderNotionalLimit,
+    RiskGate,
+    RiskResult,
+)
 
-    risk = RiskGate(
-        notional=OrderNotionalLimit(max=Decimal("500000")),
-        concentration=ConcentrationLimit(max_pct=Decimal("0.20")),
-        circuit_breaker=DailyLossCircuitBreaker(limit=Decimal("100000")),
-    )
-    result = risk.check_order(order_notional, portfolio_notional)
-    if not result.approved: reject(reason=result.reason)
-"""
+__all__ = [
+    "ConcentrationLimit",
+    "DailyLossCircuitBreaker",
+    "GrossExposureLimit",
+    "KillSwitch",
+    "OrderNotionalLimit",
+    "RiskGate",
+    "RiskResult",
+    "effective_notional",
+    "resolve_effective_price",
+    "resolve_multiplier",
+]

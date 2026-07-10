@@ -65,6 +65,7 @@ from domain.constants import (
 from domain.constants.defaults import RISK_FALLBACK_CAPITAL
 from domain.exchange_segments import is_derivative_segment
 from domain.ports.margin_provider import MarginProviderPort
+from domain.risk.notional import effective_notional
 from domain.utils.price import is_tick_aligned
 
 logger = logging.getLogger(__name__)
@@ -157,6 +158,62 @@ class RiskManager:
 
         # Loss-based circuit breaker
         self._loss_cb = LossCircuitBreaker(config=loss_cb_config)
+
+    def _resolve_market_context(
+        self, order: Order
+    ) -> tuple[Decimal | None, Decimal | None, Any | None]:
+        """Best-effort LTP/ref price and multiplier for notional sizing.
+
+        Priority for ref price: order.price (handled by effective_notional),
+        then open position LTP, then instrument last/ltp attributes.
+        """
+        ref: Decimal | None = None
+        mult: Decimal | None = None
+        instrument: Any | None = None
+
+        current = self._position_manager.get_position(order.symbol, order.exchange)
+        if current is not None:
+            if current.ltp and current.ltp > 0:
+                ref = current.ltp
+            elif current.avg_price and current.avg_price > 0:
+                ref = current.avg_price
+            if getattr(current, "multiplier", None) and current.multiplier > 0:
+                mult = current.multiplier
+
+        if self._instrument_provider is not None:
+            try:
+                instrument = self._instrument_provider.resolve(order.symbol, order.exchange)
+            except Exception as exc:
+                logger.warning(
+                    "notional_instrument_lookup_failed",
+                    extra={
+                        "symbol": order.symbol,
+                        "exchange": order.exchange,
+                        "error": str(exc),
+                    },
+                )
+                instrument = None
+            if instrument is not None:
+                for attr in ("ltp", "last_price", "last_traded_price"):
+                    raw = getattr(instrument, attr, None)
+                    if raw is not None:
+                        try:
+                            cand = Decimal(str(raw))
+                            if cand > 0:
+                                ref = cand
+                                break
+                        except Exception:
+                            pass
+                raw_m = getattr(instrument, "multiplier", None)
+                if raw_m is not None:
+                    try:
+                        m = Decimal(str(raw_m))
+                        if m > 0:
+                            mult = m
+                    except Exception:
+                        pass
+
+        return ref, mult, instrument
 
     # -- Margin check (B3) --
 
@@ -293,23 +350,42 @@ class RiskManager:
                 if not margin_result.allowed:
                     return margin_result
 
-            notional = (
-                Decimal(order.quantity) * order.price
-                if order.price > 0
-                else Decimal(order.quantity)
+            # Effective notional: never treat bare quantity as rupee notional.
+            ref_price, mult, instrument = self._resolve_market_context(order)
+            notional = effective_notional(
+                order.quantity,
+                order.price,
+                ref_price=ref_price,
+                multiplier=mult,
+                instrument=instrument,
             )
+            if notional is None:
+                return RiskResult(
+                    False,
+                    f"Cannot size risk for {order.symbol}: no limit/ref price "
+                    f"(MARKET orders require LTP/ref price)",
+                )
 
             # Per-symbol concentration
             current = self._position_manager.get_position(order.symbol, order.exchange)
             current_notional = (
-                Decimal(abs(current.quantity)) * current.avg_price if current else Decimal("0")
+                Decimal(abs(current.quantity))
+                * current.avg_price
+                * (current.multiplier if getattr(current, "multiplier", None) else Decimal("1"))
+                if current
+                else Decimal("0")
             )
             if (current_notional + notional) / capital * 100 > self._config.max_position_pct:
                 return RiskResult(False, f"Exceeds max position pct for {order.symbol}")
 
             # Gross exposure
             positions = self._position_manager.get_positions()
-            gross = sum(Decimal(abs(p.quantity)) * p.avg_price for p in positions)
+            gross = sum(
+                Decimal(abs(p.quantity))
+                * p.avg_price
+                * (p.multiplier if getattr(p, "multiplier", None) else Decimal("1"))
+                for p in positions
+            )
             if (gross + notional) / capital * 100 > self._config.max_gross_exposure_pct:
                 return RiskResult(False, "Exceeds max gross exposure pct")
 

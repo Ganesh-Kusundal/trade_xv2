@@ -11,7 +11,11 @@ from domain.enums import ProductType
 
 @dataclass(slots=True, frozen=True)
 class Position:
-    """Canonical position — returned by every broker adapter."""
+    """Canonical position — returned by every broker adapter.
+
+    ``multiplier`` is the contract multiplier (1 for equity; e.g. 15/50/75
+    for index options/futures). PnL and notional scale by this factor.
+    """
 
     symbol: str
     exchange: str
@@ -23,19 +27,26 @@ class Position:
     product_type: ProductType = ProductType.INTRADAY
     correlation_id: str | None = None
     instrument_id: str | None = None
+    multiplier: Decimal = Decimal("1")
+
+    def _mult(self) -> Decimal:
+        m = self.multiplier if self.multiplier > 0 else Decimal("1")
+        return m
 
     @property
     def pnl(self) -> Decimal:
+        m = self._mult()
         if self.quantity > 0:
-            return Decimal(str(self.quantity)) * (self.ltp - self.avg_price)
+            return Decimal(str(self.quantity)) * (self.ltp - self.avg_price) * m
         elif self.quantity < 0:
-            return Decimal(str(abs(self.quantity))) * (self.avg_price - self.ltp)
+            return Decimal(str(abs(self.quantity))) * (self.avg_price - self.ltp) * m
         return Decimal("0")
 
     def with_ltp(self, ltp: Decimal) -> Position:
         """Return a new Position with the last traded price updated."""
+        m = self._mult()
         unrealized = (
-            Decimal(str(self.quantity)) * (ltp - self.avg_price)
+            Decimal(str(self.quantity)) * (ltp - self.avg_price) * m
             if self.quantity != 0
             else Decimal("0")
         )
@@ -78,12 +89,16 @@ class Position:
             return self.realized_pnl
         closed = min(abs(self.quantity), abs(fill_qty))
         pnl_factor = Decimal("1") if self.quantity > 0 else Decimal("-1")
-        return self.realized_pnl + Decimal(str(closed)) * (fill_price - self.avg_price) * pnl_factor
+        m = self._mult()
+        return (
+            self.realized_pnl
+            + Decimal(str(closed)) * (fill_price - self.avg_price) * pnl_factor * m
+        )
 
     def _compute_unrealized(self, new_qty: int, price: Decimal, avg_price: Decimal) -> Decimal:
         if new_qty == 0:
             return Decimal("0")
-        return Decimal(str(new_qty)) * (price - avg_price)
+        return Decimal(str(new_qty)) * (price - avg_price) * self._mult()
 
 
 @dataclass(slots=True, frozen=True)
