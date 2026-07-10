@@ -1,7 +1,0 @@
-{
-  "access_token": "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI2VkFaR1ciLCJqdGkiOiI2YTUwNzMxOWVmYTc2MDQwZmIxZDJlZjQiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaWF0IjoxNzgzNjU3MjQxLCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE3ODM3MjA4MDB9.RfqjPMqDHVOD0H98En2ZbKmJR4d5BwgRkGjC5VAdoEA",
-  "refresh_token": null,
-  "expires_at_ms": 1783720800000,
-  "issued_at_ms": 1783657242591,
-  "source": "TOTP"
-}

@@ -93,3 +93,16 @@ graphify-out/
 *.log
 /runtime/*.lock
 /runtime/*.json
+
+# Process state under src/runtime package dir (locks, tokens, event logs)
+src/runtime/*.json
+src/runtime/*.lock
+src/runtime/*.log
+src/runtime/*.sqlite
+src/runtime/*.sqlite-shm
+src/runtime/*.sqlite-wal
+src/runtime/event-log/
+src/runtime/server.log
+src/runtime/*.sqlite
+src/runtime/*.sqlite-shm
+src/runtime/*.sqlite-wal
