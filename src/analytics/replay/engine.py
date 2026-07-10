@@ -66,7 +66,7 @@ from analytics.replay.models import (
 from analytics.scanner.models import Candidate
 from analytics.strategy.models import Signal
 from analytics.strategy.pipeline import StrategyPipeline
-from domain.execution import compute_order_quantity
+from domain.orders.sizing import compute_order_quantity
 from domain.ports.oms_backtest_adapter import OmsBacktestAdapterPort
 from domain.runtime_hooks import create_oms_backtest_adapter
 from domain.symbols import normalize_symbol

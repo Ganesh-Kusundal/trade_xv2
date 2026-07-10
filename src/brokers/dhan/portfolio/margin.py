@@ -9,7 +9,7 @@ from brokers.dhan.domain import MarginRequest, MarginResponse
 from brokers.dhan.api.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 from brokers.dhan.resilience.invariants import assert_dhan_payload
-from domain.utils.price import to_wire_float
+from domain.value_objects.price import to_wire_float
 
 logger = logging.getLogger(__name__)
 

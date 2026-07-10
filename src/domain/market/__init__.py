@@ -1,5 +1,6 @@
-"""Market domain aggregates — exchange definitions and trading sessions."""
+"""Market domain — exchange definitions and trading sessions."""
 
 from domain.market.exchange import Exchange
+from domain.market.exchange_session import ExchangeSession
 
-__all__ = ["Exchange"]
+__all__ = ["Exchange", "ExchangeSession"]

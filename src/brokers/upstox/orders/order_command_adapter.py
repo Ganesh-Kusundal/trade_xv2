@@ -208,7 +208,7 @@ class UpstoxOrderCommandAdapter:
                     symbol=request.symbol, exchange_segment=seg_wire
                 )
                 if inst is not None and inst.tick_size > 0:
-                    from domain.utils.price import is_tick_aligned
+                    from domain.value_objects.price import is_tick_aligned
 
                     if not is_tick_aligned(request.price, Decimal(str(inst.tick_size))):
                         errors.append(

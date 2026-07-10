@@ -1,4 +1,8 @@
-"""Shared execution math for analytics engines."""
+"""Order quantity sizing — pure domain math for pre-trade position size.
+
+Used by analytics engines and the trading orchestrator to convert equity +
+max-position-% into a whole-share order quantity.
+"""
 
 from __future__ import annotations
 

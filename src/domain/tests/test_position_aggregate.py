@@ -1,15 +1,11 @@
-"""Tests for positions sub-package re-export."""
+"""Tests for PositionAggregate (canonical: domain.aggregates)."""
 
 from __future__ import annotations
 
 from decimal import Decimal
 
+from domain.aggregates import PositionAggregate
 from domain.entities.position import Position
-from domain.positions import PositionAggregate
-
-
-def test_import_from_positions():
-    assert PositionAggregate is not None
 
 
 def test_position_aggregate_identity():

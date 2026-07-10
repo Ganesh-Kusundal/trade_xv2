@@ -14,7 +14,7 @@ from domain import (
     ConditionalAlertRequest,
     Order,
 )
-from domain.utils.price import to_wire_float
+from domain.value_objects.price import to_wire_float
 
 
 class UpstoxGttAdapter:

@@ -7,7 +7,7 @@ from datetime import time
 
 import pytest
 
-from domain.exchanges import ExchangeSession
+from domain.market import ExchangeSession
 
 
 def test_frozen():

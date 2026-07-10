@@ -58,7 +58,7 @@ def to_place_payload(
 ) -> dict[str, Any]:
     provider_metadata = getattr(request, "provider_metadata", {}) or {}
     is_market = request.order_type == OrderType.MARKET
-    from domain.utils.price import to_wire_float
+    from domain.value_objects.price import to_wire_float
 
     price_value = (
         0
@@ -115,10 +115,10 @@ def to_modify_payload(
     if quantity is not None:
         payload["quantity"] = int(quantity)
     if price is not None:
-        from domain.utils.price import to_wire_float
+        from domain.value_objects.price import to_wire_float
         payload["price"] = to_wire_float(price)
     if trigger_price is not None:
-        from domain.utils.price import to_wire_float
+        from domain.value_objects.price import to_wire_float
         payload["trigger_price"] = to_wire_float(trigger_price)
     if order_type is not None:
         payload["order_type"] = order_type_to_wire(order_type)

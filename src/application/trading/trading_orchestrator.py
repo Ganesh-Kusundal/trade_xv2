@@ -44,7 +44,7 @@ from application.trading.models import (
     FeatureFetcher,
 )
 from domain import Order, OrderType, ProductType, Side
-from domain.execution.sizing import compute_order_quantity
+from domain.orders.sizing import compute_order_quantity
 from domain.models.features import FeatureSet
 from domain.models.trading import CandidateDTO, SignalDTO
 from domain.ports.strategy_evaluator import StrategyEvaluator
@@ -424,7 +424,7 @@ class TradingOrchestrator:
         """Resolve order quantity from explicit qty or position-size percent.
 
         ENG-003: ``position_size_pct`` is a **percent of equity**, not a share
-        count. Uses :func:`domain.execution.sizing.compute_order_quantity`.
+        count. Uses :func:`domain.orders.sizing.compute_order_quantity`.
         """
         if signal.quantity > 0:
             return int(signal.quantity)

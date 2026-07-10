@@ -96,7 +96,7 @@ class OrderValidator:
         if price is not None and price > 0:
             tick = getattr(inst, "tick_size", None)
             if tick is not None and tick > 0:
-                from domain.utils.price import is_tick_aligned
+                from domain.value_objects.price import is_tick_aligned
 
                 if not is_tick_aligned(price, tick):
                     errors.append(

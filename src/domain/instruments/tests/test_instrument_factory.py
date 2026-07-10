@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
-from domain.factories import InstrumentFactory
+from domain.instruments.instrument_factory import InstrumentFactory
 
 
 def test_create_equity():

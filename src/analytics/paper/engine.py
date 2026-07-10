@@ -55,7 +55,7 @@ from analytics.replay.models import Bar
 from analytics.scanner.models import Candidate
 from analytics.strategy.models import Signal
 from analytics.strategy.pipeline import StrategyPipeline
-from domain.execution import compute_order_quantity
+from domain.orders.sizing import compute_order_quantity
 from domain.ports.oms_backtest_adapter import OmsBacktestAdapterPort
 from domain.runtime_hooks import create_oms_backtest_adapter
 from domain.trading_costs import apply_slippage as _apply_slippage

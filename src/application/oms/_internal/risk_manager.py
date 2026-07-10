@@ -66,7 +66,7 @@ from domain.constants.defaults import RISK_FALLBACK_CAPITAL
 from domain.exchange_segments import is_derivative_segment
 from domain.ports.margin_provider import MarginProviderPort
 from domain.risk.notional import effective_notional
-from domain.utils.price import is_tick_aligned
+from domain.value_objects.price import is_tick_aligned
 
 logger = logging.getLogger(__name__)
 

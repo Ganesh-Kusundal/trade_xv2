@@ -1,4 +1,4 @@
-"""Tests for domain.utils.price — tick snapping, alignment, and wire conversion."""
+"""Tests for domain.value_objects.price — tick snapping, alignment, and wire conversion."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from decimal import Decimal
 
 import pytest
 
-from domain.utils.price import is_tick_aligned, snap_to_tick, to_wire_float
+from domain.value_objects.price import is_tick_aligned, snap_to_tick, to_wire_float
 
 
 class TestSnapToTick:
