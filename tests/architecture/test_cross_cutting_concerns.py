@@ -681,18 +681,18 @@ class TestPhase8Guardrails:
         )
 
     def test_oms_service_place_order_calls_live_actionable(self):
-        """Phase 1.2: ``OmsService.place_order`` must check
-        ``live_actionable`` before dispatching. The contract is what
-        protects the OMS from running with an unsafe configuration.
+        """Phase 1.2: CLI place_order must check ``live_actionable`` before dispatch.
+
+        D6: OmsService retired — gate lives on CliBrokerFacade (via BrokerService).
         """
-        # We verify the OmsService class has the live_actionable check
-        # by reading its source.
-        oms_path = ROOT / "src" / "interface" / "ui" / "services" / "oms_service.py"
-        if not oms_path.exists():
-            pytest.skip("OmsService source not found")
-        text = oms_path.read_text()
-        assert "_live_actionable_fn()" in text, (
-            "OmsService.place_order must consult self._live_actionable_fn() "
+        facade_path = (
+            ROOT / "src" / "interface" / "ui" / "services" / "cli_broker_facade.py"
+        )
+        if not facade_path.exists():
+            pytest.skip("CliBrokerFacade source not found")
+        text = facade_path.read_text()
+        assert "_live_actionable" in text and "place_order" in text, (
+            "CliBrokerFacade.place_order must consult live_actionable "
             "before dispatching to the OMS OrderManager. "
             "Without this gate, place_order will dispatch under unsafe "
             "configurations (missing broker creds, OMS not wired, "

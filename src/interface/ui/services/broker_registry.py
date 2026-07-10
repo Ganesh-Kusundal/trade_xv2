@@ -73,6 +73,6 @@ def get_dhan_websocket_classes() -> tuple[type, type]:
 
 def get_dhan_reconciliation_service_factory():
     """Return Dhan reconciliation service factory callable."""
-    from brokers.dhan.reconciliation import DhanReconciliationService
+    from brokers.dhan.portfolio.reconciliation import DhanReconciliationService
 
     return DhanReconciliationService

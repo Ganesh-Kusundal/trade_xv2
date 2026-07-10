@@ -40,3 +40,42 @@ def test_discovered_brokers_are_actually_registered():
     discover_broker_plugins()
     for broker_id in ("dhan", "upstox", "paper"):
         assert get_broker_plugin(broker_id) is not None
+
+
+def test_open_session_invokes_entry_point_discovery():
+    """Composition root (tradex.open_session) must run discover after
+    ensure_core_plugins so out-of-tree tradex.brokers plugins load."""
+    from tradex.session import open_session
+
+    order: list[str] = []
+
+    def _track_ensure():
+        order.append("ensure")
+
+    def _track_discover():
+        order.append("discover")
+        return ["paper"]
+
+    with (
+        patch("tradex.session.ensure_core_plugins", side_effect=_track_ensure),
+        patch(
+            "tradex.session.discover_broker_plugins",
+            side_effect=_track_discover,
+        ) as mock_discover,
+        patch("tradex.session.get_broker_plugin", return_value=None),
+        patch("tradex.session._normalize_mode", return_value="sim"),
+        patch("tradex.session._ensure_broker_registered"),
+        patch("tradex.session._is_live", return_value=False),
+        patch(
+            "infrastructure.gateway.factory.bootstrap_gateway",
+            side_effect=RuntimeError("stop before full connect"),
+        ),
+    ):
+        try:
+            open_session("paper")
+        except Exception:
+            pass  # discovery runs before gateway bootstrap
+
+    mock_discover.assert_called()
+    assert "discover" in order
+    assert order.index("ensure") < order.index("discover")

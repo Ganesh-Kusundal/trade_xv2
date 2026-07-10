@@ -165,7 +165,7 @@ def test_dhan_token_refresh_during_in_flight_trade_event() -> None:
     of the same trade (e.g. websocket retry) is rejected as a
     duplicate.
     """
-    from brokers.dhan.http_client import DhanHttpClient
+    from brokers.dhan.api.http_client import DhanHttpClient
 
     # Use a very small retry count to keep the test fast.
     new_token = {"v": "TOK-V1"}
@@ -252,7 +252,7 @@ def test_dhan_token_refresh_does_not_replay_under_cooldown() -> None:
     the request fails with AuthenticationError. This protects
     against a token-refresh feedback loop.
     """
-    from brokers.dhan.http_client import _REFRESH_COOLDOWN_SECONDS, DhanHttpClient
+    from brokers.dhan.api.http_client import _REFRESH_COOLDOWN_SECONDS, DhanHttpClient
 
     refresh_calls = {"n": 0}
 

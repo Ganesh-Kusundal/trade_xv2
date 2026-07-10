@@ -329,7 +329,7 @@ def _default_capabilities_loader(broker_id: str) -> Any | None:
     # Lazy import fallbacks (tradex.runtime may depend on brokers adapters).
     try:
         if broker_id == "dhan":
-            _mod = importlib.import_module("brokers.dhan.capabilities")
+            _mod = importlib.import_module("brokers.dhan.config.capabilities")
             return _mod.dhan_capabilities()
         if broker_id == "upstox":
             _mod = importlib.import_module("brokers.upstox.capabilities")

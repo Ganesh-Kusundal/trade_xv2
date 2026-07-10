@@ -140,7 +140,7 @@ def test_factory_accepts_risk_manager_and_threads_to_connection() -> None:
     """
     import inspect
 
-    from brokers.dhan.factory import BrokerFactory
+    from brokers.dhan.identity.factory import BrokerFactory
 
     sig = inspect.signature(BrokerFactory.create)
     assert "risk_manager" in sig.parameters, (
@@ -155,9 +155,8 @@ def test_end_to_end_kill_switch_via_oms_blocks_dhan_place_order() -> None:
     """A complete chain: BrokerService builds the OMS, sets the
     kill_switch, the OrdersAdapter's risk_manager (the same OMS
     instance) is consulted, and a place_order is blocked."""
-    from brokers.dhan.exceptions import OrderError
-    from brokers.dhan.http_client import DhanHttpClient
-    from brokers.dhan.orders import OrdersAdapter
+    from brokers.dhan.api.http_client import DhanHttpClient
+    from brokers.dhan.execution.orders import OrdersAdapter
     from interface.ui.services.broker_service import BrokerService
 
     bs = BrokerService()
@@ -194,20 +193,21 @@ def test_end_to_end_kill_switch_via_oms_blocks_dhan_place_order() -> None:
     # Set the kill switch via the OMS
     rm.set_kill_switch(True)
 
-    # Try to place an order — must raise OrderError due to risk gate
+    # Try to place an order — must be rejected by risk gate (OrderResponse.fail)
     from domain.models.dtos import BrokerOrderPayload
 
-    with pytest.raises(OrderError, match="Risk check failed"):
-        adapter.place_order(
-            BrokerOrderPayload(
-                symbol="RELIANCE",
-                exchange="NSE",
-                transaction_type="BUY",
-                quantity=10,
-                order_type="MARKET",
-            )
+    result = adapter.place_order(
+        BrokerOrderPayload(
+            symbol="RELIANCE",
+            exchange="NSE",
+            transaction_type="BUY",
+            quantity=10,
+            order_type="MARKET",
         )
+    )
 
+    assert result.success is False
+    assert "Risk check failed" in (result.message or "")
     # HTTP was never called
     assert client.post.call_count == 0
 
@@ -388,9 +388,13 @@ def test_production_readiness_checker_fails_when_reconciliation_unwired() -> Non
         ProductionReadinessChecker,
     )
 
-    # Build a TradingContext with reconciliation_service=None — the
+    # Build a TradingContext without reconciliation/event log — the
     # pre-B-1 configuration the live CLI used to ship with.
-    ctx = build_test_trading_context(reconciliation_interval_seconds=0)
+    ctx = build_test_trading_context(
+        reconciliation_interval_seconds=0,
+        reconciliation_service=None,
+        event_log=None,
+    )
     svc = MagicMock()
     svc._trading_context = ctx
     svc.lifecycle = MagicMock()

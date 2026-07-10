@@ -76,47 +76,9 @@ class DataQualityInterface(ABC):
         pass
 
 
-class DataLoadingServiceInterface(ABC):
-    """Abstract interface for data loading operations."""
-    
-    @abstractmethod
-    def load_symbol(
-        self,
-        symbol: str,
-        years: int = 5,
-        timeframe: str = "1m",
-        gateway=None,
-        **kwargs
-    ) -> dict[str, Any]:
-        """Load historical data for a symbol."""
-        pass
-    
-    @abstractmethod
-    def load_universe(
-        self,
-        universe: str,
-        years: int = 5,
-        timeframe: str = "1m",
-        gateway=None,
-        **kwargs
-    ) -> dict[str, Any]:
-        """Load historical data for all symbols in a universe."""
-        pass
-    
-    @abstractmethod
-    def update_daily(
-        self,
-        universe: str,
-        gateway=None,
-        **kwargs
-    ) -> dict[str, Any]:
-        """Update all symbols in a universe with latest daily data."""
-        pass
-
 
 __all__ = [
     "MarketDataStorage",
     "DataCatalogInterface",
-    "DataQualityInterface",
-    "DataLoadingServiceInterface"
+    "DataQualityInterface"
 ]

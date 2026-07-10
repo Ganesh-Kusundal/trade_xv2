@@ -13,7 +13,7 @@ class GatewayExecutionProvider(ExecutionProvider):
     """Adapts a broker gateway (duck-typed place_order) to ExecutionProvider.
 
     Used for Upstox (and any gateway) when a broker-specific transport is not
-    registered. Dhan prefers :class:`brokers.dhan.transport.DhanOrderTransport`.
+    registered. Dhan prefers :class:`brokers.dhan.api.transport.DhanOrderTransport`.
     """
 
     def __init__(self, gateway: Any, *, broker_id: str = "gateway") -> None:

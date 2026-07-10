@@ -29,12 +29,12 @@ from infrastructure.resilience import (
     RetryExecutor,
 )
 from infrastructure.resilience.backoff import NoBackoff
-from brokers.dhan.http_client import DhanHttpClient
+from brokers.dhan.api.http_client import DhanHttpClient
 from brokers.dhan.resilience import (
     create_circuit_breakers,
     create_rate_limiter,
 )
-from brokers.dhan.resilience.rate_limiter import DhanRateLimiterMetrics
+from infrastructure.resilience.rate_limiter import DhanRateLimiterMetrics
 from brokers.dhan.resilience.retry_executor import (
     MARKET_DATA_POLICY,
     ORDERS_POLICY,

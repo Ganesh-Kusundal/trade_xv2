@@ -283,14 +283,15 @@ class ExtendedOrderService:
     def exit_all(self, gw: Any) -> ExtendedOrderResult:
         """Flatten all positions.
 
-        Deliberately NOT gated by the kill switch: exit_all only reduces
-        risk (it closes positions), and the kill switch's purpose is to
-        stop new risk-taking. Gating the emergency flatten-all action
-        behind the same switch that trips when something has gone wrong
-        would block the one action an operator most needs at exactly that
-        moment. See docs/architecture/trading-os/TRADING_OS_BLUEPRINT_V2_PART5.md §3.1.
+        Desk policy (freeze_all): kill switch blocks *all* order actions
+        including ``exit_all`` / emergency flatten. Intentional so a
+        compromised or buggy process cannot "emergency exit" destructively;
+        operators clear the kill switch, then exit. See
+        :class:`application.oms._internal.risk_manager.RiskManager` and
+        Part 5 §3.1.
         """
         try:
+            self._check_kill_switch()
             ext = self._get_extended(gw)
             if hasattr(ext, "exit_all"):
                 with oms_managed():

@@ -191,17 +191,14 @@ class TestAllowLiveOrdersGuards:
 class TestDhanWriteOperationGuards:
     """Verify ALL Dhan write operations respect allow_live_orders guard."""
 
-    def test_dhan_modify_order_has_guard(self):
-        """Dhan modify_order must check allow_live_orders."""
+    def _adapter(self, **kwargs):
         from unittest.mock import Mock
 
-        from brokers.dhan.exceptions import OrderError
-        from brokers.dhan.orders import OrdersAdapter
+        from brokers.dhan.execution.orders import OrdersAdapter
 
-        mock_client = Mock()
-        adapter = OrdersAdapter(
-            client=mock_client,
-            identity=Mock(),
+        return OrdersAdapter(
+            client=Mock(),
+            identity=kwargs.get("identity", Mock()),
             event_bus=None,
             allow_live_orders=False,
             idempotency_cache=None,
@@ -209,80 +206,40 @@ class TestDhanWriteOperationGuards:
             allow_duck_identity=True,
         )
 
-        try:
-            adapter.modify_order("ORD123", quantity=20)
-            assert False, "Should have raised OrderError"
-        except OrderError as e:
-            assert "disabled" in str(e).lower()
+    @staticmethod
+    def _assert_live_disabled(result) -> None:
+        """Guards return OrderResponse.fail (not raise) when live orders off."""
+        assert getattr(result, "success", None) is False
+        assert "disabled" in str(getattr(result, "message", result)).lower()
+
+    def test_dhan_modify_order_has_guard(self):
+        """Dhan modify_order must check allow_live_orders."""
+        self._assert_live_disabled(self._adapter().modify_order("ORD123", quantity=20))
 
     def test_dhan_cancel_order_has_guard(self):
         """Dhan cancel_order must check allow_live_orders."""
-        from unittest.mock import Mock
-
-        from brokers.dhan.exceptions import OrderError
-        from brokers.dhan.orders import OrdersAdapter
-
-        mock_client = Mock()
-        adapter = OrdersAdapter(
-            client=mock_client,
-            identity=Mock(),
-            event_bus=None,
-            allow_live_orders=False,
-            idempotency_cache=None,
-            risk_manager=None,
-            allow_duck_identity=True,
-        )
-
-        try:
-            adapter.cancel_order("ORD123")
-            assert False, "Should have raised OrderError"
-        except OrderError as e:
-            assert "disabled" in str(e).lower()
+        self._assert_live_disabled(self._adapter().cancel_order("ORD123"))
 
     def test_dhan_cancel_all_orders_has_guard(self):
         """Dhan cancel_all_orders must check allow_live_orders."""
+        # returns list of (order_id, ok); empty book is fine — ensure no client write
         from unittest.mock import Mock
 
-        from brokers.dhan.exceptions import OrderError
-        from brokers.dhan.orders import OrdersAdapter
-
-        mock_client = Mock()
-        adapter = OrdersAdapter(
-            client=mock_client,
-            identity=Mock(),
-            event_bus=None,
-            allow_live_orders=False,
-            idempotency_cache=None,
-            risk_manager=None,
-            allow_duck_identity=True,
-        )
-
-        try:
-            adapter.cancel_all_orders()
-            assert False, "Should have raised OrderError"
-        except OrderError as e:
-            assert "disabled" in str(e).lower()
+        client = Mock()
+        adapter = self._adapter()
+        adapter._client = client
+        adapter._canceller._client = client
+        result = adapter.cancel_all_orders()
+        assert result == [] or all(not ok for _, ok in result)
+        client.post.assert_not_called()
+        client.delete.assert_not_called()
 
     def test_dhan_kill_switch_has_guard(self):
         """Dhan kill_switch must check allow_live_orders."""
-        from unittest.mock import Mock
-
         from brokers.dhan.exceptions import OrderError
-        from brokers.dhan.orders import OrdersAdapter
-
-        mock_client = Mock()
-        adapter = OrdersAdapter(
-            client=mock_client,
-            identity=Mock(),
-            event_bus=None,
-            allow_live_orders=False,
-            idempotency_cache=None,
-            risk_manager=None,
-            allow_duck_identity=True,
-        )
 
         try:
-            adapter.kill_switch(True)
+            self._adapter().kill_switch(True)
             assert False, "Should have raised OrderError"
         except OrderError as e:
             assert "disabled" in str(e).lower()
@@ -291,28 +248,13 @@ class TestDhanWriteOperationGuards:
         """Dhan place_slice_order must check allow_live_orders."""
         from unittest.mock import Mock
 
-        from brokers.dhan.exceptions import OrderError
-        from brokers.dhan.orders import OrdersAdapter
-
-        mock_client = Mock()
         mock_identity = Mock()
         mock_identity.resolve_ref = Mock()
-
-        adapter = OrdersAdapter(
-            client=mock_client,
-            identity=mock_identity,
-            event_bus=None,
-            allow_live_orders=False,
-            idempotency_cache=None,
-            risk_manager=None,
-            allow_duck_identity=True,
+        self._assert_live_disabled(
+            self._adapter(identity=mock_identity).place_slice_order(
+                "TCS", "NSE", side="BUY", quantity=10, order_type="MARKET"
+            )
         )
-
-        try:
-            adapter.place_slice_order("TCS", "NSE", side="BUY", quantity=10, order_type="MARKET")
-            assert False, "Should have raised OrderError"
-        except OrderError as e:
-            assert "disabled" in str(e).lower()
 
 
 class TestOrderPayloadValidation:
@@ -340,8 +282,8 @@ class TestSecretsNotLogged:
         assert "<REDACTED>" in redacted
 
     def test_api_auth_does_not_log_generated_key(self):
-        """api/auth.py must not format API_KEY into warning logs."""
-        source = Path("api/auth.py").read_text()
+        """interface/api/auth.py must not format API_KEY into warning logs."""
+        source = Path("src/interface/api/auth.py").read_text()
         assert "Generated temporary key: %s" not in source
 
     def test_no_token_equals_in_logger_format_strings(self):

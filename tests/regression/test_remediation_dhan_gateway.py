@@ -212,7 +212,7 @@ def test_g1_stream_routes_through_create_market_feed():
 def _make_adapter(client, allow_live=True):
     """Build a real OrdersAdapter around fakes (lazy import)."""
     orders_mod = _skip_if_import_error(
-        lambda: __import__("brokers.dhan.orders", fromlist=["OrdersAdapter"])
+        lambda: __import__("brokers.dhan.execution.orders", fromlist=["OrdersAdapter"])
     )
     OrdersAdapter = orders_mod.OrdersAdapter
     identity = _skip_if_import_error(

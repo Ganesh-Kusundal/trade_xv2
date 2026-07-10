@@ -151,17 +151,30 @@ class OrderPlacer:
         if validation_errors:
             return OrderResponse.fail("; ".join(validation_errors))
 
-        # -- Risk check ----------------------------------------------------
+        # -- Risk check (domain RiskManagerPort.check_order) ---------------
         if self._risk_manager is not None:
-            risk_ok = self._risk_manager.approve_order(
-                symbol=request.symbol,
-                exchange=dhan_exchange.value if hasattr(dhan_exchange, "value") else str(dhan_exchange),
-                quantity=request.quantity,
-                price=request.price,
-                side=request.transaction_type,
+            exchange_s = (
+                dhan_exchange.value if hasattr(dhan_exchange, "value") else str(dhan_exchange)
             )
-            if not risk_ok:
-                return OrderResponse.fail("risk_manager_rejected")
+            side = request.transaction_type
+            if not isinstance(side, OrderSide):
+                side = OrderSide(str(side).upper())
+            precheck = Order(
+                order_id="risk-precheck",
+                symbol=request.symbol,
+                exchange=exchange_s,
+                side=side,
+                order_type=ot if isinstance(ot, OrderType) else OrderType.MARKET,
+                quantity=int(request.quantity),
+                price=request.price if request.price is not None else Decimal("0"),
+                product_type=pt if isinstance(pt, ProductType) else ProductType.INTRADAY,
+                status=OrderStatus.OPEN,
+            )
+            risk_result = self._risk_manager.check_order(precheck)
+            allowed = bool(getattr(risk_result, "allowed", risk_result))
+            if not allowed:
+                reason = getattr(risk_result, "reason", None) or "risk_manager_rejected"
+                return OrderResponse.fail(f"Risk check failed: {reason}")
 
         # -- Build & send payload ------------------------------------------
         payload = self._build_order_payload(ref, request, ot, pt, vl, cid)

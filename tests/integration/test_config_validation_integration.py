@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from brokers.dhan.settings import DhanSettingsLoader
+from brokers.dhan.config.settings import DhanSettingsLoader
 
 # ── Fixture to isolate tests from workspace .env.local ─────────────────
 
@@ -155,7 +155,7 @@ class TestFactoryValidationIntegration:
             # Missing DHAN_CLIENT_ID
         )
 
-        from brokers.dhan.factory import BrokerFactory
+        from brokers.dhan.identity.factory import BrokerFactory
 
         with pytest.raises(ValueError, match="DHAN_CLIENT_ID is required"):
             BrokerFactory().create(env_path=env_file, load_instruments=False)
@@ -168,7 +168,7 @@ class TestFactoryValidationIntegration:
             "DHAN_ACCESS_TOKEN=test_token\n"
         )
 
-        from brokers.dhan.factory import BrokerFactory
+        from brokers.dhan.identity.factory import BrokerFactory
 
         # Should succeed (token provided, no TOTP needed)
         gateway = BrokerFactory().create(env_path=env_file, load_instruments=False)

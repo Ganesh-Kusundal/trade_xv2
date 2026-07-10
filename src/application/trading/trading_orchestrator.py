@@ -9,7 +9,7 @@ the complete trading workflow:
 3. Run StrategyPipeline.evaluate_single(candidate, features)
 4. Filter actionable signals (signal.is_actionable)
 5. Convert signal to OmsOrderCommand
-6. Call OrderManager.place_order() with the command
+6. Place via ExecutionService or PlaceOrderUseCase (never bare OMS)
 7. Publish RISK_APPROVED/RISK_REJECTED events based on OMS result
 8. Publish SIGNAL_EXECUTED event with order_id
 
@@ -39,6 +39,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from application.execution.execution_service import ExecutionService
+from application.execution.place_order_use_case import PlaceOrderUseCase
 from application.oms.order_manager import OmsOrderCommand, OrderManager, OrderResult
 from application.trading.models import (
     FeatureFetcher,
@@ -493,10 +494,11 @@ class TradingOrchestrator:
             if self._execution_service is not None:
                 result = self._execution_service.place_order(command)
             else:
-                result = self._order_manager.place_order(
-                    request=command,
+                # Prefer PlaceOrderUseCase so bare-OMS never skips the use-case event path.
+                result = PlaceOrderUseCase(
+                    self._order_manager,
                     submit_fn=self._submit_fn,
-                )
+                ).execute(command)
 
             return result
 

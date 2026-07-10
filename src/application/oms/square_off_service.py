@@ -40,7 +40,9 @@ class SquareOffService:
     """Squares off positions through the OMS risk pipeline.
 
     Ensures:
-    1. Kill switch check before any order placement
+    1. Kill switch check before any order placement (freeze_all policy —
+       square-off is blocked while kill switch is active; see
+       :attr:`RiskManager.KILL_SWITCH_MODE`)
     2. Each order goes through RiskManager.check_order()
     3. Correct product type (not hardcoded INTRADAY)
     4. Aggregate event publishing

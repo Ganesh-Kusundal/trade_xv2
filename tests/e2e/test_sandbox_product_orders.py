@@ -172,7 +172,7 @@ def test_sandbox_allow_live_orders_gate_blocks_when_disabled() -> None:
     # Unit-level: OrdersAdapter fail-closed
     from unittest.mock import MagicMock
 
-    from brokers.dhan.orders import OrdersAdapter
+    from brokers.dhan.execution.orders import OrdersAdapter
     from domain.enums import OrderType, ProductType, Side, Validity
     from domain.models.dtos import BrokerOrderPayload
 

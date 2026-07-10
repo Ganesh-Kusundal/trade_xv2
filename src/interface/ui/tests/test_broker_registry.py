@@ -79,7 +79,7 @@ class TestCreateGatewayEventBusForwarding:
                 captured.update(kwargs)
                 return FakeGateway()
 
-        monkeypatch.setattr("brokers.dhan.factory.BrokerFactory", FakeFactory)
+        monkeypatch.setattr("brokers.dhan.identity.factory.BrokerFactory", FakeFactory)
 
         create_gateway(
             "dhan",
@@ -140,7 +140,7 @@ class TestCreateGatewayEventBusForwarding:
                 captured.update(kwargs)
                 return FakeGateway()
 
-        monkeypatch.setattr("brokers.dhan.factory.BrokerFactory", FakeFactory)
+        monkeypatch.setattr("brokers.dhan.identity.factory.BrokerFactory", FakeFactory)
 
         create_gateway("dhan", env_path=tmp_path / ".env", load_instruments=False)
 
@@ -169,7 +169,7 @@ class TestCreateGatewayLifecycleForwarding:
                 captured.update(kwargs)
                 return FakeGateway()
 
-        monkeypatch.setattr("brokers.dhan.factory.BrokerFactory", FakeFactory)
+        monkeypatch.setattr("brokers.dhan.identity.factory.BrokerFactory", FakeFactory)
 
         create_gateway(
             "dhan",
@@ -230,7 +230,7 @@ class TestCreateGatewayLifecycleForwarding:
                 captured.update(kwargs)
                 return FakeGateway()
 
-        monkeypatch.setattr("brokers.dhan.factory.BrokerFactory", FakeFactory)
+        monkeypatch.setattr("brokers.dhan.identity.factory.BrokerFactory", FakeFactory)
 
         create_gateway("dhan", env_path=tmp_path / ".env", load_instruments=False)
 
@@ -258,7 +258,7 @@ class TestCreateGatewayEnvPathConversion:
                 captured.update(kwargs)
                 return FakeGateway()
 
-        monkeypatch.setattr("brokers.dhan.factory.BrokerFactory", FakeFactory)
+        monkeypatch.setattr("brokers.dhan.identity.factory.BrokerFactory", FakeFactory)
 
         create_gateway("dhan", env_path="/some/path/.env", load_instruments=False)
 
@@ -284,7 +284,7 @@ class TestCreateGatewayEnvPathConversion:
                 captured.update(kwargs)
                 return FakeGateway()
 
-        monkeypatch.setattr("brokers.dhan.factory.BrokerFactory", FakeFactory)
+        monkeypatch.setattr("brokers.dhan.identity.factory.BrokerFactory", FakeFactory)
 
         create_gateway("dhan", env_path=None, load_instruments=False)
 
@@ -305,7 +305,7 @@ class TestCreateGatewayErrorHandling:
             def create(**kwargs):
                 raise RuntimeError("simulated failure")
 
-        monkeypatch.setattr("brokers.dhan.factory.BrokerFactory", FailingFactory)
+        monkeypatch.setattr("brokers.dhan.identity.factory.BrokerFactory", FailingFactory)
 
         result = create_gateway("dhan", env_path=tmp_path / ".env")
         assert result is None

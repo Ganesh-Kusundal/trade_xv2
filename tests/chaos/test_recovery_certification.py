@@ -296,7 +296,7 @@ def test_scenario_4_crash_during_reconciliation_drift_persists(tmp_path):
     events_dir = tmp_path / "events"
     _ctx, _, _ = _build_context(events_dir)
     # Stub a DhanReconciliationService-style adapter that always reports drift.
-    from brokers.dhan.reconciliation import (
+    from brokers.dhan.portfolio.reconciliation import (
         DriftItem,
         ReconciliationReport,
     )
@@ -388,7 +388,7 @@ def test_scenario_6_crash_during_token_refresh_atomic_env(tmp_path):
     mid-write leaves either the old or new token, never a partial.
     """
 
-    from brokers.dhan.factory import _update_env_token
+    from brokers.dhan.identity.factory import _update_env_token
 
     env_path = tmp_path / ".env.local"
     env_path.write_text(

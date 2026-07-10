@@ -65,3 +65,39 @@ def test_execution_service_cancel_order(trading_context, paper_gateway) -> None:
     assert placed.success
     cancelled = svc.cancel_order(placed.order.order_id)
     assert cancelled.success or cancelled.error is not None
+
+
+def test_execution_service_live_uses_place_order_use_case(
+    trading_context, paper_gateway, monkeypatch
+) -> None:
+    """Live path must route through PlaceOrderUseCase (not bare OrderManager)."""
+    from application.execution import place_order_use_case as pouc_mod
+
+    calls: list[object] = []
+    real_execute = pouc_mod.PlaceOrderUseCase.execute
+
+    def tracking_execute(self, request):
+        calls.append(request)
+        return real_execute(self, request)
+
+    monkeypatch.setattr(pouc_mod.PlaceOrderUseCase, "execute", tracking_execute)
+
+    svc = ExecutionService(
+        trading_context=trading_context,
+        gateway=paper_gateway,
+        mode="live",
+    )
+    cmd = OmsOrderCommand(
+        symbol="RELIANCE",
+        exchange="NSE",
+        side=Side.BUY,
+        quantity=1,
+        price=Decimal("100"),
+        order_type=OrderType.MARKET,
+        product_type=ProductType.INTRADAY,
+        correlation_id="test:exec:live:usecase:1",
+    )
+    result = svc.place_order(cmd)
+    assert result.success
+    assert len(calls) == 1
+    assert calls[0] is cmd

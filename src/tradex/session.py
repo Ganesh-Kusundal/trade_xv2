@@ -15,6 +15,8 @@ Usage::
 
 from __future__ import annotations
 
+import logging
+import os
 import uuid
 from pathlib import Path
 from typing import Any
@@ -39,6 +41,42 @@ from domain.session_status import (
 )
 from domain.universe import Session as DomainSession
 from infrastructure.broker_plugin import ensure_core_plugins, get_broker_plugin
+from runtime.broker_discovery import discover_broker_plugins
+
+logger = logging.getLogger(__name__)
+
+
+def _session_recording_enabled() -> bool:
+    """Opt-in SessionRecording via ``TRADEX_SESSION_RECORD=1`` (default off)."""
+    raw = (os.environ.get("TRADEX_SESSION_RECORD") or "").strip().lower()
+    return raw in {"1", "true", "yes", "on"}
+
+
+def _maybe_start_session_recorder(
+    session: Any,
+    event_bus: Any | None,
+    *,
+    session_id: str | None = None,
+) -> None:
+    """Start SessionRecorder when enabled and an event bus is available.
+
+    Non-critical: any failure is logged and swallowed so connect never fails
+    because of recording (Blueprint Part 3 §4.3 SessionRecording).
+    """
+    if not _session_recording_enabled():
+        return
+    bus = event_bus if event_bus is not None else getattr(session, "event_bus", None)
+    if bus is None:
+        logger.debug("session_recorder_skipped_no_event_bus")
+        return
+    try:
+        from infrastructure.observability.session_recorder import SessionRecorder
+
+        recorder = SessionRecorder(bus, session_id=session_id)
+        recorder.start()
+        setattr(session, "_session_recorder", recorder)
+    except Exception:
+        logger.warning("session_recorder_start_failed", exc_info=True)
 
 
 def _default_mode(broker_id: str) -> str:
@@ -127,7 +165,10 @@ def open_session(
           ``OMS_REQUIRED`` if no composition-root OMS is registered.
     """
     del profile  # reserved
+    # Built-in metadata fallback (no broker imports), then entry-point discovery
+    # so out-of-tree packages under ``tradex.brokers`` self-register (Part 4 §3.2).
     ensure_core_plugins()
+    discover_broker_plugins()
     broker_id = (broker or "paper").lower().strip()
     plugin = get_broker_plugin(broker_id)
     trace_id = uuid.uuid4().hex[:16]
@@ -352,6 +393,8 @@ def open_session(
         ],
         default_exchange="NSE",
     )
+    # Opt-in SessionRecording (TRADEX_SESSION_RECORD=1); never blocks connect.
+    _maybe_start_session_recorder(session, event_bus, session_id=trace_id)
     return session
 
 

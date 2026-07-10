@@ -168,13 +168,15 @@ def test_kill_switch_still_blocks_extended_orders() -> None:
 # ── Direct unit of the new helper ────────────────────────────────────────────
 
 
-# ── exit_all is exempt from the kill switch ───────────────────────────────────
+# ── exit_all respects freeze_all kill-switch policy ──────────────────────────
 
 
-def test_exit_all_succeeds_even_when_kill_switch_active() -> None:
-    """exit_all only reduces risk (closes positions) and must never be blocked
-    by the kill switch — the emergency flatten-all escape hatch must work
-    precisely when something has gone wrong badly enough to trip it."""
+def test_exit_all_rejected_when_kill_switch_active() -> None:
+    """Desk policy: kill switch freezes ALL order actions including exit_all.
+
+    A compromised process must not flatten destructively; operators clear
+    the kill switch, then exit. See RiskManager.KILL_SWITCH_MODE.
+    """
     risk = _make_risk_manager(trip_loss=False)
     risk.set_kill_switch(True)
     service = _make_service(risk)
@@ -183,9 +185,10 @@ def test_exit_all_succeeds_even_when_kill_switch_active() -> None:
 
     result = service.exit_all(gw)
 
-    assert result.success is True
-    assert result.risk_rejected is False
-    assert gw.extended.exit_all.called is True
+    assert result.success is False
+    assert result.risk_rejected is True
+    assert "Kill switch" in (result.error or "")
+    assert gw.extended.exit_all.called is False
 
 
 def test_check_risk_helper_returns_none_when_allowed() -> None:

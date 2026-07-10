@@ -8,7 +8,7 @@ Usage at composition root (bootstrap)::
 
     from runtime.broker_infrastructure import BrokerInfrastructure, build_infrastructure
     from domain.policies.defaults import default_source_selection_policy
-    from brokers.dhan.capabilities import dhan_capabilities
+    from brokers.dhan.config.capabilities import dhan_capabilities
     from brokers.upstox.capabilities import upstox_capabilities
 
     infra = await build_infrastructure(

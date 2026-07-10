@@ -6,7 +6,7 @@ import inspect
 
 import pytest
 
-from brokers.dhan.capabilities import dhan_capabilities
+from brokers.dhan.config.capabilities import dhan_capabilities
 from domain.capability_manifest import CAPABILITY_SURFACES, classify_exposure
 
 

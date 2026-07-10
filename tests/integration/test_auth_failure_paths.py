@@ -24,7 +24,7 @@ class TestTokenExpiryMidOrder:
 
     def test_token_expiry_triggers_refresh_and_retry(self):
         """401 during order submission should trigger token refresh and retry."""
-        from brokers.dhan.http_client import DhanHttpClient
+        from brokers.dhan.api.http_client import DhanHttpClient
 
         call_count = 0
 
@@ -74,7 +74,7 @@ class TestTokenExpiryMidOrder:
 
     def test_concurrent_requests_share_refresh_future(self):
         """Multiple 401s should trigger single refresh, not cascading refreshes."""
-        from brokers.dhan.http_client import DhanHttpClient
+        from brokers.dhan.api.http_client import DhanHttpClient
 
         refresh_count = 0
         refresh_lock = threading.Lock()

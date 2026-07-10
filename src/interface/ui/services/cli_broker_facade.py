@@ -125,12 +125,11 @@ class CliBrokerFacade:
         price: Decimal | None = None,
         order_type: str = "MARKET",
     ):
-        """Place order via the OMS OrderManager.
+        """Place order via ExecutionService → PlaceOrderUseCase → OMS.
 
-        The central OMS is the SINGLE entry point for order placement. The
-        broker gateway is consulted by the OMS's ``submit_fn`` (which the OMS
-        uses to dispatch to Dhan), so callers do not bypass risk checks,
-        idempotency, or event-bus publishing.
+        The application execution spine is the single entry point for order
+        placement. Live mode routes through ``PlaceOrderUseCase`` (risk,
+        idempotency, events) with a gateway-backed ``submit_fn``.
 
         This method refuses to dispatch when the runtime is not
         ``live_actionable`` (production readiness gate failed, or the OMS has
@@ -144,20 +143,25 @@ class CliBrokerFacade:
                 "address every failing check before placing orders."
             )
         if self._svc._trading_context is not None:
-            from domain import (
-                OrderType as Ot,
-            )
-            from domain import (
-                ProductType as Pt,
-            )
+            import uuid
+
+            from application.execution.execution_service import ExecutionService
+            from application.oms.order_manager import OmsOrderCommand
+            from domain import OrderType as Ot
+            from domain import ProductType as Pt
             from domain import Side
-            from application.oms.order_manager import OrderRequest
 
             try:
                 ot = Ot(order_type)
             except ValueError:
                 ot = Ot.MARKET
-            req = OrderRequest(
+            gw = self._svc._gateway
+            if gw is None:
+                raise RuntimeError(
+                    "No broker gateway available. Configure .env.local with valid credentials."
+                )
+
+            command = OmsOrderCommand(
                 symbol=symbol,
                 exchange=exchange,
                 side=Side(side) if isinstance(side, str) else side,
@@ -165,25 +169,13 @@ class CliBrokerFacade:
                 price=price if price is not None else Decimal("0"),
                 order_type=ot,
                 product_type=Pt.INTRADAY,
+                correlation_id=f"cli:{uuid.uuid4().hex[:12]}",
             )
-            gw = self._svc._gateway
-            if gw is None:
-                raise RuntimeError(
-                    "No broker gateway available. Configure .env.local with valid credentials."
-                )
-
-            def _submit(r):
-                return gw.place_order(
-                    symbol=r.symbol,
-                    exchange=r.exchange,
-                    side=r.side,
-                    quantity=r.quantity,
-                    price=r.price,
-                    order_type=r.order_type,
-                    product_type=r.product_type,
-                )
-
-            result = self._svc._trading_context.order_manager.place_order(req, submit_fn=_submit)
+            result = ExecutionService(
+                trading_context=self._svc._trading_context,
+                gateway=gw,
+                mode="live",
+            ).place_order(command)
             if not result.success:
                 raise RuntimeError(f"OMS rejected order: {result.error}")
             return result.order
@@ -194,10 +186,14 @@ class CliBrokerFacade:
         )
 
     def cancel_order(self, order_id: str) -> bool:
-        """Cancel an open order (mirrors retired OmsService)."""
+        """Cancel an open order via CancelOrderUseCase → OMS."""
         self._svc._ensure_initialized()
         if self._svc._trading_context is not None:
-            result = self._svc._trading_context.order_manager.cancel_order(order_id)
+            from application.execution.cancel_order_use_case import CancelOrderUseCase
+
+            result = CancelOrderUseCase(
+                self._svc._trading_context.order_manager,
+            ).execute(order_id)
             return result.success
         raise RuntimeError(
             "OMS refused: TradingContext / OrderManager not wired. "

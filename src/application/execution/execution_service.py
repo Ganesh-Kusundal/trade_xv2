@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from application.execution.cancel_order_use_case import CancelOrderUseCase
 from application.execution.execution_mode_adapter import (
     ExecutionModeAdapter,
     create_execution_adapter,
 )
 from application.execution.gateway_submit import make_gateway_submit_fn
+from application.execution.place_order_use_case import PlaceOrderUseCase
 from application.oms.context import TradingContext
 from application.oms.order_manager import OmsOrderCommand, OrderManager, OrderResult
 from domain import Order
@@ -18,10 +20,9 @@ from domain.ports.broker_gateway import OrderTransportPort
 class ExecutionService:
     """Orchestrates order placement and cancellation through OMS + mode adapters.
 
-    For ``"live"`` mode, ``place_order`` calls ``OrderManager.place_order``
-    directly (inlining the previous ``LiveOMSAdapter`` pass-through). For
-    ``"paper"`` and ``"replay"`` modes, it delegates to a mode adapter
-    that supplies a simulated fill callback.
+    For ``"live"`` mode, ``place_order`` goes through ``PlaceOrderUseCase``
+    (OMS + optional event publish). For ``"paper"`` and ``"replay"`` modes,
+    it delegates to a mode adapter that supplies a simulated fill callback.
     """
 
     def __init__(
@@ -59,18 +60,24 @@ class ExecutionService:
     ) -> OrderResult:
         """Place an order via the configured execution mode.
 
-        Live mode calls ``OrderManager.place_order`` directly with a
-        gateway-backed ``submit_fn``. Paper/replay mode delegates to a
-        mode adapter that supplies its own simulated fill callback.
+        Live mode routes through ``PlaceOrderUseCase`` with a gateway-backed
+        ``submit_fn``. Paper/replay mode delegates to a mode adapter that
+        supplies its own simulated fill callback.
         """
         if self._mode == "live":
             fn = submit_fn or self._live_submit_fn()
-            return self._ctx.order_manager.place_order(command, submit_fn=fn)
+            return PlaceOrderUseCase(
+                self._ctx.order_manager,
+                submit_fn=fn,
+            ).execute(command)
         if self._adapter is not None:
             return self._adapter.place_order(command, submit_fn=submit_fn)
         # Fallback — should not happen for known modes
-        return self._ctx.order_manager.place_order(command, submit_fn=submit_fn)
+        return PlaceOrderUseCase(
+            self._ctx.order_manager,
+            submit_fn=submit_fn,
+        ).execute(command)
 
     def cancel_order(self, order_id: str) -> OrderResult:
-        """Cancel an order through the OMS."""
-        return self._ctx.order_manager.cancel_order(order_id)
+        """Cancel an order through CancelOrderUseCase → OMS."""
+        return CancelOrderUseCase(self._ctx.order_manager).execute(order_id)

@@ -23,7 +23,7 @@ from application.oms.protocols import (
     IReconciliationService,
     IRiskManager,
 )
-from brokers.dhan.reconciliation import DhanReconciliationService
+from brokers.dhan.portfolio.reconciliation import DhanReconciliationService
 from domain.reconciliation import ReconciliationReport
 
 

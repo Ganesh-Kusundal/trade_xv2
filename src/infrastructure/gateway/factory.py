@@ -299,7 +299,7 @@ def _create_dhan(
     risk_manager: Any | None = None,
 ) -> Any | None:
     try:
-        _mod = importlib.import_module("brokers.dhan.factory")
+        _mod = importlib.import_module("brokers.dhan.identity.factory")
 
         resolved = Path(env_path) if env_path is not None else resolve_env_path("dhan")
         return _mod.BrokerFactory().create(

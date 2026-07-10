@@ -377,7 +377,7 @@ class TestPhase5GodObjectDecomposition:
         # Force reimport by clearing cache
         modules_to_test = [
             "infrastructure.gateway.provider_factory",
-            "brokers.dhan.factory",
+            "brokers.dhan.identity.factory",
             "application.oms._internal.risk_manager",
             "application.oms.order_manager",
             "application.oms.position_manager",
@@ -537,7 +537,7 @@ class TestPhase6TypeSafetyAndResilience:
         3. Factory.create() method signature is compatible with existing callers
         """
         from infrastructure.gateway.provider_factory import BrokerProviderFactory
-        from brokers.dhan.factory import BrokerFactory
+        from brokers.dhan.identity.factory import BrokerFactory
 
         # Test 1: BrokerFactory is instantiable
         factory = BrokerFactory()

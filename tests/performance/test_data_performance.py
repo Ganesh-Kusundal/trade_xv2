@@ -109,7 +109,7 @@ def _make_historical_resolver():
 
 def _make_historical_adapter(client: MagicMock, response: dict):
     """HistoricalAdapter backed by a real SymbolResolver identity."""
-    from brokers.dhan.historical import HistoricalAdapter
+    from brokers.dhan.data.historical import HistoricalAdapter
 
     client.post.return_value = response
     return HistoricalAdapter(client, _make_historical_resolver())

@@ -151,7 +151,7 @@ class TestGatewayABCCompliance:
 
     def test_dhan_factory_implements_broker_provider_factory(self):
         """BrokerFactory must implement BrokerProviderFactory ABC."""
-        from brokers.dhan.factory import BrokerFactory
+        from brokers.dhan.identity.factory import BrokerFactory
         from infrastructure.gateway.provider_factory import BrokerProviderFactory
 
         assert issubclass(BrokerFactory, BrokerProviderFactory), (
@@ -162,7 +162,7 @@ class TestGatewayABCCompliance:
 
     def test_both_factories_share_same_create_signature(self):
         """Both factories must accept the same core keyword-only parameters."""
-        from brokers.dhan.factory import BrokerFactory
+        from brokers.dhan.identity.factory import BrokerFactory
         from brokers.upstox.factory import UpstoxBrokerFactory
 
         dhan_params = set(inspect.signature(BrokerFactory.create).parameters.keys())

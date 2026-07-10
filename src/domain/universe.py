@@ -686,7 +686,22 @@ class Session:
 
         Safe multi-session: closing A while B is open must not clear B's
         process default provider.
+
+        Also stops an optional composition-root SessionRecorder if attached
+        (``_session_recorder``); failures never raise.
         """
+        recorder = getattr(self, "_session_recorder", None)
+        if recorder is not None:
+            try:
+                stop = getattr(recorder, "stop", None)
+                if callable(stop):
+                    stop()
+            except Exception:
+                pass
+            try:
+                self._session_recorder = None  # type: ignore[attr-defined]
+            except Exception:
+                pass
         if get_default_provider() is self._provider:
             set_default_provider(None)
         clear_ambient_session_if_current(self)

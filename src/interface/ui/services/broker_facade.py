@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 from brokers.dhan.identity.account_registry import AccountConnectionRegistry
 from brokers.dhan.gateway import DhanBrokerGateway
 from brokers.dhan.loader import InstrumentLoader
-from brokers.dhan.reconciliation import create_reconciliation_service
+from brokers.dhan.portfolio.reconciliation import create_reconciliation_service
 from brokers.dhan.symbol_validator import DhanSymbolValidator
 from interface.ui.services.broker_registry import create_seeded_mock_broker as create_demo_broker
 from brokers.paper.paper_gateway import PaperGateway as PaperBrokerGateway
