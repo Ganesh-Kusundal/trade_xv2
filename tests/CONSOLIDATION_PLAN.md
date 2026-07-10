@@ -32,7 +32,7 @@ tests/
 | **1** | Domain unit + OMS/execution/trading component | **done** |
 | **2** | Fold leftover `tests/*` buckets; rehome broker package tests | **done** |
 | **3** | Analytics / datalake / infrastructure / interface / config | **done** |
-| **4** | Optional: rename residual history-ish names; CI matrix by layer | next |
+| **4** | Rename residual history names; CI pyramid matrix; paper contracts | **done** |
 
 ## Mapping rule
 

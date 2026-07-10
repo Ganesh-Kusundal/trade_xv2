@@ -26,6 +26,15 @@ _FORBIDDEN_SUBSTRINGS = (
     "sprint_",
     "wave_",
     "fix_bug",
+    # History / ticket vocabulary (wave 4)
+    "architecture_regression",
+    "circuit_breaker_regression",
+    "gateway_issues_regression",
+    "regression_fixes",
+    "regression_suite",
+    "websocket_regression",
+    "event_bus_legacy",
+    "architecture_fitness",
 )
 
 _ROOT = Path(__file__).resolve().parents[2]
