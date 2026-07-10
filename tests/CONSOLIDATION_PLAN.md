@@ -30,9 +30,9 @@ tests/
 | Wave | Scope | Status |
 |------|--------|--------|
 | **1** | Domain unit + OMS/execution/trading component | **done** |
-| **2** | Fold leftover `tests/*` buckets; rehome broker package tests | **done (this)** |
-| **3** | Analytics / datalake / infrastructure / interface UI co-located | next |
-| **4** | Delete residual empty `src/**/tests`; tighten architecture ban | next |
+| **2** | Fold leftover `tests/*` buckets; rehome broker package tests | **done** |
+| **3** | Analytics / datalake / infrastructure / interface / config | **done** |
+| **4** | Optional: rename residual history-ish names; CI matrix by layer | next |
 
 ## Mapping rule
 

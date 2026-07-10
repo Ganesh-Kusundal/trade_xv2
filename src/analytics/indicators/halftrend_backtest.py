@@ -15,7 +15,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from datalake.core.paths import DEFAULT_DATA_ROOT
+from domain.ports.data_catalog import DEFAULT_DATA_ROOT
 
 logger = logging.getLogger(__name__)
 

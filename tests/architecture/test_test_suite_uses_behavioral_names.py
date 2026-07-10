@@ -83,3 +83,20 @@ def test_broker_and_api_tests_live_under_pyramid() -> None:
         assert not pkg_tests.is_dir(), f"broker tests must not live under {pkg_tests}"
     assert (_ROOT / "tests" / "unit" / "brokers" / "dhan").is_dir()
     assert (_ROOT / "tests" / "integration" / "api").is_dir()
+
+
+def test_no_package_local_tests_under_src() -> None:
+    """Wave-3: production packages must not host test_*.py trees."""
+    offenders: list[str] = []
+    src = _ROOT / "src"
+    if src.is_dir():
+        for path in src.rglob("test_*.py"):
+            if "__pycache__" in path.parts:
+                continue
+            offenders.append(str(path.relative_to(_ROOT)))
+    assert not offenders, "Move package-local tests into tests/ pyramid:\n" + "\n".join(
+        offenders
+    )
+    for name in ("analytics", "datalake", "infrastructure", "config"):
+        assert (_ROOT / "tests" / "unit" / name).is_dir(), f"missing tests/unit/{name}"
+    assert (_ROOT / "tests" / "component" / "ui").is_dir()

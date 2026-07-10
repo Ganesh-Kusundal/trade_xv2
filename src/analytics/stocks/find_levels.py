@@ -29,7 +29,8 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 
-from datalake.core.duckdb_utils import DEFAULT_CATALOG_PATH, duckdb_connection
+from datalake.core.duckdb_utils import duckdb_connection
+from domain.ports.data_catalog import DEFAULT_CATALOG_PATH
 
 DEFAULT_CATALOG = str(DEFAULT_CATALOG_PATH)
 

@@ -8,9 +8,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-# Filesystem paths
-DEFAULT_DATA_ROOT: str = "market_data"
-"""Default root directory for market data storage."""
+# Re-export from domain canonical home for backward compatibility.
+from domain.ports.data_catalog import DEFAULT_CATALOG_PATH, DEFAULT_DATA_ROOT  # noqa: F401
 
 CURATED_ROOT: str = "market_data/curated"
 """Root directory for curated (date-partitioned) data layout."""
@@ -43,10 +42,6 @@ BATCH_MAX_WORKERS: int = 4
 # File formats
 DEFAULT_COMPRESSION: str = "snappy"
 """Default compression algorithm for Parquet files."""
-
-# DuckDB configuration
-DEFAULT_CATALOG_PATH: Path = Path("market_data/catalog.duckdb")
-"""Default path for DuckDB catalog database (matches the path used by all readers)."""
 
 # Data quality
 EXPECTED_CANDLES_PER_DAY: int = 375

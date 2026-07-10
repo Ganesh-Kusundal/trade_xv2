@@ -24,8 +24,8 @@ from pathlib import Path
 
 import duckdb
 
-from datalake.core.duckdb_utils import DEFAULT_CATALOG_PATH, get_pool
-from datalake.core.paths import DEFAULT_DATA_ROOT
+from datalake.core.duckdb_utils import get_pool
+from domain.ports.data_catalog import DEFAULT_CATALOG_PATH, DEFAULT_DATA_ROOT
 
 logger = logging.getLogger(__name__)
 

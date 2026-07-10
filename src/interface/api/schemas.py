@@ -400,7 +400,11 @@ class BacktestRunRequest(BaseModel):
 
 
 class BacktestMetrics(BaseModel):
-    """Backtest performance metrics."""
+    """Backtest performance metrics.
+
+    Canonical definition lives in ``domain.backtest.models``.
+    Re-exported here for backward compatibility.
+    """
 
     total_return_pct: float
     annualized_return_pct: float
@@ -415,7 +419,11 @@ class BacktestMetrics(BaseModel):
 
 
 class BacktestResultResponse(BaseModel):
-    """Backtest result."""
+    """Backtest result.
+
+    Canonical definition lives in ``domain.backtest.models``.
+    Re-exported here for backward compatibility.
+    """
 
     run_id: str
     symbol: str

@@ -29,7 +29,7 @@ import duckdb
 
 logger = logging.getLogger(__name__)
 
-from datalake.core.constants import DEFAULT_CATALOG_PATH
+from domain.ports.data_catalog import DEFAULT_CATALOG_PATH  # canonical home; re-exported for compat
 
 
 def connect_with_retry(

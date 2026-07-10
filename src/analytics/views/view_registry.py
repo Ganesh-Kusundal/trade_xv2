@@ -7,7 +7,8 @@ from pathlib import Path
 
 import duckdb
 
-from datalake.core.duckdb_utils import DEFAULT_CATALOG_PATH, duckdb_connection, get_pool
+from datalake.core.duckdb_utils import duckdb_connection, get_pool
+from domain.ports.data_catalog import DEFAULT_CATALOG_PATH
 
 logger = logging.getLogger(__name__)
 

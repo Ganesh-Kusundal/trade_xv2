@@ -6,7 +6,7 @@ import logging
 
 import pandas as pd
 
-from datalake.core.paths import DEFAULT_DATA_ROOT
+from domain.ports.data_catalog import DEFAULT_DATA_ROOT
 
 from analytics.backtest import (
     BacktestConfig,

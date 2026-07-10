@@ -20,7 +20,8 @@ from analytics.views.query_executor import QueryExecutor
 from analytics.views.scanner import DAILY_LOOKBACK_DAYS, MIN_SYMBOLS_FOR_FULL_DAY, ScannerViews
 from analytics.views.strategy import StrategyViews
 from analytics.views.view_registry import ViewRegistry
-from datalake.core.duckdb_utils import DEFAULT_CATALOG_PATH, duckdb_connection, get_pool
+from datalake.core.duckdb_utils import duckdb_connection, get_pool
+from domain.ports.data_catalog import DEFAULT_CATALOG_PATH
 
 logger = logging.getLogger(__name__)
 

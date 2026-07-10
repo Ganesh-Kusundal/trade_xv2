@@ -8,7 +8,7 @@ import os
 
 import duckdb
 
-from datalake.core.paths import DEFAULT_DATA_ROOT
+from domain.ports.data_catalog import DEFAULT_DATA_ROOT
 
 logger = logging.getLogger(__name__)
 

@@ -8,7 +8,7 @@ import sqlite3
 import threading
 from pathlib import Path
 
-from interface.api.schemas import BacktestMetrics, BacktestResultResponse
+from domain.backtest.models import BacktestMetrics, BacktestResultResponse
 
 logger = logging.getLogger(__name__)
 

@@ -26,14 +26,19 @@ tests/
 | E2E | `tests/e2e/`, `tests/chaos/` | Does the full system work? |
 | Architecture | `tests/architecture/` | Do layering / import rules hold? |
 
-**Wave 1 done:** domain + application → `tests/unit/domain`, `tests/component/*`.
+**Waves 1–3 done.** All production tests live under `tests/{unit,component,integration,e2e,architecture,chaos}`.
 
-**Wave 2 done:** leftover top-level buckets (`api`, `oms`, `contract`, …) folded into
-pyramid; broker package tests rehomed to `tests/unit/brokers/*` and
-`tests/integration/brokers/*`.
+| Source | Test home |
+|--------|-----------|
+| `src/domain/**` | `tests/unit/domain/**` |
+| `src/application/**` | `tests/component/{oms,execution,…}` |
+| `src/brokers/**` | `tests/unit/brokers/**`, `tests/integration/brokers/**` |
+| `src/analytics/**` | `tests/unit/analytics/**` |
+| `src/datalake/**` | `tests/unit/datalake/**` |
+| `src/infrastructure/**` | `tests/unit/infrastructure/**` |
+| `src/interface/ui/**` | `tests/component/ui/**` |
+| `src/interface/api/**` | `tests/integration/api/**` |
 
-**Still co-located (wave 3):** `src/analytics/**/tests`, `src/datalake/**/tests`,
-`src/infrastructure/**/tests`, `src/interface/**/tests`.
 Do **not** add new tests under `src/**/tests`.
 
 ## Naming rules

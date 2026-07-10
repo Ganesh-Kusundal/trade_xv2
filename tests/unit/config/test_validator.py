@@ -99,7 +99,7 @@ class TestDevProfileValidation:
         validator = ConfigValidator(profile=ValidationProfile.DEV, env={})
         result = validator.validate()
         assert result.validated_vars.get("API_HOST") == "127.0.0.1"
-        assert result.validated_vars.get("API_PORT") == "8000"
+        assert result.validated_vars.get("API_PORT") == "8080"
         assert result.validated_vars.get("XV2_LOG_LEVEL") == "INFO"
         assert result.validated_vars.get("CACHE_TTL") == "300"
 

@@ -26,7 +26,10 @@ import pandas as pd
 
 from domain import MarketDepth, Quote
 from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
-from brokers.common.broker_capabilities import BrokerCapabilities
+from domain.capabilities.broker_capabilities import (
+    BrokerCapabilities,
+    HistoricalWindowConstraint,
+)
 from datalake.core.symbols import normalize_symbol, symbol_to_path
 
 logger = logging.getLogger(__name__)
@@ -328,15 +331,37 @@ class DataLakeGateway(MarketDataGateway):
 
     def capabilities(self) -> BrokerCapabilities:
         return BrokerCapabilities(
-            expired_options=True,
-            expired_futures=True,
-            max_intraday_days=365 * 6,
-            max_daily_days=365 * 10,
-            supported_timeframes=("1m",),
-            websocket=False,
-            polling_fallback=False,
-            load_instruments=False,
-            search=True,
+            broker_id="datalake",
+            supports_place_order=False,
+            supports_cancel_order=False,
+            supports_modify_order=False,
+            supports_historical_data=True,
+            supports_intraday_history=True,
+            supports_expired_options_history=True,
+            supports_live_market_data=False,
+            supports_depth=False,
+            supports_depth_20_ws=False,
+            supports_depth_200_ws=False,
+            supports_option_chain=False,
+            supports_polling_fallback=False,
+            supports_order_stream=False,
+            supports_portfolio_stream=False,
+            supports_news=False,
+            supports_fundamentals=False,
+            supports_super_order=False,
+            supports_forever_order=False,
+            supports_native_slice_order=False,
+            rate_limit_profiles=(),
+            historical_windows=(
+                HistoricalWindowConstraint(timeframe="1m", max_lookback_days=365 * 6, max_chunk_days=365),
+                HistoricalWindowConstraint(timeframe="1d", max_lookback_days=365 * 10, max_chunk_days=365),
+            ),
+            stream_limits=None,
+            latency_class="low",
+            reliability_class="high",
+            product_types=frozenset(),
+            order_types=frozenset(),
+            max_batch_size=50,
         )
 
     def close(self) -> None:

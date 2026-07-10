@@ -61,9 +61,8 @@ from typing import Any
 import pandas as pd
 
 from analytics.replay.models import ReplayResult
-from datalake.core.paths import DEFAULT_DATA_ROOT
-from infrastructure.event_bus.event_bus import DomainEvent, EventBus
-from infrastructure.event_log import EventLog
+from domain.events.types import DomainEvent
+from domain.ports.data_catalog import DEFAULT_DATA_ROOT
 
 logger = logging.getLogger(__name__)
 
@@ -145,6 +144,8 @@ class UnifiedReplayOrchestrator:
         warmup_bars: int = 20,
         trading_context: Any = None,
         data_provider: Any | None = None,
+        event_log: Any | None = None,
+        event_bus_factory: Any | None = None,
     ) -> None:
         self._feature_pipeline = feature_pipeline
         self._strategy_pipeline = strategy_pipeline
@@ -157,8 +158,18 @@ class UnifiedReplayOrchestrator:
             data_provider  # Injected data provider (DataLakeGateway or ResearchAPI)
         )
 
-        # Event log for reading persisted events
-        self._event_log = EventLog(events_dir=events_dir) if events_dir else None
+        # Event log for reading persisted events — inject or create via factory
+        if event_log is not None:
+            self._event_log = event_log
+        elif events_dir is not None:
+            from infrastructure.event_log import EventLog
+
+            self._event_log = EventLog(events_dir=events_dir)
+        else:
+            self._event_log = None
+
+        # Event bus factory — inject or use default (lazy import)
+        self._event_bus_factory = event_bus_factory
 
     def run(
         self,
@@ -216,11 +227,20 @@ class UnifiedReplayOrchestrator:
         combined_df = self._build_combined_df(bar_items)
 
         # Step 5: Create EventBus in replay mode
-        replay_bus = EventBus(
-            event_log=self._event_log,
-            logging_enabled=False,  # Disable auto-persistence during replay
-            replay_mode=True,  # P4: Deterministic replay mode
-        )
+        if self._event_bus_factory is not None:
+            replay_bus = self._event_bus_factory(
+                event_log=self._event_log,
+                logging_enabled=False,
+                replay_mode=True,
+            )
+        else:
+            from infrastructure.event_bus.event_bus import EventBus
+
+            replay_bus = EventBus(
+                event_log=self._event_log,
+                logging_enabled=False,  # Disable auto-persistence during replay
+                replay_mode=True,  # P4: Deterministic replay mode
+            )
 
         # Step 6: Run replay through engine
         # Note: ReplayEngine handles the actual bar-by-bar processing

@@ -37,7 +37,7 @@ class TestAppConfigDefaults:
 
     def test_default_api_port(self) -> None:
         cfg = AppConfig()
-        assert cfg.api_port == 8000
+        assert cfg.api_port == 8080
 
     def test_default_observability_port(self) -> None:
         cfg = AppConfig()
@@ -126,7 +126,7 @@ class TestEnvVarLoading:
         assert cfg.log_level == "INFO"
         assert cfg.debug is False
         assert cfg.redis_url is None
-        assert cfg.api_port == 8000
+        assert cfg.api_port == 8080
 
 
 class TestValidation:

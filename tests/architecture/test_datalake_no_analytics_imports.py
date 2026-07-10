@@ -3,7 +3,7 @@
 Direction allowed: analytics → datalake (via adapters/ports).
 Direction forbidden: datalake → analytics (creates a cycle / layering violation).
 
-Tests under datalake/tests/ are excluded (may still exercise analytics).
+Tests under tests/unit/datalake/ may still exercise analytics (allowed).
 """
 
 from __future__ import annotations

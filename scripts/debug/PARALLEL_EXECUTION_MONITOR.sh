@@ -44,7 +44,7 @@ echo ""
 
 echo "📊 TEAM 3 - Analytics Enhancement Status:"
 echo "----------------------------------------"
-check_tests "analytics/tests/"
+check_tests "tests/unit/analytics/"
 check_files "test_*.py" | grep -E "(feature|pipeline|scanner)" || echo "Analytics tests: 0"
 echo ""
 

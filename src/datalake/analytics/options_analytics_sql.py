@@ -5,9 +5,13 @@ These are expensive GROUP BY / cross-join operations that should be
 materialized once and refreshed on data sync.
 """
 
+from domain.ports.data_catalog import DEFAULT_DATA_ROOT
+
+_OPTIONS_GLOB = f"{DEFAULT_DATA_ROOT}/options/candles/underlying=*/*/*/data.parquet"
+
 # PCR — Put-Call Ratio per (timestamp, underlying, expiry)
 # Note: source data uses 'CALL'/'PUT' (not 'CE'/'PE')
-SQL_M_PCR = """
+SQL_M_PCR = f"""
 SELECT
     timestamp,
     underlying,
@@ -20,15 +24,15 @@ SELECT
     SUM(CASE WHEN option_type = 'PUT' THEN volume ELSE 0 END) as total_pe_volume,
     SUM(CASE WHEN option_type = 'CALL' THEN oi ELSE 0 END) as total_ce_oi,
     SUM(CASE WHEN option_type = 'PUT' THEN oi ELSE 0 END) as total_pe_oi
-FROM read_parquet('market_data/options/candles/underlying=*/*/*/data.parquet')
+FROM read_parquet('{_OPTIONS_GLOB}')
 GROUP BY timestamp, underlying, expiry_kind, expiry_code, expiry_date, spot, interval_min
 ORDER BY timestamp, underlying, expiry_kind, expiry_code
 """
 
 # Max Pain — strike that minimizes total option holder loss
-SQL_M_MAX_PAIN = """
+SQL_M_MAX_PAIN = f"""
 WITH options AS (
-    SELECT * FROM read_parquet('market_data/options/candles/underlying=*/*/*/data.parquet')
+    SELECT * FROM read_parquet('{_OPTIONS_GLOB}')
 ),
 candidates AS (
     SELECT DISTINCT
@@ -71,9 +75,9 @@ ORDER BY timestamp, underlying, expiry_kind, expiry_code
 
 # IV Surface — ATM IV, OTM put IV, OTM call IV, IV skew
 # Source data uses 'CALL'/'PUT' (not 'CE'/'PE')
-SQL_M_IV_SURFACE = """
+SQL_M_IV_SURFACE = f"""
 WITH options AS (
-    SELECT * FROM read_parquet('market_data/options/candles/underlying=*/*/*/data.parquet')
+    SELECT * FROM read_parquet('{_OPTIONS_GLOB}')
 ),
 dist_to_spot AS (
     SELECT *,

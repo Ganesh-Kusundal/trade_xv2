@@ -98,14 +98,9 @@ minversion = "7.0"
 pythonpath = ["src", "."]
 # Pyramid: tests/{unit,component,integration,e2e,architecture} plus package-local
 # unit/component suites under src/**/tests (see tests/README.md).
-# Primary suite is the pyramid under tests/. Package-local paths remain only
-# for residual co-located suites (analytics/datalake/infra/ui) until wave 3.
+# Full pyramid under tests/ (waves 1–3). No package-local src/**/tests.
 testpaths = [
     "tests",
-    "src/analytics",
-    "src/interface/ui/tests",
-    "src/datalake",
-    "src/infrastructure",
 ]
 markers = [
     "unit: domain / pure business-rule tests",
