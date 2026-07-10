@@ -228,30 +228,7 @@ jobs:
             tests/integration/test_websocket_reconnect_failure.py
           echo "::notice title=Auth Integration::Requires .env.local / .env.upstox on runner for live TOTP tests; WS reconnect runs offline."
 
-  frontend:
-    name: Frontend Tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    needs: lint
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - name: Install dependencies
-        working-directory: frontend
-        run: npm ci
-      - name: Typecheck
-        working-directory: frontend
-        run: npm run typecheck
-      - name: Unit tests
-        working-directory: frontend
-        run: npm test
-      - name: Build
-        working-directory: frontend
-        run: npm run build
+  # frontend job removed: no frontend/ package in this repo (CLI/TUI only).
 
   e2e-tests:
     name: E2E Tests
@@ -275,15 +252,16 @@ jobs:
       - name: Verify complete trading flow
         run: |
           pytest tests/e2e/test_complete_trading_flow.py -v --tb=short
-      - name: Verify multi-broker failover
-        run: |
-          pytest tests/e2e/test_multi_broker_failover.py -v --tb=short
+      # test_multi_broker_failover.py is not in the tree; do not reference missing paths.
       - name: Verify order lifecycle
         run: |
           pytest tests/e2e/test_order_lifecycle.py -v --tb=short
       - name: Verify replay & backtest parity
         run: |
           pytest tests/e2e/test_replay_backtest_flow.py -v --tb=short
+      - name: OMS cold-start / money-path unit suite
+        run: |
+          pytest application/oms/tests -q --tb=line -k "not integration"
 
   stress-tests:
     name: Stress & Performance Tests
