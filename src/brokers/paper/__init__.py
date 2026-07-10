@@ -1,6 +1,11 @@
-"""Paper broker -- simulated trading for testing and development.
+"""Paper exchange plugin — domain-port simulator for OMS / live paths.
 
-Mirrors the Dhan BrokerGateway interface so it can be used as a drop-in replacement.
+Ownership
+---------
+* **This package** — ``PaperGateway`` and execution/data providers that implement
+  broker ports for paper trading and integration tests.
+* **``analytics.paper``** — offline research backtest engine over DataFrames.
+  Transaction costs live in :mod:`domain.trading_costs` for both.
 
 Usage::
 

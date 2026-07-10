@@ -34,6 +34,7 @@ def _make_order(
 @dataclass
 class _FakeInstrument:
     tick_size: Decimal = Decimal("0.05")
+    ltp: Decimal = Decimal("100.00")
 
 
 @dataclass

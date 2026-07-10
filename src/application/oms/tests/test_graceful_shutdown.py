@@ -52,6 +52,27 @@ def _make_submit_fn(fill_price: Decimal | None = None):
     return _submit
 
 
+def _limit_cmd(
+    symbol: str,
+    side: Side,
+    qty: int,
+    correlation_id: str,
+    price: Decimal = Decimal("100"),
+) -> OmsOrderCommand:
+    """LIMIT command with price so risk notional sizing succeeds in unit tests."""
+    from domain import OrderType
+
+    return OmsOrderCommand(
+        symbol,
+        "NSE",
+        side,
+        qty,
+        price=price,
+        order_type=OrderType.LIMIT,
+        correlation_id=correlation_id,
+    )
+
+
 def _run_shutdown(ctx: TradingContext, **kwargs) -> dict:
     """Helper to run async shutdown() synchronously."""
     return asyncio.run(ctx.shutdown(**kwargs))
@@ -66,8 +87,8 @@ class TestShutdownCancelsOpenOrders:
     def test_shutdown_cancels_all_open_orders(self) -> None:
         """shutdown(cancel_orders=True) should cancel every OPEN order."""
         ctx = build_test_trading_context()
-        cmd1 = OmsOrderCommand("RELIANCE", "NSE", Side.BUY, 10, correlation_id="sh-1")
-        cmd2 = OmsOrderCommand("TCS", "NSE", Side.BUY, 5, correlation_id="sh-2")
+        cmd1 = _limit_cmd("RELIANCE", Side.BUY, 10, "sh-1")
+        cmd2 = _limit_cmd("TCS", Side.BUY, 5, "sh-2")
         ctx.order_manager.place_order(cmd1, submit_fn=_make_submit_fn())
         ctx.order_manager.place_order(cmd2, submit_fn=_make_submit_fn())
 
@@ -89,7 +110,7 @@ class TestShutdownCancelsOpenOrders:
     def test_shutdown_skips_cancellation_when_flag_false(self) -> None:
         """shutdown(cancel_orders=False) should not call cancel_order."""
         ctx = build_test_trading_context()
-        cmd = OmsOrderCommand("RELIANCE", "NSE", Side.BUY, 10, correlation_id="sh-3")
+        cmd = _limit_cmd("RELIANCE", Side.BUY, 10, "sh-3")
         ctx.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
 
         mock_gateway = MagicMock()
@@ -101,7 +122,7 @@ class TestShutdownCancelsOpenOrders:
     def test_shutdown_skips_cancellation_when_no_gateway(self) -> None:
         """shutdown() with no gateway should skip cancellation gracefully."""
         ctx = build_test_trading_context()
-        cmd = OmsOrderCommand("RELIANCE", "NSE", Side.BUY, 10, correlation_id="sh-4")
+        cmd = _limit_cmd("RELIANCE", Side.BUY, 10, "sh-4")
         ctx.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
 
         result = _run_shutdown(ctx, cancel_orders=True, gateway=None)
@@ -114,7 +135,7 @@ class TestShutdownCancelsOpenOrders:
         """shutdown() should not attempt to cancel FILLED/CANCELLED orders."""
         ctx = build_test_trading_context()
 
-        cmd1 = OmsOrderCommand("RELIANCE", "NSE", Side.BUY, 10, correlation_id="sh-5")
+        cmd1 = _limit_cmd("RELIANCE", Side.BUY, 10, "sh-5")
         result1 = ctx.order_manager.place_order(cmd1, submit_fn=_make_submit_fn())
         order1 = result1.order
         assert order1 is not None
@@ -130,7 +151,7 @@ class TestShutdownCancelsOpenOrders:
         )
         ctx.order_manager.record_trade(trade)
 
-        cmd2 = OmsOrderCommand("TCS", "NSE", Side.BUY, 5, correlation_id="sh-6")
+        cmd2 = _limit_cmd("TCS", Side.BUY, 5, "sh-6")
         ctx.order_manager.place_order(cmd2, submit_fn=_make_submit_fn())
 
         mock_gateway = MagicMock()
@@ -152,9 +173,9 @@ class TestShutdownCancellationFailures:
     def test_shutdown_partial_success(self) -> None:
         """Some cancellations succeed, some fail -- shutdown continues."""
         ctx = build_test_trading_context()
-        cmd1 = OmsOrderCommand("RELIANCE", "NSE", Side.BUY, 10, correlation_id="sh-f1")
-        cmd2 = OmsOrderCommand("TCS", "NSE", Side.BUY, 5, correlation_id="sh-f2")
-        cmd3 = OmsOrderCommand("INFY", "NSE", Side.BUY, 8, correlation_id="sh-f3")
+        cmd1 = _limit_cmd("RELIANCE", Side.BUY, 10, "sh-f1")
+        cmd2 = _limit_cmd("TCS", Side.BUY, 5, "sh-f2")
+        cmd3 = _limit_cmd("INFY", Side.BUY, 8, "sh-f3")
         ctx.order_manager.place_order(cmd1, submit_fn=_make_submit_fn())
         ctx.order_manager.place_order(cmd2, submit_fn=_make_submit_fn())
         ctx.order_manager.place_order(cmd3, submit_fn=_make_submit_fn())
@@ -180,8 +201,8 @@ class TestShutdownCancellationFailures:
     def test_shutdown_all_cancellations_fail(self) -> None:
         """All cancellations fail -- shutdown returns all as failed."""
         ctx = build_test_trading_context()
-        cmd1 = OmsOrderCommand("RELIANCE", "NSE", Side.BUY, 10, correlation_id="sh-f4")
-        cmd2 = OmsOrderCommand("TCS", "NSE", Side.BUY, 5, correlation_id="sh-f5")
+        cmd1 = _limit_cmd("RELIANCE", Side.BUY, 10, "sh-f4")
+        cmd2 = _limit_cmd("TCS", Side.BUY, 5, "sh-f5")
         ctx.order_manager.place_order(cmd1, submit_fn=_make_submit_fn())
         ctx.order_manager.place_order(cmd2, submit_fn=_make_submit_fn())
 
@@ -196,7 +217,7 @@ class TestShutdownCancellationFailures:
     def test_shutdown_cancellation_raises_exception(self) -> None:
         """Gateway.cancel_order raises -- shutdown logs and continues."""
         ctx = build_test_trading_context()
-        cmd = OmsOrderCommand("RELIANCE", "NSE", Side.BUY, 10, correlation_id="sh-f6")
+        cmd = _limit_cmd("RELIANCE", Side.BUY, 10, "sh-f6")
         ctx.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
 
         mock_gateway = MagicMock()
@@ -244,7 +265,7 @@ class TestShutdownIdempotency:
     def test_shutdown_idempotent(self) -> None:
         """Calling shutdown() twice should not crash or double-cancel."""
         ctx = build_test_trading_context()
-        cmd = OmsOrderCommand("RELIANCE", "NSE", Side.BUY, 10, correlation_id="sh-idem")
+        cmd = _limit_cmd("RELIANCE", Side.BUY, 10, "sh-idem")
         ctx.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
 
         mock_gateway = MagicMock()
@@ -317,7 +338,7 @@ class TestManagedServiceProtocol:
     def test_trading_context_stop_calls_shutdown(self) -> None:
         """stop() should delegate to shutdown()."""
         ctx = build_test_trading_context()
-        cmd = OmsOrderCommand("RELIANCE", "NSE", Side.BUY, 10, correlation_id="ms-1")
+        cmd = _limit_cmd("RELIANCE", Side.BUY, 10, "ms-1")
         ctx.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
 
         mock_gateway = MagicMock()
@@ -356,8 +377,8 @@ class TestCancelAllOpenOrders:
     def test_cancel_all_no_gateway(self) -> None:
         """Without gateway, orders are cancelled locally only."""
         ctx = build_test_trading_context()
-        cmd1 = OmsOrderCommand("RELIANCE", "NSE", Side.BUY, 10, correlation_id="ca-1")
-        cmd2 = OmsOrderCommand("TCS", "NSE", Side.BUY, 5, correlation_id="ca-2")
+        cmd1 = _limit_cmd("RELIANCE", Side.BUY, 10, "ca-1")
+        cmd2 = _limit_cmd("TCS", Side.BUY, 5, "ca-2")
         ctx.order_manager.place_order(cmd1, submit_fn=_make_submit_fn())
         ctx.order_manager.place_order(cmd2, submit_fn=_make_submit_fn())
 
@@ -369,7 +390,7 @@ class TestCancelAllOpenOrders:
     def test_cancel_all_with_gateway(self) -> None:
         """With gateway, orders are cancelled at broker first."""
         ctx = build_test_trading_context()
-        cmd = OmsOrderCommand("RELIANCE", "NSE", Side.BUY, 10, correlation_id="ca-3")
+        cmd = _limit_cmd("RELIANCE", Side.BUY, 10, "ca-3")
         ctx.order_manager.place_order(cmd, submit_fn=_make_submit_fn())
 
         mock_gateway = MagicMock()

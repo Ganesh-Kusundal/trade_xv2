@@ -12,10 +12,12 @@ When price crosses below the line - offset → SELL
 Based on the TradingView HalfTrend indicator by everget.
 
 Usage:
-    from analytics.indicators.halftrend import HalfTrend
+    from domain.indicators.halftrend import HalfTrend  # pure domain math
     ht = HalfTrend(period=10, atr_period=10, deviation=1.0)
     result = ht.compute(df)
     # Columns added: halftrend, halftrend_direction, halftrend_signal
+
+    # Pipeline / strategy registration lives under analytics.indicators.
 """
 
 from __future__ import annotations

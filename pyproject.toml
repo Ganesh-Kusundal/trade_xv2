@@ -83,7 +83,9 @@ exclude = [
 # ─── pytest ────────────────────────────────────────────────
 [tool.pytest.ini_options]
 minversion = "7.0"
-pythonpath = ["src"]
+# Library packages resolve from src/; repo root is needed for the `tests` package
+# and root entrypoint shims (api/, cli/).
+pythonpath = ["src", "."]
 testpaths = [
     "tests",
     "src/brokers",
