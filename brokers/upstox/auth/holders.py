@@ -20,7 +20,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from tradex.runtime.auth.jwt_expiry import JwtExpiry
+from infrastructure.auth.jwt_expiry import JwtExpiry
 
 from .token_expiry import UpstoxTokenExpiry
 

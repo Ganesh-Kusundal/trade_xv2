@@ -188,7 +188,7 @@ class MultiBucketRateLimiter:
     def record_api_rate_limit(self, broker: str = "unknown") -> None:
         """Record a trading/data API rate-limit event (not TOTP/login)."""
         try:
-            from tradex.runtime.auth.metrics import AuthMetrics
+            from infrastructure.auth.metrics import AuthMetrics
 
             AuthMetrics.api_rate_limit(broker)
         except Exception:

@@ -57,7 +57,7 @@ class UpstoxInstrumentResolver:
                 self._by_symbol_segment[key] = definition
 
                 # Retrieve canonical segments/exchanges for alias indexing
-                from tradex.runtime.instruments import InstrumentRegistry
+                from infrastructure.instruments import InstrumentRegistry
                 from brokers.upstox.instruments.segment_mapper import UpstoxSegmentMapper
 
                 xv2_segment = UpstoxSegmentMapper.to_safe(definition.exchange_segment)

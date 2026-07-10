@@ -67,7 +67,7 @@ class SettingsLoaderBase:
     @classmethod
     def _load_env_file(cls, path: Path) -> None:
         """Load *path* via :func:`tradex.runtime.env_loader.load_env_file`."""
-        from tradex.runtime.env_loader import load_env_file
+        from infrastructure.config.env_loader import load_env_file
 
         load_env_file(path)
 

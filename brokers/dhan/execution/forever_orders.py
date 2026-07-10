@@ -9,7 +9,7 @@ from brokers.dhan.domain import ForeverOrder, ForeverOrderRequest
 from brokers.dhan.exceptions import ForeverOrderError
 from brokers.dhan.api.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
-from brokers.dhan.invariants import assert_dhan_payload
+from brokers.dhan.resilience.invariants import assert_dhan_payload
 from domain import OrderResponse
 from domain.utils.price import to_wire_float
 

@@ -47,7 +47,7 @@ from tradex.runtime.adapter_factory import (
 from brokers.upstox.data_provider import UpstoxDataProvider
 from brokers.upstox.extensions.depth import UpstoxDepth30Extension
 from brokers.upstox.extensions.news import UpstoxNewsExtension
-from tradex.runtime.gateway_execution import GatewayExecutionProvider
+from infrastructure.gateway.execution import GatewayExecutionProvider
 
 
 class UpstoxExecutionProvider(GatewayExecutionProvider):

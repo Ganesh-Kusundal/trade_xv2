@@ -178,7 +178,7 @@ class ReconnectingServiceMixin(Generic[_CallbackT]):
 
     def _emit_reconnect_metric(self) -> None:
         try:
-            from brokers.dhan.metrics import dhan_ws_reconnect_total
+            from brokers.dhan.resilience.metrics import dhan_ws_reconnect_total
 
             dhan_ws_reconnect_total.inc()
         except Exception:

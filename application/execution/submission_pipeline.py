@@ -6,7 +6,7 @@ when placing an order:
 
 1.  Resolve a correlation ID (from caller or thread-local)
 2.  Parse the exchange string into an ``ExchangeSegment``
-3.  Build a :class:`~tradex.runtime.dtos.BrokerOrderPayload`
+3.  Build a :class:`~domain.models.dtos.BrokerOrderPayload`
 4.  Delegate to the broker-specific order adapter
 5.  Convert exceptions to ``OrderResponse.fail()``
 
@@ -17,7 +17,7 @@ Usage
 -----
 In a gateway's ``place_order`` method::
 
-    from tradex.runtime.submission_pipeline import build_payload
+    from application.execution.submission_pipeline import build_payload
 
     request = build_payload(
         symbol=symbol,
@@ -41,8 +41,8 @@ import logging
 from decimal import Decimal
 from typing import Any
 
-from tradex.runtime.dtos import BrokerOrderPayload
 from domain import OrderResponse, OrderStatus
+from domain.models.dtos import BrokerOrderPayload
 from domain import OrderType as DomainOrderType
 from domain import ProductType as DomainProductType
 from domain import Side as DomainSide

@@ -118,7 +118,7 @@ class UpstoxBrokerFactory(BrokerProviderFactory):
                 )
 
         # ── Health check registration ──────────────────────────────
-        from tradex.runtime.observability.health_check import register_broker_health_check
+        from infrastructure.observability.health_check import register_broker_health_check
 
         register_broker_health_check("upstox", gateway)
 

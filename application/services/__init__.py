@@ -1,31 +1,31 @@
 """Cross-broker shared services (HistoricalDataService, etc.).
 
-Canonical location: ``tradex.runtime.services``.
+Canonical location: ``application.services``.
 """
 
 from __future__ import annotations
 
-from tradex.runtime.services.data_validator import (
+from .data_validator import (
     DataQualityValidator,
     Issue,
     ValidationReport,
 )
-from tradex.runtime.services.download_engine import (
+from .download_engine import (
     DownloadConfig,
     DownloadProgress,
     HistoricalDownloadEngine,
 )
-from tradex.runtime.services.historical_data import (
+from .historical_data import (
     GapRange,
     HistoricalDataRequest,
     HistoricalDataService,
     SupportsHistoricalCandles,
 )
-from tradex.runtime.services.instrument_registry import (
+from .instrument_registry import (
     CanonicalInstrument,
     CanonicalInstrumentRegistry,
 )
-from tradex.runtime.services.production_readiness import (
+from .production_readiness import (
     ProductionReadinessChecker,
     ProductionReadinessError,
     ReadinessCheck,

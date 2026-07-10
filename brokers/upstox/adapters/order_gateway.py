@@ -106,7 +106,7 @@ class OrderGateway:
         from brokers.upstox.mappers.domain_mapper import PROVIDER_IS_AMO
 
         exchange_segment = self._resolve_exchange_segment(exchange, symbol)
-        from tradex.runtime.dtos import BrokerOrderPayload
+        from domain.models.dtos import BrokerOrderPayload
 
         request = BrokerOrderPayload(
             symbol=symbol,

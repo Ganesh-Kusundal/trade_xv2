@@ -41,7 +41,7 @@ from domain.constants import (
     OBSERVABILITY_DEFAULT_HOST,
     OBSERVABILITY_DEFAULT_PORT,
 )
-from tradex.runtime.build_info import build_info_dict
+from infrastructure.build_info import build_info_dict
 from infrastructure.lifecycle.lifecycle import (
     HealthState,
     LifecycleManager,

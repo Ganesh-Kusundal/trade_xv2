@@ -29,7 +29,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
-from tradex.runtime.resilience.errors import TradeXV2Error
+from domain.exceptions import TradeXV2Error
 
 logger = logging.getLogger(__name__)
 

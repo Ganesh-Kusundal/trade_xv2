@@ -1,6 +1,7 @@
 """Resilience module — rate limiting, circuit breakers, retry with backoff.
 
-Canonical location: ``tradex.runtime.resilience``.
+Canonical location: ``infrastructure.resilience``.
+``tradex.runtime.resilience`` is a backward-compat facade that re-exports this package.
 """
 
 from __future__ import annotations

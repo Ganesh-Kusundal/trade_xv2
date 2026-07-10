@@ -19,7 +19,7 @@ from typing import Any
 
 import pandas as pd
 
-from tradex.runtime.batch_mixin import BatchFetchMixin
+from infrastructure.batch_mixin import BatchFetchMixin
 from tradex.runtime.capabilities import BrokerCapabilities
 from brokers.upstox.adapters import (
     HistoricalAdapter,
@@ -240,7 +240,7 @@ class UpstoxBrokerGateway(BatchFetchMixin):
         return self._stream_gw.get_connection_status()
 
     def get_circuit_breaker_states(self) -> dict[str, int]:
-        from tradex.runtime.resilience.circuit_breaker import CircuitState
+        from infrastructure.resilience.circuit_breaker import CircuitState
         http = self._broker.context.http_client
         mapping = {"read": http._read_circuit_breaker, "write": http._write_circuit_breaker, "admin": http._admin_circuit_breaker}
         return {name: cb.state.value if cb is not None else CircuitState.CLOSED.value for name, cb in mapping.items()}

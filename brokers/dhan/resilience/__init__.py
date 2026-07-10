@@ -6,7 +6,7 @@ Re-exports circuit breaker, retry executor, and the canonical rate limiter
 
 from __future__ import annotations
 
-from tradex.runtime.resilience.rate_limiter import (
+from infrastructure.resilience.rate_limiter import (
     DhanRateLimiterMetrics,
     create_rate_limiter,
 )
@@ -31,11 +31,11 @@ class DhanRateLimiterFactory:
 
     @staticmethod
     def create_config(category: str) -> "RateLimitConfig":
-        from tradex.runtime.resilience.rate_limiter import (
+        from infrastructure.resilience.rate_limiter import (
             MultiBucketRateLimiter,
             RateLimitConfig,
         )
-        from brokers.dhan.capabilities import dhan_capabilities
+        from brokers.dhan.config.capabilities import dhan_capabilities
 
         for profile in dhan_capabilities().rate_limit_profiles:
             if profile.endpoint_class == category:
@@ -47,7 +47,7 @@ class DhanRateLimiterFactory:
         return RateLimitConfig(rate_per_second=20.0, capacity=30)
 
 
-from tradex.runtime.resilience.rate_limiter import (
+from infrastructure.resilience.rate_limiter import (
     MultiBucketRateLimiter,
     RateLimitConfig,
 )

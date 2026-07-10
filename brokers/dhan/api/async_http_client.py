@@ -39,10 +39,10 @@ from typing import Any
 
 import httpx
 
-from tradex.runtime.resilience.circuit_breaker import CircuitBreaker, CircuitState
-from tradex.runtime.resilience.rate_limiter import MultiBucketRateLimiter
+from infrastructure.resilience.circuit_breaker import CircuitBreaker, CircuitState
+from infrastructure.resilience.rate_limiter import MultiBucketRateLimiter
 from brokers.dhan.exceptions import AuthenticationError, DhanError, RateLimitError
-from brokers.dhan.metrics import (
+from brokers.dhan.resilience.metrics import (
     dhan_errors_total,
     dhan_request_duration_seconds,
     dhan_request_total,

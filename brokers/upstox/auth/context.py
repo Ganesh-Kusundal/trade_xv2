@@ -20,7 +20,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from tradex.runtime.connection_pool import get_connection_pool
+from infrastructure.pool.connection_pool import get_connection_pool
 
 from .config import UpstoxConnectionSettings
 from .http import UpstoxHttpClient
@@ -54,7 +54,7 @@ class UpstoxAdapterContext:
             settings=settings, oauth_client=self._oauth_client
         )
 
-        from tradex.runtime.resilience.rate_limiter import create_rate_limiter
+        from infrastructure.resilience.rate_limiter import create_rate_limiter
         from brokers.upstox.capabilities.snapshot import upstox_capabilities
 
         self._rate_limiter = create_rate_limiter("upstox", caps=upstox_capabilities())
@@ -104,16 +104,16 @@ class UpstoxAdapterContext:
         * ``data``    — 2 retries, 5 RPS bucket, 10 s open duration
         * any other  — falls back to a safe default
         """
-        from tradex.runtime.resilience.backoff import ExponentialBackoff
-        from tradex.runtime.resilience.circuit_breaker import (
+        from infrastructure.resilience.backoff import ExponentialBackoff
+        from infrastructure.resilience.circuit_breaker import (
             CircuitBreaker,
             CircuitBreakerConfig,
         )
-        from tradex.runtime.resilience.rate_limiter import (
+        from infrastructure.resilience.rate_limiter import (
             MultiBucketRateLimiter,
             RateLimitConfig,
         )
-        from tradex.runtime.resilience.retry import RetryConfig, RetryExecutor
+        from infrastructure.resilience.retry import RetryConfig, RetryExecutor
         from brokers.upstox.auth.config import UPSTOX_DEFAULT_RATE_PER_SECOND
 
         _configs: dict[str, tuple[RetryConfig, CircuitBreakerConfig, RateLimitConfig]] = {

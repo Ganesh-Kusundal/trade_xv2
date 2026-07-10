@@ -11,14 +11,14 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-from tradex.runtime.resilience.backoff import BackoffStrategy, ExponentialBackoff
-from tradex.runtime.resilience.circuit_breaker import CircuitBreaker
-from tradex.runtime.resilience.errors import (
+from infrastructure.resilience.backoff import BackoffStrategy, ExponentialBackoff
+from infrastructure.resilience.circuit_breaker import CircuitBreaker
+from infrastructure.resilience.errors import (
     CircuitBreakerOpenError,
     NonRetryableError,
     RetryableError,
 )
-from tradex.runtime.resilience.rate_limiter import MultiBucketRateLimiter
+from infrastructure.resilience.rate_limiter import MultiBucketRateLimiter
 from domain.constants import MAX_RETRY_ATTEMPTS, MAX_RETRY_DELAY_MS
 
 #: Default exception types considered transient/retryable.

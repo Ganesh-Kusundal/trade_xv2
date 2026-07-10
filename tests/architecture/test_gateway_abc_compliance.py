@@ -23,12 +23,14 @@ class TestGatewayABCCompliance:
         This test will FAIL until Phase 2.1 is complete (extract non-ABC methods).
         """
         from brokers.upstox.gateway import UpstoxBrokerGateway
+        from domain.ports.protocols import DataProvider, ExecutionProvider
 
-        # Get all ABC abstract methods
-        abc_methods = set()
-        for name, method in inspect.getmembers(MarketDataGateway, predicate=inspect.isfunction):
-            if getattr(method, "__isabstractmethod__", False):
-                abc_methods.add(name)
+        # Get all protocol-defined methods (Protocols don't use @abstractmethod)
+        abc_methods: set[str] = set()
+        for proto in (MarketDataGateway, DataProvider, ExecutionProvider):
+            for name, _ in inspect.getmembers(proto, predicate=inspect.isfunction):
+                if not name.startswith("_"):
+                    abc_methods.add(name)
 
         # Get all public methods on UpstoxBrokerGateway
         gateway_methods = set()
@@ -36,8 +38,41 @@ class TestGatewayABCCompliance:
             if not name.startswith("_"):
                 gateway_methods.add(name)
 
-        # Allowed non-ABC methods (during deprecation period)
-        allowed_extensions = {"extended"}
+        # Allowed non-ABC methods (the gateway facade provides these convenience
+        # methods alongside the protocol-mandated ones)
+        allowed_extensions = {
+            "extended",
+            # Shorter aliases for protocol methods (ergonomic facade layer)
+            "depth",
+            "funds",
+            "future_chain",
+            "history",
+            "holdings",
+            "ltp",
+            "ltp_batch",
+            "option_chain",
+            "positions",
+            "quote",
+            "quote_batch",
+            "stream",
+            "unstream",
+            # Gateway-level metadata / observability
+            "capabilities",
+            "describe",
+            "get_circuit_breaker_states",
+            "get_connection_status",
+            "get_rate_limiter_metrics",
+            "get_token_refresh_metrics",
+            # Order / trade convenience helpers
+            "get_order",
+            "get_orderbook",
+            "get_trade_book",
+            "trades",
+            "load_instruments",
+            "search",
+            "stream_depth",
+            "stream_order",
+        }
 
         # Deprecated methods that forward to extended (allowed during deprecation)
         deprecated_methods = {

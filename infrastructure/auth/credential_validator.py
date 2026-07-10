@@ -6,7 +6,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from tradex.runtime.auth.credential_resolver import CredentialResolver
+from infrastructure.auth.credential_resolver import CredentialResolver
 
 
 @dataclass(frozen=True)

@@ -312,7 +312,7 @@ def _run_data_validation(args: list[str], broker_service, console: Console) -> N
 
     import pandas as pd
 
-    from tradex.runtime.services.data_validator import DataQualityValidator  # sanctioned — broker wiring layer
+    from application.services.data_validator import DataQualityValidator  # sanctioned — broker wiring layer
 
     if not args:
         console.print(

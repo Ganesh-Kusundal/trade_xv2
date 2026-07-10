@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from tradex.runtime.broker_port import QuotaToken
+from domain.ports.broker_gateway import QuotaToken
 from tradex.runtime.extensions import ExtensionBundle
 from tradex.runtime.extensions.forever_order import (
     ForeverOrderProvider,

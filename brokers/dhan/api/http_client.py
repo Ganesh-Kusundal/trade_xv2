@@ -10,16 +10,16 @@ from typing import Any
 
 import requests
 
-from tradex.runtime.resilience.circuit_breaker import CircuitBreaker, CircuitState
-from tradex.runtime.resilience.rate_limiter import MultiBucketRateLimiter
+from infrastructure.resilience.circuit_breaker import CircuitBreaker, CircuitState
+from infrastructure.resilience.rate_limiter import MultiBucketRateLimiter
 from brokers.dhan.config import DhanResilienceConfig, DEFAULT_CONFIG
 from brokers.dhan.exceptions import AuthenticationError, DhanError, RateLimitError
-from brokers.dhan.metrics import (
+from brokers.dhan.resilience.metrics import (
     dhan_errors_total,
     dhan_request_duration_seconds,
     dhan_request_total,
 )
-from tradex.runtime.resilience.rate_limiter import DhanRateLimiterMetrics
+from infrastructure.resilience.rate_limiter import DhanRateLimiterMetrics
 from config.endpoints import Dhan
 
 logger = logging.getLogger(__name__)
@@ -473,7 +473,7 @@ class DhanHttpClient:
             # 429 — rate limited, back off and retry
             if resp.status_code == 429:
                 try:
-                    from tradex.runtime.auth.metrics import AuthMetrics
+                    from infrastructure.auth.metrics import AuthMetrics
 
                     AuthMetrics.api_rate_limit("dhan")
                 except Exception:

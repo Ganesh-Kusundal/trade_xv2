@@ -26,7 +26,7 @@ from brokers.dhan.exceptions import (
     OrderError,
     RateLimitError,
 )
-from brokers.dhan.factory import BrokerFactory
+from brokers.dhan.identity.factory import BrokerFactory
 from brokers.dhan.gateway import DhanBrokerGateway
 from brokers.dhan.api.http_client import DhanHttpClient
 from brokers.dhan.identity import (
@@ -39,12 +39,12 @@ from brokers.dhan.identity import (
     is_dhan_segment,
 )
 from brokers.dhan.loader import InstrumentLoader
-from brokers.dhan.reconciliation import DhanReconciliationService, ReconciliationReport
+from brokers.dhan.portfolio.reconciliation import DhanReconciliationService
 
 # ── Infrastructure ──────────────────────────────────────────────────────────
 from brokers.dhan.resolver import SymbolResolver
 from brokers.dhan.websocket import DhanMarketFeed, DhanOrderStream, PollingMarketFeed
-from domain import Balance, DepthLevel, MarketDepth, Quote
+from domain import Balance, DepthLevel, MarketDepth, Quote, ReconciliationReport
 
 __all__ = [
     "DHAN_SEGMENTS",

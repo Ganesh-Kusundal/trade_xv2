@@ -9,7 +9,7 @@ import logging
 from decimal import Decimal
 from typing import Any
 
-from tradex.runtime.dtos import BrokerOrderPayload
+from domain.models.dtos import BrokerOrderPayload
 from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from brokers.upstox.orders.idempotency import InMemoryIdempotencyCache

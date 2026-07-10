@@ -15,12 +15,12 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from tradex.runtime.resilience.backoff import ExponentialBackoff
-from tradex.runtime.resilience.circuit_breaker import CircuitBreaker
-from tradex.runtime.resilience.rate_limiter import (
+from infrastructure.resilience.backoff import ExponentialBackoff
+from infrastructure.resilience.circuit_breaker import CircuitBreaker
+from infrastructure.resilience.rate_limiter import (
     MultiBucketRateLimiter,
 )
-from tradex.runtime.resilience.retry import RetryConfig, RetryExecutor
+from infrastructure.resilience.retry import RetryConfig, RetryExecutor
 
 logger = logging.getLogger(__name__)
 

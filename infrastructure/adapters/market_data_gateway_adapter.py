@@ -9,8 +9,8 @@ import uuid
 from collections.abc import Sequence
 from typing import Any
 
-from tradex.runtime.adapters.historical_mapper import dataframe_to_historical_bars
-from tradex.runtime.broker_port import (
+from infrastructure.adapters.historical_mapper import dataframe_to_historical_bars
+from domain.ports.broker_gateway import (
     BrokerHealthSnapshot,
     BrokerStreamHandle,
     BrokerStreamPlan,
@@ -18,7 +18,7 @@ from tradex.runtime.broker_port import (
     QuotaToken,
 )
 from tradex.runtime.capabilities import BrokerCapabilities, CapabilityDescriptor
-from tradex.runtime.gateway import MarketDataGateway
+from infrastructure.gateway.base import MarketDataGateway
 from domain.entities import Balance, Order, OrderResponse, Position, Quote, Trade
 from domain.entities.market import MarketDepth
 from domain.candles.historical import InstrumentRef

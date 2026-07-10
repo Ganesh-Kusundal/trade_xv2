@@ -26,6 +26,7 @@ _DHAN_PUBLIC = frozenset(
         "describe",
         "funds",
         "future_chain",
+        "get_order",
         "get_orderbook",
         "get_trade_book",
         "history",

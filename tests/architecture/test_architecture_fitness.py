@@ -205,6 +205,7 @@ class TestImportRules:
                         "domain.status_mapper",
                         "domain.ports.protocols", "domain.candles.historical",
                         "domain.errors",
+                        "domain.policies",
                         "domain.orders", "domain.parsing", "domain.status_mapper",
                         "domain.market_enums", "domain.exchange_segments",
                     ))
@@ -326,6 +327,7 @@ class TestRetryUsage:
             "application/services/download_engine.py",  # Download engine
             "brokers/upstox/auth/http.py",  # HTTP retry backoff
             "brokers/dhan/websocket/order_stream.py",  # WebSocket reconnect
+            "brokers/dhan/execution/order_placement.py",  # Idempotency poll-wait
         ]
         violations = [
             v for v in violations

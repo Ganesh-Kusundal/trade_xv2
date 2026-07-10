@@ -14,7 +14,7 @@ from typing import Any
 from cli.commands.doctor.checks import CheckResult, CheckStrategy
 from cli.services.broker_registry import list_available_brokers
 from cli.services.broker_service import BrokerService
-from tradex.runtime.connection.authenticated_readiness import (
+from infrastructure.connection.authenticated_readiness import (
     AuthProbeResult,
     authenticated_readiness_probe,
     execute_read_only_probe,
@@ -106,7 +106,7 @@ class AuthLiveProbeCheck(CheckStrategy):
                 except Exception:
                     pass
 
-        from tradex.runtime.gateway_factory import create_gateway, resolve_env_path
+        from infrastructure.gateway.factory import create_gateway, resolve_env_path
 
         env = self.env_path or resolve_env_path(name)
         return create_gateway(name, env_path=env, load_instruments=False)

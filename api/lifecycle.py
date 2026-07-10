@@ -9,7 +9,7 @@ import logging
 
 from application.oms.context import TradingContext
 from application.oms.risk_manager import RiskConfig
-from tradex.runtime.bootstrap import (
+from infrastructure.bootstrap import (
     build_dead_letter_queue,
     build_event_bus,
     build_order_store,

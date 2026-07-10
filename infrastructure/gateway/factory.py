@@ -189,8 +189,8 @@ def bootstrap_gateway(
             probe_name=f"{broker}_skip",
         )
 
-    from tradex.runtime.connection.bootstrap_result import structural_readiness_probe
-    from tradex.runtime.connection.authenticated_readiness import (
+    from infrastructure.connection.bootstrap_result import structural_readiness_probe
+    from infrastructure.connection.authenticated_readiness import (
         authenticated_readiness_probe,
     )
 

@@ -42,9 +42,9 @@ from dataclasses import dataclass
 from enum import IntEnum
 from typing import ClassVar
 
-from tradex.runtime.broker_port import QuotaToken
+from domain.errors import QuotaExhaustedError
+from domain.ports.broker_gateway import QuotaToken
 from tradex.runtime.capabilities import RateLimitProfile
-from tradex.runtime.errors import QuotaExhaustedError
 
 logger = logging.getLogger(__name__)
 

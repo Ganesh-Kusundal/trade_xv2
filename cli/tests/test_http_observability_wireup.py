@@ -15,7 +15,7 @@ from __future__ import annotations
 import socket
 from decimal import Decimal
 
-from tradex.runtime.observability.http_server import HttpObservabilityServer
+from infrastructure.observability.http_server import HttpObservabilityServer
 from infrastructure.lifecycle import LifecycleManager
 
 

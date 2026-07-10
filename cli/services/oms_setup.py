@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, Any
 
 from application.oms import PositionManager, RiskConfig, RiskManager
 from application.oms.capital_provider import GatewayCapitalProvider
-from tradex.runtime.bootstrap import build_dead_letter_queue, build_order_store
+from infrastructure.bootstrap import build_dead_letter_queue, build_order_store
 from cli.services.capital_provider import TrackedCapitalProvider
 from domain.constants import RECONCILIATION_INTERVAL_SECONDS
 from domain.constants.defaults import RISK_FALLBACK_CAPITAL

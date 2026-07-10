@@ -15,10 +15,10 @@ import logging
 from collections.abc import Callable
 from pathlib import Path
 
-from tradex.runtime.auth.metrics import AuthMetrics
-from tradex.runtime.auth.token import TokenSource, TokenState, TokenStateStore
-from tradex.runtime.auth.token_persistence import TokenPersistence, token_state_from_access_token
-from tradex.runtime.auth.token_policy import should_generate_token
+from infrastructure.auth.metrics import AuthMetrics
+from infrastructure.auth.token import TokenSource, TokenState, TokenStateStore
+from infrastructure.auth.token_persistence import TokenPersistence, token_state_from_access_token
+from infrastructure.auth.token_policy import should_generate_token
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +106,7 @@ def ensure_access_token(
             "token_ensure_mint_failed",
             extra={"env_key": env_key, "error": str(exc)},
         )
-        from tradex.runtime.auth.totp_cooldown import TotpRateLimitError
+        from infrastructure.auth.totp_cooldown import TotpRateLimitError
 
         if isinstance(exc, TotpRateLimitError):
             AuthMetrics.totp_rate_limit(broker_id)

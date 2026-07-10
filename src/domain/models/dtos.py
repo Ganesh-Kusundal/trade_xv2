@@ -12,7 +12,7 @@ Usage
 Gateways (``DhanBrokerGateway``, ``UpstoxBrokerGateway``) construct a
 ``BrokerOrderPayload`` from flat parameters and pass it to the broker adapter::
 
-    from tradex.runtime.dtos import BrokerOrderPayload
+    from domain.models.dtos import BrokerOrderPayload
 
     payload = BrokerOrderPayload(
         symbol=symbol,

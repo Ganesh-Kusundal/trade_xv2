@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from tradex.runtime.adapters.market_data_gateway_adapter import (
+from infrastructure.adapters.market_data_gateway_adapter import (
     MarketDataGatewayAdapter,
     wrap_market_gateway,
 )
-from tradex.runtime.broker_port import CommonBrokerGateway
-from tradex.runtime.gateway import MarketDataGateway
+from domain.ports.broker_gateway import CommonBrokerGateway
+from infrastructure.gateway.base import MarketDataGateway
 
 
 def to_common_broker_gateway(

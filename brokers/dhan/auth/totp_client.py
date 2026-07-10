@@ -6,7 +6,7 @@ import logging
 import os
 from typing import TYPE_CHECKING
 
-from tradex.runtime.auth.totp_cooldown import TotpCooldownGuard, TotpRateLimitError
+from infrastructure.auth.totp_cooldown import TotpCooldownGuard, TotpRateLimitError
 
 if TYPE_CHECKING:
     from brokers.dhan.config.settings import DhanConnectionSettings
@@ -94,4 +94,4 @@ class DhanTotpClient:
         return pin, totp_secret, _GENERATE_TOKEN_URL, client_id
 
 
-from brokers.dhan.secret_utils import read_secret as _read_secret
+from brokers.dhan.auth.secret_utils import read_secret as _read_secret

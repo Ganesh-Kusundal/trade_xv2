@@ -11,9 +11,9 @@ import logging
 from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from tradex.runtime.historical_coordinator import HistoricalDataCoordinator, HistoricalQuery
-    from tradex.runtime.provenance import ProvenanceLedger
-    from tradex.runtime.stream_orchestrator import StreamOrchestrator, SubscriptionRequest
+    from application.data.historical_coordinator import HistoricalDataCoordinator, HistoricalQuery
+    from application.data.provenance import ProvenanceLedger
+    from application.streaming.orchestrator import StreamOrchestrator, SubscriptionRequest
 
 from domain.candles.historical import HistoricalSeries
 

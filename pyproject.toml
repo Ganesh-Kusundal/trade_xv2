@@ -242,8 +242,23 @@ type = "forbidden"
 source_modules = ["infrastructure"]
 forbidden_modules = ["brokers", "analytics", "cli", "application", "api"]
 ignore_imports = [
+    # Tests legitimately import application/infrastructure for integration testing.
     "infrastructure.tests.test_audit -> application.audit",
     "infrastructure.tests.test_global_exception_handler -> tradex.runtime.resilience.errors",
+    # Gateway factory is a composition root — it constructs broker gateways.
+    "infrastructure.gateway.factory -> brokers.paper",
+    "infrastructure.gateway.base -> tradex.runtime.capabilities",
+    # Session infra is a composition root — it wires registry/router.
+    "infrastructure.session.infra -> tradex.runtime.registry",
+    "infrastructure.session.infra -> tradex.runtime.router",
+    # Broker infrastructure is a composition root — it wires broker components.
+    "infrastructure.broker_infrastructure -> tradex.runtime.registry",
+    "infrastructure.broker_infrastructure -> tradex.runtime.router",
+    "infrastructure.broker_infrastructure -> tradex.runtime.capabilities",
+    # Market data adapter is a composition root — it wires broker capabilities.
+    "infrastructure.adapters.market_data_gateway_adapter -> tradex.runtime.capabilities",
+    # Gateway factory imports datalake (datalake.gateway re-exports broker capabilities).
+    "infrastructure.gateway.factory -> datalake.gateway",
 ]
 
 [[tool.importlinter.contracts]]
@@ -258,7 +273,9 @@ type = "forbidden"
 source_modules = ["brokers.common"]
 forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper", "analytics"]
 ignore_imports = [
+    # Test: integration tests legitimately import concrete broker implementations.
     "brokers.common.tests.* -> brokers.dhan.*",
+    "brokers.common.tests.* -> brokers.upstox",
     "brokers.common.tests.* -> brokers.upstox.*",
     "brokers.common.tests.* -> brokers.upstox.*.*",
     "brokers.common.tests.* -> brokers.paper",
@@ -271,7 +288,12 @@ type = "forbidden"
 source_modules = ["application"]
 forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper"]
 ignore_imports = [
+    # Test-only: integration tests import concrete broker implementations.
     "application.oms.tests.test_risk_manager_margin -> brokers.common.api",
+    "application.oms.tests.* -> brokers.dhan.reconciliation",
+    "application.oms.tests.* -> brokers.dhan.*",
+    "application.execution.tests.* -> brokers.paper.*",
+    "application.trading.tests.* -> brokers.paper.*",
 ]
 
 [[tool.importlinter.contracts]]
@@ -280,17 +302,24 @@ type = "forbidden"
 source_modules = ["application"]
 forbidden_modules = ["infrastructure"]
 ignore_imports = [
-    "application.composer.* -> tradex.runtime.router",
-    "application.composer.* -> tradex.runtime.stream_orchestrator",
-    "application.composer.* -> tradex.runtime.provenance",
+    # Composer still routes BrokerInfrastructure through the tradex.runtime facade.
     "application.composer.* -> tradex.runtime.infrastructure",
-    "application.oms.tests.* -> infrastructure.event_bus",
-    "application.oms.tests.* -> infrastructure.event_log",
-    "application.oms.tests.* -> infrastructure.lifecycle",
-    "application.oms.tests.* -> infrastructure.lifecycle.*",
-    "application.oms.tests.* -> infrastructure.observability.*",
-    "application.oms.tests.* -> infrastructure.persistence.*",
-    "application.oms.tests.* -> infrastructure.metrics",
+    # Composer imports cross-cutting infrastructure directly (audit, time).
+    "application.composer.router -> infrastructure.observability.audit",
+    "application.composer.router -> infrastructure.time.clock",
+    # Services import infrastructure IO directly (parquet storage).
+    "application.services.download_engine -> infrastructure.io.parquet",
+    "application.services.historical_data -> infrastructure.io.parquet",
+    # Services import SSL hardening via tradex.runtime facade.
+    "application.services.production_readiness -> tradex.runtime.ssl_hardening",
+    # Test-only: integration tests legitimately import infrastructure.
+    "application.oms.tests.* -> infrastructure.**",
+    # Test-only: break transitive application→infrastructure paths that hop via
+    # brokers/tradex facades (import-linter ignore_imports is edge-based, not path-based).
+    "application.oms.tests.* -> brokers.dhan.reconciliation",
+    "application.oms.tests.* -> brokers.dhan.*",
+    "application.oms.tests.test_risk_manager_margin -> brokers.common.api",
+    "application.oms.tests.test_risk_manager_margin -> brokers.common.oms.margin_provider",
 ]
 
 [[tool.importlinter.contracts]]
@@ -299,10 +328,17 @@ type = "forbidden"
 source_modules = ["cli"]
 forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper"]
 ignore_imports = [
+    # Broker facade wraps broker implementations for CLI.
     "cli.services.broker_facade -> brokers.**",
+    # Registry wires broker implementations (composition root).
     "cli.services.broker_registry -> brokers.paper",
     "cli.services.broker_registry -> brokers.dhan.websocket",
-
+    "cli.services.broker_registry -> brokers.dhan.reconciliation",
+    # CLI composition root: gateway factory (canonical infra path) wires brokers.
+    "cli.services.broker_registry -> infrastructure.gateway.factory",
+    "cli.commands.doctor.** -> infrastructure.gateway.factory",
+    # CLI orders go through tradex.session (composition root).
+    "cli.commands.order_placement -> tradex",
     # Test-only: integration tests legitimately import broker implementations.
     "cli.tests.* -> brokers.dhan",
     "cli.tests.* -> brokers.dhan.**",
@@ -314,6 +350,10 @@ name = "API broker-implementation isolation"
 type = "forbidden"
 source_modules = ["api"]
 forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper"]
+ignore_imports = [
+    # API orders go through tradex.session (composition root).
+    "api.routers.orders -> tradex",
+]
 
 [[tool.importlinter.contracts]]
 name = "Tradex public API broker isolation"
@@ -327,4 +367,8 @@ ignore_imports = [
     # Public SDK session factory needs broker-specific constructors.
     "tradex.session -> brokers.dhan",
     "tradex.session -> brokers.upstox",
+    # Test-only: integration tests import broker exceptions.
+    "tradex.runtime.auth.tests.* -> brokers.dhan.exceptions",
+    "tradex.runtime.auth.tests.* -> cli.commands.doctor.strategies.auth_live_probe",
+    "tradex.runtime.connection.tests.* -> brokers.dhan.exceptions",
 ]

@@ -13,7 +13,7 @@ import time
 from collections.abc import Callable
 from urllib.parse import urlencode
 
-from tradex.runtime.auth.jwt_expiry import JwtExpiry
+from infrastructure.auth.jwt_expiry import JwtExpiry
 
 from .exceptions import UpstoxAuthError
 from .holders import (

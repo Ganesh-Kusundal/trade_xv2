@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from tradex.runtime.auth.credential_resolver import CredentialResolver
+from infrastructure.auth.credential_resolver import CredentialResolver
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ def is_token_rejection(exc: BaseException) -> bool:
 
 def execute_read_only_probe(gateway: Any, broker: str) -> AuthProbeResult:
     """Perform a single read-only authenticated API call."""
-    from tradex.runtime.auth.metrics import AuthMetrics
+    from infrastructure.auth.metrics import AuthMetrics
 
     broker = broker.lower().strip()
     handler = _PROBE_DISPATCH.get(broker)
@@ -230,8 +230,8 @@ def _force_dhan_token_refresh(
         if hasattr(conn, "broadcast_token"):
             conn.broadcast_token(state.access_token)
         try:
-            from tradex.runtime.auth import JsonTokenStateStore
-            from tradex.runtime.auth.token_persistence import TokenPersistence
+            from infrastructure.auth import JsonTokenStateStore
+            from infrastructure.auth.token_persistence import TokenPersistence
 
             dhan_env = _resolve_dhan_env_path(env_path)
             store = JsonTokenStateStore(Path("runtime/dhan-token-state.json"))

@@ -138,7 +138,7 @@ class StreamingGateway:
 
         stream = self._broker.portfolio_stream
 
-        from tradex.runtime.async_compat import connect_async_then
+        from infrastructure.async_compat import connect_async_then
         if not stream.is_connected:
             def _on_connected() -> None:
                 stream.add_listener(portfolio_listener)
@@ -182,7 +182,7 @@ class StreamingGateway:
         ws = self._broker.market_data_websocket
         ws.add_listener(raw_depth_listener)
 
-        from tradex.runtime.async_compat import connect_async_then
+        from infrastructure.async_compat import connect_async_then
         if not ws.is_connected:
             def _on_connected() -> None:
                 ws.subscribe([inst_key], mode)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from tradex.runtime.auth.token import TokenState
+from infrastructure.auth.token import TokenState
 
 
 def should_generate_token(

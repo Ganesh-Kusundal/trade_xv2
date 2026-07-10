@@ -9,7 +9,7 @@ from brokers.dhan.domain import ConditionalTrigger, ConditionalTriggerRequest
 from brokers.dhan.exceptions import ConditionalTriggerError
 from brokers.dhan.api.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
-from brokers.dhan.invariants import assert_dhan_payload
+from brokers.dhan.resilience.invariants import assert_dhan_payload
 
 logger = logging.getLogger(__name__)
 

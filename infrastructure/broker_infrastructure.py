@@ -31,11 +31,11 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from tradex.runtime.broker_port import CommonBrokerGateway
+from domain.ports.broker_gateway import CommonBrokerGateway
+from domain.policies.source_selection import SourceSelectionPolicy
 from tradex.runtime.capabilities import BrokerCapabilities
 from tradex.runtime.extensions import ExtensionBundle, ExtensionRegistry
 from tradex.runtime.historical_coordinator import HistoricalDataCoordinator
-from tradex.runtime.policy import SourceSelectionPolicy
 from tradex.runtime.quota_scheduler import QuotaScheduler
 from tradex.runtime.registry import BrokerRegistry
 from tradex.runtime.router import BrokerRouter

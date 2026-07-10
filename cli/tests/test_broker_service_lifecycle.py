@@ -161,7 +161,7 @@ def test_lifecycle_registers_token_scheduler_and_reconciliation(monkeypatch, tmp
 
     monkeypatch.setattr("cli.services.broker_service.bootstrap_gateway", patched_bootstrap)
     monkeypatch.setattr(
-        "tradex.runtime.services.production_readiness.ProductionReadinessChecker.run_or_raise",
+        "application.services.production_readiness.ProductionReadinessChecker.run_or_raise",
         lambda self: MagicMock(passed=True, summary=lambda: "ok"),
     )
     monkeypatch.setattr(
@@ -256,7 +256,7 @@ def test_close_drains_lifecycle(monkeypatch, tmp_path) -> None:
 
     monkeypatch.setattr("cli.services.broker_service.bootstrap_gateway", patched_bootstrap)
     monkeypatch.setattr(
-        "tradex.runtime.services.production_readiness.ProductionReadinessChecker.run_or_raise",
+        "application.services.production_readiness.ProductionReadinessChecker.run_or_raise",
         lambda self: MagicMock(passed=True, summary=lambda: "ok"),
     )
     monkeypatch.setattr(

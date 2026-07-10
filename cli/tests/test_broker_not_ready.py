@@ -6,8 +6,8 @@ from unittest.mock import patch
 
 import pytest
 
-from tradex.runtime.connection.bootstrap_result import BootstrapResult, BootstrapStatus
-from tradex.runtime.connection.errors import BrokerNotReadyError
+from infrastructure.connection.bootstrap_result import BootstrapResult, BootstrapStatus
+from infrastructure.connection.errors import BrokerNotReadyError
 from cli.services.broker_registry import require_gateway
 
 
@@ -24,7 +24,7 @@ def test_broker_not_ready_from_bootstrap():
 
 
 def test_require_gateway_raises_when_bootstrap_fails():
-    with patch("tradex.runtime.gateway_factory.bootstrap_gateway") as mock_boot:
+    with patch("infrastructure.gateway.factory.bootstrap_gateway") as mock_boot:
         mock_boot.return_value = BootstrapResult(
             status=BootstrapStatus.FAILED,
             broker="dhan",
@@ -37,7 +37,7 @@ def test_require_gateway_raises_when_bootstrap_fails():
 
 def test_require_gateway_returns_gateway_when_ready():
     gw = object()
-    with patch("tradex.runtime.gateway_factory.bootstrap_gateway") as mock_boot:
+    with patch("infrastructure.gateway.factory.bootstrap_gateway") as mock_boot:
         mock_boot.return_value = BootstrapResult(
             status=BootstrapStatus.READY,
             broker="paper",

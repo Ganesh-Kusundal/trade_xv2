@@ -1,11 +1,11 @@
 """Broker-agnostic reconciliation engine.
 
-Canonical location: ``tradex.runtime.reconciliation``.
+Canonical location: ``application.oms.reconciliation``.
 """
 
 from __future__ import annotations
 
-from tradex.runtime.reconciliation.engine import ReconciliationEngine
+from .engine import ReconciliationEngine
 
 __all__ = [
     "ReconciliationEngine",

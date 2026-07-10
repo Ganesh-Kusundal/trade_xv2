@@ -228,7 +228,7 @@ class SubscriptionEngine:
 
     def _update_metrics(self) -> None:
         try:
-            from brokers.dhan.metrics import dhan_ws_callbacks, dhan_ws_subscriptions
+            from brokers.dhan.resilience.metrics import dhan_ws_callbacks, dhan_ws_subscriptions
 
             with self._lock:
                 dhan_ws_subscriptions.set(self.subscription_count())

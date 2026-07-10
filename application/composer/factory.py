@@ -20,11 +20,11 @@ from datetime import date, datetime, timedelta as _TIMEDELTA
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from tradex.runtime.broker_port import CommonBrokerGateway
-    from tradex.runtime.historical_coordinator import HistoricalDataCoordinator
+    from application.data.historical_coordinator import HistoricalDataCoordinator
+    from application.scheduling.quota_scheduler import QuotaScheduler
+    from domain.policies.source_selection import SourceSelectionPolicy
+    from domain.ports.broker_gateway import CommonBrokerGateway
     from tradex.runtime.infrastructure import BrokerInfrastructure
-    from tradex.runtime.policy import SourceSelectionPolicy
-    from tradex.runtime.quota_scheduler import QuotaScheduler
 
 from application.composer.execution import ExecutionComposer
 from application.composer.market_data import MarketDataComposer
@@ -108,8 +108,8 @@ def _fetch_gap_bars(
     to_dt: datetime,
 ) -> list[dict]:
     """Fetch historical bars covering a reconnect gap for one instrument."""
+    from application.data.historical_coordinator import HistoricalQuery
     from domain.candles.historical import InstrumentRef
-    from tradex.runtime.historical_coordinator import HistoricalQuery
 
     fdate = from_dt.date() if isinstance(from_dt, datetime) else date.fromisoformat(str(from_dt))
     tdate = to_dt.date() if isinstance(to_dt, datetime) else date.fromisoformat(str(to_dt))
@@ -416,12 +416,12 @@ def create_composers(
     tuple[MarketDataComposer, ExecutionComposer]
         Wired composer instances ready for use.
     """
-    from tradex.runtime.historical_coordinator import HistoricalDataCoordinator
-    from tradex.runtime.policy_defaults import default_source_selection_policy
-    from tradex.runtime.quota_scheduler import QuotaScheduler as QuotaSchedulerCls
-    from tradex.runtime.registry import BrokerRegistry
-    from tradex.runtime.router import BrokerRouter
-    from tradex.runtime.stream_orchestrator import StreamOrchestrator
+    from application.composer.registry import BrokerRegistry
+    from application.composer.router import BrokerRouter
+    from application.data.historical_coordinator import HistoricalDataCoordinator
+    from application.scheduling.quota_scheduler import QuotaScheduler as QuotaSchedulerCls
+    from application.streaming.orchestrator import StreamOrchestrator
+    from domain.policies.defaults import default_source_selection_policy
 
     # 1. Create registry and register gateways
     registry = BrokerRegistry()

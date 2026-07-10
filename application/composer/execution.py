@@ -406,7 +406,7 @@ class ExecutionComposer:
 
     def _route_order(self) -> str:
         """Route order operation to broker via policy."""
-        from tradex.runtime.models import OperationKind, RoutingRequest
+        from domain.models.routing import OperationKind, RoutingRequest
 
         request = RoutingRequest(
             operation=OperationKind.PLACE_ORDER,
@@ -417,7 +417,7 @@ class ExecutionComposer:
 
     def _route_portfolio(self) -> str:
         """Route portfolio read operation to broker via policy."""
-        from tradex.runtime.models import OperationKind, RoutingRequest
+        from domain.models.routing import OperationKind, RoutingRequest
 
         request = RoutingRequest(
             operation=OperationKind.GET_POSITIONS,

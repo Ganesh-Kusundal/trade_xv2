@@ -14,13 +14,13 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from tradex.runtime.async_compat import run_async_compat
-from tradex.runtime.connection_pool import get_connection_pool
 from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
-from tradex.runtime.infrastructure import BrokerInfrastructure
+from infrastructure.broker_infrastructure import BrokerInfrastructure
+from infrastructure.io.async_compat import run_async_compat
+from infrastructure.pool.connection_pool import get_connection_pool
 
 # TODO: restore bootstrap import when bootstrap module is recreated
-# from tradex.runtime.bootstrap import bootstrap_from_gateways, policy_from_env
+# from infrastructure.bootstrap import bootstrap_from_gateways, policy_from_env
 
 logger = logging.getLogger(__name__)
 

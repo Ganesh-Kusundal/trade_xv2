@@ -15,7 +15,7 @@ a class of ``OperationKind``:
 
 Usage::
 
-    from tradex.runtime.policy_defaults import default_source_selection_policy
+    from domain.policies.defaults import default_source_selection_policy
 
     policy = default_source_selection_policy()
     router = BrokerRouter(registry=registry, policy=policy)

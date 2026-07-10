@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from tradex.runtime.extensions import ExtensionBundle, get_extension_factory
-from tradex.runtime.gateway import MarketDataGateway
+from infrastructure.gateway.base import MarketDataGateway
 
 
 def build_extension_bundle(broker_id: str, gateway: MarketDataGateway) -> ExtensionBundle:

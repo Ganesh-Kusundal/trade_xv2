@@ -50,20 +50,14 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Literal
 
-from tradex.runtime.broker_port import (
-    HistoricalBarRequest,
-    QuotaToken,
-)
-from tradex.runtime.errors import MergeConflictError, RoutingError
-from tradex.runtime.models import OperationKind, RouteDecision, RoutingRequest
-from tradex.runtime.provenance import (
+from application.composer.registry import BrokerRegistry
+from application.composer.router import BrokerRouter
+from application.data.provenance import (
     BarRangeRecord,
     ChunkRecord,
     ConflictRecord,
     ProvenanceLedger,
 )
-from tradex.runtime.registry import BrokerRegistry
-from tradex.runtime.router import BrokerRouter
 from domain.candles.historical import (
     DateRange,
     Gap,
@@ -71,6 +65,12 @@ from domain.candles.historical import (
     HistoricalSeries,
     InstrumentRef,
     MergeManifest,
+)
+from domain.errors import MergeConflictError, RoutingError
+from domain.models.routing import OperationKind, RouteDecision, RoutingRequest
+from domain.ports.broker_gateway import (
+    HistoricalBarRequest,
+    QuotaToken,
 )
 
 logger = logging.getLogger(__name__)

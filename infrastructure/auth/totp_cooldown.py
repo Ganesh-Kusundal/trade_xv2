@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 from typing import ClassVar
 
-from tradex.runtime.resilience.errors import TradeXV2Error
+from domain.exceptions import TradeXV2Error
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +114,7 @@ class TotpCooldownGuard:
         remaining = self.remaining_cooldown_seconds()
         if remaining > 0:
             try:
-                from tradex.runtime.auth.metrics import AuthMetrics
+                from infrastructure.auth.metrics import AuthMetrics
 
                 AuthMetrics.totp_rate_limit(self._broker)
             except Exception:
@@ -141,7 +141,7 @@ class TotpCooldownGuard:
             self._last_attempt_at = time.time()
             self._persist_state()
         try:
-            from tradex.runtime.auth.metrics import AuthMetrics
+            from infrastructure.auth.metrics import AuthMetrics
 
             AuthMetrics.totp_rate_limit(self._broker)
         except Exception:

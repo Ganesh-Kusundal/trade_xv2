@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from tradex.runtime.env_loader import load_env_file
+from infrastructure.config.env_loader import load_env_file
 
 CANONICAL_ENV_FILES: dict[str, str | None] = {
     "dhan": ".env.local",

@@ -6,8 +6,8 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
-from tradex.runtime.auth.jwt_expiry import JwtExpiry
-from tradex.runtime.auth.token import TokenSource, TokenState, TokenStateStore
+from infrastructure.auth.jwt_expiry import JwtExpiry
+from infrastructure.auth.token import TokenSource, TokenState, TokenStateStore
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +119,7 @@ class TokenPersistence:
         if env_path is not None and env_path.exists() and enriched.access_token:
             # Mirror known broker access-token keys into the env file.
             if env_key in {"DHAN_ACCESS_TOKEN", "UPSTOX_ACCESS_TOKEN"}:
-                from tradex.runtime.auth.env_token import update_env_token
+                from infrastructure.auth.env_token import update_env_token
 
                 update_env_token(env_path, enriched.access_token, env_key=env_key)
             else:

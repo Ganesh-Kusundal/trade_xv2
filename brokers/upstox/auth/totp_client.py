@@ -84,7 +84,7 @@ class UpstoxTotpClient:
         if not self._client:
             raise RuntimeError("TOTP client not initialized")
 
-        from tradex.runtime.auth.totp_cooldown import TotpCooldownGuard, TotpRateLimitError
+        from infrastructure.auth.totp_cooldown import TotpCooldownGuard, TotpRateLimitError
 
         guard = TotpCooldownGuard.for_broker("upstox")
         guard.check_allowed()

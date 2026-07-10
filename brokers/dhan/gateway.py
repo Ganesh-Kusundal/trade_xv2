@@ -19,7 +19,7 @@ from brokers.dhan.domain import (
 )
 from brokers.common.capabilities_validator import validate_gateway_capabilities
 from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
-from tradex.runtime.capabilities import BrokerCapabilities
+from brokers.common.broker_capabilities import BrokerCapabilities
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +95,7 @@ class DhanBrokerGateway:
         # OrdersAdapter expects BrokerOrderPayload (not flat kwargs).
         from domain.enums import OrderType, ProductType, Side, Validity
         from domain.market_enums import ExchangeSegment
-        from tradex.runtime.dtos import BrokerOrderPayload
+        from domain.models.dtos import BrokerOrderPayload
 
         side_e = side if isinstance(side, Side) else Side(str(side).upper())
         if isinstance(order_type, OrderType):
@@ -400,7 +400,7 @@ class DhanBrokerGateway:
 
     def list_capabilities(self):
         """CommonBrokerGateway-compatible capability descriptor (session kernel)."""
-        from tradex.runtime.capabilities import CapabilityDescriptor
+        from brokers.common.broker_capabilities import CapabilityDescriptor
 
         return CapabilityDescriptor.build(self.capabilities(), frozenset())
 

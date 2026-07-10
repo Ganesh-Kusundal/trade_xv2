@@ -15,9 +15,9 @@ from typing import Any
 
 import requests
 
-from tradex.runtime.resilience.backoff import ExponentialBackoff
-from tradex.runtime.resilience.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
-from tradex.runtime.resilience.rate_limiter import MultiBucketRateLimiter
+from infrastructure.resilience.backoff import ExponentialBackoff
+from infrastructure.resilience.circuit_breaker import CircuitBreaker, CircuitBreakerConfig
+from infrastructure.resilience.rate_limiter import MultiBucketRateLimiter
 
 from .exceptions import UpstoxApiError, UpstoxAuthError
 
@@ -102,7 +102,7 @@ class UpstoxHttpClient:
         if rate_limiter is not None:
             self._rate_limiter = rate_limiter
         else:
-            from tradex.runtime.resilience.rate_limiter import create_rate_limiter
+            from infrastructure.resilience.rate_limiter import create_rate_limiter
             from brokers.upstox.capabilities.snapshot import upstox_capabilities
 
             self._rate_limiter = create_rate_limiter("upstox", caps=upstox_capabilities())
@@ -247,8 +247,8 @@ class UpstoxHttpClient:
         # Circuit breaker: fail fast if circuit is open (category-specific)
         cb = self._get_circuit_breaker(url, method)
         if cb is not None:
-            from tradex.runtime.resilience.circuit_breaker import CircuitState
-            from tradex.runtime.resilience.errors import CircuitBreakerOpenError
+            from infrastructure.resilience.circuit_breaker import CircuitState
+            from infrastructure.resilience.errors import CircuitBreakerOpenError
 
             if cb.state == CircuitState.OPEN:
                 logger.warning(
@@ -350,7 +350,7 @@ class UpstoxHttpClient:
                 is_transient = resp.status_code == 429 or resp.status_code >= 500
                 if resp.status_code == 429:
                     try:
-                        from tradex.runtime.auth.metrics import AuthMetrics
+                        from infrastructure.auth.metrics import AuthMetrics
 
                         AuthMetrics.api_rate_limit("upstox")
                     except Exception:

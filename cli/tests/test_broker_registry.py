@@ -16,12 +16,12 @@ import pytest
 @pytest.fixture(autouse=True)
 def _skip_credential_gate(monkeypatch):
     """Registry unit tests mock factories; skip live credential validation."""
-    from tradex.runtime.connection.authenticated_readiness import AuthProbeResult
+    from infrastructure.connection.authenticated_readiness import AuthProbeResult
 
     # create_gateway is transport-only; bootstrap tests patch the probe at its
-    # import site inside gateway_factory / authenticated_readiness.
+    # import site inside gateway factory / authenticated_readiness.
     monkeypatch.setattr(
-        "tradex.runtime.connection.authenticated_readiness.authenticated_readiness_probe",
+        "infrastructure.connection.authenticated_readiness.authenticated_readiness_probe",
         lambda gw, broker, env_path=None: AuthProbeResult(ok=True, probe_name="mock"),
     )
 

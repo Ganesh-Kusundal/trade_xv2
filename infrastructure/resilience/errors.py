@@ -1,10 +1,12 @@
 """Broker error types — re-exported from domain for backward compatibility.
 
-The canonical error hierarchy now lives in ``domain.errors``. This module
-re-exports every class so that existing ``from tradex.runtime.resilience.errors
-import BrokerError`` clauses continue to work without modification. The
-``convert_network_errors`` decorator (infrastructure-level, depends on
-``requests``) remains here since it is broker-specific infrastructure.
+The canonical error hierarchy lives in ``domain.errors``. This module
+(``infrastructure.resilience.errors``) re-exports every class so that existing
+``from infrastructure.resilience.errors import BrokerError`` (and the
+backward-compat facade ``tradex.runtime.resilience.errors``) continue to work
+without modification. The ``convert_network_errors`` decorator
+(infrastructure-level, depends on ``requests``) remains here since it is
+broker-specific infrastructure.
 """
 
 from __future__ import annotations

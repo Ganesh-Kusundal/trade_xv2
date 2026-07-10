@@ -13,10 +13,10 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
-from tradex.runtime.auth import AuthManager, JsonTokenStateStore
-from tradex.runtime.auth.token_persistence import TokenPersistence
-from tradex.runtime.auth.token_policy import should_generate_token
-from tradex.runtime.auth.totp_cooldown import TotpRateLimitError
+from infrastructure.auth import AuthManager, JsonTokenStateStore
+from infrastructure.auth.token_persistence import TokenPersistence
+from infrastructure.auth.token_policy import should_generate_token
+from infrastructure.auth.totp_cooldown import TotpRateLimitError
 from domain.constants import (
     DEFAULT_STOP_TIMEOUT_SECONDS,
     DHAN_TOKEN_REFRESH_BUFFER_SECONDS,

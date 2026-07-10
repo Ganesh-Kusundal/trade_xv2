@@ -27,7 +27,7 @@ from typing import Callable, Iterable, Mapping, Sequence
 # normalized tick type. We import lazily inside update() to avoid a hard import
 # edge at module load (the runtime package may not be importable in some test
 # sandboxes), but type the input structurally via ``MarketTick`` below.
-from tradex.runtime.stream_orchestrator import MarketTick  # noqa: F401  (type only)
+from application.streaming.orchestrator import MarketTick  # noqa: F401  (type only)
 
 # --- timeframe parsing -------------------------------------------------------
 

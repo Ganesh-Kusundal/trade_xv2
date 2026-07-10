@@ -57,32 +57,50 @@ def test_core_domain_modules_import_without_prior_pandas() -> None:
     import importlib
     import sys
 
-    # Drop pandas if already loaded so we prove these modules don't need it
-    for name in list(sys.modules):
-        if name == "pandas" or name.startswith("pandas."):
-            del sys.modules[name]
-        if name.startswith("domain"):
-            del sys.modules[name]
+    # Snapshot modules we may delete so later tests keep stable class identity
+    # (isinstance across reloaded domain.errors vs already-imported handlers).
+    saved = {
+        name: mod
+        for name, mod in sys.modules.items()
+        if name == "pandas"
+        or name.startswith("pandas.")
+        or name.startswith("domain")
+    }
 
-    src = str(ROOT / "src")
-    if src not in sys.path:
-        sys.path.insert(0, src)
+    try:
+        # Drop pandas if already loaded so we prove these modules don't need it
+        for name in list(sys.modules):
+            if name == "pandas" or name.startswith("pandas."):
+                del sys.modules[name]
+            if name.startswith("domain"):
+                del sys.modules[name]
 
-    core = [
-        "domain.instruments.instrument",
-        "domain.indicators.rsi",
-        "domain.indicators.atr",
-        "domain.indicators.vwap",
-        "domain.indicators.macd",
-        "domain.indicators.indicators",
-        "domain.services.history",
-        "domain.services.analytics",
-        "domain.ports.market_data",
-        "domain.ports.protocols",
-    ]
-    for modname in core:
-        importlib.import_module(modname)
+        src = str(ROOT / "src")
+        if src not in sys.path:
+            sys.path.insert(0, src)
 
-    assert "pandas" not in sys.modules, (
-        "Importing core domain modules must not load pandas into sys.modules"
-    )
+        core = [
+            "domain.instruments.instrument",
+            "domain.indicators.rsi",
+            "domain.indicators.atr",
+            "domain.indicators.vwap",
+            "domain.indicators.macd",
+            "domain.indicators.indicators",
+            "domain.services.history",
+            "domain.services.analytics",
+            "domain.ports.market_data",
+            "domain.ports.protocols",
+        ]
+        for modname in core:
+            importlib.import_module(modname)
+
+        assert "pandas" not in sys.modules, (
+            "Importing core domain modules must not load pandas into sys.modules"
+        )
+    finally:
+        # Restore pre-test module objects so class identity is stable for the suite.
+        for name in list(sys.modules):
+            if name == "pandas" or name.startswith("pandas.") or name.startswith("domain"):
+                if name not in saved:
+                    del sys.modules[name]
+        sys.modules.update(saved)

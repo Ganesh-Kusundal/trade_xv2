@@ -36,7 +36,8 @@ def _resolve_tradex_python() -> str:
         return override
 
     launcher = PROJECT_ROOT / "tradex"
-    if launcher.exists():
+    # Prefer a real launcher script; skip if ``tradex`` is the package directory.
+    if launcher.is_file():
         # Read the exec line to discover which python the launcher uses.
         text = launcher.read_text()
         if "python" in text:

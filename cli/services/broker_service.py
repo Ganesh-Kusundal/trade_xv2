@@ -244,7 +244,7 @@ class BrokerService:
                     self._start_websocket_services()
                     self._lifecycle.start_all()
                     self._start_http_observability_server(oms_risk_manager)
-                    from tradex.runtime.services.production_readiness import (
+                    from application.services.production_readiness import (
                         ProductionReadinessChecker,
                     )
                     self._readiness_report = ProductionReadinessChecker(self).run_or_raise()

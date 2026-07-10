@@ -341,7 +341,7 @@ class OmsBootstrap:
         is left as None and a warning is logged. Production
         observability must not block init.
         """
-        from tradex.runtime.observability.http_server import (
+        from infrastructure.observability.http_server import (
             HttpObservabilityServer,
         )
 

@@ -38,7 +38,7 @@ def wire_gateway_for_session(gateway: Any, broker_id: str) -> SessionKernel:
     """
     global _session_registry, _session_quota, _session_router
 
-    from tradex.runtime.policy_defaults import default_source_selection_policy
+    from domain.policies.defaults import default_source_selection_policy
     from tradex.runtime.quota_scheduler import QuotaScheduler
     from tradex.runtime.registry import BrokerRegistry
     from tradex.runtime.router import BrokerRouter

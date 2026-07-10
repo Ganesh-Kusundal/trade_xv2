@@ -7,7 +7,7 @@ from decimal import Decimal
 
 import pandas as pd
 
-from tradex.runtime.batch_executor import batch_execute
+from infrastructure.batch_executor import batch_execute
 from domain.entities import Quote
 from domain.constants import BATCH_MAX_WORKERS
 

@@ -36,6 +36,7 @@ from typing import Any
 
 from brokers.dhan.streaming.connection_admission import MarketFeedConnectionAdmission
 from brokers.dhan.api.reconnecting_service import ReconnectingServiceMixin
+from brokers.dhan.data.depth_parser import DepthPacketParser
 from domain import DepthLevel, MarketDepth
 from domain.symbols import normalize_symbol
 from domain.events import DomainEvent
@@ -160,6 +161,16 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
         # drop+publish rates without scraping logs.
         self._published_depths = 0
         self._dropped_depths = 0
+
+        # Depth-packet parser — stateless wire-format decoder extracted from
+        # this class so parsing can be tested in isolation.
+        self._parser = DepthPacketParser(
+            total_slots=total_slots,
+            depth_type=depth_type,
+            header_carries_security_id=header_carries_security_id,
+            bid_response_code=self.BID_RESPONSE_CODE,
+            ask_response_code=self.ASK_RESPONSE_CODE,
+        )
 
     # ── Subscription management ────────────────────────────────────────────
 
@@ -606,165 +617,49 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
     # ── Binary parsing ─────────────────────────────────────────────────────
 
     def _process_binary_message(self, data: bytes) -> None:
-        """Parse binary depth packet and dispatch callbacks."""
-        try:
-            if len(data) < _HEADER_SIZE:
-                logger.warning(
-                    "%s_packet_too_short: %d bytes",
-                    self.DEPTH_TYPE.lower(),
-                    len(data),
-                )
-                return
-
-            response_code = data[2]
-
-            if self.header_carries_security_id:
-                # depth-20 layout: offset 4 = security_id
-                header_value = struct.unpack_from("<I", data, 4)[0]
-            else:
-                # depth-200 layout: offset 8 = num_rows
-                header_value = struct.unpack_from("<I", data, 8)[0]
-
-            # Plan §7.2: shared message tracking through the mixin so the
-            # health endpoint reflects real bytes received, not heartbeat-only.
-            self._note_message_received()
-
-            if response_code in (self.BID_RESPONSE_CODE, self.ASK_RESPONSE_CODE):
-                depth_data = self._parse_depth_packet(data, response_code, header_value)
-                self._dispatch_depth(depth_data)
-
-        except Exception as exc:
-            logger.exception(
-                "%s_parse_error: %s",
-                self.DEPTH_TYPE.lower(),
-                exc,
-            )
+        """Delegate to :class:`DepthPacketParser` for binary packet parsing."""
+        self._parser.process_binary_message(
+            data,
+            note_message_received=self._note_message_received,
+            subscriptions=self._subscriptions,
+            depth_cache=self._depth_cache,
+            depth_cache_lock=self._depth_cache_lock,
+            sec_id_to_symbol=self._sec_id_to_symbol,
+            depth_callbacks=self._depth_callbacks,
+            callback_lock=self._callback_lock,
+            event_bus=self._event_bus,
+            event_name=self.EVENT_NAME,
+            feed_name=self.name,
+            snapshot_callbacks=self._snapshot_callbacks,
+            next_correlation_id=self.next_correlation_id,
+            counters={"published_depths": 0, "dropped_depths": 0},
+        )
 
     def _parse_depth_packet(self, data: bytes, response_code: int, header_value: int) -> dict:
-        """Parse the depth body of a binary packet.
-
-        For depth-20 ``header_value`` is the security_id (extracted from
-        offset 4). For depth-200 ``header_value`` is the row count (offset 8);
-        the security_id is implicit (one instrument per connection).
-        """
-        depth_levels = []
-
-        for i in range(self.total_slots):
-            offset = _HEADER_SIZE + (i * _LEVEL_SIZE)
-            if offset + _LEVEL_SIZE > len(data):
-                break
-            price = struct.unpack_from("<d", data, offset)[0]
-            quantity = struct.unpack_from("<I", data, offset + 8)[0]
-            orders = struct.unpack_from("<I", data, offset + 12)[0]
-            if quantity > 0:
-                depth_levels.append(
-                    DepthLevel(
-                        price=Decimal(str(round(price, 2))),
-                        quantity=quantity,
-                        orders=orders,
-                    )
-                )
-
-        return {
-            "levels": depth_levels,
-            "side": "bids" if response_code == self.BID_RESPONSE_CODE else "asks",
-            "header_value": header_value,
-        }
+        """Delegate to :class:`DepthPacketParser`."""
+        return self._parser.parse_packet(data, header_value, response_code)
 
     def _resolve_implicit_security_id(self) -> int | None:
-        """For depth-200 (single instrument per connection), recover the
-        security_id from the existing subscription.
-
-        Returns ``None`` if no instrument is yet subscribed AND the cache
-        is empty. Returning ``None`` (rather than the previous ``0``) makes
-        the dispatcher DROP the packet instead of silently caching it
-        under key ``0``. Under the legacy behaviour, a depth-200 packet
-        received before :meth:`subscribe` would land in cache key ``0``;
-        the next packet after subscribe could keep going to key ``0``
-        until the cache was invalidated, producing a real race window
-        for live depth-200 data.
-        """
-        if self._subscriptions:
-            try:
-                return int(self._subscriptions[0][1])
-            except (ValueError, IndexError):
-                pass
-        # If a cache entry already exists (from a previous connection),
-        # reuse its key — the dispatcher has been writing consistently to
-        # the real security_id and we should keep doing so.
-        with self._depth_cache_lock:
-            if self._depth_cache:
-                return next(iter(self._depth_cache))
-        # No subscription, no cache: cannot resolve. Caller drops the packet.
-        return None
+        """Delegate to :class:`DepthPacketParser`."""
+        return self._parser.resolve_implicit_security_id(self._subscriptions, self._depth_cache)
 
     def _dispatch_depth(self, depth_data: dict) -> None:
-        """Update the depth cache and dispatch to callbacks / event bus."""
-        side = depth_data["side"]
-        levels = depth_data["levels"]
-        # depth-20: header_value IS the security_id.
-        # depth-200: header_value is num_rows; security_id is implicit
-        # (one instrument per connection). If we cannot resolve the
-        # implicit security_id (no subscription, empty cache), drop the
-        # packet rather than silently caching it under a placeholder.
-        if self.header_carries_security_id:
-            sec_id = depth_data["header_value"]
-        else:
-            sec_id = self._resolve_implicit_security_id()
-        if sec_id is None:
-            self._dropped_depths += 1
-            logger.warning(
-                "%s_packet_dropped_no_security_id: arriving before subscribe()",
-                self.DEPTH_TYPE.lower(),
-            )
-            return
-
-        symbol = self._sec_id_to_symbol.get(sec_id, "")
-
-        with self._depth_cache_lock:
-            entry = self._depth_cache.setdefault(sec_id, {"bids": [], "asks": []})
-            # Dhan sends bid/ask in separate packets; never wipe a side with
-            # an empty level list (can happen when qty filter drops all rows).
-            if levels:
-                entry[side] = levels
-            merged = MarketDepth(
-                symbol=symbol,
-                bids=list(entry["bids"]),
-                asks=list(entry["asks"]),
-                depth_type=self.DEPTH_TYPE,
-                timestamp=datetime.now(timezone.utc),
-            )
-
-        callbacks = self._snapshot_callbacks(self._depth_callbacks)
-        for callback in callbacks:
-            try:
-                callback(merged)
-            except Exception as exc:
-                logger.error("%s_callback_error: %s", self.DEPTH_TYPE.lower(), exc)
-
-        if self._event_bus:
-            try:
-                # Plan §7.2: stamp every published event with a correlation
-                # id so an event-bus subscriber can trace one logical
-                # operation end-to-end (was a gap in §4 invariant checklist).
-                correlation_id = self.next_correlation_id(prefix=f"depth_{self.DEPTH_TYPE.lower()}")
-                self._event_bus.publish(
-                    DomainEvent.now(
-                        self.EVENT_NAME,
-                        {
-                            "depth": merged,
-                            "depth_type": self.DEPTH_TYPE,
-                            "correlation_id": correlation_id,
-                        },
-                        symbol=symbol or None,
-                        source=self.name,
-                        correlation_id=correlation_id,
-                    )
-                )
-                self._published_depths += 1
-            except Exception as exc:
-                self._dropped_depths += 1
-                logger.error("%s_event_publish_error: %s", self.DEPTH_TYPE.lower(), exc)
+        """Delegate to :class:`DepthPacketParser`."""
+        self._parser._dispatch_depth(
+            depth_data,
+            subscriptions=self._subscriptions,
+            depth_cache=self._depth_cache,
+            depth_cache_lock=self._depth_cache_lock,
+            sec_id_to_symbol=self._sec_id_to_symbol,
+            depth_callbacks=self._depth_callbacks,
+            callback_lock=self._callback_lock,
+            event_bus=self._event_bus,
+            event_name=self.EVENT_NAME,
+            feed_name=self.name,
+            snapshot_callbacks=self._snapshot_callbacks,
+            next_correlation_id=self.next_correlation_id,
+            counters={"published_depths": 0, "dropped_depths": 0},
+        )
 
     def _close_active_websocket(
         self,
