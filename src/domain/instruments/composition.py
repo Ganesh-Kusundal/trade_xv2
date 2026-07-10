@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any
 
+from domain.constants.market import DEFAULT_TICK_SIZE
 from domain.instruments.instrument_id import InstrumentId
 
 
@@ -36,7 +37,7 @@ class TradingSpec:
     """Trading constraints / sizing metadata."""
 
     lot_size: int = 1
-    tick_size: Decimal = Decimal("0.05")
+    tick_size: Decimal = DEFAULT_TICK_SIZE
     product_types: tuple[str, ...] = ()
     margin_required: Decimal | None = None
 
@@ -45,7 +46,7 @@ class TradingSpec:
         raw_tick = metadata.get("tick_size")
         return cls(
             lot_size=int(metadata.get("lot_size", 1) or 1),
-            tick_size=Decimal(str(raw_tick)) if raw_tick is not None else Decimal("0.05"),
+            tick_size=Decimal(str(raw_tick)) if raw_tick is not None else DEFAULT_TICK_SIZE,
             product_types=tuple(metadata.get("product_types") or ()),
             margin_required=(
                 Decimal(str(metadata["margin_required"]))

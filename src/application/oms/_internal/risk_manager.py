@@ -69,6 +69,7 @@ from domain.constants import (
     RISK_POSITION_PERCENT,
 )
 from domain.constants.defaults import RISK_FALLBACK_CAPITAL
+from domain.constants.market import DEFAULT_TICK_SIZE
 from domain.exchange_segments import is_derivative_segment
 from domain.ports.margin_provider import MarginProviderPort
 from domain.risk.notional import effective_notional
@@ -375,7 +376,7 @@ class RiskManager:
                         order.symbol, order.exchange
                     )
                     if instrument is not None:
-                        tick = Decimal(str(getattr(instrument, "tick_size", 0.05)))
+                        tick = Decimal(str(getattr(instrument, "tick_size", DEFAULT_TICK_SIZE)))
                         if tick > 0 and not is_tick_aligned(order.price, tick):
                             return RiskResult(
                                 False,

@@ -132,7 +132,8 @@ class UpstoxBrokerGateway(BatchFetchMixin):
         return self._data_gw.search(query)
 
     def load_instruments(self, source: str | None = None) -> None:
-        self._data_gw.load_instruments(source)
+        """Load instruments via the broker-internal instrument service."""
+        self._broker.instruments.load(source=source)
 
     def close(self) -> None:
         self._data_gw.close()

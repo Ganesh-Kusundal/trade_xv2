@@ -326,6 +326,8 @@ class TestRetryUsage:
             "src/brokers/upstox/auth/http.py",  # HTTP retry backoff
             "src/brokers/dhan/websocket/order_stream.py",  # WebSocket reconnect
             "src/brokers/dhan/execution/order_placement.py",  # Idempotency poll-wait
+            "src/brokers/dhan/execution/super_orders.py",  # Idempotency poll-wait
+            "src/brokers/dhan/execution/forever_orders.py",  # Idempotency poll-wait
             "src/interface/ui/services/feed_probe.py",  # Live-feed probe window (not HTTP retry)
             "src/interface/ui/utils/retry_handler.py",  # Shared UI retry helper
         ]

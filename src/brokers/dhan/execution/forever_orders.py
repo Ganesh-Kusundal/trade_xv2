@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from decimal import Decimal
 
 from brokers.dhan.domain import ForeverOrder, ForeverOrderRequest
@@ -10,6 +11,7 @@ from brokers.dhan.exceptions import ForeverOrderError
 from brokers.dhan.api.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 from brokers.dhan.resilience.invariants import assert_dhan_payload
+from brokers.common.idempotency import IdempotencyCache
 from domain import OrderResponse
 from domain.value_objects.price import to_wire_float
 
@@ -23,10 +25,16 @@ class ForeverOrdersAdapter:
     until triggered or cancelled. Supports SINGLE and OCO modes.
     """
 
-    def __init__(self, client: DhanHttpClient, identity: DhanIdentityProvider | object):
+    def __init__(
+        self,
+        client: DhanHttpClient,
+        identity: DhanIdentityProvider | object,
+        idempotency: IdempotencyCache | None = None,
+    ):
         self._client = client
         self._identity = coerce_identity_provider(identity)
         self._resolver = self._identity.resolver
+        self._idempotency = idempotency or IdempotencyCache()
 
     def place_forever_order(self, request: ForeverOrderRequest) -> ForeverOrder:
         """Place a forever order (SINGLE or OCO).
@@ -41,6 +49,26 @@ class ForeverOrdersAdapter:
             ValueError: If validation fails (OCO requires additional fields)
             ForeverOrderError: If API call fails
         """
+        # Generate correlation_id for idempotency
+        cid = request.correlation_id or uuid.uuid4().hex
+
+        # Idempotency check
+        cached = self._idempotency.get(cid)
+        if cached is not None:
+            logger.info("forever_order_idempotency_cache_hit", extra={"correlation_id": cid})
+            return cached
+
+        if not self._idempotency.reserve(cid):
+            logger.info("forever_order_idempotency_waiting", extra={"correlation_id": cid})
+            import time
+
+            for _ in range(10):
+                time.sleep(0.5)
+                cached = self._idempotency.get(cid)
+                if cached is not None:
+                    return cached
+            raise ForeverOrderError("Concurrent forever order placement timed out")
+
         # Validate request
         errors = self._validate_forever_order(request)
         if errors:
@@ -86,8 +114,7 @@ class ForeverOrdersAdapter:
             if request.quantity1 is not None:
                 payload["quantity1"] = request.quantity1
 
-        if request.correlation_id:
-            payload["correlationId"] = request.correlation_id
+        payload["correlationId"] = cid
 
         # PR-B: defence-in-depth invariant assertion.
         assert_dhan_payload(payload, context="forever_orders.place_forever_order")
@@ -96,11 +123,15 @@ class ForeverOrdersAdapter:
         try:
             data = self._client.post("/forever/orders", json=payload)
         except Exception as exc:
+            self._idempotency.clear_reservation(cid)
             raise ForeverOrderError(f"Forever order placement failed: {exc}") from exc
 
         # Parse response
         order_data = data.get("data", data)
         order = self._parse_forever_order(order_data)
+
+        # Commit idempotency
+        self._idempotency.commit(cid, order)
 
         logger.info(
             "forever_order_placed",
@@ -109,6 +140,7 @@ class ForeverOrdersAdapter:
                 "symbol": request.symbol,
                 "order_flag": request.order_flag,
                 "transaction_type": request.transaction_type,
+                "correlation_id": cid,
             },
         )
 

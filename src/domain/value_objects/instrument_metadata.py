@@ -9,6 +9,8 @@ from dataclasses import dataclass, field
 from datetime import time
 from decimal import Decimal
 
+from domain.constants.market import DEFAULT_TICK_SIZE
+
 
 @dataclass(frozen=True, slots=True)
 class TradingHours:
@@ -43,7 +45,7 @@ class InstrumentMetadata:
 
     exchange: str = "NSE"
     lot_size: int = 1
-    tick_size: Decimal = Decimal("0.05")
+    tick_size: Decimal = DEFAULT_TICK_SIZE
     freeze_quantity: int | None = None
     canonical_symbol: str = ""
     trading_hours: TradingHours = field(default_factory=TradingHours)
@@ -85,7 +87,7 @@ class InstrumentMetadata:
         return cls(
             exchange=data.get("exchange", "NSE"),
             lot_size=int(data.get("lot_size", 1)),
-            tick_size=Decimal(str(data.get("tick_size", "0.05"))),
+            tick_size=Decimal(str(data.get("tick_size", str(DEFAULT_TICK_SIZE)))),
             freeze_quantity=data.get("freeze_quantity"),
             canonical_symbol=data.get("canonical_symbol", data.get("symbol", "")),
             trading_hours=trading_hours,

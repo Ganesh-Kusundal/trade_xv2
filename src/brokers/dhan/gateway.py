@@ -188,61 +188,10 @@ class DhanBrokerGateway:
     ) -> MarketDepth:
         """Subscribe to 20-level market depth for *symbol* via WebSocket.
 
-        On the first call the feed is created, the instrument subscribed, and
-        the connection started.  Subsequent calls for the same feed reuse the
-        existing WebSocket and subscription.
-
-        The method returns the most-recently cached
-        :class:`~brokers.common.core.domain.MarketDepth` (up to 20 levels on
-        each side).  If no packet has been received yet it falls back to the
-        5-level REST snapshot so callers always get *something*.
-
-        Args:
-            symbol:   Canonical trading symbol (e.g. ``"NIFTY"``)
-            exchange: Exchange (``"NSE"`` | ``"NFO"`` | ``"IDX_I"``)
-            on_depth: Optional callback ``Callable[[MarketDepth], None]``
-                      fired on every incoming depth packet.
-
-        Raises:
-            ValueError: For non-NSE exchanges (Dhan limitation).
+        Security mapping is internal to the connection — the gateway only
+        passes canonical ``(symbol, exchange)``.
         """
-        # Dhan depth-20 only available on NSE segments.
-        if exchange not in ("NSE", "NSE_EQ", "NFO", "NSE_FNO", "IDX_I"):
-            raise ValueError(
-                f"Depth 20 only supported for NSE segments, got: {exchange}"
-            )
-
-
-        inst = self._conn.instruments.resolve(symbol, exchange)
-        segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, DEFAULT_SEGMENT)
-        sid_str = inst.security_id
-        sid_int = int(sid_str)
-
-        feed = self._conn.depth_20_feed
-        if feed is None:
-            feed = self._conn.create_depth_20_feed(
-                access_token=self._conn.access_token,
-                instrument=(segment, sid_str),
-            )
-        else:
-            # Add this instrument if not already subscribed.
-            already = any(s[1] == sid_str for s in feed.subscriptions)
-            if not already:
-                feed.subscribe([(segment, sid_str)])
-
-        # Register the caller’s callback.
-        if on_depth is not None:
-            feed.on_depth(on_depth)
-
-        # Start the WebSocket if it’s not running yet.
-        if not feed.is_running:
-            feed.start()
-
-        # Return the cached depth, falling back to 5-level REST if empty.
-        cached = feed.latest_depth(sid_int)
-        if cached is not None:
-            return cached
-        return self._conn.market_data.get_depth(symbol, exchange)
+        return self._conn.subscribe_depth_20(symbol, exchange, on_depth=on_depth)
 
     def depth_200(
         self,
@@ -252,58 +201,10 @@ class DhanBrokerGateway:
     ) -> MarketDepth:
         """Subscribe to 200-level market depth for *symbol* via WebSocket.
 
-        Dhan allows only **one** instrument per depth-200 connection. Calling
-        this method with a different symbol after the feed is already running
-        raises :class:`ValueError`.
-
-        Args:
-            symbol:   Canonical trading symbol.
-            exchange: Exchange (``"NSE"`` | ``"NFO"`` | ``"IDX_I"``)
-            on_depth: Optional callback ``Callable[[MarketDepth], None]``.
-
-        Raises:
-            ValueError: For non-NSE exchanges or if the feed is already
-                        subscribed to a different instrument.
+        Security mapping is internal to the connection — the gateway only
+        passes canonical ``(symbol, exchange)``.
         """
-        # Dhan depth-200 only available on NSE segments.
-        if exchange not in ("NSE", "NSE_EQ", "NFO", "NSE_FNO", "IDX_I"):
-            raise ValueError(
-                f"Depth 200 only supported for NSE segments, got: {exchange}"
-            )
-
-
-        inst = self._conn.instruments.resolve(symbol, exchange)
-        segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, DEFAULT_SEGMENT)
-        sid_str = inst.security_id
-
-        feed = self._conn.depth_200_feed
-        if feed is None:
-            feed = self._conn.create_depth_200_feed(
-                access_token=self._conn.access_token,
-                instrument=(segment, sid_str),
-            )
-        else:
-            # Already has a subscription — validate it’s the same instrument.
-            existing = feed.subscriptions[0][1] if feed.subscriptions else None
-            if existing and existing != sid_str:
-                raise ValueError(
-                    f"Depth 200 feed already subscribed to security_id {existing}. "
-                    f"Create a new gateway connection to stream a different instrument."
-                )
-
-        # Register the caller’s callback.
-        if on_depth is not None:
-            feed.on_depth(on_depth)
-
-        # Start the WebSocket if it’s not running yet.
-        if not feed.is_running:
-            feed.start()
-
-        # Return the cached depth, falling back to 5-level REST if empty.
-        cached = feed.latest_depth()
-        if cached is not None:
-            return cached
-        return self._conn.market_data.get_depth(symbol, exchange)
+        return self._conn.subscribe_depth_200(symbol, exchange, on_depth=on_depth)
 
     def history(
         self,
@@ -378,7 +279,7 @@ class DhanBrokerGateway:
         instruments = self._conn.instruments
         return {
             "broker": "Dhan",
-            "instruments_loaded": instruments._loaded,
+            "instruments_loaded": instruments.is_loaded(),
             "instrument_count": instruments.stats().get("total", 0),
             "market_data": "available",
             "historical": "available",
@@ -400,20 +301,7 @@ class DhanBrokerGateway:
         return CapabilityDescriptor.build(self.capabilities(), frozenset())
 
     def search(self, query: str) -> list[dict]:
-        results = []
-        q = query.upper().strip()
-        for inst in self._conn.instruments.all_instruments():
-            if q in inst.symbol.upper() or q in (inst.canonical_symbol or "").upper():
-                results.append({
-                    "symbol": inst.symbol,
-                    "exchange": inst.exchange.value,
-                    "type": inst.instrument_type.value,
-                    "security_id": inst.security_id,
-                    "name": inst.canonical_symbol,
-                })
-                if len(results) >= 20:
-                    break
-        return results
+        return self._conn.instruments.search(query)
 
     def stream(
         self,
@@ -426,58 +314,10 @@ class DhanBrokerGateway:
 
         The *on_tick* callback receives a canonical
         :class:`brokers.common.core.domain.Quote` object.  Broker-specific
-        ``security_id`` values are never exposed to the caller.
-
-        Args:
-            symbol:   Canonical trading symbol (e.g. ``"NIFTY"``).
-            exchange: Exchange string (``"NSE"`` | ``"MCX"`` | ``"INDEX"`` …).
-            mode:     Subscription mode — ``"LTP"`` | ``"QUOTE"`` | ``"DEPTH"``.
-            on_tick:  Callable receiving a :class:`Quote`.
+        ``security_id`` values are never exposed to the caller — mapping is
+        internal to the connection.
         """
-        from domain import Quote
-        inst = self._conn.instruments.resolve(symbol, exchange)
-        segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, DEFAULT_SEGMENT)
-        sid = int(inst.security_id)
-        feed = self._conn.market_feed
-        if feed is None:
-            # Route through the lifecycle helper so feed.update_token is
-            # registered as a token receiver (fresh tokens on refresh).
-            feed = self._conn.create_market_feed(
-                access_token=self._conn.access_token,
-                instruments=[(segment, sid, mode)],
-                access_token_fn=lambda: self._conn.access_token,
-            )
-            self._conn.market_feed = feed
-        else:
-            feed.subscribe([(segment, sid, mode)])
-        if on_tick:
-            # Wrap the raw dict from _transform_quote into a canonical Quote.
-            # The dict has keys: symbol, security_id, ltp, open, high, low,
-            # close, volume, change.  security_id is never forwarded.
-            def _wrap(data: dict) -> None:
-                try:
-                    q = Quote(
-                        symbol=data.get("symbol", symbol),
-                        ltp=data.get("ltp", Decimal("0")),
-                        open=data.get("open", Decimal("0")),
-                        high=data.get("high", Decimal("0")),
-                        low=data.get("low", Decimal("0")),
-                        close=data.get("close", Decimal("0")),
-                        volume=int(data.get("volume", 0)),
-                        change=data.get("change", Decimal("0")),
-                    )
-                    on_tick(q)
-                except Exception:
-                    import logging as _log
-                    _log.getLogger(__name__).debug(
-                        "Dhan tick→Quote wrap failed; forwarding raw",
-                        exc_info=True,
-                    )
-                    on_tick(data)
-            feed.on_quote(_wrap)
-        if not feed.is_connected:
-            feed.connect()
-        return feed
+        return self._conn.subscribe_stream(symbol, exchange, mode=mode, on_tick=on_tick)
 
     # ── Parallel Data Fetching ──────────────────────────────────────
 

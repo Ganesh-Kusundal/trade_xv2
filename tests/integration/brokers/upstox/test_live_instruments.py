@@ -62,6 +62,27 @@ class TestLiveInstruments:
         desc = gateway.describe()
         assert desc["instruments_loaded"] is True
 
+    def test_instrument_service_is_loaded(self, gateway):
+        """Broker-internal instrument service must be loaded and queryable."""
+        svc = gateway._broker.instruments
+        assert svc.is_loaded() is True
+        assert svc.stats()["total"] > 0
+        resolved = svc.resolve("RELIANCE", "NSE")
+        assert resolved.symbol
+
+    def test_resolve_ref_returns_instrument_key(self, gateway):
+        """resolve_ref returns opaque wire ref with instrument_key."""
+        wire = gateway._broker.instruments.resolve_ref("RELIANCE", "NSE")
+        key = wire.require("instrument_key")
+        assert isinstance(key, str) and "|" in key
+
+    def test_gateway_load_instruments_uses_service(self, gateway):
+        """Gateway.load_instruments must delegate to broker.instruments service."""
+        import inspect
+
+        src = inspect.getsource(gateway.__class__.load_instruments)
+        assert "instruments.load" in src
+
     def test_search_case_insensitive(self, gateway):
         """search() should be case-insensitive."""
         results_upper = gateway.search("RELIANCE")

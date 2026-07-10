@@ -46,8 +46,12 @@ class DhanExtendedCapabilities:
 
     @property
     def instruments(self) -> Any:
-        """Access the instrument resolver for symbol resolution."""
-        return self._conn.instruments
+        """Dhan SymbolResolver (typed DhanInstrument lookups).
+
+        For the broker-internal :class:`DhanInstrumentService` (load /
+        canonical resolve / wire refs) use ``gateway._conn.instruments``.
+        """
+        return self._conn.instruments.resolver
 
     @property
     def identity(self) -> Any:

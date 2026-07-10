@@ -99,6 +99,37 @@ class TestLiveInstruments:
         count = desc["instrument_count"]
         assert count > 100000, f"Expected >100k instruments, got {count}"
 
+    def test_instrument_service_is_loaded(self, gateway: DhanBrokerGateway):
+        """Broker-internal instrument service must be loaded and queryable."""
+        svc = gateway._conn.instruments
+        assert svc.is_loaded() is True
+        assert svc.stats()["total"] > 0
+        # Canonical resolve has no wire id on the carrier
+        resolved = svc.resolve("RELIANCE", "NSE")
+        assert resolved.symbol
+        assert not hasattr(resolved, "security_id") or getattr(resolved, "security_id", None) in (None, "")
+
+    def test_resolve_ref_stays_internal(self, gateway: DhanBrokerGateway):
+        """resolve_ref returns wire segment+security_id for connection use only."""
+        ref = gateway._conn.instruments.resolve_dhan_ref("RELIANCE", "NSE")
+        assert ref.security_id.isdigit()
+        assert ref.exchange_segment
+        # Gateway search / describe must not be the only path — wire ref works
+        wire = gateway._conn.instruments.resolve_ref("RELIANCE", "NSE")
+        assert wire.require("security_id") == ref.security_id_str()
+        assert wire.require("exchange_segment") == ref.exchange_segment
+
+    def test_gateway_stream_depth_delegate_to_connection(self, gateway: DhanBrokerGateway):
+        """Gateway stream/depth_20/depth_200 must not compute security_id themselves."""
+        import inspect
+
+        for name in ("stream", "depth_20", "depth_200"):
+            src = inspect.getsource(getattr(gateway.__class__, name))
+            assert "EXCHANGE_TO_SEGMENT" not in src, f"gateway.{name} still maps segments"
+            assert "int(inst.security_id)" not in src, f"gateway.{name} still casts security_id"
+            assert "instruments.resolve(" not in src, f"gateway.{name} still resolves wire ids"
+            assert "subscribe_" in src, f"gateway.{name} should delegate to connection.subscribe_*"
+
     def test_search_case_insensitive(self, gateway: DhanBrokerGateway):
         """search() should be case-insensitive."""
         results_upper = gateway.search("RELIANCE")

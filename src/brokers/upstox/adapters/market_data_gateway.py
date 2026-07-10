@@ -8,10 +8,8 @@ Thread-safe: All methods delegate to stateless adapters.
 from __future__ import annotations
 
 import logging
-import time
 from datetime import date, timedelta
 from decimal import Decimal
-from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -293,37 +291,8 @@ class MarketDataGateway:
     # ── Lifecycle ───────────────────────────────────────────────────────
 
     def load_instruments(self, source: str | None = None) -> None:
-        """Load instrument definitions from cache or download.
-
-        Args:
-            source: Optional path to instrument file. If not provided,
-                   uses cached file or downloads from Upstox.
-        """
-        cache_path = Path(".cache/upstox/complete.json.gz")
-        if source:
-            path = Path(source)
-        else:
-            path = self._broker.instrument_loader.download(cache_path)
-
-        start = time.monotonic()
-        defs = self._broker.instrument_loader.load(path)
-        load_time = time.monotonic() - start
-        logger.info(
-            "instrument_load_completed",
-            extra={
-                "count": len(defs),
-                "load_time_s": round(load_time, 2),
-                "source": source or "cached",
-            },
-        )
-
-        start = time.monotonic()
-        self._broker.instrument_resolver.register_many(defs)
-        memory_time = time.monotonic() - start
-        logger.info(
-            "instrument_memory_load_completed",
-            extra={"count": len(defs), "memory_time_s": round(memory_time, 2)},
-        )
+        """Load instrument definitions via the broker-internal instrument service."""
+        self._broker.instruments.load(source=source)
 
     def close(self) -> None:
         """Disconnect from broker and cleanup resources."""
@@ -337,9 +306,8 @@ class MarketDataGateway:
         """
         return {
             "broker": "Upstox",
-            "instruments_loaded": self._broker.instrument_resolver.is_loaded()
-            if hasattr(self._broker.instrument_resolver, "is_loaded")
-            else True,
+            "instruments_loaded": self._broker.instruments.is_loaded(),
+            "instrument_count": self._broker.instruments.stats().get("total", 0),
             "market_data": "available",
             "historical": "available",
             "options": "available",
@@ -350,66 +318,11 @@ class MarketDataGateway:
     # ── Search ─────────────────────────────────────────────────────────
 
     def search(self, query: str) -> list[dict]:
-        """Search for instruments by query string.
-
-        Args:
-            query: Search query (symbol or name fragment)
-
-        Returns:
-            List of matching instrument dicts (max 20)
-        """
-        results = []
-        q = query.upper().strip()
-        if hasattr(self._broker.instrument_resolver, "search"):
-            defs = self._broker.instrument_resolver.search(q)
-            for d in defs:
-                dct = d.model_dump() if hasattr(d, "model_dump") else d.dict()
-                if not dct.get("symbol") and dct.get("trading_symbol"):
-                    dct["symbol"] = dct["trading_symbol"]
-                results.append(dct)
-        return results[:20]
+        """Search for instruments by query string."""
+        return self._broker.instruments.search(query)
 
     # ── Instrument key resolution ──────────────────────────────────────
 
     def _resolve_instrument_key(self, symbol: str, exchange: str) -> str:
-        """Resolve canonical symbol to Upstox instrument_key.
-
-        Resolution priority:
-        1. Hardcoded index mapping (NIFTY, BANKNIFTY, etc.) → NSE_INDEX segment
-        2. Instrument master lookup (returns ISIN for equities)
-        3. Fallback: construct key from segment|symbol
-
-        Args:
-            symbol: Canonical trading symbol (e.g., "RELIANCE", "NIFTY")
-            exchange: Exchange segment (e.g., "NSE", "NFO")
-
-        Returns:
-            Upstox instrument_key string (e.g., "NSE_EQ|INE002A01018")
-        """
-        from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
-        from config.indices import index_upstox_key
-
-        # 1. Check hardcoded index mapping first
-        idx_key = index_upstox_key(symbol)
-        if idx_key is not None:
-            defn = self._broker.instrument_resolver.resolve(instrument_key=idx_key)
-            if defn:
-                return defn.instrument_key
-            return idx_key
-
-        # 2. Try instrument master lookup
-        segment = UpstoxDomainMapper.segment_to_wire(exchange)
-        if segment == "NSE":
-            segment = "NSE_EQ"
-        elif segment == "BSE":
-            segment = "BSE_EQ"
-
-        defn = self._broker.instrument_resolver.resolve(
-            symbol=symbol,
-            exchange_segment=segment,
-        )
-        if defn:
-            return defn.instrument_key
-
-        # 3. Fallback: construct key
-        return f"{segment}|{symbol}"
+        """Resolve canonical symbol to Upstox instrument_key (broker-internal)."""
+        return self._broker.instruments.resolve_instrument_key(symbol, exchange)

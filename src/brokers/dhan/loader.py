@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -79,8 +79,8 @@ class InstrumentLoader:
         # Check Cache TTL (6 hours)
         if not force_refresh and cache_path.exists() and cache_path.stat().st_size > 0:
             try:
-                mtime = datetime.fromtimestamp(cache_path.stat().st_mtime)
-                cache_age_hours = (datetime.now() - mtime).total_seconds() / 3600.0
+                mtime = datetime.fromtimestamp(cache_path.stat().st_mtime, tz=timezone.utc)
+                cache_age_hours = (datetime.now(timezone.utc) - mtime).total_seconds() / 3600.0
                 if cache_age_hours > 6.0:
                     logger.info(
                         "Cache is older than 6 hours (age: %.1f hours). Attempting refresh...",

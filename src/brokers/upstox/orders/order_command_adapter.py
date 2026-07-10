@@ -10,6 +10,7 @@ from decimal import Decimal
 from typing import Any
 
 from domain.models.dtos import BrokerOrderPayload
+from brokers.common.order_validation import validate_tick_alignment
 from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
 from brokers.upstox.mappers.domain_mapper import UpstoxDomainMapper
 from brokers.common.idempotency import IdempotencyCachePort
@@ -208,14 +209,12 @@ class UpstoxOrderCommandAdapter:
                 inst = self._instrument_resolver.resolve(
                     symbol=request.symbol, exchange_segment=seg_wire
                 )
-                if inst is not None and inst.tick_size > 0:
-                    from domain.value_objects.price import is_tick_aligned
-
-                    if not is_tick_aligned(request.price, Decimal(str(inst.tick_size))):
-                        errors.append(
-                            f"Price {request.price} not aligned to tick size "
-                            f"{inst.tick_size} for {request.symbol}"
-                        )
+                if inst is not None:
+                    tick_error = validate_tick_alignment(
+                        request.price, Decimal(str(inst.tick_size)), request.symbol
+                    )
+                    if tick_error:
+                        errors.append(tick_error)
             except Exception as exc:
                 logger.debug("tick_check_skipped: %s", exc)
 

@@ -21,9 +21,8 @@ from brokers.upstox.auth.context import UpstoxAdapterContext
 from brokers.upstox.auth.token_manager import UpstoxTokenManager
 from brokers.upstox.fundamentals.adapter import UpstoxFundamentalsAdapter
 from brokers.upstox.fundamentals.client import UpstoxFundamentalsClient
-from brokers.upstox.instruments.loader import UpstoxInstrumentLoader
-from brokers.upstox.instruments.resolver import UpstoxInstrumentResolver
 from brokers.upstox.instruments.search import UpstoxInstrumentSearch
+from brokers.upstox.instruments.service import UpstoxInstrumentService
 from brokers.upstox.ipo.adapter import UpstoxIpoAdapter
 from brokers.upstox.ipo.client import UpstoxIpoClient
 from brokers.upstox.kill_switch.adapter import UpstoxKillSwitchAdapter
@@ -123,9 +122,10 @@ class UpstoxBroker:
         # exist so the god-constructor reads top-down rather
         # than as a wall of identical ``UpstoxXClient(...)`` calls.
 
-        # Instruments (shared by every other bundle)
-        self.instrument_resolver = UpstoxInstrumentResolver()
-        self.instrument_loader = UpstoxInstrumentLoader()
+        # Instruments (shared by every other bundle) — service owns load + mapping
+        self.instruments = UpstoxInstrumentService()
+        self.instrument_resolver = self.instruments.resolver
+        self.instrument_loader = self.instruments.loader
         self.instrument_search = UpstoxInstrumentSearch(self.context.http_client)
 
         # Raw HTTP clients (v2, v3, GTT, websocket, etc.)

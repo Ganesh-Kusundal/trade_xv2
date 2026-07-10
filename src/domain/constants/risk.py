@@ -42,7 +42,13 @@ PHANTOM_CAPITAL_INR: Decimal = Decimal("1_000_000")
 #: is governed by the broker, not by us.
 DHAN_NOTIONAL_WARNING_INR: Decimal = Decimal("50_000")
 
+#: Default daily loss limit (INR) for the DailyLossCircuitBreaker.
+#: This is an absolute value, not a percentage. Override via RiskConfig
+#: for account-size-appropriate limits.
+DEFAULT_DAILY_LOSS_LIMIT_INR: Decimal = Decimal("50_000")
+
 __all__ = [
+    "DEFAULT_DAILY_LOSS_LIMIT_INR",
     "DHAN_NOTIONAL_WARNING_INR",
     "PHANTOM_CAPITAL_INR",
     "RISK_DAILY_LOSS_PERCENT",

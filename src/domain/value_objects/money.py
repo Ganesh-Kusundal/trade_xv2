@@ -8,6 +8,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal, ROUND_HALF_UP
+from typing import Annotated
+
+from pydantic import PlainSerializer
+
+# Pydantic-compatible type alias: Decimal internally, float in JSON.
+# Use this for all monetary fields in API schemas to maintain
+# Decimal precision in domain code while producing numeric JSON.
+MoneyField = Annotated[Decimal, PlainSerializer(float, return_type=float)]
 
 
 @dataclass(frozen=True, slots=True)

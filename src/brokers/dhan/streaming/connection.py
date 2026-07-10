@@ -21,10 +21,9 @@ from brokers.dhan.execution.pnl_exit import PnlExitAdapter
 from brokers.dhan.data.futures import FuturesAdapter
 from brokers.dhan.data.historical import HistoricalAdapter
 from brokers.dhan.api.http_client import DhanHttpClient
-from brokers.dhan.identity import DhanIdentityProvider
 from brokers.dhan.auth.ip_management import IPManagementAdapter
 from brokers.dhan.portfolio.ledger import LedgerAdapter
-from brokers.dhan.loader import InstrumentLoader
+from brokers.dhan.instruments import DhanInstrumentService
 from brokers.dhan.portfolio.margin import MarginAdapter
 from brokers.dhan.data.market_data import MarketDataAdapter
 from brokers.dhan.data.options import OptionsAdapter
@@ -87,7 +86,7 @@ class DhanConnection:
     def __init__(
         self,
         client: DhanHttpClient,
-        resolver: SymbolResolver | None = None,
+        resolver: SymbolResolver | DhanInstrumentService | None = None,
         event_bus: EventBus | None = None,
         risk_manager: RiskManagerPort | None = None,
         backfill_callback: Callable[[str, datetime, datetime], list[dict]] | None = None,
@@ -96,12 +95,13 @@ class DhanConnection:
         allow_live_orders: bool = False,
     ):
         self._client = client
-        self.instruments = resolver or SymbolResolver()
-        # PR-A: single source of truth for symbol→security_id resolution.
-        # All adapters that build Dhan HTTP payloads MUST go through
-        # this provider rather than calling self.instruments.resolve(...)
-        # directly.
-        self.identity = DhanIdentityProvider(self.instruments)
+        # Broker-internal instrument service (loader + resolver + identity).
+        # Gateways must not derive security_id / segment themselves.
+        if isinstance(resolver, DhanInstrumentService):
+            self.instruments = resolver
+        else:
+            self.instruments = DhanInstrumentService(resolver=resolver)
+        self.identity = self.instruments.identity
         self._event_bus = event_bus
         # B5: if a lifecycle is provided, lazily-created WebSocket
         # services will be registered with it. close() then drains
@@ -125,7 +125,7 @@ class DhanConnection:
         self._token_manager = ConnectionTokenManager()
         self._lifecycle_helper = ConnectionLifecycle(
             client,
-            self.instruments,
+            self.instruments.resolver,
             register_token_receiver=self._token_manager.register_receiver,
             connection_owner=self,
             event_bus=event_bus,
@@ -348,59 +348,138 @@ class DhanConnection:
             return {"refresh_count": 0, "error_count": 0}
 
     def load_instruments(self, source: str | None = None, use_cache: bool = True) -> None:
-        """Load instruments into memory resolver.
+        """Load instruments into the broker-internal instrument service."""
+        self.instruments.load(source=source, force_refresh=not use_cache)
 
-        PR-C: the *skipped* count returned by
-        :meth:`brokers.dhan.resolver.SymbolResolver.load_from_rows` is
-        logged at WARNING level when it exceeds 1% of the total row
-        count. This closes the silent-failure hotspot where a partially
-        broken CSV would leave the resolver incomplete without any
-        operator-visible signal.
-        """
-        import time
+    def subscribe_stream(
+        self,
+        symbol: str,
+        exchange: str = "NSE",
+        mode: str = "LTP",
+        on_tick: Any | None = None,
+    ) -> Any:
+        """Subscribe to a live tick stream. Security mapping stays internal."""
+        from decimal import Decimal
 
-        start = time.monotonic()
-        if source is not None:
-            if source.startswith(("http://", "https://")):
-                rows = InstrumentLoader.load_from_url(source)
-            else:
-                rows = InstrumentLoader.load_from_file(source)
-        elif use_cache:
-            rows = InstrumentLoader.load_cached()
+        from domain import Quote
+
+        ref = self.instruments.resolve_dhan_ref(symbol, exchange)
+        segment = ref.exchange_segment
+        sid = int(ref.security_id)
+        feed = self.market_feed
+        if feed is None:
+            feed = self.create_market_feed(
+                access_token=self.access_token,
+                instruments=[(segment, sid, mode)],
+                access_token_fn=lambda: self.access_token,
+            )
+            self.market_feed = feed
         else:
-            rows = InstrumentLoader.load_cached(force_refresh=True)
-        load_time = time.monotonic() - start
+            feed.subscribe([(segment, sid, mode)])
+        if on_tick:
+            def _wrap(data: dict) -> None:
+                try:
+                    q = Quote(
+                        symbol=data.get("symbol", symbol),
+                        ltp=data.get("ltp", Decimal("0")),
+                        open=data.get("open", Decimal("0")),
+                        high=data.get("high", Decimal("0")),
+                        low=data.get("low", Decimal("0")),
+                        close=data.get("close", Decimal("0")),
+                        volume=int(data.get("volume", 0)),
+                        change=data.get("change", Decimal("0")),
+                    )
+                    on_tick(q)
+                except Exception:
+                    logger.debug(
+                        "Dhan tick→Quote wrap failed; forwarding raw",
+                        exc_info=True,
+                    )
+                    on_tick(data)
+            feed.on_quote(_wrap)
+        if not feed.is_connected:
+            feed.connect()
+        return feed
 
-        logger.info(
-            "instrument_load_completed",
-            extra={
-                "count": len(rows),
-                "load_time_s": round(load_time, 2),
-                "source": source or "cached",
-            },
-        )
-
-        start = time.monotonic()
-        stats = self.instruments.load_from_rows(rows)
-        memory_time = time.monotonic() - start
-
-        skipped = int(stats.get("skipped", 0))
-        total = int(stats.get("total", len(rows)))
-        if total > 0 and skipped / total > 0.01:
-            logger.warning(
-                "instrument_load_skipped_high",
-                extra={
-                    "skipped": skipped,
-                    "total": total,
-                    "skip_rate": round(skipped / total, 4),
-                    "threshold": 0.01,
-                },
+    def subscribe_depth_20(
+        self,
+        symbol: str,
+        exchange: str = "NSE",
+        on_depth: Any | None = None,
+    ) -> Any:
+        """Subscribe to 20-level depth. Security mapping stays internal."""
+        if exchange not in ("NSE", "NSE_EQ", "NFO", "NSE_FNO", "IDX_I"):
+            raise ValueError(
+                f"Depth 20 only supported for NSE segments, got: {exchange}"
             )
 
-        logger.info(
-            "instrument_memory_load_completed",
-            extra={"count": len(rows), "skipped": skipped, "memory_time_s": round(memory_time, 2)},
-        )
+        ref = self.instruments.resolve_dhan_ref(symbol, exchange)
+        segment = ref.exchange_segment
+        sid_str = ref.security_id_str()
+        sid_int = int(sid_str)
+
+        feed = self.depth_20_feed
+        if feed is None:
+            feed = self.create_depth_20_feed(
+                access_token=self.access_token,
+                instrument=(segment, sid_str),
+            )
+        else:
+            already = any(s[1] == sid_str for s in feed.subscriptions)
+            if not already:
+                feed.subscribe([(segment, sid_str)])
+
+        if on_depth is not None:
+            feed.on_depth(on_depth)
+
+        if not feed.is_running:
+            feed.start()
+
+        cached = feed.latest_depth(sid_int)
+        if cached is not None:
+            return cached
+        return self.market_data.get_depth(symbol, exchange)
+
+    def subscribe_depth_200(
+        self,
+        symbol: str,
+        exchange: str = "NSE",
+        on_depth: Any | None = None,
+    ) -> Any:
+        """Subscribe to 200-level depth. Security mapping stays internal."""
+        if exchange not in ("NSE", "NSE_EQ", "NFO", "NSE_FNO", "IDX_I"):
+            raise ValueError(
+                f"Depth 200 only supported for NSE segments, got: {exchange}"
+            )
+
+        ref = self.instruments.resolve_dhan_ref(symbol, exchange)
+        segment = ref.exchange_segment
+        sid_str = ref.security_id_str()
+
+        feed = self.depth_200_feed
+        if feed is None:
+            feed = self.create_depth_200_feed(
+                access_token=self.access_token,
+                instrument=(segment, sid_str),
+            )
+        else:
+            existing = feed.subscriptions[0][1] if feed.subscriptions else None
+            if existing and existing != sid_str:
+                raise ValueError(
+                    f"Depth 200 feed already subscribed to security_id {existing}. "
+                    f"Create a new gateway connection to stream a different instrument."
+                )
+
+        if on_depth is not None:
+            feed.on_depth(on_depth)
+
+        if not feed.is_running:
+            feed.start()
+
+        cached = feed.latest_depth()
+        if cached is not None:
+            return cached
+        return self.market_data.get_depth(symbol, exchange)
 
     def create_market_feed(
         self,

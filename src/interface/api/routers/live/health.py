@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
@@ -27,7 +27,7 @@ async def live_health(
         "status": "healthy",
         "broker": get_live_broker_name(),
         "describe": serialize_value(describe),
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 
 
@@ -54,7 +54,7 @@ async def live_readyz(
             "checks": [
                 {"name": c.name, "passed": c.passed, "message": c.message} for c in report.checks
             ],
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         if not report.passed:
             raise HTTPException(

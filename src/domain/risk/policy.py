@@ -11,6 +11,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from decimal import Decimal
 
+from domain.constants.risk import DEFAULT_DAILY_LOSS_LIMIT_INR
+
 
 @dataclass(frozen=True, slots=True)
 class RiskResult:
@@ -70,7 +72,7 @@ class DailyLossCircuitBreaker:
     ``check()`` returns REJECTED once the breaker has tripped.
     """
 
-    daily_loss_limit: Decimal = Decimal("50000")
+    daily_loss_limit: Decimal = DEFAULT_DAILY_LOSS_LIMIT_INR
     cumulative_pnl: Decimal = field(default=Decimal("0"), init=False)
     is_tripped: bool = field(default=False, init=False)
 

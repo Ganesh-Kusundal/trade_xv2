@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, status
 from starlette.responses import PlainTextResponse
@@ -30,7 +30,7 @@ async def health_check():
     return HealthResponse(
         status=summary["status"],
         version="1.0.0",
-        timestamp=datetime.now(),
+        timestamp=datetime.now(timezone.utc),
     )
 
 
@@ -94,7 +94,7 @@ async def readiness_check():
     return ReadinessResponse(
         ready=all_ready,
         checks=checks,
-        timestamp=datetime.now(),
+        timestamp=datetime.now(timezone.utc),
     )
 
 

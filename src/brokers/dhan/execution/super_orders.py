@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from decimal import Decimal
 
 from brokers.dhan.domain import SuperOrder, SuperOrderLeg
@@ -10,6 +11,7 @@ from brokers.dhan.exceptions import SuperOrderError
 from brokers.dhan.api.http_client import DhanHttpClient
 from brokers.dhan.identity import DhanIdentityProvider, coerce_identity_provider
 from brokers.dhan.resilience.invariants import assert_dhan_payload
+from brokers.common.idempotency import IdempotencyCache
 from domain import OrderResponse
 from domain.value_objects.price import to_wire_float
 
@@ -23,10 +25,16 @@ class SuperOrdersAdapter:
     and Stop Loss legs with optional trailing SL.
     """
 
-    def __init__(self, client: DhanHttpClient, identity: DhanIdentityProvider | object):
+    def __init__(
+        self,
+        client: DhanHttpClient,
+        identity: DhanIdentityProvider | object,
+        idempotency: IdempotencyCache | None = None,
+    ):
         self._client = client
         self._identity = coerce_identity_provider(identity)
         self._resolver = self._identity.resolver
+        self._idempotency = idempotency or IdempotencyCache()
 
     def place_super_order(
         self,
@@ -64,6 +72,26 @@ class SuperOrdersAdapter:
             ValueError: If validation fails (target/SL logic)
             SuperOrderError: If API call fails
         """
+        # Generate correlation_id if not provided
+        cid = correlation_id or uuid.uuid4().hex
+
+        # Idempotency check
+        cached = self._idempotency.get(cid)
+        if cached is not None:
+            logger.info("super_order_idempotency_cache_hit", extra={"correlation_id": cid})
+            return cached
+
+        if not self._idempotency.reserve(cid):
+            logger.info("super_order_idempotency_waiting", extra={"correlation_id": cid})
+            import time
+
+            for _ in range(10):
+                time.sleep(0.5)
+                cached = self._idempotency.get(cid)
+                if cached is not None:
+                    return cached
+            raise SuperOrderError("Concurrent super order placement timed out")
+
         # Validate request
         errors = self._validate_super_order(transaction_type, price, target_price, stop_loss_price)
         if errors:
@@ -101,8 +129,7 @@ class SuperOrdersAdapter:
             "trailingJump": to_wire_float(trailing_jump),
         }
 
-        if correlation_id:
-            payload["correlationId"] = correlation_id
+        payload["correlationId"] = cid
 
         # PR-B: defence-in-depth invariant assertion.
         assert_dhan_payload(payload, context="super_orders.place_super_order")
@@ -111,11 +138,15 @@ class SuperOrdersAdapter:
         try:
             data = self._client.post("/super/orders", json=payload)
         except Exception as exc:
+            self._idempotency.clear_reservation(cid)
             raise SuperOrderError(f"Super order placement failed: {exc}") from exc
 
         # Parse response
         order_data = data.get("data", data)
         order = self._parse_super_order(order_data)
+
+        # Commit idempotency
+        self._idempotency.commit(cid, order)
 
         logger.info(
             "super_order_placed",
@@ -124,6 +155,7 @@ class SuperOrdersAdapter:
                 "symbol": symbol,
                 "transaction_type": transaction_type,
                 "quantity": quantity,
+                "correlation_id": cid,
             },
         )
 

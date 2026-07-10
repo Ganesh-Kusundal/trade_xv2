@@ -23,7 +23,7 @@ import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -80,10 +80,12 @@ class TokenState:
         """Seconds until token expires (negative = expired)."""
         if not self.expires_at:
             return 0.0
-        # Use naive datetime for consistency — tests and callers create
-        # naive datetimes with datetime.now()
-        now = datetime.now()
-        return (self.expires_at - now).total_seconds()
+        now = datetime.now(timezone.utc)
+        # Handle both naive and aware expires_at for backward compatibility
+        expires = self.expires_at
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+        return (expires - now).total_seconds()
 
     def refresh_recommended(
         self, buffer_seconds: float = TOKEN_REFRESH_RECOMMENDED_BUFFER_SECONDS
@@ -423,7 +425,7 @@ class AuthManager:
 
     def _make_token_state(self, token_str: str) -> TokenState:
         """Create a TokenState with JWT-derived expiry when available."""
-        issued_at = datetime.now()
+        issued_at = datetime.now(timezone.utc)
         expires_at = JwtExpiry.parse_expiry_datetime(token_str)
         if expires_at is None and self._token_lifetime_seconds is not None:
             expires_at = issued_at + timedelta(seconds=self._token_lifetime_seconds)

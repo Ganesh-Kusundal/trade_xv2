@@ -10,6 +10,8 @@ import logging
 from decimal import Decimal
 
 from domain import OrderType, ProductType
+from domain.constants.risk import DHAN_NOTIONAL_WARNING_INR
+from brokers.common.order_validation import validate_lot_size, validate_tick_alignment
 from brokers.dhan.exceptions import DhanError
 from brokers.dhan.segments import EXCHANGE_TO_SEGMENT, DEFAULT_SEGMENT
 
@@ -86,23 +88,16 @@ class OrderValidator:
         segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, DEFAULT_SEGMENT)
 
         # Lot size check for derivatives
-        if segment in _DERIVATIVE_SEGMENTS and inst.lot_size > 1 and quantity % inst.lot_size != 0:
-            errors.append(
-                f"Quantity {quantity} is not a multiple of lot size {inst.lot_size} "
-                f"for {symbol} on {inst.exchange.value}"
-            )
+        lot_error = validate_lot_size(quantity, inst.lot_size, symbol, inst.exchange.value)
+        if lot_error and segment in _DERIVATIVE_SEGMENTS:
+            errors.append(lot_error)
 
         # Tick size alignment check for priced orders
         if price is not None and price > 0:
             tick = getattr(inst, "tick_size", None)
-            if tick is not None and tick > 0:
-                from domain.value_objects.price import is_tick_aligned
-
-                if not is_tick_aligned(price, tick):
-                    errors.append(
-                        f"Price {price} is not aligned to tick size {tick} "
-                        f"for {symbol}"
-                    )
+            tick_error = validate_tick_alignment(price, tick, symbol)
+            if tick_error:
+                errors.append(tick_error)
 
         # Product type x segment check
         if segment in _DERIVATIVE_SEGMENTS and pt_val in _EQUITY_ONLY_PRODUCTS:
@@ -122,6 +117,6 @@ class OrderValidator:
         warnings: list[str] = []
         if price and price > 0:
             notional = Decimal(str(quantity)) * price
-            if notional > Decimal("50000"):
+            if notional > DHAN_NOTIONAL_WARNING_INR:
                 warnings.append(f"High notional: \u20b9{notional:,.0f} exceeds \u20b950,000 threshold")
         return warnings

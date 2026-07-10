@@ -13,7 +13,6 @@ import threading
 from decimal import Decimal
 from typing import Any
 
-from brokers.dhan.segments import DEFAULT_SEGMENT, EXCHANGE_TO_SEGMENT
 from domain import Quote
 from domain.symbols import make_position_key
 
@@ -45,9 +44,9 @@ class SubscriptionEngine:
         on_tick: Any | None = None,
     ) -> Any:
         """Subscribe to market data for *symbol*; returns the shared feed."""
-        inst = self._conn.instruments.resolve(symbol, exchange)
-        segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, DEFAULT_SEGMENT)
-        sid = int(inst.security_id)
+        ref = self._conn.instruments.resolve_dhan_ref(symbol, exchange)
+        segment = ref.exchange_segment
+        sid = int(ref.security_id)
         key = make_position_key(symbol, exchange)
 
         with self._lock:
@@ -270,9 +269,9 @@ class SubscriptionEngine:
         mode = self._instrument_modes.pop(key, None) or "LTP"
         if feed is not None:
             try:
-                inst = self._conn.instruments.resolve(symbol, exchange)
-                segment = EXCHANGE_TO_SEGMENT.get(inst.exchange.value, DEFAULT_SEGMENT)
-                sid = int(inst.security_id)
+                ref = self._conn.instruments.resolve_dhan_ref(symbol, exchange)
+                segment = ref.exchange_segment
+                sid = int(ref.security_id)
                 feed.unsubscribe([(segment, sid, mode)])
                 # Use the public API instead of accessing feed._lock directly.
                 feed.clear_symbol_tracking(symbol)

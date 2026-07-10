@@ -10,6 +10,8 @@ import math
 from datetime import date
 from decimal import Decimal
 
+from domain.constants.market import DEFAULT_TICK_SIZE
+
 # Actual/365.25 year fraction
 _DAYS_PER_YEAR = Decimal("365.25")
 _TWO_PI = 2.0 * math.pi
@@ -152,7 +154,7 @@ def moneyness_label(
     strike: Decimal,
     *,
     is_call: bool,
-    tick_size: Decimal = Decimal("0.05"),
+    tick_size: Decimal = DEFAULT_TICK_SIZE,
 ) -> str:
     """ITM / ATM / OTM with ATM band = max(tick, 0.05% of spot)."""
     band = max(tick_size, abs(spot) * Decimal("0.0005"))

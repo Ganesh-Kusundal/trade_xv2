@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 from domain.candles.historical import HistoricalSeries, InstrumentRef
 from domain.candles.instrument_history import InstrumentHistory
+from domain.constants.market import DEFAULT_TICK_SIZE
 from domain.entities.options import FutureChain
 from domain.entities.options import OptionChain as OptionChainVO
 from domain.instruments.composition import (
@@ -754,7 +755,7 @@ class Option(Instrument):
             Decimal(str(spot)),
             self._strike,
             is_call=self.is_call,
-            tick_size=self.tick_size or Decimal("0.05"),
+            tick_size=self.tick_size or DEFAULT_TICK_SIZE,
         )
 
     def implied_volatility(

@@ -583,11 +583,13 @@ class DhanHttpClient:
 
     def _backoff_delay(self, attempt: int) -> float:
         """Exponential backoff: 500ms, 1s, 2s, 4s... capped at 5s."""
-        delay_ms = min(
-            self._config.retry.base_delay_ms * (2 ** (attempt - 1)), 
-            self._config.retry.max_delay_ms
+        from brokers.common.backoff import exponential_backoff
+
+        return exponential_backoff(
+            attempt,
+            base_delay_ms=self._config.retry.base_delay_ms,
+            max_delay_ms=self._config.retry.max_delay_ms,
         )
-        return delay_ms / 1000.0
 
     def close(self) -> None:
         self._session.close()

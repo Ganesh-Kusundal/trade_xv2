@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
@@ -114,7 +114,7 @@ async def create_session(req: CreateReplaySessionRequest):
         "universe": req.universe,
         "speed": req.speed,
         "status": "initialized",
-        "created_at": datetime.now().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "progress": 0.0,
     }
 

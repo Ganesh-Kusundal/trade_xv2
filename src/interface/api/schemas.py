@@ -23,9 +23,12 @@ When modifying order/trade fields, update ALL THREE locations:
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+from domain.value_objects.money import MoneyField
 
 # ── Generic Response Wrapper ─────────────────────────────────────────────────
 
@@ -132,10 +135,10 @@ class Candle(BaseModel):
     """OHLCV candle."""
 
     t: int = Field(..., description="Timestamp (ms)")
-    o: float = Field(..., description="Open")
-    h: float = Field(..., description="High")
-    l: float = Field(..., description="Low")
-    c: float = Field(..., description="Close")
+    o: MoneyField = Field(..., description="Open")
+    h: MoneyField = Field(..., description="High")
+    l: MoneyField = Field(..., description="Low")
+    c: MoneyField = Field(..., description="Close")
     v: float = Field(..., description="Volume")
     oi: float = Field(0, description="Open interest")
 
@@ -155,18 +158,18 @@ class QuoteResponse(BaseModel):
 
     symbol: str
     exchange: str
-    ltp: float
+    ltp: MoneyField
     timestamp: int = Field(..., description="Timestamp (ms)")
-    bid: float | None = None
-    ask: float | None = None
+    bid: MoneyField | None = None
+    ask: MoneyField | None = None
     bid_qty: float | None = None
     ask_qty: float | None = None
     volume: float | None = None
     oi: float | None = None
-    open: float | None = None
-    high: float | None = None
-    low: float | None = None
-    close: float | None = None
+    open: MoneyField | None = None
+    high: MoneyField | None = None
+    low: MoneyField | None = None
+    close: MoneyField | None = None
 
 
 # ── Analytics Schemas ────────────────────────────────────────────────────────
@@ -328,11 +331,11 @@ class OptionContract(BaseModel):
 
     symbol: str
     expiry: str
-    strike: float
+    strike: MoneyField
     option_type: str  # CE or PE
-    ltp: float
-    bid: float | None = None  # Requires live market depth; None for historical data
-    ask: float | None = None  # Requires live market depth; None for historical data
+    ltp: MoneyField
+    bid: MoneyField | None = None  # Requires live market depth; None for historical data
+    ask: MoneyField | None = None  # Requires live market depth; None for historical data
     volume: float
     oi: float
     iv: float | None = None
@@ -440,11 +443,11 @@ class PositionResponse(BaseModel):
 
     symbol: str
     exchange: str
-    quantity: float
-    average_price: float
-    current_price: float
-    unrealized_pnl: float
-    realized_pnl: float
+    quantity: int
+    average_price: MoneyField
+    current_price: MoneyField
+    unrealized_pnl: MoneyField
+    realized_pnl: MoneyField
     pnl_pct: float
 
 
@@ -452,8 +455,8 @@ class PositionListResponse(BaseModel):
     """All positions."""
 
     positions: list[PositionResponse]
-    total_pnl: float
-    total_exposure: float
+    total_pnl: MoneyField
+    total_exposure: MoneyField
 
 
 class OrderRequest(BaseModel):
@@ -544,10 +547,10 @@ class OrderResponse(BaseModel):
     transaction_type: str
     order_type: str
     quantity: int
-    price: float | None = None
+    price: MoneyField | None = None
     status: str
     filled_quantity: int = 0
-    average_price: float | None = None
+    average_price: MoneyField | None = None
     timestamp: datetime = Field(default_factory=datetime.now)
 
 
@@ -563,11 +566,11 @@ class Position(BaseModel):
 
     symbol: str
     exchange: str
-    quantity: float
-    average_price: float
-    current_price: float
-    unrealized_pnl: float
-    realized_pnl: float
+    quantity: int
+    average_price: MoneyField
+    current_price: MoneyField
+    unrealized_pnl: MoneyField
+    realized_pnl: MoneyField
     pnl_pct: float
 
 
@@ -576,7 +579,7 @@ class PositionsResponse(BaseModel):
 
     positions: list[Position]
     count: int
-    total_pnl: float
+    total_pnl: MoneyField
     total_pnl_percent: float
 
 
@@ -586,11 +589,11 @@ class Holding(BaseModel):
     symbol: str
     exchange: str
     quantity: int
-    average_price: float
-    current_price: float
-    invested_value: float
-    current_value: float
-    pnl: float
+    average_price: MoneyField
+    current_price: MoneyField
+    invested_value: MoneyField
+    current_value: MoneyField
+    pnl: MoneyField
     pnl_percent: float
 
 
@@ -599,22 +602,22 @@ class HoldingsResponse(BaseModel):
 
     holdings: list[Holding]
     count: int
-    total_value: float
-    total_invested: float
-    total_pnl: float
+    total_value: MoneyField
+    total_invested: MoneyField
+    total_pnl: MoneyField
 
 
 class PortfolioSummary(BaseModel):
     """Portfolio summary."""
 
-    total_value: float
-    total_invested: float
-    total_pnl: float
+    total_value: MoneyField
+    total_invested: MoneyField
+    total_pnl: MoneyField
     total_pnl_percent: float
-    realized_pnl: float
-    unrealized_pnl: float
-    margin_used: float
-    margin_available: float
+    realized_pnl: MoneyField
+    unrealized_pnl: MoneyField
+    margin_used: MoneyField
+    margin_available: MoneyField
     positions_count: int
     holdings_count: int
 
@@ -628,7 +631,7 @@ class TradeResponse(BaseModel):
     exchange: str
     transaction_type: str
     quantity: int
-    price: float
+    price: MoneyField
     timestamp: datetime
 
 

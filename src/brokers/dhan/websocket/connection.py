@@ -285,7 +285,9 @@ class MarketFeedConnection:
                     stale_feed.close_connection()
                 if self._stop_event.wait(timeout=backoff):
                     break
-                backoff = min(backoff * 2, max_backoff)
+                from brokers.common.backoff import exponential_backoff
+
+                backoff = exponential_backoff(current_reconnects, base_delay_ms=1000.0, max_delay_ms=30000.0)
                 continue
 
             # ── Run the SDK ───────────────────────────────────────────────────
@@ -344,7 +346,9 @@ class MarketFeedConnection:
                 break
             if self._stop_event.wait(timeout=backoff):
                 break
-            backoff = min(backoff * 2, max_backoff)
+            from brokers.common.backoff import exponential_backoff
+
+            backoff = exponential_backoff(current_reconnects, base_delay_ms=1000.0, max_delay_ms=30000.0)
 
         # Always release the host-wide admission lock on exit.
         if admission is not None:
