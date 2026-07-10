@@ -17,7 +17,7 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi import HTTPException
 
-from api.deps import (
+from interface.api.deps import (
     get_broker_service,
     get_container,
     get_data_catalog,
@@ -40,7 +40,7 @@ class TestServiceContainerInitialization:
 
     def setup_method(self):
         """Reset container before each test."""
-        import api.deps as deps
+        import interface.api.deps as deps
 
         deps._container = None
         from infrastructure.di import container as di
@@ -49,7 +49,7 @@ class TestServiceContainerInitialization:
 
     def teardown_method(self):
         """Clean up container after each test."""
-        import api.deps as deps
+        import interface.api.deps as deps
 
         deps._container = None
         from infrastructure.di import container as di
@@ -119,7 +119,7 @@ class TestDIContainerIntegration:
 
     def setup_method(self):
         """Reset container before each test."""
-        import api.deps as deps
+        import interface.api.deps as deps
 
         deps._container = None
         from infrastructure.di import container as di
@@ -128,7 +128,7 @@ class TestDIContainerIntegration:
 
     def teardown_method(self):
         """Clean up container after each test."""
-        import api.deps as deps
+        import interface.api.deps as deps
 
         deps._container = None
         from infrastructure.di import container as di
@@ -175,7 +175,7 @@ class TestDIDependencies:
 
     def setup_method(self):
         """Reset container before each test."""
-        import api.deps as deps
+        import interface.api.deps as deps
 
         deps._container = None
         from infrastructure.di import container as di
@@ -184,7 +184,7 @@ class TestDIDependencies:
 
     def teardown_method(self):
         """Clean up container after each test."""
-        import api.deps as deps
+        import interface.api.deps as deps
 
         deps._container = None
         from infrastructure.di import container as di
@@ -295,7 +295,7 @@ class TestDIFallbackBehavior:
 
     def setup_method(self):
         """Reset container before each test."""
-        import api.deps as deps
+        import interface.api.deps as deps
 
         deps._container = None
         from infrastructure.di import container as di
@@ -304,7 +304,7 @@ class TestDIFallbackBehavior:
 
     def teardown_method(self):
         """Clean up container after each test."""
-        import api.deps as deps
+        import interface.api.deps as deps
 
         deps._container = None
         from infrastructure.di import container as di
@@ -372,7 +372,7 @@ class TestThreadSafety:
 
     def setup_method(self):
         """Reset container before each test."""
-        import api.deps as deps
+        import interface.api.deps as deps
 
         deps._container = None
         from infrastructure.di import container as di
@@ -381,7 +381,7 @@ class TestThreadSafety:
 
     def teardown_method(self):
         """Clean up container after each test."""
-        import api.deps as deps
+        import interface.api.deps as deps
 
         deps._container = None
         from infrastructure.di import container as di

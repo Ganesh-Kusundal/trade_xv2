@@ -223,7 +223,7 @@ def _make_context(client_id: str, access_token: str):
 def main():
     # Bootstrap gateway
     section("BOOTSTRAP")
-    from cli.services.broker_registry import bootstrap_gateway
+    from interface.ui.services.broker_registry import bootstrap_gateway
 
     result = bootstrap_gateway("dhan")
     if not result.ok:

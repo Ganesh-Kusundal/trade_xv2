@@ -39,7 +39,7 @@ class TestResourceLeaks:
         from unittest.mock import patch
 
         from application.services.production_readiness import ProductionReadinessError
-        from cli.services.broker_service import BrokerService
+        from interface.ui.services.broker_service import BrokerService
 
         before_threads = threading.active_count()
 
@@ -62,7 +62,7 @@ class TestResourceLeaks:
 
         # Run a command that acquires lock
         subprocess.run(
-            ["./venv/bin/python", "-m", "cli.main", "holdings"],
+            ["./venv/bin/python", "-m", "interface.ui.main", "holdings"],
             capture_output=True
         )
 

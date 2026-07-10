@@ -31,14 +31,15 @@ class TestNoDuplicateBrokerError:
 
         dirs_to_check = [
             "src/domain",
-            "application",
-            "analytics",
-            "api",
-            "cli",
-            "config",
-            "infrastructure",
-            "datalake",
-            "brokers",
+            "src/application",
+            "src/analytics",
+            "src/interface",
+            "src/config",
+            "src/infrastructure",
+            "src/datalake",
+            "src/brokers",
+            "src/runtime",
+            "src/tradex",
         ]
         files = _find_python_files(dirs_to_check)
 

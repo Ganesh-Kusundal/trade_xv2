@@ -6,7 +6,7 @@ from datetime import date, timedelta
 
 import pandas as pd
 
-from api.freshness import FRESHNESS_THRESHOLDS, FreshnessResult, check_data_freshness
+from interface.api.freshness import FRESHNESS_THRESHOLDS, FreshnessResult, check_data_freshness
 
 
 class TestDataFreshness:

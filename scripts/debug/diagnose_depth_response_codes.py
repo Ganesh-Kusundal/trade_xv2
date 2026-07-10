@@ -44,7 +44,7 @@ BinaryDepthFeed._process_binary_message = _patched_process
 
 
 def main():
-    from cli.services.broker_registry import bootstrap_gateway
+    from interface.ui.services.broker_registry import bootstrap_gateway
 
     result = bootstrap_gateway("dhan")
     if not result.ok:

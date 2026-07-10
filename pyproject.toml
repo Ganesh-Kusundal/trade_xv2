@@ -48,20 +48,19 @@ dev = [
 # upstox = "brokers.upstox:UpstoxBroker"
 # paper = "brokers.paper:PaperBroker"
 
-# Dual-root packaging (intentional for this pass — not a big-bang layout move):
-# - `domain` lives under src/ (src-layout) so installs and PYTHONPATH=src:. resolve it cleanly.
-# - application, infrastructure, brokers, cli, api, config, datalake, analytics, tradex,
-#   and runtime remain at the repo root. Do not relocate domain to root or stuff everything
-#   into src/ until import-linter, CI PYTHONPATH, and editable installs are fully aligned.
+# Single-root packaging: all library code lives under src/.
+# Layout (Clean Architecture):
+#   src/domain, application, infrastructure, brokers,
+#   interface/{api,ui}, analytics, datalake, config, runtime, tradex
+# Run/tests: PYTHONPATH=src  (or editable install: pip install -e .)
 [tool.setuptools.packages.find]
-where = ["src", "."]
+where = ["src"]
 include = [
     "domain*",
     "application*",
     "infrastructure*",
     "brokers*",
-    "cli*",
-    "api*",
+    "interface*",
     "config*",
     "datalake*",
     "analytics*",
@@ -84,8 +83,16 @@ exclude = [
 # ─── pytest ────────────────────────────────────────────────
 [tool.pytest.ini_options]
 minversion = "7.0"
-pythonpath = ["src", "."]
-testpaths = ["tests", "brokers", "analytics", "cli", "datalake", "application", "src"]
+pythonpath = ["src"]
+testpaths = [
+    "tests",
+    "src/brokers",
+    "src/analytics",
+    "src/interface/ui/tests",
+    "src/datalake",
+    "src/application",
+    "src/domain",
+]
 markers = [
     "unit: module-owned unit tests",
     "contract: broker/module contract tests",
@@ -133,7 +140,18 @@ python_functions = ["test_*"]
 
 # ─── coverage ─────────────────────────────────────────────
 [tool.coverage.run]
-source = ["brokers", "analytics", "cli", "datalake", "application", "domain", "infrastructure", "api"]
+source = [
+    "brokers",
+    "analytics",
+    "interface",
+    "datalake",
+    "application",
+    "domain",
+    "infrastructure",
+    "runtime",
+    "tradex",
+    "config",
+]
 omit = [
     "*/tests/*",
     "*/__init__.py",
@@ -177,7 +195,7 @@ exclude = [
     "scripts/",
     "build/",
     "dist/",
-    "cli/diagnostics/",
+    "src/interface/ui/diagnostics/",
 ]
 
 [[tool.mypy.overrides]]
@@ -217,16 +235,10 @@ ignore = [
 "tests/**/*.py" = ["S", "B011", "TID251"]
 "conftest.py" = ["S", "TID251"]
 "scripts/**/*.py" = ["S", "E", "F", "TID251"]
-"brokers/**/tests/**/*.py" = ["S", "TID251"]
-"cli/tests/**/*.py" = ["S", "TID251"]
-"analytics/**/tests/**/*.py" = ["S", "TID251"]
-"application/**/tests/**/*.py" = ["S", "TID251"]
-"domain/**/tests/**/*.py" = ["S", "TID251"]
-"infrastructure/**/tests/**/*.py" = ["S", "TID251"]
-"datalake/**/tests/**/*.py" = ["S", "TID251"]
-"cli/**/*.py" = ["TID251"]
-"brokers/dhan/**/*.py" = ["TID251"]
-"brokers/upstox/**/*.py" = ["TID251"]
+"src/**/tests/**/*.py" = ["S", "TID251"]
+"src/interface/ui/**/*.py" = ["TID251"]
+"src/brokers/dhan/**/*.py" = ["TID251"]
+"src/brokers/upstox/**/*.py" = ["TID251"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -244,16 +256,17 @@ skip-magic-trailing-comma = false
 "brokers.dhan.domain.Balance" = {msg = "Import Balance from domain, not from brokers.dhan.domain"}
 "brokers.dhan.domain.DepthLevel" = {msg = "Import DepthLevel from domain, not from brokers.dhan.domain"}
 "brokers.dhan.domain.MarketDepth" = {msg = "Import MarketDepth from domain, not from brokers.dhan.domain"}
-# Lower layers cannot import from CLI
-"cli" = {msg = "Lower layers (datalake, analytics, brokers) cannot import from cli. Use entry points or events instead."}
+# Lower layers cannot import from the UI/CLI presentation package
+"interface.ui" = {msg = "Lower layers (datalake, analytics, brokers) cannot import from interface.ui. Use entry points or events instead."}
+"interface.api" = {msg = "Lower layers cannot import from interface.api. Use application ports or composition roots."}
 # Cross-broker imports are forbidden
 "brokers.dhan" = {msg = "Cannot import from brokers.dhan in brokers.common or other broker packages"}
 "brokers.upstox" = {msg = "Cannot import from brokers.upstox in brokers.common or other broker packages"}
 
 # ─── Import Linter Contracts ──────────────────────────────
 # Enforce architectural layer boundaries (REF-012).
-# ALWAYS run with this repo first on PYTHONPATH so `domain` is not shadowed:
-#   PYTHONPATH="$(pwd)/src:$(pwd)" lint-imports --config pyproject.toml
+# Single package root under src/:
+#   PYTHONPATH="$(pwd)/src" lint-imports --config pyproject.toml
 # CI pins PYTHONPATH the same way (.github/workflows/ci.yml).
 
 [tool.importlinter]
@@ -262,25 +275,35 @@ root_packages = [
     "brokers",
     "analytics",
     "datalake",
-    "cli",
-    "api",
+    "interface",
     "application",
     "infrastructure",
     "tradex",
     "runtime",
+    "config",
 ]
 
 [[tool.importlinter.contracts]]
 name = "Domain independence"
 type = "forbidden"
 source_modules = ["domain"]
-forbidden_modules = ["infrastructure", "brokers", "analytics", "datalake", "cli", "application", "api", "tradex"]
+forbidden_modules = [
+    "infrastructure",
+    "brokers",
+    "analytics",
+    "datalake",
+    "interface",
+    "application",
+    "tradex",
+    "runtime",
+    "config",
+]
 
 [[tool.importlinter.contracts]]
 name = "Infrastructure independence"
 type = "forbidden"
 source_modules = ["infrastructure"]
-forbidden_modules = ["brokers", "analytics", "cli", "application", "api"]
+forbidden_modules = ["brokers", "analytics", "interface", "application"]
 ignore_imports = [
     # Tests legitimately import application/infrastructure for integration testing.
     "infrastructure.tests.test_audit -> application.audit",
@@ -362,34 +385,34 @@ ignore_imports = [
 [[tool.importlinter.contracts]]
 name = "CLI broker-implementation isolation"
 type = "forbidden"
-source_modules = ["cli"]
+source_modules = ["interface.ui"]
 forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper"]
+# Composition-root edges are listed explicitly; unused ignore lines should not
+# abort the whole contract suite after layout moves.
+unmatched_ignore_imports_alerting = "warn"
 ignore_imports = [
-    # Broker facade wraps broker implementations for CLI.
-    "cli.services.broker_facade -> brokers.**",
-    # Registry wires broker implementations (composition root).
-    "cli.services.broker_registry -> brokers.paper",
-    "cli.services.broker_registry -> brokers.dhan.websocket",
-    "cli.services.broker_registry -> brokers.dhan.reconciliation",
-    # CLI composition root: gateway factory (canonical infra path) wires brokers.
-    "cli.services.broker_registry -> infrastructure.gateway.factory",
-    "cli.commands.doctor.** -> infrastructure.gateway.factory",
-    # CLI orders go through tradex.session (composition root).
-    "cli.commands.order_placement -> tradex",
-    # Test-only: integration tests legitimately import broker implementations.
-    "cli.tests.* -> brokers.dhan",
-    "cli.tests.* -> brokers.dhan.**",
-    "cli.tests.* -> brokers.paper.**",
+    # Composition root: CLI broker façade/registry wire concrete adapters.
+    "interface.ui.services.broker_facade -> brokers.dhan.identity.account_registry",
+    "interface.ui.services.broker_facade -> brokers.dhan.gateway",
+    "interface.ui.services.broker_facade -> brokers.dhan.loader",
+    "interface.ui.services.broker_facade -> brokers.dhan.reconciliation",
+    "interface.ui.services.broker_facade -> brokers.dhan.symbol_validator",
+    "interface.ui.services.broker_facade -> brokers.paper.paper_gateway",
+    "interface.ui.services.broker_facade -> brokers.upstox.mappers.domain_mapper",
+    "interface.ui.services.broker_registry -> brokers.paper",
+    "interface.ui.services.broker_registry -> brokers.dhan.websocket",
+    "interface.ui.services.broker_registry -> brokers.dhan.reconciliation",
+    "interface.ui.services.broker_registry -> infrastructure.gateway.factory",
 ]
 
 [[tool.importlinter.contracts]]
 name = "API broker-implementation isolation"
 type = "forbidden"
-source_modules = ["api"]
+source_modules = ["interface.api"]
 forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper"]
 ignore_imports = [
     # API orders go through tradex.session (composition root).
-    "api.routers.orders -> tradex",
+    "interface.api.routers.orders -> tradex",
 ]
 
 [[tool.importlinter.contracts]]

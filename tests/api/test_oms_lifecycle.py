@@ -20,8 +20,8 @@ import logging
 import pytest
 from fastapi.testclient import TestClient
 
-from api.config import APIConfig
-from api.deps import (
+from interface.api.config import APIConfig
+from interface.api.deps import (
     get_container,
     get_order_manager,
     get_position_manager,
@@ -29,7 +29,7 @@ from api.deps import (
     get_trading_context,
     initialize_all_services,
 )
-from api.main import create_app
+from interface.api.main import create_app
 from application.oms.context import TradingContext
 from infrastructure.event_bus import EventBus
 
@@ -37,7 +37,7 @@ from infrastructure.event_bus import EventBus
 @pytest.fixture(autouse=True)
 def reset_container():
     """Reset container before and after each test to ensure isolation."""
-    import api.deps as deps
+    import interface.api.deps as deps
 
     deps._container = None
     yield
@@ -316,7 +316,7 @@ class TestLifecycleShutdown:
         # REF: Using minimal mock for AsyncMock (unavoidable for async cleanup)
         from unittest.mock import AsyncMock, MagicMock
 
-        from api.main import _shutdown_cleanup
+        from interface.api.main import _shutdown_cleanup
         mock_bridge = MagicMock()
         mock_bridge.stop = AsyncMock()
 
@@ -329,7 +329,7 @@ class TestLifecycleShutdown:
         # REF: Using minimal mock for shutdown verification
         from unittest.mock import MagicMock
 
-        from api.main import _shutdown_cleanup
+        from interface.api.main import _shutdown_cleanup
         mock_lifecycle = MagicMock()
 
         with caplog.at_level(logging.DEBUG):
@@ -344,7 +344,7 @@ class TestLifecycleShutdown:
         # REF: Using minimal mock for shutdown verification
         from unittest.mock import MagicMock
 
-        from api.main import _shutdown_cleanup
+        from interface.api.main import _shutdown_cleanup
         mock_lifecycle = MagicMock()
 
         asyncio.get_event_loop().run_until_complete(_shutdown_cleanup(None, mock_lifecycle, True))

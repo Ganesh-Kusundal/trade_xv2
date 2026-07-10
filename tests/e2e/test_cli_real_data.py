@@ -16,7 +16,7 @@ class TestDhanRealData:
 
     def test_quote_returns_real_data(self):
         """Verify quote command returns real LTP data."""
-        from cli.main import main
+        from interface.ui.main import main
 
         console = Console(force_terminal=True)
         # Execute: tradex quote RELIANCE
@@ -30,7 +30,7 @@ class TestDhanRealData:
 
     def test_depth_returns_real_data(self):
         """Verify depth command returns real order book."""
-        from cli.main import main
+        from interface.ui.main import main
 
         console = Console(force_terminal=True)
         result = main(["depth", "RELIANCE", "--json"], console=console)
@@ -42,7 +42,7 @@ class TestDhanRealData:
 
     def test_holdings_returns_real_data(self):
         """Verify holdings command returns real portfolio data."""
-        from cli.main import main
+        from interface.ui.main import main
 
         console = Console(force_terminal=True)
         result = main(["holdings", "--json"], console=console)
@@ -53,7 +53,7 @@ class TestDhanRealData:
 
     def test_account_balance_returns_real_data(self):
         """Verify account command returns real balance."""
-        from cli.main import main
+        from interface.ui.main import main
 
         console = Console(force_terminal=True)
         result = main(["account", "--json"], console=console)

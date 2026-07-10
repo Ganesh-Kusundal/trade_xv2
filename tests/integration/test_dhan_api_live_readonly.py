@@ -63,9 +63,9 @@ pytestmark = [
 @pytest.fixture(scope="module")
 def live_app():
     """FastAPI app wired to the real Dhan gateway (module-scoped)."""
-    from api import deps
-    from api.main import create_app
-    from cli.services.broker_registry import bootstrap_gateway
+    from interface.api import deps
+    from interface.api.main import create_app
+    from interface.ui.services.broker_registry import bootstrap_gateway
 
     result = bootstrap_gateway(
         broker="dhan",

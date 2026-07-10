@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-DATALAKE = ROOT / "datalake"
+DATALAKE = ROOT / "src" / "datalake"
 
 
 def _iter_prod_py_files() -> list[Path]:

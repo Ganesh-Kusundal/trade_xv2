@@ -56,7 +56,7 @@ def _legacy_placeholder():
 
     try:
         from infrastructure.config.env_loader import load_env_file
-        from cli.services.broker_registry import bootstrap_gateway
+        from interface.ui.services.broker_registry import bootstrap_gateway
 
         # Load .env.local
         env_path = PROJECT_ROOT / ".env.local"

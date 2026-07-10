@@ -11,9 +11,9 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
-from api.config import APIConfig
-from api.deps import reset_container
-from api.main import create_app
+from interface.api.config import APIConfig
+from interface.api.deps import reset_container
+from interface.api.main import create_app
 
 
 def _build_sample_ohlcv(n_bars: int = 50) -> pd.DataFrame:
@@ -41,7 +41,7 @@ def _build_sample_ohlcv(n_bars: int = 50) -> pd.DataFrame:
 @pytest.fixture
 def isolate_replay_state():
     """Reset replay session store and container before each test."""
-    import api.routers.replay as replay_mod
+    import interface.api.routers.replay as replay_mod
 
     replay_mod._session_store = replay_mod.ReplaySessionStore()
     reset_container()
@@ -74,7 +74,7 @@ def _make_client_no_gateway():
 class TestReplaySessionLifecycle:
     @pytest.fixture(autouse=True)
     def setup_isolation(self):
-        import api.routers.replay as replay_mod
+        import interface.api.routers.replay as replay_mod
 
         replay_mod._session_store = replay_mod.ReplaySessionStore()
         reset_container()
@@ -135,7 +135,7 @@ class TestReplaySessionLifecycle:
 class TestReplayPlayWithRealEngine:
     @pytest.fixture(autouse=True)
     def setup_isolation(self):
-        import api.routers.replay as replay_mod
+        import interface.api.routers.replay as replay_mod
 
         replay_mod._session_store = replay_mod.ReplaySessionStore()
         reset_container()
@@ -188,7 +188,7 @@ class TestReplayPlayWithRealEngine:
 class TestReplayPauseAndStop:
     @pytest.fixture(autouse=True)
     def setup_isolation(self):
-        import api.routers.replay as replay_mod
+        import interface.api.routers.replay as replay_mod
 
         replay_mod._session_store = replay_mod.ReplaySessionStore()
         reset_container()
@@ -231,7 +231,7 @@ class TestReplayPauseAndStop:
 class TestReplaySpeedControl:
     @pytest.fixture(autouse=True)
     def setup_isolation(self):
-        import api.routers.replay as replay_mod
+        import interface.api.routers.replay as replay_mod
 
         replay_mod._session_store = replay_mod.ReplaySessionStore()
         reset_container()
@@ -280,7 +280,7 @@ class TestReplaySpeedControl:
 class TestReplaySeek:
     @pytest.fixture(autouse=True)
     def setup_isolation(self):
-        import api.routers.replay as replay_mod
+        import interface.api.routers.replay as replay_mod
 
         replay_mod._session_store = replay_mod.ReplaySessionStore()
         reset_container()
@@ -318,7 +318,7 @@ class TestReplaySeek:
 class TestReplayStateValidation:
     @pytest.fixture(autouse=True)
     def setup_isolation(self):
-        import api.routers.replay as replay_mod
+        import interface.api.routers.replay as replay_mod
 
         replay_mod._session_store = replay_mod.ReplaySessionStore()
         reset_container()
@@ -363,7 +363,7 @@ class TestReplayStateValidation:
 class TestReplayDeterministicResults:
     @pytest.fixture(autouse=True)
     def setup_isolation(self):
-        import api.routers.replay as replay_mod
+        import interface.api.routers.replay as replay_mod
 
         replay_mod._session_store = replay_mod.ReplaySessionStore()
         reset_container()
@@ -376,7 +376,7 @@ class TestReplayDeterministicResults:
             _build_sample_ohlcv(50)
             results = []
             for _ in range(2):
-                import api.routers.replay as replay_mod
+                import interface.api.routers.replay as replay_mod
 
                 replay_mod._session_store = replay_mod.ReplaySessionStore()
                 create_resp = tc.post(
@@ -394,7 +394,7 @@ class TestReplayDeterministicResults:
 class TestReplayErrorHandling:
     @pytest.fixture(autouse=True)
     def setup_isolation(self):
-        import api.routers.replay as replay_mod
+        import interface.api.routers.replay as replay_mod
 
         replay_mod._session_store = replay_mod.ReplaySessionStore()
         reset_container()
@@ -428,7 +428,7 @@ class TestReplayErrorHandling:
 class TestReplayConcurrency:
     @pytest.fixture(autouse=True)
     def setup_isolation(self):
-        import api.routers.replay as replay_mod
+        import interface.api.routers.replay as replay_mod
 
         replay_mod._session_store = replay_mod.ReplaySessionStore()
         reset_container()

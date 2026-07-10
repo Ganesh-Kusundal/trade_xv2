@@ -16,47 +16,47 @@ ROOT = Path(__file__).resolve().parents[2]
 
 # Production packages scanned (not tests, not venv).
 _SCAN_ROOTS = (
-    "application",
-    "api",
-    "cli",
-    "tradex",
+    "src/application",
+    "src/interface/api",
+    "src/interface/ui",
+    "src/tradex",
     "src/domain",
-    "brokers",
-    "runtime",
+    "src/brokers",
+    "src/runtime",
 )
 
 # Known surfaces as of CODE_REALITY plan (2026-07-10). Shrink over Phase 1.
 _ALLOWED_PLACE_ORDER_FILES = frozenset(
     {
-        "application/oms/protocols.py",
-        "application/oms/order_repository_adapter.py",
-        "application/oms/order_manager.py",
-        "application/composer/execution.py",
-        "application/execution/execution_service.py",
-        "application/execution/execution_mode_adapter.py",
-        "application/execution/place_order_use_case.py",
-        "api/routers/orders.py",
-        "api/v2/domain_endpoints.py",
-        "cli/commands/order_placement.py",
-        "cli/services/cli_broker_facade.py",
-        "cli/services/broker_service.py",
+        "src/application/oms/protocols.py",
+        "src/application/oms/order_repository_adapter.py",
+        "src/application/oms/order_manager.py",
+        "src/application/composer/execution.py",
+        "src/application/execution/execution_service.py",
+        "src/application/execution/execution_mode_adapter.py",
+        "src/application/execution/place_order_use_case.py",
+        "src/interface/api/routers/orders.py",
+        "src/interface/api/v2/domain_endpoints.py",
+        "src/interface/ui/commands/order_placement.py",
+        "src/interface/ui/services/cli_broker_facade.py",
+        "src/interface/ui/services/broker_service.py",
         "src/domain/repositories/order_repository.py",
         "src/domain/ports/broker_gateway.py",
         "src/domain/ports/protocols.py",
         "src/domain/services/orders.py",
-        "brokers/paper/execution_provider.py",
-        "brokers/paper/paper_gateway.py",
-        "brokers/paper/paper_orders.py",
-        "brokers/upstox/gateway.py",
-        "brokers/upstox/mutual_funds/adapter.py",
-        "brokers/upstox/mutual_funds/client.py",
-        "brokers/upstox/adapters/order_gateway.py",
-        "brokers/upstox/orders/order_command_adapter.py",
-        "brokers/dhan/gateway.py",
-        "brokers/dhan/execution/orders.py",
-        "brokers/dhan/execution/order_placement.py",
-        "brokers/dhan/api/transport.py",
-        "brokers/dhan/order_placement.py",
+        "src/brokers/paper/execution_provider.py",
+        "src/brokers/paper/paper_gateway.py",
+        "src/brokers/paper/paper_orders.py",
+        "src/brokers/upstox/gateway.py",
+        "src/brokers/upstox/mutual_funds/adapter.py",
+        "src/brokers/upstox/mutual_funds/client.py",
+        "src/brokers/upstox/adapters/order_gateway.py",
+        "src/brokers/upstox/orders/order_command_adapter.py",
+        "src/brokers/dhan/gateway.py",
+        "src/brokers/dhan/execution/orders.py",
+        "src/brokers/dhan/execution/order_placement.py",
+        "src/brokers/dhan/api/transport.py",
+        "src/brokers/dhan/order_placement.py",
     }
 )
 
@@ -122,7 +122,7 @@ def test_place_order_surfaces_are_allowlisted() -> None:
 @pytest.mark.unit
 def test_place_order_use_case_exists_but_inventory_notes_orphan() -> None:
     """Canonical use case file must exist for Phase 1 adoption."""
-    path = ROOT / "application/execution/place_order_use_case.py"
+    path = ROOT / "src/application/execution/place_order_use_case.py"
     assert path.is_file()
     text = path.read_text(encoding="utf-8")
     assert "class PlaceOrderUseCase" in text

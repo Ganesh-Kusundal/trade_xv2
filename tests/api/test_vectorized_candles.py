@@ -13,7 +13,7 @@ import time
 
 import pandas as pd
 
-from api.schemas import Candle
+from interface.api.schemas import Candle
 
 
 class TestVectorizedConversionCorrectness:

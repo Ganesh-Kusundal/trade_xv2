@@ -7,11 +7,11 @@ from unittest.mock import MagicMock
 
 from fastapi.testclient import TestClient
 
-from api.config import APIConfig
-from api.deps import reset_container
-from api.main import create_app
+from interface.api.config import APIConfig
+from interface.api.deps import reset_container
+from interface.api.main import create_app
 from application.services.production_readiness import ProductionReadinessChecker
-from cli.diagnostics.doctor import DoctorDiagnostics
+from interface.ui.diagnostics.doctor import DoctorDiagnostics
 from tests.api.conftest import StubLiveGateway
 
 

@@ -7,10 +7,12 @@ import sys
 from pathlib import Path
 
 project_root = Path(__file__).parent
+# Library packages live under src/ (single package root).
+sys.path.insert(0, str(project_root / "src"))
 sys.path.insert(0, str(project_root))
 
-from api.config import APIConfig
-from api.main import create_app
+from interface.api.config import APIConfig
+from interface.api.main import create_app
 from infrastructure.auth.environment_bootstrap import bootstrap_environment
 from infrastructure.logging_config import configure_logging
 from runtime.api_bootstrap import initialize_api_services

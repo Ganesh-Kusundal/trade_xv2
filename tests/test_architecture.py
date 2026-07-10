@@ -156,7 +156,7 @@ class TestImportDirection:
             "src/domain",
             "tests",
             "tradex",
-            "application",
+            "src/application",
             "api",
             "infrastructure",
         ]:
@@ -234,7 +234,7 @@ class TestModuleBoundaries:
 
     def test_brokers_init_only_exports_common_types(self):
         """brokers/__init__.py should only export broker-agnostic types."""
-        init_file = ROOT / "brokers" / "__init__.py"
+        init_file = ROOT / "src" / "brokers" / "__init__.py"
         content = init_file.read_text()
 
         # Should not export Dhan-specific types
@@ -260,21 +260,21 @@ class TestModuleBoundaries:
 
     def test_dhan_has_all_declaration(self):
         """brokers/dhan/__init__.py must have __all__."""
-        init_file = ROOT / "brokers" / "dhan" / "__init__.py"
+        init_file = ROOT / "src" / "brokers" / "dhan" / "__init__.py"
         content = init_file.read_text()
 
         assert "__all__" in content, "brokers/dhan/__init__.py must define __all__"
 
     def test_upstox_has_all_declaration(self):
         """brokers/upstox/__init__.py must have __all__."""
-        init_file = ROOT / "brokers" / "upstox" / "__init__.py"
+        init_file = ROOT / "src" / "brokers" / "upstox" / "__init__.py"
         content = init_file.read_text()
 
         assert "__all__" in content, "brokers/upstox/__init__.py must define __all__"
 
     def test_brokers_common_has_all_declaration(self):
         """brokers/common/__init__.py must have __all__."""
-        init_file = ROOT / "brokers" / "common" / "__init__.py"
+        init_file = ROOT / "src" / "brokers" / "common" / "__init__.py"
         content = init_file.read_text()
 
         assert "__all__" in content, "brokers/common/__init__.py must define __all__"

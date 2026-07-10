@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from api.v2 import domain_endpoints as de
+from interface.api.v2 import domain_endpoints as de
 from domain.candles.historical import HistoricalBar, HistoricalSeries, InstrumentRef
 from domain.provenance import DataProvenance, SourceIdentity
 from domain.universe import Session

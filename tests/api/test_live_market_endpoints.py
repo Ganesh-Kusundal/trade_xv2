@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from api.config import APIConfig
-from api.deps import reset_container
-from api.main import create_app
+from interface.api.config import APIConfig
+from interface.api.deps import reset_container
+from interface.api.main import create_app
 
 
 class TestLiveMarketEndpoints:

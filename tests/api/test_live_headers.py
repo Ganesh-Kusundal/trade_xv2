@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from api.routers.live.headers import apply_live_headers
+from interface.api.routers.live.headers import apply_live_headers
 
 
 class TestApplyLiveHeaders:

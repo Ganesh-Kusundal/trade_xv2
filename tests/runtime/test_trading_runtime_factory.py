@@ -18,7 +18,7 @@ def test_build_for_api_uses_composition_module():
         return_value=(mock_bus, None),
     ) as create_bus:
         with patch(
-            "cli.services.broker_service.BrokerService",
+            "interface.ui.services.broker_service.BrokerService",
             return_value=mock_bs,
         ):
             with patch.object(

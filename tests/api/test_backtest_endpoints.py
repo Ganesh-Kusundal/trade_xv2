@@ -10,9 +10,9 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
-from api.config import APIConfig
-from api.deps import reset_container
-from api.main import create_app
+from interface.api.config import APIConfig
+from interface.api.deps import reset_container
+from interface.api.main import create_app
 
 
 def _build_sample_ohlcv(n_bars: int = 200) -> pd.DataFrame:
@@ -37,7 +37,7 @@ def _build_sample_ohlcv(n_bars: int = 200) -> pd.DataFrame:
 @pytest.fixture
 def isolate_backtest_state():
     """Reset backtest cache and container before each test."""
-    import api.routers.backtest as bt_mod
+    import interface.api.routers.backtest as bt_mod
 
     with bt_mod._backtest_cache_lock:
         bt_mod._backtest_cache.clear()
@@ -64,7 +64,7 @@ def _make_client_with_gateway(sample_df=None, gateway=None):
 class TestBacktestRunRealEngine:
     @pytest.fixture(autouse=True)
     def setup_isolation(self):
-        import api.routers.backtest as bt_mod
+        import interface.api.routers.backtest as bt_mod
 
         with bt_mod._backtest_cache_lock:
             bt_mod._backtest_cache.clear()
@@ -149,7 +149,7 @@ class TestBacktestRunRealEngine:
             results = []
             for _ in range(2):
                 reset_container()
-                import api.routers.backtest as bt_mod
+                import interface.api.routers.backtest as bt_mod
 
                 with bt_mod._backtest_cache_lock:
                     bt_mod._backtest_cache.clear()
@@ -172,7 +172,7 @@ class TestBacktestRunRealEngine:
 class TestBacktestErrorHandling:
     @pytest.fixture(autouse=True)
     def setup_isolation(self):
-        import api.routers.backtest as bt_mod
+        import interface.api.routers.backtest as bt_mod
 
         with bt_mod._backtest_cache_lock:
             bt_mod._backtest_cache.clear()
@@ -243,7 +243,7 @@ class TestBacktestErrorHandling:
 class TestBacktestMetricsCorrectness:
     @pytest.fixture(autouse=True)
     def setup_isolation(self):
-        import api.routers.backtest as bt_mod
+        import interface.api.routers.backtest as bt_mod
 
         with bt_mod._backtest_cache_lock:
             bt_mod._backtest_cache.clear()
@@ -314,7 +314,7 @@ class TestBacktestMetricsCorrectness:
 class TestBacktestValidation:
     @pytest.fixture(autouse=True)
     def setup_isolation(self):
-        import api.routers.backtest as bt_mod
+        import interface.api.routers.backtest as bt_mod
 
         with bt_mod._backtest_cache_lock:
             bt_mod._backtest_cache.clear()

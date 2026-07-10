@@ -21,13 +21,13 @@ FORBIDDEN_LAYERS = (
     "application",
     "brokers",
     "analytics",
-    "api",
-    "cli",
+    "interface",
     "config",
     "infrastructure",
     "datalake",
     "plugins",
     "tradex",
+    "runtime",
 )
 
 

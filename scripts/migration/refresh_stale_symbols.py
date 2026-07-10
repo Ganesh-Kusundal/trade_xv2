@@ -128,7 +128,7 @@ def main():
     try:
         from pathlib import Path
 
-        from cli.services.broker_registry import create_gateway
+        from interface.ui.services.broker_registry import create_gateway
 
         gateway = create_gateway("dhan", env_path=Path(".env.local"), load_instruments=True)
         if not gateway:

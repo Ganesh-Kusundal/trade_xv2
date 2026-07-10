@@ -61,7 +61,7 @@ jobs:
           cache: pip
       - name: Verify no direct broker imports from application layer
         run: |
-          violations=$(grep -r "from brokers\.\(dhan\|upstox\|paper\)" --include="*.py" application/ api/ cli/ infrastructure/ 2>/dev/null || true)
+          violations=$(grep -r "from brokers\.\(dhan\|upstox\|paper\)" --include="*.py" src/application/ src/interface/ src/infrastructure/ 2>/dev/null || true)
           if [ -n "$violations" ]; then
             echo "❌ Application layer importing broker-specific modules:"
             echo "$violations"
@@ -75,7 +75,7 @@ jobs:
           set +e
           violations=$(grep -RInE 'from tradex\.runtime(\.| import)|import tradex\.runtime' \
             --include='*.py' \
-            application infrastructure brokers cli api config datalake analytics runtime src/domain \
+            src/application src/infrastructure src/brokers src/interface src/config src/datalake src/analytics src/runtime src/domain \
             2>/dev/null \
             | grep -v '/tests/' \
             | grep -v 'test_' \
@@ -96,7 +96,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check for print() in non-script files
         run: |
-          violations=$(grep -rn "print(" --include="*.py" application/ brokers/ infrastructure/ config/ domain/ api/ cli/ 2>/dev/null | grep -v "__repr__\|__str__\|# noqa\|\.print(" || true)
+          violations=$(grep -rn "print(" --include="*.py" src/application/ src/brokers/ src/infrastructure/ src/config/ src/domain/ src/interface/ 2>/dev/null | grep -v "__repr__\|__str__\|# noqa\|\.print(" || true)
           if [ -n "$violations" ]; then
             echo "❌ Found print() statements in production code:"
             echo "$violations"

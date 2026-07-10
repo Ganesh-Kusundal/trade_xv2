@@ -28,7 +28,7 @@ def check(label: str, ok: bool, detail: str = ""):
 print("=" * 60)
 print("1. GATEWAY BOOTSTRAP")
 print("=" * 60)
-from cli.services.broker_registry import bootstrap_gateway
+from interface.ui.services.broker_registry import bootstrap_gateway
 
 result = bootstrap_gateway("dhan")
 gw = result.gateway

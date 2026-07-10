@@ -22,30 +22,39 @@ import pytest
 
 # Business logic layers - should not contain infrastructure concerns
 BUSINESS_LAYERS = {
-    "application": "application/",
-    "domain": "domain/",
-    "analytics": "analytics/",
+    "src/application": "src/application/",
+    "src/domain": "src/domain/",
+    "src/analytics": "src/analytics/",
 }
 
 # Infrastructure layers - cross-cutting concerns belong here
 INFRASTRUCTURE_LAYERS = {
-    "infrastructure": "infrastructure/",
-    "config": "config/",
+    "src/infrastructure": "src/infrastructure/",
+    "src/config": "src/config/",
 }
 
 # Broker implementations
 BROKER_LAYERS = {
-    "brokers": "brokers/",
+    "src/brokers": "src/brokers/",
 }
 
 # API layer
 API_LAYERS = {
-    "api": "api/",
+    "src/interface/api": "src/interface/api/",
 }
 
 ALL_SOURCE_DIRS = [
-    "application", "src/domain", "infrastructure", "config", "brokers",
-    "api", "cli", "analytics", "datalake",
+    "src/application",
+    "src/domain",
+    "src/infrastructure",
+    "src/config",
+    "src/brokers",
+    "src/interface/api",
+    "src/interface/ui",
+    "src/analytics",
+    "src/datalake",
+    "src/runtime",
+    "src/tradex",
 ]
 
 # ── Helper functions ─────────────────────────────────────────────────────
@@ -104,17 +113,17 @@ class TestBusinessLayerIsolation:
     # Known exceptions - files that are allowed to use these patterns
     KNOWN_EXCEPTIONS: ClassVar[dict[str, list[str]]] = {
         "logging.getLogger": [
-            "application/",  # Application services use logging
-            "domain/",  # Domain entities use logging
-            "analytics/",  # Analytics uses logging
+            "src/application/",
+            "src/domain/",
+            "src/analytics/",
         ],
         "threading.Thread": [
-            "application/oms/",  # OMS uses threads for reconciliation/scheduling
-            "domain/tests/",  # Test files
+            "src/application/oms/",
+            "src/domain/tests/",
         ],
     }
 
-    @pytest.mark.parametrize("directory", ["application", "domain", "analytics"])
+    @pytest.mark.parametrize("directory", ["src/application", "src/domain", "src/analytics"])
     def test_no_direct_logging(self, directory: str):
         """Business layer must use centralized logging."""
         violations = []
@@ -134,7 +143,7 @@ class TestBusinessLayerIsolation:
             f"Business layer files using direct logging.getLogger(): {violations}"
         )
 
-    @pytest.mark.parametrize("directory", ["application", "domain"])
+    @pytest.mark.parametrize("directory", ["src/application", "src/domain"])
     def test_no_direct_threading(self, directory: str):
         """Business layer must not create threads directly."""
         violations = []
@@ -174,7 +183,7 @@ class TestInfrastructureOwnership:
 
         # Known exceptions: resilience is broker-specific
         known_exceptions = [
-            "brokers/common/resilience",
+            "src/brokers/common/resilience",
         ]
         violations = [
             v for v in violations
@@ -195,7 +204,7 @@ class TestImportRules:
         for filepath in _get_python_files("infrastructure"):
             for imp, _src in _get_imports(filepath):
                 if (
-                    (imp.startswith("application") or imp.startswith("domain"))
+                    (imp.startswith("src/application") or imp.startswith("domain"))
                     and not imp.startswith((
                         "domain.events", "domain.types", "domain.enums",
                         "domain.constants", "domain.lifecycle_health", "domain.ports",
@@ -222,7 +231,7 @@ class TestImportRules:
     def test_broker_not_importing_other_brokers(self):
         """Broker implementations must not import from other brokers."""
         violations = []
-        broker_dirs = ["brokers/dhan", "brokers/upstox", "brokers/paper"]
+        broker_dirs = ["src/brokers/dhan", "src/brokers/upstox", "src/brokers/paper"]
         for i, b1 in enumerate(broker_dirs):
             for filepath in _get_python_files(b1):
                 for imp, _src in _get_imports(filepath):
@@ -300,7 +309,7 @@ class TestRetryUsage:
     def test_no_manual_retry_loops(self):
         """Production code must not implement manual retry loops."""
         violations = []
-        for directory in ["application", "brokers", "api", "cli"]:
+        for directory in ["src/application", "src/brokers", "src/interface/api", "src/interface/ui"]:
             for filepath in _get_python_files(directory):
                 with open(filepath) as f:
                     content = f.read()
@@ -309,27 +318,27 @@ class TestRetryUsage:
 
         # Known exceptions - files that legitimately use sleep
         known_exceptions = [
-            "brokers/common/resilience",  # Implements retry
-            "brokers/common/tests",  # Tests
+            "src/brokers/common/resilience",  # Implements retry
+            "src/brokers/common/tests",  # Tests
             "tests/",  # Tests
-            "brokers/common/quota_scheduler.py",  # Scheduler uses sleep
-            "brokers/common/services/download_engine.py",  # Download engine
-            "brokers/dhan/api/reconnecting_service.py",  # Reconnection logic
-            "brokers/dhan/data/depth_feed_base.py",  # Depth feed uses poll intervals
-            "brokers/dhan/api/http_client.py",  # Rate limiting + retry backoff
-            "brokers/upstox/orders/slice_adapter.py",  # Slice adapter uses poll intervals
-            "cli/load_testing/",  # Load testing
-            "cli/commands/market.py",  # CLI polling loop
-            "cli/commands/events.py",  # CLI event polling
-            "cli/commands/websocket.py",  # CLI WebSocket keepalive
-            "brokers/common/idempotency/file_cache.py",  # Cache TTL/poll interval
-            "brokers/common/idempotency/redis_cache.py",  # Cache TTL/poll interval
-            "brokers/dhan/depth_200.py",  # Depth feed poll interval
-            "application/scheduling/quota_scheduler.py",  # Scheduler uses sleep
-            "application/services/download_engine.py",  # Download engine
-            "brokers/upstox/auth/http.py",  # HTTP retry backoff
-            "brokers/dhan/websocket/order_stream.py",  # WebSocket reconnect
-            "brokers/dhan/execution/order_placement.py",  # Idempotency poll-wait
+            "src/brokers/common/quota_scheduler.py",  # Scheduler uses sleep
+            "src/brokers/common/services/download_engine.py",  # Download engine
+            "src/brokers/dhan/api/reconnecting_service.py",  # Reconnection logic
+            "src/brokers/dhan/data/depth_feed_base.py",  # Depth feed uses poll intervals
+            "src/brokers/dhan/api/http_client.py",  # Rate limiting + retry backoff
+            "src/brokers/upstox/orders/slice_adapter.py",  # Slice adapter uses poll intervals
+            "src/interface/ui/load_testing/",  # Load testing
+            "src/interface/ui/commands/market.py",  # CLI polling loop
+            "src/interface/ui/commands/events.py",  # CLI event polling
+            "src/interface/ui/commands/websocket.py",  # CLI WebSocket keepalive
+            "src/brokers/common/idempotency/file_cache.py",  # Cache TTL/poll interval
+            "src/brokers/common/idempotency/redis_cache.py",  # Cache TTL/poll interval
+            "src/brokers/dhan/depth_200.py",  # Depth feed poll interval
+            "src/application/scheduling/quota_scheduler.py",  # Scheduler uses sleep
+            "src/application/services/download_engine.py",  # Download engine
+            "src/brokers/upstox/auth/http.py",  # HTTP retry backoff
+            "src/brokers/dhan/websocket/order_stream.py",  # WebSocket reconnect
+            "src/brokers/dhan/execution/order_placement.py",  # Idempotency poll-wait
         ]
         violations = [
             v for v in violations

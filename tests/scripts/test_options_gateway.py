@@ -32,7 +32,7 @@ def test_dhan_options_via_gateway():
         import time
 
         from infrastructure.config.env_loader import load_env_file
-        from cli.services.broker_registry import create_gateway
+        from interface.ui.services.broker_registry import create_gateway
 
         env_path = Path(".env.local")
         if not env_path.exists():
@@ -159,7 +159,7 @@ def test_upstox_options_via_gateway():
         import time
 
         from infrastructure.config.env_loader import load_env_file
-        from cli.services.broker_registry import create_gateway
+        from interface.ui.services.broker_registry import create_gateway
 
         env_path = Path(".env.upstox")
         if not env_path.exists():

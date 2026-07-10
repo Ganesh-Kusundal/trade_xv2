@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from api.ws.bridge import _BRIDGED_EVENTS, MarketBridge
+from interface.api.ws.bridge import _BRIDGED_EVENTS, MarketBridge
 from infrastructure.event_bus import DomainEvent
 
 

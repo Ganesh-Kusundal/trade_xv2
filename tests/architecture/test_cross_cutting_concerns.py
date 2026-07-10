@@ -110,7 +110,7 @@ class TestNoBasicConfig:
 
     @pytest.mark.parametrize(
         "directory",
-        ["brokers", "datalake", "analytics"],
+        ["src/brokers", "src/datalake", "src/analytics"],
     )
     def test_no_basic_config_in_directory(self, directory: str):
         """No logging.basicConfig() allowed in production directories."""
@@ -143,7 +143,7 @@ class TestNoBareExcept:
 
     def test_no_bare_except_in_brokers(self):
         """No bare except: in broker adapters."""
-        files = _find_python_files(["brokers"])
+        files = _find_python_files(["src/brokers"])
         violations = {}
         for filepath in files:
             if "test" in str(filepath) or "tests" in str(filepath):
@@ -163,7 +163,7 @@ class TestNoTokenLeakage:
 
     def test_no_token_print_in_brokers(self):
         """No print() with token/secret/password in broker code."""
-        files = _find_python_files(["brokers"])
+        files = _find_python_files(["src/brokers"])
         violations = {}
         for filepath in files:
             if "test" in str(filepath) or "tests" in str(filepath):
@@ -422,7 +422,7 @@ class TestGuardrailNoVerifyFalse:
     the helper with ``verify=False``.
     """
 
-    @pytest.mark.parametrize("directory", ["brokers", "scripts", "cli"])
+    @pytest.mark.parametrize("directory", ["src/brokers", "scripts", "src/interface/ui"])
     def test_no_verify_false(self, directory: str):
         if not (ROOT / directory).exists():
             pytest.skip(f"{directory}/ not present")
@@ -451,7 +451,7 @@ class TestGuardrailNoPickleLoad:
     vector; the Upstox loader previously had this pattern.
     """
 
-    @pytest.mark.parametrize("directory", ["brokers", "scripts", "cli"])
+    @pytest.mark.parametrize("directory", ["src/brokers", "scripts", "src/interface/ui"])
     def test_no_pickle_load(self, directory: str):
         if not (ROOT / directory).exists():
             pytest.skip(f"{directory}/ not present")
@@ -500,7 +500,7 @@ class TestGuardrailNoInlineUpstoxUrls:
         "https://sandbox-api-hft.upstox.com",
     )
 
-    @pytest.mark.parametrize("directory", ["brokers/upstox"])
+    @pytest.mark.parametrize("directory", ["src/brokers/upstox"])
     def test_no_inline_upstox_urls(self, directory: str):
         if not (ROOT / directory).exists():
             pytest.skip(f"{directory}/ not present")
@@ -537,7 +537,7 @@ class TestGuardrailNoBareTokenLogging:
     code should not put secrets in logs in the first place.
     """
 
-    @pytest.mark.parametrize("directory", ["brokers", "scripts", "cli"])
+    @pytest.mark.parametrize("directory", ["src/brokers", "scripts", "src/interface/ui"])
     def test_no_bare_token_logging(self, directory: str):
         if not (ROOT / directory).exists():
             pytest.skip(f"{directory}/ not present")
@@ -582,7 +582,7 @@ def _walk_production_files() -> list[Path]:
     """Return every production .py file (excluding tests, __pycache__, .venv)."""
     skip_dirs = ("tests", "__pycache__", ".venv", "venv", "build", "dist", ".git")
     skip_basenames = ("__init__",)
-    roots = ["brokers", "cli", "datalake", "analytics"]
+    roots = ["src/brokers", "src/interface/ui", "src/datalake", "src/analytics"]
     files: list[Path] = []
     for root in roots:
         root_path = ROOT / root
@@ -687,7 +687,7 @@ class TestPhase8Guardrails:
         """
         # We verify the OmsService class has the live_actionable check
         # by reading its source.
-        oms_path = ROOT / "cli" / "services" / "oms_service.py"
+        oms_path = ROOT / "src" / "interface" / "ui" / "services" / "oms_service.py"
         if not oms_path.exists():
             pytest.skip("OmsService source not found")
         text = oms_path.read_text()
@@ -703,7 +703,7 @@ class TestPhase8Guardrails:
         """Phase 1.2: ``BrokerService.live_actionable`` must exist so
         callers can query readiness before placing orders.
         """
-        bs_path = ROOT / "cli" / "services" / "broker_service.py"
+        bs_path = ROOT / "src" / "interface" / "ui" / "services" / "broker_service.py"
         if not bs_path.exists():
             pytest.skip("BrokerService source not found")
         text = bs_path.read_text()
@@ -718,7 +718,7 @@ class TestPhase8Guardrails:
         authenticator in ``infrastructure.auth.registry``.
         """
         from infrastructure.auth.registry import list_supported_brokers
-        from cli.services.broker_registry import ENV_FILES
+        from interface.ui.services.broker_registry import ENV_FILES
 
         authenticators = set(list_supported_brokers())
         registered_brokers = set(ENV_FILES.keys())
@@ -735,12 +735,12 @@ class TestPhase8Guardrails:
         """Phase 5: ``cli.services.compose.build_runtime`` is the
         single composition root for the trading runtime.
         """
-        compose_path = ROOT / "cli" / "services" / "compose.py"
+        compose_path = ROOT / "src" / "interface" / "ui" / "services" / "compose.py"
         if not compose_path.exists():
             pytest.skip("compose.py not present")
         text = compose_path.read_text()
         assert "def build_runtime" in text, (
-            "cli.services.compose.build_runtime is the single composition "
+            "interface.ui.services.compose.build_runtime is the single composition "
             "root for the trading runtime (Phase 5). Callers should "
             "use it instead of constructing BrokerService directly."
         )
@@ -751,7 +751,7 @@ class TestPhase8Guardrails:
         Without this, orders placed just before a crash are lost on
         restart.
         """
-        ctx_path = ROOT / "brokers" / "common" / "oms" / "context.py"
+        ctx_path = ROOT / "src" / "brokers" / "common" / "oms" / "context.py"
         if not ctx_path.exists():
             pytest.skip("TradingContext source not found")
         text = ctx_path.read_text()
@@ -766,7 +766,7 @@ class TestPhase8Guardrails:
         uses monotonic fill semantics and out-of-order WS delivery
         cannot decrease the running fill count.
         """
-        models_path = ROOT / "brokers" / "common" / "core" / "models.py"
+        models_path = ROOT / "src" / "brokers" / "common" / "core" / "models.py"
         if not models_path.exists():
             pytest.skip("models.py not found")
         text = models_path.read_text()

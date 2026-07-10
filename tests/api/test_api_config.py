@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from api.config import APIConfig
+from interface.api.config import APIConfig
 
 
 class TestAPIConfigDefaults:

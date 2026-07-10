@@ -114,7 +114,7 @@ def test_upstox_news():
     try:
         from io import StringIO
 
-        from cli.commands.news import run
+        from interface.ui.commands.news import run
         old_stdout = sys.stdout
         sys.stdout = StringIO()
         with contextlib.suppress(Exception):
@@ -122,11 +122,11 @@ def test_upstox_news():
         output = sys.stdout.getvalue()
         sys.stdout = old_stdout
         if "news" in output.lower() or "no broker" in output.lower() or "No news" in output:
-            record("cli.news", "CLI", PASS, f"CLI responded ({len(output)} chars)")
+            record("interface.ui.news", "CLI", PASS, f"CLI responded ({len(output)} chars)")
         else:
-            record("cli.news", "CLI", PASS, f"CLI responded")
+            record("interface.ui.news", "CLI", PASS, f"CLI responded")
     except Exception as e:
-        record("cli.news", "CLI", FAIL, f"{type(e).__name__}: {e}")
+        record("interface.ui.news", "CLI", FAIL, f"{type(e).__name__}: {e}")
 
     return gw
 

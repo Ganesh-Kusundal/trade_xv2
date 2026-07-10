@@ -45,14 +45,14 @@ jobs:
       - name: Import linter
         # Pin PYTHONPATH so `domain` resolves to this repo's src/domain
         # (avoids silent shadow from other editable installs / .pth files).
-        run: PYTHONPATH="${{ github.workspace }}/src:${{ github.workspace }}" lint-imports --config pyproject.toml
+        run: PYTHONPATH="${{ github.workspace }}/src" lint-imports --config pyproject.toml
       - name: Domain resolves in-repo
         run: |
-          PYTHONPATH="${{ github.workspace }}/src:${{ github.workspace }}" python -c "
+          PYTHONPATH="${{ github.workspace }}/src" python -c "
           import domain, pathlib, os
           root = pathlib.Path(os.environ['GITHUB_WORKSPACE']).resolve()
           path = pathlib.Path(domain.__file__).resolve()
-          assert str(path).startswith(str(root)), path
+          assert str(path).startswith(str(root / 'src')), path
           print('domain OK', path)
           "
       - name: Ruff check
@@ -65,7 +65,7 @@ jobs:
         # Target: Reduce to 0 errors by Phase 4, then remove allow_failure
         run: |
           set +e
-          mypy brokers/ 2>&1 | tee /tmp/mypy-output.txt
+          mypy src/brokers/ 2>&1 | tee /tmp/mypy-output.txt
           EXIT_CODE=$?
           set -e
           ERROR_COUNT=$(grep -oP 'Found \K\d+(?= errors)' /tmp/mypy-output.txt || echo "0")
@@ -76,7 +76,7 @@ jobs:
           fi
       - name: Bandit security scan
         run: |
-          bandit -r brokers/ cli/ datalake/ analytics/ -ll -f txt -o bandit-report.txt || true
+          bandit -r src/brokers/ src/interface/ui/ src/datalake/ src/analytics/ -ll -f txt -o bandit-report.txt || true
           # Upload report as artifact for review
       - name: Safety check
         run: |
@@ -120,8 +120,8 @@ jobs:
         run: |
           pytest -m "not integration and not sandbox and not live_readonly" \
             -n auto \
-            --cov=brokers --cov=cli --cov=datalake --cov=analytics \
-            --cov=application --cov=domain --cov=infrastructure \
+            --cov=brokers --cov=interface --cov=datalake --cov=analytics \
+            --cov=application --cov=domain --cov=infrastructure --cov=runtime \
             --cov=tests/chaos \
             --cov-branch --cov-report=term-missing --cov-report=xml \
             --junitxml=junit.xml -q --durations=10

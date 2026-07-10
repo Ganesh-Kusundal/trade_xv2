@@ -233,7 +233,7 @@ class TestReadOnlyEndpoints:
         gw._conn.margin.calculate.return_value = {"margin": 50000}
 
         # This test verifies the endpoint still works without ExtendedOrderService
-        from api.routers.live.extended import live_margin
+        from interface.api.routers.live.extended import live_margin
 
         # The function itself should not have changed
         assert live_margin is not None

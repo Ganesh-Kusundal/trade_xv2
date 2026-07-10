@@ -13,9 +13,9 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
-from api import deps
-from api.config import APIConfig
-from api.main import create_app
+from interface.api import deps
+from interface.api.config import APIConfig
+from interface.api.main import create_app
 
 
 class MockDataLakeGateway:
@@ -236,7 +236,7 @@ class TestCacheHeadersQuote:
         from decimal import Decimal
         from unittest.mock import MagicMock
 
-        import api.routers.market as market_router
+        import interface.api.routers.market as market_router
         from domain.candles.historical import InstrumentRef
         from domain.entities.market import QuoteSnapshot
         from domain.provenance import DataProvenance, ProvenanceConfidence, SourceIdentity

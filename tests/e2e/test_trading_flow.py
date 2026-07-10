@@ -11,7 +11,7 @@ class TestTradingFlow:
 
     def test_complete_quote_flow(self):
         """Verify: CLI → BrokerService → Gateway → Dhan API → Quote → CLI"""
-        from cli.services.broker_service import BrokerService
+        from interface.ui.services.broker_service import BrokerService
 
         # 1. Initialize broker service
         broker_service = BrokerService(load_instruments=True)
@@ -40,7 +40,7 @@ class TestTradingFlow:
         WARNING: This test should be run in sandbox/paper mode only!
         Set TRADING_MODE=paper in .env.local before running.
         """
-        from cli.services.broker_service import BrokerService
+        from interface.ui.services.broker_service import BrokerService
         from domain import OrderRequest
 
         broker_service = BrokerService(load_instruments=True)

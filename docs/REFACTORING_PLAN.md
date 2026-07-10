@@ -861,7 +861,7 @@ MODULES = [
     "tradex.runtime.observability.tracing",  # was infrastructure.observability.tracing
     "tradex.runtime.core.correlation",
     "tradex.runtime.resilience.errors",  # was infrastructure.global_exception_handler
-    "api.main",
+    "interface.api.main",
 ]
 ```
 

@@ -21,7 +21,7 @@ console = Console()
 
 def test_instrument_key_resolution():
     """Test that symbol resolver returns correct instrument keys."""
-    from cli.services.broker_registry import create_gateway
+    from interface.ui.services.broker_registry import create_gateway
 
     env_path = Path(".env.upstox")
     load_env_file(env_path)
@@ -69,7 +69,7 @@ def test_instrument_key_resolution():
 
 def test_historical_api():
     """Test historical API with resolved instrument keys."""
-    from cli.services.broker_registry import create_gateway
+    from interface.ui.services.broker_registry import create_gateway
 
     env_path = Path(".env.upstox")
     load_env_file(env_path)
@@ -107,7 +107,7 @@ def test_historical_api():
 
 def test_edge_cases():
     """Test edge cases that should produce warnings."""
-    from cli.services.broker_registry import create_gateway
+    from interface.ui.services.broker_registry import create_gateway
 
     env_path = Path(".env.upstox")
     load_env_file(env_path)

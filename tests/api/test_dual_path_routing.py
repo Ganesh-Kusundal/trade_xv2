@@ -13,9 +13,9 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from api.config import APIConfig
-from api.deps import di_container, reset_container
-from api.main import create_app
+from interface.api.config import APIConfig
+from interface.api.deps import di_container, reset_container
+from interface.api.main import create_app
 from config.feature_flags import FeatureFlags
 
 

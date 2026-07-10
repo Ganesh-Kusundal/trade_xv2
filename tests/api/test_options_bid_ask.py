@@ -14,7 +14,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import get_type_hints
 
-from api.schemas import OptionChainResponse, OptionContract, QuoteResponse
+from interface.api.schemas import OptionChainResponse, OptionContract, QuoteResponse
 from datalake.gateway import DataLakeGateway
 from domain import Quote
 

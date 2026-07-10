@@ -8,9 +8,9 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 ALLOWED_ALIAS_MODULES = {
-    "brokers/common/core/exchange_segments.py",
-    "brokers/dhan/segments.py",
-    "brokers/upstox/instruments/segment_mapper.py",
+    "src/brokers/common/core/exchange_segments.py",
+    "src/brokers/dhan/segments.py",
+    "src/brokers/upstox/instruments/segment_mapper.py",
 }
 
 
@@ -26,7 +26,7 @@ def _iter_py_files(*roots: str):
 def test_no_inline_exchange_alias_dicts_outside_adapters():
     forbidden_keys = {'"NSE": ExchangeSegment', '"MCX": ExchangeSegment', '"NFO": ExchangeSegment'}
     violations: list[str] = []
-    for path in _iter_py_files("brokers", "cli", "datalake"):
+    for path in _iter_py_files("src/brokers", "src/interface/ui", "src/datalake"):
         rel = str(path.relative_to(REPO_ROOT))
         if rel in ALLOWED_ALIAS_MODULES:
             continue
@@ -37,7 +37,7 @@ def test_no_inline_exchange_alias_dicts_outside_adapters():
 
 
 def test_dhan_domain_has_no_static_canonical_reexports():
-    domain_path = REPO_ROOT / "brokers/dhan/domain.py"
+    domain_path = REPO_ROOT / "src/brokers/dhan/domain.py"
     tree = ast.parse(domain_path.read_text(encoding="utf-8"))
     for node in tree.body:
         if isinstance(node, ast.ImportFrom) and node.module == "brokers.common.core.domain":
@@ -48,14 +48,14 @@ def test_dhan_domain_has_no_static_canonical_reexports():
 
 
 def test_order_manager_documents_orchestration_contract():
-    om_path = REPO_ROOT / "application/oms/order_manager.py"
+    om_path = REPO_ROOT / "src/application/oms/order_manager.py"
     text = om_path.read_text(encoding="utf-8")
     assert "Orchestration contract" in text
     assert "_internal" in text
 
 
 def test_api_orders_router_uses_oms_submit_fn():
-    orders_path = REPO_ROOT / "api/routers/orders.py"
+    orders_path = REPO_ROOT / "src/interface/api/routers/orders.py"
     text = orders_path.read_text(encoding="utf-8")
     assert (
         "order_manager.place_order" in text
@@ -70,7 +70,7 @@ def test_api_orders_router_uses_oms_submit_fn():
 
 
 def test_broker_service_exposes_oms_transport_submit():
-    svc_path = REPO_ROOT / "cli/services/broker_service.py"
+    svc_path = REPO_ROOT / "src/interface/ui/services/broker_service.py"
     text = svc_path.read_text(encoding="utf-8")
     assert "OmsBootstrap" in text
     assert "place_order" in text

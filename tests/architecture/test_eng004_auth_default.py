@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from api.config import APIConfig
+from interface.api.config import APIConfig
 
 
 def test_api_config_default_auth_is_api_key():
@@ -10,7 +10,7 @@ def test_api_config_default_auth_is_api_key():
 
 
 def test_metrics_not_in_public_paths():
-    from api.auth import PUBLIC_PATHS
+    from interface.api.auth import PUBLIC_PATHS
 
     assert "/metrics" not in PUBLIC_PATHS
     assert "/healthz" in PUBLIC_PATHS

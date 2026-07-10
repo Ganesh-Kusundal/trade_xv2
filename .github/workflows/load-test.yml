@@ -37,8 +37,8 @@ jobs:
         run: |
           python -c "
           import asyncio
-          from cli.load_testing.runner import LoadTestRunner
-          from cli.services.broker_service import BrokerService
+          from interface.ui.load_testing.runner import LoadTestRunner
+          from interface.ui.services.broker_service import BrokerService
           from brokers.paper.paper_gateway import PaperGateway
           
           async def main():

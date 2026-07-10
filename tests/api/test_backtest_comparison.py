@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from api.routers import backtest as backtest_router
-from api.schemas import BacktestMetrics, BacktestResultResponse
+from interface.api.routers import backtest as backtest_router
+from interface.api.schemas import BacktestMetrics, BacktestResultResponse
 from datalake.research.backtest_cache_store import BacktestCacheStore
 
 
@@ -51,9 +51,9 @@ class TestBacktestComparison:
 
         from fastapi.testclient import TestClient
 
-        from api.config import APIConfig
-        from api.deps import reset_container
-        from api.main import create_app
+        from interface.api.config import APIConfig
+        from interface.api.deps import reset_container
+        from interface.api.main import create_app
 
         reset_container()
         app = create_app(

@@ -47,7 +47,7 @@ class TestDhanTotpLive:
         assert os.environ.get("DHAN_CLIENT_ID")
 
     def test_bootstrap_gateway_authenticated_when_totp_configured(self):
-        from cli.services.broker_registry import bootstrap_gateway
+        from interface.ui.services.broker_registry import bootstrap_gateway
 
         result = bootstrap_gateway(
             "dhan",
@@ -93,7 +93,7 @@ class TestUpstoxTotpLive:
         assert manager.bearer_token()
 
     def test_bootstrap_gateway_authenticated_when_totp_configured(self):
-        from cli.services.broker_registry import bootstrap_gateway
+        from interface.ui.services.broker_registry import bootstrap_gateway
 
         result = bootstrap_gateway(
             "upstox",
@@ -120,7 +120,7 @@ class TestDhanBootstrapReadonlyLive:
     """Verify bootstrap + auth probe with an existing token (no forced TOTP)."""
 
     def test_bootstrap_reuses_valid_token_without_refresh(self):
-        from cli.services.broker_registry import bootstrap_gateway
+        from interface.ui.services.broker_registry import bootstrap_gateway
 
         result = bootstrap_gateway(
             "dhan",

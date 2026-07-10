@@ -18,7 +18,7 @@ MODULES = [
     "infrastructure.observability.tracing",
     "infrastructure.correlation",
     "infrastructure.global_exception_handler",
-    "api.main",
+    "interface.api.main",
 ]
 
 

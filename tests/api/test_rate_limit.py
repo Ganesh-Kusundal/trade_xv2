@@ -7,9 +7,9 @@ import time
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from api.config import APIConfig
-from api.main import create_app
-from api.middleware import RateLimitMiddleware, _SlidingWindowCounter
+from interface.api.config import APIConfig
+from interface.api.main import create_app
+from interface.api.middleware import RateLimitMiddleware, _SlidingWindowCounter
 
 
 class TestSlidingWindowCounter:

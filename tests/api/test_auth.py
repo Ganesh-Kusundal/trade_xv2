@@ -5,8 +5,8 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from api.config import APIConfig
-from api.main import create_app
+from interface.api.config import APIConfig
+from interface.api.main import create_app
 
 
 class TestAuthDisabled:
@@ -45,7 +45,7 @@ class TestAuthEnabled:
         # Force reimport of auth module to pick up new env vars
         import importlib
 
-        import api.auth
+        import interface.api.auth
 
         importlib.reload(api.auth)
 

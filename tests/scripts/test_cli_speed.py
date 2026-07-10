@@ -15,7 +15,7 @@ print("=" * 80)
 # Test 1: Import speed
 print("\n[1/4] Testing import speed...")
 start = time.time()
-from cli.services.broker_service import BrokerService
+from interface.ui.services.broker_service import BrokerService
 
 import_time = time.time() - start
 print(f"  ✅ Import time: {import_time:.3f}s")

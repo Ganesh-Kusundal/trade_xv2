@@ -13,14 +13,14 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi import HTTPException
 
-from api.config import APIConfig
-from api.deps import (
+from interface.api.config import APIConfig
+from interface.api.deps import (
     get_execution_composer,
     get_market_data_composer,
     reset_container,
     set_container,
 )
-from api.main import create_app
+from interface.api.main import create_app
 from fastapi.testclient import TestClient
 
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import api.ws.feed_wiring as feed_wiring
+import interface.api.ws.feed_wiring as feed_wiring
 
 
 class TestFeedWiringBrokerSymmetry:
@@ -16,7 +16,7 @@ class TestFeedWiringBrokerSymmetry:
         container = MagicMock()
         container.broker_service = MagicMock(active_gateway=gateway)
 
-        with patch("api.deps.get_container", return_value=container):
+        with patch("interface.api.deps.get_container", return_value=container):
             feed_wiring.subscribe_symbols_to_broker(["RELIANCE", "TCS"], exchange="NSE")
 
         assert gateway.stream.call_count == 2
@@ -29,7 +29,7 @@ class TestFeedWiringBrokerSymmetry:
         container.broker_service = MagicMock(active_gateway=gateway)
         feed_wiring._api_subscriptions["RELIANCE:NSE"] = ("RELIANCE", "NSE")
 
-        with patch("api.deps.get_container", return_value=container):
+        with patch("interface.api.deps.get_container", return_value=container):
             feed_wiring.unsubscribe_symbols_from_broker(["RELIANCE"], exchange="NSE")
 
         gateway.unstream.assert_called_once_with(symbol="RELIANCE", exchange="NSE")
@@ -38,7 +38,7 @@ class TestFeedWiringBrokerSymmetry:
     def test_unsubscribe_is_noop_when_container_unavailable(self) -> None:
         feed_wiring._api_subscriptions["RELIANCE:NSE"] = ("RELIANCE", "NSE")
 
-        with patch("api.deps.get_container", side_effect=RuntimeError("no app")):
+        with patch("interface.api.deps.get_container", side_effect=RuntimeError("no app")):
             feed_wiring.unsubscribe_symbols_from_broker(["RELIANCE"])
 
         assert "RELIANCE:NSE" in feed_wiring._api_subscriptions

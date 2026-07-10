@@ -17,18 +17,17 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 
-# Library / service packages that must not depend on the facade.
+# Library / service packages under src/ that must not depend on the facade.
 PROD_PACKAGES = (
     "src/domain",
-    "application",
-    "infrastructure",
-    "brokers",
-    "cli",
-    "api",
-    "config",
-    "datalake",
-    "analytics",
-    "runtime",
+    "src/application",
+    "src/infrastructure",
+    "src/brokers",
+    "src/interface",
+    "src/config",
+    "src/datalake",
+    "src/analytics",
+    "src/runtime",
 )
 
 # Allow the facade package itself (and its deprecation helper).
@@ -48,7 +47,9 @@ def _is_excluded(path: Path) -> bool:
         rel = path.relative_to(ROOT)
     except ValueError:
         return True
-    if rel.parts[:2] == FACADE_PREFIX:
+    if rel.parts[:2] == ("src", "tradex") and "runtime" in rel.parts:
+        return True
+    if len(rel.parts) >= 3 and rel.parts[0] == "src" and rel.parts[1] == "tradex" and rel.parts[2] == "runtime":
         return True
     return False
 
@@ -110,7 +111,7 @@ class TestNoTradexRuntimeInProduction:
 
 @pytest.mark.parametrize(
     "path",
-    _iter_prod_files()[:5],  # light parse sanity; full scan above
+    _iter_prod_files()[:5],
     ids=lambda p: str(p.relative_to(ROOT)),
 )
 def test_sample_prod_files_parse(path: Path) -> None:

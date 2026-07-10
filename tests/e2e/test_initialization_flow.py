@@ -10,7 +10,7 @@ class TestInitializationFlow:
 
     def test_dhan_initialization_succeeds(self):
         """Verify Dhan initialization completes successfully."""
-        from cli.services.broker_service import BrokerService
+        from interface.ui.services.broker_service import BrokerService
 
         broker_service = BrokerService(load_instruments=True)
         broker_service._ensure_dhan_initialized()
@@ -29,7 +29,7 @@ class TestInitializationFlow:
 
     def test_readonly_mode_skips_trading_context(self):
         """Verify readonly mode skips TradingContext initialization."""
-        from cli.services.broker_service import BrokerService
+        from interface.ui.services.broker_service import BrokerService
 
         broker_service = BrokerService(load_instruments=False, readonly=True)
         broker_service._ensure_dhan_initialized()
@@ -46,7 +46,7 @@ class TestInitializationFlow:
     def test_failed_readiness_cleans_up(self):
         """Verify failed readiness check cleans up properly (P-1.5 fix)."""
         from application.services.production_readiness import ProductionReadinessError
-        from cli.services.broker_service import BrokerService
+        from interface.ui.services.broker_service import BrokerService
 
         broker_service = BrokerService(load_instruments=True)
 

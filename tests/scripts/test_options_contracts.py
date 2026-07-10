@@ -36,7 +36,7 @@ def _test_broker_options(
         return False
 
     from infrastructure.config.env_loader import load_env_file
-    from cli.services.broker_registry import create_gateway
+    from interface.ui.services.broker_registry import create_gateway
 
     load_env_file(env_path)
 

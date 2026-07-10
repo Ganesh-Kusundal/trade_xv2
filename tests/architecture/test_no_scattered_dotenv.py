@@ -28,7 +28,7 @@ def _find_function_definitions(root: Path, func_name: str) -> list[tuple[Path, s
 
 def test_load_dotenv_is_single_source() -> None:
     """_load_dotenv must be defined in exactly one file: brokers/common/env_loader.py."""
-    hits = _find_function_definitions(_PROJECT_ROOT / "brokers", "_load_dotenv")
+    hits = _find_function_definitions(_PROJECT_ROOT / "src" / "brokers", "_load_dotenv")
     assert len(hits) <= 1, (
         f"_load_dotenv is defined in {len(hits)} files. "
         "It should exist only in brokers/common/env_loader.py:\n"

@@ -31,7 +31,7 @@ pytestmark = pytest.mark.skipif(
 @pytest.fixture(scope="module")
 def gateway():
     """Bootstrap a live Dhan gateway for the test module."""
-    from cli.services.broker_registry import bootstrap_gateway
+    from interface.ui.services.broker_registry import bootstrap_gateway
 
     result = bootstrap_gateway("dhan")
     if not result.ok:

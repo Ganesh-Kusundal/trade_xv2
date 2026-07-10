@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from api.schemas import OrderRequest
+from interface.api.schemas import OrderRequest
 
 
 class TestOrderRequestValidation:

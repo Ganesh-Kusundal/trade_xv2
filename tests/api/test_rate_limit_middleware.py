@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from api.middleware import (
+from interface.api.middleware import (
     SKIP_PATHS,
     HttpRequestMetrics,
     _is_id_like,

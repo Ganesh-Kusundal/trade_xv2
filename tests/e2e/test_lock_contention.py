@@ -15,7 +15,7 @@ class TestLockContention:
 
     def test_quote_works_with_oms_lock_held(self):
         """Verify quote command works even when OMS lock is held."""
-        from cli.main import main
+        from interface.ui.main import main
 
         # Acquire OMS lock
         lock_path = Path("market_data/oms_orders.sqlite.lock")
@@ -40,7 +40,7 @@ class TestLockContention:
 
         def run_quote(symbol):
             result = subprocess.run(
-                ["./venv/bin/python", "-m", "cli.main", "quote", symbol, "--json"],
+                ["./venv/bin/python", "-m", "interface.ui.main", "quote", symbol, "--json"],
                 capture_output=True,
                 text=True
             )
