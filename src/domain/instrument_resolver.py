@@ -22,6 +22,7 @@ from __future__ import annotations
 import logging
 import re
 from datetime import date, timedelta
+from decimal import Decimal
 
 from domain.instruments.instrument_id import InstrumentId
 
@@ -160,16 +161,21 @@ def _resolve_expiry(
     raise ValueError(f"Unknown expiry kind: {kind!r}")
 
 
-def _round_to_nearest_strike(price: float, tick: float = 50.0) -> int:
+def _round_to_nearest_strike(
+    price: float | Decimal | int,
+    tick: float | Decimal | int = 50,
+) -> int:
     """Round price to nearest strike price.
 
     NIFTY strikes are in multiples of 50.
     BANKNIFTY strikes are in multiples of 100.
     """
-    return int(round(price / tick) * tick)
+    p = Decimal(str(price))
+    t = Decimal(str(tick))
+    return int(round(p / t) * t)
 
 
-def _resolve_otm_itm_strike(spot: float, ref: str) -> int:
+def _resolve_otm_itm_strike(spot: float | Decimal | int, ref: str) -> int:
     """Resolve OTM/ITM strike reference.
 
     OTM1 = 1 strike OTM, OTM2 = 2 strikes OTM, etc.
@@ -181,7 +187,7 @@ def _resolve_otm_itm_strike(spot: float, ref: str) -> int:
 
     direction = match.group(1)
     steps = int(match.group(2))
-    tick = 50.0  # NIFTY strike tick
+    tick = Decimal("50")  # NIFTY strike tick
 
     base = _round_to_nearest_strike(spot, tick)
     if direction == "OTM":

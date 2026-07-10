@@ -64,5 +64,15 @@ class TestTimeService:
             time_service.exchange_now("INVALID")
 
     def test_now_returns_utc(self):
+        """time_service.now() is timezone-aware UTC (not naive wall clock)."""
         result = time_service.now()
+        assert result.tzinfo is not None
         assert result.tzinfo == timezone.utc
+        assert result.utcoffset() == timedelta(0)
+
+    def test_clock_reexports_same_singleton(self):
+        """Streaming path (clock) and full path share one TimeService instance."""
+        from infrastructure.time.clock import time_service as clock_ts
+
+        assert clock_ts is time_service
+        assert clock_ts.now().tzinfo == timezone.utc

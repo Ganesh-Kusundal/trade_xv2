@@ -35,10 +35,12 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Iterable
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from typing import Any
 
 from application.composer.factory import _fetch_gap_bars, _split_instrument_key
+from infrastructure.time.clock import time_service
+
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +108,7 @@ class GapReconciler:
             ``"NSE_EQ|RELIANCE"``) understood by
             ``factory._split_instrument_key``.
         now
-            Reference "current" time. Defaults to ``datetime.now(UTC)``.
+            Reference "current" time. Defaults to ``time_service.now()`` (UTC).
         already_covered_to
             Optional ``{key: datetime}`` mapping of ranges a recent reconnect
             backfill already filled, which are subtracted from the gap so we do
@@ -126,7 +128,8 @@ class GapReconciler:
         if not subscribed:
             return []
 
-        now = now or datetime.now(tz=timezone.utc)
+        now = now or time_service.now()
+
         already = already_covered_to or {}
 
         results: list[dict] = []

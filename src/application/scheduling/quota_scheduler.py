@@ -44,7 +44,7 @@ from typing import ClassVar
 
 from domain.errors import QuotaExhaustedError
 from domain.ports.broker_gateway import QuotaToken
-from brokers.common.broker_capabilities import RateLimitProfile
+from domain.capabilities.broker_capabilities import RateLimitProfile
 
 logger = logging.getLogger(__name__)
 

@@ -1,23 +1,23 @@
-"""Runtime clock — stdlib UTC time (no infrastructure dependency).
+"""Runtime clock facade for streaming / composer / provenance.
 
-Keeps ``tradex.runtime`` free of ``infrastructure`` imports so application
-code can use the kernel without violating hexagonal layering.
+Application modules should import the shared singleton from here::
+
+    from infrastructure.time.clock import time_service
+
+This re-exports the canonical :class:`~infrastructure.time_service.TimeService`
+instance so wall-clock reads share one object with
+``infrastructure.time_service.time_service`` (exchange calendars, epoch helpers).
+
+``now()`` is always timezone-aware UTC. Do not use naive ``datetime.now()`` for
+order, audit, or stream timestamps — use ``time_service.now()`` or
+``time_service.exchange_now(exchange)`` for exchange-local time.
 """
 
 from __future__ import annotations
 
-import time
-from datetime import datetime, timezone
+from infrastructure.time_service import TimeService, time_service
 
+# Backward-compatible name: same class as the full TimeService.
+Clock = TimeService
 
-class Clock:
-    """Minimal time source used by router / provenance / streams."""
-
-    def now(self) -> datetime:
-        return datetime.now(timezone.utc)
-
-    def timestamp(self) -> float:
-        return time.time()
-
-
-time_service = Clock()
+__all__ = ["Clock", "TimeService", "time_service"]

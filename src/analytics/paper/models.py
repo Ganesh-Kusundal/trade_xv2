@@ -12,12 +12,9 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any
 
-from domain.enums import OrderStatus
+from domain.enums import OrderStatus, Side
 
-
-class OrderSide(str, Enum):
-    BUY = "BUY"
-    SELL = "SELL"
+OrderSide = Side  # backward-compat alias (canonical Side)
 
 
 class PositionSide(str, Enum):
@@ -202,15 +199,13 @@ class PaperTrade:
         Price and PnL fields are coerced to ``Decimal``.
         """
         from domain.entities import Trade
-        from domain.types import Side
 
-        side = Side.BUY if self.side == OrderSide.BUY else Side.SELL
         return Trade(
             trade_id=f"paper:{self.symbol}:{id(self)}",
             order_id="",
             symbol=self.symbol,
             exchange="NSE",
-            side=side,
+            side=self.side,
             quantity=self.quantity,
             price=Decimal(str(self.exit_price)),
             trade_value=Decimal(str(abs(self.pnl))) if self.pnl != 0 else Decimal("0"),

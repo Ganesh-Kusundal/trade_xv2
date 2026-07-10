@@ -22,6 +22,8 @@ from analytics.paper.models import (
 )
 from analytics.pipeline.pipeline import FeaturePipeline
 from analytics.replay.models import Bar
+from domain.enums import Side
+from domain.orders.sizing import compute_order_quantity
 
 
 @pytest.fixture
@@ -83,6 +85,27 @@ class TestPaperConfig:
         assert c.max_positions == 10
 
 
+class TestOrderSideAlias:
+    def test_order_side_is_domain_side(self):
+        assert OrderSide is Side
+        assert OrderSide.BUY is Side.BUY
+        assert OrderSide.SELL == "SELL"
+
+    def test_compute_order_quantity_decimal(self):
+        from decimal import Decimal
+
+        assert compute_order_quantity(equity=100_000, price=250, max_position_pct=25) == 100
+        assert (
+            compute_order_quantity(
+                equity=Decimal("100000"),
+                price=Decimal("250.0"),
+                max_position_pct=Decimal("25"),
+            )
+            == 100
+        )
+        assert compute_order_quantity(equity=0, price=100, max_position_pct=10) == 0
+
+
 class TestPaperOrder:
     def test_order_value(self):
         o = PaperOrder(
@@ -94,7 +117,7 @@ class TestPaperOrder:
             order_time=datetime.now(timezone.utc),
         )
         assert o.order_value == 5000.0
-        assert o.status == OrderStatus.PENDING
+        assert o.status == OrderStatus.OPEN
 
     def test_fill_value(self):
         o = PaperOrder(
@@ -175,7 +198,8 @@ class TestPaperSession:
             entry_time=datetime.now(timezone.utc),
             current_price=110.0,
         )
-        assert s.total_equity == 81_000
+        # capital is cash; total_equity = cash + market_value (110 * 100)
+        assert s.total_equity == 91_000
         assert s.position_count == 1
         assert s.total_unrealized_pnl == 1000.0
 

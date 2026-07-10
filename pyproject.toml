@@ -316,16 +316,19 @@ name = "Infrastructure independence"
 type = "forbidden"
 source_modules = ["infrastructure"]
 forbidden_modules = ["brokers", "analytics", "interface", "application"]
+# Layout moves leave some ignores unused; warn instead of aborting the suite.
+unmatched_ignore_imports_alerting = "warn"
 ignore_imports = [
-    # Tests legitimately import application/infrastructure for integration testing.
+    # Tests legitimately import application/tradex for integration testing.
     "infrastructure.tests.test_audit -> application.audit",
+    "infrastructure.tests.test_session_recorder -> tradex.session",
     # Gateway factory is a composition root — it constructs broker gateways.
     "infrastructure.gateway.factory -> brokers.paper",
     # Gateway factory imports datalake (datalake.gateway re-exports broker capabilities).
     "infrastructure.gateway.factory -> datalake.gateway",
-    # Thin re-export shims: composition roots live in runtime/ (may wire application).
+    # Thin re-export shim: composition root lives in runtime/ (may wire application).
     "infrastructure.broker_infrastructure -> runtime.broker_infrastructure",
-    "infrastructure.session.infra -> runtime.session_infra",
+    # Note: infrastructure.session.infra was removed; runtime.session_infra is the home.
 ]
 
 [[tool.importlinter.contracts]]
@@ -340,49 +343,79 @@ forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper"]
 # order state. application.oms + application.execution are the concrete
 # Trading-context modules today (see
 # docs/architecture/trading-os/TRADING_OS_BLUEPRINT_V2.md Part 1 §4/§5).
+# Risk lives in application.oms (no separate risk package).
+# application.trading → analytics is allowed (orchestrator).
 name = "Trading does not import Analytics (D2)"
 type = "forbidden"
 source_modules = ["application.oms", "application.execution"]
 forbidden_modules = ["analytics"]
 
 [[tool.importlinter.contracts]]
+# D2 inverse: strategies/scanners must not reach into OMS/execution.
+name = "Analytics does not import Trading OMS/execution (D2 inverse)"
+type = "forbidden"
+source_modules = ["analytics"]
+forbidden_modules = ["application.oms", "application.execution"]
+
+[[tool.importlinter.contracts]]
 name = "Broker common isolation"
 type = "forbidden"
 source_modules = ["brokers.common"]
 forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper", "analytics"]
+unmatched_ignore_imports_alerting = "warn"
 ignore_imports = [
     # Test: integration tests legitimately import concrete broker implementations.
-    "brokers.common.tests.* -> brokers.dhan.*",
+    # Bare package + ** for nested modules (e.g. brokers.dhan.config.capabilities).
+    "brokers.common.tests.* -> brokers.dhan.**",
     "brokers.common.tests.* -> brokers.upstox",
-    "brokers.common.tests.* -> brokers.upstox.*",
-    "brokers.common.tests.* -> brokers.upstox.*.*",
+    "brokers.common.tests.* -> brokers.upstox.**",
     "brokers.common.tests.* -> brokers.paper",
-    "brokers.common.tests.* -> brokers.paper.*",
+    "brokers.common.tests.* -> brokers.paper.**",
 ]
 
 [[tool.importlinter.contracts]]
 name = "Application broker isolation"
 type = "forbidden"
 source_modules = ["application"]
-forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper"]
+# brokers.common is a residual facade — application must use domain.capabilities
+# (and domain.ports). Concrete brokers remain forbidden outside tests.
+forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper", "brokers.common"]
+unmatched_ignore_imports_alerting = "warn"
 ignore_imports = [
-    # Test-only: integration tests import concrete broker implementations.
-    "application.oms.tests.test_risk_manager_margin -> brokers.common.api",
-    "application.oms.tests.* -> brokers.dhan.reconciliation",
-    "application.oms.tests.* -> brokers.dhan.*",
-    "application.execution.tests.* -> brokers.paper.*",
-    "application.trading.tests.* -> brokers.paper.*",
+    # Test-only: integration tests import concrete broker / residual common modules.
+    "application.oms.tests.* -> brokers.common.**",
+    "application.oms.tests.* -> brokers.dhan.**",
+    "application.execution.tests.* -> brokers.paper.**",
+    "application.trading.tests.* -> brokers.paper.**",
 ]
+
+[[tool.importlinter.contracts]]
+name = "Analytics does not import interface presentation"
+type = "forbidden"
+source_modules = ["analytics"]
+forbidden_modules = ["interface.ui", "interface.api"]
+# Known residual: replay engine wires UI compose (lazy import) — fix under REF-6.
+# grimp often does not see function-local imports; warn if ignore goes unused.
+unmatched_ignore_imports_alerting = "warn"
+ignore_imports = [
+    "analytics.replay.engine -> interface.ui.services.compose",
+]
+
+# Known residual (NOT enforced yet): runtime.trading_runtime_factory lazily imports
+# interface.ui.services.broker_service. Do not add "runtime ↛ interface" until that
+# edge is removed (prefer composition-root injection). See REF-6 notes.
 
 [[tool.importlinter.contracts]]
 name = "Application infrastructure separation"
 type = "forbidden"
 source_modules = ["application"]
 forbidden_modules = ["infrastructure"]
+unmatched_ignore_imports_alerting = "warn"
 ignore_imports = [
     # Composer imports cross-cutting infrastructure directly (audit, time).
     "application.composer.router -> infrastructure.observability.audit",
     "application.composer.router -> infrastructure.time.clock",
+    "application.composer.gap_reconciler -> infrastructure.time.clock",
     # Services import infrastructure IO directly (parquet storage).
     "application.services.download_engine -> infrastructure.io.parquet",
     "application.services.historical_data -> infrastructure.io.parquet",
@@ -397,12 +430,10 @@ ignore_imports = [
     #   application.scheduling.quota_scheduler -> infrastructure.observability.audit
     # Test-only: integration tests legitimately import infrastructure.
     "application.oms.tests.* -> infrastructure.**",
-    # Test-only: break transitive application→infrastructure paths that hop via
-    # brokers/tradex facades (import-linter ignore_imports is edge-based, not path-based).
-    "application.oms.tests.* -> brokers.dhan.reconciliation",
-    "application.oms.tests.* -> brokers.dhan.*",
-    "application.oms.tests.test_risk_manager_margin -> brokers.common.api",
-    "application.oms.tests.test_risk_manager_margin -> brokers.common.oms.margin_provider",
+    # Test-only: break transitive application→infrastructure via broker facades
+    # (ignore_imports is edge-based, not path-based).
+    "application.oms.tests.* -> brokers.dhan.**",
+    "application.oms.tests.* -> brokers.common.**",
 ]
 
 [[tool.importlinter.contracts]]

@@ -17,6 +17,8 @@ from domain import (
     Trade,
     Validity,
 )
+from domain.orders.intent import OrderIntent
+from domain.symbols import normalize_exchange, normalize_symbol
 
 from .paper_market_data import PaperMarketData
 
@@ -119,15 +121,18 @@ class PaperOrders:
         trigger_price: Decimal,
         correlation_id: str | None,
     ) -> Order:
-        """Route through OrderManager.place_order for idempotency + risk + events."""
-        from application.oms.order_manager import OmsOrderCommand
+        """Route through OrderManager.place_order for idempotency + risk + events.
 
+        Builds a domain :class:`OrderIntent` (not application ``OmsOrderCommand``)
+        so brokers never import the application layer. OrderManager only needs
+        duck-typed attributes (symbol/side/qty/…); OrderIntent matches that shape.
+        """
         self._order_seq += 1
         seq = self._order_seq
 
-        cmd = OmsOrderCommand(
-            symbol=symbol,
-            exchange=exchange,
+        cmd = OrderIntent(
+            symbol=normalize_symbol(symbol),
+            exchange=normalize_exchange(exchange),
             side=side,
             quantity=quantity,
             price=price,
@@ -143,7 +148,7 @@ class PaperOrders:
         )
         is_market = order_type == OrderType.MARKET
 
-        def _fill(cmd: OmsOrderCommand) -> Order:
+        def _fill(cmd: OrderIntent) -> Order:
             if is_market:
                 return Order(
                     order_id=f"PPR-{seq:06d}",
