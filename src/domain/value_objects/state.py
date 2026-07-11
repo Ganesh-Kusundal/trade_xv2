@@ -8,12 +8,19 @@ updated.  The Aggregate replaces the entire state atomically (thread-safe).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from domain.entities.market import MarketDepth, QuoteSnapshot
+
+
+def _utc_now() -> datetime:
+    """Clock accessor — uses domain ClockPort when available (TOS-P1-003)."""
+    from domain.ports.time_service import get_current_clock
+
+    return get_current_clock().now()
 
 
 class SubscriptionStatus(str, Enum):
@@ -49,8 +56,7 @@ class SubscriptionState:
         """Seconds since subscription started, or None if not subscribed."""
         if self.started_at is None:
             return None
-        now = datetime.now(timezone.utc)
-        return (now - self.started_at).total_seconds()
+        return (_utc_now() - self.started_at).total_seconds()
 
     def with_status(
         self,
@@ -101,8 +107,7 @@ class InstrumentState:
         """Seconds since last state update, or None if never updated."""
         if self.last_update is None:
             return None
-        now = datetime.now(timezone.utc)
-        return (now - self.last_update).total_seconds()
+        return (_utc_now() - self.last_update).total_seconds()
 
     def with_quote(self, quote: QuoteSnapshot) -> InstrumentState:
         """Return a new state with an updated quote snapshot."""
@@ -110,7 +115,7 @@ class InstrumentState:
             quote=quote,
             depth=self.depth,
             subscription=self.subscription,
-            last_update=datetime.now(timezone.utc),
+            last_update=_utc_now(),
             error=None,
         )
 
@@ -120,7 +125,7 @@ class InstrumentState:
             quote=self.quote,
             depth=depth,
             subscription=self.subscription,
-            last_update=datetime.now(timezone.utc),
+            last_update=_utc_now(),
             error=None,
         )
 

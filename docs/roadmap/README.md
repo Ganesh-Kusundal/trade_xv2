@@ -2,36 +2,32 @@
 
 | Doc | Purpose |
 |---|---|
-| **[TRADING-OS-EXECUTION-ROADMAP.md](./TRADING-OS-EXECUTION-ROADMAP.md)** | **Canonical** multi-phase execution plan (code-verified 2026-07-12). Direct commits; security deferred. |
-| [ENGINEERING-BACKLOG-TOS.md](./ENGINEERING-BACKLOG-TOS.md) | TOS-* task backlog + done tracker |
-| [EXECUTION-ROADMAP-2026-07-11.md](./EXECUTION-ROADMAP-2026-07-11.md) | Prior DR-*/TRANS phase plan (historical + §9 status) |
-| [DEEP-REVIEW-2026-07-11.md](./DEEP-REVIEW-2026-07-11.md) | Evidence-backed DR-* findings register |
+| **[TRADING-OS-EXECUTION-ROADMAP.md](./TRADING-OS-EXECUTION-ROADMAP.md)** | Multi-phase execution plan |
+| [ENGINEERING-BACKLOG-TOS.md](./ENGINEERING-BACKLOG-TOS.md) | TOS-* done + remaining polish |
+| [EXECUTION-ROADMAP-2026-07-11.md](./EXECUTION-ROADMAP-2026-07-11.md) | Historical DR-* plan |
+| [DEEP-REVIEW-2026-07-11.md](./DEEP-REVIEW-2026-07-11.md) | Findings register |
 
-## Live status (2026-07-12 Series A)
+## Live status (2026-07-12 — program wave complete for core TOS-*)
 
 | Check | Result |
 |---|---|
-| import-linter | **15 kept, 0 broken** |
-| Extended-order component test | **Pass** (`OrderCapabilityPort`) |
-| `@pytest.mark.architecture` | **Registered** |
-| UI concrete broker imports | **None** (accessors in `runtime.broker_accessors`) |
-| Ad-hoc `new_event_loop` outside boundary | **0** |
-| Security track (DR-I3) | **Deferred** |
+| import-linter | **15/15** |
+| Event-loop boundary | **0** ad-hoc outside `runtime.event_loop` |
+| UI concrete brokers | **0** (via `runtime.broker_accessors`) |
+| OMS broker-agnostic | **Yes** (`OrderCapabilityPort`) |
+| Bus goldens | Dhan + Upstox |
+| Order spine | Arch-enforced OMS + ledger outbox |
+| Money SSOT | primitives = value_objects alias |
+| VO wall-clock | via `ClockPort` |
+| GOLDEN_DIR | `tests/fixtures/golden` |
+| Security (DR-I3) | **Deferred** (ADR-023) |
 
-### Done (not to redo)
+### Remaining polish
 
-DR-B1/B2/B3 · DR-F2–F5 · DR-E3 · DR-I2 · DR-T2/T4 · TOS-P3-* · TOS-P5-001/002/003/010/020/021/022 · TOS-P4-001
+Full Money/Quantity field migration on aggregates, deeper chaos/load, MCP parity gaps, full P6 capability packages — see backlog "Remaining / continuous".
 
-### Next critical path
+### Workflow
 
-1. VO/MarketSurface (TOS-P1-003/004, TOS-P5-030)  
-2. TOS-P5-011 stream→OMS lock discipline  
-3. P6 features · P7 ops  
-
-Full audit table and task IDs: [TRADING-OS-EXECUTION-ROADMAP.md](./TRADING-OS-EXECUTION-ROADMAP.md).
-
-## Workflow
-
-- **Direct commits** on `refactor/structural-cleanup` (no PRs)  
-- Per commit: `lint-imports` + relevant pytest  
-- **Do not touch** `src/infrastructure/security/**`
+- Direct commits (no PRs)
+- Gates: `lint-imports` + `pytest tests/architecture`
+- Do not touch `src/infrastructure/security/**`

@@ -11,6 +11,9 @@
 | Date | Series | Result |
 |---|---|---|
 | 2026-07-12 | **A — Trust** | TOS-P3-002 test fixed; TOS-P3-001 `application.oms.ledger_authority` → import-linter **15/15**; TOS-P3-003 architecture marker registered; roadmap materialized |
+| 2026-07-12 | **B — Composition/concurrency** | factory.build, broker_accessors, event_loop boundary (0 baseline) |
+| 2026-07-12 | **C — Spine/golden** | bus goldens, order spine, portfolio mirror, GOLDEN_DIR |
+| 2026-07-12 | **D — Close core TOS-*** | VOs, ADRs 021–023, plugins, strategy discover, lake chains, equity costs, MarketSurface defaults, wire/lock arch tests |
 
 ---
 

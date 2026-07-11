@@ -27,6 +27,10 @@ class OrderIntent:
 
     ``correlation_id`` is required for OMS idempotency. When omitted at
     construction time, a unique id is generated.
+
+    Prefer alias :data:`TradingIntent` in new code (TOS-P1-002). Distinct from
+    durable ledger :class:`domain.execution_contracts.OrderIntent`
+    (``PersistedOrderIntent``).
     """
 
     symbol: str
@@ -48,3 +52,7 @@ class OrderIntent:
             raise ValueError("symbol is required")
         if not (self.correlation_id or "").strip():
             object.__setattr__(self, "correlation_id", _new_correlation_id())
+
+
+# Preferred name for pre-risk desire (TOS-P1-002)
+TradingIntent = OrderIntent

@@ -151,6 +151,30 @@ class DataLakeGateway(MarketDataGateway):
             df["timeframe"] = timeframe
         return df
 
+    def query_candles(
+        self,
+        symbol: str,
+        timeframe: str,
+        *,
+        from_ts: pd.Timestamp | None = None,
+        to_ts: pd.Timestamp | None = None,
+        limit: int | None = None,
+    ) -> pd.DataFrame | None:
+        """Filter lake OHLCV for API routes (storage read; domain ingress follows)."""
+        symbol = normalize_symbol(symbol)
+        df = self._load_parquet(symbol, timeframe)
+        if df is None or df.empty:
+            return None
+        ts = pd.to_datetime(df["timestamp"])
+        if from_ts is not None:
+            df = df.loc[ts >= from_ts].copy()
+            ts = pd.to_datetime(df["timestamp"])
+        if to_ts is not None:
+            df = df.loc[ts <= to_ts].copy()
+        if limit is not None and limit > 0:
+            df = df.tail(limit)
+        return df.reset_index(drop=True)
+
     def quote(self, symbol: str, exchange: str = "NSE") -> Quote:
         from domain import Quote as _Quote
         symbol = normalize_symbol(symbol)
@@ -189,14 +213,89 @@ class DataLakeGateway(MarketDataGateway):
         exchange: str = "NSE",
         expiry: str | None = None,
     ) -> dict:
-        return {"underlying": underlying, "calls": [], "puts": [], "expiry": expiry}
+        """Load option chain from lake parquet when present (TOS-P6-002).
+
+        Looks under ``{root}/options/chains/expiry=*/underlying={u}/data.parquet``.
+        Returns empty calls/puts when no files exist (not a hard failure).
+        """
+        from pathlib import Path
+
+        underlying = normalize_symbol(underlying)
+        root = self._root
+        chains_root = root / "options" / "chains"
+        calls: list[dict] = []
+        puts: list[dict] = []
+        resolved_expiry = expiry
+        try:
+            if chains_root.exists():
+                pattern = (
+                    f"expiry={expiry}/underlying={underlying}/data.parquet"
+                    if expiry
+                    else f"expiry=*/underlying={underlying}/data.parquet"
+                )
+                files = sorted(chains_root.glob(pattern))
+                if files and expiry is None:
+                    # Prefer latest expiry directory name.
+                    resolved_expiry = files[-1].parts[-3].split("=", 1)[-1]
+                for path in files[-3:]:  # cap reads
+                    try:
+                        import pandas as pd
+
+                        df = pd.read_parquet(path)
+                        if df is None or df.empty:
+                            continue
+                        side_col = "option_type" if "option_type" in df.columns else "type"
+                        for _, row in df.iterrows():
+                            rec = {str(k): (None if pd.isna(v) else v) for k, v in row.items()}
+                            ot = str(rec.get(side_col, "")).upper()
+                            if ot in ("CE", "CALL", "C"):
+                                calls.append(rec)
+                            elif ot in ("PE", "PUT", "P"):
+                                puts.append(rec)
+                            else:
+                                calls.append(rec)
+                    except Exception:
+                        continue
+        except Exception:
+            pass
+        return {
+            "underlying": underlying,
+            "exchange": exchange,
+            "calls": calls,
+            "puts": puts,
+            "expiry": resolved_expiry,
+        }
 
     def future_chain(
         self,
         underlying: str,
         exchange: str = "NFO",
     ) -> list[dict]:
-        return []
+        """Load futures chain from lake when present (TOS-P6-002)."""
+        from pathlib import Path
+
+        underlying = normalize_symbol(underlying)
+        root = self._root
+        fut_root = root / "futures" / "chains"
+        out: list[dict] = []
+        try:
+            if fut_root.exists():
+                import pandas as pd
+
+                for path in sorted(fut_root.glob(f"underlying={underlying}/**/data.parquet")):
+                    try:
+                        df = pd.read_parquet(path)
+                        if df is None or df.empty:
+                            continue
+                        for _, row in df.iterrows():
+                            out.append(
+                                {str(k): (None if pd.isna(v) else v) for k, v in row.items()}
+                            )
+                    except Exception:
+                        continue
+        except Exception:
+            pass
+        return out
 
     def stream(self, symbols: list[str], exchange: str = "NSE") -> Any:
         raise NotImplementedError("DataLakeGateway does not support live streaming")

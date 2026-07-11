@@ -168,8 +168,12 @@ class BreakoutStrategy:
 
         last = features.iloc[-1]
         close = float(last.get("close", 0.0))
-        swing_high = float(last.get("swing_high", close))
-        swing_low = float(last.get("swing_low", close))
+        swing_high = float(
+            last.get("last_swing_high", last.get("swing_high", close))
+        )
+        swing_low = float(
+            last.get("last_swing_low", last.get("swing_low", close))
+        )
         sma20 = float(last.get("sma_20", close))
         volume = float(last.get("volume", 0.0))
         volume_sma = float(last.get("volume_sma", volume))
@@ -208,6 +212,31 @@ class BreakoutStrategy:
 # ---------------------------------------------------------------------------
 
 
+def _default_strategies() -> list[Strategy]:
+    """Discover strategies via registry (TOS-P6-001); fall back to builtins."""
+    from analytics.strategy.registry import StrategyRegistry
+
+    # Ensure built-ins are registered at least once.
+    if "momentum" not in StrategyRegistry.list():
+        StrategyRegistry.register("momentum", MomentumStrategy)
+    if "breakout" not in StrategyRegistry.list():
+        StrategyRegistry.register("breakout", BreakoutStrategy)
+    try:
+        StrategyRegistry.discover("analytics.strategy.builtins")
+    except Exception:  # pragma: no cover - discovery best-effort
+        pass
+    names = StrategyRegistry.list()
+    if not names:
+        return [MomentumStrategy(), BreakoutStrategy()]
+    out: list[Strategy] = []
+    for name in names:
+        try:
+            out.append(StrategyRegistry.create(name))
+        except Exception:
+            continue
+    return out or [MomentumStrategy(), BreakoutStrategy()]
+
+
 @dataclass
 class StrategyPipeline:
     """Orchestrates Strategy evaluation across Candidates.
@@ -216,12 +245,10 @@ class StrategyPipeline:
     ----------
     strategies:
         List of Strategy instances to evaluate each candidate.
-        Defaults to [MomentumStrategy, BreakoutStrategy].
+        Defaults via StrategyRegistry.discover (TOS-P6-001).
     """
 
-    strategies: list[Strategy] = field(
-        default_factory=lambda: [MomentumStrategy(), BreakoutStrategy()]
-    )
+    strategies: list[Strategy] = field(default_factory=_default_strategies)
 
     def evaluate(
         self,

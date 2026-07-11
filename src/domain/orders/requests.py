@@ -33,9 +33,11 @@ class OrderRequest:
     Domain-level consumers (``OrderManager``, ``RiskManager``,
     ``OrderRepository``) should accept ``OrderRequest``; broker adapters that
     need transport metadata should accept ``BrokerOrderPayload``.
+
+    Exchange default is a placeholder; composition roots should set exchange
+    from :class:`market_data.market_surface.MarketSurface` (TOS-P5-030).
     """
 
-    security_id: str = ""
     symbol: str = ""
     exchange: str = "NSE"
     transaction_type: Side = Side.BUY
@@ -54,6 +56,18 @@ class OrderRequest:
     # defined here, causing every Dhan place_order call to raise
     # AttributeError -- the field was missing, not the access being wrong.
     disclosed_quantity: int | None = None
+    # ── Algo-execution parameters (populated by the ExecutionPlan planner) ──
+    # Slicing algorithm to apply at the execution layer. One of
+    # "NONE" / "TWAP" / "VWAP" / "ICEBERG" (see domain.orders.execution_plan).
+    slicing_algo: str = "NONE"
+    # Number of child slices to split `quantity` into (TWAP/VWAP/ICEBERG).
+    slice_count: int = 1
+    # Seconds between slices (TWAP/VWAP cadence).
+    slice_interval: int = 0
+    # TWAP horizon in seconds (total duration of the TWAP schedule).
+    twap_duration: int | None = None
+    # VWAP target participation rate as a fraction (e.g. 0.1 = 10% of volume).
+    vwap_participation_rate: Decimal | None = None
 
 
 @dataclass(slots=True, frozen=True)
@@ -81,6 +95,56 @@ class SliceOrderRequest:
     product_type: ProductType = ProductType.INTRADAY
 
 
+def expand_slice_request(
+    req: SliceOrderRequest,
+    slice_count: int,
+    disclosed_qty: int | None = None,
+) -> list[OrderRequest]:
+    """Consumer path for :class:`SliceOrderRequest`.
+
+    Splits ``req.quantity`` into ``slice_count`` child :class:`OrderRequest`
+    objects. With ``disclosed_qty`` set the algo is ICEBERG (each child shows
+    only ``disclosed_qty``); otherwise TWAP. Child correlation ids append a
+    ``:sliceN`` suffix so each remains idempotent at the OMS.
+    """
+    total = max(0, req.quantity)
+    if total <= 0:
+        return []
+    if disclosed_qty and disclosed_qty > 0:
+        # ICEBERG: reveal `disclosed_qty` per slice, remainder on the last.
+        disc = max(1, disclosed_qty)
+        n = (total + disc - 1) // disc
+        qtys = [disc] * (n - 1) + [total - disc * (n - 1)]
+        algo = "ICEBERG"
+        out_disc: int | None = disc
+    else:
+        # TWAP: split into `slice_count` equal-ish chunks.
+        n = slice_count if slice_count and slice_count > 0 else 1
+        base, rem = divmod(total, n)
+        qtys = [base + (1 if i < rem else 0) for i in range(n)]
+        algo = "TWAP"
+        out_disc = None
+    out: list[OrderRequest] = []
+    for qty in qtys:
+        if qty <= 0:
+            continue
+        out.append(
+            OrderRequest(
+                symbol=req.symbol,
+                exchange=req.exchange,
+                transaction_type=req.side,
+                quantity=qty,
+                order_type=req.order_type,
+                product_type=req.product_type,
+                slice=True,
+                slice_count=n,
+                disclosed_quantity=out_disc,
+                slicing_algo=algo,
+            )
+        )
+    return out
+
+
 @dataclass(slots=True, frozen=True)
 class OrderPreview:
     """Outcome of pre-flight order validation."""
@@ -92,17 +156,4 @@ class OrderPreview:
     margin_required: Decimal | None = None
 
 
-@dataclass(slots=True, frozen=True)
-class HistoricalCandle:
-    """A single OHLCV candle returned by the historical-data endpoint."""
-
-    timestamp: datetime | None = None
-    symbol: str = ""
-    exchange: str = "NSE"
-    open: Decimal = Decimal("0")
-    high: Decimal = Decimal("0")
-    low: Decimal = Decimal("0")
-    close: Decimal = Decimal("0")
-    volume: int = 0
-    open_interest: int = 0
-    timeframe: str = "1D"
+# HistoricalCandle removed — use domain.candles.historical.HistoricalBar (ADR-020).

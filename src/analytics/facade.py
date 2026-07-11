@@ -6,8 +6,6 @@ import logging
 
 import pandas as pd
 
-from domain.ports.data_catalog import DEFAULT_DATA_ROOT
-
 from analytics.backtest import (
     BacktestConfig,
     BacktestEngine,
@@ -17,8 +15,6 @@ from analytics.core.feature_builder import FeatureBuilder
 from analytics.core.instrument_analyzer import InstrumentAnalyzer
 from analytics.core.models import AnalysisResult
 from analytics.core.providers import MarketDataProvider
-from domain.aggregates.instrument import InstrumentAggregate
-
 from analytics.futures.futures_analytics import FuturesAnalytics
 from analytics.market_breadth.breadth import BreadthAnalytics, SectorAnalytics
 from analytics.options.options_analytics import OptionsAnalytics
@@ -35,6 +31,8 @@ from analytics.strategy.models import StrategyResult
 from analytics.strategy.pipeline import StrategyPipeline
 from analytics.volatility.volatility_analytics import VolatilityAnalytics
 from analytics.volume_profile.volume_profile import VolumeProfileBuilder
+from domain.aggregates.instrument import InstrumentAggregate
+from domain.ports.data_catalog import DEFAULT_DATA_ROOT
 
 logger = logging.getLogger(__name__)
 
@@ -104,12 +102,23 @@ class Analytics:
     @property
     def _scanners(self) -> dict[str, type]:
         if "scanners" not in self._cache:
+            # TOS-P6-001: default set is a registry dict; drop-in scanners
+            # can extend this map without editing call sites that only read it.
             self._cache["scanners"] = {
                 "momentum": MomentumScanner,
                 "volume": VolumeScanner,
                 "rs": RSScanner,
                 "breakout": BreakoutScanner,
             }
+            # Optional extension hook: analytics.scanner.plugins if present.
+            try:
+                from analytics.scanner import plugins as _scan_plugins  # type: ignore
+
+                extra = getattr(_scan_plugins, "SCANNER_REGISTRY", None)
+                if isinstance(extra, dict):
+                    self._cache["scanners"].update(extra)
+            except ImportError:
+                pass
         return self._cache["scanners"]  # type: ignore[return-value]
 
     @property
@@ -145,6 +154,60 @@ class Analytics:
     @classmethod
     def from_provider(cls, provider: MarketDataProvider) -> Analytics:
         return cls(provider=provider)
+
+    @property
+    def statistics_engine(self):
+        """Lazily-created standalone StatisticsEngine (Tier 2-E).
+
+        Lets callers compute performance metrics from an equity curve and
+        trades directly, without running a full backtest or replay.
+        """
+        if "statistics" not in self._cache:
+            from domain.analytics.statistics import StatisticsEngine
+
+            self._cache["statistics"] = StatisticsEngine()
+        return self._cache["statistics"]
+
+    def statistics(
+        self,
+        equity_curve: list,
+        trades: list | None = None,
+        *,
+        annualization_factor: int = 252,
+        risk_free_rate: float = 0.065,
+        benchmark: pd.DataFrame | None = None,
+    ) -> dict:
+        """Compute performance metrics directly from an equity curve + trades.
+
+        Parameters
+        ----------
+        equity_curve:
+            Sequence of ``(timestamp, equity)`` samples.
+        trades:
+            Optional iterable of completed trades (any objects exposing
+            ``.pnl``, ``.pnl_pct``, ``.entry_time``, ``.exit_time``,
+            ``.strategy``).
+        annualization_factor, risk_free_rate:
+            Annualization parameters forwarded to the StatisticsEngine.
+        benchmark:
+            Optional benchmark OHLCV DataFrame for alpha/beta/IR.
+
+        Returns
+        -------
+        Dict with the same metric keys produced by the backtest engine.
+        """
+        trades = trades or []
+        initial = equity_curve[0][1] if equity_curve else 0.0
+        final = equity_curve[-1][1] if equity_curve else 0.0
+        return self.statistics_engine.compute(
+            equity_curve,
+            trades,
+            initial=initial,
+            final=final,
+            annualization_factor=annualization_factor,
+            risk_free_rate=risk_free_rate,
+            benchmark=benchmark,
+        )
 
     @property
     def has_instrument(self) -> bool:
