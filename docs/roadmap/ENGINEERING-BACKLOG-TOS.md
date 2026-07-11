@@ -4,7 +4,7 @@
 **Workflow:** direct commits on working branch (no PRs).  
 **Canonical plan:** [TRADING-OS-EXECUTION-ROADMAP.md](./TRADING-OS-EXECUTION-ROADMAP.md)
 
-## Done (Series A — 2026-07-12)
+## Done
 
 | ID | Notes |
 |---|---|
@@ -12,14 +12,14 @@
 | TOS-P3-001 | Pure `application.oms.ledger_authority`; import-linter **15/15** |
 | TOS-P3-003 | Registered `@pytest.mark.architecture` in pyproject.toml |
 | TOS-P5-003 | Dhan retry policies module; single infra RetryExecutor |
+| TOS-P5-001 | `runtime.factory.build` + compose arch test |
+| TOS-P5-002 | Concrete broker accessors in `runtime.broker_accessors`; UI clean |
+| TOS-P5-010 | All `new_event_loop` only in `runtime.event_loop` (0 baseline) |
 
 ## Next up (priority order)
 
 | Pri | ID | Description |
 |---|---|---|
-| P0 | TOS-P5-001 | Enforce `runtime.factory.build` sole trade spine |
-| P0 | TOS-P5-002 | UI concrete broker imports → single non-UI module |
-| P0 | TOS-P5-010a–e | Migrate ad-hoc `new_event_loop` baseline (5 files) |
 | P0 | TOS-P5-011 | Stream→OMS lock discipline tests |
 | P0 | TOS-P5-020 | Golden-bus both brokers; live bus required |
 | P0 | TOS-P5-021 | Single place-order path all modes |
@@ -38,7 +38,7 @@
 
 ## Do not reopen without regression
 
-DR-B1/B2/B3 · DR-F2–F5 · DR-E3 · DR-I2 · DR-T2/T4
+DR-B1/B2/B3 · DR-F2–F5 · DR-E3 · DR-I2 · DR-T2/T4 · TOS-P5-001/002/003/010
 
 ## Explicitly deferred
 
