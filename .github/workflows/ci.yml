@@ -41,7 +41,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
       - name: Constants placement check
-        run: python scripts/check_constants_placement.py
+        run: python scripts/verify/check_constants_placement.py
       - name: Import linter
         # Pin PYTHONPATH so `domain` resolves to this repo's src/domain
         # (avoids silent shadow from other editable installs / .pth files).
@@ -55,14 +55,62 @@ jobs:
           assert str(path).startswith(str(root / 'src')), path
           print('domain OK', path)
           "
+      - name: Pytest collection check (fail on collection errors)
+        # DR-T4 / TRANS-P3-001: keep the tree at zero pytest collection errors.
+        # pytest exits non-zero on collection errors; we also grep explicitly so
+        # the failure is visible and not masked by later steps.
+        run: |
+          PYTHONPATH="${{ github.workspace }}/src" pytest --collect-only -q -p no:cacheprovider 2>&1 | tee /tmp/collect.txt
+          if grep -qiE "error collecting|ERROR collecting" /tmp/collect.txt; then
+            echo "::error::Pytest collection errors detected — failing build (DR-T4)"
+            exit 1
+          fi
+          echo "pytest collection OK (no errors)"
       - name: Ruff check
         run: ruff check .
       - name: Ruff format check
         run: ruff format --check .
-      - name: MyPy (check + track)
-        # Phase 0: Run MyPy on all brokers/ code, track error count
-        # Errors are logged but don't block CI yet (499 errors exist)
-        # Target: Reduce to 0 errors by Phase 4, then remove allow_failure
+      - name: MyPy (domain + OMS core — ERROR gate)
+        # DR-T3: type-checks the domain + application/oms submodules that currently
+        # pass mypy with 0 errors (verified: "Success: no issues found in 75 source
+        # files"). This gate FAILS on any type error (no || true, no continue-on-error)
+        # so a regression in a clean module turns CI red. The remaining error-bearing
+        # modules are NOT yet enforced and are tracked below, to be folded in
+        # incrementally (full repo flip deferred to P7):
+        #   domain: candles, entities, events, executions, extensions, futures,
+        #           indicators, instruments, options, orders, policies, portfolio,
+        #           ports, services, specifications
+        #   application/oms: _internal, capital_provider, context,
+        #           extended_order_service, order_manager, position_manager,
+        #           reconciliation_service, session_bridge, trade_recorder
+        run: |
+          set -e
+          MYPY_CLEAN=(
+            src/domain/aggregates src/domain/analytics src/domain/backtest
+            src/domain/capability_manifest src/domain/constants src/domain/market
+            src/domain/models src/domain/primitives src/domain/providers src/domain/quotes
+            src/domain/repositories src/domain/risk src/domain/scanners src/domain/sessions
+            src/domain/value_objects src/domain/extensions/broker_plugin_interface.py
+            src/application/oms/reconciliation
+            src/application/oms/__init__.py src/application/oms/composition.py
+            src/application/oms/daily_pnl_reset_scheduler.py src/application/oms/errors.py
+            src/application/oms/factory.py src/application/oms/idempotency_guard.py
+            src/application/oms/ledger_outbox.py src/application/oms/ledger_shadow.py
+            src/application/oms/ledger_authority.py
+            src/application/oms/order_audit_logger.py src/application/oms/order_position_updater.py
+            src/application/oms/order_repository_adapter.py src/application/oms/order_state_validator.py
+            src/application/oms/order_validator.py src/application/oms/position_repository_adapter.py
+            src/application/oms/process_context.py src/application/oms/protocols.py
+            src/application/oms/recon_heal_policy.py src/application/oms/risk_manager.py
+            src/application/oms/square_off_service.py
+            src/runtime/market_defaults.py src/runtime/ledger_policy.py
+          )
+          PYTHONPATH="${{ github.workspace }}/src" mypy "${MYPY_CLEAN[@]}"
+          echo "::notice title=MyPy::domain + OMS core type checks passed (0 errors)"
+
+      - name: MyPy (brokers — advisory until P7)
+        # Brokers still carry ~499 errors (full flip deferred to P7). Tracked as a
+        # warning only so it does not block merges; surfaced, not silent.
         run: |
           set +e
           mypy src/brokers/ 2>&1 | tee /tmp/mypy-output.txt
@@ -70,17 +118,41 @@ jobs:
           set -e
           ERROR_COUNT=$(grep -oP 'Found \K\d+(?= errors)' /tmp/mypy-output.txt || echo "0")
           if [ "$EXIT_CODE" -ne 0 ]; then
-            echo "::warning title=MyPy::Found $ERROR_COUNT type errors. Fix incrementally. Target: 0 by Phase 4."
+            echo "::warning title=MyPy::brokers: Found $ERROR_COUNT type errors. Fix incrementally (P7)."
           else
-            echo "::notice title=MyPy::All type checks passed!"
+            echo "::notice title=MyPy::brokers: All type checks passed!"
           fi
       - name: Bandit security scan
         run: |
-          bandit -r src/brokers/ src/interface/ui/ src/datalake/ src/analytics/ -ll -f txt -o bandit-report.txt || true
-          # Upload report as artifact for review
-      - name: Safety check
+          bandit -r src/ -ll -f json -o bandit-report.json || true
+          HIGH_COUNT=$(python3 -c "
+          import json
+          data = json.load(open('bandit-report.json'))
+          high = [i for i in data.get('results', []) if i.get('issue_severity') == 'HIGH']
+          print(len(high))
+          ")
+          if [ "$HIGH_COUNT" -gt 0 ]; then
+            echo "::error::Found $HIGH_COUNT HIGH severity vulnerabilities in src/"
+            exit 1
+          fi
+      # Safety check (ADR-019): advisory until Phase 7. Previously masked with
+      # `|| true`, which discarded the CVE report entirely (AUDIT-006 / DR-T3).
+      # Now it surfaces the finding count as a `::warning` (visible, not silent)
+      # and stays non-blocking so it does not break the deployable principle.
+      - name: Safety check (advisory)
         run: |
-          safety check --json --output safety-report.json || true
+          set +e
+          safety check --json --output safety-report.json
+          set -e
+          if [ -f safety-report.json ]; then
+            COUNT=$(python3 -c "import json;d=json.load(open('safety-report.json'));print(len(d.get('vulnerabilities', d.get('results', []))))" 2>/dev/null || echo 0)
+            if [ "$COUNT" -gt 0 ]; then
+              echo "::warning title=Safety::Found $COUNT known vulnerabilities (advisory until P7). Review safety-report.json."
+            else
+              echo "safety: no known vulnerabilities"
+            fi
+          fi
+          exit 0
           # Upload report as artifact for review
 
   # Pyramid layers (wave 4): unit → component → architecture (fast path).
@@ -157,11 +229,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
       - name: Capability coverage report (P0 blocking)
-        run: python scripts/capability_report.py --fail-on P0
+        run: python scripts/audit/capability_report.py --fail-on P0
       - name: Capability coverage report (P1 blocking)
-        run: python scripts/capability_report.py --fail-on P1
+        run: python scripts/audit/capability_report.py --fail-on P1
       - name: Regenerate capability matrix artifact
-        run: python scripts/capability_report.py --markdown docs/audits/CAPABILITY_COVERAGE_MATRIX.md
+        run: python scripts/audit/capability_report.py --markdown docs/audits/CAPABILITY_COVERAGE_MATRIX.md
       - name: Upload capability matrix
         if: always()
         uses: actions/upload-artifact@v4
@@ -170,6 +242,22 @@ jobs:
           path: docs/audits/CAPABILITY_COVERAGE_MATRIX.md
       - name: Import boundary lint
         run: PYTHONPATH="${{ github.workspace }}/src" lint-imports --config pyproject.toml
+      - name: Broker certification gate (paper)
+        run: |
+          PYTHONPATH="${{ github.workspace }}/src" pip install -e ".[dev]"
+          PYTHONPATH="${{ github.workspace }}/src" pytest tests/unit/brokers/certification -m certification -q --tb=short
+          PYTHONPATH="${{ github.workspace }}/src" pytest tests/unit/brokers/upstox/test_upstox_bus_golden.py -m certification -q --tb=short
+          PYTHONPATH="${{ github.workspace }}/src" pytest tests/architecture/test_cert_schema_v2.py tests/architecture/test_shadow_parity_gate.py tests/architecture/test_cert_path_unity.py tests/architecture/test_platform_ops_unity.py -q --tb=short
+          PYTHONPATH="${{ github.workspace }}/src" pytest tests/unit/brokers/upstox/test_market_feed_degraded.py -q --tb=short
+          PYTHONPATH="${{ github.workspace }}/src" pytest tests/architecture/test_factory_migration.py tests/unit/brokers/diagnostics/test_doctor_schema.py tests/unit/application/services/test_api_readiness.py -q --tb=short
+          PYTHONPATH="${{ github.workspace }}/src" broker --broker paper verify
+          PYTHONPATH="${{ github.workspace }}/src" broker --broker paper certify --json
+      # TOS-P3-005: continue-on-error is ADVISORY ONLY — never used on import-linter,
+      # architecture tests, unit/component, or mypy clean-set gates. Doctor smoke is
+      # intentionally non-blocking (environment noise must not block merges).
+      - name: Broker doctor smoke (warn-only)
+        continue-on-error: true
+        run: PYTHONPATH="${{ github.workspace }}/src" broker --broker paper doctor
       - name: Run unit + component + architecture with coverage
         run: |
           PYTHONPATH="${{ github.workspace }}/src" pytest \
@@ -193,7 +281,7 @@ jobs:
         run: |
           PYTHONPATH="${{ github.workspace }}/src" pytest tests/unit/analytics/walk_forward -q --tb=short
       - name: Replay determinism verifier
-        run: python -m scripts.verify_event_replay
+        run: PYTHONPATH="${{ github.workspace }}/src" pytest tests/integration/test_event_replay_determinism.py -q --tb=short
       - name: Auth integration (live TOTP skips without creds)
         run: |
           PYTHONPATH="${{ github.workspace }}/src" pytest -m "auth_integration" -v --tb=short \
@@ -229,7 +317,7 @@ jobs:
         with:
           name: security-reports
           path: |
-            bandit-report.txt
+            bandit-report.json
             safety-report.json
 
   quant-parity:
@@ -251,12 +339,12 @@ jobs:
         env:
           STRICT_EXECUTION_PARITY: "1"
         run: |
-          pytest tests/quant/ -v --tb=short
+          pytest tests/integration/quant/ -v --tb=short
       - name: Verify baseline quant parity
         run: |
-          python scripts/baseline_quant_parity.py --mode verify
+          python scripts/verify/baseline_quant_parity.py --mode verify
       - name: Replay determinism verifier
-        run: python -m scripts.verify_event_replay
+        run: PYTHONPATH="${{ github.workspace }}/src" pytest tests/integration/test_event_replay_determinism.py -q --tb=short
 
   integration:
     name: Integration Tests (Dhan sandbox only)
@@ -277,7 +365,7 @@ jobs:
         env:
           DHAN_INTEGRATION: "1"
         run: |
-          pytest brokers/dhan/tests/integration/ -v --tb=short
+          PYTHONPATH="${{ github.workspace }}/src" pytest tests/integration/brokers/dhan/ -m "sandbox" -v --tb=short
       - name: Auth integration regression (TOTP + WebSocket reconnect)
         run: |
           pytest -m "auth_integration" -v --tb=short \
@@ -316,9 +404,9 @@ jobs:
       - name: Verify replay & backtest parity
         run: |
           pytest tests/e2e/test_replay_backtest_flow.py -v --tb=short
-      - name: OMS cold-start / money-path unit suite
+      - name: OMS cold-start / money-path component suite
         run: |
-          pytest application/oms/tests -q --tb=line -k "not integration"
+          PYTHONPATH="${{ github.workspace }}/src" pytest tests/component/oms/ -q --tb=line -k "not integration"
 
   stress-tests:
     name: Stress & Performance Tests
@@ -338,14 +426,14 @@ jobs:
       - name: Run stress tests
         run: |
           pytest -m "stress" -v --tb=short --durations=10 \
-            tests/stress/
+            tests/e2e/stress/
       - name: Run OMS stress tests
         run: |
-          pytest tests/stress/test_oms_stress.py -v --tb=short
+          pytest tests/e2e/stress/test_oms_stress.py -v --tb=short
       - name: Performance regression check
         run: |
           # Run critical path benchmarks and compare against baseline
-          pytest tests/stress/ -v --tb=short \
+          pytest tests/e2e/stress/ -v --tb=short \
             --benchmark-only \
             --benchmark-compare \
             --benchmark-min-rounds=5 \
@@ -367,13 +455,15 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
+      # Advisory: flaky detection reports findings; it never gates merges.
       - name: Run flaky test detection on E2E tests
         run: |
-          python scripts/detect_flaky_tests.py tests/e2e/ --runs 3 --output flaky-e2e.json
+          python scripts/debug/detect_flaky_tests.py tests/e2e/ --runs 3 --output flaky-e2e.json
         continue-on-error: true
-      - name: Run flaky test detection on unit tests
+      # Advisory: flaky detection reports findings; it never gates merges.
+      - name: Run flaky test detection on broker unit tests
         run: |
-          python scripts/detect_flaky_tests.py tests/brokers/ --runs 3 --output flaky-unit.json
+          python scripts/debug/detect_flaky_tests.py tests/unit/brokers/ --runs 3 --output flaky-unit.json
         continue-on-error: true
       - name: Upload flaky test reports
         if: always()
@@ -399,10 +489,11 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
+      # Explicitly non-blocking (env-gated): surfaces revalidation evidence only.
       - name: Run Upstox read-only revalidation harness
         env:
           UPSTOX_INTEGRATION: "1"
-        run: python scripts/revalidate_upstox_known_issues.py --output docs/audits/UPSTOX_REVALIDATION_EVIDENCE.md
+        run: python scripts/audit/revalidate_upstox_known_issues.py --output docs/audits/UPSTOX_REVALIDATION_EVIDENCE.md
         continue-on-error: true
       - name: Upload revalidation evidence
         if: always()

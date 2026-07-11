@@ -34,6 +34,20 @@ class Position:
         return m
 
     @property
+    def avg_price_money(self):
+        """TOS-P1-004: Money view of average price."""
+        from domain.primitives import Money
+
+        return Money(self.avg_price)
+
+    @property
+    def quantity_vo(self):
+        """TOS-P1-004: Quantity view of position size."""
+        from domain.primitives import Quantity
+
+        return Quantity(self.quantity)
+
+    @property
     def pnl(self) -> Decimal:
         m = self._mult()
         if self.quantity > 0:

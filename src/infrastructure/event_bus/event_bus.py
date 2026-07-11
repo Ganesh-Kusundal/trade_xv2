@@ -38,6 +38,7 @@ from domain.events.types import EventType, canonical_event_types
 if TYPE_CHECKING:
     from domain.ports.observability import AlertingEnginePort, EventMetricsPort
     from infrastructure.event_bus.dead_letter_queue import DeadLetterQueue
+    from infrastructure.idempotency import IdempotencyService
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +115,8 @@ class EventBus:
         alerting_interval_seconds: float = 10.0,
         max_processed_events: int = 10000,  # Idempotency cache size
         enforce_event_types: bool = True,
+        idempotency: "IdempotencyService | None" = None,
+        idempotency_ttl_seconds: int = 86_400,
     ) -> None:
         # Lock sharding — separate lightweight Lock for subscriber
         # management from the (now lock-free) sequence counter.
@@ -133,10 +136,16 @@ class EventBus:
         self._alerting_thread: threading.Thread | None = None
         self._alerting_stop = threading.Event()
 
-        # Idempotency - track processed event_ids to prevent duplicate processing
+        # Idempotency - track processed event_ids to prevent duplicate processing.
+        # When an ``IdempotencyService`` is injected it is the SINGLE authority
+        # for event dedup (TTL-based, with backend fallback). The local bounded
+        # set below is only a fallback used when no service is wired, so there is
+        # never a double-write to two independent dedup stores.
         self._processed_events: deque[str] = deque(maxlen=max_processed_events)
         self._processed_event_ids: set[str] = set()
         self._idempotency_lock = threading.Lock()
+        self._idempotency = idempotency
+        self._idempotency_ttl_seconds = idempotency_ttl_seconds
         self._enforce_event_types = enforce_event_types
         self._known_event_types = canonical_event_types()
 
@@ -258,6 +267,13 @@ class EventBus:
             logger.warning("EventBus alerting thread did not stop within timeout")
         else:
             logger.info("EventBus alerting stopped")
+            self._alerting_thread = None
+
+    # ── LifecycleManager integration (TOS-P7-003) ─────────────────────────
+
+    def as_managed_service(self) -> "EventBusAlertingService":
+        """Return a ManagedService wrapper for LifecycleManager registration."""
+        return EventBusAlertingService(self)
 
     # ── Subscription management ────────────────────────────────────────────
 
@@ -359,8 +375,17 @@ class EventBus:
         """Check if event has already been processed (idempotency guard).
 
         Under at-least-once delivery (websockets, network retries),
-        duplicate events can arrive. This method tracks processed event_ids
-        in a bounded LRU cache (deque) to prevent double-processing.
+        duplicate events can arrive.
+
+        Authority
+        ----------
+        If an :class:`IdempotencyService` was injected into the bus, it is the
+        SINGLE authority for event dedup: ``contains``/``put`` are routed there
+        (TTL-based, with backend fallback) and the local bounded set is not
+        touched — so there is no double-write to two independent stores.
+
+        When no service is wired, a bounded in-memory set is used as a
+        degraded fallback (per-bus-lifetime, no persistence).
 
         Returns True if duplicate (should be skipped), False if new.
         """
@@ -368,6 +393,14 @@ class EventBus:
         if not event_id:
             return False  # No ID, can't check - allow through
 
+        # Single authority path: delegate to the injected IdempotencyService.
+        if self._idempotency is not None:
+            if self._idempotency.contains(event_id):
+                return True
+            self._idempotency.put(event_id, event_id, self._idempotency_ttl_seconds)
+            return False
+
+        # Fallback path (no service injected): local bounded set.
         with self._idempotency_lock:
             if event_id in self._processed_event_ids:
                 return True  # Duplicate
@@ -515,3 +548,40 @@ class EventBus:
                 handler_id,
                 event.event_type,
             )
+
+
+class EventBusAlertingService:
+    """LifecycleManager-compatible wrapper for EventBus alerting (TOS-P7-003).
+
+    Register with LifecycleManager so the daemon alerting thread is started
+    and stopped with the rest of the process, instead of only via constructor
+    side effects.
+    """
+
+    name: str = "event_bus_alerting"
+
+    def __init__(self, bus: EventBus) -> None:
+        self._bus = bus
+
+    def start(self) -> None:
+        if getattr(self._bus, "_alerting_engine", None) is not None:
+            if getattr(self._bus, "_alerting_thread", None) is None:
+                self._bus._start_alerting()
+
+    def stop(self, timeout_seconds: float = 5.0) -> None:
+        self._bus.stop_alerting()
+
+    def health(self) -> Any:
+        from domain.lifecycle_health import HealthState, HealthStatus
+        from domain.ports.time_service import get_current_clock
+
+        alive = (
+            self._bus._alerting_thread is not None
+            and self._bus._alerting_thread.is_alive()
+        )
+        return HealthStatus(
+            state=HealthState.HEALTHY if alive or self._bus._alerting_engine is None else HealthState.DEGRADED,
+            service=self.name,
+            last_check=get_current_clock().now(),
+            detail="alerting_thread_alive" if alive else "alerting_idle",
+        )

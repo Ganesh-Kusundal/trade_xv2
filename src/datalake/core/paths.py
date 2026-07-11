@@ -182,18 +182,29 @@ def migrate_legacy_to_curated(
     curated_root: str = CURATED_ROOT,
     timeframe: str = "1m",
     target_mb: int = 150,
+    *,
+    dry_run: bool = True,
 ) -> dict:
     """Merge all legacy symbol= files into date-partitioned curated files.
 
-    This is the core migration function. It:
-    1. Reads all legacy symbol partition files
-    2. Sorts by (symbol, timestamp)
-    3. Writes to year=YYYY/month=MM/data_NNN.parquet files
-       where each file is ~target_mb in size
-
-    Returns dict with migration stats.
+    Thin wrapper over the migration script implementation (TOS-P6-010).
+    Defaults to ``dry_run=True`` so accidental imports are safe.
     """
-    raise NotImplementedError("Use scripts/migration/migrate_to_curated_layout.py instead")
+    try:
+        from scripts.migration.migrate_to_curated_layout import migrate
+    except ImportError:
+        # When installed without scripts package on path, try module path.
+        import importlib
+
+        mod = importlib.import_module("scripts.migration.migrate_to_curated_layout")
+        migrate = mod.migrate
+    return migrate(
+        root=root,
+        curated_root=curated_root,
+        timeframe=timeframe,
+        target_mb=target_mb,
+        dry_run=dry_run,
+    )
 
 
 def get_candle_path(

@@ -65,6 +65,27 @@ class Order:
         return self.avg_price
 
     @property
+    def price_money(self):
+        """TOS-P1-004: Money view of limit price (fields remain Decimal wire-stable)."""
+        from domain.primitives import Money
+
+        return Money(self.price)
+
+    @property
+    def avg_price_money(self):
+        """TOS-P1-004: Money view of average fill price."""
+        from domain.primitives import Money
+
+        return Money(self.avg_price)
+
+    @property
+    def quantity_vo(self):
+        """TOS-P1-004: Quantity view of order size."""
+        from domain.primitives import Quantity
+
+        return Quantity(self.quantity)
+
+    @property
     def remaining_quantity(self) -> int:
         return max(self.quantity - self.filled_quantity, 0)
 

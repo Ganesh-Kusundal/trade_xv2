@@ -22,9 +22,9 @@
 | GOLDEN_DIR | `tests/fixtures/golden` |
 | Security (DR-I3) | **Deferred** (ADR-023) |
 
-### Remaining polish
+### Remaining optional depth
 
-Full Money/Quantity field migration on aggregates, deeper chaos/load, MCP parity gaps, full P6 capability packages — see backlog "Remaining / continuous".
+Full Money/Quantity *field* migration (helpers shipped), load baselines, full broker mypy, full options product package — see backlog P3 rows.
 
 ### Workflow
 
