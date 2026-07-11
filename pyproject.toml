@@ -25,9 +25,23 @@ dependencies = [
     "opentelemetry-exporter-otlp>=1.22",
     "opentelemetry-instrumentation-fastapi>=0.43b0",
     "opentelemetry-instrumentation-requests>=0.43b0",
+    "duckdb>=1.0.0",
+    "click>=8.1",
 ]
 
+[project.scripts]
+broker = "brokers.cli.broker:broker"
+broker-mcp = "brokers.mcp.server:run_server"
+tradex = "tradex.cli:tradex"
+
 [project.optional-dependencies]
+mcp = [
+    "mcp>=1.0",
+]
+agent = [
+    "anthropic>=0.40",
+    "mcp>=1.0",
+]
 dev = [
     "pytest>=7.4",
     "pytest-asyncio>=0.23",
@@ -105,6 +119,7 @@ testpaths = [
 markers = [
     "unit: domain / pure business-rule tests",
     "component: single-service tests (OMS, execution, registry)",
+    "architecture: architecture / boundary / import-linter guard tests",
     "contract: broker/module contract tests",
     "dhan: DhanHQ integration tests",
     "integration: tests that call external broker APIs",
@@ -127,6 +142,7 @@ markers = [
     "cli_endpoint_sandbox: sandbox order placement — requires DHAN_INTEGRATION=1",
     "paper_replay_parity: Paper trading ↔ Replay engine parity",
     "cross_broker_parity: Cross-broker data source parity",
+    "certification: broker certification and CLI smoke tests",
     "live_backtest_parity: Live ↔ Backtest execution parity",
     "scanner_determinism: Scanner output determinism",
     "feature_parity: Feature computation parity across runs",
@@ -249,6 +265,11 @@ ignore = [
 "src/interface/ui/**/*.py" = ["TID251"]
 "src/brokers/dhan/**/*.py" = ["TID251"]
 "src/brokers/upstox/**/*.py" = ["TID251"]
+# Pre-existing public API: AgentGuardrails/tool surface exception names and a
+# TYPE_CHECKING forward-ref. Renaming would break the public contract, so they
+# are waived for these two files only (Tier 3-J owns loop/llm/schema/mcp).
+"src/interface/agent/guardrails.py" = ["N818"]
+"src/interface/agent/tools.py" = ["N818", "UP037"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -272,6 +293,7 @@ skip-magic-trailing-comma = false
 # Cross-broker imports are forbidden
 "brokers.dhan" = {msg = "Cannot import from brokers.dhan in brokers.common or other broker packages"}
 "brokers.upstox" = {msg = "Cannot import from brokers.upstox in brokers.common or other broker packages"}
+"infrastructure.gateway.factory.create_gateway" = {msg = "Use bootstrap_gateway or require_gateway via interface.ui.services.connect"}
 
 # ─── Import Linter Contracts ──────────────────────────────
 # Enforce architectural layer boundaries (REF-012).
@@ -402,6 +424,18 @@ ignore_imports = [
 ]
 
 [[tool.importlinter.contracts]]
+name = "Dispatcher broker isolation"
+type = "forbidden"
+source_modules = ["runtime.commands", "runtime.queries"]
+forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper", "brokers.common"]
+unmatched_ignore_imports_alerting = "warn"
+ignore_imports = [
+    # Test-only: dispatcher tests may import concrete brokers for fakes.
+    "runtime.commands.tests.* -> brokers.**",
+    "runtime.queries.tests.* -> brokers.**",
+]
+
+[[tool.importlinter.contracts]]
 name = "Runtime does not import interface"
 type = "forbidden"
 source_modules = ["runtime"]
@@ -429,13 +463,11 @@ ignore_imports = [
     "application.services.historical_data -> infrastructure.historical_data",
     # Production readiness inspects hardened TLS sessions.
     "application.services.production_readiness -> infrastructure.security.ssl_hardening",
-    # Audit / clock edges under application.data|streaming|scheduling (namespace
-    # packages without __init__.py) are invisible to grimp; if those packages gain
-    # __init__.py, re-add precise ignores for:
-    #   application.data.provenance -> infrastructure.time.clock
-    #   application.data.historical_coordinator -> infrastructure.observability.audit
-    #   application.streaming.orchestrator -> infrastructure.observability.audit
-    #   application.scheduling.quota_scheduler -> infrastructure.observability.audit
+    # Namespace packages (AST test sees these; grimp may warn if unmatched).
+    "application.data.provenance -> infrastructure.time.clock",
+    "application.data.historical_coordinator -> infrastructure.observability.audit",
+    "application.streaming.orchestrator -> infrastructure.observability.audit",
+    "application.scheduling.quota_scheduler -> infrastructure.observability.audit",
     # Test-only: integration tests legitimately import infrastructure.
     "application.oms.tests.* -> infrastructure.**",
     # Test-only: break transitive application→infrastructure via broker facades
@@ -451,19 +483,26 @@ source_modules = ["interface.ui"]
 forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper"]
 # Composition-root edges are listed explicitly; unused ignore lines should not
 # abort the whole contract suite after layout moves.
+# Only ``interface.ui.services.broker_registry`` may name concrete broker
+# packages (it is the single sanctioned concrete-broker importer within the UI
+# layer; every other UI module reaches broker types through its accessors).
+# ``broker_facade`` is now a thin re-export over the registry and must NOT
+# import a broker package by name — violations fail CI.
 unmatched_ignore_imports_alerting = "warn"
 ignore_imports = [
-    # Composition root: CLI broker façade/registry wire concrete adapters.
-    "interface.ui.services.broker_facade -> brokers.dhan.identity.account_registry",
-    "interface.ui.services.broker_facade -> brokers.dhan.gateway",
-    "interface.ui.services.broker_facade -> brokers.dhan.loader",
-    "interface.ui.services.broker_facade -> brokers.dhan.reconciliation",
-    "interface.ui.services.broker_facade -> brokers.dhan.symbol_validator",
-    "interface.ui.services.broker_facade -> brokers.paper.paper_gateway",
-    "interface.ui.services.broker_facade -> brokers.upstox.mappers.domain_mapper",
+    # broker_registry is the sanctioned concrete-broker importer in UI.
     "interface.ui.services.broker_registry -> brokers.paper",
+    "interface.ui.services.broker_registry -> brokers.paper.paper_gateway",
+    "interface.ui.services.broker_registry -> brokers.dhan.identity.account_registry",
+    "interface.ui.services.broker_registry -> brokers.dhan.wire",
+    "interface.ui.services.broker_registry -> brokers.dhan.loader",
+    "interface.ui.services.broker_registry -> brokers.dhan.symbol_validator",
+    "interface.ui.services.broker_registry -> brokers.dhan.portfolio.reconciliation",
     "interface.ui.services.broker_registry -> brokers.dhan.websocket",
-    "interface.ui.services.broker_registry -> brokers.dhan.reconciliation",
+    "interface.ui.services.broker_registry -> brokers.dhan.extensions.depth20",
+    "interface.ui.services.broker_registry -> brokers.dhan.extensions.depth200",
+    "interface.ui.services.broker_registry -> brokers.upstox.mappers.domain_mapper",
+    "interface.ui.services.broker_registry -> brokers.upstox.reconciliation.service",
     "interface.ui.services.broker_registry -> infrastructure.gateway.factory",
 ]
 
@@ -481,12 +520,20 @@ ignore_imports = [
 name = "Tradex public API broker isolation"
 type = "forbidden"
 source_modules = ["tradex"]
-forbidden_modules = ["brokers.dhan", "brokers.upstox"]
+forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper"]
+# tradex.session no longer imports any concrete broker by name; it routes
+# registration through the composition root (runtime.broker_discovery) and
+# resolves data/execution providers via infrastructure.adapter_factory — the
+# same indirection used for dhan/upstox (DR-I6 / DR-B4). No broker is a
+# sanctioned exception for tradex.
+
+[[tool.importlinter.contracts]]
+name = "UI uses connect shims not raw factory"
+type = "forbidden"
+source_modules = ["interface.ui"]
+forbidden_modules = ["infrastructure.gateway.factory"]
+unmatched_ignore_imports_alerting = "warn"
 ignore_imports = [
-    # Session factory may construct paper gateway for the public SDK.
-    "tradex.session -> brokers.paper",
-    "tradex.session -> brokers.paper.data_provider",
-    # Public SDK session factory needs broker-specific constructors.
-    "tradex.session -> brokers.dhan",
-    "tradex.session -> brokers.upstox",
+    "interface.ui.services.broker_registry -> infrastructure.gateway.factory",
+    "interface.ui.services.connect -> infrastructure.gateway.factory",
 ]

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from unittest.mock import MagicMock
-import warnings
 
 import pytest
 
@@ -95,51 +94,23 @@ class TestExtendedOrderServiceExtensionRegistry:
 
         assert "ExtensionRegistry not configured" in str(exc_info.value)
 
-    def test_get_extended_emits_deprecation_warning(
+    def test_executor_resolves_via_registry(
         self,
-        service_without_registry: ExtendedOrderService,
+        service_with_registry: ExtendedOrderService,
+        mock_extension_registry: MagicMock,
     ) -> None:
-        """Test that _get_extended emits deprecation warning."""
-        gw = MagicMock()
-        gw.extended = MagicMock()
+        """_executor() resolves OrderCapabilityPort by broker id (DR-B1 / TOS-P3-002)."""
+        from domain.extensions.order_capability import OrderCapabilityPort
 
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            service_without_registry._get_extended(gw)
+        mock_executor = MagicMock()
+        mock_extension_registry.require.return_value = mock_executor
 
-            assert len(w) == 1
-            assert issubclass(w[0].category, DeprecationWarning)
-            assert "ExtensionRegistry" in str(w[0].message)
+        result = service_with_registry._executor()
 
-    def test_get_broker_emits_deprecation_warning(
-        self,
-        service_without_registry: ExtendedOrderService,
-    ) -> None:
-        """Test that _get_broker emits deprecation warning."""
-        gw = MagicMock()
-        gw._broker = MagicMock()
-
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            service_without_registry._get_broker(gw)
-
-            assert len(w) == 1
-            assert issubclass(w[0].category, DeprecationWarning)
-
-    def test_get_conn_emits_deprecation_warning(
-        self,
-        service_without_registry: ExtendedOrderService,
-    ) -> None:
-        """Test that _get_conn emits deprecation warning."""
-        gw = MagicMock()
-        gw._conn = MagicMock()
-
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            service_without_registry._get_conn(gw)
-
-            assert len(w) == 1
-            assert issubclass(w[0].category, DeprecationWarning)
+        assert result is mock_executor
+        mock_extension_registry.require.assert_called_once_with(
+            "dhan", OrderCapabilityPort
+        )
 
     def test_constructor_accepts_extension_registry(
         self,

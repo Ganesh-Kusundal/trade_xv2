@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import threading
 from collections.abc import Callable
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from domain.events.types import EventType
+from domain.execution_contracts import OrderIntent, SubmissionOutcome, SubmissionState
 from domain.types import OrderStatus
 
 if TYPE_CHECKING:
@@ -21,6 +23,7 @@ if TYPE_CHECKING:
     from application.oms.risk_manager import RiskManager
     from application.oms.trade_recorder import TradeRecorder
     from domain.entities import Order
+    from domain.ports import ExecutionLedgerPort
 
 
 def order_as_recon_dict(order: Order) -> dict:
@@ -77,6 +80,7 @@ class OrderLifecycle:
         risk_manager: RiskManager | None,
         publish: Callable[..., None],
         active_orders: Any | None = None,
+        execution_ledger: ExecutionLedgerPort | None = None,
     ) -> None:
         self._state_validator = state_validator
         self._audit_logger = audit_logger
@@ -85,6 +89,7 @@ class OrderLifecycle:
         self._risk_manager = risk_manager
         self._publish = publish
         self._active_orders = active_orders
+        self._execution_ledger = execution_ledger
 
     def submit_to_broker(
         self,
@@ -103,21 +108,98 @@ class OrderLifecycle:
 
         if submit_fn is None:
             return order, None
+        intent: OrderIntent | None = None
+        if self._execution_ledger is not None:
+            intent = OrderIntent(
+                intent_id=order.order_id,
+                order_id=order.order_id,
+                correlation_id=request.correlation_id,
+                symbol=order.symbol,
+                exchange=order.exchange,
+                side=order.side,
+                quantity=order.quantity,
+                price=order.price,
+                order_type=order.order_type,
+                product_type=order.product_type,
+                created_at=order.timestamp or datetime.now(timezone.utc),
+            )
+            assert intent is not None
         # Record-then-submit: persist stub before broker I/O so a crash after
         # broker accept still leaves a reconcilable order in the book.
         with lock:
             orders[order.order_id] = order
             orders_by_correlation[request.correlation_id] = order
+
+        def _broker_submit() -> Order:
+            return submit_fn(request)
+
         try:
-            order = submit_fn(request)
-            return order, None
+            if intent is not None and self._execution_ledger is not None:
+                from application.oms.ledger_outbox import persist_intent_then_submit
+
+                order = persist_intent_then_submit(
+                    self._execution_ledger,
+                    intent,
+                    _broker_submit,
+                )
+            else:
+                from application.oms.ledger_authority import (
+                    ledger_authority_enabled,
+                    require_execution_ledger,
+                )
+
+                if ledger_authority_enabled():
+                    require_execution_ledger(None)
+                order = _broker_submit()
         except Exception as exc:
+            unknown = order.with_status(OrderStatus.UNKNOWN)
+            with lock:
+                orders[unknown.order_id] = unknown
+                orders_by_correlation[request.correlation_id] = unknown
+            if self._execution_ledger is not None:
+                self._execution_ledger.record_outcome(
+                    SubmissionOutcome.unknown(
+                        intent.intent_id if intent is not None else order.order_id,
+                        str(exc),
+                    )
+                )
             self._publish(
-                EventType.ORDER_REJECTED.value,
-                order,
+                EventType.ORDER_UPDATED.value,
+                unknown,
                 reason=str(exc),
             )
-            return None, OrderResult(success=False, error=str(exc))
+            return None, OrderResult(
+                success=False,
+                order=unknown,
+                error=str(exc),
+                state=SubmissionState.UNKNOWN,
+            )
+
+        if self._execution_ledger is not None:
+            try:
+                self._execution_ledger.record_outcome(
+                    SubmissionOutcome.accepted(
+                        intent.intent_id if intent is not None else order.order_id,
+                        order.order_id,
+                    )
+                )
+            except Exception as exc:
+                unknown = order.with_status(OrderStatus.UNKNOWN)
+                with lock:
+                    orders[unknown.order_id] = unknown
+                    orders_by_correlation[request.correlation_id] = unknown
+                self._publish(
+                    EventType.ORDER_UPDATED.value,
+                    unknown,
+                    reason=f"accepted broker order could not be durably recorded: {exc}",
+                )
+                return None, OrderResult(
+                    success=False,
+                    order=unknown,
+                    error=f"accepted broker order could not be durably recorded: {exc}",
+                    state=SubmissionState.UNKNOWN,
+                )
+        return order, None
 
     def record_and_publish(
         self,
@@ -159,7 +241,7 @@ class OrderLifecycle:
         """Update or insert an order (used by broker event handlers)."""
         with lock:
             existing = orders.get(order.order_id)
-            if existing is not None:
+            if existing is not None and existing.status != order.status:
                 self._state_validator.validate_transition(
                     order.order_id,
                     existing.status,
