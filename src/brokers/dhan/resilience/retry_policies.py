@@ -1,0 +1,156 @@
+"""Dhan per-endpoint retry *policies* on top of the shared RetryExecutor.
+
+The single ``RetryExecutor`` implementation lives in
+``infrastructure.resilience.retry_executor``. This module only holds Dhan
+endpoint categories and builds that shared executor with Dhan-tuned backoff.
+"""
+
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass
+
+from infrastructure.resilience.backoff import ExponentialBackoff
+from infrastructure.resilience.circuit_breaker import CircuitBreaker
+from infrastructure.resilience.rate_limiter import MultiBucketRateLimiter
+from infrastructure.resilience.retry_executor import RetryConfig, RetryExecutor
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class DhanRetryPolicy:
+    """Per-endpoint retry policy for Dhan API.
+
+    Attributes:
+        category: Endpoint category name.
+        max_attempts: Total attempts including the initial call.
+        base_delay_ms: Initial backoff delay in milliseconds.
+        max_delay_ms: Maximum backoff delay in milliseconds.
+    """
+
+    category: str
+    max_attempts: int = 3
+    base_delay_ms: float = 1000.0
+    max_delay_ms: float = 8000.0
+
+    def to_retry_config(self) -> RetryConfig:
+        """Convert to a common RetryConfig."""
+        return RetryConfig(
+            max_attempts=self.max_attempts,
+            max_retry_delay_ms=int(self.max_delay_ms),
+        )
+
+    def to_backoff(self) -> ExponentialBackoff:
+        """Create an ExponentialBackoff tuned for this policy."""
+        return ExponentialBackoff(
+            base_delay_ms=self.base_delay_ms,
+            max_delay_ms=self.max_delay_ms,
+            multiplier=2.0,
+            jitter_factor=0.2,
+        )
+
+
+# ── Pre-defined policies per endpoint category ────────────────────────────
+
+#: Orders: 3 retries, backoff 1s-8s (financial operations, cautious)
+ORDERS_POLICY = DhanRetryPolicy(
+    category="orders",
+    max_attempts=3,
+    base_delay_ms=1000.0,
+    max_delay_ms=8000.0,
+)
+
+#: Market data: 2 retries, backoff 0.5s-4s (bursty, recover fast)
+MARKET_DATA_POLICY = DhanRetryPolicy(
+    category="market_data",
+    max_attempts=2,
+    base_delay_ms=500.0,
+    max_delay_ms=4000.0,
+)
+
+#: Portfolio: 3 retries, backoff 1s-8s (important but not time-critical)
+PORTFOLIO_POLICY = DhanRetryPolicy(
+    category="portfolio",
+    max_attempts=3,
+    base_delay_ms=1000.0,
+    max_delay_ms=8000.0,
+)
+
+#: Admin: 3 retries, backoff 1s-8s (token refresh, account info)
+ADMIN_POLICY = DhanRetryPolicy(
+    category="admin",
+    max_attempts=3,
+    base_delay_ms=1000.0,
+    max_delay_ms=8000.0,
+)
+
+#: Mapping of category name to retry policy
+_POLICY_MAP: dict[str, DhanRetryPolicy] = {
+    "orders": ORDERS_POLICY,
+    "market_data": MARKET_DATA_POLICY,
+    "portfolio": PORTFOLIO_POLICY,
+    "admin": ADMIN_POLICY,
+}
+
+
+def build_retry_executor(
+    category: str,
+    circuit_breaker: CircuitBreaker | None = None,
+    rate_limiter: MultiBucketRateLimiter | None = None,
+) -> RetryExecutor:
+    """Build the shared RetryExecutor with a Dhan endpoint policy.
+
+    Args:
+        category: One of 'orders', 'market_data', 'portfolio', 'admin'.
+        circuit_breaker: Optional circuit breaker for this category.
+        rate_limiter: Optional shared rate limiter.
+
+    Returns:
+        Configured infrastructure RetryExecutor instance.
+    """
+    policy = _POLICY_MAP.get(category)
+    if policy is None:
+        logger.warning(
+            "unknown_dhan_retry_category",
+            extra={"category": category, "defaulting_to": "admin"},
+        )
+        policy = ADMIN_POLICY
+
+    rate_limit_category = category if rate_limiter else None
+
+    return RetryExecutor(
+        config=policy.to_retry_config(),
+        circuit_breaker=circuit_breaker,
+        rate_limiter=rate_limiter,
+        rate_limit_category=rate_limit_category,
+        backoff=policy.to_backoff(),
+        on_retry=lambda attempt, exc: logger.warning(
+            "dhan_retry",
+            extra={
+                "category": category,
+                "attempt": attempt + 1,
+                "error": str(exc),
+            },
+        ),
+    )
+
+
+# Backward-compatible aliases (TOS-P5-003)
+DhanRetryExecutorFactory = type(
+    "DhanRetryExecutorFactory",
+    (),
+    {"create": staticmethod(build_retry_executor)},
+)
+create_retry_executor = build_retry_executor
+
+__all__ = [
+    "ADMIN_POLICY",
+    "DhanRetryExecutorFactory",
+    "DhanRetryPolicy",
+    "MARKET_DATA_POLICY",
+    "ORDERS_POLICY",
+    "PORTFOLIO_POLICY",
+    "build_retry_executor",
+    "create_retry_executor",
+]

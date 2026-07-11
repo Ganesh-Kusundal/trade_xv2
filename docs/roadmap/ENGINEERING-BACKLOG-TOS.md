@@ -11,6 +11,7 @@
 | TOS-P3-002 | Extended-order registry test expects `OrderCapabilityPort` |
 | TOS-P3-001 | Pure `application.oms.ledger_authority`; import-linter **15/15** |
 | TOS-P3-003 | Registered `@pytest.mark.architecture` in pyproject.toml |
+| TOS-P5-003 | Dhan retry policies module; single infra RetryExecutor |
 
 ## Next up (priority order)
 
@@ -18,7 +19,6 @@
 |---|---|---|
 | P0 | TOS-P5-001 | Enforce `runtime.factory.build` sole trade spine |
 | P0 | TOS-P5-002 | UI concrete broker imports → single non-UI module |
-| P0 | TOS-P5-003 | Retire Dhan RetryExecutor shim |
 | P0 | TOS-P5-010a–e | Migrate ad-hoc `new_event_loop` baseline (5 files) |
 | P0 | TOS-P5-011 | Stream→OMS lock discipline tests |
 | P0 | TOS-P5-020 | Golden-bus both brokers; live bus required |
