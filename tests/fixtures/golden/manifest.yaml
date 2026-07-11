@@ -1,0 +1,28 @@
+# Golden datasets for offline certification (TRANS-P4-007)
+version: "1.0"
+updated: "2026-07-11"
+
+datasets:
+  - id: upstox_bus_ticks
+    path: upstox_bus_ticks.json
+    provenance: "synthetic Upstox V3 ltpc/full frames"
+    use: [unit, certification]
+    test: tests/unit/brokers/upstox/test_upstox_bus_golden.py
+
+  - id: dhan_bus_ticks
+    path: dhan_bus_ticks.json
+    provenance: "synthetic Dhan market-feed quote dicts"
+    use: [unit, certification]
+    test: tests/unit/brokers/dhan/test_dhan_bus_golden.py
+
+  - id: broker_instrument_golden
+    path: ../../../src/brokers/certification/golden_dataset.json
+    provenance: "canonical instrument resolution reference"
+    use: [unit, certification]
+    test: tests/unit/brokers/certification/test_certification_paper.py
+
+  - id: ledger_shadow_parity_24h
+    path: ../ledger/shadow_parity_24h.json
+    provenance: "synthetic 24h fill session for shadow parity"
+    use: [architecture]
+    test: tests/architecture/test_shadow_parity_gate.py

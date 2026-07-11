@@ -120,6 +120,7 @@ markers = [
     "unit: domain / pure business-rule tests",
     "component: single-service tests (OMS, execution, registry)",
     "architecture: architecture / boundary / import-linter guard tests",
+    "golden: golden dataset / replay parity fixtures",
     "contract: broker/module contract tests",
     "dhan: DhanHQ integration tests",
     "integration: tests that call external broker APIs",

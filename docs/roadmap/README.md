@@ -20,14 +20,13 @@
 
 ### Done (not to redo)
 
-DR-B1/B2/B3 · DR-F2–F5 · DR-E3 · DR-I2 · DR-T2/T4 · TOS-P3-001/002/003 · TOS-P5-001/002/003/010
+DR-B1/B2/B3 · DR-F2–F5 · DR-E3 · DR-I2 · DR-T2/T4 · TOS-P3-* · TOS-P5-001/002/003/010/020/021/022 · TOS-P4-001
 
 ### Next critical path
 
-1. **P5 ledger spine** (TOS-P5-020–022)  
-2. VO/MarketSurface (TOS-P1-003, TOS-P5-030)  
-3. P4 golden path (TOS-P4-001)  
-4. P6 features · P7 ops  
+1. VO/MarketSurface (TOS-P1-003/004, TOS-P5-030)  
+2. TOS-P5-011 stream→OMS lock discipline  
+3. P6 features · P7 ops  
 
 Full audit table and task IDs: [TRADING-OS-EXECUTION-ROADMAP.md](./TRADING-OS-EXECUTION-ROADMAP.md).
 

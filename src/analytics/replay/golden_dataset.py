@@ -14,12 +14,15 @@ Usage:
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
 from analytics.replay.models import ReplayResult
 
-GOLDEN_DIR = Path("data/golden")
+# TOS-P4-001: default to test fixtures; override with TRADEX_GOLDEN_DIR.
+_DEFAULT_GOLDEN = Path(__file__).resolve().parents[3] / "tests" / "fixtures" / "golden"
+GOLDEN_DIR = Path(os.environ.get("TRADEX_GOLDEN_DIR", str(_DEFAULT_GOLDEN)))
 
 
 def save_golden_dataset(

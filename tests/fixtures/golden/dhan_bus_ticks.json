@@ -1,0 +1,54 @@
+{
+  "version": "1.0",
+  "description": "Golden Dhan market-feed quote dicts for EventBus TICK certification (TOS-P5-020)",
+  "cases": [
+    {
+      "id": "reliance_tick",
+      "quote": {
+        "symbol": "RELIANCE",
+        "ltp": 2450.5,
+        "open": 2440.0,
+        "high": 2460.0,
+        "low": 2435.0,
+        "close": 2430.0,
+        "volume": 125000,
+        "change": 20.5
+      },
+      "expected": {
+        "event_type": "TICK",
+        "symbol": "RELIANCE",
+        "ltp": "2450.5",
+        "source": "DhanMarketFeed"
+      }
+    },
+    {
+      "id": "nifty_tick",
+      "quote": {
+        "symbol": "NIFTY",
+        "ltp": 24150.75,
+        "open": 24100.0,
+        "high": 24200.0,
+        "low": 24050.0,
+        "close": 24000.0,
+        "volume": 0,
+        "change": 150.75
+      },
+      "expected": {
+        "event_type": "TICK",
+        "symbol": "NIFTY",
+        "ltp": "24150.75",
+        "source": "DhanMarketFeed"
+      }
+    },
+    {
+      "id": "drop_zero_ltp",
+      "quote": {
+        "symbol": "BAD",
+        "ltp": 0
+      },
+      "expected": {
+        "dropped": true
+      }
+    }
+  ]
+}

@@ -14,26 +14,25 @@ from pathlib import Path
 
 import pytest
 
-from analytics.replay.golden_dataset import compare_results, load_expected
-
-GOLDEN_DIR = Path("data/golden")
+from analytics.replay.golden_dataset import GOLDEN_DIR, compare_results, load_expected
 
 
 class TestGoldenDatasetRegression:
     """Verify replay engine produces consistent results."""
 
     @pytest.mark.golden
-    @pytest.mark.skipif(
-        not GOLDEN_DIR.exists(),
-        reason="Golden datasets not available. Run replay and save golden dataset first.",
-    )
     def test_golden_dataset_directory_exists(self):
-        """Golden dataset directory should exist with at least one dataset."""
-        datasets = list(GOLDEN_DIR.glob("*_*/"))
-        assert len(datasets) > 0, (
-            f"No golden datasets found in {GOLDEN_DIR}. "
-            "Save a golden dataset first using: "
-            "python -m analytics.replay.golden_dataset save --symbol NIFTY --date 2026-05-12"
+        """Golden root is configured (TOS-P4-001); replay datasets optional."""
+        assert GOLDEN_DIR.exists(), (
+            f"GOLDEN_DIR does not exist: {GOLDEN_DIR}. "
+            "Expected tests/fixtures/golden or TRADEX_GOLDEN_DIR."
+        )
+        # Bus/cert fixtures count; replay date_symbol/ dirs are optional.
+        has_fixtures = any(GOLDEN_DIR.glob("*.json")) or any(GOLDEN_DIR.glob("*_*/"))
+        assert has_fixtures, (
+            f"No golden fixtures in {GOLDEN_DIR}. "
+            "Add bus/cert JSON fixtures or save a replay dataset via "
+            "python -m analytics.replay.golden_dataset save --symbol NIFTY --date YYYY-MM-DD"
         )
 
     @pytest.mark.golden

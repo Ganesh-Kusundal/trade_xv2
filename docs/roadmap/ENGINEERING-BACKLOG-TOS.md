@@ -21,15 +21,11 @@
 | Pri | ID | Description |
 |---|---|---|
 | P0 | TOS-P5-011 | Stream→OMS lock discipline tests |
-| P0 | TOS-P5-020 | Golden-bus both brokers; live bus required |
-| P0 | TOS-P5-021 | Single place-order path all modes |
-| P0 | TOS-P5-022 | Portfolio mutations via PortfolioContext only |
 | P1 | TOS-P1-001 | ADR-021 port freeze |
 | P1 | TOS-P1-002 | Glossary dual OrderIntent / Instrument |
 | P1 | TOS-P1-003/004 | Money/Clock unify + adopt |
 | P1 | TOS-P1-005 | BrokerPluginInterface design |
 | P1 | TOS-P2-001–003 | Flows reconcile, wire boundary, fail-closed capital |
-| P1 | TOS-P4-001 | Fix GOLDEN_DIR |
 | P1 | TOS-P4-002/003 | MCP/CLI parity + script list |
 | P1 | TOS-P5-030 | MarketSurface at composition edges |
 | P2 | TOS-P6-001–010 | Feature capabilities |
@@ -38,7 +34,7 @@
 
 ## Do not reopen without regression
 
-DR-B1/B2/B3 · DR-F2–F5 · DR-E3 · DR-I2 · DR-T2/T4 · TOS-P5-001/002/003/010
+DR-B1/B2/B3 · DR-F2–F5 · DR-E3 · DR-I2 · DR-T2/T4 · TOS-P5-001/002/003/010/020/021/022 · TOS-P4-001
 
 ## Explicitly deferred
 

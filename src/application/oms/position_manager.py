@@ -12,12 +12,14 @@ from decimal import Decimal
 
 from application.oms._internal.reentrancy_guard import _ReentrancyGuard
 from domain.entities import Position, Trade
+from domain.portfolio_projection import project_trade
 from domain.events.types import DomainEvent, EventType
 from domain.symbols import make_position_key
 from domain.types import POSITION_STATE_TRANSITIONS, PositionState
 from domain.ports import EventBusPort, EventMetricsPort, ProcessedTradeRepositoryPort
 from application.observability import get_logger
 from domain.state_machine import IllegalTransitionError, StateMachine
+from application.observability import trace_operation
 
 logger = get_logger(__name__)
 
@@ -39,6 +41,7 @@ class PositionManager:
         processed_trade_repository: ProcessedTradeRepositoryPort | None = None,
         metrics: EventMetricsPort | None = None,
         enforce_state_transitions: bool = True,
+        portfolio_context: object | None = None,
     ) -> None:
         self._lock = threading.RLock()
         self._positions: dict[str, Position] = {}
@@ -48,6 +51,8 @@ class PositionManager:
         self._processed_trades = processed_trade_repository
         self._metrics = metrics
         self._trades_applied = 0
+        # TOS-P5-022: optional typed PortfolioContext mirror for application reads.
+        self._portfolio_context = portfolio_context
 
         # P5 Stability Engineering: In-memory idempotency cache for trade_ids
         # to prevent duplicate processing under at-least-once delivery.
@@ -62,8 +67,13 @@ class PositionManager:
             str, StateMachine[PositionState]
         ] = {}  # symbol_key -> StateMachine
 
+    def set_portfolio_context(self, portfolio_context: object | None) -> None:
+        """Attach or clear the typed PortfolioContext mirror (TOS-P5-022)."""
+        self._portfolio_context = portfolio_context
+
     # ── Public API ──────────────────────────────────────────────────────────
 
+    @trace_operation("position_manager.apply_trade")
     def apply_trade(self, trade: Trade) -> Position:
         """Apply a trade to the position book and return the new position.
 
@@ -89,8 +99,9 @@ class PositionManager:
 
             old_state = position_state.state
             was_flat = current.quantity == 0
-            delta = trade.quantity if trade.side.value == "BUY" else -trade.quantity
-            new_quantity = current.quantity + delta
+            projected = project_trade(current, trade)
+            new_quantity = projected.quantity
+            delta = new_quantity - current.quantity
             will_be_flat = new_quantity == 0
 
             if was_flat and not will_be_flat:
@@ -124,7 +135,7 @@ class PositionManager:
                 else:
                     position_state.transition_to(new_state)
 
-            updated = current.with_fill(delta, trade.price)
+            updated = projected
             self._positions[symbol_key] = updated
             self._trades_applied += 1
             if self._metrics is not None:
@@ -163,6 +174,20 @@ class PositionManager:
                 data if isinstance(data, Position) else None,
                 payload=data if isinstance(data, dict) else None,
             )
+
+        # TOS-P5-022: mirror fill into typed PortfolioContext when attached.
+        ctx = self._portfolio_context
+        if ctx is not None:
+            try:
+                apply = getattr(ctx, "apply_trade", None)
+                if callable(apply):
+                    apply(trade)
+            except Exception as exc:
+                logger.warning(
+                    "portfolio_context_mirror_failed: %s: %s",
+                    type(exc).__name__,
+                    exc,
+                )
 
         return updated
 
@@ -258,6 +283,7 @@ class PositionManager:
 
     # ── Event handlers ───────────────────────────────────────────────────────
 
+    @trace_operation("position_manager.on_trade")
     def on_trade(self, event: DomainEvent) -> None:
         """Handle broker trade events from the event bus.
 
