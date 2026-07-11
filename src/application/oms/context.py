@@ -11,20 +11,6 @@ from typing import Any  # Only for signal handler frame type
 
 from application.oms.order_manager import OrderManager
 from application.oms.position_manager import PositionManager
-from application.oms.reconciliation_service import ReconciliationService
-from application.oms.risk_manager import RiskConfig, RiskManager
-from domain.constants import PHANTOM_CAPITAL_INR, RECONCILIATION_INTERVAL_SECONDS
-from domain.events.types import DomainEvent, EventType
-from domain.ports import (
-    DeadLetterQueuePort,
-    EventBusPort,
-    EventLogPort,
-    EventMetricsPort,
-    MetricsRegistryPort,
-    OrderStorePort,
-    ProcessedTradeRepositoryPort,
-)
-from domain.ports.lifecycle import LifecycleManagerPort
 
 # The concrete TradingOrchestrator was previously imported here (guarded by
 # a try/except "to avoid circular dependency") but was dead code: neither
@@ -38,6 +24,21 @@ from application.oms.protocols import (
     IReconciliationService,
     ITradingOrchestrator,
 )
+from application.oms.reconciliation_service import ReconciliationService
+from application.oms.risk_manager import RiskConfig, RiskManager
+from domain.constants import PHANTOM_CAPITAL_INR, RECONCILIATION_INTERVAL_SECONDS
+from domain.events.types import DomainEvent, EventType
+from domain.ports import (
+    DeadLetterQueuePort,
+    EventBusPort,
+    EventLogPort,
+    EventMetricsPort,
+    ExecutionLedgerPort,
+    MetricsRegistryPort,
+    OrderStorePort,
+    ProcessedTradeRepositoryPort,
+)
+from domain.ports.lifecycle import LifecycleManagerPort
 
 logger = logging.getLogger(__name__)
 
@@ -201,6 +202,7 @@ class TradingContext:
         dead_letter_queue: DeadLetterQueuePort | None = None,
         orchestrator: ITradingOrchestrator | None = None,
         durable_order_store: OrderStorePort | None = None,
+        execution_ledger: ExecutionLedgerPort | None = None,
         enable_durable_orders: bool | None = None,
     ) -> None:
         self._event_log = event_log
@@ -252,6 +254,7 @@ class TradingContext:
             metrics=self._metrics,
             metrics_registry=self._metrics_registry,
             order_store=durable_order_store,
+            execution_ledger=execution_ledger,
         )
 
         # Wire managers to the event bus.
@@ -380,6 +383,21 @@ class TradingContext:
     def orchestrator(self) -> Any | None:
         """Access the TradingOrchestrator if configured."""
         return self._orchestrator
+
+    @property
+    def command_dispatcher(self) -> Any | None:
+        """CQRS CommandDispatcher if attached by the composition root (ADR-012).
+
+        The composition root (tradex.session / runtime factory) may set this
+        attribute after construction; TradingContext does not build it itself
+        to avoid an application -> runtime dependency cycle.
+        """
+        return getattr(self, "_command_dispatcher", None)
+
+    @property
+    def query_dispatcher(self) -> Any | None:
+        """CQRS QueryDispatcher if attached by the composition root (ADR-012)."""
+        return getattr(self, "_query_dispatcher", None)
 
     def health(self) -> dict[str, Any]:
         """Snapshot of observability state for the SRE / alerting layer."""
@@ -728,17 +746,12 @@ class TradingContext:
         """
         logger.info("TradingContext.stop: initiating graceful shutdown")
         try:
-            import asyncio
-
             try:
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                try:
-                    loop.run_until_complete(
-                        self.shutdown(cancel_orders=True, gateway=self._shutdown_gateway)
-                    )
-                finally:
-                    loop.close()
+                from runtime.event_loop import run_coro_sync
+
+                run_coro_sync(
+                    self.shutdown(cancel_orders=True, gateway=self._shutdown_gateway)
+                )
             except RuntimeError:
                 self._sync_shutdown()
         except Exception as exc:

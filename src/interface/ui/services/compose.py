@@ -1,14 +1,15 @@
 """Composition root — single entry point for wiring the trading runtime.
 
-Owns BrokerService construction (CLI + API). Runtime package wires an
-already-built broker service via :meth:`TradingRuntimeFactory.build_from_broker_service`.
+Owns BrokerService construction (CLI + API). All paths delegate to
+:func:`runtime.factory.build` (ADR-017).
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from runtime.trading_runtime_factory import Runtime, TradingRuntimeFactory
+from runtime.factory import build
+from runtime.trading_runtime_factory import Runtime
 
 
 def build_runtime(
@@ -23,15 +24,17 @@ def build_runtime(
     """Single composition root for the trading runtime (CLI path)."""
     from interface.ui.services.broker_service import BrokerService
 
-    bs = BrokerService()
-    return TradingRuntimeFactory(
+    bs = BrokerService(authorize_risk_fail_open=authorize_risk_fail_open)
+    return build(
+        bs,
+        mode="trade",
         broker=broker,
         authorize_risk_fail_open=authorize_risk_fail_open,
         env_path=env_path,
         wire_orchestrator=wire_orchestrator,
         wire_intelligent_gateway=wire_intelligent_gateway,
         skip_parity_gate=skip_parity_gate,
-    ).build_from_broker_service(bs)
+    )
 
 
 def build_for_api(
@@ -46,14 +49,15 @@ def build_for_api(
 
     event_bus, _ = create_api_event_bus(maxsize=2000)
     bs = BrokerService(event_bus=event_bus)
-    factory = TradingRuntimeFactory(
-        wire_orchestrator=wire_orchestrator,
+    return build(
+        bs,
+        mode="trade",
         skip_parity_gate=skip_parity_gate,
+        wire_orchestrator=wire_orchestrator,
         wire_intelligent_gateway=(
             wire_intelligent_gateway if wire_intelligent_gateway is not None else True
         ),
     )
-    return factory.build_from_broker_service(bs)
 
 
 __all__ = ["Runtime", "build_runtime", "build_for_api"]

@@ -483,26 +483,12 @@ source_modules = ["interface.ui"]
 forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper"]
 # Composition-root edges are listed explicitly; unused ignore lines should not
 # abort the whole contract suite after layout moves.
-# Only ``interface.ui.services.broker_registry`` may name concrete broker
-# packages (it is the single sanctioned concrete-broker importer within the UI
-# layer; every other UI module reaches broker types through its accessors).
-# ``broker_facade`` is now a thin re-export over the registry and must NOT
-# import a broker package by name — violations fail CI.
+# Concrete broker types are resolved only via runtime.broker_accessors
+# (composition root). UI modules re-export accessors and must not import
+# brokers.dhan / upstox / paper by name (TOS-P5-002 / DR-B4).
 unmatched_ignore_imports_alerting = "warn"
 ignore_imports = [
-    # broker_registry is the sanctioned concrete-broker importer in UI.
-    "interface.ui.services.broker_registry -> brokers.paper",
-    "interface.ui.services.broker_registry -> brokers.paper.paper_gateway",
-    "interface.ui.services.broker_registry -> brokers.dhan.identity.account_registry",
-    "interface.ui.services.broker_registry -> brokers.dhan.wire",
-    "interface.ui.services.broker_registry -> brokers.dhan.loader",
-    "interface.ui.services.broker_registry -> brokers.dhan.symbol_validator",
-    "interface.ui.services.broker_registry -> brokers.dhan.portfolio.reconciliation",
-    "interface.ui.services.broker_registry -> brokers.dhan.websocket",
-    "interface.ui.services.broker_registry -> brokers.dhan.extensions.depth20",
-    "interface.ui.services.broker_registry -> brokers.dhan.extensions.depth200",
-    "interface.ui.services.broker_registry -> brokers.upstox.mappers.domain_mapper",
-    "interface.ui.services.broker_registry -> brokers.upstox.reconciliation.service",
+    # Gateway bootstrap re-export only (no concrete broker packages).
     "interface.ui.services.broker_registry -> infrastructure.gateway.factory",
 ]
 

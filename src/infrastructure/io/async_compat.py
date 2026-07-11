@@ -57,13 +57,10 @@ def run_async_compat(
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
-        # No running loop — sync context.  Create a temporary loop.
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            return loop.run_until_complete(coro)
-        finally:
-            loop.close()
+        # No running loop — sync context via runtime event-loop boundary.
+        from runtime.event_loop import run_coro_sync
+
+        return run_coro_sync(coro, timeout=timeout)
 
     # Async context — loop is running.  Use run_coroutine_threadsafe
     # so this works from any thread (not just the loop's thread).
@@ -86,14 +83,11 @@ def connect_async_then(
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
-        # Sync context — connect synchronously, then run callback.
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            loop.run_until_complete(connect_coro)
-            on_connected()
-        finally:
-            loop.close()
+        # Sync context — connect via runtime boundary, then run callback.
+        from runtime.event_loop import run_coro_sync
+
+        run_coro_sync(connect_coro)
+        on_connected()
         return
 
     # Async context — schedule connect+callback atomically.

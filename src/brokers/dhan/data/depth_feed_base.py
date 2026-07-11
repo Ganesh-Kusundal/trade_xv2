@@ -431,8 +431,10 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
 
         logger.info("%s_connecting", self.DEPTH_TYPE.lower(), extra={"endpoint": self.ENDPOINT})
 
-        # Run async WebSocket in a new event loop
-        loop = asyncio.new_event_loop()
+        # Run async WebSocket on a dedicated thread-owned loop (runtime boundary)
+        from runtime.event_loop import new_dedicated_loop
+
+        loop = new_dedicated_loop()
         asyncio.set_event_loop(loop)
         self._ws_loop = loop
 

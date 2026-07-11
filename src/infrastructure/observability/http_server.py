@@ -361,7 +361,9 @@ class HttpObservabilityServer(ManagedService):
         port_holder: list[int] = []
 
         def _serve() -> None:
-            loop = asyncio.new_event_loop()
+            from runtime.event_loop import new_dedicated_loop
+
+            loop = new_dedicated_loop()
             asyncio.set_event_loop(loop)
             try:
                 loop.run_until_complete(runner.setup())

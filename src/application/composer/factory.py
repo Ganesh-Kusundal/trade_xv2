@@ -60,19 +60,15 @@ def _split_instrument_key(key: str) -> tuple[str, str]:
 
 
 def _run_async(coro: Any) -> Any:
-    """Run a coroutine to completion in an isolated event loop.
+    """Run a coroutine to completion via the runtime event-loop boundary.
 
     The backfill callback is invoked from a broker WebSocket thread (sync
-    context), but ``HistoricalDataCoordinator.fetch`` is async. A fresh loop
-    keeps this self-contained and immune to "loop already running" errors in
-    the calling thread.
+    context), but ``HistoricalDataCoordinator.fetch`` is async.
     """
     try:
-        loop = asyncio.new_event_loop()
-        try:
-            return loop.run_until_complete(coro)
-        finally:
-            loop.close()
+        from runtime.event_loop import run_coro_sync
+
+        return run_coro_sync(coro)
     except Exception as exc:  # pragma: no cover - defensive
         logger.warning("default_backfill.async_failed", extra={"error": str(exc)})
         return None
