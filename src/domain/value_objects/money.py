@@ -30,10 +30,25 @@ class TickSize:
         if self.value <= 0:
             raise ValueError(f"tick size must be positive, got {self.value}")
 
-    def snap(self, price: Decimal) -> Decimal:
+    def snap(self, price: Decimal | Money) -> Decimal:
         """Snap *price* to the nearest tick (half-up)."""
+        if isinstance(price, Money):
+            price = price.to_decimal()
+        elif not isinstance(price, Decimal):
+            price = Decimal(str(price))
         ticks = (price / self.value).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
         return ticks * self.value
+
+    def is_valid_price(self, price: Decimal | Money | float | int | str) -> bool:
+        """True if *price* is an integer multiple of this tick."""
+        if isinstance(price, Money):
+            price = price.to_decimal()
+        else:
+            price = Decimal(str(price))
+        if self.value == 0:
+            return False
+        q = price / self.value
+        return q == q.to_integral_value()
 
 
 __all__ = ["Money", "MoneyField", "TickSize"]

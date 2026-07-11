@@ -38,13 +38,24 @@ def test_money_is_single_canonical_type() -> None:
 
 
 @pytest.mark.architecture
-def test_order_price_fields_documented_as_decimal_transitional() -> None:
-    """Until full migration, Order keeps Decimal price — guard against float."""
+def test_order_fields_are_money_and_quantity() -> None:
+    """Order price/qty fields are Money/Quantity (TOS-P1-004 complete)."""
     from domain import Order
+    from domain.primitives import Money, Quantity
 
-    price_type = Order.__dataclass_fields__["price"].type
-    qty_type = Order.__dataclass_fields__["quantity"].type
-    # Transitional: Decimal/int allowed; float forbidden for money.
-    assert "float" not in str(price_type).lower() or price_type is float
-    # Soft assert: quantity is int (pre-Quantity VO migration)
-    assert qty_type in (int, "int") or "int" in str(qty_type)
+    # Annotations may be strings under from __future__ import annotations
+    price_t = Order.__dataclass_fields__["price"].type
+    qty_t = Order.__dataclass_fields__["quantity"].type
+    assert price_t is Money or price_t == "Money" or getattr(price_t, "__name__", "") == "Money"
+    assert qty_t is Quantity or qty_t == "Quantity" or getattr(qty_t, "__name__", "") == "Quantity"
+    o = Order(
+        order_id="1",
+        symbol="A",
+        exchange="NSE",
+        side=__import__("domain", fromlist=["Side"]).Side.BUY,
+        order_type=__import__("domain", fromlist=["OrderType"]).OrderType.LIMIT,
+        quantity=1,
+        price=1,
+    )
+    assert isinstance(o.price, Money)
+    assert isinstance(o.quantity, Quantity)

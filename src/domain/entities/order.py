@@ -1,4 +1,10 @@
-"""Order-related domain entities."""
+"""Order-related domain entities.
+
+Money/Quantity fields (TOS-P1-004): ``price``, ``avg_price``, ``trigger_price`` are
+:class:`~domain.primitives.Money`; ``quantity`` / ``filled_quantity`` are
+:class:`~domain.primitives.Quantity`. Construction accepts Decimal/int/str for
+backward compatibility and coerces in ``__post_init__``.
+"""
 
 from __future__ import annotations
 
@@ -7,6 +13,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any, Protocol
 
+from domain.primitives import Money, Quantity
 from domain.types import (
     OrderStatus,
     OrderType,
@@ -16,13 +23,24 @@ from domain.types import (
 )
 
 
-class FieldMapping(Protocol):
-    """Broker-specific field name mapping for Order parsing.
+def _as_money(value: Money | Decimal | int | float | str | None) -> Money:
+    if value is None:
+        return Money(0)
+    if isinstance(value, Money):
+        return value
+    return Money(value)
 
-    Implemented by :class:`domain.field_mapping.DefaultFieldMapping` and
-    broker-specific adapters. Kept as a domain protocol so transport layers
-    can normalize without depending on each other.
-    """
+
+def _as_quantity(value: Quantity | Decimal | int | float | str | None) -> Quantity:
+    if value is None:
+        return Quantity(0)
+    if isinstance(value, Quantity):
+        return value
+    return Quantity(value)
+
+
+class FieldMapping(Protocol):
+    """Broker-specific field name mapping for Order parsing."""
 
     def map_order_id(self, data: dict) -> str: ...
     def map_symbol(self, data: dict) -> str: ...
@@ -46,71 +64,72 @@ class Order:
     exchange: str
     side: Side
     order_type: OrderType
-    quantity: int
-    filled_quantity: int = 0
-    price: Decimal = Decimal("0")
-    trigger_price: Decimal = Decimal("0")
+    quantity: Quantity
+    filled_quantity: Quantity = Quantity(0)
+    price: Money = Money(0)
+    trigger_price: Money = Money(0)
     status: OrderStatus = OrderStatus.OPEN
     timestamp: datetime | None = None
     product_type: ProductType = ProductType.INTRADAY
     validity: Validity = Validity.DAY
-    avg_price: Decimal = Decimal("0")
+    avg_price: Money = Money(0)
     reject_reason: str = ""
     correlation_id: str | None = None
     instrument_id: str | None = None
 
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "quantity", _as_quantity(self.quantity))
+        object.__setattr__(self, "filled_quantity", _as_quantity(self.filled_quantity))
+        object.__setattr__(self, "price", _as_money(self.price))
+        object.__setattr__(self, "trigger_price", _as_money(self.trigger_price))
+        object.__setattr__(self, "avg_price", _as_money(self.avg_price))
+
     @property
     def average_price(self) -> Decimal:
-        """Alias for avg_price — Dhan and some brokers use this name."""
+        """Decimal view of avg_price (legacy name)."""
+        return self.avg_price.to_decimal()
+
+    @property
+    def price_money(self) -> Money:
+        return self.price
+
+    @property
+    def avg_price_money(self) -> Money:
         return self.avg_price
 
     @property
-    def price_money(self):
-        """TOS-P1-004: Money view of limit price (fields remain Decimal wire-stable)."""
-        from domain.primitives import Money
-
-        return Money(self.price)
-
-    @property
-    def avg_price_money(self):
-        """TOS-P1-004: Money view of average fill price."""
-        from domain.primitives import Money
-
-        return Money(self.avg_price)
-
-    @property
-    def quantity_vo(self):
-        """TOS-P1-004: Quantity view of order size."""
-        from domain.primitives import Quantity
-
-        return Quantity(self.quantity)
+    def quantity_vo(self) -> Quantity:
+        return self.quantity
 
     @property
     def remaining_quantity(self) -> int:
-        return max(self.quantity - self.filled_quantity, 0)
+        return max(int(self.quantity) - int(self.filled_quantity), 0)
 
     @property
     def is_complete(self) -> bool:
         return self.status.is_terminal
 
     def with_status(self, status: OrderStatus) -> Order:
-        """Return a new Order with the given status."""
         return replace(self, status=status)
 
-    def with_fill(self, filled_quantity: int, avg_price: Decimal) -> Order:
-        """Return a new Order with updated fill quantity and average fill price."""
-        return replace(self, filled_quantity=filled_quantity, avg_price=avg_price)
+    def with_fill(
+        self,
+        filled_quantity: Quantity | int,
+        avg_price: Money | Decimal,
+    ) -> Order:
+        return replace(
+            self,
+            filled_quantity=_as_quantity(filled_quantity),
+            avg_price=_as_money(avg_price),
+        )
 
-    def with_price(self, price: Decimal) -> Order:
-        """Return a new Order with the given price."""
-        return replace(self, price=Decimal(str(price)))
+    def with_price(self, price: Money | Decimal) -> Order:
+        return replace(self, price=_as_money(price))
 
-    def with_quantity(self, quantity: int) -> Order:
-        """Return a new Order with the given quantity."""
-        return replace(self, quantity=quantity)
+    def with_quantity(self, quantity: Quantity | int) -> Order:
+        return replace(self, quantity=_as_quantity(quantity))
 
     def with_order_type(self, order_type: OrderType) -> Order:
-        """Return a new Order with the given order type."""
         return replace(self, order_type=order_type)
 
 
@@ -129,11 +148,7 @@ class OrderAck:
 
 @dataclass(slots=True, frozen=True)
 class OrderResponse:
-    """Adapter-facing order write result.
-
-    Domain consumers should use :meth:`to_ack` to drop transport forensics
-    (``http_status`` / ``raw_payload``).
-    """
+    """Adapter-facing order write result."""
 
     success: bool
     order_id: str = ""
@@ -144,11 +159,6 @@ class OrderResponse:
     http_status: int | None = None
     raw_payload: dict[str, Any] | None = None
     latency_ms: float = 0.0
-    # Idempotency correlation_id the caller supplied (or one generated for
-    # them). Was previously passed at construction by
-    # brokers/dhan/execution/order_placement.py without being defined here,
-    # raising TypeError on every Dhan place_order call -- the field was
-    # missing, not the caller being wrong to want it on the response.
     correlation_id: str = ""
 
     @classmethod
@@ -161,7 +171,6 @@ class OrderResponse:
         http_status: int | None = 200,
         latency_ms: float = 0.0,
     ) -> OrderResponse:
-        """Construct a successful response."""
         return cls(
             success=True,
             order_id=order_id,
@@ -183,7 +192,6 @@ class OrderResponse:
         latency_ms: float = 0.0,
         status: OrderStatus = OrderStatus.REJECTED,
     ) -> OrderResponse:
-        """Construct a failed response."""
         return cls(
             success=False,
             message=message,
@@ -195,11 +203,9 @@ class OrderResponse:
         )
 
     def with_broker_id(self, broker_id: str) -> OrderResponse:
-        """Return a copy with ``broker_order_id`` populated."""
         return replace(self, broker_order_id=broker_id)
 
     def to_ack(self) -> OrderAck:
-        """Strip transport forensics for domain consumers."""
         return OrderAck(
             success=self.success,
             order_id=self.order_id,

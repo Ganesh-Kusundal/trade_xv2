@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "tier": "T0",
+  "tier_description": "unit/architecture gates (offline)",
+  "broker": "paper",
+  "recorded_at": "2026-07-11T19:29:37.618366+00:00",
+  "evidence": {
+    "import_linter": "15/15 expected",
+    "architecture_tests": "tests/architecture",
+    "commands": [
+      "PYTHONPATH=src lint-imports --config pyproject.toml",
+      "PYTHONPATH=src pytest tests/architecture -q"
+    ]
+  },
+  "content_sha256": "4baa70c181bc370cd9d4adfe60520a1d525b5761dda9dfd46589f23db72f9f38"
+}

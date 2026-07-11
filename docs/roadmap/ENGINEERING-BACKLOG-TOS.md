@@ -1,36 +1,40 @@
 # Engineering Backlog — Trading OS (TOS-*)
 
-**Security deferred:** DR-I3 and `src/infrastructure/security/**` are out of scope (ADR-023).  
-**Workflow:** direct commits on working branch (no PRs).  
+**Security deferred:** DR-I3 / `src/infrastructure/security/**` (ADR-023).  
+**Workflow:** direct commits (no PRs).  
 **Canonical plan:** [TRADING-OS-EXECUTION-ROADMAP.md](./TRADING-OS-EXECUTION-ROADMAP.md)
 
-## Done (core + polish)
+## Done (including final remaining wave)
 
-| ID | Notes |
+| Area | Deliverables |
 |---|---|
-| TOS-P3-001/002/003 | import-linter 15/15, OrderCapabilityPort test, architecture marker |
-| TOS-P3-004/005 | Expanded mypy clean set; documented advisory `continue-on-error` |
-| TOS-P5-001/002/003 | factory.build, UI accessors, Dhan retry policies |
-| TOS-P5-010/011 | event-loop boundary; stream/OMS RLock arch tests |
-| TOS-P5-020/021/022 | bus goldens, order spine, PortfolioContext mirror |
-| TOS-P4-001/002/003 | GOLDEN_DIR, MCP diagnose/benchmark, CANONICAL_SCRIPTS |
-| TOS-P1-001–005 | ADRs, aliases, Money SSOT, Money helpers, plugin interface |
-| TOS-P2-002/003 | wire boundary + fail-closed capital arch tests |
-| TOS-P5-030 | runtime.market_defaults |
-| TOS-P6-001/002/006/008/010 | strategy discover, lake chains, equity costs, dual API note, migrate wrapper |
-| TOS-P7-001 polish | concurrent fills chaos test |
-| TOS-P7-003 | EventBusAlertingService for LifecycleManager |
-| TOS-P7-005/023 | ADR-022 / ADR-023 |
+| Trust / gates | import-linter 15/15, arch tests, mypy clean set + broker ratchet |
+| Composition / concurrency | factory.build, broker_accessors, event_loop boundary |
+| OMS spine | OrderCapabilityPort, ledger outbox, PortfolioContext mirror |
+| Money/Quantity | Order/Position/Trade fields are Money/Quantity with coercion |
+| FLOWS | Code recon matrix 2026-07-12 in FLOWS.md |
+| Options | `application.options.OptionsCapability` |
+| Strategy | `application.strategy_engine.LiveStrategyEngine` dry-run + kill-switch |
+| Load / cert | baselines + T0–T4 artifacts under `docs/certification/` |
+| MCP | doctor/diagnose/certify/benchmark parity |
+| Migrate | `migrate_legacy_to_curated` wrapper |
 
-## Remaining continuous (optional product depth)
+## Artifacts
 
-| Pri | ID | Description |
-|---|---|---|
-| P3 | TOS-P1-004 full | Replace Order/Position *fields* with Money/Quantity (helpers exist) |
-| P3 | TOS-P2-001 | Full FLOWS.md line-by-line vs every runtime path |
-| P3 | TOS-P6-003–005/007/009 | Full options product UI, live strategy engine, analytics port migration |
-| P3 | TOS-P7-002/004/006/007 | Load baselines, config SSOT merge, full mypy brokers, live cert T0–T4 |
+| Path | Purpose |
+|---|---|
+| `docs/certification/baselines/load_baseline_paper.json` | Load SLO baseline |
+| `docs/certification/baselines/mypy_brokers_baseline.json` | Broker mypy error ratchet (626 seed) |
+| `docs/certification/artifacts/T{0-4}_paper_latest.json` | Cert tiers |
 
-## Explicitly deferred
+## Regenerators
 
-DR-I3 · token encryption · safety/CVE gates · `src/infrastructure/security/**`
+```bash
+PYTHONPATH=src python scripts/verify/record_load_baseline.py
+PYTHONPATH=src python scripts/verify/mypy_broker_ratchet.py
+PYTHONPATH=src python scripts/verify/emit_cert_artifacts.py --broker paper
+```
+
+## Deferred
+
+Security fail-closed encryption (ADR-023). T3/T4 live evidence remains manual.

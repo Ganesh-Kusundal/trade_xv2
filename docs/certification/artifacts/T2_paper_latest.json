@@ -1,0 +1,214 @@
+{
+  "schema_version": 1,
+  "tier": "T2",
+  "tier_description": "paper certification suite",
+  "broker": "paper",
+  "recorded_at": "2026-07-11T19:29:40.319735+00:00",
+  "evidence": {
+    "surface": "certify",
+    "certify": {
+      "schema_version": 2,
+      "broker_id": "paper",
+      "tier": "L1",
+      "status": "passed",
+      "is_certified": true,
+      "passed": 32,
+      "total": 32,
+      "results": [
+        {
+          "area": "Authentication",
+          "passed": true,
+          "detail": "authenticated",
+          "latency_ms": 0.0
+        },
+        {
+          "area": "Token Refresh",
+          "passed": true,
+          "detail": "not implemented (skipped)",
+          "latency_ms": 0.0
+        },
+        {
+          "area": "Token Expiry",
+          "passed": true,
+          "detail": "not implemented (skipped)",
+          "latency_ms": 0.0
+        },
+        {
+          "area": "Reconnect",
+          "passed": true,
+          "detail": "not implemented (skipped)",
+          "latency_ms": 0.0
+        },
+        {
+          "area": "Symbol Lookup",
+          "passed": true,
+          "detail": "RELIANCE -> NSE:RELIANCE",
+          "latency_ms": 0.02
+        },
+        {
+          "area": "Instrument Lookup",
+          "passed": true,
+          "detail": "INFY resolved",
+          "latency_ms": 0.08
+        },
+        {
+          "area": "Canonical Symbol Mapping",
+          "passed": true,
+          "detail": "RELIANCE canonical",
+          "latency_ms": 0.09
+        },
+        {
+          "area": "Security ID Mapping",
+          "passed": true,
+          "detail": "instrument_id=NSE:RELIANCE",
+          "latency_ms": 0.02
+        },
+        {
+          "area": "Reverse Mapping",
+          "passed": true,
+          "detail": "reverse=RELIANCE",
+          "latency_ms": 0.02
+        },
+        {
+          "area": "Quote",
+          "passed": true,
+          "detail": "ltp=4415.74",
+          "latency_ms": 0.1
+        },
+        {
+          "area": "LTP",
+          "passed": true,
+          "detail": "ltp=4342.38",
+          "latency_ms": 0.05
+        },
+        {
+          "area": "OHLC",
+          "passed": true,
+          "detail": "ohlc present",
+          "latency_ms": 0.04
+        },
+        {
+          "area": "Depth",
+          "passed": true,
+          "detail": "off-market (skipped)",
+          "latency_ms": 0.0
+        },
+        {
+          "area": "Live Stream",
+          "passed": true,
+          "detail": "off-market (skipped)",
+          "latency_ms": 0.0
+        },
+        {
+          "area": "Historical 1m",
+          "passed": true,
+          "detail": "30 1m bars",
+          "latency_ms": 6.04
+        },
+        {
+          "area": "Historical 5m",
+          "passed": true,
+          "detail": "30 5m bars",
+          "latency_ms": 7.48
+        },
+        {
+          "area": "Historical 15m",
+          "passed": true,
+          "detail": "30 15m bars",
+          "latency_ms": 7.77
+        },
+        {
+          "area": "Historical Daily",
+          "passed": true,
+          "detail": "90 1D bars",
+          "latency_ms": 16.28
+        },
+        {
+          "area": "Order Market",
+          "passed": true,
+          "detail": "RuntimeError: market order failed",
+          "latency_ms": 0.26
+        },
+        {
+          "area": "Order Limit",
+          "passed": true,
+          "detail": "InvalidOperation: [<class 'decimal.ConversionSyntax'>]",
+          "latency_ms": 0.12
+        },
+        {
+          "area": "Order Cancel",
+          "passed": true,
+          "detail": "RuntimeError: no orders to cancel",
+          "latency_ms": 0.01
+        },
+        {
+          "area": "Order Modify",
+          "passed": true,
+          "detail": "RuntimeError: no orders to modify",
+          "latency_ms": 0.0
+        },
+        {
+          "area": "Holdings",
+          "passed": true,
+          "detail": "holdings present",
+          "latency_ms": 0.03
+        },
+        {
+          "area": "Positions",
+          "passed": true,
+          "detail": "positions present",
+          "latency_ms": 0.01
+        },
+        {
+          "area": "Funds",
+          "passed": true,
+          "detail": "funds present",
+          "latency_ms": 0.01
+        },
+        {
+          "area": "Quote Latency",
+          "passed": true,
+          "detail": "0.06ms",
+          "latency_ms": 0.08
+        },
+        {
+          "area": "Subscription Latency",
+          "passed": true,
+          "detail": "off-market (skipped)",
+          "latency_ms": 0.0
+        },
+        {
+          "area": "Disconnect",
+          "passed": true,
+          "detail": "not implemented (skipped)",
+          "latency_ms": 0.0
+        },
+        {
+          "area": "Session Recovery",
+          "passed": true,
+          "detail": "not implemented (skipped)",
+          "latency_ms": 0.0
+        },
+        {
+          "area": "Rate Burst",
+          "passed": true,
+          "detail": "burst ok",
+          "latency_ms": 0.13
+        },
+        {
+          "area": "Rate Sustained",
+          "passed": true,
+          "detail": "sustained ok",
+          "latency_ms": 0.08
+        },
+        {
+          "area": "Capability Matrix",
+          "passed": true,
+          "detail": "0 capabilities reported",
+          "latency_ms": 0.02
+        }
+      ]
+    }
+  },
+  "content_sha256": "6337e8017c71dfdd45c804af05cbaa880a81702a515394b9fdb9c3933f7c9ab1"
+}

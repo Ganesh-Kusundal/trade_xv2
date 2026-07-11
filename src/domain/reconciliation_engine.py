@@ -21,6 +21,23 @@ from domain.reconciliation import DriftItem
 
 logger = logging.getLogger(__name__)
 
+_PRICE_TOLERANCE = Decimal("0.01")
+
+
+def _as_decimal(value: object) -> Decimal:
+    """Coerce Money/Quantity/Decimal/str to Decimal."""
+    if value is None:
+        return Decimal("0")
+    to_dec = getattr(value, "to_decimal", None)
+    if callable(to_dec):
+        return to_dec()
+    if isinstance(value, Decimal):
+        return value
+    try:
+        return Decimal(str(value))
+    except Exception:
+        return Decimal("0")
+
 
 class ReconciliationEngine:
     """Broker-agnostic reconciliation comparison engine.
@@ -78,7 +95,7 @@ class ReconciliationEngine:
                     )
                 continue
 
-            # Both exist — compare statuses
+            # Both exist — compare statuses and economic fields
             broker_order = broker_by_id[oid]
             if str(local_order.status) != str(broker_order.status):
                 drift.append(
@@ -93,6 +110,51 @@ class ReconciliationEngine:
                         payload={"order_id": oid, "symbol": local_order.symbol},
                     )
                 )
+
+            local_filled = getattr(local_order, "filled_quantity", None)
+            broker_filled = getattr(broker_order, "filled_quantity", None)
+            if local_filled is not None and broker_filled is not None:
+                if local_filled != broker_filled:
+                    drift.append(
+                        DriftItem(
+                            kind="fill_quantity_mismatch",
+                            severity="HIGH",
+                            symbol=local_order.symbol,
+                            details=(
+                                f"Order {oid}: local_filled={local_filled}, "
+                                f"broker_filled={broker_filled}"
+                            ),
+                            payload={
+                                "order_id": oid,
+                                "symbol": local_order.symbol,
+                                "local_filled": local_filled,
+                                "broker_filled": broker_filled,
+                            },
+                        )
+                    )
+                elif local_filled > 0 and broker_filled > 0:
+                    local_avg = _as_decimal(getattr(local_order, "avg_price", 0))
+                    broker_avg = _as_decimal(getattr(broker_order, "avg_price", 0))
+                    if abs(local_avg - broker_avg) > _PRICE_TOLERANCE:
+                        drift.append(
+                            DriftItem(
+                                kind="avg_price_mismatch",
+                                severity="HIGH",
+                                symbol=local_order.symbol,
+                                details=(
+                                    f"Order {oid}: local_avg={local_avg}, "
+                                    f"broker_avg={broker_avg} "
+                                    f"(tolerance={_PRICE_TOLERANCE})"
+                                ),
+                                payload={
+                                    "order_id": oid,
+                                    "symbol": local_order.symbol,
+                                    "local_avg": str(local_avg),
+                                    "broker_avg": str(broker_avg),
+                                    "tolerance": str(_PRICE_TOLERANCE),
+                                },
+                            )
+                        )
 
         return drift
 
@@ -127,7 +189,7 @@ class ReconciliationEngine:
                 )
                 continue
 
-            # Both exist — compare quantities
+            # Both exist — compare quantities and economic fields
             if local_pos.quantity != broker_pos.quantity:
                 drift.append(
                     DriftItem(
@@ -146,6 +208,29 @@ class ReconciliationEngine:
                         },
                     )
                 )
+            elif local_pos.quantity != 0:
+                local_avg = _as_decimal(getattr(local_pos, "avg_price", 0))
+                broker_avg = _as_decimal(getattr(broker_pos, "avg_price", 0))
+                if abs(local_avg - broker_avg) > _PRICE_TOLERANCE:
+                    drift.append(
+                        DriftItem(
+                            kind="position_avg_price_mismatch",
+                            severity="HIGH",
+                            symbol=broker_pos.symbol,
+                            details=(
+                                f"Position {key}: local_avg={local_avg}, "
+                                f"broker_avg={broker_avg} "
+                                f"(tolerance={_PRICE_TOLERANCE})"
+                            ),
+                            payload={
+                                "symbol": broker_pos.symbol,
+                                "exchange": broker_pos.exchange,
+                                "local_avg": str(local_avg),
+                                "broker_avg": str(broker_avg),
+                                "tolerance": str(_PRICE_TOLERANCE),
+                            },
+                        )
+                    )
 
         # Check for local positions missing on broker
         for key, local_pos in local_by_key.items():

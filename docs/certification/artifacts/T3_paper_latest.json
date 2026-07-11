@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "tier": "T3",
+  "tier_description": "sandbox order smoke (optional env)",
+  "broker": "paper",
+  "recorded_at": "2026-07-11T19:29:40.320944+00:00",
+  "evidence": {
+    "status": "manual",
+    "requires": "DHAN_INTEGRATION=1 or sandbox credentials",
+    "note": "Run sandbox order smoke; attach logs to this tier"
+  },
+  "content_sha256": "7230d975b1fe80c6f76f533d8e77af5cc20b835ee084dbc95ad8baa099c63dda"
+}

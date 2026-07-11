@@ -82,7 +82,8 @@ class Execution:
                 return Decimal("0")
             total_value = sum(t.value for t in self._trades)
             total_qty = sum(t.quantity for t in self._trades)
-        return total_value / Decimal(total_qty) if total_qty else Decimal("0")
+        qty_n = int(total_qty) if total_qty else 0
+        return total_value / Decimal(qty_n) if qty_n else Decimal("0")
 
     @property
     def notional(self) -> Decimal:

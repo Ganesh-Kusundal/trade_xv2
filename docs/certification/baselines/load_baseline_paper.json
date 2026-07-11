@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-07-11T19:29:23.395911+00:00",
+  "broker": "paper",
+  "results": [
+    {
+      "endpoint": "quotes",
+      "samples": 50,
+      "p50_ms": 2.9,
+      "p95_ms": 3.8,
+      "p99_ms": 3.8,
+      "mean_ms": 2.882,
+      "mode": "synthetic_offline"
+    },
+    {
+      "endpoint": "historical",
+      "samples": 50,
+      "p50_ms": 3.2,
+      "p95_ms": 4.1,
+      "p99_ms": 4.1,
+      "mean_ms": 3.182,
+      "mode": "synthetic_offline"
+    },
+    {
+      "endpoint": "option-chain",
+      "samples": 50,
+      "p50_ms": 3.3,
+      "p95_ms": 4.2,
+      "p99_ms": 4.2,
+      "mean_ms": 3.282,
+      "mode": "synthetic_offline"
+    },
+    {
+      "endpoint": "websocket",
+      "samples": 50,
+      "p50_ms": 3.1,
+      "p95_ms": 4.0,
+      "p99_ms": 4.0,
+      "mean_ms": 3.0820000000000003,
+      "mode": "synthetic_offline"
+    }
+  ],
+  "slo": {
+    "p99_ms_max": 500.0,
+    "note": "paper synthetic baseline; raise with --live"
+  }
+}

@@ -1,4 +1,4 @@
-"""Position and Holding domain entities — includes PositionState machine."""
+"""Position and Holding domain entities — Money/Quantity fields (TOS-P1-004)."""
 
 from __future__ import annotations
 
@@ -7,107 +7,139 @@ from decimal import Decimal
 from enum import Enum
 
 from domain.enums import ProductType
+from domain.primitives import Money, Quantity
+
+
+def _as_money(value: Money | Decimal | int | float | str | None) -> Money:
+    if value is None:
+        return Money(0)
+    if isinstance(value, Money):
+        return value
+    return Money(value)
+
+
+def _as_quantity(value: Quantity | Decimal | int | float | str | None) -> Quantity:
+    if value is None:
+        return Quantity(0)
+    if isinstance(value, Quantity):
+        return value
+    return Quantity(value)
 
 
 @dataclass(slots=True, frozen=True)
 class Position:
     """Canonical position — returned by every broker adapter.
 
-    ``multiplier`` is the contract multiplier (1 for equity; e.g. 15/50/75
-    for index options/futures). PnL and notional scale by this factor.
+    Quantity/price fields are :class:`Quantity` / :class:`Money` (coerced on init).
     """
 
     symbol: str
     exchange: str
-    quantity: int = 0
-    avg_price: Decimal = Decimal("0")
-    ltp: Decimal = Decimal("0")
-    unrealized_pnl: Decimal = Decimal("0")
-    realized_pnl: Decimal = Decimal("0")
+    quantity: Quantity = Quantity(0)
+    avg_price: Money = Money(0)
+    ltp: Money = Money(0)
+    unrealized_pnl: Money = Money(0)
+    realized_pnl: Money = Money(0)
     product_type: ProductType = ProductType.INTRADAY
     correlation_id: str | None = None
     instrument_id: str | None = None
     multiplier: Decimal = Decimal("1")
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "quantity", _as_quantity(self.quantity))
+        object.__setattr__(self, "avg_price", _as_money(self.avg_price))
+        object.__setattr__(self, "ltp", _as_money(self.ltp))
+        object.__setattr__(self, "unrealized_pnl", _as_money(self.unrealized_pnl))
+        object.__setattr__(self, "realized_pnl", _as_money(self.realized_pnl))
+        if not isinstance(self.multiplier, Decimal):
+            object.__setattr__(self, "multiplier", Decimal(str(self.multiplier)))
 
     def _mult(self) -> Decimal:
         m = self.multiplier if self.multiplier > 0 else Decimal("1")
         return m
 
     @property
-    def avg_price_money(self):
-        """TOS-P1-004: Money view of average price."""
-        from domain.primitives import Money
-
-        return Money(self.avg_price)
+    def avg_price_money(self) -> Money:
+        return self.avg_price
 
     @property
-    def quantity_vo(self):
-        """TOS-P1-004: Quantity view of position size."""
-        from domain.primitives import Quantity
-
-        return Quantity(self.quantity)
+    def quantity_vo(self) -> Quantity:
+        return self.quantity
 
     @property
     def pnl(self) -> Decimal:
         m = self._mult()
-        if self.quantity > 0:
-            return Decimal(str(self.quantity)) * (self.ltp - self.avg_price) * m
-        elif self.quantity < 0:
-            return Decimal(str(abs(self.quantity))) * (self.avg_price - self.ltp) * m
+        qty = int(self.quantity)
+        avg = self.avg_price.to_decimal()
+        ltp = self.ltp.to_decimal()
+        if qty > 0:
+            return Decimal(str(qty)) * (ltp - avg) * m
+        if qty < 0:
+            return Decimal(str(abs(qty))) * (avg - ltp) * m
         return Decimal("0")
 
-    def with_ltp(self, ltp: Decimal) -> Position:
-        """Return a new Position with the last traded price updated."""
+    def with_ltp(self, ltp: Money | Decimal) -> Position:
         m = self._mult()
+        ltp_m = _as_money(ltp)
+        qty = int(self.quantity)
         unrealized = (
-            Decimal(str(self.quantity)) * (ltp - self.avg_price) * m
-            if self.quantity != 0
+            Decimal(str(qty)) * (ltp_m.to_decimal() - self.avg_price.to_decimal()) * m
+            if qty != 0
             else Decimal("0")
         )
-        return replace(self, ltp=ltp, unrealized_pnl=unrealized)
+        return replace(self, ltp=ltp_m, unrealized_pnl=_as_money(unrealized))
 
-    def with_fill(self, quantity: int, price: Decimal) -> Position:
-        """Return a new Position after applying a signed fill."""
-        new_qty = self.quantity + quantity
-        new_avg = self._compute_avg_price(new_qty, quantity, price)
-        new_realized = self._compute_realized_pnl(quantity, price)
-        new_unrealized = self._compute_unrealized(new_qty, price, new_avg)
+    def with_fill(
+        self,
+        quantity: Quantity | int,
+        price: Money | Decimal,
+    ) -> Position:
+        """Return a new Position after applying a signed fill (qty int or Quantity)."""
+        fill_qty = int(_as_quantity(quantity))
+        fill_price = _as_money(price).to_decimal()
+        cur_qty = int(self.quantity)
+        new_qty = cur_qty + fill_qty
+        new_avg = self._compute_avg_price(new_qty, fill_qty, fill_price)
+        new_realized = self._compute_realized_pnl(fill_qty, fill_price)
+        new_unrealized = self._compute_unrealized(new_qty, fill_price, new_avg)
         return replace(
             self,
-            quantity=new_qty,
-            avg_price=new_avg,
-            ltp=price,
-            unrealized_pnl=new_unrealized,
-            realized_pnl=new_realized,
+            quantity=Quantity(new_qty),
+            avg_price=Money(new_avg),
+            ltp=Money(fill_price),
+            unrealized_pnl=Money(new_unrealized),
+            realized_pnl=Money(new_realized),
         )
 
     def _compute_avg_price(self, new_qty: int, fill_qty: int, fill_price: Decimal) -> Decimal:
-        if self.quantity == 0:
+        cur_qty = int(self.quantity)
+        avg = self.avg_price.to_decimal()
+        if cur_qty == 0:
             return fill_price
-        is_closing = (self.quantity > 0 and fill_qty < 0) or (self.quantity < 0 and fill_qty > 0)
+        is_closing = (cur_qty > 0 and fill_qty < 0) or (cur_qty < 0 and fill_qty > 0)
         if is_closing:
             if new_qty == 0:
                 return Decimal("0")
-            elif abs(fill_qty) > abs(self.quantity):
+            if abs(fill_qty) > abs(cur_qty):
                 return fill_price
-            return self.avg_price
-        return (Decimal(str(self.quantity)) * self.avg_price + Decimal(str(fill_qty)) * fill_price) / Decimal(
-            str(new_qty)
-        )
+            return avg
+        return (
+            Decimal(str(cur_qty)) * avg + Decimal(str(fill_qty)) * fill_price
+        ) / Decimal(str(new_qty))
 
     def _compute_realized_pnl(self, fill_qty: int, fill_price: Decimal) -> Decimal:
-        if self.quantity == 0:
-            return self.realized_pnl
-        is_closing = (self.quantity > 0 and fill_qty < 0) or (self.quantity < 0 and fill_qty > 0)
+        cur_qty = int(self.quantity)
+        realized = self.realized_pnl.to_decimal()
+        avg = self.avg_price.to_decimal()
+        if cur_qty == 0:
+            return realized
+        is_closing = (cur_qty > 0 and fill_qty < 0) or (cur_qty < 0 and fill_qty > 0)
         if not is_closing:
-            return self.realized_pnl
-        closed = min(abs(self.quantity), abs(fill_qty))
-        pnl_factor = Decimal("1") if self.quantity > 0 else Decimal("-1")
+            return realized
+        closed = min(abs(cur_qty), abs(fill_qty))
+        pnl_factor = Decimal("1") if cur_qty > 0 else Decimal("-1")
         m = self._mult()
-        return (
-            self.realized_pnl
-            + Decimal(str(closed)) * (fill_price - self.avg_price) * pnl_factor * m
-        )
+        return realized + Decimal(str(closed)) * (fill_price - avg) * pnl_factor * m
 
     def _compute_unrealized(self, new_qty: int, price: Decimal, avg_price: Decimal) -> Decimal:
         if new_qty == 0:
@@ -121,34 +153,25 @@ class Holding:
 
     symbol: str
     exchange: str
-    quantity: int = 0
-    available_quantity: int = 0
-    avg_price: Decimal = Decimal("0")
-    ltp: Decimal = Decimal("0")
-    pnl: Decimal = Decimal("0")
+    quantity: Quantity = Quantity(0)
+    available_quantity: Quantity = Quantity(0)
+    avg_price: Money = Money(0)
+    ltp: Money = Money(0)
+    pnl: Money = Money(0)
     correlation_id: str | None = None
 
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "quantity", _as_quantity(self.quantity))
+        object.__setattr__(
+            self, "available_quantity", _as_quantity(self.available_quantity)
+        )
+        object.__setattr__(self, "avg_price", _as_money(self.avg_price))
+        object.__setattr__(self, "ltp", _as_money(self.ltp))
+        object.__setattr__(self, "pnl", _as_money(self.pnl))
+
+
 class PositionState(str, Enum):
-    """Position lifecycle states.
-
-    Tracks the lifecycle of a position from flat through open, reducing,
-    closed, or reversed states. Used by PositionManager to enforce valid
-    state transitions and prevent illegal position updates.
-
-    Transitions:
-    - FLAT → OPEN (buy/sell creates position)
-    - FLAT → REVERSED (sell after buy or vice versa in same session)
-    - OPEN → REDUCING (partial exit)
-    - OPEN → REVERSED (full exit + reverse)
-    - OPEN → CLOSED (full exit)
-    - REDUCING → FLAT (complete exit)
-    - REDUCING → OPEN (add to position)
-    - REDUCING → REVERSED (full exit + reverse)
-    - REVERSED → FLAT (complete exit)
-    - REVERSED → OPEN (reverse back)
-    - REVERSED → REDUCING (reduce reversed position)
-    - CLOSED → FLAT (reset for new session)
-    """
+    """Position lifecycle states."""
 
     FLAT = "FLAT"
     OPEN = "OPEN"
@@ -158,27 +181,18 @@ class PositionState(str, Enum):
 
     @property
     def is_active(self) -> bool:
-        """True if position has non-zero quantity."""
         return self in (PositionState.OPEN, PositionState.REDUCING, PositionState.REVERSED)
 
     @property
     def is_terminal(self) -> bool:
-        """True if position is closed or flat (no active exposure)."""
         return self in (PositionState.FLAT, PositionState.CLOSED)
 
 
-# Position state machine transition table
-# Used by PositionManager to validate position updates
 POSITION_STATE_TRANSITIONS: dict[PositionState, frozenset[PositionState]] = {
-    PositionState.FLAT: frozenset(
-        {
-            PositionState.OPEN,
-            PositionState.REVERSED,
-        }
-    ),
+    PositionState.FLAT: frozenset({PositionState.OPEN, PositionState.REVERSED}),
     PositionState.OPEN: frozenset(
         {
-            PositionState.OPEN,  # Add to position
+            PositionState.OPEN,
             PositionState.REDUCING,
             PositionState.CLOSED,
             PositionState.REVERSED,
@@ -192,11 +206,7 @@ POSITION_STATE_TRANSITIONS: dict[PositionState, frozenset[PositionState]] = {
             PositionState.CLOSED,
         }
     ),
-    PositionState.CLOSED: frozenset(
-        {
-            PositionState.FLAT,  # Reset for new session
-        }
-    ),
+    PositionState.CLOSED: frozenset({PositionState.FLAT}),
     PositionState.REVERSED: frozenset(
         {
             PositionState.FLAT,
