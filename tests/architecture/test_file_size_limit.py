@@ -21,8 +21,6 @@ HARD_LIMIT = 650
 # Files with documented exceptions (historical, being migrated).
 # Each entry: (relative_path, approved_limit, reason)
 EXEMPTIONS = {
-    "analytics/options/options_analytics.py": (444, "Options analytics — split tracked in ADR-011 backlog"),
-    "analytics/scanner/scanner_queries.py": (472, "Scanner queries — split tracked in ADR-011 backlog"),
     "analytics/replay/engine.py": (654, "ReplayEngine facade — partially decomposed; remaining split in ADR-011 backlog"),
     "application/composer/factory.py": (409, "Composer factory — split tracked in ADR-011 backlog"),
 
@@ -41,13 +39,9 @@ EXEMPTIONS = {
 
 
     "brokers/upstox/websocket/market_data_v3.py": (489, "Upstox market data v3 — split tracked in ADR-011 backlog"),
-    "datalake/analytics/support_resistance.py": (414, "Datalake support/resistance — split tracked in ADR-011 backlog"),
     "domain/options/option_chain.py": (465, "Option chain — split tracked in ADR-011 backlog"),
     "infrastructure/event_bus/event_bus.py": (457, "EventBus core — split tracked in ADR-011 backlog"),
     "infrastructure/observability/alerting.py": (483, "Alerting engine — split tracked in ADR-011 backlog"),
-    "infrastructure/observability/audit.py": (416, "Audit logging — split tracked in ADR-011 backlog"),
-    "infrastructure/resilience/rate_limiter.py": (405, "Rate limiter — split tracked in ADR-011 backlog"),
-    "interface/api/routers/orders.py": (403, "Orders router — split tracked in ADR-011 backlog"),
     "interface/api/schemas.py": (485, "API schemas — split tracked in ADR-011 backlog"),
     "interface/ui/commands/market.py": (458, "Market commands — split tracked in ADR-011 backlog"),
 

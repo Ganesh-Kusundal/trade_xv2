@@ -1,7 +1,7 @@
 """Options analytics."""
 
+from analytics.options._greeks import GreeksAnalytics
 from analytics.options.options_analytics import (
-    GreeksAnalytics,
     IVAnalytics,
     MaxPainAnalytics,
     OpenInterestAnalytics,
