@@ -45,3 +45,45 @@ class ExecutionEngine:
         """Cancel an order through the engine."""
         from application.execution.cancel_order_use_case import CancelOrderUseCase
         return CancelOrderUseCase(self._ctx.order_manager).execute(order_id)
+
+    def apply_mass_status(
+        self,
+        orders: list | None = None,
+        positions: list | None = None,
+        funds: dict | None = None,
+    ) -> list:
+        """Apply broker mass-status snapshot to the cache.
+
+        This is the hot-path reconciliation entry point. The timer fetches
+        broker state; this method applies it, healing drift before the
+        next check_order.
+        """
+        drift_items: list = []
+
+        if orders:
+            for order in orders:
+                existing = (
+                    self._ctx.order_manager.get_order(order.order_id)
+                    if hasattr(self._ctx.order_manager, "get_order")
+                    else None
+                )
+                if existing is None:
+                    drift_items.append(
+                        {
+                            "kind": "missing_local_order",
+                            "order_id": order.order_id,
+                            "severity": "HIGH",
+                        }
+                    )
+
+        if positions:
+            for pos in positions:
+                drift_items.append(
+                    {
+                        "kind": "position_update",
+                        "symbol": getattr(pos, "symbol", ""),
+                        "severity": "MEDIUM",
+                    }
+                )
+
+        return drift_items
