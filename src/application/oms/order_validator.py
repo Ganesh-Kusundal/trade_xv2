@@ -23,7 +23,9 @@ if TYPE_CHECKING:
     from domain.entities import Order
     from domain.ports import EventBusPort
 
-logger = __import__("logging").getLogger(__name__)
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class OrderValidator:
