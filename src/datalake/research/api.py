@@ -13,6 +13,7 @@ from pathlib import Path
 import pandas as pd
 
 from datalake.core.paths import timeframe_partition_dir
+from datalake.exchange_registry import get_active_exchange_code
 from datalake.gateway import DataLakeGateway
 
 logger = logging.getLogger(__name__)
@@ -60,7 +61,7 @@ class ResearchAPI:
         lookback_days = years * 365 if not from_date else 0
         df = self._gateway.history(
             symbol,
-            exchange="NSE",
+            exchange=get_active_exchange_code(),
             timeframe=timeframe,
             lookback_days=lookback_days,
             from_date=from_date,
@@ -108,7 +109,7 @@ class ResearchAPI:
         symbols = self._load_universe_list(universe, as_of_date=as_of_date)
         available = []
         for symbol in symbols:
-            df = self._gateway.history(symbol, exchange="NSE", timeframe="1m", lookback_days=1)
+            df = self._gateway.history(symbol, exchange=get_active_exchange_code(), timeframe="1m", lookback_days=1)
             if not df.empty:
                 available.append(symbol)
         return available

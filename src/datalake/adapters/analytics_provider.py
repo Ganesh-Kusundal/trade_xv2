@@ -27,6 +27,7 @@ from typing import Any
 
 import pandas as pd
 
+from datalake.exchange_registry import get_active_exchange_code
 from domain.entities.options import FutureChain, OptionChain
 from domain.ports.market_data import MarketDataPort
 
@@ -75,7 +76,7 @@ class DataLakeMarketDataProvider:
         """Load historical OHLCV bars for *symbol* via the gateway."""
         return self._gateway.history(
             symbol,
-            exchange="NSE",
+            exchange=get_active_exchange_code(),
             timeframe=timeframe,
             lookback_days=lookback_days,
             from_date=from_date,
@@ -101,7 +102,9 @@ class DataLakeMarketDataProvider:
             return chain
         return FutureChain.from_dict(chain if isinstance(chain, dict) else {"contracts": []})
 
-    def ltp(self, symbol: str, *, exchange: str = "NSE") -> float:
+    def ltp(self, symbol: str, *, exchange: str | None = None) -> float:
+        if exchange is None:
+            exchange = get_active_exchange_code()
         """Return last-traded price for *symbol*."""
         return float(self._gateway.ltp(symbol, exchange=exchange))
 
@@ -119,7 +122,7 @@ class DataLakeMarketDataProvider:
         """Load historical OHLCV for multiple symbols in one call."""
         return self._gateway.history_batch(
             symbols,
-            exchange="NSE",
+            exchange=get_active_exchange_code(),
             timeframe=timeframe,
             lookback_days=lookback_days,
         )

@@ -71,6 +71,12 @@ dhan = "brokers.dhan"
 upstox = "brokers.upstox"
 paper = "brokers.paper"
 
+[project.entry-points."tradex.exchanges"]
+# Exchange plugins: each module must expose ADAPTER (ExchangeAdapter instance)
+# and CALENDAR (TradingCalendar instance). See datalake/exchange_registry.py
+# for the composition-root discovery code.
+nse = "plugins.exchanges.nse"
+
 # Single-root packaging: all library code lives under src/.
 # Layout (Clean Architecture):
 #   src/domain, application, infrastructure, brokers,
