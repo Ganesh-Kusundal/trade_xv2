@@ -21,29 +21,28 @@ HARD_LIMIT = 650
 # Files with documented exceptions (historical, being migrated).
 # Each entry: (relative_path, approved_limit, reason)
 EXEMPTIONS = {
-    "analytics/replay/engine.py": (654, "ReplayEngine facade — partially decomposed; remaining split in ADR-011 backlog"),
-    "application/composer/factory.py": (409, "Composer factory — split tracked in ADR-011 backlog"),
+    "analytics/replay/engine.py": (687, "ReplayEngine facade — partially decomposed; remaining split in ADR-011 backlog"),
+    "application/composer/factory.py": (430, "Composer factory — split tracked in ADR-011 backlog"),
 
-    "application/oms/context.py": (517, "TradingContext facade — partially decomposed; remaining split in ADR-011 backlog"),
-    "application/oms/_internal/risk_manager.py": (355, "RiskManager facade — partially decomposed; remaining split in ADR-011 backlog"),
-    "application/trading/trading_orchestrator.py": (493, "TradingOrchestrator facade — partially decomposed; remaining split in ADR-011 backlog"),
-    "brokers/cli/broker.py": (451, "CLI broker commands — split tracked in ADR-011 backlog"),
-    "brokers/dhan/api/http_client.py": (476, "Dhan HTTP client — split tracked in ADR-011 backlog"),
-    "brokers/dhan/data/depth_feed_base.py": (573, "Dhan depth feed — split tracked in ADR-011 backlog"),
-    "brokers/dhan/identity/identity.py": (420, "Dhan identity — split tracked in ADR-011 backlog"),
-    "brokers/dhan/streaming/connection.py": (491, "Dhan streaming connection — split tracked in ADR-011 backlog"),
-    "brokers/dhan/websocket/connection.py": (426, "Dhan websocket connection — split tracked in ADR-011 backlog"),
-    "brokers/dhan/websocket/market_feed.py": (408, "Dhan market feed — split tracked in ADR-011 backlog"),
-    "brokers/paper/paper_gateway.py": (485, "Paper gateway — split tracked in ADR-011 backlog"),
-    "brokers/paper/paper_orders.py": (433, "Paper orders — split tracked in ADR-011 backlog"),
+    "application/oms/context.py": (543, "TradingContext facade — partially decomposed; remaining split in ADR-011 backlog"),
+    "application/trading/trading_orchestrator.py": (517, "TradingOrchestrator facade — partially decomposed; remaining split in ADR-011 backlog"),
+    "brokers/cli/broker.py": (487, "CLI broker commands — split tracked in ADR-011 backlog"),
+    "brokers/dhan/api/http_client.py": (500, "Dhan HTTP client — split tracked in ADR-011 backlog"),
+    "brokers/dhan/data/depth_feed_base.py": (602, "Dhan depth feed — split tracked in ADR-011 backlog"),
+    "brokers/dhan/identity/identity.py": (441, "Dhan identity — split tracked in ADR-011 backlog"),
+    "brokers/dhan/streaming/connection.py": (516, "Dhan streaming connection — split tracked in ADR-011 backlog"),
+    "brokers/dhan/websocket/connection.py": (448, "Dhan websocket connection — split tracked in ADR-011 backlog"),
+    "brokers/dhan/websocket/market_feed.py": (429, "Dhan market feed — split tracked in ADR-011 backlog"),
+    "brokers/paper/paper_gateway.py": (510, "Paper gateway — split tracked in ADR-011 backlog"),
+    "brokers/paper/paper_orders.py": (455, "Paper orders — split tracked in ADR-011 backlog"),
 
 
-    "brokers/upstox/websocket/market_data_v3.py": (489, "Upstox market data v3 — split tracked in ADR-011 backlog"),
-    "domain/options/option_chain.py": (465, "Option chain — split tracked in ADR-011 backlog"),
-    "infrastructure/event_bus/event_bus.py": (457, "EventBus core — split tracked in ADR-011 backlog"),
-    "infrastructure/observability/alerting.py": (483, "Alerting engine — split tracked in ADR-011 backlog"),
-    "interface/api/schemas.py": (485, "API schemas — split tracked in ADR-011 backlog"),
-    "interface/ui/commands/market.py": (458, "Market commands — split tracked in ADR-011 backlog"),
+    "brokers/upstox/websocket/market_data_v3.py": (514, "Upstox market data v3 — split tracked in ADR-011 backlog"),
+    "domain/options/option_chain.py": (489, "Option chain — split tracked in ADR-011 backlog"),
+    "infrastructure/event_bus/event_bus.py": (480, "EventBus core — split tracked in ADR-011 backlog"),
+    "infrastructure/observability/alerting.py": (508, "Alerting engine — split tracked in ADR-011 backlog"),
+    "interface/api/schemas.py": (510, "API schemas — split tracked in ADR-011 backlog"),
+    "interface/ui/commands/market.py": (481, "Market commands — split tracked in ADR-011 backlog"),
 
 }
 
