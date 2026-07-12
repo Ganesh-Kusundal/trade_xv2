@@ -12,16 +12,17 @@ an in-process loop uses is reused — no second code path, no bypassed guards.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
+logger = logging.getLogger(__name__)
+
 try:
-    from mcp import types as mcp_types
-    from mcp.server import Server
+    from mcp.server.fastmcp import FastMCP
 
     _MCP_AVAILABLE = True
 except Exception:  # pragma: no cover - depends on optional dep
-    mcp_types = None  # type: ignore[assignment]
-    Server = None  # type: ignore[assignment]
+    FastMCP = None  # type: ignore[assignment,misc]
     _MCP_AVAILABLE = False
 
 from interface.agent.tools import AgentTools
@@ -32,22 +33,50 @@ def mcp_available() -> bool:
     return _MCP_AVAILABLE
 
 
-def _specs_as_mcp_tools() -> list[Any]:
-    """Convert the Anthropic tool specs into MCP Tool definitions."""
-    tools = []
-    for spec in AGENT_TOOL_SPECS:
-        tools.append(
-            mcp_types.Tool(
-                name=spec["name"],
-                description=spec.get("description", ""),
-                inputSchema=spec["input_schema"],
-            )
-        )
-    return tools
+def _build_arg_model(spec: dict[str, Any]) -> type:
+    """Create a Pydantic ArgModelBase subclass from a JSON Schema input spec."""
+    from pydantic import Field, create_model
+
+    from mcp.server.fastmcp.utilities.func_metadata import ArgModelBase
+
+    _TYPE_MAP: dict[str, type] = {
+        "string": str,
+        "integer": int,
+        "number": float,
+        "boolean": bool,
+    }
+
+    schema = spec.get("input_schema", {})
+    props = schema.get("properties", {})
+    required = set(schema.get("required", []))
+    fields: dict[str, Any] = {}
+
+    for name, prop in props.items():
+        py_type = _TYPE_MAP.get(prop.get("type", "string"), str)
+        desc = prop.get("description", "")
+        if name in required:
+            fields[name] = (py_type, Field(description=desc))
+        else:
+            default = prop.get("default")
+            fields[name] = (py_type, Field(default=default, description=desc))
+
+    model_name = f"{spec['name']}Args"
+    return create_model(model_name, __base__=ArgModelBase, **fields)
+
+
+def _make_handler(tools: AgentTools, tool_name: str) -> Any:
+    """Return an async handler that dispatches to *tools* via *tool_name*."""
+
+    async def handler(**kwargs: Any) -> str:
+        result = dispatch_tool(tools, tool_name, kwargs)
+        return str(result)
+
+    handler.__name__ = tool_name
+    return handler
 
 
 def build_server(tools: AgentTools, name: str = "tradex-agent") -> Any:
-    """Build (but do not run) an MCP server wrapping the given AgentTools.
+    """Build (but do not run) a FastMCP server wrapping the given AgentTools.
 
     Raises RuntimeError if the ``mcp`` package is not installed.
     """
@@ -57,37 +86,42 @@ def build_server(tools: AgentTools, name: str = "tradex-agent") -> Any:
             "Install the 'agent' extra: pip install -e '.[agent]'"
         )
 
-    app = Server(name)
+    from mcp.server.fastmcp.tools import Tool
+    from mcp.server.fastmcp.utilities.func_metadata import func_metadata
 
-    @app.list_tools()
-    async def list_tools() -> list[Any]:  # type: ignore[no-untyped-def]
-        return _specs_as_mcp_tools()
+    server = FastMCP(name)
 
-    @app.call_tool()
-    async def call_tool(name: str, arguments: dict[str, Any]) -> list[Any]:  # type: ignore[no-untyped-def]
-        try:
-            result = dispatch_tool(tools, name, arguments or {})
-            payload = str(result)
-            is_error = False
-        except Exception as exc:
-            payload = f"tool error: {exc}"
-            is_error = True
-        return [mcp_types.TextContent(type="text", text=payload, is_error=is_error)]
+    for spec in AGENT_TOOL_SPECS:
+        tool_name = spec["name"]
+        description = spec.get("description", "")
 
-    return app
+        arg_model = _build_arg_model(spec)
+        handler = _make_handler(tools, tool_name)
+        fm = func_metadata(handler, skip_names=[])
+
+        tool = Tool.from_function(
+            handler,
+            name=tool_name,
+            description=description,
+        )
+        # Override auto-inferred schema with the declared AGENT_TOOL_SPECS schema.
+        tool.parameters = spec.get("input_schema", {"type": "object", "properties": {}})
+        tool.fn_metadata = fm
+        tool.fn_metadata.arg_model = arg_model
+
+        server._tool_manager._tools[tool_name] = tool
+
+    return server
 
 
 def run_stdio(tools: AgentTools, name: str = "tradex-agent") -> None:
     """Run the agent MCP server over stdio (blocking). Requires ``mcp``."""
     import anyio  # type: ignore[import-not-found]  # pragma: no cover
 
-    app = build_server(tools, name)
+    server = build_server(tools, name)
 
     async def _main() -> None:  # pragma: no cover - exercised only at runtime
-        from mcp.server.stdio import stdio_server
-
-        async with stdio_server() as (read, write):
-            await app.run(read, write, app.create_initialization_options())
+        await server.run_async(transport="stdio")
 
     anyio.run(_main)
 
