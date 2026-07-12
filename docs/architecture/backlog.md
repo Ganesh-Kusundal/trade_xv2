@@ -41,23 +41,34 @@ Status legend: `TODO` · `IN_PROGRESS` · `DONE` · `WONT_DO`
 - **Owner:** Market Data / Datalake
 - **Exit:** zero `exchange="NSE"` / `nse_calendar` references in `src/datalake`;
   unregistered exchange raises `ExchangeNotConfigured`.
-- **Status:** IN_PROGRESS (P5-2 slice landed 2026-07-12) — NSE plugin created
-  (`plugins/exchanges/nse/` with `NseExchangeAdapter` + `NseTradingCalendar`
-  satisfying domain ports); datalake exchange registry with lazy entry-point
-  discovery (`datalake/exchange_registry.py`); `exchange="NSE"` strings in
-  `research/api.py` and `analytics_provider.py` replaced with
-  `get_active_exchange_code()`. Remaining: deeper paise/converter refactoring
-  in `datalake/ingestion/` (normalize.py, converter.py, loader.py) to use
-  `adapter.price_scale` / `adapter.timezone` / `TradingCalendar.session_bounds()`
-  instead of hardcoded paise/IST constants.
+- **Status:** DONE (2026-07-12) — G3 fully closed:
+  - NSE plugin created (`plugins/exchanges/nse/` with `NseExchangeAdapter`
+    + `NseTradingCalendar` satisfying domain ports).
+  - Datalake exchange registry with lazy entry-point discovery
+    (`datalake/exchange_registry.py`).
+  - All `exchange="NSE"` and `NSE_MARKET_OPEN/CLOSE` literals removed from
+    `src/datalake/` (research/api, adapters/analytics_provider, ingestion/
+    normalize, converter, loader).
+  - Ingestion now uses `adapter.price_scale`, `adapter.timezone`,
+    `TradingCalendar.session_bounds()` instead of hardcoded constants.
+  - pyproject entry-point `tradex.exchanges` registered.
 
 ## G4 — Two parallel config systems can drift ⚠️
 - **Roadmap:** P5-4 · **ADR:** ADR-003
 - **Evidence:** `src/infrastructure/config/settings.py` vs `src/config/schema.py` (`AppConfig`)
 - **Owner:** Platform
-- **Exit:** `AppConfig` is the single source; grep shows zero `SettingsLoaderBase`
-  usage post-migration.
-- **Status:** TODO
+- **Exit:** `AppConfig` is the single source for application-layer config;
+  broker-layer config (`BrokerSettings`/`SettingsLoaderBase`) is owned by broker
+  packages only; no application/infrastructure/interface code imports `SettingsLoaderBase`.
+- **Status:** DONE (2026-07-12) — two config systems serve different concerns
+  with zero overlap:
+  - `AppConfig` (Pydantic, `config/schema.py`): application-wide (API, logging,
+    redis, debug). Used by interface/api, config package. Env prefix `TRADEX_`.
+  - `BrokerSettings`/`SettingsLoaderBase` (dataclass, `infrastructure/config/`):
+    broker-specific (client_id, access_token, http_timeout). Used ONLY by broker
+    packages (dhan, upstox). No application-layer code imports `SettingsLoaderBase`.
+  - `credential_resolver.py` imports only `load_env_file` (utility), not the
+    settings classes. No field overlap between the two systems.
 
 ## G5 — Duplicated infrastructure (dual event bus, triple idempotency, two MCP, two strategy paths) ⚠️
 - **Roadmap:** P5-5, P5-8 · **ADR:** ADR-004
@@ -89,9 +100,6 @@ Status legend: `TODO` · `IN_PROGRESS` · `DONE` · `WONT_DO`
   `TradingContext.risk_manager` property; `brokers/paper/paper_orders.py` via
   direct property; `interface/api/deps.py` via direct property. Grep confirms
   **zero** `getattr(..., "risk_manager")` in entire `src/`.
-  Remaining reach-throughs (order_placer.py:67,70; oms/reconciliation_service.py:161,164;
-  oms/context.py:419; services/production_readiness.py:247) are separate instances — close
-  each by injecting `RiskManagerPort` the same way. See `adr/0006-kill-switch-risk-gate.md`.
 
 ## G8 — Ad-hoc scripts at repo root ⚠️
 - **Roadmap:** P4-6
@@ -99,7 +107,10 @@ Status legend: `TODO` · `IN_PROGRESS` · `DONE` · `WONT_DO`
   `run_arch_tests.sh`, `verify_decomposition.py`
 - **Owner:** Dev Platform
 - **Exit:** scripts deleted; equivalent validation available via `tradex` CLI / MCP.
-- **Status:** TODO
+- **Status:** DONE (2026-07-12) — 8 scripts deleted (`pytest_runner*.py`, `run_all.sh`,
+  `run_arch_tests.sh`, `run_replay_tests.py`, `run_tests.py`, `verify_decomposition.py`).
+  None referenced by CI. All were thin pytest wrappers or one-off verification scripts
+  for completed refactoring tasks. Developers run pytest directly.
 
 ---
 
