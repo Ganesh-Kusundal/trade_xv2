@@ -16,7 +16,6 @@ Usage::
 from __future__ import annotations
 
 import logging
-import os
 import uuid
 from pathlib import Path
 from typing import Any
@@ -27,161 +26,36 @@ from domain.connect_errors import (
     GATEWAY_FAILED,
     OMS_REQUIRED,
     UNKNOWN_BROKER,
-    UNKNOWN_MODE,
     ConnectError,
 )
 from domain.session_status import (
-    MODE_MARKET,
     MODE_SIM,
     MODE_TRADE,
     PHASE_READY_MARKET,
     PHASE_READY_TRADE,
-    VALID_MODES,
     SessionStatus,
 )
 from domain.universe import Session as DomainSession
 from infrastructure.broker_plugin import ensure_core_plugins, get_broker_plugin
 from runtime.broker_discovery import discover_broker_plugins
 
+# ── Extracted responsibility modules ──────────────────────────────────
+# These keep the composition root focused. The private ``_`` aliases below
+# preserve backward compatibility for callers/tests that reference the old
+# names on ``tradex.session`` (and patch them there).
+from tradex.broker_registry import ensure_registered as _ensure_broker_registered
+from tradex.broker_selftest import is_enabled as _broker_selftest_enabled, run as _run_broker_selftest
+from tradex.gateway_extensions import collect as _collect_gateway_extensions
+from tradex.session_mode import (
+    is_live as _is_live,
+    normalize_mode as _normalize_mode,
+)
+from tradex.session_recorder import (
+    is_enabled as _session_recording_enabled,
+    maybe_start as _maybe_start_session_recorder,
+)
+
 logger = logging.getLogger(__name__)
-
-
-def _session_recording_enabled() -> bool:
-    """Opt-in SessionRecording via ``TRADEX_SESSION_RECORD=1`` (default off)."""
-    raw = (os.environ.get("TRADEX_SESSION_RECORD") or "").strip().lower()
-    return raw in {"1", "true", "yes", "on"}
-
-
-def _maybe_start_session_recorder(
-    session: Any,
-    event_bus: Any | None,
-    *,
-    session_id: str | None = None,
-) -> None:
-    """Start SessionRecorder when enabled and an event bus is available.
-
-    Non-critical: any failure is logged and swallowed so connect never fails
-    because of recording (Blueprint Part 3 §4.3 SessionRecording).
-    """
-    if not _session_recording_enabled():
-        return
-    bus = event_bus if event_bus is not None else getattr(session, "event_bus", None)
-    if bus is None:
-        logger.debug("session_recorder_skipped_no_event_bus")
-        return
-    try:
-        from infrastructure.observability.session_recorder import SessionRecorder
-
-        recorder = SessionRecorder(bus, session_id=session_id)
-        recorder.start()
-        setattr(session, "_session_recorder", recorder)
-    except Exception:
-        logger.warning("session_recorder_start_failed", exc_info=True)
-
-
-def _default_mode(broker_id: str) -> str:
-    ensure_core_plugins()
-    plugin = get_broker_plugin(broker_id)
-    if plugin is not None:
-        return plugin.default_mode
-    if broker_id == "paper":
-        return MODE_SIM
-    return MODE_MARKET
-
-
-def _is_live(broker_id: str) -> bool:
-    ensure_core_plugins()
-    plugin = get_broker_plugin(broker_id)
-    if plugin is not None:
-        return plugin.is_live
-    return broker_id in {"dhan", "upstox"}
-
-
-def _normalize_mode(broker_id: str, mode: str | None) -> str:
-    ensure_core_plugins()
-    plugin = get_broker_plugin(broker_id)
-    resolved = (mode or _default_mode(broker_id)).lower().strip()
-    if resolved not in VALID_MODES:
-        raise ConnectError(
-            f"Unknown connect mode {mode!r}.",
-            code=UNKNOWN_MODE,
-            broker_id=broker_id,
-            mode=str(mode or ""),
-            remediation=f"Use one of: {', '.join(sorted(VALID_MODES))}.",
-        )
-    if plugin is not None:
-        # Paper: market/trade alias to sim
-        if broker_id == "paper" and resolved in {MODE_MARKET, MODE_TRADE}:
-            return MODE_SIM
-        if resolved not in plugin.supported_modes and broker_id != "paper":
-            if resolved == MODE_SIM and plugin.is_live:
-                raise ConnectError(
-                    f"mode='sim' is only valid for paper.",
-                    code=UNKNOWN_MODE,
-                    broker_id=broker_id,
-                    mode=resolved,
-                    remediation="Use mode='market' (data) or mode='trade' (OMS).",
-                )
-    else:
-        if broker_id == "paper" and resolved in {MODE_MARKET, MODE_TRADE}:
-            return MODE_SIM
-        if _is_live(broker_id) and resolved == MODE_SIM:
-            raise ConnectError(
-                f"mode='sim' is only valid for paper.",
-                code=UNKNOWN_MODE,
-                broker_id=broker_id,
-                mode=resolved,
-                remediation="Use mode='market' (data) or mode='trade' (OMS).",
-            )
-    return resolved
-
-
-def _broker_selftest_enabled() -> bool:
-    raw = (os.environ.get("TRADEX_BROKER_SELFTEST") or "").strip().lower()
-    return raw in {"1", "true", "yes", "on"}
-
-
-def _run_broker_selftest(session: DomainSession, broker_id: str) -> None:
-    """Fail-fast startup validation when TRADEX_BROKER_SELFTEST=1."""
-    from brokers.services.core import VerifyReport
-
-    report = VerifyReport(broker_id=broker_id)
-    report.add("Configuration", True, f"broker={broker_id}")
-    st = getattr(session, "status", None)
-    report.add("Authentication", bool(getattr(st, "authenticated", False)), getattr(st, "mode", "?"))
-    try:
-        stock = session.universe.equity("RELIANCE")
-        caps = stock.capabilities()
-        report.add("Capabilities", True, f"{len(caps)} reported")
-        if stock.id.underlying.upper() != "RELIANCE":
-            report.add("Mappings", False, "symbol mismatch")
-        else:
-            report.add("Mappings", True)
-        q = stock.refresh()
-        report.add("Sample Quote", q is not None)
-        hist = stock.history(timeframe="1D", days=1)
-        report.add("Historical", bool(getattr(hist, "bar_count", 0)))
-        handle = stock.subscribe()
-        report.add("WebSocket", handle is not None)
-        if handle is not None:
-            stock.unsubscribe()
-    except Exception as exc:  # noqa: BLE001
-        report.add("SelfTest", False, f"{type(exc).__name__}: {exc}")
-        raise ConnectError(
-            f"Broker self-test failed for {broker_id!r}.",
-            code=GATEWAY_FAILED,
-            broker_id=broker_id,
-            remediation="Run: broker verify " + broker_id,
-            details={"error": str(exc)},
-        ) from exc
-    if not all(s.passed for s in report.steps):
-        failed = [s.name for s in report.steps if not s.passed]
-        raise ConnectError(
-            f"Broker self-test failed: {', '.join(failed)}",
-            code=GATEWAY_FAILED,
-            broker_id=broker_id,
-            remediation="Run: broker verify " + broker_id,
-        )
 
 
 def open_session(
@@ -548,73 +422,6 @@ def open_session(
         _run_broker_selftest(session, broker_id)
 
     return session
-
-
-def _collect_gateway_extensions(gateway: Any, *, broker_id: str = "") -> list[Any]:
-    """Build broker Extension instances for BrokerFacade (instrument.broker.*)."""
-    exts: list[Any] = []
-    seen: set[str] = set()
-
-    def _add(ext: Any) -> None:
-        if ext is None:
-            return
-        key = getattr(ext, "name", None) or type(ext).__name__
-        if key in seen:
-            return
-        seen.add(str(key))
-        exts.append(ext)
-
-    if broker_id:
-        try:
-            from infrastructure.adapter_factory import get_broker_extension_classes
-
-            for cls in get_broker_extension_classes(broker_id):
-                try:
-                    _add(cls(gateway))
-                except Exception:
-                    continue
-        except Exception:
-            pass
-
-    registry = getattr(gateway, "extension_registry", None)
-    if registry is not None and hasattr(registry, "all"):
-        try:
-            for ext in registry.all():
-                _add(ext)
-        except Exception:
-            pass
-    get_ext = getattr(gateway, "get_extension", None)
-    if callable(get_ext):
-        for name in (
-            "depth_20",
-            "depth_200",
-            "depth_30",
-            "depth20",
-            "depth200",
-            "depth30",
-            "news",
-            "super_order",
-            "forever_order",
-        ):
-            try:
-                _add(get_ext(name))
-            except Exception:
-                continue
-    return exts
-
-
-def _ensure_broker_registered(broker_id: str) -> None:
-    """Import broker package so self-registration runs.
-
-    Routes through the composition root's entry-point discovery
-    (``runtime.broker_discovery``) rather than naming a concrete broker module,
-    so no layer above ``infrastructure``/``brokers`` imports a broker by name.
-    """
-    if broker_id in ("datalake",):
-        return
-    from runtime.broker_discovery import ensure_broker_module
-
-    ensure_broker_module(broker_id)
 
 
 # Public aliases
