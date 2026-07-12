@@ -38,6 +38,18 @@ the daily-loss check (which resets at 00:00 IST), the loss circuit breaker
 uses a rolling 24-hour window and trips when cumulative losses exceed a
 configurable percentage of capital. It is independent of the kill switch
 and maintains its own observable state.
+
+Decomposition
+-------------
+The heavy lifting has been extracted into focused modules that this class
+delegates to (no circular imports):
+
+* :class:`~application.oms._internal.margin_checker.MarginChecker` —
+  F&O margin check + pending-exposure bookkeeping + market-context resolution.
+* :class:`~application.oms._internal.kill_switch.KillSwitch` —
+  kill-switch state + ``KILL_SWITCH_TOGGLED`` publishing.
+* :class:`~application.oms._internal.daily_pnl_tracker.DailyPnlTracker` —
+  daily PnL total + ``RISK_LIMIT_BREACHED`` publishing.
 """
 
 from __future__ import annotations
@@ -45,73 +57,39 @@ from __future__ import annotations
 import logging
 import threading
 from collections.abc import Callable
-from dataclasses import dataclass, replace
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from domain.portfolio.risk_profile import RiskProfile
     from domain.risk.policy import KillSwitch as DomainKillSwitch
-    from domain.risk.policy import RiskResult as DomainRiskResult
 
+from application.oms._internal.daily_pnl_tracker import (
+    DailyPnlTracker,
+    RISK_LIMIT_BREACH_THRESHOLD,
+)
+from application.oms._internal.kill_switch import KillSwitch, KILL_SWITCH_MODE
 from application.oms._internal.loss_circuit_breaker import (
     LossCircuitBreaker,
     LossCircuitBreakerConfig,
 )
+from application.oms._internal.margin_checker import MarginChecker
+from application.oms._internal.risk_types import (
+    InstrumentProvider,
+    RiskConfig,
+    RiskResult,
+    risk_result_from_domain,
+)
 from application.oms.capital_provider import CapitalProvider, FixedCapitalProvider
 from application.oms.position_manager import PositionManager
 from domain import Order
-from domain.events.types import EventType
-from domain.constants import (
-    RISK_DAILY_LOSS_PERCENT,
-    RISK_GROSS_PERCENT,
-    RISK_MARGIN_SAFETY_MULTIPLIER,
-    RISK_POSITION_PERCENT,
-)
 from domain.constants.defaults import RISK_FALLBACK_CAPITAL
 from domain.constants.market import DEFAULT_TICK_SIZE
 from domain.exchange_segments import is_derivative_segment
-from domain.ports.margin_provider import MarginProviderPort
 from domain.risk.notional import effective_notional
 from domain.value_objects.price import is_tick_aligned
 
 logger = logging.getLogger(__name__)
-
-
-@runtime_checkable
-class InstrumentProvider(Protocol):
-    """Narrow protocol for instrument lookups (tick size, lot size, etc.)."""
-
-    def resolve(self, symbol: str, exchange: str) -> Any: ...
-
-
-@dataclass(frozen=True)
-class RiskConfig:
-    max_daily_loss_pct: Decimal = Decimal(str(RISK_DAILY_LOSS_PERCENT))  # of capital
-    max_position_pct: Decimal = Decimal(str(RISK_POSITION_PERCENT))  # of capital per symbol
-    max_gross_exposure_pct: Decimal = Decimal(str(RISK_GROSS_PERCENT))  # of capital
-    kill_switch: bool = False
-    margin_safety_multiplier: Decimal = Decimal(str(RISK_MARGIN_SAFETY_MULTIPLIER))
-    enable_margin_check: bool = True
-
-
-@dataclass(frozen=True)
-class RiskResult:
-    allowed: bool
-    reason: str | None = None
-
-
-def risk_result_from_domain(domain_result: "DomainRiskResult") -> RiskResult:
-    """Map ``domain.risk.policy.RiskResult`` (``approved``) → OMS ``RiskResult`` (``allowed``).
-
-    Bridge only — does not reimplement domain policy. Callers that already hold a
-    domain :class:`~domain.risk.policy.RiskResult` (e.g. from :class:`~domain.risk.policy.KillSwitch`)
-    use this to stay on the OMS ``check_order`` return type.
-    """
-    return RiskResult(
-        allowed=domain_result.approved,
-        reason=domain_result.reason or None,
-    )
 
 
 class RiskManager:
@@ -141,12 +119,12 @@ class RiskManager:
     """
 
     #: Desk policy: kill switch freezes every order action (incl. exit_all).
-    KILL_SWITCH_MODE = "freeze_all"
+    KILL_SWITCH_MODE = KILL_SWITCH_MODE
 
     #: Fraction of the daily-loss budget consumed before RISK_LIMIT_BREACHED
     #: fires. Deliberately below 1.0 so operators get a warning before the
     #: hard daily-loss check in check_order starts rejecting orders outright.
-    RISK_LIMIT_BREACH_THRESHOLD = Decimal("0.8")
+    RISK_LIMIT_BREACH_THRESHOLD = RISK_LIMIT_BREACH_THRESHOLD
 
     def __init__(
         self,
@@ -167,7 +145,6 @@ class RiskManager:
         # Optional event-publish hook: on_risk_event(event_type_value, payload).
         # None by default (no-op) so every existing caller is unaffected.
         self._on_risk_event = on_risk_event
-        self._risk_limit_breach_notified = False
         # Optional domain KillSwitch (REF-4 bridge). When set, check_order
         # consults it in addition to RiskConfig.kill_switch; set_kill_switch
         # keeps both in sync. Default None = legacy config-only path.
@@ -190,181 +167,36 @@ class RiskManager:
             # Default to fixed capital
             self._capital_provider = FixedCapitalProvider(RISK_FALLBACK_CAPITAL)
 
-        self._daily_pnl: Decimal = Decimal("0")
+        # Loss-based circuit breaker
+        self._loss_cb = LossCircuitBreaker(config=loss_cb_config)
+
+        # Delegated sub-components (extracted responsibilities).
+        self._margin_checker = MarginChecker(
+            config=config,
+            margin_provider=margin_provider,
+            instrument_provider=instrument_provider,
+        )
+        self._kill_switch = KillSwitch(
+            config=config,
+            domain_kill_switch=domain_kill_switch,
+            on_risk_event=on_risk_event,
+        )
+        self._daily_pnl_tracker = DailyPnlTracker(
+            config=config,
+            capital_provider=self._capital_provider.get_available_balance,
+            loss_cb=self._loss_cb,
+            on_risk_event=on_risk_event,
+        )
+
         # Lock that protects _config, _daily_pnl, and the derived
         # reads in check_order. RLock (not Lock) so the OMS may
         # legitimately call check_order from inside its own critical
         # section without deadlocking.
         self._lock = threading.RLock()
-        # Observability: monotonic counters for reset / kill-switch
-        # events. Useful for alerting ("daily PnL reset fired today").
-        self._reset_count: int = 0
-        self._kill_switch_toggles: int = 0
-        self._last_reset_at: float = 0.0  # time.time() at last reset
-
-        # Loss-based circuit breaker
-        self._loss_cb = LossCircuitBreaker(config=loss_cb_config)
-        # Pending exposure reserved between risk check and terminal order state.
-        self._pending_by_correlation: dict[str, Decimal] = {}
-        self._pending_meta: dict[str, tuple[str, str]] = {}
 
     def release_pending(self, correlation_id: str | None) -> None:
         """Release a pending exposure reservation (idempotent)."""
-        if not correlation_id:
-            return
-        with self._lock:
-            self._pending_by_correlation.pop(correlation_id, None)
-            self._pending_meta.pop(correlation_id, None)
-
-    def _pending_gross(self) -> Decimal:
-        return sum(self._pending_by_correlation.values(), Decimal("0"))
-
-    def _pending_symbol_notional(self, symbol: str, exchange: str) -> Decimal:
-        total = Decimal("0")
-        for cid, (sym, ex) in self._pending_meta.items():
-            if sym == symbol and ex == exchange:
-                total += self._pending_by_correlation.get(cid, Decimal("0"))
-        return total
-
-    def _resolve_market_context(
-        self, order: Order
-    ) -> tuple[Decimal | None, Decimal | None, Any | None]:
-        """Best-effort LTP/ref price and multiplier for notional sizing.
-
-        Priority for ref price: order.price (handled by effective_notional),
-        then open position LTP, then instrument last/ltp attributes.
-        """
-        ref: Decimal | None = None
-        mult: Decimal | None = None
-        instrument: Any | None = None
-
-        current = self._position_manager.get_position(order.symbol, order.exchange)
-        if current is not None:
-            if current.ltp and current.ltp > 0:
-                ref = current.ltp
-            elif current.avg_price and current.avg_price > 0:
-                ref = current.avg_price
-            if getattr(current, "multiplier", None) and current.multiplier > 0:
-                mult = current.multiplier
-
-        if self._instrument_provider is not None:
-            try:
-                instrument = self._instrument_provider.resolve(order.symbol, order.exchange)
-            except Exception as exc:
-                logger.warning(
-                    "notional_instrument_lookup_failed",
-                    extra={
-                        "symbol": order.symbol,
-                        "exchange": order.exchange,
-                        "error": str(exc),
-                    },
-                )
-                instrument = None
-            if instrument is not None:
-                for attr in ("ltp", "last_price", "last_traded_price"):
-                    raw = getattr(instrument, attr, None)
-                    if raw is not None:
-                        try:
-                            cand = Decimal(str(raw))
-                            if cand > 0:
-                                ref = cand
-                                break
-                        except Exception:
-                            pass
-                raw_m = getattr(instrument, "multiplier", None)
-                if raw_m is not None:
-                    try:
-                        m = Decimal(str(raw_m))
-                        if m > 0:
-                            mult = m
-                    except Exception:
-                        pass
-
-        return ref, mult, instrument
-
-    # -- Margin check (B3) --
-
-    def _check_margin(self, order: Order) -> RiskResult:
-        """Check margin requirement for derivative orders.
-
-        Fail-closed design: if margin provider is unavailable or the API
-        call fails, the order is rejected. This is safer than allowing an
-        unvalidated F&O order through to the broker.
-
-        Args:
-            order: The order to validate.
-
-        Returns:
-            RiskResult indicating whether the margin check passed.
-        """
-        if self._margin_provider is None:
-            logger.warning(
-                "margin_check_no_provider",
-                extra={
-                    "symbol": order.symbol,
-                    "exchange": order.exchange,
-                    "quantity": order.quantity,
-                },
-            )
-            return RiskResult(False, "F&O order rejected: no margin provider configured")
-
-        try:
-            margin_result = self._margin_provider.calculate_margin_for_order(
-                symbol=order.symbol,
-                exchange=order.exchange,
-                quantity=order.quantity,
-                price=order.price,
-                product_type=order.product_type.value
-                if hasattr(order.product_type, "value")
-                else str(order.product_type),
-                order_type=order.order_type.value
-                if hasattr(order.order_type, "value")
-                else str(order.order_type),
-            )
-        except Exception as exc:
-            # Fail-closed: any unexpected error -> reject order
-            logger.error(
-                "margin_check_error",
-                extra={
-                    "symbol": order.symbol,
-                    "exchange": order.exchange,
-                    "error": str(exc),
-                },
-            )
-            return RiskResult(False, f"F&O order rejected: margin check error: {exc}")
-
-        required_with_buffer = margin_result.required_margin * self._config.margin_safety_multiplier
-
-        # Check if available margin covers the REQUIRED margin WITH the safety buffer
-        if margin_result.available_margin < required_with_buffer:
-            logger.warning(
-                "margin_check_insufficient",
-                extra={
-                    "symbol": order.symbol,
-                    "exchange": order.exchange,
-                    "required_margin": str(margin_result.required_margin),
-                    "required_with_buffer": str(required_with_buffer),
-                    "available_margin": str(margin_result.available_margin),
-                },
-            )
-            return RiskResult(
-                False,
-                f"Insufficient margin for {order.symbol}: "
-                f"required={margin_result.required_margin} "
-                f"(with buffer: {required_with_buffer}), "
-                f"available={margin_result.available_margin}",
-            )
-
-        logger.info(
-            "margin_check_passed",
-            extra={
-                "symbol": order.symbol,
-                "exchange": order.exchange,
-                "required_margin": str(margin_result.required_margin),
-                "available_margin": str(margin_result.available_margin),
-            },
-        )
-        return RiskResult(True)
+        self._margin_checker.release_pending(correlation_id)
 
     # -- Public API --
 
@@ -376,7 +208,7 @@ class RiskManager:
         config.
         """
         with self._lock:
-            if self._config.kill_switch:
+            if self._kill_switch.is_active():
                 return RiskResult(False, "Kill switch is active")
 
             # Domain KillSwitch bridge (REF-4): optional pure policy object.
@@ -419,12 +251,12 @@ class RiskManager:
 
             # F&O margin check (derivative segments only)
             if self._config.enable_margin_check and is_derivative_segment(order.exchange):
-                margin_result = self._check_margin(order)
+                margin_result = self._margin_checker.check(order)
                 if not margin_result.allowed:
                     return margin_result
 
             # Effective notional: never treat bare quantity as rupee notional.
-            ref_price, mult, instrument = self._resolve_market_context(order)
+            ref_price, mult, instrument = self._margin_checker.resolve_market_context(order)
             notional = effective_notional(
                 order.quantity,
                 order.price,
@@ -448,7 +280,9 @@ class RiskManager:
                 if current
                 else Decimal("0")
             )
-            pending_symbol = self._pending_symbol_notional(order.symbol, order.exchange)
+            pending_symbol = self._margin_checker.pending_symbol_notional(
+                order.symbol, order.exchange
+            )
             if (current_notional + pending_symbol + notional) / capital * 100 > self._config.max_position_pct:
                 return RiskResult(False, f"Exceeds max position pct for {order.symbol}")
 
@@ -460,20 +294,19 @@ class RiskManager:
                 * (p.multiplier if getattr(p, "multiplier", None) else Decimal("1"))
                 for p in positions
             )
-            pending_gross = self._pending_gross()
+            pending_gross = self._margin_checker.pending_gross()
             if (gross + pending_gross + notional) / capital * 100 > self._config.max_gross_exposure_pct:
                 return RiskResult(False, "Exceeds max gross exposure pct")
 
             # Daily loss
             if (
-                self._daily_pnl < 0
-                and abs(self._daily_pnl) / capital * 100 >= self._config.max_daily_loss_pct
+                self._daily_pnl_tracker.value < 0
+                and abs(self._daily_pnl_tracker.value) / capital * 100
+                >= self._config.max_daily_loss_pct
             ):
                 return RiskResult(False, "Daily loss limit reached")
 
-            if order.correlation_id:
-                self._pending_by_correlation[order.correlation_id] = notional
-                self._pending_meta[order.correlation_id] = (order.symbol, order.exchange)
+            self._margin_checker.reserve_pending(order, notional)
             return RiskResult(True)
 
     def update_daily_pnl(self, pnl: Decimal) -> None:
@@ -487,45 +320,7 @@ class RiskManager:
         the rolling-window loss threshold is updated.
         """
         with self._lock:
-            previous_pnl = self._daily_pnl
-            self._daily_pnl = pnl
-
-            # Record the PnL delta (not the absolute value) in the
-            # loss circuit breaker. The delta represents the realised /
-            # unrealised change since the last update.
-            delta = pnl - previous_pnl
-            capital = self._capital_provider.get_available_balance()
-            self._loss_cb.record_loss(delta, capital)
-
-            self._maybe_publish_risk_limit_breach(pnl, capital)
-
-    def _maybe_publish_risk_limit_breach(self, pnl: Decimal, capital: Decimal) -> None:
-        """Publish RISK_LIMIT_BREACHED once when the daily-loss budget is
-        mostly consumed, and again only after recovering and re-breaching
-        (edge-triggered, not level-triggered, so this doesn't spam the
-        event bus on every single MTM update while still in breach).
-
-        Must be called with ``_lock`` already held.
-        """
-        if self._on_risk_event is None or capital <= 0 or self._config.max_daily_loss_pct <= 0:
-            return
-        loss_budget = capital * (self._config.max_daily_loss_pct / Decimal("100"))
-        if loss_budget <= 0:
-            return
-        consumed = (abs(pnl) / loss_budget) if pnl < 0 else Decimal("0")
-        breached = consumed >= self.RISK_LIMIT_BREACH_THRESHOLD
-        if breached and not self._risk_limit_breach_notified:
-            self._risk_limit_breach_notified = True
-            self._on_risk_event(
-                EventType.RISK_LIMIT_BREACHED.value,
-                {
-                    "rule": "max_daily_loss_pct",
-                    "value": str(pnl),
-                    "limit": str(self._config.max_daily_loss_pct),
-                },
-            )
-        elif not breached:
-            self._risk_limit_breach_notified = False
+            self._daily_pnl_tracker.update(pnl)
 
     def set_kill_switch(self, active: bool) -> None:
         """Enable or disable the kill switch by replacing the frozen config.
@@ -535,20 +330,12 @@ class RiskManager:
         flipped), but never a torn read of the dataclass.
         """
         with self._lock:
-            previous = self._config.kill_switch
-            self._config = replace(self._config, kill_switch=active)
-            # Keep optional domain KillSwitch in lock-step with config.
-            if self._domain_kill_switch is not None:
-                if active:
-                    self._domain_kill_switch.activate()
-                else:
-                    self._domain_kill_switch.deactivate()
-            if previous != active:
-                self._kill_switch_toggles += 1
-                logger.warning(
-                    "kill_switch_toggled",
-                    extra={"new_state": active, "previous": previous},
-                )
+            if active:
+                self._kill_switch.activate()
+            else:
+                self._kill_switch.deactivate()
+            # Keep RiskConfig.kill_switch in lock-step for snapshot/profile.
+            self._config = self._config.replace(kill_switch=self._kill_switch.is_active())
 
     def is_kill_switch_active(self) -> bool:
         """Check if kill switch is currently active (freeze_all mode).
@@ -562,11 +349,7 @@ class RiskManager:
             True if kill switch prevents every order-modifying action.
         """
         with self._lock:
-            if self._config.kill_switch:
-                return True
-            if self._domain_kill_switch is not None and self._domain_kill_switch.is_active:
-                return True
-            return False
+            return self._kill_switch.is_active()
 
     def reset_daily_pnl(self) -> None:
         """Reset the daily PnL to zero.
@@ -578,13 +361,8 @@ class RiskManager:
         Thread-safe. Increments ``_reset_count`` and records
         ``_last_reset_at`` so an SRE can confirm the rollover fired.
         """
-        import time as _time
-
         with self._lock:
-            self._daily_pnl = Decimal("0")
-            self._reset_count += 1
-            self._last_reset_at = _time.time()
-        logger.info("daily_pnl_reset", extra={"reset_count": self._reset_count})
+            self._daily_pnl_tracker.reset()
 
     def reset_loss_circuit_breaker(self) -> None:
         """Manually reset the loss-based circuit breaker.
@@ -603,7 +381,7 @@ class RiskManager:
     def daily_pnl(self) -> Decimal:
         """Current daily PnL snapshot. Thread-safe."""
         with self._lock:
-            return self._daily_pnl
+            return self._daily_pnl_tracker.value
 
     @property
     def kill_switch(self) -> bool:
@@ -613,11 +391,7 @@ class RiskManager:
         is active (REF-4 bridge).
         """
         with self._lock:
-            if self._config.kill_switch:
-                return True
-            if self._domain_kill_switch is not None and self._domain_kill_switch.is_active:
-                return True
-            return False
+            return self._kill_switch.is_active()
 
     @property
     def loss_circuit_breaker(self) -> LossCircuitBreaker:
@@ -638,16 +412,18 @@ class RiskManager:
 
         with self._lock:
             base = {
-                "kill_switch": self._config.kill_switch,
-                "daily_pnl": str(self._daily_pnl),
+                "kill_switch": self._kill_switch.is_active(),
+                "daily_pnl": str(self._daily_pnl_tracker.value),
                 "max_daily_loss_pct": str(self._config.max_daily_loss_pct),
                 "max_position_pct": str(self._config.max_position_pct),
                 "max_gross_exposure_pct": str(self._config.max_gross_exposure_pct),
-                "reset_count": self._reset_count,
-                "kill_switch_toggles": self._kill_switch_toggles,
-                "last_reset_at": self._last_reset_at,
+                "reset_count": self._daily_pnl_tracker.reset_count,
+                "kill_switch_toggles": self._kill_switch.toggles,
+                "last_reset_at": self._daily_pnl_tracker.last_reset_at,
                 "seconds_since_last_reset": (
-                    _time.time() - self._last_reset_at if self._last_reset_at > 0 else None
+                    _time.time() - self._daily_pnl_tracker.last_reset_at
+                    if self._daily_pnl_tracker.last_reset_at > 0
+                    else None
                 ),
             }
 
@@ -666,7 +442,7 @@ class RiskManager:
 
         with self._lock:
             config = self._config
-            daily_pnl = self._daily_pnl
+            daily_pnl = self._daily_pnl_tracker.value
         capital = self._capital_provider.get_available_balance()
         return RiskProfile(
             max_daily_loss_pct=config.max_daily_loss_pct,
