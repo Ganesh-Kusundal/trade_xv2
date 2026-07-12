@@ -90,7 +90,8 @@ class AuthLiveProbeCheck(CheckStrategy):
     ) -> Any | None:
         # Prefer service gateways when available
         if broker_service is not None:
-            active_name = getattr(broker_service, "_active_name", None)
+            # G1: use public active_broker_name instead of getattr(_active_name)
+            active_name = broker_service.active_broker_name
             if name == "dhan":
                 gw = getattr(broker_service, "_gateway", None)
                 if gw is not None:

@@ -2,6 +2,7 @@
 
 from domain.ports.bootstrap import BootstrapResult, BootstrapStatus
 from domain.ports.broker_gateway import OrderTransportPort
+from domain.ports.broker_id import BrokerId
 from domain.ports.correlation import CorrelationProviderPort
 from domain.ports.event_log import (
     DeadLetterQueuePort,
