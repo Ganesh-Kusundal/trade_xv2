@@ -34,6 +34,13 @@ def _install_in_memory_tracer(monkeypatch) -> InMemorySpanExporter:
     tracer = provider.get_tracer("tradex.tracing.test")
     monkeypatch.setattr(tracing, "_get_tracer", lambda: tracer)
     monkeypatch.setattr(tracing, "_otel_active", True)
+    # Patch the no-op trace_operation in the application layer, then reload
+    # so the @trace_operation decorators on use-case classes rebind to the real tracer.
+    import importlib
+    import application.observability as app_obs
+    monkeypatch.setattr(app_obs, "trace_operation", tracing.trace_operation)
+    importlib.reload(importlib.import_module("application.execution.place_order_use_case"))
+    importlib.reload(importlib.import_module("application.execution.cancel_order_use_case"))
     return exporter
 
 
@@ -45,13 +52,21 @@ def _request() -> OrderRequest:
         order_type="MARKET",
         quantity=10,
         product_type="INTRADAY",
+        correlation_id="test-tracing-001",
     )
 
 
 def test_place_order_use_case_emits_span(monkeypatch):
     exporter = _install_in_memory_tracer(monkeypatch)
-    fake = _CancelFnAwareFakeManager()
+    # Import AFTER patching so the reloaded module's classes are used
+    from application.execution.place_order_use_case import PlaceOrderUseCase
+    from tests.fakes.fake_oms import FakeOrderManager
 
+    class _CancelFnAwareFakeManager(FakeOrderManager):
+        def cancel_order(self, order_id: str, *, cancel_fn=None) -> object:
+            return super().cancel_order(order_id)
+
+    fake = _CancelFnAwareFakeManager()
     result = PlaceOrderUseCase(fake).execute(_request())
 
     assert result.success
@@ -62,6 +77,14 @@ def test_place_order_use_case_emits_span(monkeypatch):
 
 def test_cancel_order_use_case_emits_span(monkeypatch):
     exporter = _install_in_memory_tracer(monkeypatch)
+    from application.execution.place_order_use_case import PlaceOrderUseCase
+    from application.execution.cancel_order_use_case import CancelOrderUseCase
+    from tests.fakes.fake_oms import FakeOrderManager
+
+    class _CancelFnAwareFakeManager(FakeOrderManager):
+        def cancel_order(self, order_id: str, *, cancel_fn=None) -> object:
+            return super().cancel_order(order_id)
+
     fake = _CancelFnAwareFakeManager()
     PlaceOrderUseCase(fake).execute(_request())
 

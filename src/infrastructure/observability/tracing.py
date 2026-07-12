@@ -70,7 +70,8 @@ def _safe_get_tracer() -> Any:
     instead of breaking the wrapped business call.
     """
     try:
-        return _get_tracer()
+        # Use globals() lookup so monkeypatching _get_tracer works in tests
+        return globals()["_get_tracer"]()
     except Exception:  # pragma: no cover - defensive guard
         logger.warning("Failed to obtain tracer; degrading to log-only", exc_info=True)
         return None

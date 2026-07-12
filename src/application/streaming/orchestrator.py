@@ -76,6 +76,7 @@ class StreamConsumer(Protocol):
 
 
 # Normalized stream event types — MarketTick is domain.entities.market.MarketTick
+@dataclass
 class OrderUpdate:
     """Normalized order/position update delivered to consumers."""
 
