@@ -221,6 +221,10 @@ class RiskManager:
                 if not domain_ks.allowed:
                     return domain_ks
 
+            # TradingState gate (ACTIVE/REDUCING/HALTED)
+            if not self._trading_state.allows_new_order():
+                return RiskResult(False, f"Trading halted: state={self._trading_state.state.value}")
+
             # Loss circuit breaker check (before capital check)
             cb_allowed, cb_reason = self._loss_cb.allow_trading()
             if not cb_allowed:
@@ -411,6 +415,11 @@ class RiskManager:
         return self._loss_cb
 
     @property
+    def trading_state(self) -> TradingState:
+        """Access the trading state FSM for inspection and state transitions."""
+        return self._trading_state
+
+    @property
     def throttler(self) -> Throttler:
         """Access the submit/modify rate throttler for inspection."""
         return self._throttler
@@ -432,6 +441,7 @@ class RiskManager:
                 "max_gross_exposure_pct": str(self._config.max_gross_exposure_pct),
                 "reset_count": self._daily_pnl_tracker.reset_count,
                 "kill_switch_toggles": self._kill_switch.toggles,
+                "trading_state": self._trading_state.state.value,
                 "last_reset_at": self._daily_pnl_tracker.last_reset_at,
                 "seconds_since_last_reset": (
                     _time.time() - self._daily_pnl_tracker.last_reset_at
