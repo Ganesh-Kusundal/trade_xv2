@@ -102,7 +102,10 @@ class TradingRuntimeFactory:
         _ = bs.active_broker  # force init
 
         tc = bs.trading_context
-        gateway = bs._gateway if bs._active_name == "dhan" else bs._upstox_gateway
+        # G1 (P5-1): select the active gateway via the BrokerService property
+        # instead of a private-attribute string branch. No `_active_name`
+        # comparison remains — the active broker is resolved in one place.
+        gateway = bs.active_broker
 
         event_bus = getattr(bs, "_event_bus", None)
         if event_bus is None and tc is not None:

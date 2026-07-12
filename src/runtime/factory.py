@@ -76,7 +76,7 @@ def build(
         raise ValueError("broker_service is required for runtime.factory.build")
     if skip_parity_gate is None:
         skip_parity_gate = os.getenv("SKIP_PARITY_GATE", "0") == "1"
-    broker_id = broker or getattr(broker_service, "_active_name", None) or "dhan"
+    broker_id = broker or broker_service.active_broker_name or "dhan"
     opts = BuildOptions(
         broker=str(broker_id),
         mode=mode,

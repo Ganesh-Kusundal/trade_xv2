@@ -9,15 +9,20 @@ Status legend: `TODO` · `IN_PROGRESS` · `DONE` · `WONT_DO`
 ---
 
 ## G1 — `runtime/` couples to concrete brokers + string branching 🔴
-- **Roadmap:** P5-3 · **ADR:** ADR-002
+- **Roadmap:** P5-1 · **ADR:** ADR-002
 - **Evidence:** `src/runtime/broker_infrastructure.py:10-39`, `broker_accessors.py:34-119`,
   `trading_runtime_factory.py:105` (`if bs._active_name == "dhan"`)
 - **Owner:** Runtime/Platform
 - **Exit:** import-linter proves no `_active_name` string branch and no direct broker
   import outside `runtime/`; broker selected by `broker_id` enum via plugin registry.
-- **Status:** TODO — foundation laid (ADR-002): "Runtime broker-implementation isolation"
-  contract enforces the rule; current `runtime/` violations are tracked `ignore_imports`
-  exceptions to be deleted when G1 closes.
+- **Status:** IN_PROGRESS (P5-1 slice landed 2026-07-12) — removed the `_active_name == "dhan"`
+  string branch in `trading_runtime_factory.py` and the `getattr(_active_name)` fallback in
+  `runtime/factory.py`; added arch guard `tests/architecture/test_no_broker_string_branching.py`
+  (forbids `_active_name` string-branch/`getattr` in `src/runtime/`). Remaining for full G1
+  close: (a) introduce a `BrokerId` enum (stable contract) and select via it; (b) migrate the
+  `interface/ui` name-based broker selection (`getattr(_active_name)`, `getattr(_upstox_gateway)`)
+  to the public `active_broker`/`active_broker_name` properties — those are warning-level per the
+  layering rule but still couple the UI to private broker attributes.
 
 ## G2 — Orphaned shadow `brokers/dhan/*` duplicates `src/brokers/dhan/*` 🔴
 - **Roadmap:** P5-1 · **ADR:** ADR-001
