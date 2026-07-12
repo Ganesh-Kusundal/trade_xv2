@@ -8,9 +8,15 @@ continues to work as before.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+
+
+def _fake_subprocess_failure(*args, **kwargs):
+    """Return a fake subprocess result with returncode=1."""
+    return type("R", (), {"returncode": 1, "stderr": "parity fail", "stdout": ""})()
 
 
 # ---------------------------------------------------------------------------
@@ -29,11 +35,8 @@ class TestLiveParityGateNotSkippable:
 
         from runtime.parity_gate import assert_runtime_parity_or_raise
 
-        # Mock subprocess so the gate actually runs but fails deterministically
-        import subprocess
-
-        fake_result = type("R", (), {"returncode": 1, "stderr": "parity fail", "stdout": ""})()
-        with patch.object(subprocess, "run", return_value=fake_result):
+        with patch.object(Path, "exists", return_value=True), \
+             patch("runtime.parity_gate.subprocess.run", side_effect=_fake_subprocess_failure):
             with pytest.raises(RuntimeError, match="Runtime parity gate failed"):
                 assert_runtime_parity_or_raise()
 
@@ -46,10 +49,8 @@ class TestLiveParityGateNotSkippable:
 
         from runtime.parity_gate import assert_runtime_parity_or_raise
 
-        import subprocess
-
-        fake_result = type("R", (), {"returncode": 1, "stderr": "parity fail", "stdout": ""})()
-        with patch.object(subprocess, "run", return_value=fake_result):
+        with patch.object(Path, "exists", return_value=True), \
+             patch("runtime.parity_gate.subprocess.run", side_effect=_fake_subprocess_failure):
             with pytest.raises(RuntimeError, match="Runtime parity gate failed"):
                 assert_runtime_parity_or_raise()
 
@@ -61,10 +62,8 @@ class TestLiveParityGateNotSkippable:
 
         from runtime.parity_gate import assert_runtime_parity_or_raise
 
-        import subprocess
-
-        fake_result = type("R", (), {"returncode": 1, "stderr": "fail", "stdout": ""})()
-        with patch.object(subprocess, "run", return_value=fake_result):
+        with patch.object(Path, "exists", return_value=True), \
+             patch("runtime.parity_gate.subprocess.run", side_effect=_fake_subprocess_failure):
             with pytest.raises(RuntimeError, match="Runtime parity gate failed"):
                 assert_runtime_parity_or_raise()
 
@@ -102,9 +101,7 @@ class TestNonLiveParityGateSkippable:
 
         from runtime.parity_gate import assert_runtime_parity_or_raise
 
-        import subprocess
-
-        fake_result = type("R", (), {"returncode": 1, "stderr": "fail", "stdout": ""})()
-        with patch.object(subprocess, "run", return_value=fake_result):
+        with patch.object(Path, "exists", return_value=True), \
+             patch("runtime.parity_gate.subprocess.run", side_effect=_fake_subprocess_failure):
             with pytest.raises(RuntimeError, match="Runtime parity gate failed"):
                 assert_runtime_parity_or_raise()
