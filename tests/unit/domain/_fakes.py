@@ -45,14 +45,15 @@ class FakeEventBus:
         self.events: list[tuple[str, dict]] = []
         self._handlers: dict[str, list[Callable]] = {}
 
-    def publish(self, event_type: str, payload: dict) -> None:
-        self.events.append((event_type, payload))
+    def publish(self, event) -> None:
+        self.events.append((event.event_type, dict(event.payload)))
 
-    def subscribe(self, event_type: str, handler: Callable) -> None:
+    def subscribe(self, event_type: str, handler: Callable) -> str:
         self._handlers.setdefault(event_type, []).append(handler)
+        return f"{event_type}-{len(self._handlers[event_type])}"
 
-    def unsubscribe(self, event_type: str, handler: Callable) -> None:
-        self._handlers.get(event_type, []).remove(handler)
+    def unsubscribe(self, token: str) -> bool:
+        return True
 
     def types(self) -> list[str]:
         return [e[0] for e in self.events]

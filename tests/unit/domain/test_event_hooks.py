@@ -10,13 +10,13 @@ class _StubBus(DomainEventBus):
     def __init__(self) -> None:
         self.published: list[tuple[str, object]] = []
 
-    def publish(self, event_type: str, payload: dict) -> None:
-        self.published.append((event_type, payload))
+    def publish(self, event) -> None:
+        self.published.append((event.event_type, dict(event.payload)))
 
-    def subscribe(self, event_type: str, handler) -> None:
+    def subscribe(self, event_type: str, handler) -> str:
         raise NotImplementedError
 
-    def unsubscribe(self, event_type: str, handler) -> None:
+    def unsubscribe(self, token: str) -> bool:
         raise NotImplementedError
 
 

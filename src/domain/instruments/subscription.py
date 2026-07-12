@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
-from domain.events.types import EventType
+from domain.events.types import DomainEvent, EventType
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -83,7 +83,7 @@ class Subscription:
                     event_payload["ltp"] = float(payload["ltp"])
                 if "last_price" in payload:
                     event_payload["ltp"] = float(payload["last_price"])
-            self._event_bus.publish(event_type, event_payload)
+            self._event_bus.publish(DomainEvent.now(event_type, event_payload))
 
     # ── Lifecycle ─────────────────────────────────────────────────────
 
@@ -128,11 +128,13 @@ class Subscription:
         self._ended_at = datetime.now(timezone.utc)
         if self._event_bus is not None:
             self._event_bus.publish(
-                EventType.SUBSCRIPTION_ENDED,
-                {
-                    "symbol": self._instrument_id.underlying,
-                    "exchange": self._instrument_id.exchange,
-                },
+                DomainEvent.now(
+                    EventType.SUBSCRIPTION_ENDED,
+                    {
+                        "symbol": self._instrument_id.underlying,
+                        "exchange": self._instrument_id.exchange,
+                    },
+                )
             )
 
     def __repr__(self) -> str:

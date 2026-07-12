@@ -16,6 +16,7 @@ from enum import Enum
 from typing import Any
 
 from domain.events.bus import DomainEventBus
+from domain.events.types import DomainEvent
 
 __all__ = ["InstrumentEvent", "EventHooks"]
 
@@ -71,7 +72,7 @@ class EventHooks:
         """Invoke all callbacks for ``event`` (plus wildcard callbacks).
 
         If a :class:`DomainEventBus` was injected, the event is also
-        published to it via ``bus.publish(str(event), payload)``.
+        published to it via ``bus.publish(DomainEvent.now(str(event), payload))``.
 
         A single failing listener never aborts dispatch; the error is
         logged and dispatch continues.
@@ -107,7 +108,7 @@ class EventHooks:
 
         if self._bus is not None:
             try:
-                self._bus.publish(event.value, payload)
+                self._bus.publish(DomainEvent.now(event.value, payload))
             except Exception as exc:  # noqa: BLE001 - bus failures must not break dispatch
                 warnings.warn(
                     f"EventHooks bus publish for {event.value!r} raised: {exc!r}",

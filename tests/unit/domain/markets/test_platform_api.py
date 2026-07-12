@@ -265,8 +265,8 @@ def test_instrument_publishes_events():
     events = []
 
     class RecordingBus(NullEventBus):
-        def publish(self, event_type, payload):
-            events.append((event_type, payload))
+        def publish(self, event):
+            events.append((event.event_type, dict(event.payload)))
 
     bus = RecordingBus()
     set_default_provider(FakeDataProvider())

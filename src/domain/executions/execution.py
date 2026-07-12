@@ -13,7 +13,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from domain.entities.trade import Trade
-from domain.events.types import EventType
+from domain.events.types import DomainEvent, EventType
 
 if TYPE_CHECKING:
     from domain.events.bus import DomainEventBus
@@ -100,13 +100,15 @@ class Execution:
             self._trades.append(trade)
         if self._event_bus is not None:
             self._event_bus.publish(
-                EventType.TRADE_APPLIED,
-                {
-                    "order_id": self._order_id,
-                    "trade": trade,
-                    "filled_quantity": self.filled_quantity,
-                    "avg_price": str(self.avg_price),
-                },
+                DomainEvent.now(
+                    EventType.TRADE_APPLIED,
+                    {
+                        "order_id": self._order_id,
+                        "trade": trade,
+                        "filled_quantity": self.filled_quantity,
+                        "avg_price": str(self.avg_price),
+                    },
+                )
             )
 
     def __repr__(self) -> str:
