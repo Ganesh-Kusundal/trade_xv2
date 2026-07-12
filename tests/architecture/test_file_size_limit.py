@@ -44,7 +44,7 @@ EXEMPTIONS = {
     "brokers/upstox/websocket/market_data_v3.py": (489, "Upstox market data v3 — split tracked in ADR-011 backlog"),
     "datalake/analytics/support_resistance.py": (414, "Datalake support/resistance — split tracked in ADR-011 backlog"),
     "domain/candles/historical.py": (666, "Historical candle loading — split tracked in ADR-011 backlog"),
-    "domain/capability_manifest/catalog.py": (895, "Capability catalog — large but mechanically generated; split tracked in ADR-011 backlog"),
+    "domain/capability_manifest/catalog.py": (895, "Capability catalog — large but mechanically generated; needs careful code-aware decomposition (P5-10)"),
     "domain/instruments/instrument.py": (676, "Instrument aggregate root — split tracked in ADR-011 backlog"),
     "domain/options/option_chain.py": (465, "Option chain — split tracked in ADR-011 backlog"),
     "domain/universe.py": (700, "Instrument universe — split tracked in ADR-011 backlog"),
