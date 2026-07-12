@@ -332,7 +332,8 @@ def initialize_all_services(
     if trading_context is not None:
         order_manager = getattr(trading_context, "order_manager", None)
         position_manager = getattr(trading_context, "position_manager", None)
-        risk_manager = getattr(trading_context, "risk_manager", None)
+        # G7: use the public TradingContext.risk_manager property (no getattr reflection).
+        risk_manager = trading_context.risk_manager
 
     services = SimpleNamespace(
         datalake_gateway=datalake_gateway,

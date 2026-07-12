@@ -64,15 +64,15 @@ class OrderPlacer:
 
     def resolve_equity(self) -> float:
         """Best-effort available capital for sizing."""
-        order_manager = getattr(self, "_order_manager", None)
+        # G7 (P5-8): no getattr reach-through. OrderManager exposes a public
+        # `risk_manager` property; the capital provider is read directly.
+        order_manager = self._order_manager
         if order_manager is None:
             return 0.0
-        rm = getattr(order_manager, "risk_manager", None)
+        rm = order_manager.risk_manager
         if rm is None:
             return 0.0
-        provider = getattr(rm, "_capital_provider", None) or getattr(
-            rm, "capital_provider", None
-        )
+        provider = rm._capital_provider
         if provider is None:
             return 0.0
         try:

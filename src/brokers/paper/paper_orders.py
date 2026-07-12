@@ -51,7 +51,7 @@ class PaperOrders:
 
     def _risk_check(self, order: Order) -> tuple[bool, str | None]:
         """Delegate to the central risk manager if available."""
-        risk = getattr(self._order_manager, "risk_manager", None)
+        risk = self._order_manager.risk_manager
         if risk is None:
             return True, None
         result = risk.check_order(order)

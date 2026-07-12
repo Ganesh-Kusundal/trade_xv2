@@ -244,12 +244,11 @@ class ProductionReadinessChecker:
         return True, "DhanOrderStream is lifecycle-owned"
 
     def _check_risk_manager(self) -> tuple[bool, str]:
-        rm = getattr(self._svc, "_oms_risk_manager", None)
-        if rm is None:
-            # TradingContext's risk manager is the authoritative one
-            ctx = getattr(self._svc, "_trading_context", None)
-            if ctx is not None:
-                rm = ctx.risk_manager
+        # G7 (P5-8): no getattr reach-through. `_oms_risk_manager` is never set
+        # on BrokerService, so the authoritative risk manager is the one owned
+        # by the trading context; read it via the public property.
+        ctx = self._svc._trading_context
+        rm = ctx.risk_manager if ctx is not None else None
         if rm is None:
             return False, "RiskManager is not configured on the live OMS path"
         snap = rm.snapshot()
