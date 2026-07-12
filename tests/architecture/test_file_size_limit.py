@@ -25,11 +25,8 @@ EXEMPTIONS = {
     "analytics/scanner/scanner_queries.py": (472, "Scanner queries — split tracked in ADR-011 backlog"),
     "analytics/precompute_features.py": (678, "Feature precompute — split tracked in ADR-011 backlog"),
     "analytics/replay/engine.py": (654, "ReplayEngine facade — partially decomposed; remaining split in ADR-011 backlog"),
-    "analytics/replay/orchestrator.py": (539, "Replay orchestrator — split tracked in ADR-011 backlog"),
-    "analytics/paper/engine.py": (562, "Paper engine — split tracked in ADR-011 backlog"),
-    "analytics/facade.py": (549, "Analytics facade — split tracked in ADR-011 backlog"),
     "application/composer/factory.py": (409, "Composer factory — split tracked in ADR-011 backlog"),
-    "application/data/historical_coordinator.py": (567, "Historical coordinator — split tracked in ADR-011 backlog"),
+
     "application/oms/context.py": (517, "TradingContext facade — partially decomposed; remaining split in ADR-011 backlog"),
     "application/oms/_internal/risk_manager.py": (355, "RiskManager facade — partially decomposed; remaining split in ADR-011 backlog"),
     "application/trading/trading_orchestrator.py": (493, "TradingOrchestrator facade — partially decomposed; remaining split in ADR-011 backlog"),
@@ -42,8 +39,8 @@ EXEMPTIONS = {
     "brokers/dhan/websocket/market_feed.py": (408, "Dhan market feed — split tracked in ADR-011 backlog"),
     "brokers/paper/paper_gateway.py": (485, "Paper gateway — split tracked in ADR-011 backlog"),
     "brokers/paper/paper_orders.py": (433, "Paper orders — split tracked in ADR-011 backlog"),
-    "brokers/services/core.py": (570, "Single service core — split tracked in ADR-011 backlog"),
-    "brokers/upstox/auth/token_manager.py": (574, "Upstox token manager — split tracked in ADR-011 backlog"),
+
+
     "brokers/upstox/websocket/market_data_v3.py": (489, "Upstox market data v3 — split tracked in ADR-011 backlog"),
     "datalake/analytics/support_resistance.py": (414, "Datalake support/resistance — split tracked in ADR-011 backlog"),
     "domain/candles/historical.py": (666, "Historical candle loading — split tracked in ADR-011 backlog"),
@@ -58,7 +55,7 @@ EXEMPTIONS = {
     "interface/api/routers/orders.py": (403, "Orders router — split tracked in ADR-011 backlog"),
     "interface/api/schemas.py": (485, "API schemas — split tracked in ADR-011 backlog"),
     "interface/ui/commands/market.py": (458, "Market commands — split tracked in ADR-011 backlog"),
-    "tradex/session.py": (512, "Session bootstrap — split tracked in ADR-011 backlog"),
+
 }
 
 
