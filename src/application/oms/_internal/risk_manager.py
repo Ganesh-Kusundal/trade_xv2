@@ -230,19 +230,16 @@ class RiskManager:
                     )
                     if instrument is not None:
                         tick = Decimal(str(getattr(instrument, "tick_size", DEFAULT_TICK_SIZE)))
-                        if tick > 0 and not is_tick_aligned(order.price, tick):
+                        price_decimal = order.price.to_decimal() if hasattr(order.price, 'to_decimal') else Decimal(str(order.price))
+                        if tick > 0 and not is_tick_aligned(price_decimal, tick):
                             return RiskResult(
                                 False,
                                 f"Price {order.price} not aligned to tick size {tick}",
                             )
                 except Exception as exc:
-                    logger.warning(
-                        "tick_check_instrument_lookup_failed",
-                        extra={
-                            "symbol": order.symbol,
-                            "exchange": order.exchange,
-                            "error": str(exc),
-                        },
+                    return RiskResult(
+                        allowed=False,
+                        reason=f"Instrument lookup failed for {order.symbol}: {exc}",
                     )
 
             capital = self._capital_provider.get_available_balance()
@@ -257,9 +254,10 @@ class RiskManager:
 
             # Effective notional: never treat bare quantity as rupee notional.
             ref_price, mult, instrument = self._margin_checker.resolve_market_context(order)
+            price_for_notional = order.price.to_decimal() if hasattr(order.price, 'to_decimal') else Decimal(str(order.price))
             notional = effective_notional(
                 order.quantity,
-                order.price,
+                price_for_notional,
                 ref_price=ref_price,
                 multiplier=mult,
                 instrument=instrument,
