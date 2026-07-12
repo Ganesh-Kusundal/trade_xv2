@@ -12,7 +12,6 @@ dependencies = [
     "pandas>=2.0",
     "pydantic>=2.5",
     "rich>=13.0",
-    "textual>=0.40",
     "python-dotenv>=1.0",
     "PyYAML>=6.0",
     "dhanhq>=2.0",
@@ -32,16 +31,11 @@ dependencies = [
 
 [project.scripts]
 broker = "brokers.cli.broker:broker"
-broker-mcp = "brokers.mcp.server:run_server"
 tradex = "tradex.cli:tradex"
 
 [project.optional-dependencies]
-mcp = [
-    "mcp>=1.0",
-]
-agent = [
-    "anthropic>=0.40",
-    "mcp>=1.0",
+tui = [
+    "textual>=0.40",
 ]
 dev = [
     "pytest>=7.4",
@@ -230,7 +224,6 @@ exclude = [
     "scripts/",
     "build/",
     "dist/",
-    "src/interface/ui/diagnostics/",
 ]
 
 [[tool.mypy.overrides]]
@@ -274,11 +267,6 @@ ignore = [
 "src/interface/ui/**/*.py" = ["TID251"]
 "src/brokers/dhan/**/*.py" = ["TID251"]
 "src/brokers/upstox/**/*.py" = ["TID251"]
-# Pre-existing public API: AgentGuardrails/tool surface exception names and a
-# TYPE_CHECKING forward-ref. Renaming would break the public contract, so they
-# are waived for these two files only (Tier 3-J owns loop/llm/schema/mcp).
-"src/interface/agent/guardrails.py" = ["N818"]
-"src/interface/agent/tools.py" = ["N818", "UP037"]
 
 [tool.ruff.format]
 quote-style = "double"

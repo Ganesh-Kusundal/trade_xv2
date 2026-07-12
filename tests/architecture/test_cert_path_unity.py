@@ -48,7 +48,6 @@ def test_run_verify_uses_broker_certifier() -> None:
     "rel_path",
     [
         "src/brokers/cli/broker.py",
-        "src/brokers/mcp/tools.py",
         "src/interface/ui/services/broker_ops.py",
     ],
 )
