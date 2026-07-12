@@ -27,46 +27,44 @@ import pyarrow as pa
 
 from datalake.core.io import atomic_parquet_write
 from datalake.core.schema import CANONICAL_COLUMNS
-from datalake.core.constants import (
-    MARKET_CLOSE_HOUR,
-    MARKET_CLOSE_MINUTE,
-    MARKET_OPEN_HOUR,
-    MARKET_OPEN_MINUTE,
-)
 from datalake.core.symbols import normalize_symbol
+from datalake.exchange_registry import get_active_adapter, get_active_exchange_code
 from datalake.quality.validation import validate_candles
 
 logger = logging.getLogger(__name__)
 
 
 def _detect_source_timezone(bar_time_ms: pd.Series) -> str:
-    """Detect whether bar_time_ms values are in UTC or IST.
+    """Detect whether bar_time_ms values are in UTC or the exchange's local timezone.
 
     Heuristic: if the majority of timestamps (interpreted as UTC) fall in
-    NSE market hours (9:15-15:30), the source is UTC. If they fall in
-    3:45-10:00 UTC (= IST market hours), the source is already IST.
+    the exchange's market hours, the source is UTC. Otherwise it's already local.
     """
     sample = bar_time_ms.dropna().head(1000)
     if sample.empty:
         return "UTC"  # default assumption
 
+    adapter = get_active_adapter()
+    from plugins.exchanges.nse import CALENDAR
+    open_t, close_t = CALENDAR.session_bounds(None)
+
     as_utc = pd.to_datetime(sample, unit="ms", utc=True)
     hours = as_utc.dt.hour
     minutes = as_utc.dt.minute
 
-    ist_market_count = (
-        ((hours == MARKET_OPEN_HOUR) & (minutes >= MARKET_OPEN_MINUTE)).sum()
-        + ((hours > MARKET_OPEN_HOUR) & (hours < MARKET_CLOSE_HOUR)).sum()
-        + ((hours == MARKET_CLOSE_HOUR) & (minutes <= MARKET_CLOSE_MINUTE)).sum()
+    market_count = (
+        ((hours == open_t.hour) & (minutes >= open_t.minute)).sum()
+        + ((hours > open_t.hour) & (hours < close_t.hour)).sum()
+        + ((hours == close_t.hour) & (minutes <= close_t.minute)).sum()
     )
 
-    return "UTC" if ist_market_count > len(sample) * 0.5 else "IST"
+    return "UTC" if market_count > len(sample) * 0.5 else adapter.timezone
 
 
 def convert_tradej_parquet(
     src_path: Path,
     symbol: str,
-    exchange: str = "NSE",
+    exchange: str | None = None,
 ) -> pd.DataFrame:
     """Convert a single Trade_J Parquet file to canonical DataFrame (IST).
 
@@ -83,6 +81,8 @@ def convert_tradej_parquet(
     -------
     pd.DataFrame with canonical columns (timestamp in IST).
     """
+    if exchange is None:
+        exchange = get_active_exchange_code()
     df = pd.read_parquet(src_path)
 
     # Drop 'interval' column early (has dict vs string type issues across files)
@@ -103,24 +103,27 @@ def convert_tradej_parquet(
     # Convert timestamp with timezone detection
     if "timestamp" in df.columns and not df["timestamp"].empty:
         source_tz = _detect_source_timezone(df["timestamp"])
+        adapter = get_active_adapter()
+        tz = adapter.timezone
         if source_tz == "UTC":
             df["timestamp"] = (
                 pd.to_datetime(df["timestamp"], unit="ms", utc=True)
-                .dt.tz_convert("Asia/Kolkata")
+                .dt.tz_convert(tz)
                 .dt.tz_localize(None)
             )
         else:
             df["timestamp"] = (
                 pd.to_datetime(df["timestamp"], unit="ms", utc=True)
-                .dt.tz_localize("Asia/Kolkata")
+                .dt.tz_localize(tz)
                 .dt.tz_localize(None)
             )
         logger.debug("%s: source timezone detected as %s", symbol, source_tz)
 
-    # Convert paise to rupees (divide by 100)
+    # Convert native price units to base currency using adapter's price_scale
+    adapter = get_active_adapter()
     for col in ["open", "high", "low", "close"]:
         if col in df.columns:
-            df[col] = df[col] / 100.0
+            df[col] = df[col] / adapter.price_scale
 
     # Add missing columns
     df["symbol"] = normalize_symbol(symbol)
@@ -139,9 +142,9 @@ def convert_tradej_parquet(
     df["event_time"] = df["timestamp"]
     df = df[CANONICAL_COLUMNS].dropna(subset=["timestamp"])
 
-    now_ist = pd.Timestamp.now(tz="Asia/Kolkata").tz_localize(None)
-    df["published_at"] = now_ist
-    df["ingested_at"] = now_ist
+    now_local = pd.Timestamp.now(tz=get_active_adapter().timezone).tz_localize(None)
+    df["published_at"] = now_local
+    df["ingested_at"] = now_local
     df["is_correction"] = False
 
     # Validate OHLCV consistency

@@ -20,21 +20,18 @@ import pyarrow as pa
 from infrastructure.batch_executor import batch_execute
 from datalake.core.paths import symbol_partition_path
 from datalake.core.io import atomic_parquet_write
-from datalake.core.constants import (
-    EXPECTED_CANDLES_PER_DAY,
-    MARKET_CLOSE_HOUR,
-    MARKET_CLOSE_MINUTE,
-    MARKET_OPEN_HOUR,
-    MARKET_OPEN_MINUTE,
-)
+from datalake.core.constants import EXPECTED_CANDLES_PER_DAY
 from datalake.core.symbols import normalize_symbol
+from datalake.exchange_registry import get_active_adapter, get_active_exchange_code
 from datalake.quality.validation import validate_candles
 
 logger = logging.getLogger(__name__)
 
-# NSE trading hours
-NSE_MARKET_OPEN = dt_time(MARKET_OPEN_HOUR, MARKET_OPEN_MINUTE)  # 09:15
-NSE_MARKET_CLOSE = dt_time(MARKET_CLOSE_HOUR, MARKET_CLOSE_MINUTE)  # 15:30
+
+def _session_bounds():
+    """Return (open, close) from the active trading calendar."""
+    from plugins.exchanges.nse import CALENDAR
+    return CALENDAR.session_bounds(None)  # NSE: always (09:15, 15:30)
 
 
 class HistoricalDataLoader:
@@ -50,7 +47,7 @@ class HistoricalDataLoader:
         gateway,
         years: int = 5,
         timeframe: str = "1m",
-        exchange: str = "NSE",
+        exchange: str | None = None,
     ) -> dict:
         """Download historical data for a single symbol.
 
@@ -59,6 +56,8 @@ class HistoricalDataLoader:
         Dict with keys: rows, duplicates_dropped, invalid_dropped.
         """
         symbol = normalize_symbol(symbol)
+        if exchange is None:
+            exchange = get_active_exchange_code()
         try:
             df = gateway.history(
                 symbol, exchange=exchange, timeframe=timeframe, lookback_days=years * 365

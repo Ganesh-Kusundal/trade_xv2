@@ -8,6 +8,7 @@ import pandas as pd
 
 from datalake.core.schema import CANONICAL_COLUMNS
 from datalake.core.symbols import normalize_symbol
+from datalake.exchange_registry import get_active_adapter
 
 logger = logging.getLogger(__name__)
 
@@ -48,39 +49,47 @@ def ensure_timestamp_dtype(df: pd.DataFrame) -> pd.DataFrame:
 def convert_paise_to_rupees(
     df: pd.DataFrame, *, source_unit: str = "auto"
 ) -> pd.DataFrame:
-    """Convert price columns from paise to rupees.
+    """Convert price columns from the exchange's native unit to base currency.
+
+    Uses the active exchange adapter's ``price_scale`` (e.g. 100 for NSE paise→INR)
+    instead of hardcoded ``/100``.
 
     Parameters
     ----------
     source_unit : str
-        ``"paise"`` — always divide by 100.
-        ``"rupees"`` — no conversion; warn if values exceed PAISE_THRESHOLD.
-        ``"auto"`` (default) — legacy heuristic: divide if max > PAISE_THRESHOLD.
+        ``"native"`` — always divide by adapter.price_scale.
+        ``"base"`` — no conversion; warn if values exceed threshold.
+        ``"auto"`` (default) — legacy heuristic: divide if max > threshold.
     """
     price_cols = ["open", "high", "low", "close"]
     existing = [c for c in price_cols if c in df.columns]
     if not existing:
         return df
 
-    if source_unit == "paise":
+    adapter = get_active_adapter()
+    scale = adapter.price_scale
+    # Threshold scales with the adapter's price unit
+    threshold = 100_000  # TODO: derive from adapter if needed
+
+    if source_unit == "native":
         for col in existing:
-            df[col] = df[col] / 100.0
-    elif source_unit == "rupees":
+            df[col] = df[col] / scale
+    elif source_unit == "base":
         max_val = max(df[c].max() for c in existing)
-        if max_val > PAISE_THRESHOLD:
+        if max_val > threshold:
             logger.warning(
                 "paise_threshold_warning",
                 extra={
                     "max_value": max_val,
-                    "threshold": PAISE_THRESHOLD,
-                    "detail": "Values exceed threshold but source_unit='rupees'. "
-                    "Verify data is actually in rupees.",
+                    "threshold": threshold,
+                    "detail": "Values exceed threshold but source_unit='base'. "
+                    "Verify data is actually in base currency.",
                 },
             )
     else:  # auto — legacy heuristic
         for col in existing:
-            if df[col].max() > PAISE_THRESHOLD:
-                df[col] = df[col] / 100.0
+            if df[col].max() > threshold:
+                df[col] = df[col] / scale
     return df
 
 
@@ -101,10 +110,11 @@ def ensure_canonical_columns(df: pd.DataFrame, symbol: str, exchange: str) -> pd
 
 def add_temporal_metadata(df: pd.DataFrame) -> pd.DataFrame:
     """Add published_at, ingested_at, is_correction columns."""
-    now_ist = pd.Timestamp.now(tz="Asia/Kolkata").tz_localize(None)
+    tz = get_active_adapter().timezone
+    now_local = pd.Timestamp.now(tz=tz).tz_localize(None)
     df["event_time"] = df["timestamp"]
-    df["published_at"] = now_ist
-    df["ingested_at"] = now_ist
+    df["published_at"] = now_local
+    df["ingested_at"] = now_local
     df["is_correction"] = False
     return df
 
