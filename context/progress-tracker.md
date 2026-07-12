@@ -66,8 +66,19 @@
 
 - None.
 
+## Completed (docs — 2026-07-13)
+
+- **E2E architectural specification suite** (Nautilus-referenced, documentation-first):
+  `docs/architecture/e2e-spec/README.md` + docs 00–11 (kernel, domain, messaging, data/execution
+  flows, risk, time/parity, reconciliation, ports, migration). No redesign code yet — implement
+  only after Phase A/B acceptance criteria in `11-asbuilt-gaps-and-migration.md` are owned.
+- Prior reviews retained under `docs/superpowers/reviews/` (PE review + short sketch superseded
+  by e2e-spec).
+
 ## Next Up
 
+- Accept E2E suite (architecture council); then execute Phase A (Order FSM, Clock in fills,
+  fail-closed risk, daily-PnL self-heal) per `docs/architecture/e2e-spec/11-asbuilt-gaps-and-migration.md`.
 - Resume roadmap phases; pick the next unit from `docs/architecture/roadmap.md` and write a
   spec under `context/specs/` before implementing.
 - Consider M6 scoping: SettingsLoaderBase serves broker config (not app config) — either

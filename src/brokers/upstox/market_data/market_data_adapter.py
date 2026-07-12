@@ -241,6 +241,34 @@ class UpstoxMarketDataAdapter(MarketDataProvider):
     def get_option_expiries(self, underlying: str, exchange_segment: Any) -> list[str]:
         return []
 
+    def get_option_greeks(self, instrument_keys: list[str]) -> dict[str, Any]:
+        """V3 REST option greeks (≤50 keys per Upstox docs).
+
+        Returns a mapping of instrument_key → domain ``Greeks`` for the keys
+        present in the response. Keys are normalized (``|`` ↔ ``:``) to match
+        Upstox response aliasing, so callers can pass either form.
+        """
+        from brokers.upstox.mappers.options_mapper import to_option_greeks
+
+        keys = [k for k in instrument_keys if k]
+        if not keys:
+            return {}
+        out: dict[str, Any] = {}
+        for chunk in _chunked(keys, UPSTOX_OPTION_GREEK_MAX_KEYS):
+            body = self._v3.get_option_greeks_v3(chunk)
+            data = body.get("data") if isinstance(body, dict) else None
+            if not isinstance(data, dict):
+                continue
+            for raw_key, g in data.items():
+                if not isinstance(g, dict):
+                    continue
+                # normalize response alias so the caller's key form resolves
+                norm_key = raw_key.replace(":", "|")
+                greeks = to_option_greeks(g)
+                out[norm_key] = greeks
+                out.setdefault(raw_key, greeks)
+        return out
+
 
 def _as_instrument_key(symbol: str, exchange: str) -> str:
     if "|" in symbol:

@@ -74,6 +74,8 @@ from application.oms._internal.loss_circuit_breaker import (
     LossCircuitBreakerConfig,
 )
 from application.oms._internal.margin_checker import MarginChecker
+from application.oms._internal.throttler import Throttler
+from application.oms._internal.trading_state import TradingState, TradingStateEnum
 from application.oms._internal.risk_types import (
     InstrumentProvider,
     RiskConfig,
@@ -187,6 +189,8 @@ class RiskManager:
             loss_cb=self._loss_cb,
             on_risk_event=on_risk_event,
         )
+        self._throttler = Throttler()
+        self._trading_state = TradingState()
 
         # Lock that protects _config, _daily_pnl, and the derived
         # reads in check_order. RLock (not Lock) so the OMS may
@@ -296,6 +300,10 @@ class RiskManager:
             if (gross + pending_gross + notional) / capital * 100 > self._config.max_gross_exposure_pct:
                 return RiskResult(False, "Exceeds max gross exposure pct")
 
+            # Throttler
+            if not self._throttler.allow():
+                return RiskResult(False, "Order submission rate limit exceeded")
+
             # Daily loss
             if self._daily_pnl_tracker.is_stale():
                 self._daily_pnl_tracker.reset()
@@ -401,6 +409,11 @@ class RiskManager:
         mutate it directly; use :meth:`reset_loss_circuit_breaker`.
         """
         return self._loss_cb
+
+    @property
+    def throttler(self) -> Throttler:
+        """Access the submit/modify rate throttler for inspection."""
+        return self._throttler
 
     def snapshot(self) -> dict:
         """Return a JSON-serializable view of risk-manager state.

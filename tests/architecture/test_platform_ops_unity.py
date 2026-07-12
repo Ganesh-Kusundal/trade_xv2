@@ -30,12 +30,6 @@ def test_broker_ops_uses_platform_ops() -> None:
 
 
 @pytest.mark.architecture
-def test_mcp_tools_uses_platform_ops() -> None:
-    path = REPO_ROOT / "src" / "brokers" / "mcp" / "tools.py"
-    assert _imports_platform_ops(path)
-
-
-@pytest.mark.architecture
 def test_broker_cli_uses_platform_ops() -> None:
     path = REPO_ROOT / "src" / "brokers" / "cli" / "broker.py"
     assert _imports_platform_ops(path)

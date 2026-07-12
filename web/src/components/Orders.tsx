@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useApi } from "../api/ApiContext";
 import { useAsync } from "../hooks/useAsync";
 import { fmtNum, pnlClass } from "../utils/format";
@@ -33,6 +33,13 @@ export function Orders() {
   });
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+
+  const isValid = useMemo(() => {
+    if (!form.symbol.trim()) return false;
+    if (form.quantity <= 0) return false;
+    if (form.order_type !== "MARKET" && (!form.price || form.price <= 0)) return false;
+    return true;
+  }, [form.symbol, form.quantity, form.order_type, form.price]);
 
   async function place() {
     setBusy(true);
@@ -120,7 +127,7 @@ export function Orders() {
           <option value="CO">CO</option>
           <option value="BO">BO</option>
         </select>
-        <button type="submit" disabled={busy} data-testid="place-order">
+        <button type="submit" disabled={busy || !isValid} data-testid="place-order">
           Place Order
         </button>
       </form>

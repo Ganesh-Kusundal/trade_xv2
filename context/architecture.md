@@ -4,6 +4,11 @@
 > the layering contract and invariants the codebase must never violate. Grounded in
 > `docs/architecture/target-layering.md` (the enforced contract) and `baseline.md`.
 > Do not change architecture without an ADR in `docs/architecture/adr/`.
+>
+> **End-to-end specification (Nautilus-referenced):**  
+> `docs/architecture/e2e-spec/README.md` — kernel, domain, event catalog, data/execution
+> flows, risk, time/parity, reconciliation, ports, and migration. Prefer that suite for
+> flow-level design; this file remains the layering + invariant contract.
 
 ## 1. Stack Table (layer → technology → role)
 

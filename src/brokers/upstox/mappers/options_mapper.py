@@ -67,6 +67,21 @@ def leg_trading_symbol(leg: dict) -> str | None:
     return str(ts) if ts else None
 
 
+def to_option_greeks(payload: dict | None) -> Greeks:
+    """Map a V3 REST option-greek object to the domain ``Greeks`` value object.
+
+    The V3 ``/market-quote/option-greek`` response is a flat object per
+    instrument key (delta/gamma/vega/theta/iv/pop) — distinct from the
+    websocket ``OptionGreeks`` proto (adds ``rho``) and from the
+    option-chain ``option_greeks`` leg shape (adds ``pop``). ``Greeks``
+    carries the five core greeks; ``iv``/``pop`` are intentionally ignored
+    here (they are surfaced on the chain leg / quote paths, not on greeks).
+    """
+    from domain.options.greeks import Greeks
+
+    return Greeks.from_dict(payload)
+
+
 def to_option_contract(payload: Any) -> OptionContract:
     if not isinstance(payload, dict):
         return OptionContract()

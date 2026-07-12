@@ -1,4 +1,5 @@
 import { Navigate, Route, Routes } from "react-router-dom";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Layout } from "./components/Layout";
 import { BrokerStatus } from "./components/BrokerStatus";
 import { MarketQuotes } from "./components/MarketQuotes";
@@ -9,7 +10,8 @@ import { Performance } from "./components/Performance";
 
 export function App() {
   return (
-    <Routes>
+    <ErrorBoundary>
+      <Routes>
       <Route element={<Layout />}>
         <Route index element={<Navigate to="/broker" replace />} />
         <Route path="/broker" element={<BrokerStatus />} />
@@ -20,6 +22,7 @@ export function App() {
         <Route path="/performance" element={<Performance />} />
         <Route path="*" element={<Navigate to="/broker" replace />} />
       </Route>
-    </Routes>
+      </Routes>
+    </ErrorBoundary>
   );
 }

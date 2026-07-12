@@ -1,8 +1,8 @@
 """Proxy to analytics scanner — avoids direct import from analytics in datalake.
 
 Datalake must not import from ``analytics`` (layering violation). This module
-bridges via ``importlib`` so the MCP tools in ``datalake/mcp/`` can use
-``RuleEngine`` without triggering AST-level import detection.
+bridges via ``importlib`` so callers can use ``RuleEngine`` without triggering
+AST-level import detection.
 """
 
 from __future__ import annotations
