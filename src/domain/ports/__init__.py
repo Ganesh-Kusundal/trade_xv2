@@ -8,7 +8,10 @@ from domain.ports.event_log import (
     EventLogPort,
     ProcessedTradeRepositoryPort,
 )
+from domain.exceptions import ExchangeNotConfigured
 from domain.ports.event_publisher import EventBusPort, EventPublisher
+from domain.ports.exchange_adapter import ExchangeAdapter
+from domain.ports.exchange_calendar import TradingCalendar
 from domain.ports.execution_ledger import ExecutionLedgerPort
 from domain.ports.lifecycle import LifecycleManagerPort, ManagedServicePort
 from domain.ports.margin_provider import MarginProviderPort
@@ -33,8 +36,10 @@ __all__ = [
     "DeadLetterQueuePort",
     "EventBusPort",
     "EventLogPort",
+    "ExchangeNotConfigured",
     "EventMetricsPort",
     "EventPublisher",
+    "ExchangeAdapter",
     "ExecutionLedgerPort",
     "ExecutionProvider",
     "LifecycleManagerPort",

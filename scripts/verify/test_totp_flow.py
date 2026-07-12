@@ -49,7 +49,7 @@ def test_mock_totp_flow():
         print(f"  Has config: {settings.has_totp_config}")
 
         # Mock the TOTP client to simulate successful token generation
-        with patch("brokers.upstox.auth.token_manager.UpstoxTotpClient") as mock_client_class:
+        with patch("brokers.upstox.auth.token_persistence.UpstoxTotpClient") as mock_client_class:
             mock_client = MagicMock()
             mock_client.validate_config.return_value = True
             mock_client.generate_token.return_value = {
@@ -188,7 +188,7 @@ def test_scheduler_flow():
             totp_refresh_minute=0,
         )
 
-        with patch("brokers.upstox.auth.token_manager.UpstoxTotpClient"):
+        with patch("brokers.upstox.auth.token_persistence.UpstoxTotpClient"):
             token_manager = UpstoxTokenManager(settings)
 
             # Create scheduler

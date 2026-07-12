@@ -17,6 +17,15 @@ class DataError(TradeXV2Error):
     """Base exception for datalake and data processing errors."""
 
 
+class ExchangeNotConfigured(DataError):
+    """Raised when datalake/data code needs an exchange but none is active.
+
+    ADR-005: replaces the previous silent ``exchange="NSE"`` default. Callers
+    must register an exchange plugin (``tradex.exchanges``) before performing
+    exchange-specific operations.
+    """
+
+
 class ConfigError(TradeXV2Error):
     """Configuration error (missing or invalid settings)."""
 
@@ -28,6 +37,7 @@ class ValidationError(TradeXV2Error):
 __all__ = [
     "ConfigError",
     "DataError",
+    "ExchangeNotConfigured",
     "TradeXV2Error",
     "ValidationError",
 ]

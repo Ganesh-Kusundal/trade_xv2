@@ -31,8 +31,8 @@ def _make_settings(**kwargs) -> UpstoxConnectionSettings:
 class TestTotpBootstrap:
     """Test TOTP bootstrap flow."""
 
-    @patch("brokers.upstox.auth.token_manager.UpstoxTotpClient")
-    @patch("brokers.upstox.auth.token_manager.JwtExpiry")
+    @patch("brokers.upstox.auth.token_persistence.UpstoxTotpClient")
+    @patch("brokers.upstox.auth.token_persistence.JwtExpiry")
     def test_bootstrap_totp_reuses_persisted_token(self, mock_jwt_expiry, mock_totp_client_class):
         """Persisted valid token should skip TOTP generation."""
         settings = _make_settings()
@@ -53,8 +53,8 @@ class TestTotpBootstrap:
         assert state.access_token == "persisted-token"
         mock_totp_client_class.assert_not_called()
 
-    @patch("brokers.upstox.auth.token_manager.UpstoxTotpClient")
-    @patch("brokers.upstox.auth.token_manager.JwtExpiry")
+    @patch("brokers.upstox.auth.token_persistence.UpstoxTotpClient")
+    @patch("brokers.upstox.auth.token_persistence.JwtExpiry")
     def test_bootstrap_totp_success(self, mock_jwt_expiry, mock_totp_client_class):
         """Test successful TOTP bootstrap."""
         settings = _make_settings()
@@ -79,7 +79,7 @@ class TestTotpBootstrap:
         assert state.access_token == "test-token"
         assert state.refresh_token is None
 
-    @patch("brokers.upstox.auth.token_manager.UpstoxTotpClient")
+    @patch("brokers.upstox.auth.token_persistence.UpstoxTotpClient")
     def test_bootstrap_totp_invalid_config(self, mock_totp_client_class):
         """Test TOTP bootstrap with invalid config."""
         settings = _make_settings(mobile="")
@@ -93,7 +93,7 @@ class TestTotpBootstrap:
         with pytest.raises(UpstoxAuthError, match="TOTP configuration incomplete"):
             token_manager.bootstrap()
 
-    @patch("brokers.upstox.auth.token_manager.UpstoxTotpClient")
+    @patch("brokers.upstox.auth.token_persistence.UpstoxTotpClient")
     def test_bootstrap_totp_with_refresh_token_fallback(self, mock_totp_client_class):
         """TOTP bootstrap may fall back only to an explicit OAuth refresh token."""
         settings = _make_settings(
@@ -113,7 +113,7 @@ class TestTotpBootstrap:
         state = token_manager.bootstrap()
         assert state.access_token == "existing-token"
 
-    @patch("brokers.upstox.auth.token_manager.UpstoxTotpClient")
+    @patch("brokers.upstox.auth.token_persistence.UpstoxTotpClient")
     def test_bootstrap_totp_does_not_reuse_env_access_token(self, mock_totp_client_class):
         """TOTP mode must not silently reuse stale UPSTOX_ACCESS_TOKEN values."""
         settings = _make_settings(access_token="stale-env-token", refresh_token="")
@@ -127,7 +127,7 @@ class TestTotpBootstrap:
         with pytest.raises(UpstoxAuthError, match="TOTP authentication failed"):
             token_manager.bootstrap()
 
-    @patch("brokers.upstox.auth.token_manager.UpstoxTotpClient")
+    @patch("brokers.upstox.auth.token_persistence.UpstoxTotpClient")
     def test_bootstrap_totp_no_fallback_raises(self, mock_totp_client_class):
         """Test TOTP bootstrap raises when no fallback available."""
         settings = _make_settings(
@@ -144,7 +144,7 @@ class TestTotpBootstrap:
         with pytest.raises(UpstoxAuthError, match="TOTP authentication failed"):
             token_manager.bootstrap()
 
-    @patch("brokers.upstox.auth.token_manager.UpstoxTotpClient")
+    @patch("brokers.upstox.auth.token_persistence.UpstoxTotpClient")
     def test_try_refresh_on_401_reuses_in_memory_valid_token(self, mock_totp_client_class):
         """First 401 soft-retries with same JWT; second 401 forces one TOTP mint."""
         settings = _make_settings()
@@ -178,7 +178,7 @@ class TestTotpBootstrap:
         assert token_manager.current_token() == "brand-new-token"
 
     @patch("brokers.upstox.auth.login.perform_login")
-    @patch("brokers.upstox.auth.token_manager.UpstoxTotpClient")
+    @patch("brokers.upstox.auth.token_persistence.UpstoxTotpClient")
     def test_bootstrap_totp_fallback_to_interactive_oauth(self, mock_totp_client_class, mock_perform_login):
         """Test that TOTP bootstrap failure falls back to interactive browser OAuth login."""
         mock_totp_client_class.side_effect = Exception("TOTP API error")

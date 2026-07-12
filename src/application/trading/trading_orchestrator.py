@@ -52,6 +52,7 @@ from domain.orders.execution_plan import ExecutionPlan, SlicingAlgo
 from domain.orders.placement import build_execution_plan, plan_to_intents
 from domain.orders.requests import OrderRequest
 from domain.ports import EventBusPort
+from domain.ports.risk_manager import RiskManagerPort
 from domain.ports.strategy_evaluator import StrategyEvaluator
 
 logger = logging.getLogger(__name__)
@@ -131,6 +132,7 @@ class TradingOrchestrator:
         submit_fn: Callable[[OmsOrderCommand], Order] | None = None,
         execution_service: ExecutionService | None = None,
         order_command_fn: Callable[[OmsOrderCommand], OrderResult] | None = None,
+        risk_manager: RiskManagerPort | None = None,
     ) -> None:
         self._event_bus = event_bus
         self._order_manager = order_manager
@@ -139,6 +141,11 @@ class TradingOrchestrator:
         self._config = config or OrchestratorConfig()
         self._submit_fn = submit_fn
         self._execution_service = execution_service
+        # G7: kill-switch reads via the injected RiskManagerPort, never by
+        # reaching into order_manager.risk_manager. Default to the order
+        # manager's risk manager to stay backward-compatible with existing
+        # wiring; pass risk_manager explicitly to decouple fully.
+        self._risk_manager: RiskManagerPort | None = risk_manager or order_manager.risk_manager
         # ADR-012: when wired, signals flow through an injected order-command
         # function (built by the composition root from the CommandDispatcher) so
         # the orchestrator never imports or calls the OMS/broker directly.
@@ -512,16 +519,12 @@ class TradingOrchestrator:
     def _is_kill_switch_active(self) -> bool:
         """Check if kill switch is active.
 
-        P4-5: Delegates to OrderManager risk manager for kill switch status.
-        If no risk manager is configured, returns False (safe default).
+        Delegates to the injected ``RiskManagerPort`` (G7). If no risk manager
+        is configured, returns False (safe default).
         """
-        order_manager = getattr(self, "_order_manager", None)
-        if order_manager is None:
+        if self._risk_manager is None:
             return False
-        risk_manager = getattr(order_manager, "risk_manager", None)
-        if risk_manager is None:
-            return False
-        return risk_manager.is_kill_switch_active()
+        return self._risk_manager.is_kill_switch_active()
 
     # ── lifecycle ────────────────────────────────────────────────────────
 

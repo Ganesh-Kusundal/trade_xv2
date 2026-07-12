@@ -1,5 +1,0 @@
-{
-  "schema_version": 1,
-  "max_errors": 626,
-  "note": "Initial baseline; ratchet fails if count increases"
-}

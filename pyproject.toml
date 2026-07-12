@@ -450,6 +450,24 @@ ignore_imports = [
 ]
 
 [[tool.importlinter.contracts]]
+name = "Runtime broker-implementation isolation"
+type = "forbidden"
+source_modules = ["runtime"]
+# ADR-002: runtime is the ONLY layer permitted to touch concrete broker
+# implementations. This contract makes that rule structurally enforced.
+forbidden_modules = ["brokers.dhan", "brokers.upstox", "brokers.paper", "brokers.common"]
+unmatched_ignore_imports_alerting = "warn"
+ignore_imports = [
+    # Tracked exceptions — remove in Phase 5 (G1 / P5-3) when runtime resolves
+    # brokers via a plugin registry + broker_id enum instead of direct imports.
+    "runtime.broker_infrastructure -> brokers.dhan.config.capabilities",
+    "runtime.broker_infrastructure -> brokers.upstox.capabilities",
+    "runtime.broker_accessors -> brokers.paper",
+    "runtime.broker_accessors -> brokers.dhan.**",
+    "runtime.broker_accessors -> brokers.upstox.**",
+]
+
+[[tool.importlinter.contracts]]
 name = "Application infrastructure separation"
 type = "forbidden"
 source_modules = ["application"]
