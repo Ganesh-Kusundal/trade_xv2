@@ -41,9 +41,15 @@ Status legend: `TODO` · `IN_PROGRESS` · `DONE` · `WONT_DO`
 - **Owner:** Market Data / Datalake
 - **Exit:** zero `exchange="NSE"` / `nse_calendar` references in `src/datalake`;
   unregistered exchange raises `ExchangeNotConfigured`.
-- **Status:** TODO — contract foundation laid (ADR-005): `TradingCalendar`,
-  `ExchangeAdapter` ports and `ExchangeNotConfigured` exception now exist in
-  `domain/ports` + `domain/exceptions`; P5-2 implements the NSE plugin against them.
+- **Status:** IN_PROGRESS (P5-2 slice landed 2026-07-12) — NSE plugin created
+  (`plugins/exchanges/nse/` with `NseExchangeAdapter` + `NseTradingCalendar`
+  satisfying domain ports); datalake exchange registry with lazy entry-point
+  discovery (`datalake/exchange_registry.py`); `exchange="NSE"` strings in
+  `research/api.py` and `analytics_provider.py` replaced with
+  `get_active_exchange_code()`. Remaining: deeper paise/converter refactoring
+  in `datalake/ingestion/` (normalize.py, converter.py, loader.py) to use
+  `adapter.price_scale` / `adapter.timezone` / `TradingCalendar.session_bounds()`
+  instead of hardcoded paise/IST constants.
 
 ## G4 — Two parallel config systems can drift ⚠️
 - **Roadmap:** P5-4 · **ADR:** ADR-003
@@ -76,10 +82,13 @@ Status legend: `TODO` · `IN_PROGRESS` · `DONE` · `WONT_DO`
 - **Owner:** Trading / Risk
 - **Exit:** kill-switch reads via injected `RiskGate` port; zero `getattr` reach-through
   to `risk_manager`.
-- **Status:** IN_PROGRESS — `trading_orchestrator.py` reach-through closed (2026-07-12):
-  `TradingOrchestrator` now takes an injected `RiskManagerPort` and `_is_kill_switch_active`
-  delegates to it directly (no `getattr`). Regression guard:
-  `tests/component/trading/test_orchestrator_kill_switch_port.py`.
+- **Status:** DONE (2026-07-12) — all getattr reach-throughs to risk_manager removed:
+  `trading_orchestrator.py` via injected `RiskManagerPort` + regression guard
+  `test_orchestrator_kill_switch_port.py`; `order_placer.py` via public
+  `OrderManager.risk_manager` property; `production_readiness.py` via public
+  `TradingContext.risk_manager` property; `brokers/paper/paper_orders.py` via
+  direct property; `interface/api/deps.py` via direct property. Grep confirms
+  **zero** `getattr(..., "risk_manager")` in entire `src/`.
   Remaining reach-throughs (order_placer.py:67,70; oms/reconciliation_service.py:161,164;
   oms/context.py:419; services/production_readiness.py:247) are separate instances — close
   each by injecting `RiskManagerPort` the same way. See `adr/0006-kill-switch-risk-gate.md`.
