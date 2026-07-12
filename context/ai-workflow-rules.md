@@ -7,7 +7,7 @@
 ## 1. Context First (mandatory gate)
 
 - Before ANY implementation or architectural decision, read the six context files in
-  order: `project-overview.md` → `architecture.md` → `ui-context.md` (if UI) →
+  order: `project-overview.md` → `architecture.md` → `web/DESIGN.md` (if UI) →
   `code-standards.md` → this file → `progress-tracker.md`.
 - Before exploring code, run **graphify** (`graphify query/explain/path`) per
   `.cursor/rules/graphify.mdc`. Do not grep/Read blindly.

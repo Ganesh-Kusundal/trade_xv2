@@ -20,7 +20,7 @@
 - `context/architecture.md` — layering contract, invariants, known violations G1–G8.
 - `context/code-standards.md` — Python/TS conventions, quality gates, test rules.
 - `context/ai-workflow-rules.md` — agent discipline, scoping, real-money safety.
-- `context/ui-context.md` — web visual language tokens.
+- `web/DESIGN.md` — web visual language tokens.
 - `CLAUDE.md` — entry point pointing agents at the six files.
 - `.cursor/rules/six-file-context.mdc` — enforcement rule (must read context first).
 
@@ -76,7 +76,7 @@
 ## Open Questions
 
 - Is `web/styles.css` the intended single source of truth for theme, or will a design
-  system be adopted? (tokens in `ui-context.md` are placeholders until confirmed.)
+  system be adopted? (tokens in `web/DESIGN.md` are placeholders until confirmed.)
 - Final `broker_id` enum shape for the `tradex.exchanges` plugin group.
 
 ## Architecture Decisions
