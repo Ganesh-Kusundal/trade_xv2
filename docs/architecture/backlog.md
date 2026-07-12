@@ -82,9 +82,17 @@ Status legend: `TODO` · `IN_PROGRESS` · `DONE` · `WONT_DO`
 - **Status:** IN_PROGRESS (P5-4/P5-6 slices landed 2026-07-12):
   - Removed dead `domain_bus_adapter.py` (45 LOC, never wired).
   - Removed dead `LiveStrategyEngine` (101 LOC, not wired; `TradingOrchestrator` is canonical).
-  - MCP: 3 servers documented (broker/agent/datalake). Agent tools overlap with broker tools
-    (get_quote ≈ broker_quote). Full consolidation requires framework unification (FastMCP vs
-    raw Server) — design decision for next session.
+  - MCP: 3 servers documented (broker/agent/datalake). Agent tools overlap with broker tools.
+    Full consolidation requires framework unification — design decision for next session.
+  - **Remaining (documented follow-ups):**
+    - (a) `async_event_bus.py` (220 LOC): thin async wrapper around sync bus. Merging into
+      core requires understanding 6+ consumers. Design: move async drain logic into `event_bus.py`
+      as optional mode, update imports.
+    - (b) `processed_trade_repository.py` (437 LOC): specialized trade-id idempotency (hot set
+      + disk). Complementary to generic `IdempotencyService` (key-value + TTL + backends).
+      Design: make PTR use IdempotencyService as backend, preserving trade-specific API.
+    - (c) MCP framework unification: migrate `interface/agent/mcp_server.py` from raw
+      `Server` to `FastMCP` for consistency, then consider unified facade.
   - Remaining: (a) merge `async_event_bus.py` (220 LOC) into sync core as thin wrapper,
     (b) merge `processed_trade_repository.py` (437 LOC) into `IdempotencyService`,
     (c) MCP framework unification + consolidation, (d) domain bus architecture fix.
