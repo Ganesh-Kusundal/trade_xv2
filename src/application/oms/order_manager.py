@@ -170,7 +170,7 @@ class OrderManager:
 
         self._idempotency_guard = IdempotencyGuard()
         self._order_validator = OmsOrderValidator(
-            risk_manager=risk_manager,
+            risk_manager=risk_manager,  # accepts RiskManager | RiskGateAdapter
             event_bus=event_bus,
             publish_callback=self._publish,
         )

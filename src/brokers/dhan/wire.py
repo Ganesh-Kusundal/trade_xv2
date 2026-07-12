@@ -27,9 +27,35 @@ logger = logging.getLogger(__name__)
 class DhanWireAdapter:
     """Unified Dhan broker API — all calls delegate to connection adapters."""
 
+    # BrokerAdapter port requires a stable broker_id attribute.
+    broker_id = "dhan"
+
     def __init__(self, connection: DhanConnection):
         self._conn = connection
         enforce_gateway_capabilities(self)
+
+    @property
+    def is_connected(self) -> bool:
+        """Best-effort transport liveness (BrokerAdapter contract).
+
+        Delegates to the connection's market feed when present; the
+        connection owns the real socket state, the wire adapter only
+        surfaces it. Falls back to False rather than guessing connected.
+        """
+        conn = self._conn
+        feed = getattr(conn, "market_feed", None) or getattr(conn, "_market_feed", None)
+        if feed is not None and hasattr(feed, "is_connected"):
+            return bool(feed.is_connected)
+        return False
+
+    def authenticate(self) -> bool:
+        """BrokerAdapter lifecycle hook.
+
+        Dhan auth (token bootstrap) is performed by the connection's token
+        manager during connect(); the wire adapter only reflects current
+        liveness so the structural BrokerAdapter contract holds.
+        """
+        return self.is_connected
 
     @property
     def extended(self) -> Any:

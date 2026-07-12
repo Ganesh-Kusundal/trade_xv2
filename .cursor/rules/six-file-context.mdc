@@ -1,0 +1,35 @@
+---
+description: Six-File Context System — read context/ before implementing
+alwaysApply: true
+---
+
+This project uses the **Six-File Context System** (see `context/`). Before any
+implementation, architectural decision, or code exploration, the agent MUST read the
+context files and follow them.
+
+**MANDATORY pre-flight (every session, every task):**
+
+1. Read `context/project-overview.md` — product intent, scope, success criteria.
+2. Read `context/architecture.md` — layering contract, boundaries, invariants, known
+   violations (G1–G8). This is the enforced contract. Do not violate the dependency rule.
+3. If touching `web/`, read `context/ui-context.md` — visual language tokens.
+4. Read `context/code-standards.md` — Python/TS conventions, quality gates, test rules.
+5. Read `context/ai-workflow-rules.md` — scoping, missing-requirement handling, real-money
+   safety.
+6. Read `context/progress-tracker.md` — current phase, completed work, next steps.
+
+Then, before exploring code, run **graphify** per `graphify.mdc`
+(`graphify query/explain/path`) — do not grep/Read blindly.
+
+**Rules:**
+- Resolve ambiguous requirements against `project-overview.md` / `architecture.md`. If
+  still unclear, ask — never guess, and never fill gaps with "it should work".
+- Implement only the scoped unit. No speculative changes, no hidden scope creep.
+- This system trades real money. Any order-placing/cancelling path needs explicit failure
+  modes, a `RiskGate`, and idempotency. Zero-parity: live == backtest/replay.
+- After modifying code files, run `graphify update .` and update
+  `context/progress-tracker.md`.
+- If a change alters architecture/scope/standards, update the relevant `context/*.md`
+  BEFORE continuing.
+
+Entry point `CLAUDE.md` repeats this for non-Cursor agents (Codex/Copilot).

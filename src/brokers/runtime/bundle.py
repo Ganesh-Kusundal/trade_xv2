@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
 
 from brokers.runtime.capability_manager import CapabilityManager
 from brokers.runtime.event_bus import EventBusFacade
@@ -37,7 +36,8 @@ class RuntimeBundle:
     checkpoints: list[StartupCheckpoint] = field(default_factory=list)
 
     def __post_init__(self) -> None:
-        self.execution = ExecutionManager(self.session)
+        broker_id = getattr(getattr(self.session, "status", None), "broker_id", "paper")
+        self.execution = ExecutionManager(self.session, broker_id=broker_id)
         bus = getattr(self.session, "event_bus", None)
         self.events = EventBusFacade(bus) if bus is not None else EventBusFacade(None)
 
@@ -60,13 +60,13 @@ class RuntimeBundle:
             inst = self.session.universe.equity("RELIANCE")
             caps = self.capabilities.capabilities(inst)
             self._add("Capability Discovery", True, f"{len(caps)} caps")
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             self._add("Capability Discovery", False, str(exc))
         try:
             inst = self.session.universe.equity("RELIANCE")
             q = self.quotes.quote(inst)
             self._add("Warm Cache", q is not None, "sample quote")
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             self._add("Warm Cache", False, str(exc))
         self._add("Ready", all(c.ok for c in self.checkpoints), "startup complete")
         return list(self.checkpoints)

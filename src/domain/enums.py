@@ -76,3 +76,27 @@ class Validity(str, Enum):
 
     DAY = "DAY"
     IOC = "IOC"
+
+
+class BrokerId(str, Enum):
+    """Canonical broker identifier — replaces _active_name string branching.
+
+    Architecture invariant #3: broker selected by enum, never string equality.
+    Interface and runtime layers must compare against these values.
+    """
+
+    DHAN = "dhan"
+    UPSTOX = "upstox"
+    PAPER = "paper"
+    DATALAKE = "datalake"
+
+    @classmethod
+    def from_str(cls, name: str) -> BrokerId:
+        """Convert a string broker name to BrokerId (case-insensitive)."""
+        try:
+            return cls(name.lower().strip())
+        except ValueError as exc:
+            raise ValueError(
+                f"Broker '{name}' is not registered. "
+                f"Use one of: {', '.join(b.value for b in cls)}"
+            ) from exc

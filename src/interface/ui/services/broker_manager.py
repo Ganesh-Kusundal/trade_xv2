@@ -12,20 +12,18 @@ testing.  This module handles:
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 from typing import TYPE_CHECKING
 
-from interface.ui.services.broker_observability import (
-    compute_live_actionable,
-    resolve_active_broker,
-)
 from domain.errors import BrokerNotReadyError
 from domain.ports.bootstrap import BootstrapStatus
 from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
+from interface.ui.services.broker_observability import (
+    resolve_active_broker,
+)
 
 if TYPE_CHECKING:
+    from interface.ui.services.broker_registry import MockBroker, PaperGateway
     from interface.ui.services.broker_service import BrokerService
-    from interface.ui.services.broker_registry import PaperGateway, MockBroker
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +43,7 @@ class BrokerManager:
     # Active broker resolution
     # ------------------------------------------------------------------
 
-    def get_active_broker(self) -> "MarketDataGateway | PaperGateway | MockBroker":
+    def get_active_broker(self) -> MarketDataGateway | PaperGateway | MockBroker:
         """Return the active broker: live Dhan, live Upstox, paper, or mock.
 
         Raises BrokerNotReadyError when the selected live broker failed
@@ -133,6 +131,16 @@ class BrokerManager:
         svc = self._svc
         svc._ensure_initialized()
         name_lower = name.lower()
+
+        # M4: Forbid cross-broker switch when OMS submit_fn is wired to a different broker.
+        if name_lower not in ("paper", "datalake") and svc._active_name != name_lower:
+            oms_broker = getattr(svc, "_oms_broker_id", None)
+            if oms_broker is not None and oms_broker != name_lower:
+                raise ValueError(
+                    f"Cannot switch to '{name_lower}': OMS submit_fn is wired to '{oms_broker}'. "
+                    f"Rebuild TradingContext for {name_lower} first."
+                )
+
         if name_lower == "paper":
             if svc._paper is None:
                 from interface.ui.services.broker_registry import get_paper_gateway_class

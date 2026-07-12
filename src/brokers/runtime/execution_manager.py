@@ -2,6 +2,10 @@
 
 Thin coordinator over the composition-root ``Session`` buy/sell. Risk → intent
 → OMS → ExecutionProvider all live in the session; this just forwards.
+
+M6: Every buy/sell delegates through :func:`brokers.services._session.check_live_actionable`
+so Spine A (BrokerSession → ExecutionManager → Session) shares the same
+production-readiness gate as Spine B (brokers/services/orders.py).
 """
 
 from __future__ import annotations
@@ -17,8 +21,9 @@ if TYPE_CHECKING:
 class ExecutionManager:
     """Coordinates order submission for a session's instruments."""
 
-    def __init__(self, session: Session) -> None:
+    def __init__(self, session: Session, *, broker_id: str = "paper") -> None:
         self._session = session
+        self._broker_id = broker_id
 
     def buy(
         self,
@@ -27,7 +32,10 @@ class ExecutionManager:
         price: Decimal | None = None,
         order_type: str = "LIMIT",
         product_type: str = "INTRADAY",
-    ):
+    ) -> Any:
+        from brokers.services._session import check_live_actionable
+
+        check_live_actionable(self._broker_id)
         return self._session.buy(
             instrument, quantity, price, order_type=order_type, product_type=product_type
         )
@@ -39,7 +47,10 @@ class ExecutionManager:
         price: Decimal | None = None,
         order_type: str = "LIMIT",
         product_type: str = "INTRADAY",
-    ):
+    ) -> Any:
+        from brokers.services._session import check_live_actionable
+
+        check_live_actionable(self._broker_id)
         return self._session.sell(
             instrument, quantity, price, order_type=order_type, product_type=product_type
         )

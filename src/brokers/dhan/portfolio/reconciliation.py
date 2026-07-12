@@ -188,31 +188,33 @@ class DhanReconciliationService:
         broker_positions: list[Any],
         drift: list[DriftItem],
     ) -> tuple[int, int]:
-        """Repair local OMS from broker (correct-then-heal). Returns repair counts.
+        """Repair local OMS from broker using drift items only (not full snapshot).
 
-        Broker is authoritative. Only mutates local OMS (upsert); never places
-        or cancels on the exchange.
+        Broker is authoritative. Only mutates local OMS for items that
+        actually drifted — never applies the full broker snapshot which
+        could turn transient broker inconsistencies into permanent local
+        truth.
         """
-        del drift  # reserved for selective heal; full broker snapshot applied
         orders_repaired = 0
         positions_repaired = 0
 
-        upsert_order = getattr(self._oms, "upsert_order", None)
-        if upsert_order is not None:
-            for broker_order in broker_orders:
-                local_order = getattr(self._oms, "get_order", lambda oid: None)(
-                    broker_order.order_id
-                )
-                if local_order is None:
-                    try:
-                        upsert_order(broker_order)
-                        orders_repaired += 1
-                        logger.info("Repaired missing order %s", broker_order.order_id)
-                    except Exception as exc:
-                        logger.warning(
-                            "Failed to repair order %s: %s", broker_order.order_id, exc
-                        )
+        # Build lookup from broker orders/positions for selective repair.
+        # Keys are canonicalised with the same domain normalisers the OMS
+        # uses, so a broker Position carrying a raw/missing exchange string
+        # still matches a drift item instead of being silently dropped.
+        from domain.symbols import normalize_exchange, normalize_symbol
 
+        broker_orders_by_id = {o.order_id: o for o in broker_orders if hasattr(o, "order_id")}
+        broker_positions_by_key = {
+            (normalize_exchange(getattr(p, "exchange", "NSE")), normalize_symbol(p.symbol)): p
+            for p in broker_positions
+            if hasattr(p, "symbol")
+        }
+
+        def _pos_key(exchange: str, symbol: str) -> tuple[str, str]:
+            return (normalize_exchange(exchange), normalize_symbol(symbol))
+
+        upsert_order = getattr(self._oms, "upsert_order", None)
         upsert_position = getattr(self._oms, "upsert_position", None)
         if upsert_position is None:
             pm = getattr(self._oms, "position_manager", None) or getattr(
@@ -220,23 +222,47 @@ class DhanReconciliationService:
             )
             upsert_position = getattr(pm, "upsert_position", None) if pm else None
 
-        if upsert_position is not None:
-            for broker_pos in broker_positions:
-                try:
-                    upsert_position(
-                        {
-                            "symbol": broker_pos.symbol,
-                            "exchange": getattr(broker_pos, "exchange", "NSE"),
-                            "quantity": broker_pos.quantity,
-                            "avg_price": str(getattr(broker_pos, "avg_price", "0")),
-                            "ltp": str(getattr(broker_pos, "ltp", "0")),
-                        }
-                    )
-                    positions_repaired += 1
-                    logger.info("Repaired position %s", broker_pos.symbol)
-                except Exception as exc:
+        for item in drift:
+            if item.kind in ("missing_local_order", "order_status_mismatch", "fill_quantity_mismatch", "avg_price_mismatch"):
+                order_id = getattr(item, "payload", {}).get("order_id") or getattr(item, "details", "")
+                # Extract order_id from details if not in payload
+                if not order_id or order_id.startswith("Broker"):
+                    continue
+                broker_order = broker_orders_by_id.get(order_id)
+                if broker_order is not None and upsert_order is not None:
+                    try:
+                        upsert_order(broker_order)
+                        orders_repaired += 1
+                        logger.info("Repaired drift item %s for order %s", item.kind, order_id)
+                    except Exception as exc:
+                        logger.warning("Failed to repair order %s: %s", order_id, exc)
+
+            elif item.kind in ("missing_local_position", "position_quantity_mismatch", "position_avg_price_mismatch"):
+                symbol = item.symbol
+                exchange = getattr(item, "payload", {}).get("exchange", "NSE")
+                key = _pos_key(exchange, symbol)
+                broker_pos = broker_positions_by_key.get(key)
+                if broker_pos is None:
+                    # No matching broker position — previously a silent drop.
+                    # Surface it so persisted drift does not go unnoticed.
                     logger.warning(
-                        "Failed to repair position %s: %s", broker_pos.symbol, exc
+                        "reconciliation_repair_miss kind=%s key=%s", item.kind, key
                     )
+                    continue
+                if upsert_position is not None:
+                    try:
+                        upsert_position(
+                            {
+                                "symbol": broker_pos.symbol,
+                                "exchange": getattr(broker_pos, "exchange", "NSE"),
+                                "quantity": broker_pos.quantity,
+                                "avg_price": str(getattr(broker_pos, "avg_price", "0")),
+                                "ltp": str(getattr(broker_pos, "ltp", "0")),
+                            }
+                        )
+                        positions_repaired += 1
+                        logger.info("Repaired drift item %s for position %s", item.kind, symbol)
+                    except Exception as exc:
+                        logger.warning("Failed to repair position %s: %s", symbol, exc)
 
         return orders_repaired, positions_repaired

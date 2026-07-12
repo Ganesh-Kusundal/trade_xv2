@@ -31,8 +31,14 @@ from .orders import *  # noqa: F401,F403
 from .portfolio import *  # noqa: F401,F403
 
 
-def safe_serialize(obj: object) -> object:
-    """Best-effort JSON-safe view of a domain object."""
+def safe_serialize(obj: object, *, _depth: int = 0, max_depth: int = 10) -> object:
+    """Best-effort JSON-safe view of a domain object.
+
+    *max_depth* caps recursion to prevent stack overflow on circular references.
+    Objects beyond the limit are replaced with their type name.
+    """
+    if _depth > max_depth:
+        return f"<{type(obj).__name__}>"
     if obj is None:
         return None
     if isinstance(obj, Decimal):
@@ -43,18 +49,18 @@ def safe_serialize(obj: object) -> object:
         return obj.isoformat()
     snap = getattr(obj, "snapshot", None)
     if callable(snap):
-        return safe_serialize(snap())
+        return safe_serialize(snap(), _depth=_depth + 1, max_depth=max_depth)
     to_dict = getattr(obj, "to_dict", None)
     if callable(to_dict):
-        return safe_serialize(to_dict())
+        return safe_serialize(to_dict(), _depth=_depth + 1, max_depth=max_depth)
     if is_dataclass(obj):
-        return {k: safe_serialize(v) for k, v in asdict(obj).items()}
+        return {k: safe_serialize(v, _depth=_depth + 1, max_depth=max_depth) for k, v in asdict(obj).items()}
     if hasattr(obj, "__dict__") and not isinstance(obj, type):
-        return {k: safe_serialize(v) for k, v in vars(obj).items() if not k.startswith("_")}
+        return {k: safe_serialize(v, _depth=_depth + 1, max_depth=max_depth) for k, v in vars(obj).items() if not k.startswith("_")}
     if isinstance(obj, (list, tuple)):
-        return [safe_serialize(v) for v in obj]
+        return [safe_serialize(v, _depth=_depth + 1, max_depth=max_depth) for v in obj]
     if isinstance(obj, dict):
-        return {k: safe_serialize(v) for k, v in obj.items()}
+        return {k: safe_serialize(v, _depth=_depth + 1, max_depth=max_depth) for k, v in obj.items()}
     return obj
 
 

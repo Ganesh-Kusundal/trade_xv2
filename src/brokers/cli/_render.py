@@ -290,20 +290,29 @@ def _render_capabilities(data: dict, title: str | None, out: Console) -> None:
 
 
 def _domain_type_name(data: Any) -> str | None:
-    cls = type(data).__name__
-    if cls in {"QuoteSnapshot", "MarketDepth", "HistoricalSeries", "OptionChain"}:
-        return cls
-    mod = getattr(type(data), "__module__", "")
-    if mod.endswith("entities.market") and cls == "QuoteSnapshot":
+    """Map domain value objects to their rendering kind via isinstance."""
+    from domain.entities.market import QuoteSnapshot, MarketDepth
+    from domain.candles.historical import HistoricalSeries
+
+    if isinstance(data, QuoteSnapshot):
         return "QuoteSnapshot"
-    if mod.endswith("entities.market") and cls == "MarketDepth":
+    if isinstance(data, MarketDepth):
         return "MarketDepth"
-    if mod.endswith("candles.historical") and cls == "HistoricalSeries":
+    if isinstance(data, HistoricalSeries):
         return "HistoricalSeries"
-    if mod.endswith("options.option_chain") and cls == "OptionChain":
-        return "OptionChain"
-    if mod.endswith("entities.options") and cls == "OptionChain":
-        return "OptionChain"
+    # OptionChain has two implementations — check both
+    try:
+        from domain.options.option_chain import OptionChain as RichOptionChain
+        if isinstance(data, RichOptionChain):
+            return "OptionChain"
+    except ImportError:
+        pass
+    try:
+        from domain.entities.options import OptionChain as V0OptionChain
+        if isinstance(data, V0OptionChain):
+            return "OptionChain"
+    except ImportError:
+        pass
     return None
 
 

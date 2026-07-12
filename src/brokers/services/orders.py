@@ -7,7 +7,7 @@ from typing import Any
 
 from brokers.session import BrokerSession
 
-from ._session import _borrow_session
+from ._session import _borrow_session, check_live_actionable
 from .capabilities import _session_gateway
 
 
@@ -83,6 +83,9 @@ def place_order(
     session: BrokerSession | None = None,
     **kwargs: Any,
 ) -> Any:
+    # M1: live-actionable gate — refuse live brokers unless the production
+    # readiness gate has passed.  Paper/mock always allowed.
+    check_live_actionable(broker)
     s, close = _borrow_session(broker, session=session, **kwargs)
     try:
         inst = s.stock(symbol, exchange=exchange)
@@ -102,6 +105,7 @@ def cancel_order(
     session: BrokerSession | None = None,
     **kwargs: Any,
 ) -> Any:
+    check_live_actionable(broker)
     s, close = _borrow_session(broker, session=session, **kwargs)
     try:
         return s.cancel(order_id)
@@ -119,6 +123,7 @@ def modify_order(
     session: BrokerSession | None = None,
     **kwargs: Any,
 ) -> Any:
+    check_live_actionable(broker)
     s, close = _borrow_session(broker, session=session, **kwargs)
     try:
         kw: dict[str, Any] = {}
@@ -133,10 +138,10 @@ def modify_order(
 
 
 __all__ = [
-    "get_news",
-    "list_super_orders",
-    "list_forever_orders",
-    "place_order",
     "cancel_order",
+    "get_news",
+    "list_forever_orders",
+    "list_super_orders",
     "modify_order",
+    "place_order",
 ]

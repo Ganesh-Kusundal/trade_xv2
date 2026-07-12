@@ -34,10 +34,26 @@ class ValidationError(TradeXV2Error):
     """Input validation error."""
 
 
+class LiveBrokerBlockedError(TradeXV2Error, RuntimeError):
+    """Raised when a live broker order is blocked by the readiness gate.
+
+    Both order spines (Spine A: BrokerSession → ExecutionManager, Spine B:
+    MCP tools → orders.py) raise this when the production readiness gate
+    refuses a live broker.  Callers should catch ``TradeXV2Error`` or
+    ``LiveBrokerBlockedError`` specifically — never fall through to a
+    generic ``except Exception``.
+
+    .. note::
+        Also inherits ``RuntimeError`` for backward compatibility with
+        existing ``except RuntimeError`` blocks on order paths.
+    """
+
+
 __all__ = [
     "ConfigError",
     "DataError",
     "ExchangeNotConfigured",
+    "LiveBrokerBlockedError",
     "TradeXV2Error",
     "ValidationError",
 ]

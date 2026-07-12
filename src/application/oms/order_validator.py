@@ -12,20 +12,26 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Protocol
 
 from domain.events.types import DomainEvent, EventType
 from domain.types import OrderStatus
 
 if TYPE_CHECKING:
     from application.oms.order_manager import OmsOrderCommand, OrderResult
-    from application.oms.risk_manager import RiskManager
     from domain.entities import Order
     from domain.ports import EventBusPort
 
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+class RiskCheckPort(Protocol):
+    """Port for pre-trade risk checks.  Both ``RiskManager`` and
+    ``RiskGateAdapter`` satisfy this protocol."""
+
+    def check_order(self, order: Any) -> Any: ...
 
 
 class OrderValidator:
@@ -37,7 +43,7 @@ class OrderValidator:
 
     def __init__(
         self,
-        risk_manager: RiskManager | None = None,
+        risk_manager: RiskCheckPort | None = None,
         event_bus: EventBusPort | None = None,
         publish_callback: Callable | None = None,
     ) -> None:
@@ -74,8 +80,6 @@ class OrderValidator:
         """Return True if the order passes the configured risk checks."""
         if self._risk_manager is None:
             return True
-        from application.oms.order_manager import OrderResult
-
         return self._risk_manager.check_order(order).allowed
 
     def build_and_validate(

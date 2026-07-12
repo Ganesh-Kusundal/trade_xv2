@@ -136,6 +136,9 @@ class CliBrokerFacade:
         not been wired into a ``TradingContext``).
         """
         self._svc._ensure_initialized()
+        from brokers.services._session import check_live_actionable
+
+        check_live_actionable(self._svc.active_broker_name)
         if not self._svc._live_actionable:
             raise RuntimeError(
                 "OMS refused: runtime is not live-actionable. "

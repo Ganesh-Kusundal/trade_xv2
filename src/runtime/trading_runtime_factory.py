@@ -148,9 +148,10 @@ class TradingRuntimeFactory:
 
     @staticmethod
     def _both_brokers_available(broker_service: Any) -> bool:
-        dhan_gw = getattr(broker_service, "_gateway", None)
-        upstox_gw = getattr(broker_service, "_upstox_gateway", None)
-        return dhan_gw is not None and upstox_gw is not None
+        # Select by broker_id through the public gateways seam, not
+        # private-attr string access (G1 pattern).
+        gateways = broker_service.gateways
+        return gateways.get("dhan") is not None and gateways.get("upstox") is not None
 
     def _wire_trading_orchestrator(
         self,
@@ -255,13 +256,14 @@ class TradingRuntimeFactory:
         from domain.policies.source_selection import auto_dual_broker_policy
         from runtime.broker_infrastructure import build_infrastructure
 
-        dhan_gw = getattr(broker_service, "_gateway", None)
-        upstox_gw = getattr(broker_service, "_upstox_gateway", None)
+        # Select by broker_id through the public gateways seam, not
+        # private-attr string access (G1 pattern).
+        gateways = broker_service.gateways
         gateway_pairs: list[tuple[str, Any]] = []
-        if dhan_gw is not None:
-            gateway_pairs.append(("dhan", dhan_gw))
-        if upstox_gw is not None:
-            gateway_pairs.append(("upstox", upstox_gw))
+        if gateways.get("dhan") is not None:
+            gateway_pairs.append(("dhan", gateways["dhan"]))
+        if gateways.get("upstox") is not None:
+            gateway_pairs.append(("upstox", gateways["upstox"]))
         if len(gateway_pairs) < 2:
             logger.info("BrokerInfrastructure skipped: fewer than 2 brokers configured")
             return None

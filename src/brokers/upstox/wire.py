@@ -48,6 +48,17 @@ class UpstoxWireAdapter(BatchFetchMixin):
 
     broker_id = "upstox"
 
+    @property
+    def is_connected(self) -> bool:
+        """Transport liveness (BrokerAdapter contract) — reflects broker status."""
+        from domain import ConnectionStatus
+
+        return self._broker.status == ConnectionStatus.CONNECTED
+
+    def authenticate(self) -> bool:
+        """BrokerAdapter lifecycle hook — delegates to the broker's connect."""
+        return bool(self._broker.connect())
+
     def __init__(self, broker: UpstoxBroker):
         self._broker = broker
 

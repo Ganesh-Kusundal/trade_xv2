@@ -13,6 +13,7 @@ import json
 
 import click
 
+from brokers.cli._errors import handle_cli_errors
 from brokers.cli._render import present, console
 from brokers.platform_ops import (
     run_benchmark,
@@ -240,6 +241,7 @@ def shell_cmd(ctx: click.Context) -> None:
 
 @broker.command()
 @click.pass_context
+@handle_cli_errors
 def connect(ctx: click.Context) -> None:
     """Connect and report session status."""
     kw = _svc_kw(ctx)
@@ -259,6 +261,7 @@ def connect(ctx: click.Context) -> None:
 
 @broker.command()
 @click.pass_context
+@handle_cli_errors
 def discover(ctx: click.Context) -> None:
     """List registered broker plugins."""
     present(ctx, available_brokers(), title="Brokers")
@@ -267,6 +270,7 @@ def discover(ctx: click.Context) -> None:
 @broker.command()
 @click.argument("symbol")
 @click.pass_context
+@handle_cli_errors
 def quote(ctx: click.Context, symbol: str) -> None:
     """Fetch a quote for SYMBOL."""
     present(ctx, get_quote(_bid(ctx), symbol, **_svc_kw(ctx)), title=f"Quote — {symbol}")
@@ -277,6 +281,7 @@ def quote(ctx: click.Context, symbol: str) -> None:
 @click.option("--tf", default="1D", help="Timeframe (1m/5m/15m/1D/...).")
 @click.option("--days", default=5, type=int)
 @click.pass_context
+@handle_cli_errors
 def history(ctx: click.Context, symbol: str, tf: str, days: int) -> None:
     """Fetch history for SYMBOL."""
     series = get_history(_bid(ctx), symbol, timeframe=tf, days=days, **_svc_kw(ctx))
@@ -286,6 +291,7 @@ def history(ctx: click.Context, symbol: str, tf: str, days: int) -> None:
 @broker.command()
 @click.argument("symbol")
 @click.pass_context
+@handle_cli_errors
 def subscribe(ctx: click.Context, symbol: str) -> None:
     """Subscribe to live data for SYMBOL (brief check)."""
     ok = run_subscribe_probe(_bid(ctx), symbol, **_svc_kw(ctx))
@@ -295,6 +301,7 @@ def subscribe(ctx: click.Context, symbol: str) -> None:
 @broker.command()
 @click.argument("symbol")
 @click.pass_context
+@handle_cli_errors
 def depth(ctx: click.Context, symbol: str) -> None:
     """Fetch market depth for SYMBOL."""
     present(ctx, get_depth(_bid(ctx), symbol, **_svc_kw(ctx)), title=f"Depth — {symbol}")
@@ -303,6 +310,7 @@ def depth(ctx: click.Context, symbol: str) -> None:
 @broker.command()
 @click.argument("underlying")
 @click.pass_context
+@handle_cli_errors
 def option_chain(ctx: click.Context, underlying: str) -> None:
     """Fetch option chain for UNDERLYING."""
     present(ctx, get_option_chain(_bid(ctx), underlying, **_svc_kw(ctx)), title=f"Option chain — {underlying}")
@@ -310,6 +318,7 @@ def option_chain(ctx: click.Context, underlying: str) -> None:
 
 @broker.command()
 @click.pass_context
+@handle_cli_errors
 def positions(ctx: click.Context) -> None:
     """Show positions."""
     present(ctx, get_positions(_bid(ctx), **_svc_kw(ctx)), title="Positions")
@@ -317,6 +326,7 @@ def positions(ctx: click.Context) -> None:
 
 @broker.command()
 @click.pass_context
+@handle_cli_errors
 def holdings(ctx: click.Context) -> None:
     """Show holdings."""
     present(ctx, get_holdings(_bid(ctx), **_svc_kw(ctx)), title="Holdings")
@@ -324,6 +334,7 @@ def holdings(ctx: click.Context) -> None:
 
 @broker.command()
 @click.pass_context
+@handle_cli_errors
 def funds(ctx: click.Context) -> None:
     """Show funds."""
     present(ctx, get_funds(_bid(ctx), **_svc_kw(ctx)), title="Funds")
@@ -331,6 +342,7 @@ def funds(ctx: click.Context) -> None:
 
 @broker.command()
 @click.pass_context
+@handle_cli_errors
 def orders(ctx: click.Context) -> None:
     """List orders."""
     present(ctx, get_orders(_bid(ctx), **_svc_kw(ctx)), title="Orders")

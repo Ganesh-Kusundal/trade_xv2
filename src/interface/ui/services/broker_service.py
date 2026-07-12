@@ -22,10 +22,10 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+from application.oms.context import TradingContext
 from domain import Order, Side
 from domain.ports.broker_adapter import BrokerAdapter as MarketDataGateway
 from infrastructure.lifecycle.lifecycle import LifecycleManager
-from application.oms.context import TradingContext
 from interface.ui.services.broker_registry import (
     create_seeded_mock_broker,
     get_mock_broker_class,
@@ -38,18 +38,16 @@ from interface.ui.services.broker_registry import (
 PaperGateway = get_paper_gateway_class()
 MockBroker = get_mock_broker_class()
 
-from interface.ui.services.broker_registry import bootstrap_gateway, resolve_env_path
-from domain.errors import BrokerNotReadyError
 from domain.ports.bootstrap import BootstrapResult, BootstrapStatus
+from interface.ui.services.broker_manager import BrokerManager
 from interface.ui.services.broker_observability import (
     compute_live_actionable,
-    resolve_active_broker,
 )
+from interface.ui.services.broker_registry import bootstrap_gateway, resolve_env_path
+from interface.ui.services.cli_broker_facade import CliBrokerFacade
 
 # ── Extracted focused classes ────────────────────────────────────────────
 from interface.ui.services.oms_bootstrap import OmsBootstrap
-from interface.ui.services.cli_broker_facade import CliBrokerFacade
-from interface.ui.services.broker_manager import BrokerManager
 
 logger = logging.getLogger(__name__)
 
@@ -138,6 +136,10 @@ class BrokerService:
         # M-7 / Phase 1.2: production readiness gate result.
         self._live_actionable: bool = False
         self._readiness_report: Any = None
+        # M4: tracks which broker the OMS submit_fn is wired to.
+        # Set when TradingContext is built; used by set_active_broker
+        # to prevent cross-broker OMS writes.
+        self._oms_broker_id: str | None = None
         if event_bus is None:
             from infrastructure.bootstrap import build_production_event_bus
             from runtime.resilience import ResilienceConfig
@@ -178,6 +180,25 @@ class BrokerService:
     @property
     def active_broker_name(self) -> str:
         return self._manager.get_active_broker_name()
+
+    @property
+    def gateways(self) -> dict[str, Any]:
+        """All bootstrapped broker gateways keyed by ``broker_id``.
+
+        Single seam for the runtime composition root to select brokers by
+        id (no private-attr string access). Missing/!loaded brokers are
+        simply absent from the dict.
+        """
+        gw: dict[str, Any] = {}
+        if self._gateway is not None:
+            gw["dhan"] = self._gateway
+        if self._upstox_gateway is not None:
+            gw["upstox"] = self._upstox_gateway
+        if self._paper is not None:
+            gw["paper"] = self._paper
+        if self._mock is not None:
+            gw["mock"] = self._mock
+        return gw
 
     @property
     def is_live_dhan_active(self) -> bool:
@@ -293,6 +314,15 @@ class BrokerService:
                 logger.warning("Failed to bootstrap Dhan gateway: %s", exc)
 
         if self._gateway is None:
+            # M5: When live bootstrap failed and live intent was detected,
+            # fail explicitly — do NOT silently substitute a mock broker.
+            if _ENV_PATH.exists():
+                self._live_actionable = False
+                logger.warning(
+                    "Dhan bootstrap failed with live intent — mock broker created for "
+                    "diagnostics only. Live orders are BLOCKED (live_actionable=False). "
+                    "Run `tradex doctor` to diagnose."
+                )
             self._mock = create_seeded_mock_broker("dhan")
 
         # Upstox — same automatic auth bootstrap
@@ -331,6 +361,12 @@ class BrokerService:
                 self._upstox_gateway = None
                 logger.warning("Failed to bootstrap Upstox gateway: %s", exc)
 
+        # Wire the live-actionable gate so the fail-closed production
+        # readiness check is live on the order path (not just the bool).
+        from brokers.services._session import set_live_actionable_gate
+
+        set_live_actionable_gate(lambda: self._live_actionable)
+
     # ==================================================================
     # Delegation stubs — backward compat for tests that mock these
     # ==================================================================
@@ -340,6 +376,8 @@ class BrokerService:
 
     def _build_and_register_oms_services(self, risk_manager) -> None:
         self._oms.build_and_register_services(risk_manager)
+        # M4: track which broker the OMS is wired to for cross-broker guard
+        self._oms_broker_id = self._active_name
 
     def _start_websocket_services(self) -> None:
         self._oms.start_websocket_services()

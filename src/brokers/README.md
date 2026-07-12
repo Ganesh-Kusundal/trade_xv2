@@ -69,9 +69,10 @@ stock.refresh()
 chain = session.option_chain("NIFTY")     # -> OptionChain (composed Options)
 ce = chain.atm                            # -> Option
 
-# Broker-specific superpowers stay behind instrument.broker.*
-stock.broker.depth20()                    # Dhan
-stock.broker.depth30()                    # Upstox
+# Broker-specific superpowers stay behind extensions (resolved by canonical name)
+stock.get_extension("depth_20").full_depth()   # Dhan 20-level
+stock.get_extension("depth_30").full_depth()   # Upstox 30-level
+stock.get_extension("depth_200").full_depth()  # Dhan 200-level
 ```
 
 ## Developer tooling

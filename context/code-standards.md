@@ -1,0 +1,67 @@
+# Code Standards — TradeXV2 / TradeX Trading OS
+
+> Part of the **Six-File Context System**. These are the implementation conventions the
+> agent must follow so output stays consistent across sessions and units. Grounded in
+> `pyproject.toml` quality gates, import-linter contracts, and the existing codebase.
+
+## 1. Language & Tooling
+
+- **Python** backend (target: 3.11+). Strict typing — mypy in CI (strict-ish).
+- **TypeScript/React** frontend in `web/` (Vite + React 18 + react-router 6 + Vitest).
+- Format/lint: **ruff** (Python), **Prettier/ESLint-equivalent via Vite** (TS). Run the
+  project's pre-commit (`ruff`, `mypy`, `gitleaks`, arch tests) before committing.
+- Quality gates (from `pyproject.toml`): ruff, mypy, bandit, safety, coverage
+  `fail_under=80` (brokers ≥85, oms ≥90), mutmut 90%.
+
+## 2. Python Conventions
+
+- **Ports before concretes**: depend on `domain.ports` Protocols, inject implementations
+  in `runtime/`. No `import` of a concrete broker/infra class outside `runtime/`.
+- **No `getattr` reach-throughs** across layers — use explicit ports (see `RiskGate`).
+- **One Callable, not hardcoding**: transports/credentials passed as `Callable`
+  (e.g. `make_gateway_submit_fn`), never inlined.
+- **Domain model on the write path**: build typed `Order`/`Position`/`Trade` entities;
+  avoid returning raw dicts where a typed model exists.
+- **`ponytail:` comments** mark intentional shortcuts and name their ceiling/upgrade path.
+- **File size**: ADR-011 enforces a per-file LOC cap; split god-facades
+  (e.g. `UpstoxBroker`) into focused modules.
+- **No mock/fake data** in production code (integration tests only).
+
+## 3. Layering & Imports
+
+- Follow the dependency rule in `architecture.md` §3. import-linter contracts in
+  `pyproject.toml` are CI-blocking for rules 1–4. Do not add `ignore_imports` exceptions
+  casually — each one documents a known violation; prefer fixing the violation.
+- `domain/` imports only stdlib + itself.
+
+## 4. File Organization
+
+- New broker/exchange code goes in `src/plugins/` (or its own entry-point package),
+  registered via `tradex.brokers` / `tradex.exchanges`, NOT as a first-class `src/` layer.
+- Adapters live in `infrastructure/`; use-cases in `application/`; entities/ports in
+  `domain/`. Composition in `runtime/`.
+- Keep the repo root clean — no ad-hoc `run_*.sh` / `pytest_runner*.py` (G8).
+
+## 5. TypeScript / Web Conventions (`web/`)
+
+- React 18 function components + hooks. State via hooks; data via `src/api` + generated
+  client (`scripts/gen_openapi.py` → `src/api/generated.ts`). Do not hand-edit generated
+  types. Regenerate with `npm run api:generate`.
+- Typed models in `web/src/types.ts`; reusable UI in `web/src/components`; feature hooks
+  in `web/src/hooks`.
+- `npm run build` = `tsc --noEmit && vite build` must pass. `npm test` = Vitest.
+- No new UI component library beyond current deps (React, react-dom, react-router-dom).
+
+## 6. Testing
+
+- **Integration tests only** — verify real behavior with real components/dependencies.
+  No mocking or dummy data (per project rules).
+- Tests live under `tests/` mirroring `src/`; architecture tests under `tests/architecture/`.
+- New logic leaves one runnable check behind (assert-based demo/self-check or a small
+  test file). Trivial one-liners need no test.
+
+## 7. Docs & Graph Sync
+
+- After modifying code files, run `graphify update .` to keep `graphify-out/` current.
+- Keep `context/*.md` and `docs/architecture/*` in sync with implementation. If a change
+  alters architecture/scope/standards, update the relevant file before continuing.
