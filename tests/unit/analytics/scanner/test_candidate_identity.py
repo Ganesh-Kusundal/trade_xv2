@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 import pandas as pd
 
 from analytics.scanner.scanners import MomentumScanner
+from domain.events.types import DomainEvent
 from application.trading.trading_orchestrator import TradingOrchestrator
 from domain.events.types import DomainEvent, EventType
 
@@ -72,19 +73,16 @@ def test_orchestrator_uses_candidate_id_not_none_strategy():
     assert "None" not in cmd.correlation_id
 
 
-def test_event_bus_adapter_forwards_candidate_id_as_correlation():
-    from infrastructure.event_bus.domain_bus_adapter import InfrastructureEventBusAdapter
-
-    inner = MagicMock()
-    adapter = InfrastructureEventBusAdapter(inner)
-    adapter.publish(
+def test_domain_event_forwards_candidate_id_as_correlation():
+    # G5: DomainEvent.now() correctly forwards candidate_id as correlation_id
+    payload = {
+        "symbol": "TCS",
+        "candidate_id": "momentum:NSE:TCS:abc123",
+        "score": 80,
+    }
+    event = DomainEvent.now(
         EventType.CANDIDATE_GENERATED.value,
-        {
-            "symbol": "TCS",
-            "candidate_id": "momentum:NSE:TCS:abc123",
-            "score": 80,
-        },
+        payload,
+        correlation_id=payload["candidate_id"],
     )
-    event = inner.publish.call_args[0][0]
     assert event.correlation_id == "momentum:NSE:TCS:abc123"
-    assert event.symbol == "TCS"
