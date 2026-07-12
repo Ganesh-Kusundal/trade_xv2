@@ -297,6 +297,8 @@ class RiskManager:
                 return RiskResult(False, "Exceeds max gross exposure pct")
 
             # Daily loss
+            if self._daily_pnl_tracker.is_stale():
+                self._daily_pnl_tracker.reset()
             if (
                 self._daily_pnl_tracker.value < 0
                 and abs(self._daily_pnl_tracker.value) / capital * 100

@@ -99,6 +99,18 @@ class DailyPnlTracker:
         self._last_reset_at = time.time()
         logger.info("daily_pnl_reset", extra={"reset_count": self._reset_count})
 
+    def is_stale(self) -> bool:
+        """True if the last reset happened before today (IST)."""
+        if self._last_reset_at == 0.0:
+            return True
+        from datetime import datetime, timezone
+        from zoneinfo import ZoneInfo
+
+        ist = ZoneInfo("Asia/Kolkata")
+        reset_date = datetime.fromtimestamp(self._last_reset_at, tz=ist).date()
+        today = datetime.now(ist).date()
+        return reset_date < today
+
     def _maybe_publish_risk_limit_breach(self, pnl: Decimal, capital: Decimal) -> None:
         """Publish RISK_LIMIT_BREACHED once when the daily-loss budget is
         mostly consumed, and again only after recovering and re-breaching
