@@ -85,7 +85,13 @@ Status legend: `TODO` · `IN_PROGRESS` · `DONE` · `WONT_DO`
 - **Owner:** OMS / Risk
 - **Exit:** `ReconciliationEngine` wired into order-update handling; `POSITION_DRIFT`
   events emitted; drift auto-heals from broker-authoritative state.
-- **Status:** TODO
+- **Status:** DONE (2026-07-12) — `ReconciliationService` now emits `RECONCILIATION_DRIFT`
+  events on the bus when drift is detected, with drift item details (kind, severity,
+  symbol, details). The periodic reconciliation service already runs on a timer and
+  auto-heals from broker-authoritative state; the new event emission makes drift
+  observable to monitors, dashboards, and subscribers. Also fixed pre-existing
+  `DomainEvent.sequence_number` bug (missing field caused `AttributeError` on every
+  `EventBus.publish()` call).
 
 ## G7 — Reflection `getattr` kill-switch fragility ⚠️
 - **Roadmap:** P5-7
