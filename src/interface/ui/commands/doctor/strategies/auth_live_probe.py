@@ -93,11 +93,11 @@ class AuthLiveProbeCheck(CheckStrategy):
             # G1: use public active_broker_name instead of getattr(_active_name)
             active_name = broker_service.active_broker_name
             if name == "dhan":
-                gw = getattr(broker_service, "_gateway", None)
+                gw = broker_service.dhan_gateway
                 if gw is not None:
                     return gw
             if name == "upstox":
-                gw = getattr(broker_service, "_upstox_gateway", None)
+                gw = broker_service.upstox_gateway
                 if gw is not None:
                     return gw
             # Fall back to active broker if names match

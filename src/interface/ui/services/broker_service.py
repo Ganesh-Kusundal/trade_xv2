@@ -199,6 +199,16 @@ class BrokerService:
     def dhan_load_error(self) -> str | None:
         return self._manager.get_dhan_load_error()
 
+    @property
+    def dhan_gateway(self) -> MarketDataGateway | None:
+        """Public access to the Dhan gateway (G1: replaces getattr(_gateway))."""
+        return self._gateway
+
+    @property
+    def upstox_gateway(self) -> MarketDataGateway | None:
+        """Public access to the Upstox gateway (G1: replaces getattr(_upstox_gateway))."""
+        return self._upstox_gateway
+
     # ==================================================================
     # Initialization
     # ==================================================================

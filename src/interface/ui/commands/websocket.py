@@ -35,8 +35,8 @@ def _ws_status(broker_service: BrokerService) -> dict[str, Any]:
         "broker_name": broker_service.active_broker_name.upper(),
     }
 
-    # Dhan gateway internals
-    gw = getattr(broker_service, "_gateway", None)
+    # Dhan gateway internals (G1: use public property)
+    gw = broker_service.dhan_gateway
     conn = getattr(gw, "_conn", None) if gw else None
 
     if conn is not None:
@@ -65,8 +65,8 @@ def _ws_status(broker_service: BrokerService) -> dict[str, Any]:
             stats["token_refresh_count"] = int(getattr(sched, "refresh_count", 0))
             stats["token_last_error"] = bool(getattr(sched, "_last_error", None))
 
-    # Upstox gateway
-    upstox_gw = getattr(broker_service, "_upstox_gateway", None)
+    # Upstox gateway (G1: use public property instead of getattr)
+    upstox_gw = broker_service.upstox_gateway
     if upstox_gw is not None:
         ws = getattr(getattr(upstox_gw, "_broker", None), "market_data_websocket", None)
         if ws is not None:
