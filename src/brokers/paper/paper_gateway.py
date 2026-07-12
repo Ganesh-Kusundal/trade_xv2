@@ -178,9 +178,11 @@ class PaperGateway:
 
         import numpy as np
 
+        from domain.ports.time_service import get_current_clock
+
         symbols = [symbol] if isinstance(symbol, str) else symbol
         n = lookback_days
-        dates = [datetime.now(timezone.utc) - timedelta(days=n - i) for i in range(n)]
+        dates = [get_current_clock().now() - timedelta(days=n - i) for i in range(n)]
 
         rows = []
         for sym in symbols:
@@ -315,8 +317,10 @@ class PaperGateway:
         base = float(self._market_data.get_ltp(underlying, "NSE"))
         from datetime import datetime, timedelta
 
+        from domain.ports.time_service import get_current_clock
+
         expiries = [
-            (datetime.now() + timedelta(days=30 * i)).strftime("%Y-%m-%d") for i in range(1, 4)
+            (get_current_clock().now() + timedelta(days=30 * i)).strftime("%Y-%m-%d") for i in range(1, 4)
         ]
         contracts = []
         for exp in expiries:

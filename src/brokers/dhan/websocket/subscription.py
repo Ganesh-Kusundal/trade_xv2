@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from brokers.dhan.websocket._helpers import _to_sdk_instruments
+from domain.ports.time_service import get_current_clock
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +108,7 @@ class MarketFeedSubscriptionManager:
                     feed.subscribe_symbols(new_instruments)
                 except Exception as exc:
                     self._feed_ref._conn._is_connected = False
-                    self._feed_ref._conn._disconnect_time = datetime.now(timezone.utc)
+                    self._feed_ref._conn._disconnect_time = get_current_clock().now()
                     logger.error("subscribe: SDK subscribe_symbols failed: %s", exc)
                     with contextlib.suppress(Exception):
                         feed.close_connection()
@@ -197,7 +198,7 @@ class MarketFeedSubscriptionManager:
         symbol = quote.get("symbol")
         if not symbol:
             return
-        now = datetime.now(timezone.utc)
+        now = get_current_clock().now()
         with self._lock:
             prev = self._last_tick_time.get(symbol)
             if prev is None or now > prev:
@@ -215,7 +216,7 @@ class MarketFeedSubscriptionManager:
         Default max_age is 30 minutes — conservative to avoid removing
         symbols that are still active but receive infrequent ticks.
         """
-        now = datetime.now(timezone.utc)
+        now = get_current_clock().now()
         with self._lock:
             stale = [
                 sym

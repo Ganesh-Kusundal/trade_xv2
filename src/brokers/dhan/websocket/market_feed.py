@@ -31,6 +31,7 @@ from brokers.dhan.websocket.connection import MarketFeedConnection
 from brokers.dhan.websocket.publish import MarketFeedPublisher
 from brokers.dhan.websocket.subscription import MarketFeedSubscriptionManager
 from domain.lifecycle_health import HealthStatus
+from domain.ports.time_service import get_current_clock
 from infrastructure.event_bus.event_bus import EventBus
 from infrastructure.lifecycle.lifecycle import HealthState, ManagedService
 
@@ -340,7 +341,7 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
         """Fetch missed bars from REST and publish as TICK events."""
         if self._backfill_callback is None:
             return
-        now = datetime.now(timezone.utc)
+        now = get_current_clock().now()
         if disconnect_time >= now:
             return
         if getattr(self, "_sub", None) is None:
@@ -491,7 +492,7 @@ class DhanMarketFeed(ReconnectingServiceMixin, ManagedService):
         return HealthStatus(
             state=state,
             service=self.name,
-            last_check=datetime.now(timezone.utc),
+            last_check=get_current_clock().now(),
             detail=detail,
             metrics={
                 "connected": snap["is_connected"],

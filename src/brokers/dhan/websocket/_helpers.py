@@ -136,7 +136,7 @@ def _normalize_sdk_depth(raw_depth: Any) -> dict[str, list[dict[str, Any]]]:
 
 def _transform_quote(data: dict, resolver: Any = None) -> dict:
     """Transform a raw SDK ticker/quote frame into a canonical quote dict."""
-    from datetime import datetime, timezone
+    from domain.ports.time_service import get_current_clock
 
     security_id = str(data.get("security_id", ""))
     symbol = _resolve_security_symbol(security_id, resolver)
@@ -149,7 +149,7 @@ def _transform_quote(data: dict, resolver: Any = None) -> dict:
         "close": Decimal(str(data["close"])) if data.get("close") else None,
         "volume": int(data.get("volume", 0)),
         "change": Decimal("0"),
-        "timestamp": datetime.now(timezone.utc),
+        "timestamp": get_current_clock().now(),
     }
 
 

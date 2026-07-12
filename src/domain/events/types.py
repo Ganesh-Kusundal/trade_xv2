@@ -46,9 +46,10 @@ class DomainEvent:
         correlation_id: str | None = None,
     ) -> DomainEvent:
         """Create an event with the current timestamp."""
+        from domain.ports.time_service import get_current_clock
         return cls(
             event_type=event_type,
-            timestamp=datetime.now(),
+            timestamp=get_current_clock().now(),
             payload=MappingProxyType(payload or {}),
             correlation_id=correlation_id,
         )

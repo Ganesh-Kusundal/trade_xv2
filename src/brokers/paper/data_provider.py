@@ -12,6 +12,7 @@ from domain.entities.market import MarketDepth, QuoteSnapshot
 from domain.entities.options import FutureChain, OptionChain
 from domain.instruments.instrument_id import InstrumentId
 from domain.ports.protocols import DataProvider, SubscriptionHandle
+from domain.ports.time_service import get_current_clock
 from domain.provenance import DataProvenance, ProvenanceConfidence, SourceIdentity
 
 
@@ -50,10 +51,10 @@ class PaperDataProvider(DataProvider):
                     symbol=instrument_id.underlying, exchange=instrument_id.exchange
                 ),
                 ltp=q.ltp,
-                event_time=datetime.now(timezone.utc),
+                event_time=get_current_clock().now(),
                 provenance=DataProvenance(
                     source=SourceIdentity(broker_id="paper"),
-                    fetched_at=datetime.now(timezone.utc),
+                    fetched_at=get_current_clock().now(),
                     request_id="paper",
                     confidence=ProvenanceConfidence.AUTHORITATIVE,
                 ),

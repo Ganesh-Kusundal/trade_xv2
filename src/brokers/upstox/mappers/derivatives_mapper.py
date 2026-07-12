@@ -24,6 +24,7 @@ from domain import (
     Validity,
 )
 from domain.candles.historical import HistoricalBar, InstrumentRef
+from domain.ports.time_service import get_current_clock
 from domain.provenance import DataProvenance, ProvenanceConfidence
 from domain.status_mapper import UnmappedBrokerStatusError
 
@@ -182,7 +183,7 @@ def to_historical_candle(
 ) -> HistoricalBar:
     if not isinstance(payload, dict):
         raise ValueError("expected dict candle payload")
-    ts = parse_iso(payload.get("timestamp") or payload.get("time")) or datetime.now(tz=timezone.utc)
+    ts = parse_iso(payload.get("timestamp") or payload.get("time")) or get_current_clock().now()
     if ts.tzinfo is None:
         ts = ts.replace(tzinfo=timezone.utc)
     return HistoricalBar(
@@ -223,7 +224,7 @@ def to_historical_candles(
         return candles
     for row in rows:
         if isinstance(row, list) and len(row) >= 5:
-            ts = parse_iso(row[0]) or datetime.now(tz=timezone.utc)
+            ts = parse_iso(row[0]) or get_current_clock().now()
             if ts.tzinfo is None:
                 ts = ts.replace(tzinfo=timezone.utc)
             candles.append(

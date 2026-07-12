@@ -22,6 +22,7 @@ from typing import Any, Callable
 
 from brokers.dhan.streaming.connection_admission import MarketFeedConnectionAdmission
 from brokers.dhan.websocket._helpers import _DhanContext, _sdk_market_feed_class
+from domain.ports.time_service import get_current_clock
 
 logger = logging.getLogger(__name__)
 
@@ -276,7 +277,7 @@ class MarketFeedConnection:
                         stale_feed = self._feed
                         self._is_connected = False
                         self._connected_at = None
-                        self._disconnect_time = datetime.now(timezone.utc)
+                        self._disconnect_time = get_current_clock().now()
                         self._reconnect_count += 1
                         self._feed = None
             if stale_feed is not None:
@@ -300,7 +301,7 @@ class MarketFeedConnection:
                 with self._lock:
                     self._is_connected = False
                     self._connected_at = None
-                    self._disconnect_time = self._disconnect_time or datetime.now(timezone.utc)
+                    self._disconnect_time = self._disconnect_time or get_current_clock().now()
                     self._feed = None
                     self._reconnect_count += 1
                 self._emit_reconnect_metric()
@@ -319,7 +320,7 @@ class MarketFeedConnection:
 
                 with self._lock:
                     age = (
-                        (datetime.now(timezone.utc) - self._last_message_at).total_seconds()
+                        (get_current_clock().now() - self._last_message_at).total_seconds()
                         if self._last_message_at is not None
                         else 0.0
                     )
@@ -333,7 +334,7 @@ class MarketFeedConnection:
                     self._reconnect_count += 1
                     self._is_connected = False
                     self._connected_at = None
-                    self._disconnect_time = self._disconnect_time or datetime.now(timezone.utc)
+                    self._disconnect_time = self._disconnect_time or get_current_clock().now()
                     old_feed = self._feed
                     self._feed = None
                 if old_feed is not None:
@@ -405,7 +406,7 @@ class MarketFeedConnection:
         with self._lock:
             was_connected = self._is_connected
             self._is_connected = True
-            self._connected_at = datetime.now(timezone.utc)
+            self._connected_at = get_current_clock().now()
             self._reconnect_count = 0
             disconnect_time = self._disconnect_time
             self._disconnect_time = None
@@ -421,7 +422,7 @@ class MarketFeedConnection:
                 with self._lock:
                     self._is_connected = False
                     self._connected_at = None
-                    self._disconnect_time = datetime.now(timezone.utc)
+                    self._disconnect_time = get_current_clock().now()
                 logger.error("Failed to replay market subscriptions: %s", exc)
                 with contextlib.suppress(Exception):
                     feed.close_connection()
@@ -437,7 +438,7 @@ class MarketFeedConnection:
         with self._lock:
             self._is_connected = False
             self._connected_at = None
-            self._disconnect_time = datetime.now(timezone.utc)
+            self._disconnect_time = get_current_clock().now()
         logger.info("Market feed disconnected")
 
     def _on_error(self, feed, error) -> None:
@@ -445,7 +446,7 @@ class MarketFeedConnection:
         with self._lock:
             self._is_connected = False
             self._connected_at = None
-            self._disconnect_time = datetime.now(timezone.utc)
+            self._disconnect_time = get_current_clock().now()
 
     # ------------------------------------------------------------------
     # Health / staleness helpers
@@ -462,11 +463,11 @@ class MarketFeedConnection:
         if not references:
             return None
         reference = max(references)
-        return (datetime.now(timezone.utc) - reference).total_seconds()
+        return (get_current_clock().now() - reference).total_seconds()
 
     def _note_message_received(self) -> None:
         """Mark that a message was consumed (called from parent's _on_message)."""
-        self._last_message_at = datetime.now(timezone.utc)
+        self._last_message_at = get_current_clock().now()
         self._message_count += 1
 
     def _emit_reconnect_metric(self) -> None:

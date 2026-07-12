@@ -30,6 +30,7 @@ from domain import (
     Validity,
 )
 from domain.events import DomainEvent
+from domain.ports.time_service import get_current_clock
 from infrastructure.event_bus.event_bus import EventBus
 from domain.lifecycle_health import HealthStatus
 from infrastructure.lifecycle.lifecycle import HealthState, ManagedService
@@ -291,7 +292,7 @@ class DhanOrderStream(ReconnectingServiceMixin, ManagedService):
             reconnect_count = self._reconnect_count
             message_count = self._message_count
             last_message_age = (
-                (datetime.now(timezone.utc) - self._last_message_at).total_seconds()
+                (get_current_clock().now() - self._last_message_at).total_seconds()
                 if self._last_message_at is not None
                 else None
             )
@@ -307,7 +308,7 @@ class DhanOrderStream(ReconnectingServiceMixin, ManagedService):
         return HealthStatus(
             state=state,
             service=self.name,
-            last_check=datetime.now(timezone.utc),
+            last_check=get_current_clock().now(),
             detail=detail,
             metrics={
                 "connected": is_connected,
@@ -397,7 +398,7 @@ class DhanOrderStream(ReconnectingServiceMixin, ManagedService):
                 product_type=product_type,
                 validity=validity,
                 status=status,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=get_current_clock().now(),
             )
             self._event_bus.publish(
                 DomainEvent.now(
@@ -427,7 +428,7 @@ class DhanOrderStream(ReconnectingServiceMixin, ManagedService):
                     side=side,
                     quantity=incremental,
                     price=avg,
-                    timestamp=datetime.now(timezone.utc),
+                    timestamp=get_current_clock().now(),
                     product_type=product_type,
                 )
                 self._event_bus.publish(

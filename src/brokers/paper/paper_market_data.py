@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from domain import DepthLevel, MarketDepth, Quote
+from domain.ports.time_service import get_current_clock
 
 
 class PaperMarketData:
@@ -48,7 +49,7 @@ class PaperMarketData:
             change=change,
             bid=Decimal(f"{ltp_f - 0.50:.2f}"),
             ask=Decimal(f"{ltp_f + 0.50:.2f}"),
-            timestamp=datetime.now(timezone.utc),
+            timestamp=get_current_clock().now(),
         )
 
     def get_ltp(self, symbol: str, exchange: str = "NSE") -> Decimal:

@@ -18,6 +18,7 @@ from domain import (
     Validity,
 )
 from domain.orders.intent import OrderIntent
+from domain.ports.time_service import get_current_clock
 from domain.symbols import normalize_exchange, normalize_symbol
 
 from .paper_market_data import PaperMarketData
@@ -161,7 +162,7 @@ class PaperOrders:
                     price=cmd.price,
                     trigger_price=trigger_price,
                     status=OrderStatus.FILLED,
-                    timestamp=datetime.now(timezone.utc),
+                    timestamp=get_current_clock().now(),
                     product_type=cmd.product_type,
                     avg_price=fill_price,
                     correlation_id=cmd.correlation_id,
@@ -178,7 +179,7 @@ class PaperOrders:
                 price=cmd.price,
                 trigger_price=trigger_price,
                 status=OrderStatus.OPEN,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=get_current_clock().now(),
                 product_type=cmd.product_type,
                 avg_price=Decimal("0"),
                 correlation_id=cmd.correlation_id,
@@ -223,7 +224,7 @@ class PaperOrders:
                 quantity=quantity,
                 price=fill_price,
                 trade_value=fill_price * quantity,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=get_current_clock().now(),
                 product_type=product_type,
             )
             with self._lock:
@@ -310,7 +311,7 @@ class PaperOrders:
                     price=price,
                     trigger_price=trigger_price,
                     status=OrderStatus.FILLED,
-                    timestamp=datetime.now(timezone.utc),
+                    timestamp=get_current_clock().now(),
                     product_type=product_type,
                     validity=validity,
                     avg_price=fill_price,
@@ -327,7 +328,7 @@ class PaperOrders:
                     quantity=quantity,
                     price=fill_price,
                     trade_value=fill_price * quantity,
-                    timestamp=datetime.now(timezone.utc),
+                    timestamp=get_current_clock().now(),
                     product_type=product_type,
                 )
                 self._trades.append(trade)
@@ -351,7 +352,7 @@ class PaperOrders:
                 price=price,
                 trigger_price=trigger_price,
                 status=OrderStatus.OPEN,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=get_current_clock().now(),
                 product_type=product_type,
                 validity=validity,
                 avg_price=Decimal("0"),
@@ -449,7 +450,7 @@ class PaperOrders:
                 correlation_id=original_order.correlation_id,
                 status=OrderStatus.OPEN,
                 filled_quantity=original_order.filled_quantity,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=get_current_clock().now(),
             )
 
             # Risk check on modified order

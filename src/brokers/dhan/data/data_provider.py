@@ -17,6 +17,7 @@ from domain.entities.market import MarketDepth, QuoteSnapshot
 from domain.entities.options import FutureChain, OptionChain
 from domain.instruments.instrument_id import InstrumentId
 from domain.ports.protocols import DataProvider, SubscriptionHandle
+from domain.ports.time_service import get_current_clock
 from domain.provenance import DataProvenance, ProvenanceConfidence, SourceIdentity
 
 
@@ -267,7 +268,7 @@ class DhanDataProvider(DataProvider):
         handle.unsubscribe()
 
     def _normalize_quote(self, raw_quote: Any, instrument_id: InstrumentId) -> QuoteSnapshot:
-        now = datetime.now(timezone.utc)
+        now = get_current_clock().now()
         if isinstance(raw_quote, dict):
             ltp = Decimal(str(raw_quote.get("last_price", 0)))
             bid = Decimal(str(raw_quote.get("bid_price", raw_quote.get("best_bid", 0))))

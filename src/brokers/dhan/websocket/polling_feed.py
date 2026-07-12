@@ -19,6 +19,7 @@ from brokers.dhan.websocket._helpers import _to_decimal
 from domain import Quote
 from domain.events import DomainEvent
 from domain.lifecycle_health import HealthStatus
+from domain.ports.time_service import get_current_clock
 from infrastructure.event_bus.event_bus import EventBus
 from infrastructure.lifecycle.lifecycle import HealthState, ManagedService
 
@@ -129,7 +130,7 @@ class PollingMarketFeed(ReconnectingServiceMixin, ManagedService):
         return HealthStatus(
             state=state,
             service=self.name,
-            last_check=datetime.now(timezone.utc),
+            last_check=get_current_clock().now(),
             detail=detail,
             metrics={"connected": is_connected, "thread_alive": thread_alive},
         )

@@ -41,6 +41,7 @@ from brokers.common.transport_policy import ResiliencePolicy
 from domain import DepthLevel, MarketDepth
 from domain.symbols import normalize_symbol
 from domain.events import DomainEvent
+from domain.ports.time_service import get_current_clock
 from infrastructure.event_bus.event_bus import EventBus
 from domain.lifecycle_health import HealthStatus
 from infrastructure.lifecycle.lifecycle import HealthState, ManagedService
@@ -355,7 +356,7 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
             is_connected = self._is_connected
             reconnect_count = self._reconnect_count
             last_message_age = (
-                (datetime.now(timezone.utc) - self._last_message_at).total_seconds()
+                (get_current_clock().now() - self._last_message_at).total_seconds()
                 if self._last_message_at is not None
                 else None
             )
@@ -382,7 +383,7 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
         return HealthStatus(
             state=state,
             service=self.name,
-            last_check=datetime.now(timezone.utc),
+            last_check=get_current_clock().now(),
             detail=detail,
             metrics={
                 "reconnect_count": reconnect_count,
@@ -482,7 +483,7 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
                     # Freshness baseline: until the first real packet
                     # arrives, staleness is measured from connection time so
                     # a connected-but-silent socket still triggers healing.
-                    self._last_message_at = datetime.now(timezone.utc)
+                    self._last_message_at = get_current_clock().now()
 
                     if self._subscriptions:
                         self._send_subscription(self._subscriptions)
@@ -507,7 +508,7 @@ class BinaryDepthFeed(ReconnectingServiceMixin, ManagedService):
                             threshold = self._staleness_threshold_seconds()
                             last_msg = self._last_message_at
                             age = (
-                                (datetime.now(timezone.utc) - last_msg).total_seconds()
+                                (get_current_clock().now() - last_msg).total_seconds()
                                 if last_msg is not None
                                 else None
                             )

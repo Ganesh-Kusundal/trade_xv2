@@ -232,7 +232,7 @@ class UpstoxOrderCommandAdapter:
         return request.symbol or None
 
     def _to_domain_order(self, request: BrokerOrderPayload) -> Order:
-        from datetime import datetime, timezone
+        from domain.ports.time_service import get_current_clock
 
         from domain import OrderStatus, OrderType, ProductType, Validity
 
@@ -248,7 +248,7 @@ class UpstoxOrderCommandAdapter:
             product_type=ProductType(request.product_type.value),
             validity=Validity(request.validity.value),
             status=OrderStatus.OPEN,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=get_current_clock().now(),
             correlation_id=request.correlation_id,
         )
 

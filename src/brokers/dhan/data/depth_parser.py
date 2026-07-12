@@ -19,6 +19,7 @@ from typing import Any
 
 from domain import DepthLevel, MarketDepth
 from domain.events import DomainEvent
+from domain.ports.time_service import get_current_clock
 from domain.symbols import normalize_symbol
 from infrastructure.event_bus.event_bus import EventBus
 
@@ -200,7 +201,7 @@ class DepthPacketParser:
                 bids=list(entry["bids"]),
                 asks=list(entry["asks"]),
                 depth_type=self.DEPTH_TYPE,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=get_current_clock().now(),
             )
         finally:
             if depth_cache_lock is not None:
