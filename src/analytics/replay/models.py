@@ -19,10 +19,63 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any
 
+from domain.events.types import DomainEvent
+
 from analytics.strategy.models import Signal
 from domain.portfolio_projection import PortfolioProjector
 from domain.simulation_fill_pipeline import SimulationFillPipeline
 from domain.simulation_position_meta import PositionMeta
+
+# ---------------------------------------------------------------------------
+# ReplayItem — single item in the merged replay stream
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ReplayItem:
+    """A single item in the merged replay stream.
+
+    Either a bar (with OHLCV data) or an event (a DomainEvent from
+    the event log).  Items are sorted by (timestamp, seq) to produce
+    a deterministic total order.
+    """
+
+    timestamp: datetime
+    sequence: int
+    kind: str  # "bar" or "event"
+    symbol: str | None = None
+    event: DomainEvent | None = None
+    bar_data: dict[str, Any] | None = None  # OHLCV data
+
+    def __lt__(self, other: ReplayItem) -> bool:
+        if self.timestamp != other.timestamp:
+            return self.timestamp < other.timestamp
+        return self.sequence < other.sequence
+
+
+@dataclass
+class UnifiedReplayResult:
+    """Output from a completed unified replay run."""
+
+    replay_result: "ReplayResult | None"
+    events_replayed: int
+    bars_replayed: int
+    state_matches: bool
+    state_diff: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def summary(self) -> dict[str, Any]:
+        s: dict[str, Any] = {
+            "events_replayed": self.events_replayed,
+            "bars_replayed": self.bars_replayed,
+            "state_matches": self.state_matches,
+        }
+        if self.replay_result is not None:
+            s.update(self.replay_result.summary)
+        s.update(self.metadata)
+        return s
+
 
 # ---------------------------------------------------------------------------
 # Enums

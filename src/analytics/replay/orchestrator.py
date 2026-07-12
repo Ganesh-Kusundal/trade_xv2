@@ -48,69 +48,37 @@ Usage::
     )
     print(result.summary)
     print(f"State match: {result.state_matches}")
+
+This module is a thin facade. Responsibilities are delegated to:
+- ``ReplayDataLoader``  (data loading)
+- ``StreamMerger``       (stream merging)
+- ``ReplayStateAssertor`` (state assertion + expected-state derivation)
 """
 
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 
-from analytics.replay.models import ReplayResult
-from domain.events.types import DomainEvent
+from analytics.replay.data_loader import ReplayDataLoader
+from analytics.replay.models import ReplayItem, UnifiedReplayResult
+from analytics.replay.state_assertor import ReplayStateAssertor
+from analytics.replay.stream_merger import StreamMerger
 from domain.ports.data_catalog import DEFAULT_DATA_ROOT
 
+# Re-exported for backward compatibility (kept here so existing imports
+# such as ``from analytics.replay.orchestrator import ReplayItem`` keep working).
+__all__ = [
+    "ReplayItem",
+    "UnifiedReplayResult",
+    "UnifiedReplayOrchestrator",
+]
+
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class ReplayItem:
-    """A single item in the merged replay stream.
-
-    Either a bar (with OHLCV data) or an event (a DomainEvent from
-    the event log).  Items are sorted by (timestamp, seq) to produce
-    a deterministic total order.
-    """
-
-    timestamp: datetime
-    sequence: int
-    kind: str  # "bar" or "event"
-    symbol: str | None = None
-    event: DomainEvent | None = None
-    bar_data: dict[str, Any] | None = None  # OHLCV data
-
-    def __lt__(self, other: ReplayItem) -> bool:
-        if self.timestamp != other.timestamp:
-            return self.timestamp < other.timestamp
-        return self.sequence < other.sequence
-
-
-@dataclass
-class UnifiedReplayResult:
-    """Output from a completed unified replay run."""
-
-    replay_result: ReplayResult | None
-    events_replayed: int
-    bars_replayed: int
-    state_matches: bool
-    state_diff: dict[str, Any] = field(default_factory=dict)
-    metadata: dict[str, Any] = field(default_factory=dict)
-
-    @property
-    def summary(self) -> dict[str, Any]:
-        s: dict[str, Any] = {
-            "events_replayed": self.events_replayed,
-            "bars_replayed": self.bars_replayed,
-            "state_matches": self.state_matches,
-        }
-        if self.replay_result is not None:
-            s.update(self.replay_result.summary)
-        s.update(self.metadata)
-        return s
 
 
 class UnifiedReplayOrchestrator:
@@ -170,6 +138,16 @@ class UnifiedReplayOrchestrator:
 
         # Event bus factory — inject or use default (lazy import)
         self._event_bus_factory = event_bus_factory
+
+        # Delegated collaborators
+        self._data_loader = ReplayDataLoader(
+            data_provider=self._data_provider,
+            event_log=self._event_log,
+            data_root=self._data_root,
+            timeframe=self._timeframe,
+        )
+        self._stream_merger = StreamMerger()
+        self._state_assertor = ReplayStateAssertor()
 
     def run(
         self,
@@ -263,149 +241,40 @@ class UnifiedReplayOrchestrator:
             metadata={"date": date, "symbols": symbols},
         )
 
-    # ── Internal helpers ─────────────────────────────────────────────
+    # ── Internal helpers (delegate to focused modules) ──────────────────
 
     def _load_bars(self, date: str, symbols: list[str]) -> list[ReplayItem]:
         """Load OHLCV bars from the datalake for the target date."""
-        # Use injected data_provider if available, otherwise fall back to DataLakeMarketDataProvider
-        if self._data_provider is None:
-            from datalake.adapters.analytics_provider import DataLakeMarketDataProvider
-
-            data_provider = DataLakeMarketDataProvider(root=self._data_root)
-        else:
-            data_provider = self._data_provider
-
-        items: list[ReplayItem] = []
-        seq = 0
-
-        if symbols:
-            for sym in symbols:
-                try:
-                    df = data_provider.history(
-                        sym,
-                        timeframe=self._timeframe,
-                        from_date=date,
-                        to_date=date,
-                    )
-                    if df.empty:
-                        continue
-                    items.extend(self._df_to_items(df, sym, seq_start=seq))
-                    seq += len(df)
-                except Exception as exc:
-                    logger.warning(
-                        "Failed to load bars for %s on %s: %s",
-                        sym,
-                        date,
-                        exc,
-                    )
-        else:
-            logger.warning(
-                "No symbols specified for replay. Provide symbols list for deterministic replay."
-            )
-
-        return items
+        return self._data_loader.load_bars(date, symbols)
 
     def _df_to_items(self, df: pd.DataFrame, symbol: str, seq_start: int = 0) -> list[ReplayItem]:
         """Convert a DataFrame of OHLCV data to ReplayItems (vectorized)."""
-        ts_col = "timestamp" if "timestamp" in df.columns else "date"
-        timestamps = pd.to_datetime(df[ts_col]).dt.tz_localize(timezone.utc)
-
-        return [
-            ReplayItem(
-                timestamp=ts,
-                sequence=seq_start + i,
-                kind="bar",
-                symbol=symbol,
-                bar_data={
-                    "symbol": symbol,
-                    "timestamp": ts,
-                    "open": float(row.get("open", 0)),
-                    "high": float(row.get("high", 0)),
-                    "low": float(row.get("low", 0)),
-                    "close": float(row.get("close", 0)),
-                    "volume": float(row.get("volume", 0)),
-                },
-            )
-            for i, (ts, row) in enumerate(zip(timestamps, df.itertuples(index=False), strict=False))
-        ]
+        return self._data_loader.df_to_items(df, symbol, seq_start=seq_start)
 
     def _load_events(self, day_start: datetime, day_end: datetime) -> list[ReplayItem]:
         """Load domain events from the event log for the target day."""
-        if self._event_log is None:
-            return []
-
-        try:
-            events = self._event_log.replay(since=day_start)
-            items: list[ReplayItem] = []
-
-            for evt in events:
-                if evt.timestamp > day_end:
-                    break
-                items.append(
-                    ReplayItem(
-                        timestamp=evt.timestamp,
-                        sequence=evt.sequence_number,
-                        kind="event",
-                        symbol=evt.symbol,
-                        event=evt,
-                    )
-                )
-
-            logger.info("Loaded %d events from event log", len(items))
-            return items
-        except Exception as exc:
-            logger.warning("Failed to load events: %s", exc)
-            return []
+        return self._data_loader.load_events(day_start, day_end)
 
     def _merge_streams(self, bars: list[ReplayItem], events: list[ReplayItem]) -> list[ReplayItem]:
         """Merge bars and events into a single time-ordered stream."""
-        merged = sorted(bars + events)
-        return merged
+        return self._stream_merger.merge(bars, events)
 
     def _build_combined_df(self, bar_items: list[ReplayItem]) -> pd.DataFrame:
         """Build a combined OHLCV DataFrame from bar items."""
-        if not bar_items:
-            return pd.DataFrame()
-
-        rows = []
-        for item in bar_items:
-            if item.bar_data is not None:
-                rows.append(item.bar_data)
-
-        if not rows:
-            return pd.DataFrame()
-
-        df = pd.DataFrame(rows)
-        if "timestamp" in df.columns:
-            df = df.sort_values("timestamp").reset_index(drop=True)
-        return df
+        return self._stream_merger.build_df(bar_items)
 
     def _execute_replay(
         self,
         df: pd.DataFrame,
         merged_stream: list[ReplayItem],
-        event_bus: EventBus,
-    ) -> ReplayResult | None:
+        event_bus: Any,
+    ) -> Any:
         """Execute the replay through the engine.
 
         P0-1 fix: Events are now interleaved with bars by timestamp instead of
         being published all at once before bar processing. The event schedule
         maps timestamps to lists of DomainEvents that are published before the
         bar at that timestamp is processed.
-
-        Parameters
-        ----------
-        df:
-            Combined OHLCV DataFrame.
-        merged_stream:
-            Time-ordered stream of bars and events.
-        event_bus:
-            EventBus in replay mode.
-
-        Returns
-        -------
-        ReplayResult | None:
-            Replay execution result.
         """
         if df.empty:
             return None
@@ -460,7 +329,7 @@ class UnifiedReplayOrchestrator:
 
     def _assert_state(
         self,
-        result: ReplayResult | None,
+        result: Any,
         event_items: list[ReplayItem],
     ) -> tuple[bool, dict[str, Any]]:
         """Assert replayed state matches recorded state from events.
@@ -470,96 +339,8 @@ class UnifiedReplayOrchestrator:
         - Final equity (within tolerance for floating-point comparison)
         - Trade details (symbol, side, quantity match)
         - Position state (open/closed)
-
-        Parameters
-        ----------
-        result:
-            Replay result to validate.
-        event_items:
-            Events from the log for state derivation.
-
-        Returns
-        -------
-        tuple[bool, dict[str, Any]]:
-            (state_matches, state_diff)
         """
-        expected: dict[str, Any] = {"event_count": len(event_items)}
-        actual: dict[str, Any] = {"event_count": len(event_items) if result is not None else 0}
-        diff: dict[str, Any] = {}
-
-        if result is None:
-            if not event_items:
-                return True, {}
-            return False, {"error": "replay_result is None"}
-
-        # Trade count comparison
-        trade_events = [
-            i
-            for i in event_items
-            if i.event is not None and i.event.event_type in ("TRADE", "TRADE_APPLIED")
-        ]
-        expected["trade_count"] = len(trade_events)
-        actual["trade_count"] = result.session.total_trades
-
-        # Final equity comparison
-        expected_equity = self._derive_expected_equity(event_items)
-        actual_equity = (
-            float(result.session.equity_curve[-1][1]) if result.session.equity_curve else 0.0
-        )
-        expected["equity_final"] = expected_equity
-        actual["equity_final"] = actual_equity
-
-        # Trade details comparison
-        expected["trades"] = self._derive_expected_trades(event_items)
-        actual["trades"] = [
-            (t.symbol, str(t.side), t.quantity, str(t.entry_price))
-            for t in result.session.trades
-        ]
-
-        # Position state comparison
-        expected["has_open_position"] = self._derive_expected_position_state(event_items)
-        actual["has_open_position"] = result.session.position is not None
-
-        # Validate each field
-        matches = True
-
-        # Trade count must match exactly
-        if expected["trade_count"] != actual["trade_count"]:
-            matches = False
-            diff["trade_count"] = {
-                "expected": expected["trade_count"],
-                "actual": actual["trade_count"],
-            }
-
-        # Equity must match within tolerance (floating-point comparison)
-        equity_tolerance = 0.01  # 1 cent tolerance
-        if expected["equity_final"] is not None:
-            equity_diff = abs(expected["equity_final"] - actual["equity_final"])
-            if equity_diff > equity_tolerance:
-                matches = False
-                diff["equity_final"] = {
-                    "expected": expected["equity_final"],
-                    "actual": actual["equity_final"],
-                    "difference": equity_diff,
-                }
-
-        # Trade details must match (if we have expected trades)
-        if expected["trades"] and expected["trades"] != actual["trades"]:
-            matches = False
-            diff["trades"] = {
-                "expected": expected["trades"],
-                "actual": actual["trades"],
-            }
-
-        # Position state must match
-        if expected["has_open_position"] != actual["has_open_position"]:
-            matches = False
-            diff["has_open_position"] = {
-                "expected": expected["has_open_position"],
-                "actual": actual["has_open_position"],
-            }
-
-        return matches, diff
+        return self._state_assertor.assert_state(result, event_items)
 
     def _derive_expected_equity(
         self,
@@ -569,102 +350,18 @@ class UnifiedReplayOrchestrator:
         commission_per_trade: float = 20.0,
         slippage_bps: float = 5.0,
     ) -> float | None:
-        """Derive expected final equity including commissions/slippage (TOS-P6-006).
-
-        BUY debit / SELL credit from TRADE events, plus:
-        - commission_per_trade on each fill
-        - slippage_bps applied adversely to each fill price
-        Open positions marked at entry price (best available estimate).
-        """
-        trade_events = [
-            i for i in event_items
-            if i.event is not None and i.event.event_type in ("TRADE", "TRADE_APPLIED")
-        ]
-        if not trade_events:
-            return None
-
-        capital = initial_capital
-        position: tuple[float, int] | None = None  # (entry_price, quantity)
-        valid_trades = 0
-        slip = max(0.0, float(slippage_bps)) / 10_000.0
-
-        for item in trade_events:
-            payload = item.event.payload if hasattr(item.event, "payload") else {}
-            side = str(payload.get("side", "")).upper()
-            price = float(payload.get("price", payload.get("entry_price", 0)))
-            qty = int(payload.get("quantity", 0))
-
-            if price <= 0 or qty <= 0:
-                continue
-
-            valid_trades += 1
-            if side == "BUY":
-                px = price * (1.0 + slip)
-                if position is None:
-                    position = (px, qty)
-                else:
-                    # average up
-                    ep, q0 = position
-                    nq = q0 + qty
-                    position = (((ep * q0) + (px * qty)) / nq, nq)
-                capital -= px * qty
-                capital -= commission_per_trade
-            elif side == "SELL":
-                px = price * (1.0 - slip)
-                capital += px * qty
-                capital -= commission_per_trade
-                if position is not None:
-                    ep, q0 = position
-                    remain = q0 - qty
-                    position = None if remain <= 0 else (ep, remain)
-
-        if valid_trades == 0:
-            return None
-
-        if position is not None:
-            capital += position[0] * position[1]
-
-        return capital
+        """Derive expected final equity including commissions/slippage (TOS-P6-006)."""
+        return self._state_assertor.derive_expected_equity(
+            event_items,
+            initial_capital=initial_capital,
+            commission_per_trade=commission_per_trade,
+            slippage_bps=slippage_bps,
+        )
 
     def _derive_expected_trades(self, event_items: list[ReplayItem]) -> list[tuple]:
         """Derive expected trade list from TRADE/TRADE_APPLIED events."""
-        trades = []
-        for item in event_items:
-            if item.event is not None and item.event.event_type in ("TRADE", "TRADE_APPLIED"):
-                payload = item.event.payload if hasattr(item.event, "payload") else {}
-                symbol = item.event.symbol or payload.get("symbol", "UNKNOWN")
-                side = payload.get("side", "UNKNOWN")
-                quantity = payload.get("quantity", 0)
-                price = payload.get("price", payload.get("entry_price", 0))
-                trades.append((symbol, str(side), quantity, str(price)))
-        return trades
+        return self._state_assertor.derive_expected_trades(event_items)
 
     def _derive_expected_position_state(self, event_items: list[ReplayItem]) -> bool:
-        """Derive expected position state (has open position?) from events.
-
-        Tracks TRADE (open) and position-closing events to determine if
-        there should be an open position at the end of replay.
-        """
-        has_open = False
-        for item in event_items:
-            if item.event is None:
-                continue
-            event_type = item.event.event_type
-            if event_type in ("TRADE", "TRADE_APPLIED"):
-                payload = item.event.payload if hasattr(item.event, "payload") else {}
-                side = str(payload.get("side", "")).upper()
-                # BUY opens, SELL closes
-                if side == "BUY":
-                    has_open = True
-                elif side == "SELL":
-                    has_open = False
-            elif event_type == "POSITION_CLOSED":
-                has_open = False
-        return has_open
-
-
-__all__ = [
-    "ReplayItem",
-    "UnifiedReplayOrchestrator",
-    "UnifiedReplayResult",
-]
+        """Derive expected position state (has open position?) from events."""
+        return self._state_assertor.derive_expected_position_state(event_items)
