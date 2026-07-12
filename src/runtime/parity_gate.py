@@ -17,12 +17,17 @@ def assert_runtime_parity_or_raise() -> None:
     """Run parity verifiers; raise RuntimeError if checks fail.
 
     Skipped when ``SKIP_PARITY_GATE=1`` (local dev / tests).
+    LIVE environments (``TRADEX_ENV`` = ``production`` or ``staging``)
+    **must not** honour ``SKIP_PARITY_GATE`` — the gate always runs.
     """
-    if os.getenv("SKIP_PARITY_GATE", "0") == "1":
-        logger.debug("parity_gate: skipped (SKIP_PARITY_GATE=1)")
+    env = (os.getenv("TRADEX_ENV") or "development").strip().lower()
+    is_live_env = env in ("production", "staging")
+
+    if not is_live_env and os.getenv("SKIP_PARITY_GATE", "0") == "1":
+        logger.debug("parity_gate: skipped (SKIP_PARITY_GATE=1, env=%s)", env)
         return
 
-    if os.getenv("PYTEST_CURRENT_TEST"):
+    if not is_live_env and os.getenv("PYTEST_CURRENT_TEST"):
         return
 
     failures: list[str] = []
